@@ -110,3 +110,4 @@ supersession relationship when direction changes.
 | [0100](0100-paged-library-and-foreground-work-scheduling.md) | Accepted | Versioned keyset pages, a three-page sparse Studio model, one-item deterministic import dispatch, and the existing foreground lane bound 10,000-photo work without a second scheduler. |
 | [0101](0101-verified-backup-scheduling-and-stable-folder-relink.md) | Accepted | Schema v8 schedules verified retention without deleting unknown paths; schema v9 gives direct containing folders stable IDs and an identity-checked transactional relink. |
 | [0102](0102-planned-managed-import-workspace.md) | Accepted | One import workspace plans Add/Copy/Move, no-replace destinations, XMP companions, and background preview policies. |
+| [0103](0103-named-library-sets.md) | Accepted | Schema v10 persists manual membership collections and smart `LibraryQuery` sets with revision-checked mutations and paged listing. |

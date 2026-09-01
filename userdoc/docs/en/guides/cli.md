@@ -315,6 +315,18 @@ ravo catalog folder-relink --catalog "/work/Ravo Library.sqlite" \
 Relink is identity-checked and transactional; it does not search by a similar
 filename or write an original.
 
+Named collections persist in the catalog:
+
+```text
+ravo catalog sets --catalog "/work/Ravo Library.sqlite" --json
+ravo catalog set-create --catalog "/work/Ravo Library.sqlite" --name "Job" \
+  --asset-id <id> --json
+ravo catalog list --catalog "/work/Ravo Library.sqlite" --set-id <set-id> --json
+```
+
+A smart collection stores a versioned library query (`--kind smart --query`).
+Selecting a set is session state in Studio; the set itself survives reopen.
+
 ## Import files or directories
 
 ```text

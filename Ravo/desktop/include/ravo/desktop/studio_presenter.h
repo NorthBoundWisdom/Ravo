@@ -27,6 +27,7 @@
 
 #include "ravo/desktop/asset_list_model.h"
 #include "ravo/desktop/folder_list_model.h"
+#include "ravo/desktop/library_set_list_model.h"
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/domain/types.h"
@@ -235,8 +236,10 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
+    Q_PROPERTY(LibrarySetListModel *librarySets READ librarySets CONSTANT)
     Q_PROPERTY(QUrl selectedThumbnailUrl READ selectedThumbnailUrl NOTIFY thumbnailsChanged)
     Q_PROPERTY(QString selectedFolderUri READ selectedFolderUri NOTIFY folderChanged)
+    Q_PROPERTY(QString selectedLibrarySetId READ selectedLibrarySetId NOTIFY folderChanged)
     Q_PROPERTY(bool lastImportAvailable READ lastImportAvailable NOTIFY folderChanged)
     Q_PROPERTY(bool lastImportSelected READ lastImportSelected NOTIFY folderChanged)
     Q_PROPERTY(int lastImportCount READ lastImportCount NOTIFY folderChanged)
@@ -504,8 +507,10 @@ public:
     [[nodiscard]] bool cropGuideReady() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;
     [[nodiscard]] FolderListModel *folders() noexcept;
+    [[nodiscard]] LibrarySetListModel *librarySets() noexcept;
     [[nodiscard]] QUrl selectedThumbnailUrl() const;
     [[nodiscard]] QString selectedFolderUri() const;
+    [[nodiscard]] QString selectedLibrarySetId() const;
     [[nodiscard]] bool lastImportAvailable() const noexcept;
     [[nodiscard]] bool lastImportSelected() const noexcept;
     [[nodiscard]] int lastImportCount() const noexcept;
@@ -652,6 +657,13 @@ public:
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);
     Q_INVOKABLE void selectLastImport();
+    Q_INVOKABLE void selectLibrarySet(const QString &set_id);
+    Q_INVOKABLE void createManualLibrarySet(const QString &name);
+    Q_INVOKABLE void createSmartLibrarySet(const QString &name);
+    Q_INVOKABLE void renameLibrarySet(const QString &set_id, const QString &name);
+    Q_INVOKABLE void deleteLibrarySet(const QString &set_id);
+    Q_INVOKABLE void addSelectionToLibrarySet(const QString &set_id);
+    Q_INVOKABLE void removeSelectionFromLibrarySet(const QString &set_id);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
     Q_INVOKABLE void ensureLibraryRow(int row);
     Q_INVOKABLE void loadNextLibraryPage();
@@ -690,6 +702,7 @@ private:
                      std::unordered_map<std::string, QString> thumbnail_states = {},
                      std::size_t total = 0U, bool has_more = false);
     void applyFolders(std::vector<FolderRecord> folders);
+    void applyLibrarySets(std::vector<LibrarySetRecord> sets);
     void clearLastImportQuery();
     void requestPreviewForSelection();
     void reloadVisibleAssets();
@@ -807,6 +820,7 @@ private:
     std::int64_t observed_catalog_revision_ = -1;
     AssetListModel assets_;
     FolderListModel folders_;
+    LibrarySetListModel library_sets_;
     ImportCandidateListModel import_candidates_;
     LibraryQuery query_;
     QString catalog_path_;

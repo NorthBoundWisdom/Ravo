@@ -1,6 +1,6 @@
 # Professional Workflow Gap TODO
 
-> **Status: ranked; none independently ready**
+> **Status: ranked; PW0 accepted; remaining ranks not independently ready**
 >
 > **Updated: 2026-09-01**
 
@@ -44,8 +44,9 @@ often assume is missing:
   (ADR-0078/0086/0098);
 - Add/Copy/Move ingest with conflict preflight and `YYYY/MM/DD` or preserved
   hierarchy (ADR-0102);
-- ratings, color labels, reject, folder tree, tags, title/creator/copyright,
-  and validated `LibraryQuery` filters (ADR-0059);
+- ratings, color labels, reject, folder tree, named manual/smart collections,
+  tags, title/creator/copyright, and validated `LibraryQuery` filters
+  (ADR-0059/0103);
 - scene-referred Light/Curves/Color Mixer/Color Balance RGB/Calibration stack,
   tone equalizer, lens, denoise, retouch, perspective, crop, soft proof, and a
   bounded mask graph (gradient/circle/ellipse/parametric/path/brush/groups);
@@ -61,7 +62,6 @@ Develop.”
 
 | Rank | User outcome | Why it is obvious versus Lightroom/Capture One | Contract owner | Readiness |
 | --- | --- | --- | --- | --- |
-| **PW0 — named library sets** | Persist collections and smart collections that survive reopen | Jobs are organized as sets, not only source folders. Ravo has folders, tags, and a session `LibraryQuery` with no named saved set | ProductRoadmap “Extended library workflows”; ADR-0059 forbids recent-filter history, not a future named-set contract | Blocked |
 | **PW1 — versions, stacks, and N-up cull** | Virtual copies/variants, RAW+JPEG or burst stacks, and compare/survey of several photos | Culling is half of a professional day. Ravo rates/rejects one grid and compares Before/After of the *same* photo | ProductRoadmap stacking/versions; schema is one recipe per asset | Blocked |
 | **PW2 — shoot ingest** | Card/camera ingest, rename templates, second-copy backup, HEIC/HEIF | First hour of a shoot. ADR-0102 explicitly left PTP/MTP, rename, second copy, DNG conversion, and Smart Previews out; HEIC/video have no product contract | ProductRoadmap ingest/format expansion | Blocked |
 | **PW3 — metadata depth** | Hierarchical keywords, IPTC/location write, camera/lens/date facets | Client delivery and stock workflows. Ravo writes three catalog fields and flat tags; capture Exif is read-only; GPS writeback is unsupported | ProductRoadmap metadata; ADR-0064/S9 | Blocked |
@@ -77,30 +77,8 @@ gaps that already have owners: do not duplicate them here.
 
 ## 4. Rank details
 
-### PW0 — named library sets
-
-**Current fact.** Studio lists All Photographs, source folders derived from
-imported URIs, a session-only Last Imported Photos group, tags, and an
-in-memory `LibraryQuery`. Closing the catalog discards the query (ADR-0059).
-
-**Missing contract.** Named collections (explicit asset membership) and smart
-collections (persisted, re-evaluated `LibraryQuery`) need identity, catalog
-revision, deletion, empty-set, and paging behavior. Do not persist “recent
-filters” as a compatibility history.
-
-**Dependencies.** Schema beyond v9; sparse three-page model in ADR-0100 must
-keep memory bounds.
-
-**Risk.** Treating folders as collections, or QML-owned set state, forks the
-library model.
-
-**Validation.** Domain/service tests for create/rename/delete, membership
-mutation, smart-query reopen equality, invalid query rejection, paging bounds,
-and catalog backup/restore of the new rows. Studio/CLI list the same set.
-
-**Acceptance gate.** A named set survives close/reopen, appears in Studio and
-`ravo catalog`, rejects stale revisions, and does not materialize the whole
-catalog.
+PW0 named library sets are accepted under ADR-0103 (schema v10). Durable facts
+live in README/ARCHITECTURE/TESTING, not here.
 
 ### PW1 — versions, stacks, and N-up cull
 
@@ -303,7 +281,7 @@ remain untested until those hosts run. Do not describe a skip as a pass.
 
 ## 6. Do not do
 
-- Do not start PW0–PW9 while `TODO_PHOTO_MANAGEMENT.md` release evidence is
+- Do not start PW1–PW9 while `TODO_PHOTO_MANAGEMENT.md` release evidence is
   the active repository-wide gate, unless that gate names the owner as a hard
   dependency.
 - Do not add empty Collections/Map/Print/Tether panes.

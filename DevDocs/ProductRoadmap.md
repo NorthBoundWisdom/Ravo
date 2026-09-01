@@ -66,13 +66,14 @@ than entering a generic export rewrite.
 
 ## Extended library workflows
 
-Collections and smart search, stacking/versions/virtual copies, N-up
+Named manual collections and smart `LibraryQuery` sets are accepted
+(ADR-0103). Still undecided: stacking/versions/virtual copies, N-up
 compare/survey, duplicate-content detection, hierarchical keywords and IPTC
 depth, face/GPS workflows, selection-wide Develop sync, dual-monitor viewers,
-and removable or network catalogs each require explicit privacy, indexing,
-offline/conflict, persistence, cancellation, and recovery contracts. Do not add
-placeholder tables or empty Studio surfaces. ADR-0059 session filters are not a
-smart-collection substitute.
+and removable or network catalogs. Each remaining topic requires explicit
+privacy, indexing, offline/conflict, persistence, cancellation, and recovery
+contracts. Do not add placeholder tables or empty Studio surfaces. ADR-0059
+session filters are not a smart-collection substitute.
 
 ## Non-candidates
 

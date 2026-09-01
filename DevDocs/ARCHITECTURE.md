@@ -297,9 +297,12 @@ preview/cache state. Schema v7 adds adapter-private display/folder projections
 and the accepted page/filter/sort indexes; changing only those derived fields
 does not advance recovery. Schema v8 owns the catalog backup policy and its
 last-success/next-run/bytes/failure observations. Schema v9 owns stable direct-
-containing-folder IDs and binds each asset to one of them. New catalogs and
+containing-folder IDs and binds each asset to one of them. Schema v10 owns named
+manual membership collections and smart `LibraryQuery` documents, revision-
+checked mutations, and paged listing that never materializes a whole set
+(ADR-0103). New catalogs and
 migrations use transactions, and an unknown higher schema version fails fast
-(ADR-0100/0101).
+(ADR-0100/0101/0103).
 
 The repository adapter atomically publishes the current recipe row (or baseline
 clearing), optional deletion of history rows newer than a cursor, automatic

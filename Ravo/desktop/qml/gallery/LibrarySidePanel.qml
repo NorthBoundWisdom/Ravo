@@ -520,6 +520,146 @@ Rectangle {
             }
         }
 
+        ColumnLayout {
+            id: librarySetsPanel
+            objectName: "librarySetsPanel"
+            Layout.fillWidth: true
+            Layout.leftMargin: Fonts.size8
+            Layout.rightMargin: Fonts.size8
+            Layout.bottomMargin: Fonts.size8
+            spacing: Fonts.size6
+            visible: !root.developOpen && root.presenter && root.presenter.catalogOpen
+
+            CustomLabel {
+                text: qsTr("Collections")
+                font.bold: true
+            }
+
+            CustomTextField {
+                id: newSetNameField
+                objectName: "newSetNameField"
+                Layout.fillWidth: true
+                Layout.preferredHeight: Fonts.inputFieldHeight
+                Layout.maximumHeight: Fonts.inputFieldHeight
+                showEmptyIndicator: false
+                showClipIndicator: false
+                alignRightWhenFocused: false
+                leftPadding: Fonts.size6
+                rightPadding: Fonts.size6
+                placeholderText: qsTr("Collection name")
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Fonts.size6
+                CustomButton {
+                    objectName: "createManualSetButton"
+                    Layout.fillWidth: true
+                    text: qsTr("Collection")
+                    onClicked: if (root.commands) {
+                        const name = newSetNameField.text.trim().length > 0 ? newSetNameField.text.trim() : qsTr("Collection")
+                        root.commands.run(root.commands.ids.libraryCreateManualSet, name)
+                    }
+                }
+                CustomButton {
+                    objectName: "createSmartSetButton"
+                    Layout.fillWidth: true
+                    text: qsTr("Smart")
+                    onClicked: if (root.commands) {
+                        const name = newSetNameField.text.trim().length > 0 ? newSetNameField.text.trim() : qsTr("Smart Collection")
+                        root.commands.run(root.commands.ids.libraryCreateSmartSet, name)
+                    }
+                }
+            }
+
+            ListView {
+                id: librarySetList
+                objectName: "librarySetList"
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(contentHeight, Fonts.listItemHeight * 6)
+                clip: true
+                spacing: 0
+                boundsBehavior: Flickable.StopAtBounds
+                model: root.presenter ? root.presenter.librarySets : null
+
+                delegate: Item {
+                    id: setRow
+                    required property string setId
+                    required property string kind
+                    required property string name
+                    required property int assetCount
+                    required property bool selected
+                    required property int index
+                    width: ListView.view.width
+                    height: Fonts.listItemHeight
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: setRow.selected ? Theme.buttonHoveredColor : setMouse.containsMouse ? Theme.buttonHoveredColor : setRow.index % 2 === 0 ? Theme.alternateBaseColor : Theme.railSurfaceColor
+                        border.color: setRow.selected ? Theme.highlightColor : Theme.dividerColor
+                        border.width: setRow.selected ? ControlState.borderFocus : ControlState.borderThin
+                        radius: ControlState.radiusSmall
+                    }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Fonts.size8
+                        anchors.rightMargin: Fonts.size8
+                        spacing: Fonts.size8
+                        CustomLabel {
+                            text: setRow.kind === "smart" ? "◎" : "◻"
+                            color: Theme.highlightColor
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: setRow.name
+                            font.bold: setRow.selected
+                            elide: Text.ElideRight
+                        }
+                        CustomLabel {
+                            text: String(setRow.assetCount)
+                            color: Theme.placeholderTextColor
+                        }
+                    }
+
+                    MouseArea {
+                        id: setMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: function (mouse) {
+                            if (!root.commands)
+                                return
+                            if (mouse.button === Qt.RightButton) {
+                                setMenu.popup()
+                                return
+                            }
+                            root.commands.run(root.commands.ids.librarySelectSet, setRow.setId)
+                        }
+                    }
+
+                    Menu {
+                        id: setMenu
+                        Action {
+                            text: qsTr("Add selected photos")
+                            enabled: root.presenter && root.presenter.selectedCount > 0 && setRow.kind === "manual"
+                            onTriggered: root.commands.run(root.commands.ids.libraryAddSelectionToSet, setRow.setId)
+                        }
+                        Action {
+                            text: qsTr("Remove selected photos")
+                            enabled: root.presenter && root.presenter.selectedCount > 0 && setRow.kind === "manual"
+                            onTriggered: root.commands.run(root.commands.ids.libraryRemoveSelectionFromSet, setRow.setId)
+                        }
+                        Action {
+                            text: qsTr("Delete collection")
+                            onTriggered: root.commands.run(root.commands.ids.libraryDeleteSet, setRow.setId)
+                        }
+                    }
+                }
+            }
+        }
+
         ListView {
             id: folderList
             Layout.fillWidth: true
@@ -557,7 +697,7 @@ Rectangle {
                 Rectangle {
                     anchors.fill: parent
                     color: {
-                        if (root.presenter && !root.presenter.lastImportSelected && folderRow.folderUri === root.presenter.selectedFolderUri)
+                        if (root.presenter && !root.presenter.lastImportSelected && root.presenter.selectedLibrarySetId.length === 0 && folderRow.folderUri === root.presenter.selectedFolderUri)
                             return Theme.buttonHoveredColor;
                         if (folderMouse.containsMouse)
                             return Theme.buttonHoveredColor;

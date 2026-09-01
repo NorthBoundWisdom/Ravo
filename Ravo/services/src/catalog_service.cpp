@@ -262,6 +262,26 @@ Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery 
     {
         return valid_query.error();
     }
+    if (!query.collection_id.empty())
+    {
+        std::vector<AssetRecord> assets;
+        LibraryPageRequest page_request;
+        page_request.query = query;
+        page_request.limit = kLibraryPageMaximumSize;
+        while (true)
+        {
+            auto page = list_assets_page(page_request);
+            if (!page)
+                return page.error();
+            assets.insert(assets.end(), page.value().assets.begin(), page.value().assets.end());
+            if (!page.value().has_more || page.value().assets.empty())
+                break;
+            page_request.offset += page.value().assets.size();
+            page_request.known_total = page.value().total;
+            page_request.after_asset_id = page.value().assets.back().id;
+        }
+        return assets;
+    }
     auto listed = repository_->list_assets();
     if (!listed)
     {
@@ -277,7 +297,96 @@ Result<LibraryPage> CatalogService::list_assets_page(const LibraryPageRequest &r
     auto valid = validate_library_page_request(request);
     if (!valid)
         return valid.error();
-    return repository_->list_assets_page(request);
+    LibraryPageRequest expanded = request;
+    if (!request.query.collection_id.empty())
+    {
+        auto set = repository_->find_library_set(request.query.collection_id);
+        if (!set)
+            return set.error();
+        if (!set.value())
+        {
+            return make_error(ErrorCode::kNotFound, "Library set was not found",
+                              {{"set_id", request.query.collection_id},
+                               {"reason", "unknown_library_set"}});
+        }
+        if (set.value()->kind == LibrarySetKind::kSmart)
+        {
+            if (!set.value()->query)
+            {
+                return make_error(ErrorCode::kValidation, "A smart library set requires a query",
+                                  {{"reason", "invalid_library_set_query"}});
+            }
+            LibraryQuery session = request.query;
+            session.collection_id.clear();
+            expanded.query = *set.value()->query;
+            expanded.query.sort_field = request.query.sort_field;
+            expanded.query.sort_direction = request.query.sort_direction;
+            expanded.additional_query = std::move(session);
+            auto extra_valid = validate_library_page_request(expanded);
+            if (!extra_valid)
+                return extra_valid.error();
+        }
+    }
+    return repository_->list_assets_page(expanded);
+}
+
+Result<std::vector<LibrarySetRecord>> CatalogService::list_library_sets() const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->list_library_sets();
+}
+
+Result<std::optional<LibrarySetRecord>>
+CatalogService::find_library_set(const std::string_view set_id) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->find_library_set(set_id);
+}
+
+Result<LibrarySetMutation> CatalogService::create_library_set(
+    const LibrarySetKind kind, const std::string_view name, const std::optional<LibraryQuery> &query,
+    const std::vector<std::string> &asset_ids, const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->create_library_set(kind, name, query, asset_ids, expected_revision);
+}
+
+Result<LibrarySetMutation> CatalogService::rename_library_set(
+    const std::string_view set_id, const std::string_view name,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->rename_library_set(set_id, name, expected_revision);
+}
+
+Result<std::int64_t> CatalogService::delete_library_set(
+    const std::string_view set_id, const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->delete_library_set(set_id, expected_revision);
+}
+
+Result<LibrarySetMutation> CatalogService::add_library_set_members(
+    const std::string_view set_id, const std::vector<std::string> &asset_ids,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->add_library_set_members(set_id, asset_ids, expected_revision);
+}
+
+Result<LibrarySetMutation> CatalogService::remove_library_set_members(
+    const std::string_view set_id, const std::vector<std::string> &asset_ids,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->remove_library_set_members(set_id, asset_ids, expected_revision);
 }
 
 Result<std::vector<PreviewRecord>> CatalogService::list_previews() const

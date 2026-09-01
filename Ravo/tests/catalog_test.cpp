@@ -294,6 +294,99 @@ TEST_F(CatalogServiceTest, CreateReopenAndRejectNewerSchema)
     EXPECT_EQ(newer.error().code, ErrorCode::kUnsupported);
 }
 
+TEST_F(CatalogServiceTest, NamedLibrarySetsPersistMembershipSmartQueryAndRejectStaleRevision)
+{
+    ASSERT_TRUE(open_service(true));
+    QImage image(12, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(20, 80, 140));
+    const auto first_path = root / "one.jpg";
+    const auto second_path = root / "two.jpg";
+    ASSERT_TRUE(image.save(QString::fromStdString(first_path.string()), "JPEG", 90));
+    image.fill(QColor(140, 80, 20));
+    ASSERT_TRUE(image.save(QString::fromStdString(second_path.string()), "JPEG", 90));
+    auto first = service->import_one(first_path.string(), CancellationToken{});
+    auto second = service->import_one(second_path.string(), CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(second) << second.error().message;
+    const auto first_id = first.value().asset->id;
+    const auto second_id = second.value().asset->id;
+    ASSERT_TRUE(service->set_rating(first_id, 5));
+    ASSERT_TRUE(service->set_rating(second_id, 2));
+
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot);
+    auto created = service->create_library_set(LibrarySetKind::kManual, " Job One ", std::nullopt,
+                                               {first_id}, snapshot.value().revision);
+    ASSERT_TRUE(created) << created.error().message;
+    EXPECT_EQ(created.value().set.name, "Job One");
+    EXPECT_EQ(created.value().set.asset_count, 1U);
+
+    auto stale = service->create_library_set(LibrarySetKind::kManual, "Stale", std::nullopt, {},
+                                             snapshot.value().revision);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(stale.error().context.at("reason"), "stale_catalog_revision");
+
+    LibraryQuery smart_query;
+    smart_query.rating_mode = RatingFilterMode::kExact;
+    smart_query.rating_value = 5;
+    auto smart = service->create_library_set(LibrarySetKind::kSmart, "Five stars", smart_query, {});
+    ASSERT_TRUE(smart) << smart.error().message;
+    EXPECT_EQ(smart.value().set.asset_count, 1U);
+
+    LibraryQuery listed_query;
+    listed_query.collection_id = created.value().set.id;
+    auto members = service->list_assets(listed_query);
+    ASSERT_TRUE(members) << members.error().message;
+    ASSERT_EQ(members.value().size(), 1U);
+    EXPECT_EQ(members.value().front().id, first_id);
+
+    ASSERT_TRUE(service->add_library_set_members(created.value().set.id, {second_id}));
+    listed_query = {};
+    listed_query.collection_id = created.value().set.id;
+    members = service->list_assets(listed_query);
+    ASSERT_TRUE(members);
+    EXPECT_EQ(members.value().size(), 2U);
+
+    listed_query = {};
+    listed_query.collection_id = smart.value().set.id;
+    auto smart_members = service->list_assets(listed_query);
+    ASSERT_TRUE(smart_members) << smart_members.error().message;
+    ASSERT_EQ(smart_members.value().size(), 1U);
+    EXPECT_EQ(smart_members.value().front().id, first_id);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto reopened = service->list_library_sets();
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    ASSERT_EQ(reopened.value().size(), 2U);
+    EXPECT_EQ(reopened.value().front().name, "Five stars");
+    EXPECT_EQ(reopened.value().back().name, "Job One");
+    EXPECT_EQ(reopened.value().back().asset_count, 2U);
+
+    const auto backup_path = root / "sets-backup";
+    auto backup = service->create_backup(backup_path.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+    auto backup_recovery =
+        FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
+    ASSERT_TRUE(backup_recovery);
+    const SqliteCatalogBackupVerifier verifier;
+    const auto restored_path = (root / "sets-restored.sqlite").string();
+    CatalogRestoreRequest request;
+    request.backup_directory = backup_path.string();
+    request.destination_catalog = restored_path;
+    auto restored =
+        restore_catalog_backup(verifier, verifier, *backup_recovery.value(), request);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto restored_repo = SqliteCatalogRepository::open(restored_path);
+    ASSERT_TRUE(restored_repo) << restored_repo.error().message;
+    auto restored_sets = restored_repo.value()->list_library_sets();
+    ASSERT_TRUE(restored_sets) << restored_sets.error().message;
+    ASSERT_EQ(restored_sets.value().size(), 2U);
+}
+
 TEST(CatalogSchemaMigrationTest, FolderIdentityMigrationRollsBackAndThenAssignsStableIds)
 {
     const auto root = make_temp_root();

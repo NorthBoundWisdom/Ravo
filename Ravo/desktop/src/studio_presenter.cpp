@@ -47,6 +47,7 @@ struct CatalogListing
     Result<std::vector<AssetRecord>> assets =
         make_error(ErrorCode::kIo, "Catalog session is closed");
     Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+    Result<std::vector<LibrarySetRecord>> library_sets = std::vector<LibrarySetRecord>{};
     std::unordered_map<std::string, QUrl> thumbnail_urls;
     std::unordered_map<std::string, QString> thumbnail_states;
     std::int64_t revision = -1;
@@ -133,6 +134,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
         listing.assets = page.error();
     }
     listing.folders = service->list_folders();
+    listing.library_sets = service->list_library_sets();
     fill_thumbnail_maps(*service, listing);
     return listing;
 }
@@ -143,6 +145,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
     : QObject(parent)
     , assets_(this)
     , folders_(this)
+    , library_sets_(this)
     , import_candidates_(this)
 {
     catalog_revision_timer_ = new QTimer(this);
@@ -211,6 +214,11 @@ AssetListModel *StudioPresenter::assets() noexcept
 FolderListModel *StudioPresenter::folders() noexcept
 {
     return &folders_;
+}
+
+LibrarySetListModel *StudioPresenter::librarySets() noexcept
+{
+    return &library_sets_;
 }
 
 Result<std::unique_ptr<CatalogService>>
@@ -631,6 +639,11 @@ QUrl StudioPresenter::selectedThumbnailUrl() const
     return assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
 }
 
+QString StudioPresenter::selectedLibrarySetId() const
+{
+    return qstring_from_utf8(query_.collection_id);
+}
+
 QString StudioPresenter::selectedFolderUri() const
 {
     return qstring_from_utf8(query_.folder_uri);
@@ -918,6 +931,12 @@ void StudioPresenter::applyFolders(std::vector<FolderRecord> folders)
     emit folderChanged();
 }
 
+void StudioPresenter::applyLibrarySets(std::vector<LibrarySetRecord> sets)
+{
+    library_sets_.setSets(std::move(sets), query_.collection_id);
+    emit folderChanged();
+}
+
 void StudioPresenter::clearLastImportQuery()
 {
     query_.imported_after_unix_ms.reset();
@@ -931,7 +950,9 @@ void StudioPresenter::selectFolder(const QString &folder_uri)
     const bool leaving_last_import = last_import_selected_;
     if (leaving_last_import)
         clearLastImportQuery();
-    if (query_.folder_uri == next && !leaving_last_import)
+    const bool leaving_set = !query_.collection_id.empty();
+    query_.collection_id.clear();
+    if (query_.folder_uri == next && !leaving_last_import && !leaving_set)
     {
         return;
     }
@@ -945,11 +966,226 @@ void StudioPresenter::selectLastImport()
     if (!lastImportAvailable() || last_import_selected_)
         return;
     query_.folder_uri.clear();
+    query_.collection_id.clear();
     query_.imported_after_unix_ms = last_import_after_unix_ms_;
     query_.imported_before_unix_ms = last_import_before_unix_ms_;
     last_import_selected_ = true;
     emit folderChanged();
     reloadVisibleAssets();
+}
+
+void StudioPresenter::selectLibrarySet(const QString &set_id)
+{
+    const auto next = utf8_from_qstring(set_id);
+    if (last_import_selected_)
+        clearLastImportQuery();
+    if (query_.collection_id == next && query_.folder_uri.empty())
+        return;
+    query_.folder_uri.clear();
+    query_.collection_id = next;
+    emit folderChanged();
+    reloadVisibleAssets();
+}
+
+void StudioPresenter::createManualLibrarySet(const QString &name)
+{
+    if (catalog_path_.isEmpty())
+        return;
+    const auto ids = selected_asset_ids();
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, name = utf8_from_qstring(name), ids, revision]()
+        {
+            Result<LibrarySetMutation> created =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                created = service_->create_library_set(LibrarySetKind::kManual, name, std::nullopt,
+                                                       ids, revision);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, created = std::move(created)]() mutable
+                {
+                    if (!created)
+                    {
+                        setError(qstring_from_utf8(created.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = created.value().revision;
+                    query_.folder_uri.clear();
+                    if (last_import_selected_)
+                        clearLastImportQuery();
+                    query_.collection_id = created.value().set.id;
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Collection created."));
+                    emit folderChanged();
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::createSmartLibrarySet(const QString &name)
+{
+    if (catalog_path_.isEmpty())
+        return;
+    LibraryQuery stored = query_;
+    stored.collection_id.clear();
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, name = utf8_from_qstring(name), stored, revision]()
+        {
+            Result<LibrarySetMutation> created =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                created = service_->create_library_set(LibrarySetKind::kSmart, name, stored, {},
+                                                       revision);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, created = std::move(created)]() mutable
+                {
+                    if (!created)
+                    {
+                        setError(qstring_from_utf8(created.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = created.value().revision;
+                    query_.folder_uri.clear();
+                    if (last_import_selected_)
+                        clearLastImportQuery();
+                    query_.collection_id = created.value().set.id;
+                    setStatus(QCoreApplication::translate("StudioPresenter",
+                                                          "Smart collection created."));
+                    emit folderChanged();
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::renameLibrarySet(const QString &set_id, const QString &name)
+{
+    if (catalog_path_.isEmpty())
+        return;
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, set_id = utf8_from_qstring(set_id), name = utf8_from_qstring(name), revision]()
+        {
+            Result<LibrarySetMutation> renamed =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                renamed = service_->rename_library_set(set_id, name, revision);
+            QMetaObject::invokeMethod(
+                this,
+                [this, renamed = std::move(renamed)]() mutable
+                {
+                    if (!renamed)
+                    {
+                        setError(qstring_from_utf8(renamed.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = renamed.value().revision;
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Collection renamed."));
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::deleteLibrarySet(const QString &set_id)
+{
+    if (catalog_path_.isEmpty())
+        return;
+    const auto id = utf8_from_qstring(set_id);
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, id, revision]()
+        {
+            Result<std::int64_t> deleted = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                deleted = service_->delete_library_set(id, revision);
+            QMetaObject::invokeMethod(
+                this,
+                [this, id, deleted = std::move(deleted)]() mutable
+                {
+                    if (!deleted)
+                    {
+                        setError(qstring_from_utf8(deleted.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = deleted.value();
+                    if (query_.collection_id == id)
+                        query_.collection_id.clear();
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Collection deleted."));
+                    emit folderChanged();
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::addSelectionToLibrarySet(const QString &set_id)
+{
+    if (catalog_path_.isEmpty() || selected_ids_.empty())
+        return;
+    const auto ids = selected_asset_ids();
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, set_id = utf8_from_qstring(set_id), ids, revision]()
+        {
+            Result<LibrarySetMutation> mutated =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                mutated = service_->add_library_set_members(set_id, ids, revision);
+            QMetaObject::invokeMethod(
+                this,
+                [this, mutated = std::move(mutated)]() mutable
+                {
+                    if (!mutated)
+                    {
+                        setError(qstring_from_utf8(mutated.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = mutated.value().revision;
+                    setStatus(QCoreApplication::translate("StudioPresenter",
+                                                          "Added photos to collection."));
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::removeSelectionFromLibrarySet(const QString &set_id)
+{
+    if (catalog_path_.isEmpty() || selected_ids_.empty())
+        return;
+    const auto ids = selected_asset_ids();
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, set_id = utf8_from_qstring(set_id), ids, revision]()
+        {
+            Result<LibrarySetMutation> mutated =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                mutated = service_->remove_library_set_members(set_id, ids, revision);
+            QMetaObject::invokeMethod(
+                this,
+                [this, mutated = std::move(mutated)]() mutable
+                {
+                    if (!mutated)
+                    {
+                        setError(qstring_from_utf8(mutated.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = mutated.value().revision;
+                    setStatus(QCoreApplication::translate("StudioPresenter",
+                                                          "Removed photos from collection."));
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::reloadVisibleAssets()
@@ -978,7 +1214,13 @@ void StudioPresenter::reloadVisibleAssets()
                         setError(qstring_from_utf8(listing.folders.error().message));
                         return;
                     }
+                    if (!listing.library_sets)
+                    {
+                        setError(qstring_from_utf8(listing.library_sets.error().message));
+                        return;
+                    }
                     applyFolders(std::move(listing.folders).value());
+                    applyLibrarySets(std::move(listing.library_sets).value());
                     applyAssets(
                         std::move(listing.assets).value(), true, std::move(listing.thumbnail_urls),
                         std::move(listing.thumbnail_states), listing.total, listing.has_more);
@@ -2596,6 +2838,7 @@ void StudioPresenter::remove_selected_from_catalog()
             Result<std::vector<AssetRecord>> listed =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            Result<std::vector<LibrarySetRecord>> sets = std::vector<LibrarySetRecord>{};
             if (service_ != nullptr)
             {
                 removed = Result<void>{};
@@ -2611,12 +2854,14 @@ void StudioPresenter::remove_selected_from_catalog()
                 {
                     listed = service_->list_assets(current_query());
                     folders = service_->list_folders();
+                    sets = service_->list_library_sets();
                 }
             }
             QMetaObject::invokeMethod(
                 this,
                 [this, removed = std::move(removed), listed = std::move(listed),
-                 folders = std::move(folders), keep_index, count]() mutable
+                 folders = std::move(folders), sets = std::move(sets), keep_index,
+                 count]() mutable
                 {
                     if (!removed)
                     {
@@ -2633,7 +2878,13 @@ void StudioPresenter::remove_selected_from_catalog()
                         setError(qstring_from_utf8(folders.error().message));
                         return;
                     }
+                    if (!sets)
+                    {
+                        setError(qstring_from_utf8(sets.error().message));
+                        return;
+                    }
                     applyFolders(std::move(folders).value());
+                    applyLibrarySets(std::move(sets).value());
                     const auto total = listed.value().size();
                     applyAssets(std::move(listed).value(), false, {}, {}, total, false);
                     if (assets_.rowCount() == 0)
@@ -2682,6 +2933,7 @@ void StudioPresenter::remove_selected_from_disk()
             Result<std::vector<AssetRecord>> listed =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            Result<std::vector<LibrarySetRecord>> sets = std::vector<LibrarySetRecord>{};
             if (service_ != nullptr)
             {
                 removed = Result<void>{};
@@ -2697,12 +2949,14 @@ void StudioPresenter::remove_selected_from_disk()
                 {
                     listed = service_->list_assets(current_query());
                     folders = service_->list_folders();
+                    sets = service_->list_library_sets();
                 }
             }
             QMetaObject::invokeMethod(
                 this,
                 [this, removed = std::move(removed), listed = std::move(listed),
-                 folders = std::move(folders), keep_index, count]() mutable
+                 folders = std::move(folders), sets = std::move(sets), keep_index,
+                 count]() mutable
                 {
                     if (!removed)
                     {
@@ -2719,7 +2973,13 @@ void StudioPresenter::remove_selected_from_disk()
                         setError(qstring_from_utf8(folders.error().message));
                         return;
                     }
+                    if (!sets)
+                    {
+                        setError(qstring_from_utf8(sets.error().message));
+                        return;
+                    }
                     applyFolders(std::move(folders).value());
+                    applyLibrarySets(std::move(sets).value());
                     const auto total = listed.value().size();
                     applyAssets(std::move(listed).value(), false, {}, {}, total, false);
                     if (assets_.rowCount() == 0)

@@ -16,7 +16,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 9;
+inline constexpr std::int64_t kCatalogSchemaVersion = 10;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 1;
@@ -69,6 +69,11 @@ inline constexpr std::size_t kExportFilenameTemplateMaxBytes = 512U;
 inline constexpr std::size_t kExportFilenameMaxBytes = 240U;
 inline constexpr std::size_t kLibraryPageDefaultSize = 200U;
 inline constexpr std::size_t kLibraryPageMaximumSize = 512U;
+inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 1;
+inline constexpr std::size_t kLibrarySetNameMaxLength = 128;
+inline constexpr std::size_t kLibrarySetMaximumCount = 1'000U;
+inline constexpr std::string_view kLibrarySetKindManual = "manual";
+inline constexpr std::string_view kLibrarySetKindSmart = "smart";
 inline constexpr std::size_t kImportBatchMaximumAssets = 100'000U;
 inline constexpr std::int64_t kBackupScheduleIntervalMinutesMin = 15;
 inline constexpr std::int64_t kBackupScheduleIntervalMinutesMax = 365 * 24 * 60;
@@ -331,6 +336,7 @@ struct LibraryQuery
     std::optional<std::int64_t> imported_before_unix_ms;
     std::optional<std::int64_t> captured_after_unix_s;
     std::optional<std::int64_t> captured_before_unix_s;
+    std::string collection_id;
 
     [[nodiscard]] bool operator==(const LibraryQuery &) const noexcept = default;
 };
@@ -338,10 +344,34 @@ struct LibraryQuery
 struct LibraryPageRequest
 {
     LibraryQuery query;
+    std::optional<LibraryQuery> additional_query;
     std::size_t offset = 0U;
     std::size_t limit = kLibraryPageDefaultSize;
     std::optional<std::string> after_asset_id;
     std::optional<std::size_t> known_total;
+};
+
+enum class LibrarySetKind : std::uint8_t
+{
+    kManual = 0,
+    kSmart = 1,
+};
+
+struct LibrarySetRecord
+{
+    std::string id;
+    LibrarySetKind kind = LibrarySetKind::kManual;
+    std::string name;
+    std::optional<LibraryQuery> query;
+    std::int64_t created_unix_ms = 0;
+    std::int64_t updated_unix_ms = 0;
+    std::size_t asset_count = 0U;
+};
+
+struct LibrarySetMutation
+{
+    LibrarySetRecord set;
+    std::int64_t revision = 0;
 };
 
 struct CaptureDateTime
@@ -856,6 +886,7 @@ struct FileIdentity
 [[nodiscard]] std::string generate_catalog_id();
 [[nodiscard]] std::string generate_asset_id();
 [[nodiscard]] std::string generate_folder_id();
+[[nodiscard]] std::string generate_library_set_id();
 [[nodiscard]] std::string_view catalog_restore_stage_name(CatalogRestoreStage stage) noexcept;
 [[nodiscard]] std::string make_content_fingerprint(const FileIdentity &identity);
 [[nodiscard]] std::string make_preview_cache_key(std::string_view asset_id, std::uint32_t width,
@@ -926,6 +957,12 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata);
 [[nodiscard]] bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query);
 [[nodiscard]] Result<void> validate_library_query(const LibraryQuery &query);
 [[nodiscard]] Result<void> validate_library_page_request(const LibraryPageRequest &request);
+[[nodiscard]] Result<std::string> normalize_library_set_name(std::string_view name);
+[[nodiscard]] std::string_view library_set_kind_name(LibrarySetKind kind) noexcept;
+[[nodiscard]] Result<LibrarySetKind> parse_library_set_kind(std::string_view name);
+[[nodiscard]] Result<std::string> serialize_library_query_document(const LibraryQuery &query);
+[[nodiscard]] Result<LibraryQuery> parse_library_query_document(std::string_view json);
+[[nodiscard]] Result<void> validate_library_set_record(const LibrarySetRecord &set);
 [[nodiscard]] std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,
                                                               const LibraryQuery &query);
 [[nodiscard]] bool asset_in_folder(const AssetRecord &asset, std::string_view folder_uri) noexcept;

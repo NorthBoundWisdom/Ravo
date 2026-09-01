@@ -64,6 +64,8 @@ catalog and is not migrated in place.
 The left **Library** panel contains:
 
 - **All Photographs**, which shows every asset in the catalog.
+- **Collections**, which persist named manual membership sets and smart
+  saved-filter sets in the catalog.
 - A collapsible tree of source folders represented by imported assets.
 - A count beside each folder.
 - A tag filter field.
@@ -72,6 +74,12 @@ The left **Library** panel contains:
 Click a folder to limit the center view. Click its disclosure marker to collapse
 or expand child folders. Folder selection works together with rating, color,
 reject, and tag filters.
+
+Create a **Collection** from the current selection, or a **Smart** collection
+from the current filters. Selecting a collection is session state and is
+discarded when the catalog closes; the set itself survives reopen. Deleting a
+collection does not delete photos. The CLI exposes the same sets through
+`ravo catalog sets` and related commands.
 
 ## Filter and sort the library
 

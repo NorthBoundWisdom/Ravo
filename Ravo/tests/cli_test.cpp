@@ -3878,6 +3878,64 @@ TEST_F(CliTest, CatalogFoldersExposeStableMissingIdentityAndRelinkExplicitly)
     std::filesystem::remove_all(root, ignored);
 }
 
+TEST_F(CliTest, CatalogNamedLibrarySetsCreateListAndFilter)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-sets-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                      "0000-nop" / "expected.png")
+                         .generic_u8string();
+    const std::string png_path(png.begin(), png.end());
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "create", "--path", catalog,
+                                                            "--json"}),
+              0)
+        << stdout_stream.str();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", png_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported);
+    const auto id = *imported.value().find("data")->find("items")->array_if()->front().find("asset")->find("id")->string_if();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "set-create", "--catalog", catalog, "--name", "Job", "--asset-id", id,
+                  "--json"}),
+              0)
+        << stdout_stream.str();
+    auto created = parse_json(stdout_stream.str());
+    ASSERT_TRUE(created) << created.error().message;
+    const auto set_id = *created.value().find("data")->find("set")->find("id")->string_if();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "sets", "--catalog", catalog,
+                                                            "--json"}),
+              0)
+        << stdout_stream.str();
+    auto listed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(listed);
+    ASSERT_EQ(listed.value().find("data")->find("sets")->array_if()->size(), 1U);
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "list", "--catalog", catalog, "--set-id", set_id, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto assets = parse_json(stdout_stream.str());
+    ASSERT_TRUE(assets);
+    ASSERT_EQ(assets.value().find("data")->find("assets")->array_if()->size(), 1U);
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CliTest, CatalogBatchExportUsesStrictTemplateAndSharedTypedOptions)
 {
     const auto root =

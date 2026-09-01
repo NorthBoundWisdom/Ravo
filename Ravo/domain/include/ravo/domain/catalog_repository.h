@@ -44,6 +44,25 @@ public:
     [[nodiscard]] virtual Result<LibraryPage>
     list_assets_page(const LibraryPageRequest &request) const = 0;
     [[nodiscard]] virtual Result<std::vector<FolderRecord>> list_folders() const = 0;
+    [[nodiscard]] virtual Result<std::vector<LibrarySetRecord>> list_library_sets() const = 0;
+    [[nodiscard]] virtual Result<std::optional<LibrarySetRecord>>
+    find_library_set(std::string_view set_id) const = 0;
+    [[nodiscard]] virtual Result<LibrarySetMutation>
+    create_library_set(LibrarySetKind kind, std::string_view name,
+                       const std::optional<LibraryQuery> &query,
+                       const std::vector<std::string> &asset_ids,
+                       std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<LibrarySetMutation>
+    rename_library_set(std::string_view set_id, std::string_view name,
+                       std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<std::int64_t>
+    delete_library_set(std::string_view set_id, std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<LibrarySetMutation>
+    add_library_set_members(std::string_view set_id, const std::vector<std::string> &asset_ids,
+                            std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<LibrarySetMutation>
+    remove_library_set_members(std::string_view set_id, const std::vector<std::string> &asset_ids,
+                               std::optional<std::int64_t> expected_revision) = 0;
     [[nodiscard]] virtual Result<std::optional<FolderRecord>>
     find_folder_by_id(std::string_view folder_id) const = 0;
     [[nodiscard]] virtual Result<std::vector<AssetRecord>>

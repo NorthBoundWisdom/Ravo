@@ -48,6 +48,7 @@
 #include "ravo/services/catalog_service.h"
 
 #include "ravo/desktop/preview_request_owner.h"
+#include "ravo/desktop/library_set_list_model.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_live_session_controller.h"
 #include "ravo/desktop/studio_presenter.h"
@@ -4306,6 +4307,57 @@ TEST(StudioQmlContract, GalleryRequestsSparsePagesFromVisibleDelegates)
     EXPECT_TRUE(source.contains(QStringLiteral("onAssetIdChanged")));
     EXPECT_TRUE(source.contains(QStringLiteral("cacheBuffer: cellHeight")));
     EXPECT_FALSE(source.contains(QStringLiteral("cacheBuffer: cellHeight * 8")));
+}
+
+TEST(StudioQmlContract, LibrarySidePanelExposesNamedLibrarySets)
+{
+    QFile library(QStringLiteral(RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML));
+    ASSERT_TRUE(library.open(QIODevice::ReadOnly | QIODevice::Text))
+        << library.errorString().toStdString();
+    const auto source = QString::fromUtf8(library.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"librarySetsPanel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.librarySets")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.libraryCreateManualSet")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.libraryCreateSmartSet")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.librarySelectSet")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.libraryAddSelectionToSet")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.libraryDeleteSet")));
+    EXPECT_FALSE(source.contains(QStringLiteral("library_set_member")));
+}
+
+TEST(StudioPresenterTest, NamedLibrarySetsSurviveReloadAndFilterListing)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("photo.png"));
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 90, 130));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy() && !presenter.importWorkActive();
+        }))
+        << presenter.errorText().toStdString();
+    commands.executeCommand(QStringLiteral("studio.library.create_manual_set"),
+                            QStringLiteral("Job"));
+    ASSERT_TRUE(wait_until([&] { return presenter.librarySets()->rowCount() == 1; }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(presenter.librarySets()->data(presenter.librarySets()->index(0, 0),
+                                            LibrarySetListModel::NameRole),
+              QStringLiteral("Job"));
+    EXPECT_FALSE(presenter.selectedLibrarySetId().isEmpty());
+    EXPECT_EQ(presenter.visibleCount(), 1);
 }
 
 TEST(StudioQmlContract, LibrarySidePanelShowsCommandOwnedLastImportGroup)

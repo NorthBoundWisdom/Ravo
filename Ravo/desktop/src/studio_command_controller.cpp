@@ -66,6 +66,13 @@ inline constexpr auto kLibrarySetSort = "studio.library.set_sort";
 inline constexpr auto kLibraryClearFilters = "studio.library.clear_filters";
 inline constexpr auto kLibrarySelectFolder = "studio.library.select_folder";
 inline constexpr auto kLibrarySelectLastImport = "studio.library.select_last_import";
+inline constexpr auto kLibrarySelectSet = "studio.library.select_set";
+inline constexpr auto kLibraryCreateManualSet = "studio.library.create_manual_set";
+inline constexpr auto kLibraryCreateSmartSet = "studio.library.create_smart_set";
+inline constexpr auto kLibraryRenameSet = "studio.library.rename_set";
+inline constexpr auto kLibraryDeleteSet = "studio.library.delete_set";
+inline constexpr auto kLibraryAddSelectionToSet = "studio.library.add_selection_to_set";
+inline constexpr auto kLibraryRemoveSelectionFromSet = "studio.library.remove_selection_from_set";
 inline constexpr auto kLibraryFolderRelink = "studio.library.folder_relink";
 inline constexpr auto kLibraryFolderRelinkPath = "studio.library.folder_relink_path";
 inline constexpr auto kPhotoSelect = "studio.photo.select";
@@ -392,6 +399,13 @@ QStringList command_ids()
             QLatin1String(command::kLibraryClearFilters),
             QLatin1String(command::kLibrarySelectFolder),
             QLatin1String(command::kLibrarySelectLastImport),
+            QLatin1String(command::kLibrarySelectSet),
+            QLatin1String(command::kLibraryCreateManualSet),
+            QLatin1String(command::kLibraryCreateSmartSet),
+            QLatin1String(command::kLibraryRenameSet),
+            QLatin1String(command::kLibraryDeleteSet),
+            QLatin1String(command::kLibraryAddSelectionToSet),
+            QLatin1String(command::kLibraryRemoveSelectionFromSet),
             QLatin1String(command::kLibraryFolderRelink),
             QLatin1String(command::kLibraryFolderRelinkPath),
             QLatin1String(command::kPhotoSelect),
@@ -1490,6 +1504,40 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         { presenter_.selectFolder(argument.toString()); });
     add(command::kLibrarySelectLastImport, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.selectLastImport(); });
+    add(command::kLibrarySelectSet, Condition::kCatalogOpen, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.selectLibrarySet(argument.toString()); });
+    add(command::kLibraryCreateManualSet, Condition::kCatalogOpen, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.createManualLibrarySet(argument.toString()); });
+    add(command::kLibraryCreateSmartSet, Condition::kCatalogOpen, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.createSmartLibrarySet(argument.toString()); });
+    add(
+        command::kLibraryRenameSet, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            const auto error =
+                required_fields(argument, {QStringLiteral("setId"), QStringLiteral("name")});
+            if (!error.isEmpty())
+                return error;
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.renameLibrarySet(fields.value(QStringLiteral("setId")).toString(),
+                                        fields.value(QStringLiteral("name")).toString());
+        });
+    add(command::kLibraryDeleteSet, Condition::kCatalogOpen, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.deleteLibrarySet(argument.toString()); });
+    add(command::kLibraryAddSelectionToSet, Condition::kReadySelection, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.addSelectionToLibrarySet(argument.toString()); });
+    add(command::kLibraryRemoveSelectionFromSet, Condition::kReadySelection, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.removeSelectionFromLibrarySet(argument.toString()); });
     add(command::kLibraryFolderRelink, Condition::kCatalogReady, non_empty_string,
         [present](const QVariant &argument, const QString &)
         { present(command::kLibraryFolderRelink, argument); });
@@ -2170,6 +2218,16 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("librarySelectFolder"), QLatin1String(command::kLibrarySelectFolder)},
         {QStringLiteral("librarySelectLastImport"),
          QLatin1String(command::kLibrarySelectLastImport)},
+        {QStringLiteral("librarySelectSet"), QLatin1String(command::kLibrarySelectSet)},
+        {QStringLiteral("libraryCreateManualSet"),
+         QLatin1String(command::kLibraryCreateManualSet)},
+        {QStringLiteral("libraryCreateSmartSet"), QLatin1String(command::kLibraryCreateSmartSet)},
+        {QStringLiteral("libraryRenameSet"), QLatin1String(command::kLibraryRenameSet)},
+        {QStringLiteral("libraryDeleteSet"), QLatin1String(command::kLibraryDeleteSet)},
+        {QStringLiteral("libraryAddSelectionToSet"),
+         QLatin1String(command::kLibraryAddSelectionToSet)},
+        {QStringLiteral("libraryRemoveSelectionFromSet"),
+         QLatin1String(command::kLibraryRemoveSelectionFromSet)},
         {QStringLiteral("libraryFolderRelink"), QLatin1String(command::kLibraryFolderRelink)},
         {QStringLiteral("libraryFolderRelinkPath"),
          QLatin1String(command::kLibraryFolderRelinkPath)},

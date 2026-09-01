@@ -515,6 +515,26 @@ TEST(LibraryQueryTest, MatchesProductTextMediaEditCaptureAndNumericFields)
     EXPECT_FALSE(asset_matches_query(missing, query));
 }
 
+TEST(LibraryQueryTest, SerializesNamedSetDocumentsWithoutCollectionIdentity)
+{
+    LibraryQuery query;
+    query.rating_mode = RatingFilterMode::kExact;
+    query.rating_value = 5;
+    query.color_labels = {ColorLabel::kRed};
+    query.tag = "beach";
+    query.sort_field = AssetSortField::kRating;
+    query.sort_direction = SortDirection::kAscending;
+    auto serialized = serialize_library_query_document(query);
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_library_query_document(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_EQ(parsed.value(), query);
+
+    query.collection_id = generate_library_set_id();
+    EXPECT_FALSE(serialize_library_query_document(query));
+    EXPECT_FALSE(parse_library_query_document(R"({"schema_version":1,"collection_id":"set_x"})"));
+}
+
 TEST(LibraryQueryTest, RejectsInvalidStateAndSortsCaptureOrSizeDeterministically)
 {
     LibraryQuery query;

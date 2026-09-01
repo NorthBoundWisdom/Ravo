@@ -98,6 +98,12 @@ Current implementation status:
   its completed imports. Selecting any catalog folder leaves the group. The
   group is cleared when another catalog opens and is never persisted as catalog
   data.
+  Schema v10 named collections persist beside the catalog: a manual set stores
+  explicit membership, and a smart set stores a versioned `LibraryQuery` that is
+  re-evaluated on list. Selecting a set is session state. Mutations bump the
+  catalog revision and reject a stale observed revision. Studio and
+  `ravo catalog sets|set-create|set-rename|set-delete|set-add|set-remove|list --set-id`
+  share CatalogService; QML does not own membership (ADR-0103).
 - Studio built-in commands are projected by one C++ registry into menus,
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
@@ -120,7 +126,7 @@ Current implementation status:
   (ADR-0066). Studio also persists typed Assistant endpoint URL, model, and API
   key (ADR-0081) for the floating chat panel; assistant HTTP and credentials
   stay desktop-only. The separate Qt local-control socket exposes neither.
-- Basic Develop uses the current catalog schema v9 with one canonical recipe per image,
+- Basic Develop uses the current catalog schema v10 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), adaptive Y0U0V0 edge-aware
   wavelet denoising, lensfun poly3/vignette, dt UCS `colorequal`, graduated
@@ -738,6 +744,9 @@ ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json
 ravo catalog list --catalog <library.sqlite> --json
 ravo catalog folders --catalog <library.sqlite> --json
 ravo catalog folder-relink --catalog <library.sqlite> --folder-id <id> --replacement <directory> --json
+ravo catalog sets --catalog <library.sqlite> --json
+ravo catalog set-create --catalog <library.sqlite> --name <name> [--kind manual|smart] [--query <json>] [--asset-id <id>]... [--revision N] --json
+ravo catalog list --catalog <library.sqlite> [--set-id <id>] --json
 ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog preview-rebuild --catalog <library.sqlite> [--asset-id <id>]... --json
 ravo catalog sidecar-status --catalog <library.sqlite> [--asset-id <id>] --json

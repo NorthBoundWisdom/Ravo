@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <initializer_list>
 #include <limits>
 #include <map>
 #include <set>
@@ -149,6 +150,27 @@ constexpr const char *kSchemaV8BackupPolicy[] = {
 constexpr const char *kSchemaV9FolderIdentityIndex =
     "CREATE INDEX IF NOT EXISTS asset_folder_id_idx ON asset(folder_id, id)";
 
+constexpr const char *kSchemaV10Statements[] = {
+    "CREATE TABLE IF NOT EXISTS library_set ("
+    "  id TEXT PRIMARY KEY,"
+    "  kind TEXT NOT NULL CHECK(kind IN ('manual', 'smart')),"
+    "  name TEXT NOT NULL UNIQUE,"
+    "  query_json TEXT,"
+    "  created_unix_ms INTEGER NOT NULL,"
+    "  updated_unix_ms INTEGER NOT NULL,"
+    "  CHECK((kind = 'manual' AND query_json IS NULL) OR "
+    "        (kind = 'smart' AND query_json IS NOT NULL))"
+    ")",
+    "CREATE TABLE IF NOT EXISTS library_set_member ("
+    "  set_id TEXT NOT NULL REFERENCES library_set(id) ON DELETE CASCADE,"
+    "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+    "  added_unix_ms INTEGER NOT NULL,"
+    "  PRIMARY KEY (set_id, asset_id)"
+    ")",
+    "CREATE INDEX IF NOT EXISTS library_set_member_asset_idx ON library_set_member(asset_id, set_id)",
+    "CREATE INDEX IF NOT EXISTS library_set_name_idx ON library_set(name)",
+};
+
 constexpr const char *kSchemaV4Statements[] = {
     "CREATE TABLE asset_tag ("
     "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
@@ -269,11 +291,211 @@ constexpr const char *kSchemaV6Triggers[] = {
     return escaped + QStringLiteral("/%");
 }
 
+void append_library_query_predicates(const LibraryQuery &query, QStringList &predicates,
+                                     QVariantList &bindings)
+{
+    const auto add = [&predicates, &bindings](QString predicate,
+                                              std::initializer_list<QVariant> values)
+    {
+        predicates.push_back(std::move(predicate));
+        for (const auto &value : values)
+            bindings.push_back(value);
+    };
+    switch (query.rating_mode)
+    {
+    case RatingFilterMode::kAny:
+        break;
+    case RatingFilterMode::kMinimum:
+        add(QStringLiteral("a.rating >= ?"), {query.rating_value});
+        break;
+    case RatingFilterMode::kExact:
+        add(QStringLiteral("a.rating = ?"), {query.rating_value});
+        break;
+    }
+    if (!query.color_labels.empty())
+    {
+        QStringList placeholders;
+        for (const auto label : query.color_labels)
+        {
+            placeholders.push_back(QStringLiteral("?"));
+            bindings.push_back(qstring_from_utf8(color_label_name(label)));
+        }
+        predicates.push_back(QStringLiteral("a.color_label IN (") +
+                             placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    }
+    switch (query.reject_filter)
+    {
+    case RejectFilter::kInclude:
+        break;
+    case RejectFilter::kExclude:
+        predicates.push_back(QStringLiteral("a.rejected = 0"));
+        break;
+    case RejectFilter::kOnly:
+        predicates.push_back(QStringLiteral("a.rejected != 0"));
+        break;
+    }
+    if (!query.folder_uri.empty())
+        add(QStringLiteral("(a.folder_uri = ? OR a.folder_uri LIKE ? ESCAPE '\\')"),
+            {qstring_from_utf8(query.folder_uri), prefix_like_pattern(query.folder_uri)});
+    if (!query.tag.empty())
+        add(QStringLiteral("a.id IN (SELECT t.asset_id FROM asset_tag t WHERE t.name = ?)"),
+            {qstring_from_utf8(query.tag)});
+    if (!query.text.empty())
+    {
+        const auto pattern = contains_like_pattern(query.text);
+        add(QStringLiteral("(a.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "a.normalized_uri LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "a.media_type LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.title LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.description LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.creator LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.copyright LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.camera_make LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.camera_model LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "EXISTS(SELECT 1 FROM asset_tag tx WHERE tx.asset_id = a.id "
+                           "AND tx.name LIKE ? ESCAPE '\\' COLLATE NOCASE))"),
+            {pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern,
+             pattern});
+    }
+    if (!query.media_types.empty())
+    {
+        QStringList placeholders;
+        for (const auto &media_type : query.media_types)
+        {
+            placeholders.push_back(QStringLiteral("?"));
+            bindings.push_back(qstring_from_utf8(media_type));
+        }
+        predicates.push_back(QStringLiteral("a.media_type IN (") +
+                             placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    }
+    switch (query.edit_filter)
+    {
+    case EditFilter::kAny:
+        break;
+    case EditFilter::kEdited:
+        predicates.push_back(
+            QStringLiteral("EXISTS(SELECT 1 FROM asset_recipe er WHERE er.asset_id = a.id)"));
+        break;
+    case EditFilter::kUnedited:
+        predicates.push_back(
+            QStringLiteral("NOT EXISTS(SELECT 1 FROM asset_recipe er WHERE er.asset_id = a.id)"));
+        break;
+    }
+    if (!query.camera.empty())
+    {
+        const auto pattern = contains_like_pattern(query.camera);
+        add(QStringLiteral("(m.camera_make LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.camera_model LIKE ? ESCAPE '\\' COLLATE NOCASE)"),
+            {pattern, pattern});
+    }
+    const auto add_range = [&predicates, &bindings](const QString &column,
+                                                    const LibraryNumericRange &range)
+    {
+        if (range.minimum)
+        {
+            predicates.push_back(column + QStringLiteral(" >= ?"));
+            bindings.push_back(*range.minimum);
+        }
+        if (range.maximum)
+        {
+            predicates.push_back(column + QStringLiteral(" <= ?"));
+            bindings.push_back(*range.maximum);
+        }
+    };
+    add_range(QStringLiteral("m.iso"), query.iso);
+    add_range(QStringLiteral("m.aperture"), query.aperture);
+    add_range(QStringLiteral("m.focal_length_mm"), query.focal_length_mm);
+    add_range(QStringLiteral("m.shutter_s"), query.shutter_s);
+    add_range(QStringLiteral("(CAST(a.width AS REAL) / NULLIF(a.height, 0))"), query.aspect_ratio);
+    if (query.imported_after_unix_ms)
+        add(QStringLiteral("a.created_unix_ms >= ?"),
+            {static_cast<qlonglong>(*query.imported_after_unix_ms)});
+    if (query.imported_before_unix_ms)
+        add(QStringLiteral("a.created_unix_ms <= ?"),
+            {static_cast<qlonglong>(*query.imported_before_unix_ms)});
+    if (query.captured_after_unix_s)
+        add(QStringLiteral("m.captured_unix_s >= ?"),
+            {static_cast<qlonglong>(*query.captured_after_unix_s)});
+    if (query.captured_before_unix_s)
+        add(QStringLiteral("m.captured_unix_s <= ?"),
+            {static_cast<qlonglong>(*query.captured_before_unix_s)});
+    if (!query.collection_id.empty())
+        add(QStringLiteral(
+                "a.id IN (SELECT member.asset_id FROM library_set_member member WHERE member.set_id = ?)"),
+            {qstring_from_utf8(query.collection_id)});
+}
+
 [[nodiscard]] TaskError map_sql_error(const QSqlQuery &query, const std::string_view action)
 {
     return make_error(ErrorCode::kIo, "Catalog SQL statement failed",
                       {{"action", std::string(action)},
                        {"qt_error", utf8_from_qstring(query.lastError().text())}});
+}
+
+[[nodiscard]] Result<std::size_t> count_library_query(QSqlDatabase &database,
+                                                      const LibraryQuery &query)
+{
+    QStringList predicates;
+    QVariantList bindings;
+    append_library_query_predicates(query, predicates, bindings);
+    const auto filter_where =
+        predicates.empty() ? QString{} :
+                             QStringLiteral(" WHERE ") + predicates.join(QStringLiteral(" AND "));
+    QSqlQuery count(database);
+    count.prepare(QStringLiteral("SELECT COUNT(*) FROM asset a LEFT JOIN asset_metadata m "
+                                 "ON m.asset_id = a.id") +
+                  filter_where);
+    for (const auto &binding : bindings)
+        count.addBindValue(binding);
+    if (!count.exec() || !count.next())
+        return map_sql_error(count, "count_library_query");
+    const auto total_value = count.value(0).toLongLong();
+    if (total_value < 0)
+        return make_error(ErrorCode::kValidation, "Library page count is invalid",
+                          {{"reason", "invalid_library_page_count"}});
+    return static_cast<std::size_t>(total_value);
+}
+
+[[nodiscard]] Result<LibrarySetRecord> read_library_set(QSqlDatabase &database, QSqlQuery &query)
+{
+    LibrarySetRecord record;
+    record.id = utf8_from_qstring(query.value(0).toString());
+    auto kind = parse_library_set_kind(utf8_from_qstring(query.value(1).toString()));
+    if (!kind)
+        return kind.error();
+    record.kind = kind.value();
+    record.name = utf8_from_qstring(query.value(2).toString());
+    if (!query.value(3).isNull())
+    {
+        auto parsed = parse_library_query_document(utf8_from_qstring(query.value(3).toString()));
+        if (!parsed)
+            return parsed.error();
+        record.query = std::move(parsed).value();
+    }
+    record.created_unix_ms = query.value(4).toLongLong();
+    record.updated_unix_ms = query.value(5).toLongLong();
+    if (record.kind == LibrarySetKind::kManual)
+    {
+        QSqlQuery count(database);
+        count.prepare(
+            QStringLiteral("SELECT COUNT(*) FROM library_set_member WHERE set_id = ?"));
+        count.addBindValue(qstring_from_utf8(record.id));
+        if (!count.exec() || !count.next())
+            return map_sql_error(count, "count_library_set_members");
+        record.asset_count = static_cast<std::size_t>(count.value(0).toLongLong());
+    }
+    else
+    {
+        LibraryQuery query_value = record.query.value_or(LibraryQuery{});
+        auto counted = count_library_query(database, query_value);
+        if (!counted)
+            return counted.error();
+        record.asset_count = counted.value();
+    }
+    auto valid = validate_library_set_record(record);
+    if (!valid)
+        return valid.error();
+    return record;
 }
 
 [[nodiscard]] Result<std::set<std::string, std::less<>>>
@@ -1416,6 +1638,12 @@ SqliteCatalogRepository::create(const std::string_view database_path)
         impl->exec(QString::fromUtf8(kSchemaV9FolderIdentityIndex), "create_folder_identity_index");
     if (!folder_index)
         return impl->abort_transaction(folder_index.error());
+    for (const char *statement : kSchemaV10Statements)
+    {
+        const auto created = impl->exec(QString::fromUtf8(statement), "create_library_set");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
 
     const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::system_clock::now().time_since_epoch())
@@ -1723,6 +1951,17 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                 return impl->abort_transaction(folder_index.error());
             version = 9;
         }
+        if (version == 9)
+        {
+            for (const char *sql : kSchemaV10Statements)
+            {
+                const auto created =
+                    impl->exec(QString::fromUtf8(sql), "migrate_v10_library_set");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            version = 10;
+        }
         if (version != kCatalogSchemaVersion)
         {
             return impl->abort_transaction(
@@ -1813,133 +2052,9 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
     const auto started = std::chrono::steady_clock::now();
     QStringList predicates;
     QVariantList bindings;
-    const auto add =
-        [&predicates, &bindings](QString predicate, std::initializer_list<QVariant> values)
-    {
-        predicates.push_back(std::move(predicate));
-        for (const auto &value : values)
-            bindings.push_back(value);
-    };
-    switch (request.query.rating_mode)
-    {
-    case RatingFilterMode::kAny:
-        break;
-    case RatingFilterMode::kMinimum:
-        add(QStringLiteral("a.rating >= ?"), {request.query.rating_value});
-        break;
-    case RatingFilterMode::kExact:
-        add(QStringLiteral("a.rating = ?"), {request.query.rating_value});
-        break;
-    }
-    if (!request.query.color_labels.empty())
-    {
-        QStringList placeholders;
-        for (const auto label : request.query.color_labels)
-        {
-            placeholders.push_back(QStringLiteral("?"));
-            bindings.push_back(qstring_from_utf8(color_label_name(label)));
-        }
-        predicates.push_back(QStringLiteral("a.color_label IN (") +
-                             placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
-    }
-    switch (request.query.reject_filter)
-    {
-    case RejectFilter::kInclude:
-        break;
-    case RejectFilter::kExclude:
-        predicates.push_back(QStringLiteral("a.rejected = 0"));
-        break;
-    case RejectFilter::kOnly:
-        predicates.push_back(QStringLiteral("a.rejected != 0"));
-        break;
-    }
-    if (!request.query.folder_uri.empty())
-        add(QStringLiteral("(a.folder_uri = ? OR a.folder_uri LIKE ? ESCAPE '\\')"),
-            {qstring_from_utf8(request.query.folder_uri),
-             prefix_like_pattern(request.query.folder_uri)});
-    if (!request.query.tag.empty())
-        add(QStringLiteral("a.id IN (SELECT t.asset_id FROM asset_tag t WHERE t.name = ?)"),
-            {qstring_from_utf8(request.query.tag)});
-    if (!request.query.text.empty())
-    {
-        const auto pattern = contains_like_pattern(request.query.text);
-        add(QStringLiteral("(a.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "a.normalized_uri LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "a.media_type LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "m.title LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "m.description LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "m.creator LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "m.copyright LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "m.camera_make LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "m.camera_model LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "EXISTS(SELECT 1 FROM asset_tag tx WHERE tx.asset_id = a.id "
-                           "AND tx.name LIKE ? ESCAPE '\\' COLLATE NOCASE))"),
-            {pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern,
-             pattern});
-    }
-    if (!request.query.media_types.empty())
-    {
-        QStringList placeholders;
-        for (const auto &media_type : request.query.media_types)
-        {
-            placeholders.push_back(QStringLiteral("?"));
-            bindings.push_back(qstring_from_utf8(media_type));
-        }
-        predicates.push_back(QStringLiteral("a.media_type IN (") +
-                             placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
-    }
-    switch (request.query.edit_filter)
-    {
-    case EditFilter::kAny:
-        break;
-    case EditFilter::kEdited:
-        predicates.push_back(
-            QStringLiteral("EXISTS(SELECT 1 FROM asset_recipe er WHERE er.asset_id = a.id)"));
-        break;
-    case EditFilter::kUnedited:
-        predicates.push_back(
-            QStringLiteral("NOT EXISTS(SELECT 1 FROM asset_recipe er WHERE er.asset_id = a.id)"));
-        break;
-    }
-    if (!request.query.camera.empty())
-    {
-        const auto pattern = contains_like_pattern(request.query.camera);
-        add(QStringLiteral("(m.camera_make LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
-                           "m.camera_model LIKE ? ESCAPE '\\' COLLATE NOCASE)"),
-            {pattern, pattern});
-    }
-    const auto add_range =
-        [&predicates, &bindings](const QString &column, const LibraryNumericRange &range)
-    {
-        if (range.minimum)
-        {
-            predicates.push_back(column + QStringLiteral(" >= ?"));
-            bindings.push_back(*range.minimum);
-        }
-        if (range.maximum)
-        {
-            predicates.push_back(column + QStringLiteral(" <= ?"));
-            bindings.push_back(*range.maximum);
-        }
-    };
-    add_range(QStringLiteral("m.iso"), request.query.iso);
-    add_range(QStringLiteral("m.aperture"), request.query.aperture);
-    add_range(QStringLiteral("m.focal_length_mm"), request.query.focal_length_mm);
-    add_range(QStringLiteral("m.shutter_s"), request.query.shutter_s);
-    add_range(QStringLiteral("(CAST(a.width AS REAL) / NULLIF(a.height, 0))"),
-              request.query.aspect_ratio);
-    if (request.query.imported_after_unix_ms)
-        add(QStringLiteral("a.created_unix_ms >= ?"),
-            {static_cast<qlonglong>(*request.query.imported_after_unix_ms)});
-    if (request.query.imported_before_unix_ms)
-        add(QStringLiteral("a.created_unix_ms <= ?"),
-            {static_cast<qlonglong>(*request.query.imported_before_unix_ms)});
-    if (request.query.captured_after_unix_s)
-        add(QStringLiteral("m.captured_unix_s >= ?"),
-            {static_cast<qlonglong>(*request.query.captured_after_unix_s)});
-    if (request.query.captured_before_unix_s)
-        add(QStringLiteral("m.captured_unix_s <= ?"),
-            {static_cast<qlonglong>(*request.query.captured_before_unix_s)});
+    append_library_query_predicates(request.query, predicates, bindings);
+    if (request.additional_query)
+        append_library_query_predicates(*request.additional_query, predicates, bindings);
 
     const auto filter_where =
         predicates.empty() ? QString{} :
@@ -3735,6 +3850,551 @@ Result<void> SqliteCatalogRepository::update_recipe_history_label(const std::int
                           {{"history_id", std::to_string(history_id)}});
     }
     return {};
+}
+
+namespace
+{
+
+[[nodiscard]] std::int64_t now_unix_ms()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+}
+
+[[nodiscard]] std::vector<std::string> unique_asset_ids(const std::vector<std::string> &asset_ids)
+{
+    std::vector<std::string> unique;
+    std::set<std::string, std::less<>> seen;
+    unique.reserve(asset_ids.size());
+    for (const auto &asset_id : asset_ids)
+    {
+        if (seen.insert(asset_id).second)
+            unique.push_back(asset_id);
+    }
+    return unique;
+}
+
+} // namespace
+
+Result<std::vector<LibrarySetRecord>> SqliteCatalogRepository::list_library_sets() const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery query(impl_->database);
+    if (!query.exec(QStringLiteral(
+            "SELECT id, kind, name, query_json, created_unix_ms, updated_unix_ms "
+            "FROM library_set ORDER BY name COLLATE BINARY, id")))
+        return map_sql_error(query, "list_library_sets");
+    std::vector<LibrarySetRecord> sets;
+    while (query.next())
+    {
+        auto record = read_library_set(impl_->database, query);
+        if (!record)
+            return record.error();
+        sets.push_back(std::move(record).value());
+    }
+    return sets;
+}
+
+Result<std::optional<LibrarySetRecord>>
+SqliteCatalogRepository::find_library_set(const std::string_view set_id) const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "SELECT id, kind, name, query_json, created_unix_ms, updated_unix_ms "
+        "FROM library_set WHERE id = ?"));
+    query.addBindValue(qstring_from_utf8(set_id));
+    if (!query.exec())
+        return map_sql_error(query, "find_library_set");
+    if (!query.next())
+        return std::optional<LibrarySetRecord>{};
+    auto record = read_library_set(impl_->database, query);
+    if (!record)
+        return record.error();
+    return std::optional<LibrarySetRecord>{std::move(record).value()};
+}
+
+Result<LibrarySetMutation> SqliteCatalogRepository::create_library_set(
+    const LibrarySetKind kind, const std::string_view name, const std::optional<LibraryQuery> &query,
+    const std::vector<std::string> &asset_ids, const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    auto normalized = normalize_library_set_name(name);
+    if (!normalized)
+        return normalized.error();
+    LibrarySetRecord record;
+    record.id = generate_library_set_id();
+    record.kind = kind;
+    record.name = normalized.value();
+    record.query = query;
+    auto valid = validate_library_set_record(record);
+    if (!valid)
+        return valid.error();
+    if (kind == LibrarySetKind::kSmart && !asset_ids.empty())
+    {
+        return make_error(ErrorCode::kValidation,
+                          "A smart library set cannot store explicit members",
+                          {{"reason", "invalid_library_set_members"}});
+    }
+    const auto members = unique_asset_ids(asset_ids);
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start library set transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery count(impl_->database);
+    if (!count.exec(QStringLiteral("SELECT COUNT(*) FROM library_set")) || !count.next())
+        return impl_->abort_transaction(map_sql_error(count, "count_library_sets"));
+    if (static_cast<std::size_t>(count.value(0).toLongLong()) >= kLibrarySetMaximumCount)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kValidation, "Catalog already has the maximum number of library sets",
+            {{"reason", "library_set_limit"},
+             {"maximum", std::to_string(kLibrarySetMaximumCount)}}));
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_library_set_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"},
+             {"expected_revision", std::to_string(*expected_revision)},
+             {"revision", std::to_string(current_revision)}}));
+    }
+    if (!members.empty())
+    {
+        QSqlQuery existing(impl_->database);
+        QStringList placeholders;
+        placeholders.reserve(static_cast<qsizetype>(members.size()));
+        for (std::size_t index = 0; index < members.size(); ++index)
+            placeholders.push_back(QStringLiteral("?"));
+        existing.prepare(QStringLiteral("SELECT COUNT(*) FROM asset WHERE id IN (") +
+                         placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+        for (const auto &asset_id : members)
+            existing.addBindValue(qstring_from_utf8(asset_id));
+        if (!existing.exec() || !existing.next())
+            return impl_->abort_transaction(map_sql_error(existing, "verify_library_set_assets"));
+        if (static_cast<std::size_t>(existing.value(0).toLongLong()) != members.size())
+        {
+            return impl_->abort_transaction(make_error(
+                ErrorCode::kNotFound, "Library set member does not exist",
+                {{"reason", "unknown_library_set_asset"}}));
+        }
+    }
+    std::optional<std::string> query_json;
+    if (record.query)
+    {
+        auto serialized = serialize_library_query_document(*record.query);
+        if (!serialized)
+            return impl_->abort_transaction(serialized.error());
+        query_json = std::move(serialized).value();
+    }
+    const auto now = now_unix_ms();
+    record.created_unix_ms = now;
+    record.updated_unix_ms = now;
+    QSqlQuery insert(impl_->database);
+    insert.prepare(QStringLiteral(
+        "INSERT INTO library_set(id, kind, name, query_json, created_unix_ms, updated_unix_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?)"));
+    insert.addBindValue(qstring_from_utf8(record.id));
+    insert.addBindValue(qstring_from_utf8(std::string(library_set_kind_name(kind))));
+    insert.addBindValue(qstring_from_utf8(record.name));
+    if (query_json)
+        insert.addBindValue(qstring_from_utf8(*query_json));
+    else
+        insert.addBindValue(QVariant{});
+    insert.addBindValue(static_cast<qlonglong>(now));
+    insert.addBindValue(static_cast<qlonglong>(now));
+    if (!insert.exec())
+    {
+        const auto error_text = utf8_from_qstring(insert.lastError().text());
+        if (error_text.find("UNIQUE") != std::string::npos)
+        {
+            return impl_->abort_transaction(make_error(
+                ErrorCode::kConflict, "A library set with that name already exists",
+                {{"name", record.name}, {"reason", "duplicate_library_set_name"}}));
+        }
+        return impl_->abort_transaction(map_sql_error(insert, "insert_library_set"));
+    }
+    if (!members.empty())
+    {
+        QSqlQuery member(impl_->database);
+        member.prepare(QStringLiteral(
+            "INSERT INTO library_set_member(set_id, asset_id, added_unix_ms) VALUES (?, ?, ?)"));
+        for (const auto &asset_id : members)
+        {
+            member.addBindValue(qstring_from_utf8(record.id));
+            member.addBindValue(qstring_from_utf8(asset_id));
+            member.addBindValue(static_cast<qlonglong>(now));
+            if (!member.exec())
+                return impl_->abort_transaction(map_sql_error(member, "insert_library_set_member"));
+            member.finish();
+        }
+    }
+    auto bumped = impl_->exec(QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+                              "bump_library_set_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_library_set_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit library set write",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    auto loaded = find_library_set(record.id);
+    if (!loaded || !loaded.value())
+        return make_error(ErrorCode::kIo, "Library set was not visible after commit",
+                          {{"reason", "library_set_missing_after_commit"}});
+    return LibrarySetMutation{std::move(*loaded.value()), next_revision};
+}
+
+Result<LibrarySetMutation> SqliteCatalogRepository::rename_library_set(
+    const std::string_view set_id, const std::string_view name,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    auto normalized = normalize_library_set_name(name);
+    if (!normalized)
+        return normalized.error();
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start library set transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_library_set_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"},
+             {"expected_revision", std::to_string(*expected_revision)},
+             {"revision", std::to_string(current_revision)}}));
+    }
+    QSqlQuery update(impl_->database);
+    update.prepare(QStringLiteral(
+        "UPDATE library_set SET name = ?, updated_unix_ms = ? WHERE id = ?"));
+    update.addBindValue(qstring_from_utf8(normalized.value()));
+    update.addBindValue(static_cast<qlonglong>(now_unix_ms()));
+    update.addBindValue(qstring_from_utf8(set_id));
+    if (!update.exec())
+    {
+        const auto error_text = utf8_from_qstring(update.lastError().text());
+        if (error_text.find("UNIQUE") != std::string::npos)
+        {
+            return impl_->abort_transaction(make_error(
+                ErrorCode::kConflict, "A library set with that name already exists",
+                {{"name", normalized.value()}, {"reason", "duplicate_library_set_name"}}));
+        }
+        return impl_->abort_transaction(map_sql_error(update, "rename_library_set"));
+    }
+    if (update.numRowsAffected() != 1)
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Library set was not found",
+                                                   {{"set_id", std::string(set_id)},
+                                                    {"reason", "unknown_library_set"}}));
+    }
+    auto bumped = impl_->exec(QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+                              "bump_library_set_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_library_set_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit library set write",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    auto loaded = find_library_set(set_id);
+    if (!loaded || !loaded.value())
+        return make_error(ErrorCode::kNotFound, "Library set was not found",
+                          {{"set_id", std::string(set_id)}, {"reason", "unknown_library_set"}});
+    return LibrarySetMutation{std::move(*loaded.value()), next_revision};
+}
+
+Result<std::int64_t> SqliteCatalogRepository::delete_library_set(
+    const std::string_view set_id, const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start library set transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_library_set_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"},
+             {"expected_revision", std::to_string(*expected_revision)},
+             {"revision", std::to_string(current_revision)}}));
+    }
+    QSqlQuery remove(impl_->database);
+    remove.prepare(QStringLiteral("DELETE FROM library_set WHERE id = ?"));
+    remove.addBindValue(qstring_from_utf8(set_id));
+    if (!remove.exec())
+        return impl_->abort_transaction(map_sql_error(remove, "delete_library_set"));
+    if (remove.numRowsAffected() != 1)
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Library set was not found",
+                                                   {{"set_id", std::string(set_id)},
+                                                    {"reason", "unknown_library_set"}}));
+    }
+    auto bumped = impl_->exec(QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+                              "bump_library_set_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_library_set_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit library set write",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    return next_revision;
+}
+
+Result<LibrarySetMutation> SqliteCatalogRepository::add_library_set_members(
+    const std::string_view set_id, const std::vector<std::string> &asset_ids,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    const auto members = unique_asset_ids(asset_ids);
+    if (members.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Library set member list must not be empty",
+                          {{"reason", "invalid_library_set_members"}});
+    }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start library set transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_library_set_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"},
+             {"expected_revision", std::to_string(*expected_revision)},
+             {"revision", std::to_string(current_revision)}}));
+    }
+    QSqlQuery kind(impl_->database);
+    kind.prepare(QStringLiteral("SELECT kind FROM library_set WHERE id = ?"));
+    kind.addBindValue(qstring_from_utf8(set_id));
+    if (!kind.exec())
+        return impl_->abort_transaction(map_sql_error(kind, "read_library_set_kind"));
+    if (!kind.next())
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Library set was not found",
+                                                   {{"set_id", std::string(set_id)},
+                                                    {"reason", "unknown_library_set"}}));
+    }
+    if (utf8_from_qstring(kind.value(0).toString()) != kLibrarySetKindManual)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kValidation, "Only a manual library set can store members",
+            {{"set_id", std::string(set_id)}, {"reason", "invalid_library_set_kind"}}));
+    }
+    QSqlQuery existing(impl_->database);
+    QStringList placeholders;
+    placeholders.reserve(static_cast<qsizetype>(members.size()));
+    for (std::size_t index = 0; index < members.size(); ++index)
+        placeholders.push_back(QStringLiteral("?"));
+    existing.prepare(QStringLiteral("SELECT COUNT(*) FROM asset WHERE id IN (") +
+                     placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    for (const auto &asset_id : members)
+        existing.addBindValue(qstring_from_utf8(asset_id));
+    if (!existing.exec() || !existing.next())
+        return impl_->abort_transaction(map_sql_error(existing, "verify_library_set_assets"));
+    if (static_cast<std::size_t>(existing.value(0).toLongLong()) != members.size())
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound,
+                                                   "Library set member does not exist",
+                                                   {{"reason", "unknown_library_set_asset"}}));
+    }
+    const auto now = now_unix_ms();
+    QSqlQuery member(impl_->database);
+    member.prepare(QStringLiteral(
+        "INSERT OR IGNORE INTO library_set_member(set_id, asset_id, added_unix_ms) VALUES (?, ?, ?)"));
+    for (const auto &asset_id : members)
+    {
+        member.addBindValue(qstring_from_utf8(set_id));
+        member.addBindValue(qstring_from_utf8(asset_id));
+        member.addBindValue(static_cast<qlonglong>(now));
+        if (!member.exec())
+            return impl_->abort_transaction(map_sql_error(member, "insert_library_set_member"));
+        member.finish();
+    }
+    QSqlQuery touch(impl_->database);
+    touch.prepare(QStringLiteral("UPDATE library_set SET updated_unix_ms = ? WHERE id = ?"));
+    touch.addBindValue(static_cast<qlonglong>(now));
+    touch.addBindValue(qstring_from_utf8(set_id));
+    if (!touch.exec())
+        return impl_->abort_transaction(map_sql_error(touch, "touch_library_set"));
+    auto bumped = impl_->exec(QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+                              "bump_library_set_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_library_set_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit library set write",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    auto loaded = find_library_set(set_id);
+    if (!loaded || !loaded.value())
+        return make_error(ErrorCode::kNotFound, "Library set was not found",
+                          {{"set_id", std::string(set_id)}, {"reason", "unknown_library_set"}});
+    return LibrarySetMutation{std::move(*loaded.value()), next_revision};
+}
+
+Result<LibrarySetMutation> SqliteCatalogRepository::remove_library_set_members(
+    const std::string_view set_id, const std::vector<std::string> &asset_ids,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    const auto members = unique_asset_ids(asset_ids);
+    if (members.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Library set member list must not be empty",
+                          {{"reason", "invalid_library_set_members"}});
+    }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start library set transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_library_set_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"},
+             {"expected_revision", std::to_string(*expected_revision)},
+             {"revision", std::to_string(current_revision)}}));
+    }
+    QSqlQuery kind(impl_->database);
+    kind.prepare(QStringLiteral("SELECT kind FROM library_set WHERE id = ?"));
+    kind.addBindValue(qstring_from_utf8(set_id));
+    if (!kind.exec())
+        return impl_->abort_transaction(map_sql_error(kind, "read_library_set_kind"));
+    if (!kind.next())
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Library set was not found",
+                                                   {{"set_id", std::string(set_id)},
+                                                    {"reason", "unknown_library_set"}}));
+    }
+    if (utf8_from_qstring(kind.value(0).toString()) != kLibrarySetKindManual)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kValidation, "Only a manual library set can store members",
+            {{"set_id", std::string(set_id)}, {"reason", "invalid_library_set_kind"}}));
+    }
+    QSqlQuery present(impl_->database);
+    QStringList placeholders;
+    placeholders.reserve(static_cast<qsizetype>(members.size()));
+    for (std::size_t index = 0; index < members.size(); ++index)
+        placeholders.push_back(QStringLiteral("?"));
+    present.prepare(QStringLiteral("SELECT COUNT(*) FROM library_set_member WHERE set_id = ? AND "
+                                   "asset_id IN (") +
+                    placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    present.addBindValue(qstring_from_utf8(set_id));
+    for (const auto &asset_id : members)
+        present.addBindValue(qstring_from_utf8(asset_id));
+    if (!present.exec() || !present.next())
+        return impl_->abort_transaction(map_sql_error(present, "count_library_set_members"));
+    if (static_cast<std::size_t>(present.value(0).toLongLong()) != members.size())
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kNotFound, "Library set member was not found",
+            {{"set_id", std::string(set_id)}, {"reason", "unknown_library_set_member"}}));
+    }
+    QSqlQuery remove(impl_->database);
+    remove.prepare(QStringLiteral("DELETE FROM library_set_member WHERE set_id = ? AND asset_id IN (") +
+                   placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    remove.addBindValue(qstring_from_utf8(set_id));
+    for (const auto &asset_id : members)
+        remove.addBindValue(qstring_from_utf8(asset_id));
+    if (!remove.exec())
+        return impl_->abort_transaction(map_sql_error(remove, "delete_library_set_member"));
+    QSqlQuery touch(impl_->database);
+    touch.prepare(QStringLiteral("UPDATE library_set SET updated_unix_ms = ? WHERE id = ?"));
+    touch.addBindValue(static_cast<qlonglong>(now_unix_ms()));
+    touch.addBindValue(qstring_from_utf8(set_id));
+    if (!touch.exec())
+        return impl_->abort_transaction(map_sql_error(touch, "touch_library_set"));
+    auto bumped = impl_->exec(QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+                              "bump_library_set_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_library_set_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit library set write",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    auto loaded = find_library_set(set_id);
+    if (!loaded || !loaded.value())
+        return make_error(ErrorCode::kNotFound, "Library set was not found",
+                          {{"set_id", std::string(set_id)}, {"reason", "unknown_library_set"}});
+    return LibrarySetMutation{std::move(*loaded.value()), next_revision};
 }
 
 Result<std::int64_t> SqliteCatalogRepository::bump_revision()

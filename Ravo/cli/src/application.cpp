@@ -266,6 +266,11 @@ struct CatalogCliArguments
     std::string_view schedule_enabled;
     std::string_view folder_id;
     std::string_view replacement_directory;
+    std::string_view set_id;
+    std::string_view set_name;
+    std::string_view set_kind;
+    std::string_view query_json;
+    std::optional<std::int64_t> expected_revision;
     std::optional<std::int64_t> history_id;
 };
 
@@ -461,7 +466,10 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     CatalogCliArguments result;
     const bool batch_export = positional.size() > 1U && positional[1] == "export-batch";
     const bool multi_asset =
-        batch_export || (positional.size() > 1U && positional[1] == "preview-rebuild");
+        batch_export ||
+        (positional.size() > 1U &&
+         (positional[1] == "preview-rebuild" || positional[1] == "set-create" ||
+          positional[1] == "set-add" || positional[1] == "set-remove"));
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -826,6 +834,50 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "Replacement folder was specified twice");
             result.replacement_directory = value;
+        }
+        else if (option == "--set-id")
+        {
+            if (!result.set_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Library set ID was specified twice");
+            result.set_id = value;
+        }
+        else if (option == "--name")
+        {
+            if (!result.set_name.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Library set name was specified twice");
+            result.set_name = value;
+        }
+        else if (option == "--kind")
+        {
+            if (!result.set_kind.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Library set kind was specified twice");
+            result.set_kind = value;
+        }
+        else if (option == "--query")
+        {
+            if (!result.query_json.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Library query document was specified twice");
+            result.query_json = value;
+        }
+        else if (option == "--revision")
+        {
+            if (result.expected_revision)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Catalog revision was specified twice");
+            std::int64_t parsed = 0;
+            const auto converted =
+                std::from_chars(value.data(), value.data() + value.size(), parsed);
+            if (converted.ec != std::errc{} || converted.ptr != value.data() + value.size() ||
+                parsed < 0)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--revision requires a non-negative integer",
+                                  {{"value", std::string(value)}});
+            }
+            result.expected_revision = parsed;
         }
         else
         {
@@ -1426,6 +1478,42 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"missing", folder.missing},
         {"uri", folder.uri},
     };
+}
+
+[[nodiscard]] Result<JsonValue> library_set_to_json(const LibrarySetRecord &set)
+{
+    JsonValue::Object object{
+        {"asset_count", JsonValue::number(std::to_string(set.asset_count))},
+        {"created_unix_ms", JsonValue::number(std::to_string(set.created_unix_ms))},
+        {"id", set.id},
+        {"kind", std::string(library_set_kind_name(set.kind))},
+        {"name", set.name},
+        {"updated_unix_ms", JsonValue::number(std::to_string(set.updated_unix_ms))},
+    };
+    if (set.query)
+    {
+        auto serialized = serialize_library_query_document(*set.query);
+        if (!serialized)
+            return serialized.error();
+        auto parsed = parse_json(serialized.value());
+        if (!parsed)
+            return parsed.error();
+        object.emplace("query", std::move(parsed).value());
+    }
+    else
+        object.emplace("query", JsonValue{nullptr});
+    return JsonValue{std::move(object)};
+}
+
+[[nodiscard]] Result<JsonValue> library_set_mutation_to_json(const LibrarySetMutation &mutation)
+{
+    auto set = library_set_to_json(mutation.set);
+    if (!set)
+        return set.error();
+    return JsonValue{JsonValue::Object{
+        {"revision", JsonValue::number(std::to_string(mutation.revision))},
+        {"set", std::move(set).value()},
+    }};
 }
 
 [[nodiscard]] JsonValue folder_relink_to_json(const FolderRelinkResult &result)
@@ -2416,7 +2504,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|fields|rate|"
             "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
-            "backup-run|preview-rebuild|folders|folder-relink> "
+            "backup-run|preview-rebuild|folders|folder-relink|sets|set-create|set-rename|"
+            "set-delete|set-add|set-remove> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
     const auto subcommand = positional[1];
@@ -2460,6 +2549,20 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (has_folder_relink_options && subcommand != "folder-relink")
         return make_error(ErrorCode::kInvalidArgument,
                           "Folder relink options are only valid for catalog folder-relink");
+    const bool has_set_options = !flags.value().set_id.empty() || !flags.value().set_name.empty() ||
+                                 !flags.value().set_kind.empty() ||
+                                 !flags.value().query_json.empty() ||
+                                 flags.value().expected_revision.has_value();
+    const bool set_command = subcommand == "sets" || subcommand == "set-create" ||
+                             subcommand == "set-rename" || subcommand == "set-delete" ||
+                             subcommand == "set-add" || subcommand == "set-remove" ||
+                             subcommand == "list";
+    if (has_set_options && !set_command)
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Library set options are only valid for catalog set commands or list");
+    if (!flags.value().query_json.empty() && subcommand != "set-create")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--query is only valid for catalog set-create");
     const bool has_import_options =
         !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
@@ -2725,6 +2828,101 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return relinked.error();
         return folder_relink_to_json(relinked.value());
     }
+    if (subcommand == "sets")
+    {
+        auto sets = service.list_library_sets();
+        if (!sets)
+            return sets.error();
+        JsonValue::Array items;
+        items.reserve(sets.value().size());
+        for (const auto &set : sets.value())
+        {
+            auto json = library_set_to_json(set);
+            if (!json)
+                return json.error();
+            items.push_back(std::move(json).value());
+        }
+        return JsonValue{JsonValue::Object{{"sets", std::move(items)}}};
+    }
+    if (subcommand == "set-create")
+    {
+        if (flags.value().set_name.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog set-create requires --name <name>");
+        auto kind = parse_library_set_kind(flags.value().set_kind.empty() ?
+                                               kLibrarySetKindManual :
+                                               flags.value().set_kind);
+        if (!kind)
+            return kind.error();
+        std::optional<LibraryQuery> query;
+        if (!flags.value().query_json.empty())
+        {
+            auto parsed = parse_library_query_document(flags.value().query_json);
+            if (!parsed)
+                return parsed.error();
+            query = std::move(parsed).value();
+        }
+        std::vector<std::string> asset_ids;
+        if (!flags.value().asset_id.empty())
+            asset_ids.emplace_back(flags.value().asset_id);
+        for (const auto asset_id : flags.value().asset_ids)
+            asset_ids.emplace_back(asset_id);
+        auto created = service.create_library_set(kind.value(), flags.value().set_name, query,
+                                                  asset_ids, flags.value().expected_revision);
+        if (!created)
+            return created.error();
+        return library_set_mutation_to_json(created.value());
+    }
+    if (subcommand == "set-rename")
+    {
+        if (flags.value().set_id.empty() || flags.value().set_name.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog set-rename requires --set-id <id> --name <name>");
+        auto renamed = service.rename_library_set(flags.value().set_id, flags.value().set_name,
+                                                  flags.value().expected_revision);
+        if (!renamed)
+            return renamed.error();
+        return library_set_mutation_to_json(renamed.value());
+    }
+    if (subcommand == "set-delete")
+    {
+        if (flags.value().set_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog set-delete requires --set-id <id>");
+        auto deleted =
+            service.delete_library_set(flags.value().set_id, flags.value().expected_revision);
+        if (!deleted)
+            return deleted.error();
+        return JsonValue{JsonValue::Object{
+            {"revision", JsonValue::number(std::to_string(deleted.value()))},
+            {"set_id", std::string(flags.value().set_id)},
+        }};
+    }
+    if (subcommand == "set-add" || subcommand == "set-remove")
+    {
+        if (flags.value().set_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              std::string("catalog ") + std::string(subcommand) +
+                                  " requires --set-id <id> --asset-id <id>");
+        std::vector<std::string> asset_ids;
+        if (!flags.value().asset_id.empty())
+            asset_ids.emplace_back(flags.value().asset_id);
+        for (const auto asset_id : flags.value().asset_ids)
+            asset_ids.emplace_back(asset_id);
+        if (asset_ids.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              std::string("catalog ") + std::string(subcommand) +
+                                  " requires --asset-id <id>");
+        auto mutated =
+            subcommand == "set-add" ?
+                service.add_library_set_members(flags.value().set_id, asset_ids,
+                                                flags.value().expected_revision) :
+                service.remove_library_set_members(flags.value().set_id, asset_ids,
+                                                   flags.value().expected_revision);
+        if (!mutated)
+            return mutated.error();
+        return library_set_mutation_to_json(mutated.value());
+    }
     if (subcommand == "import")
     {
         if (flags.value().inputs.empty())
@@ -2833,6 +3031,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             }
             query.tag = tag.value();
         }
+        if (!flags.value().set_id.empty())
+            query.collection_id = std::string(flags.value().set_id);
         auto listed = service.list_assets(query);
         if (!listed)
         {
