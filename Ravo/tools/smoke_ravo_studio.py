@@ -15,7 +15,10 @@ def main() -> int:
     parser.add_argument("--language", action="append", default=[])
     args = parser.parse_args()
     env = os.environ.copy()
-    env.setdefault("QT_QPA_PLATFORM", "offscreen")
+    # Headless CI and POST_BUILD must not require a display or GPU.
+    env["QT_QPA_PLATFORM"] = "offscreen"
+    env.setdefault("QSG_RHI_BACKEND", "software")
+    env.setdefault("QT_QUICK_BACKEND", "software")
     languages: list[str | None] = args.language or [None]
     for language in languages:
         command = [args.binary, "--smoke"]

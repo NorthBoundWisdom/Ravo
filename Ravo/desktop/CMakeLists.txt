@@ -213,7 +213,23 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/StudioTranslations.cmake")
 add_custom_command(
   TARGET ravo_studio
   POST_BUILD
-  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/smoke_ravo_studio.py"
-          "$<TARGET_FILE:ravo_studio>"
+  COMMAND
+    "${CMAKE_COMMAND}" -E env
+    QT_QPA_PLATFORM=offscreen
+    QSG_RHI_BACKEND=software
+    QT_QUICK_BACKEND=software
+    "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/smoke_ravo_studio.py"
+    "$<TARGET_FILE:ravo_studio>"
+  WORKING_DIRECTORY "$<TARGET_FILE_DIR:ravo_studio>"
   COMMENT "Smoke-load Ravo Studio QML and exit"
   VERBATIM)
+if(BUILD_TESTING)
+  add_test(
+    NAME ravo_studio_qml_smoke
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/smoke_ravo_studio.py"
+            "$<TARGET_FILE:ravo_studio>")
+  set_tests_properties(ravo_studio_qml_smoke PROPERTIES
+    LABELS "ravo-desktop-smoke"
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:ravo_studio>"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QSG_RHI_BACKEND=software;QT_QUICK_BACKEND=software")
+endif()

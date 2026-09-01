@@ -533,7 +533,8 @@ TEST(StudioCommands, LockingCropAspectKeepsCurrentRatio)
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
 {
-    EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());
+    const auto errors = StudioCommandController::validateBuiltinDefinitions();
+    EXPECT_TRUE(errors.isEmpty()) << errors.join(QLatin1Char('\n')).toStdString();
 }
 
 TEST(StudioCommands, CopyDebugTextRequiresSelectionOrPresetPath)
