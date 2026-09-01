@@ -59,7 +59,8 @@ Current implementation status:
   a cancellable background queue after Last Imported Photos opens (ADR-0102).
 - Browse & Review includes ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
-  images like the grid and shows number/rating/flags in its letterbox;
+  images like the grid, shows number/rating/flags in its letterbox, and maps
+  vertical or horizontal wheel gestures to bounded horizontal scrolling;
   collapsible folder tree; left Import/Export; Fit/Fill/1:1; validated
   filename/metadata/camera text, media, edit/review/folder/tag/capture/numeric
   filtering and stable import/capture/name/rating/size sorting; additive
@@ -72,7 +73,9 @@ Current implementation status:
   navigator; hovering the inspect photo shows a magnifier and a click animates
   to 1:1 while restoring the last Fit/Fill/custom view (ADR-0076). Active-photo,
   browse-mode, and zoom changes recenter, while review edits on the same photo
-  preserve the current pan (ADR-0060).
+  preserve the current pan (ADR-0060). `I` toggles session-owned information:
+  one compact panel per Gallery tile and a larger wrapping active-photo panel
+  shared by Loupe and Edit, without changing catalog or recipe state.
   Capture metadata can be explicitly refreshed from the current original; the
   asset identity, capture row, and catalog revision publish transactionally.
   Schema-v7 keyset paging and the sparse Studio model expose the full logical

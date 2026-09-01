@@ -4116,6 +4116,10 @@
             <translation>編輯前 / 編輯後</translation>
         </message>
         <message>
+            <source>Photo Information</source>
+            <translation>相片資訊</translation>
+        </message>
+        <message>
             <source>Show Command Palette</source>
             <translation>顯示指令面板</translation>
         </message>

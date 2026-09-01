@@ -36,6 +36,27 @@ Rectangle {
                 positionViewAtIndex(currentIndex, ListView.Contain);
         }
 
+        WheelHandler {
+            target: null
+            onWheel: function (event) {
+                const pixel = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.pixelDelta.y;
+                const angle = event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y;
+                const delta = pixel !== 0 ? pixel : angle;
+                if (delta === 0) {
+                    event.accepted = false;
+                    return;
+                }
+                const maximum = Math.max(0, strip.contentWidth - strip.width);
+                const next = Math.max(0, Math.min(maximum, strip.contentX - delta));
+                if (next === strip.contentX) {
+                    event.accepted = false;
+                    return;
+                }
+                strip.contentX = next;
+                event.accepted = true;
+            }
+        }
+
         delegate: Item {
             id: stripDelegate
             required property string assetId

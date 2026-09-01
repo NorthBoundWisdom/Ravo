@@ -4116,6 +4116,10 @@
             <translation>前後</translation>
         </message>
         <message>
+            <source>Photo Information</source>
+            <translation>写真情報</translation>
+        </message>
+        <message>
             <source>Show Command Palette</source>
             <translation>コマンド パレットを表示</translation>
         </message>

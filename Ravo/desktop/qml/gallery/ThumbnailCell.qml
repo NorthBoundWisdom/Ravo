@@ -19,6 +19,8 @@ Item {
     property string mediaType: ""
     property int pixelWidth: 0
     property int pixelHeight: 0
+    property string captureSummary: ""
+    property bool showInformationOverlay: false
     property bool compact: false
     property var swatchColor: function (name) {
         return Theme.midColor;
@@ -85,6 +87,19 @@ Item {
             font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
         }
 
+        PhotoInformationOverlay {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: Fonts.size6
+            compact: true
+            displayName: root.sequenceNumber > 0 ? (root.sequenceNumber + "  " + root.displayName) : root.displayName
+            captureSummary: root.captureSummary
+            mediaType: root.mediaType
+            dimensions: root.sizeLabel
+            visible: root.showInformationOverlay && root.displayName.length > 0
+        }
+
         Item {
             id: chrome
             anchors.fill: photo
@@ -111,7 +126,7 @@ Item {
                 x: 1
                 y: chrome.topBand ? Math.max(0, (chrome.gutterY - implicitHeight) / 2) : (chrome.sideBand ? chrome.gutterY + 1 : 1)
                 text: root.sequenceNumber > 0 ? String(root.sequenceNumber) : ""
-                visible: text.length > 0
+                visible: text.length > 0 && !root.showInformationOverlay
                 font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
                 font.bold: true
                 color: root.chromeTextColor
@@ -123,7 +138,7 @@ Item {
                 anchors.right: parent.right
                 anchors.topMargin: chrome.topBand ? Math.max(0, (chrome.gutterY - implicitHeight) / 2) : 1
                 anchors.rightMargin: flagRow.width > 0 ? flagRow.width + 4 : 1
-                visible: text.length > 0 && (chrome.topBand || chrome.sideBand)
+                visible: !root.showInformationOverlay && text.length > 0 && (chrome.topBand || chrome.sideBand)
                 text: {
                     if (chrome.topBand && !root.compact && root.sizeLabel.length > 0)
                         return root.kindLabel.length > 0 ? (root.kindLabel + "  " + root.sizeLabel) : root.sizeLabel;
@@ -149,7 +164,7 @@ Item {
                 anchors.rightMargin: 3
                 anchors.bottomMargin: chrome.bottomBand ? Math.max(1, Math.round((chrome.gutterY - implicitHeight) / 2)) : 2
                 spacing: Fonts.size4
-                visible: root.starText.length > 0 || root.displayName.length > 0 || root.colorLabel !== "none"
+                visible: root.starText.length > 0 || (!root.showInformationOverlay && root.displayName.length > 0) || root.colorLabel !== "none"
 
                 CustomLabel {
                     id: starLabel
@@ -167,7 +182,7 @@ Item {
                     Layout.alignment: Qt.AlignVCenter
                     Layout.minimumWidth: 0
                     text: root.displayName
-                    visible: text.length > 0
+                    visible: text.length > 0 && !root.showInformationOverlay
                     elide: Text.ElideMiddle
                     horizontalAlignment: Text.AlignHCenter
                     font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12

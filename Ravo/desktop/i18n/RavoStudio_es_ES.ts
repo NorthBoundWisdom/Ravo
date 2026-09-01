@@ -4116,6 +4116,10 @@
             <translation>Antes / Después</translation>
         </message>
         <message>
+            <source>Photo Information</source>
+            <translation>Información de la foto</translation>
+        </message>
+        <message>
             <source>Show Command Palette</source>
             <translation>Mostrar paleta de comandos</translation>
         </message>

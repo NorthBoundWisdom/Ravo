@@ -7,6 +7,7 @@
 #include <utility>
 
 #include <QModelIndex>
+#include <QStringList>
 #include <QUrl>
 
 #include "ravo/domain/types.h"
@@ -18,6 +19,18 @@ namespace
 {
 
 constexpr std::size_t kMaximumResidentPages = 3U;
+
+QString compact_capture_summary(const AssetRecord &asset)
+{
+    QStringList parts;
+    if (asset.capture.iso)
+        parts.push_back(QStringLiteral("ISO %1").arg(*asset.capture.iso, 0, 'f', 0));
+    if (asset.capture.aperture)
+        parts.push_back(QStringLiteral("f/%1").arg(*asset.capture.aperture, 0, 'f', 1));
+    if (asset.capture.focal_length_mm)
+        parts.push_back(QStringLiteral("%1 mm").arg(*asset.capture.focal_length_mm, 0, 'f', 0));
+    return parts.join(QStringLiteral(" · "));
+}
 
 } // namespace
 
@@ -44,6 +57,7 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         case DisplayNameRole:
         case MediaTypeRole:
         case ErrorRole:
+        case CaptureSummaryRole:
             return QString{};
         case ImportStateRole:
             return QStringLiteral("loading");
@@ -105,6 +119,8 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         return asset.has_edits;
     case SelectedRole:
         return selected_ids_.contains(asset.id);
+    case CaptureSummaryRole:
+        return compact_capture_summary(asset);
     default:
         return {};
     }
@@ -112,13 +128,21 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
 
 QHash<int, QByteArray> AssetListModel::roleNames() const
 {
-    return {{AssetIdRole, "assetId"},           {DisplayNameRole, "displayName"},
-            {MediaTypeRole, "mediaType"},       {ImportStateRole, "importState"},
-            {ErrorRole, "errorText"},           {RatingRole, "rating"},
-            {ColorLabelRole, "colorLabel"},     {RejectedRole, "rejected"},
-            {ThumbnailUrlRole, "thumbnailUrl"}, {ThumbnailStateRole, "thumbnailState"},
-            {WidthRole, "pixelWidth"},          {HeightRole, "pixelHeight"},
-            {HasEditsRole, "hasEdits"},         {SelectedRole, "selected"}};
+    return {{AssetIdRole, "assetId"},
+            {DisplayNameRole, "displayName"},
+            {MediaTypeRole, "mediaType"},
+            {ImportStateRole, "importState"},
+            {ErrorRole, "errorText"},
+            {RatingRole, "rating"},
+            {ColorLabelRole, "colorLabel"},
+            {RejectedRole, "rejected"},
+            {ThumbnailUrlRole, "thumbnailUrl"},
+            {ThumbnailStateRole, "thumbnailState"},
+            {WidthRole, "pixelWidth"},
+            {HeightRole, "pixelHeight"},
+            {HasEditsRole, "hasEdits"},
+            {SelectedRole, "selected"},
+            {CaptureSummaryRole, "captureSummary"}};
 }
 
 void AssetListModel::setAssets(std::vector<AssetRecord> assets,

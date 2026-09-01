@@ -30,11 +30,15 @@ class StudioCommandController final : public QObject
     Q_PROPERTY(QVariantMap ids READ ids CONSTANT)
     Q_PROPERTY(QVariantList paletteEntries READ paletteEntries NOTIFY commandsChanged)
     Q_PROPERTY(QVariantList shortcutEntries READ shortcutEntries NOTIFY commandsChanged)
-    Q_PROPERTY(QString paletteQuery READ paletteQuery WRITE setPaletteQuery NOTIFY paletteQueryChanged)
+    Q_PROPERTY(
+        QString paletteQuery READ paletteQuery WRITE setPaletteQuery NOTIFY paletteQueryChanged)
     Q_PROPERTY(bool paletteOpen READ paletteOpen WRITE setPaletteOpen NOTIFY paletteOpenChanged)
-    Q_PROPERTY(bool textInputActive READ textInputActive WRITE setTextInputActive NOTIFY commandsChanged)
+    Q_PROPERTY(
+        bool textInputActive READ textInputActive WRITE setTextInputActive NOTIFY commandsChanged)
     Q_PROPERTY(bool settingsOpen READ settingsOpen WRITE setSettingsOpen NOTIFY commandsChanged)
-    Q_PROPERTY(bool assistantOpen READ assistantOpen WRITE setAssistantOpen NOTIFY assistantOpenChanged)
+    Q_PROPERTY(
+        bool assistantOpen READ assistantOpen WRITE setAssistantOpen NOTIFY assistantOpenChanged)
+    Q_PROPERTY(bool photoInfoVisible READ photoInfoVisible NOTIFY photoInfoVisibleChanged)
     Q_PROPERTY(bool modalOpen READ modalOpen WRITE setModalOpen NOTIFY commandsChanged)
     Q_PROPERTY(qulonglong revision READ revision NOTIFY commandsChanged)
 
@@ -50,6 +54,7 @@ public:
     [[nodiscard]] bool textInputActive() const noexcept;
     [[nodiscard]] bool settingsOpen() const noexcept;
     [[nodiscard]] bool assistantOpen() const noexcept;
+    [[nodiscard]] bool photoInfoVisible() const noexcept;
     [[nodiscard]] bool modalOpen() const noexcept;
     [[nodiscard]] qulonglong revision() const noexcept;
 
@@ -65,9 +70,9 @@ public:
     Q_INVOKABLE QVariantMap action(const QString &action_id) const;
     Q_INVOKABLE QVariantMap executeAction(const QString &action_id,
                                           const QString &source = QStringLiteral("control"));
-    Q_INVOKABLE QVariantMap executeCommand(
-        const QString &command_id, const QVariant &argument = QVariant(),
-        const QString &source = QStringLiteral("control"));
+    Q_INVOKABLE QVariantMap executeCommand(const QString &command_id,
+                                           const QVariant &argument = QVariant(),
+                                           const QString &source = QStringLiteral("control"));
     Q_INVOKABLE void cancelPendingConfirmation(const QString &token);
 
     // Machine-control entry point. It shares the command controller's runtime
@@ -85,6 +90,7 @@ signals:
     void paletteQueryChanged();
     void paletteOpenChanged();
     void assistantOpenChanged();
+    void photoInfoVisibleChanged();
     void presentationCommandRequested(const QString &id, const QVariant &argument);
     void dispatchRejected(const QString &id, const QString &code, const QString &message);
 
@@ -103,6 +109,7 @@ private:
     bool text_input_active_ = false;
     bool settings_open_ = false;
     bool assistant_open_ = false;
+    bool photo_info_visible_ = false;
     bool modal_open_ = false;
     qulonglong revision_ = 0;
 };

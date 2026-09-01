@@ -132,6 +132,7 @@ qt_add_qml_module(ravo_studio
     qml/gallery/LibrarySidePanel.qml
     qml/gallery/FilmStripBar.qml
     qml/gallery/GalleryReviewBar.qml
+    qml/gallery/PhotoInformationOverlay.qml
     qml/gallery/ThumbnailCell.qml
     qml/inspect/InspectorSidePanel.qml
     qml/inspect/PhotoInfoPanel.qml

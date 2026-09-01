@@ -41,6 +41,7 @@ public:
         HeightRole,
         HasEditsRole,
         SelectedRole,
+        CaptureSummaryRole,
     };
 
     explicit AssetListModel(QObject *parent = nullptr);

@@ -5,7 +5,7 @@
 Inspect a selected photo at useful zoom levels, navigate large images, and use
 the available RGB scopes without changing the source.
 
-**Last reviewed:** 2026-08-31 against the current Studio viewer, shortcut, and
+**Last reviewed:** 2026-09-01 against the current Studio viewer, shortcut, and
 scope presenter contracts.
 
 ## Applies to
@@ -31,6 +31,13 @@ Use the **Size** slider in the Gallery review bar to change thumbnail size. The
 current range is 120–320 for the grid control. Select a tile to make it active;
 double-click it to open Loupe.
 
+Press `I` in Gallery, Loupe, or Edit to toggle photo information. Gallery gives
+every loaded tile a compact filename plus capture-or-format overlay. Loupe and
+Edit use the same larger panel for the active photo with the complete available
+camera/capture summary, media type, pixel dimensions, and file size; long lines
+wrap instead of being omitted. This is window-session display state and does
+not change the catalog or recipe.
+
 ## Loupe
 
 Loupe displays the active photo on the center image surface. Use **View →
@@ -47,6 +54,10 @@ cursor. Click again to animate back to the Fit, Fill, or custom zoom that was
 current before 1:1. Wheel, Fit, Fill, and the 1:1 control still jump to the
 requested zoom. Crop mode keeps pointer ownership for crop gestures.
 Double-clicking the Loupe image returns to Gallery.
+
+The filmstrip accepts both horizontal wheel input and an ordinary vertical
+mouse wheel, mapping either gesture to bounded horizontal scrolling. Reaching
+an end never changes the active photo or wraps the strip.
 
 ## Zoom modes
 

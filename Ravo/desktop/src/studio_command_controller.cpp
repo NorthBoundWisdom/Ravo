@@ -97,6 +97,7 @@ inline constexpr auto kViewSetZoomMode = "studio.view.set_zoom_mode";
 inline constexpr auto kViewAdjustZoom = "studio.view.adjust_zoom";
 inline constexpr auto kViewSetThumbnailSize = "studio.view.set_thumbnail_size";
 inline constexpr auto kViewSetScopeMode = "studio.view.set_scope_mode";
+inline constexpr auto kViewTogglePhotoInfo = "studio.view.toggle_photo_info";
 inline constexpr auto kEditUndo = "studio.edit.undo";
 inline constexpr auto kEditRedo = "studio.edit.redo";
 inline constexpr auto kEditCopyParameters = "studio.edit.copy_parameters";
@@ -422,6 +423,7 @@ QStringList command_ids()
             QLatin1String(command::kViewAdjustZoom),
             QLatin1String(command::kViewSetThumbnailSize),
             QLatin1String(command::kViewSetScopeMode),
+            QLatin1String(command::kViewTogglePhotoInfo),
             QLatin1String(command::kEditUndo),
             QLatin1String(command::kEditRedo),
             QLatin1String(command::kEditCopyParameters),
@@ -634,6 +636,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Before / After")), view,
         {QStringLiteral("compare"), QStringLiteral("side by side")}, QStringLiteral("view.compare"),
         20, false, {key(QStringLiteral("Y"), true)});
+    add(command::kViewTogglePhotoInfo, command::kViewTogglePhotoInfo,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Photo Information")), view,
+        {QStringLiteral("metadata"), QStringLiteral("overlay"), QStringLiteral("exif")},
+        QStringLiteral("view.compare"), 30, true, {key(QStringLiteral("I"), true)});
     add(command::kWindowPalette, command::kWindowPalette,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Show Command Palette")), view,
         {QStringLiteral("commands"), QStringLiteral("search")}, QStringLiteral("view.commands"), 10,
@@ -1761,6 +1767,13 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         },
         [this](const QVariant &argument, const QString &)
         { presenter_.setThumbnailSize(argument.toInt()); });
+    add(command::kViewTogglePhotoInfo, Condition::kCatalogOpen, no_argument,
+        [this](const QVariant &, const QString &)
+        {
+            photo_info_visible_ = !photo_info_visible_;
+            emit photoInfoVisibleChanged();
+            refresh();
+        });
     add(
         command::kViewSetScopeMode, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -2189,6 +2202,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("viewAdjustZoom"), QLatin1String(command::kViewAdjustZoom)},
         {QStringLiteral("viewSetThumbnailSize"), QLatin1String(command::kViewSetThumbnailSize)},
         {QStringLiteral("viewSetScopeMode"), QLatin1String(command::kViewSetScopeMode)},
+        {QStringLiteral("viewPhotoInfo"), QLatin1String(command::kViewTogglePhotoInfo)},
         {QStringLiteral("editUndo"), QLatin1String(command::kEditUndo)},
         {QStringLiteral("editRedo"), QLatin1String(command::kEditRedo)},
         {QStringLiteral("editCopyParameters"), QLatin1String(command::kEditCopyParameters)},
@@ -2417,6 +2431,11 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     {
         checkable = true;
         checked = assistant_open_;
+    }
+    else if (found->id == QLatin1String(command::kViewTogglePhotoInfo))
+    {
+        checkable = true;
+        checked = photo_info_visible_;
     }
     const QString shortcut =
         found->shortcuts.isEmpty() ? QString{} : native_key(found->shortcuts.front().sequence);
@@ -2679,6 +2698,10 @@ bool StudioCommandController::settingsOpen() const noexcept
 bool StudioCommandController::assistantOpen() const noexcept
 {
     return assistant_open_;
+}
+bool StudioCommandController::photoInfoVisible() const noexcept
+{
+    return photo_info_visible_;
 }
 bool StudioCommandController::modalOpen() const noexcept
 {

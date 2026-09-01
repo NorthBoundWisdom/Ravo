@@ -4116,6 +4116,10 @@
             <translation>Vorher / Nachher</translation>
         </message>
         <message>
+            <source>Photo Information</source>
+            <translation>Fotoinformationen</translation>
+        </message>
+        <message>
             <source>Show Command Palette</source>
             <translation>Befehlspalette anzeigen</translation>
         </message>

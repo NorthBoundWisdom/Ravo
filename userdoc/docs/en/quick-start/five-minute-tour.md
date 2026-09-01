@@ -55,7 +55,7 @@ QML workspace.
 | Center stage | Gallery grid, Loupe preview, or Edit image/crop surface. |
 | Review bar | Thumbnail size, rating, color label, Keep/Reject, Previous, and Next. |
 | Inspector | Photo information, catalog metadata, presets, history, Develop controls, and scopes. |
-| Filmstrip | Whole-photo thumbnails with sequence number, rating, flags, and edit state. |
+| Filmstrip | Whole-photo thumbnails with sequence number, rating, flags, and edit state; wheel gestures scroll it horizontally. |
 | Status bar | Import, preview, loading, success, and error feedback. |
 
 ## Result

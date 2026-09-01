@@ -5,7 +5,7 @@
 Find Studio actions quickly from the keyboard and understand when a command is
 disabled.
 
-**Last reviewed:** 2026-08-31 against the current Studio command registry.
+**Last reviewed:** 2026-09-01 against the current Studio command registry.
 
 ## Command palette
 
@@ -51,6 +51,7 @@ modifier.
 | Actual Size | `Cmd/Ctrl+Alt+0` or `Shift+1` |
 | Before / After | `\` |
 | Left / Right comparison | `Y` |
+| Photo information overlay | `I` |
 | Previous / Next Photo | Left / Right Arrow |
 | Crop & Rotate | `R` |
 | Rotate Left / Right | `Cmd/Ctrl+[` / `Cmd/Ctrl+]` |

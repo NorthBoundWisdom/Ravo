@@ -4060,6 +4060,10 @@
             <translation>Import Preset...</translation>
         </message>
         <message>
+            <source>Photo Information</source>
+            <translation>Photo Information</translation>
+        </message>
+        <message>
             <source>Assistant</source>
             <translation>Assistant</translation>
         </message>

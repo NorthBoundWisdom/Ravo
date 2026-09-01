@@ -218,6 +218,27 @@ TEST(AssetListModelTest, SparsePagesKeepTotalRowsAndBoundResidentRecords)
     EXPECT_TRUE(model.isSelected("ast_sparse_0"));
 }
 
+TEST(AssetListModelTest, GridCaptureSummaryIsCompactAndPerAsset)
+{
+    AssetRecord asset;
+    asset.id = "ast_capture_summary";
+    asset.normalized_uri = "file:///library/photo.arw";
+    asset.media_type = std::string(kMediaTypeRaw);
+    asset.capture.camera_make = "SONY";
+    asset.capture.camera_model = "ILCE-7CR";
+    asset.capture.iso = 100.0;
+    asset.capture.aperture = 5.6;
+    asset.capture.focal_length_mm = 46.7;
+
+    AssetListModel model;
+    model.setAssets({asset});
+    ASSERT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.roleNames().value(AssetListModel::CaptureSummaryRole),
+              QByteArray("captureSummary"));
+    EXPECT_EQ(model.data(model.index(0, 0), AssetListModel::CaptureSummaryRole).toString(),
+              QStringLiteral("ISO 100 · f/5.6 · 47 mm"));
+}
+
 class ScopedEnvironmentVariable
 {
 public:
@@ -3260,6 +3281,52 @@ TEST(StudioCommands, CropToolShortcutIsRAndDoesNotRequireEditMode)
               QCoreApplication::translate("StudioCommands", "Open a library first."));
 }
 
+TEST(StudioCommands, PhotoInformationShortcutTogglesSessionOwnedOverlay)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    StudioCommandController controller(presenter);
+    const auto action_id = controller.ids().value(QStringLiteral("viewPhotoInfo")).toString();
+    ASSERT_EQ(action_id, QStringLiteral("studio.view.toggle_photo_info"));
+
+    bool found_i = false;
+    for (const auto &entry_value : controller.shortcutEntries())
+    {
+        const auto entry = entry_value.toMap();
+        if (entry.value(QStringLiteral("actionId")).toString() != action_id)
+            continue;
+        found_i = true;
+        EXPECT_EQ(entry.value(QStringLiteral("sequence")).toString(), QStringLiteral("I"));
+        EXPECT_TRUE(entry.value(QStringLiteral("enabled")).toBool());
+    }
+    ASSERT_TRUE(found_i);
+    EXPECT_FALSE(controller.photoInfoVisible());
+    EXPECT_TRUE(controller.action(action_id).value(QStringLiteral("checkable")).toBool());
+    EXPECT_FALSE(controller.action(action_id).value(QStringLiteral("checked")).toBool());
+
+    const auto shown = controller.executeAction(action_id, QStringLiteral("keyboard"));
+    EXPECT_TRUE(shown.value(QStringLiteral("accepted")).toBool());
+    EXPECT_TRUE(controller.photoInfoVisible());
+    EXPECT_TRUE(controller.action(action_id).value(QStringLiteral("checked")).toBool());
+
+    const auto hidden = controller.executeAction(action_id, QStringLiteral("keyboard"));
+    EXPECT_TRUE(hidden.value(QStringLiteral("accepted")).toBool());
+    EXPECT_FALSE(controller.photoInfoVisible());
+
+    controller.setTextInputActive(true);
+    for (const auto &entry_value : controller.shortcutEntries())
+    {
+        const auto entry = entry_value.toMap();
+        if (entry.value(QStringLiteral("actionId")).toString() == action_id)
+            EXPECT_FALSE(entry.value(QStringLiteral("enabled")).toBool());
+    }
+}
+
 TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
 {
     ensure_qt_core();
@@ -3271,6 +3338,8 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
     EXPECT_EQ(QCoreApplication::translate("SettingsPage", "Language"), QStringLiteral("语言"));
     EXPECT_EQ(QCoreApplication::translate("StudioCommands", "Open a library first."),
               QStringLiteral("请先打开图库。"));
+    EXPECT_EQ(QCoreApplication::translate("StudioCommands", "Photo Information"),
+              QStringLiteral("照片信息"));
     EXPECT_EQ(QCoreApplication::translate("StudioPresenter", "Library opened."),
               QStringLiteral("图库已打开。"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "RGB Primaries"),
@@ -4111,6 +4180,53 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
     EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));
+}
+
+TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLoupeAndEdit)
+{
+    QFile filmstrip(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/gallery/FilmStripBar.qml"));
+    ASSERT_TRUE(filmstrip.open(QIODevice::ReadOnly | QIODevice::Text))
+        << filmstrip.errorString().toStdString();
+    const auto filmstrip_source = QString::fromUtf8(filmstrip.readAll());
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("WheelHandler")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.pixelDelta.x")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.angleDelta.y")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("strip.contentX - delta")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("strip.contentWidth - strip.width")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.accepted = true")));
+
+    QFile overlay(QStringLiteral(RAVO_REPOSITORY_ROOT
+                                 "/Ravo/desktop/qml/gallery/PhotoInformationOverlay.qml"));
+    ASSERT_TRUE(overlay.open(QIODevice::ReadOnly | QIODevice::Text))
+        << overlay.errorString().toStdString();
+    const auto overlay_source = QString::fromUtf8(overlay.readAll());
+    EXPECT_TRUE(overlay_source.contains(QStringLiteral("objectName: \"photoInformationOverlay\"")));
+    EXPECT_TRUE(overlay_source.contains(QStringLiteral("property bool compact")));
+    EXPECT_TRUE(overlay_source.contains(QStringLiteral("Fonts.scaledUiSize(640)")));
+    EXPECT_TRUE(overlay_source.contains(QStringLiteral("Text.ElideNone")));
+    EXPECT_TRUE(overlay_source.contains(QStringLiteral("Text.Wrap")));
+
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto main_source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("PhotoInformationOverlay")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studioCommands.photoInfoVisible")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.browseMode === \"loupe\"")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.browseMode === \"develop\"")));
+    EXPECT_TRUE(main_source.contains(
+        QStringLiteral("showInformationOverlay: studioCommands.photoInfoVisible")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("captureSummary: tile.captureSummary")));
+
+    QFile thumbnail(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/gallery/ThumbnailCell.qml"));
+    ASSERT_TRUE(thumbnail.open(QIODevice::ReadOnly | QIODevice::Text))
+        << thumbnail.errorString().toStdString();
+    const auto thumbnail_source = QString::fromUtf8(thumbnail.readAll());
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("property bool showInformationOverlay")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("compact: true")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("captureSummary: root.captureSummary")));
 }
 
 TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)

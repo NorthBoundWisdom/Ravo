@@ -4060,6 +4060,10 @@
             <translation>导入预设...</translation>
         </message>
         <message>
+            <source>Photo Information</source>
+            <translation>照片信息</translation>
+        </message>
+        <message>
             <source>Assistant</source>
             <translation>助手</translation>
         </message>

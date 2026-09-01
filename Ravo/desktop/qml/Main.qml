@@ -887,6 +887,7 @@ ApplicationWindow {
                         required property bool selected
                         required property int pixelWidth
                         required property int pixelHeight
+                        required property string captureSummary
                         required property int index
                         width: grid.cellWidth
                         height: grid.cellHeight
@@ -918,6 +919,8 @@ ApplicationWindow {
                             mediaType: tile.mediaType
                             pixelWidth: tile.pixelWidth
                             pixelHeight: tile.pixelHeight
+                            captureSummary: tile.captureSummary
+                            showInformationOverlay: studioCommands.photoInfoVisible
                             swatchColor: window.swatchColor
                             onClicked: function (button, modifiers) {
                                 studioActions.handlePhotoClick(tile.assetId, button, modifiers);
@@ -1287,6 +1290,19 @@ ApplicationWindow {
                             }
                         }
                     }
+                }
+
+                PhotoInformationOverlay {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.margins: Fonts.size12
+                    z: 30
+                    displayName: studio.selectedDisplayName
+                    captureSummary: studio.selectedCaptureSummary
+                    mediaType: studio.selectedMediaType
+                    dimensions: studio.selectedDimensions
+                    fileSize: studio.selectedFileSize
+                    visible: studioCommands.photoInfoVisible && studio.selectedAssetId.length > 0 && (studio.browseMode === "loupe" || studio.browseMode === "develop")
                 }
 
                 GalleryReviewBar {

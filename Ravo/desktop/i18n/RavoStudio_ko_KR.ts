@@ -4116,6 +4116,10 @@
             <translation>전 / 후</translation>
         </message>
         <message>
+            <source>Photo Information</source>
+            <translation>사진 정보</translation>
+        </message>
+        <message>
             <source>Show Command Palette</source>
             <translation>명령 팔레트 표시</translation>
         </message>
