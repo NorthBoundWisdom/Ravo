@@ -9,6 +9,7 @@
 #include <iterator>
 #include <numbers>
 #include <set>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -39,6 +40,10 @@
 namespace ravo
 {
 using studio_develop_internal::develop_mask_editor_map;
+using studio_develop_internal::develop_mask_field_prefix;
+using studio_develop_internal::develop_mask_target_from_name;
+using studio_develop_internal::map_mask_place_preview;
+using studio_develop_internal::mask_place_geometry_allowed;
 
 namespace
 {
@@ -285,11 +290,14 @@ void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
     const bool changed = mask_overlay_visible_ != visible || mask_overlay_target_ != normalized;
     mask_overlay_visible_ = visible;
     mask_overlay_target_ = normalized;
-    if (!changed && !comparison_changed)
+    const bool place_cleared = !visible && mask_place_active_;
+    if (place_cleared)
+        mask_place_active_ = false;
+    if (!changed && !comparison_changed && !place_cleared)
     {
         return;
     }
-    if (comparison_changed)
+    if (comparison_changed || place_cleared)
     {
         emit editChanged();
     }
@@ -305,6 +313,116 @@ void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
         return;
     }
     enqueue_preview();
+}
+
+bool StudioPresenter::maskPlaceActive() const noexcept
+{
+    return mask_place_active_;
+}
+
+bool StudioPresenter::maskPlaceGeometryAllowed() const noexcept
+{
+    return mask_place_geometry_allowed(develop_);
+}
+
+void StudioPresenter::setMaskPlaceActive(const bool active)
+{
+    const bool enabled = active && mask_overlay_visible_ && mask_place_geometry_allowed(develop_);
+    if (mask_place_active_ == enabled)
+        return;
+    if (enabled)
+    {
+        static_cast<void>(clear_comparison());
+        if (crop_tool_active_)
+            setCropToolActive(false);
+        if (white_balance_pick_active_)
+            setWhiteBalancePickActive(false);
+    }
+    mask_place_active_ = enabled;
+    emit editChanged();
+    if (enabled)
+        emit previewChanged();
+}
+
+void StudioPresenter::placeMask(const double preview_x, const double preview_y)
+{
+    if (!mask_place_active_ || !mask_overlay_visible_)
+        return;
+    const auto target = develop_mask_target_from_name(utf8_from_qstring(mask_overlay_target_));
+    if (!target)
+    {
+        setError(QCoreApplication::translate("DevelopPanel", "Mask click placement has no overlay target"));
+        setMaskPlaceActive(false);
+        return;
+    }
+    auto mapped = map_mask_place_preview(develop_, preview_x, preview_y);
+    if (!mapped)
+    {
+        const auto reason = mapped.error().context.find("reason");
+        const auto reason_text = reason == mapped.error().context.end() ?
+                                     QStringLiteral("unknown") :
+                                     qstring_from_utf8(reason->second);
+        setError(QCoreApplication::translate("DevelopPanel", "Mask click placement was rejected") +
+                 QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+        setMaskPlaceActive(false);
+        return;
+    }
+    const auto state = develop_mask_editor_state(develop_, *target);
+    if (!state.attached || !state.editable)
+    {
+        setError(QCoreApplication::translate("DevelopPanel",
+                                             "Mask click placement requires an editable attached mask"));
+        setMaskPlaceActive(false);
+        return;
+    }
+    const std::string_view kind =
+        state.kind_name == "group" ? std::string_view(state.child_kind_name) : std::string_view(state.kind_name);
+    const QString prefix = develop_mask_field_prefix(*target);
+    QString x_field;
+    QString y_field;
+    if (kind == "circle" || kind == "ellipse")
+    {
+        x_field = prefix + QStringLiteral("CenterX");
+        y_field = prefix + QStringLiteral("CenterY");
+    }
+    else if (kind == "linear_gradient")
+    {
+        x_field = prefix + QStringLiteral("AnchorX");
+        y_field = prefix + QStringLiteral("AnchorY");
+    }
+    else
+    {
+        setError(QCoreApplication::translate(
+            "DevelopPanel", "Mask click placement supports circle, ellipse, or linear gradient"));
+        setMaskPlaceActive(false);
+        return;
+    }
+    DevelopParams next = develop_;
+    auto applied_x =
+        apply_develop_mask_field_strict(next, utf8_from_qstring(x_field), mapped.value().first);
+    if (!applied_x)
+    {
+        const auto reason = applied_x.error().context.find("reason");
+        const auto reason_text = reason == applied_x.error().context.end() ?
+                                     QStringLiteral("unknown") :
+                                     qstring_from_utf8(reason->second);
+        setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                 QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+        return;
+    }
+    auto applied_y =
+        apply_develop_mask_field_strict(next, utf8_from_qstring(y_field), mapped.value().second);
+    if (!applied_y)
+    {
+        const auto reason = applied_y.error().context.find("reason");
+        const auto reason_text = reason == applied_y.error().context.end() ?
+                                     QStringLiteral("unknown") :
+                                     qstring_from_utf8(reason->second);
+        setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                 QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+        return;
+    }
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, utf8_from_qstring(x_field));
 }
 
 void StudioPresenter::retranslate()

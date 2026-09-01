@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-28
 - Extends: [ADR-0043](0043-canonical-mask-graph-foundation.md), [ADR-0044](0044-studio-canonical-mask-authoring.md)
+- Extended by: [ADR-0114](0114-mask-click-placement.md)
 
 ## Context
 

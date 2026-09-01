@@ -24,6 +24,7 @@ DialogShell {
     property double tiffCompressionLevel: 0
     property bool tiffGrayscaleIfNeutral: false
     property double tiffResolutionDpi: 0
+    property double maxEdge: 0
 
     property var formatChoices: presenter.exportFormatChoices()
     property var jpegSubsamplingChoices: presenter.jpegSubsamplingChoices()
@@ -69,6 +70,7 @@ DialogShell {
         tiffGrayscaleIfNeutral = defaults.tiffGrayscaleIfNeutral;
         tiffResolutionDpi = defaults.tiffResolutionDpi;
         metadataModeId = defaults.metadataMode;
+        maxEdge = defaults.maxEdge !== undefined ? defaults.maxEdge : 0;
         filenameTemplate = "{stem}-{sequence}{ext}";
     }
 
@@ -77,13 +79,15 @@ DialogShell {
             return {
                 "quality": jpegQualitySpin.realValue,
                 "jpegSubsampling": jpegSubsamplingId,
-                "metadataMode": metadataModeId
+                "metadataMode": metadataModeId,
+                "maxEdge": maxEdgeSpin.realValue
             };
         if (formatId === "png")
             return {
                 "pngBitDepth": pngBitDepthId,
                 "pngCompression": pngCompressionSpin.realValue,
-                "metadataMode": metadataModeId
+                "metadataMode": metadataModeId,
+                "maxEdge": maxEdgeSpin.realValue
             };
         if (formatId === "tiff")
             return {
@@ -92,7 +96,8 @@ DialogShell {
                 "tiffCompressionLevel": tiffCompressionLevelSpin.realValue,
                 "tiffGrayscaleIfNeutral": tiffGrayscaleIfNeutral,
                 "tiffResolutionDpi": tiffResolutionSpin.realValue,
-                "metadataMode": metadataModeId
+                "metadataMode": metadataModeId,
+                "maxEdge": maxEdgeSpin.realValue
             };
         return {};
     }
@@ -194,6 +199,30 @@ DialogShell {
                 Accessible.name: qsTr("Metadata privacy")
                 onActivated: function (index) {
                     root.metadataModeId = model[index].id;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original"
+
+            CustomLabel {
+                text: qsTr("Long edge")
+                Accessible.name: qsTr("Maximum long edge")
+            }
+            CustomSpinBox {
+                id: maxEdgeSpin
+                objectName: "exportMaxEdge"
+                Layout.fillWidth: true
+                decimals: 0
+                realFrom: root.optionBounds.maxEdgeMin
+                realTo: root.optionBounds.maxEdgeMax
+                realValue: root.maxEdge
+                Accessible.name: qsTr("Maximum long edge (0 keeps the rendered size)")
+                onEditingCommitted: function (value) {
+                    root.maxEdge = value;
                 }
             }
         }

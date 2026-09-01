@@ -101,6 +101,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool hasCopiedParameters READ hasCopiedParameters NOTIFY copiedParametersChanged)
     Q_PROPERTY(QVariantMap editWhiteBalance READ editWhiteBalance NOTIFY editChanged)
     Q_PROPERTY(bool whiteBalancePickActive READ whiteBalancePickActive NOTIFY editChanged)
+    Q_PROPERTY(bool maskPlaceActive READ maskPlaceActive NOTIFY editChanged)
+    Q_PROPERTY(bool maskPlaceGeometryAllowed READ maskPlaceGeometryAllowed NOTIFY editChanged)
     Q_PROPERTY(QVariantList editColorEqBands READ editColorEqBands NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editInputColor READ editInputColor NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editProfileGamma READ editProfileGamma NOTIFY editChanged)
@@ -620,6 +622,10 @@ public:
     [[nodiscard]] bool maskOverlayVisible() const noexcept;
     [[nodiscard]] QString maskOverlayTarget() const;
     Q_INVOKABLE void setMaskOverlay(const QString &target, bool visible);
+    [[nodiscard]] bool maskPlaceActive() const noexcept;
+    [[nodiscard]] bool maskPlaceGeometryAllowed() const noexcept;
+    Q_INVOKABLE void setMaskPlaceActive(bool active);
+    Q_INVOKABLE void placeMask(double preview_x, double preview_y);
     void retranslate();
     Q_INVOKABLE void setToneCurve(const QVariantList &points);
     Q_INVOKABLE void previewToneCurve(const QVariantList &points);
@@ -993,6 +999,7 @@ private:
     bool comparison_before_requested_ = false;
     bool crop_tool_active_ = false;
     bool white_balance_pick_active_ = false;
+    bool mask_place_active_ = false;
     bool crop_guide_ready_ = false;
     QString crop_aspect_{QStringLiteral("free")};
     double locked_crop_ratio_ = 0.0;

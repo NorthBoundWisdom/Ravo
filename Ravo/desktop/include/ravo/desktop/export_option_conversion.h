@@ -24,6 +24,7 @@ inline constexpr std::string_view kStudioExportOptionTiffGrayscaleIfNeutral =
     "tiffGrayscaleIfNeutral";
 inline constexpr std::string_view kStudioExportOptionTiffResolutionDpi = "tiffResolutionDpi";
 inline constexpr std::string_view kStudioExportOptionMetadataMode = "metadataMode";
+inline constexpr std::string_view kStudioExportOptionMaxEdge = "maxEdge";
 
 struct StudioExportSelection
 {
@@ -32,6 +33,7 @@ struct StudioExportSelection
     PngExportOptions png_options;
     TiffExportOptions tiff_options;
     ExportMetadataMode metadata_mode = ExportMetadataMode::kFull;
+    std::uint32_t max_edge = 0;
 };
 
 [[nodiscard]] Result<StudioExportSelection>

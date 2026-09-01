@@ -5,8 +5,8 @@
 Create one or a batch of local rendered outputs, or exact original copies,
 while preserving catalog recipes and refusing unsafe destination conflicts.
 
-**Last reviewed:** 2026-08-31 against the current CatalogService export path and
-CLI options.
+**Last reviewed:** 2026-09-01 against the current CatalogService export path,
+Studio long-edge control, and CLI options.
 
 ## Applies to
 
@@ -25,8 +25,10 @@ CLI options.
 2. Choose **File → Export Selected**, or use **Export…** in the left panel.
 3. Choose **JPEG**, **PNG**, **TIFF**, or **Original copy** and the matching
    encoder options. For rendered formats choose **Full metadata**, **Without
-   location**, or **No public metadata**. The dialog always starts from the
-   domain defaults.
+   location**, or **No public metadata**, and optionally a **Long edge**.
+   `0` keeps the rendered size; a positive value fits the longer edge inside
+   that limit and does not enlarge. Original copy ignores resize. The dialog
+   always starts from the domain defaults.
 4. For one photo, confirm the native save dialog. For multiple photos, review
    the filename template, choose an existing destination folder, and wait for
    the status bar to report completion.
@@ -100,6 +102,8 @@ Common options:
 - `--quality 5..100` for JPEG only; default `95`.
 - `--jpeg-subsampling auto|444|440|422|420` for JPEG only; default `auto`.
 - `--max-edge N` to fit a rendered result within a positive maximum edge.
+  Studio's Long edge control is the same Catalog field; `0` in Studio means
+  omit the limit. A smaller source is not enlarged.
 - `--metadata full|no-location|none` for rendered formats; default `full`.
 
 PNG-only options:

@@ -148,7 +148,9 @@ Light controls include:
 - Deflicker percentile and target EV when Deflicker is selected.
 - The Light-panel Mask editors can attach a circle, brush, or other canonical
   mask so Exposure, Highlights, Shadows, Whites, or Blacks apply only inside
-  that shape. Contrast, Gamma, and RGB levels stay global.
+  that shape. Contrast, Gamma, and RGB levels stay global. With overlay on,
+  **Place on photo** lets a click set a circle/ellipse centre or gradient
+  anchor. Canvas, Perspective, straighten, rotate, and flip must be off.
 
 ### Curves
 

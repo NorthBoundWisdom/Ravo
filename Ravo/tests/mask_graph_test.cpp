@@ -1081,6 +1081,20 @@ TEST(MaskGraphEngineTest, ToneCurveNormalMixMatchesUnmaskedAndZeroOpacityInput)
     EXPECT_EQ(masked_identity.value().rgb, unmasked_identity.value().rgb);
 }
 
+TEST(DevelopMaskAuthoringTest, EllipseCenterAndFeatherFieldsApplyToEllipseLeaves)
+{
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskKind", 4.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskCenterX", 0.22));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskCenterY", 0.64));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskFeather", 0.12));
+    auto state = develop_mask_editor_state(params, DevelopMaskTarget::kExposure);
+    EXPECT_EQ(state.kind_name, "ellipse");
+    EXPECT_DOUBLE_EQ(state.center_x, 0.22);
+    EXPECT_DOUBLE_EQ(state.center_y, 0.64);
+    EXPECT_DOUBLE_EQ(state.feather, 0.12);
+}
+
 TEST(DevelopMaskAuthoringTest, LightControlsOwnCircleAndBrushMasksAndRoundTrip)
 {
     struct Case

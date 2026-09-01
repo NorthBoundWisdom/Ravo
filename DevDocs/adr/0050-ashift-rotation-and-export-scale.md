@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-29
 - Extends: [ADR-0049](0049-legacy-crop-box-contract.md)
+- Extended by: [ADR-0113](0113-studio-export-long-edge.md)
 
 ## Context
 

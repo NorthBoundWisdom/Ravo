@@ -616,6 +616,8 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     const auto blacks_mask = presenter.editBlacksMask();
     EXPECT_EQ(blacks_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("blacksMaskKind"));
+    EXPECT_FALSE(presenter.maskPlaceActive());
+    EXPECT_TRUE(presenter.maskPlaceGeometryAllowed());
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("shadowsFalloff")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("highlightsFalloff")).toDouble(), 1.0);

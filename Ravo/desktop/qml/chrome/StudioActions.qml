@@ -120,6 +120,15 @@ Item {
     function setWhiteBalancePickActive(active) {
         root.run(root.ids.editSetWhiteBalancePick, active);
     }
+    function placeMask(x, y) {
+        root.run(root.ids.editPlaceMask, {
+            "x": x,
+            "y": y
+        });
+    }
+    function setMaskPlaceActive(active) {
+        root.run(root.ids.editSetMaskPlace, active);
+    }
     function setDevelopText(name, value) {
         root.run(root.ids.editSetText, {
             "name": name,

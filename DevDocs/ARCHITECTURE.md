@@ -577,7 +577,9 @@ the next recipe input. `DevelopParams` keeps the typed graph and attachments,
 including disabled/default instances, so live preview, save/reopen and ordinary
 Develop edits cannot baseline-elide a loaded mask. Studio projects read-only
 mask-editor maps and forwards numeric intents to the recipe helper through the
-existing Develop preview/commit path. Unshared
+existing Develop preview/commit path. Click placement of circle, ellipse, and
+linear-gradient geometry uses the same fields; Canvas, Perspective, straighten,
+rotate, and flip reject rather than approximating an inverse (ADR-0114). Unshared
 Studio-owned leaves and groups are editable; external IDs and shared
 attachments are visibly read-only and may only be explicitly detached. Studio can
 show a preview-only yellow overlay of the named attachment, author owned group
@@ -1447,8 +1449,9 @@ CLI and Studio project that contract without expanding paths themselves. See
   refresh, privacy stripping, no-automatic-sidecar policy, recipe styles, and
   typed batch/path-template storage are accepted. TIFF multipage masks and
   shared old export consumers remain out of scope. Studio collects one explicit
-  format plus matching typed options before the native file/folder dialog; it
-  does not infer format from a localized filter.
+  format plus matching typed options, including rendered long-edge `max_edge`
+  (0 keeps the current size; a positive value never enlarges, ADR-0113), before
+  the native file/folder dialog; it does not infer format from a localized filter.
 - Ravo does not implement every historic blend/operation or
   old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

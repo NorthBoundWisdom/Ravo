@@ -147,6 +147,8 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("editPickWhiteBalance"), QLatin1String(command::kEditPickWhiteBalance)},
         {QStringLiteral("editSetWhiteBalancePick"),
          QLatin1String(command::kEditSetWhiteBalancePick)},
+        {QStringLiteral("editPlaceMask"), QLatin1String(command::kEditPlaceMask)},
+        {QStringLiteral("editSetMaskPlace"), QLatin1String(command::kEditSetMaskPlace)},
         {QStringLiteral("editSetText"), QLatin1String(command::kEditSetText)},
         {QStringLiteral("editSetToneCurve"), QLatin1String(command::kEditSetToneCurve)},
         {QStringLiteral("editAddRetouchRegion"), QLatin1String(command::kEditAddRetouchRegion)},

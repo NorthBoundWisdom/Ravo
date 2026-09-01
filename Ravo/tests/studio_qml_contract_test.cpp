@@ -264,6 +264,8 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     const auto main_source = QString::fromUtf8(main.readAll());
     EXPECT_TRUE(main_source.contains(QStringLiteral("pickWhiteBalance")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("whiteBalancePickActive")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("placeMask")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("maskPlaceActive")));
     QFile wheel(QStringLiteral(RAVO_STUDIO_COLOR_GRADE_WHEEL_QML));
     ASSERT_TRUE(wheel.open(QIODevice::ReadOnly | QIODevice::Text))
         << wheel.errorString().toStdString();
@@ -540,6 +542,10 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(action_source.contains(QStringLiteral("copySelectedParameters(fields)")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPickWhiteBalance")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("pickWhiteBalance(x, y)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("placeMask(x, y)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("setMaskPlaceActive(active)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPlaceMask")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetMaskPlace")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("maximumLineCount: 1")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("entryText")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("inactive")));

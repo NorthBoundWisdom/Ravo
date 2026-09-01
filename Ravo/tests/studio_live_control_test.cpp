@@ -155,6 +155,9 @@ TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing
         source.contains(QStringLiteral("qsTr(\"Write grayscale when the image is neutral\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Resolution (dpi)\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Metadata privacy\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Long edge\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exportMaxEdge\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"maxEdge\": maxEdgeSpin.realValue")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("qsTr(\"Original copy writes the exact source bytes")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Cancel\")")));
@@ -258,7 +261,7 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("inspectAnimScale")));
     EXPECT_TRUE(source.contains(QStringLiteral("transform: Scale")));
     EXPECT_TRUE(source.contains(QStringLiteral(
-        "cursorShape: studio.whiteBalancePickActive ? Qt.CrossCursor : Qt.BlankCursor")));
+        "cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive ? Qt.CrossCursor : Qt.BlankCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
     EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));

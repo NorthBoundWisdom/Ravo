@@ -411,7 +411,8 @@ is identity. Leftover ashift v4/v5 generic rotation, vertical/horizontal lens
 shift and shear map to canonical Perspective. Specific-lens mode, unsupported
 crop modes, manual crop boxes, masks, custom blends, and ambiguous UI state
 fail structurally. Export
-`max_edge` is the G7 output-size contract. Leftover rgblevels v1 maps to
+`max_edge` is the G7 output-size contract. Studio long-edge is the same field
+(ADR-0113). Leftover rgblevels v1 maps to
 `ravo.color.rgblevels` with the frozen 65536 LUT, linked/independent modes,
 and last-write singleton import of `0054`/`0055`. Auto-levels picker UI is not
 a live engine pass. Leftover rgbcurve v1 monotone-hermite maps to
@@ -958,7 +959,9 @@ gated (ADR-0096).
   Exposure masked mix (ADR-0109), RGB Curve masked mix (ADR-0110), Tone Curve
   masked mix (ADR-0111), Highlights/Shadows/Whites/Blacks masked mix and
   fusion-break (ADR-0112), and RAW
-  saturating masked memory estimates. CLI direct render parity and Catalog
+  saturating masked memory estimates. Studio click placement maps preview
+  coordinates through crop into attached-frame circle/ellipse/gradient fields
+  and rejects Canvas/Perspective/straighten/rotate/flip (ADR-0114). CLI direct render parity and Catalog
   preview/cache/save/close/reopen tests retain graph/attachments through an
   ordinary Develop edit; reset_recipe alone clears the stored graph. Failed
   strict mutations leave Develop/saved/undo/cache state untouched before the

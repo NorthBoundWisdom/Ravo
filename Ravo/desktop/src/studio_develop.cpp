@@ -1028,6 +1028,10 @@ void StudioPresenter::setCropToolActive(const bool active)
         {
             white_balance_pick_active_ = false;
         }
+        if (mask_place_active_)
+        {
+            mask_place_active_ = false;
+        }
         setZoomMode(QStringLiteral("fit"));
         DevelopParams next = develop_;
         // Geometry is rendered by the canonical Perspective owner while Crop
@@ -1342,6 +1346,10 @@ void StudioPresenter::toggleComparison()
     if (white_balance_pick_active_)
     {
         setWhiteBalancePickActive(false);
+    }
+    if (mask_place_active_)
+    {
+        setMaskPlaceActive(false);
     }
     if (mask_overlay_visible_)
     {

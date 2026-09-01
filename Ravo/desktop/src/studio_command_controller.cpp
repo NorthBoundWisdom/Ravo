@@ -1301,6 +1301,37 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &argument, const QString &)
         { presenter_.setWhiteBalancePickActive(argument.toBool()); });
     add(
+        command::kEditPlaceMask, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            const auto error =
+                required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap();
+            const auto x_error =
+                finite_number(fields.value(QStringLiteral("x")), QStringLiteral("Mask place X"));
+            if (!x_error.isEmpty())
+                return x_error;
+            return finite_number(fields.value(QStringLiteral("y")), QStringLiteral("Mask place Y"));
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.placeMask(fields.value(QStringLiteral("x")).toDouble(),
+                                 fields.value(QStringLiteral("y")).toDouble());
+        });
+    add(
+        command::kEditSetMaskPlace, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            return argument.metaType().id() == QMetaType::Bool || argument.canConvert<bool>() ?
+                       QString{} :
+                       QStringLiteral("Mask place state must be boolean.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setMaskPlaceActive(argument.toBool()); });
+    add(
         command::kEditSetToneCurve, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {

@@ -14,28 +14,33 @@ namespace
 {
 
 [[nodiscard]] QVariantMap jpeg_options(const int quality, const QString &subsampling,
-                                       const QString &metadata = QStringLiteral("full"))
+                                       const QString &metadata = QStringLiteral("full"),
+                                       const int max_edge = 0)
 {
     QVariantMap options;
     options.insert(QStringLiteral("quality"), quality);
     options.insert(QStringLiteral("jpegSubsampling"), subsampling);
     options.insert(QStringLiteral("metadataMode"), metadata);
+    options.insert(QStringLiteral("maxEdge"), max_edge);
     return options;
 }
 
 [[nodiscard]] QVariantMap png_options(const QString &bit_depth, const int compression,
-                                      const QString &metadata = QStringLiteral("full"))
+                                      const QString &metadata = QStringLiteral("full"),
+                                      const int max_edge = 0)
 {
     QVariantMap options;
     options.insert(QStringLiteral("pngBitDepth"), bit_depth);
     options.insert(QStringLiteral("pngCompression"), compression);
     options.insert(QStringLiteral("metadataMode"), metadata);
+    options.insert(QStringLiteral("maxEdge"), max_edge);
     return options;
 }
 
 [[nodiscard]] QVariantMap tiff_options(const QString &sample, const QString &compression,
                                        const int level, const bool grayscale, const int dpi,
-                                       const QString &metadata = QStringLiteral("full"))
+                                       const QString &metadata = QStringLiteral("full"),
+                                       const int max_edge = 0)
 {
     QVariantMap options;
     options.insert(QStringLiteral("tiffSampleType"), sample);
@@ -44,6 +49,7 @@ namespace
     options.insert(QStringLiteral("tiffGrayscaleIfNeutral"), grayscale);
     options.insert(QStringLiteral("tiffResolutionDpi"), dpi);
     options.insert(QStringLiteral("metadataMode"), metadata);
+    options.insert(QStringLiteral("maxEdge"), max_edge);
     return options;
 }
 
@@ -67,6 +73,8 @@ TEST(ExportOptionConversion, DefaultsMatchDomainDefaults)
     EXPECT_EQ(jpeg.value().jpeg_options.quality, kDefaultJpegQuality);
     EXPECT_EQ(jpeg.value().jpeg_options.subsampling, JpegSubsampling::kAuto);
     EXPECT_EQ(jpeg.value().metadata_mode, ExportMetadataMode::kFull);
+    EXPECT_EQ(jpeg.value().max_edge, 0U);
+    EXPECT_EQ(defaults.value(QStringLiteral("maxEdge")).toInt(), 0);
 
     auto png = studio_export_options_from_presentation(
         QStringLiteral("png"),
@@ -355,6 +363,7 @@ TEST(ExportOptionConversion, RequestHelperCopiesTypedSnapshot)
     EXPECT_EQ(request.value().format, ExportFormat::kJpeg);
     EXPECT_EQ(request.value().jpeg_options.quality, 80);
     EXPECT_EQ(request.value().jpeg_options.subsampling, JpegSubsampling::k420);
+    EXPECT_EQ(request.value().max_edge, 0U);
     EXPECT_FALSE(request.value().cancellation.is_cancellation_requested());
 
     auto batch_options =
@@ -363,6 +372,22 @@ TEST(ExportOptionConversion, RequestHelperCopiesTypedSnapshot)
     EXPECT_EQ(batch_options.value().format, ExportFormat::kPng);
     EXPECT_EQ(batch_options.value().png_options.bit_depth, PngBitDepth::k16);
     EXPECT_EQ(batch_options.value().png_options.compression, 7);
+    EXPECT_EQ(batch_options.value().max_edge, 0U);
+
+    auto sized = make_studio_export_options(
+        QStringLiteral("jpeg"), jpeg_options(90, QStringLiteral("auto"), QStringLiteral("full"), 2048));
+    ASSERT_TRUE(sized) << sized.error().message;
+    EXPECT_EQ(sized.value().max_edge, 2048U);
+
+    auto oversized = studio_export_options_from_presentation(
+        QStringLiteral("png"), png_options(QStringLiteral("8"), 5, QStringLiteral("full"), 65536));
+    ASSERT_FALSE(oversized);
+    expect_reason(oversized.error(), "studio_export_invalid_max_edge");
+
+    auto original_resize = studio_export_options_from_presentation(
+        QStringLiteral("original"), QVariantMap{{QStringLiteral("maxEdge"), 1024}});
+    ASSERT_FALSE(original_resize);
+    expect_reason(original_resize.error(), "studio_export_unknown_option");
 }
 
 TEST(ExportOptionConversion, PresentationCatalogExposesCanonicalIds)
@@ -380,6 +405,8 @@ TEST(ExportOptionConversion, PresentationCatalogExposesCanonicalIds)
     EXPECT_EQ(bounds.value(QStringLiteral("jpegQualityMax")).toInt(), kJpegQualityMax);
     EXPECT_EQ(bounds.value(QStringLiteral("tiffResolutionDpiMin")).toInt(), kTiffResolutionDpiMin);
     EXPECT_EQ(bounds.value(QStringLiteral("tiffResolutionDpiMax")).toInt(), kTiffResolutionDpiMax);
+    EXPECT_EQ(bounds.value(QStringLiteral("maxEdgeMin")).toInt(), static_cast<int>(kExportMaxEdgeMin));
+    EXPECT_EQ(bounds.value(QStringLiteral("maxEdgeMax")).toInt(), static_cast<int>(kExportMaxEdgeMax));
 }
 
 } // namespace

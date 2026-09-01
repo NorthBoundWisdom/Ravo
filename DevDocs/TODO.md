@@ -161,11 +161,12 @@ privacy is exact.
 ## PRO-LOCAL — Everyday masked grading
 
 **Status:** P2 / Decision required after accepted Color Balance RGB (ADR-0108),
-Exposure (ADR-0109), RGB Curve (ADR-0110), Tone Curve (ADR-0111), and Light
-HSWB (ADR-0112) mask tranches.
+Exposure (ADR-0109), RGB Curve (ADR-0110), Tone Curve (ADR-0111), Light HSWB
+(ADR-0112) mask tranches, and click placement (ADR-0114).
 
-**Outcome:** provide C++-owned picker/histogram-assisted authoring for the
-accepted masked everyday operations.
+**Outcome:** provide C++-owned histogram-assisted parametric authoring for the
+accepted masked everyday operations. Click placement of circle/ellipse/
+gradient geometry is accepted (ADR-0114).
 
 **Dependencies:** local-adjustment ADR defining picker/histogram assistance,
 multi-instance policy, coordinate frame, ROI/order semantics, and importer
@@ -174,15 +175,18 @@ behavior.
 **Risks:** QML-owned mask pixels, coordinate drift after Canvas/Perspective/crop,
 silent approximation of legacy blend modes, and altered unmasked defaults.
 
-**Acceptance gate:** C++-owned picker/histogram assistance authors a canonical
-mask for an accepted everyday consumer through the same recipe CLI/Studio path;
-preview/export/reopen equality; geometry correctness; cancellation/resource
-bounds; and no change to unmasked identity/default behavior.
+**Acceptance gate:** C++-owned histogram assistance authors a parametric
+canonical mask for an accepted everyday consumer through the same recipe
+CLI/Studio path; preview/export/reopen equality; geometry correctness;
+cancellation/resource bounds; and no change to unmasked identity/default
+behavior.
 
 ## PRO-EXPORT — Repeatable delivery jobs
 
-**Outcome:** long-edge/box resize, do-not-enlarge, output sharpening, reusable
-export presets, and restartable background batch delivery.
+**Status:** P2 / Decision required after accepted Studio long-edge (ADR-0113).
+
+**Outcome:** box resize, output sharpening, reusable export presets, and
+restartable background batch delivery.
 
 **Dependencies:** accepted geometry/sharpen order, preset artifact owner, durable
 job state, and reuse of existing encoders and atomic publication.

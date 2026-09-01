@@ -209,6 +209,8 @@ QStringList command_ids()
             QLatin1String(command::kEditSetNumbers),
             QLatin1String(command::kEditPickWhiteBalance),
             QLatin1String(command::kEditSetWhiteBalancePick),
+            QLatin1String(command::kEditPlaceMask),
+            QLatin1String(command::kEditSetMaskPlace),
             QLatin1String(command::kEditSetText),
             QLatin1String(command::kEditSetToneCurve),
             QLatin1String(command::kEditAddRetouchRegion),

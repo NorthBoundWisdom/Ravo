@@ -55,6 +55,7 @@
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/style.h"
 #include "studio_debug_info.h"
+#include "studio_develop_internal.h"
 #include "studio_language_manager.h"
 #include "studio_qml_test_support.h"
 
@@ -1216,6 +1217,9 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.sourceChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.channelChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(maskEditor.mask.detachField)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"maskPlaceActive\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Place on photo\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMaskPlaceActive")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("maskEditor.mask.editable === true && modelData.visible")));
     EXPECT_TRUE(source.contains(QStringLiteral("Show mask overlay")));
@@ -1232,6 +1236,38 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     ASSERT_GE(reconstruction, 0);
     EXPECT_LT(contrast, harmonizer);
     EXPECT_LT(harmonizer, reconstruction);
+}
+
+TEST(StudioPresenterTest, MaskPlacePreviewMapsThroughCropAndRejectsGeometry)
+{
+    using studio_develop_internal::map_mask_place_preview;
+    using studio_develop_internal::mask_place_geometry_allowed;
+    DevelopParams params;
+    EXPECT_TRUE(mask_place_geometry_allowed(params));
+    auto identity = map_mask_place_preview(params, 0.25, 0.75);
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_DOUBLE_EQ(identity.value().first, 0.25);
+    EXPECT_DOUBLE_EQ(identity.value().second, 0.75);
+
+    params.crop_x = 0.10;
+    params.crop_y = 0.20;
+    params.crop_width = 0.50;
+    params.crop_height = 0.40;
+    auto cropped = map_mask_place_preview(params, 0.5, 0.5);
+    ASSERT_TRUE(cropped) << cropped.error().message;
+    EXPECT_DOUBLE_EQ(cropped.value().first, 0.35);
+    EXPECT_DOUBLE_EQ(cropped.value().second, 0.40);
+
+    params.straighten_degrees = 5.0;
+    EXPECT_FALSE(mask_place_geometry_allowed(params));
+    auto rejected = map_mask_place_preview(params, 0.5, 0.5);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "mask_place_geometry_unavailable");
+
+    params.straighten_degrees = 0.0;
+    auto invalid = map_mask_place_preview(params, -0.1, 0.5);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_mask_place_preview");
 }
 
 TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)

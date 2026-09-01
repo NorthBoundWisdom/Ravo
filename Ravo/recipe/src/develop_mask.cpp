@@ -853,23 +853,40 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
     case MaskField::kRadius:
     case MaskField::kFeather:
     {
-        auto *circle = std::get_if<CircleMask>(&mask.payload);
-        if (circle == nullptr)
-            return type_mismatch(mask, target, field_name);
-        const double minimum =
-            field == MaskField::kRadius ? kCanonicalMaskPositiveMin : kCanonicalMaskUnitMin;
-        auto valid = finite_range(value, minimum, kCanonicalMaskUnitMax, target, field_name);
-        if (!valid)
-            return valid.error();
-        if (field == MaskField::kCenterX)
-            circle->center_x = value;
-        else if (field == MaskField::kCenterY)
-            circle->center_y = value;
-        else if (field == MaskField::kRadius)
-            circle->radius = value;
-        else
-            circle->feather = value;
-        return {};
+        if (auto *circle = std::get_if<CircleMask>(&mask.payload); circle != nullptr)
+        {
+            const double minimum =
+                field == MaskField::kRadius ? kCanonicalMaskPositiveMin : kCanonicalMaskUnitMin;
+            auto valid = finite_range(value, minimum, kCanonicalMaskUnitMax, target, field_name);
+            if (!valid)
+                return valid.error();
+            if (field == MaskField::kCenterX)
+                circle->center_x = value;
+            else if (field == MaskField::kCenterY)
+                circle->center_y = value;
+            else if (field == MaskField::kRadius)
+                circle->radius = value;
+            else
+                circle->feather = value;
+            return {};
+        }
+        if (auto *ellipse = std::get_if<EllipseMask>(&mask.payload); ellipse != nullptr)
+        {
+            if (field == MaskField::kRadius)
+                return type_mismatch(mask, target, field_name);
+            auto valid =
+                finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target, field_name);
+            if (!valid)
+                return valid.error();
+            if (field == MaskField::kCenterX)
+                ellipse->center_x = value;
+            else if (field == MaskField::kCenterY)
+                ellipse->center_y = value;
+            else
+                ellipse->feather = value;
+            return {};
+        }
+        return type_mismatch(mask, target, field_name);
     }
     case MaskField::kRadiusX:
     case MaskField::kRadiusY:
@@ -1017,19 +1034,35 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
     case MaskField::kRadius:
     case MaskField::kFeather:
     {
-        auto *circle = std::get_if<CircleMask>(&mask.payload);
-        const auto *identity = std::get_if<CircleMask>(&defaults.payload);
-        if (circle == nullptr || identity == nullptr)
-            return type_mismatch(mask, target, field_name);
-        if (field == MaskField::kCenterX)
-            circle->center_x = identity->center_x;
-        else if (field == MaskField::kCenterY)
-            circle->center_y = identity->center_y;
-        else if (field == MaskField::kRadius)
-            circle->radius = identity->radius;
-        else
-            circle->feather = identity->feather;
-        return {};
+        if (auto *circle = std::get_if<CircleMask>(&mask.payload); circle != nullptr)
+        {
+            const auto *identity = std::get_if<CircleMask>(&defaults.payload);
+            if (identity == nullptr)
+                return type_mismatch(mask, target, field_name);
+            if (field == MaskField::kCenterX)
+                circle->center_x = identity->center_x;
+            else if (field == MaskField::kCenterY)
+                circle->center_y = identity->center_y;
+            else if (field == MaskField::kRadius)
+                circle->radius = identity->radius;
+            else
+                circle->feather = identity->feather;
+            return {};
+        }
+        if (auto *ellipse = std::get_if<EllipseMask>(&mask.payload); ellipse != nullptr)
+        {
+            const auto *identity = std::get_if<EllipseMask>(&defaults.payload);
+            if (identity == nullptr || field == MaskField::kRadius)
+                return type_mismatch(mask, target, field_name);
+            if (field == MaskField::kCenterX)
+                ellipse->center_x = identity->center_x;
+            else if (field == MaskField::kCenterY)
+                ellipse->center_y = identity->center_y;
+            else
+                ellipse->feather = identity->feather;
+            return {};
+        }
+        return type_mismatch(mask, target, field_name);
     }
     case MaskField::kRadiusX:
     case MaskField::kRadiusY:

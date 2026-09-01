@@ -8,9 +8,12 @@
 #include <cstring>
 #include <iterator>
 #include <numbers>
+#include <optional>
 #include <set>
 #include <string_view>
 #include <utility>
+
+#include "ravo/foundation/error.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -69,6 +72,61 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
         return QStringLiteral("blacksMask");
     }
     return QStringLiteral("colorHarmonizerMask");
+}
+
+[[nodiscard]] std::optional<DevelopMaskTarget>
+develop_mask_target_from_name(const std::string_view name) noexcept
+{
+    if (name == "color_harmonizer")
+        return DevelopMaskTarget::kColorHarmonizer;
+    if (name == "graduatednd")
+        return DevelopMaskTarget::kGraduatedNd;
+    if (name == "color_balance_rgb")
+        return DevelopMaskTarget::kColorBalanceRgb;
+    if (name == "exposure")
+        return DevelopMaskTarget::kExposure;
+    if (name == "rgb_curve")
+        return DevelopMaskTarget::kRgbCurve;
+    if (name == "tone_curve")
+        return DevelopMaskTarget::kToneCurve;
+    if (name == "highlights")
+        return DevelopMaskTarget::kHighlights;
+    if (name == "shadows")
+        return DevelopMaskTarget::kShadows;
+    if (name == "whites")
+        return DevelopMaskTarget::kWhites;
+    if (name == "blacks")
+        return DevelopMaskTarget::kBlacks;
+    return std::nullopt;
+}
+
+[[nodiscard]] bool mask_place_geometry_allowed(const DevelopParams &params) noexcept
+{
+    return params.rotate_quarters % 4 == 0 && params.flip_horizontal == 0 &&
+           params.flip_vertical == 0 && std::abs(params.straighten_degrees) <= 1.0e-4 &&
+           std::abs(params.perspective_vertical) <= 1.0e-4 &&
+           std::abs(params.perspective_horizontal) <= 1.0e-4 &&
+           std::abs(params.perspective_shear) <= 1.0e-4 && !params.canvas_enabled;
+}
+
+[[nodiscard]] Result<std::pair<double, double>>
+map_mask_place_preview(const DevelopParams &params, const double preview_x, const double preview_y)
+{
+    if (!std::isfinite(preview_x) || !std::isfinite(preview_y) || preview_x < 0.0 ||
+        preview_x > 1.0 || preview_y < 0.0 || preview_y > 1.0)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Mask place preview coordinates are invalid",
+                          {{"reason", "invalid_mask_place_preview"}});
+    }
+    if (!mask_place_geometry_allowed(params))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Mask click placement is unavailable with Canvas, Perspective, "
+                          "straighten, rotate, or flip",
+                          {{"reason", "mask_place_geometry_unavailable"}});
+    }
+    return std::pair<double, double>{params.crop_x + preview_x * params.crop_width,
+                                     params.crop_y + preview_y * params.crop_height};
 }
 
 [[nodiscard]] QString develop_mask_kind_label(const std::string_view name)

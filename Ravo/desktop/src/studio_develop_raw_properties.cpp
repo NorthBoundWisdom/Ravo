@@ -333,6 +333,8 @@ void StudioPresenter::setWhiteBalancePickActive(const bool active)
     if (enabled)
     {
         setCropToolActive(false);
+        if (mask_place_active_)
+            setMaskPlaceActive(false);
     }
     emit editChanged();
     if (comparison_changed)

@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-27
+- Extended by: [ADR-0113](0113-studio-export-long-edge.md)
 
 ## Context
 

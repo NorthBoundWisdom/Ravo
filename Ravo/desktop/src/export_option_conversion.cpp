@@ -48,7 +48,8 @@ namespace
     QT_TRANSLATE_NOOP("StudioExport", "Unknown TIFF sample type"),
     QT_TRANSLATE_NOOP("StudioExport", "Unknown TIFF compression mode"),
     QT_TRANSLATE_NOOP("StudioExport", "TIFF compression level must be between 1 and 9"),
-    QT_TRANSLATE_NOOP("StudioExport", "TIFF resolution must be between 72 and 9600 DPI")};
+    QT_TRANSLATE_NOOP("StudioExport", "TIFF resolution must be between 72 and 9600 DPI"),
+    QT_TRANSLATE_NOOP("StudioExport", "Long edge must be between 0 and 65535")};
 
 [[nodiscard]] Result<int> exact_integer(const QVariant &value, const std::string_view key,
                                         const std::string_view format,
@@ -293,6 +294,9 @@ QVariantMap studio_export_default_options()
         QString::fromUtf8(kStudioExportOptionMetadataMode.data(),
                           static_cast<qsizetype>(kStudioExportOptionMetadataMode.size())),
         QStringLiteral("full"));
+    options.insert(QString::fromUtf8(kStudioExportOptionMaxEdge.data(),
+                                     static_cast<qsizetype>(kStudioExportOptionMaxEdge.size())),
+                   0);
     return options;
 }
 
@@ -307,6 +311,8 @@ QVariantMap studio_export_option_bounds()
     bounds.insert(QStringLiteral("tiffCompressionLevelMax"), kTiffCompressionLevelMax);
     bounds.insert(QStringLiteral("tiffResolutionDpiMin"), kTiffResolutionDpiMin);
     bounds.insert(QStringLiteral("tiffResolutionDpiMax"), kTiffResolutionDpiMax);
+    bounds.insert(QStringLiteral("maxEdgeMin"), static_cast<int>(kExportMaxEdgeMin));
+    bounds.insert(QStringLiteral("maxEdgeMax"), static_cast<int>(kExportMaxEdgeMax));
     return bounds;
 }
 
@@ -347,7 +353,7 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     {
         auto keys = require_keys(input,
                                  {kStudioExportOptionQuality, kStudioExportOptionJpegSubsampling,
-                                  kStudioExportOptionMetadataMode},
+                                  kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge},
                                  "jpeg");
         if (!keys)
         {
@@ -384,7 +390,7 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     {
         auto keys = require_keys(input,
                                  {kStudioExportOptionPngBitDepth, kStudioExportOptionPngCompression,
-                                  kStudioExportOptionMetadataMode},
+                                  kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge},
                                  "png");
         if (!keys)
         {
@@ -423,7 +429,8 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
             input,
             {kStudioExportOptionTiffSampleType, kStudioExportOptionTiffCompression,
              kStudioExportOptionTiffCompressionLevel, kStudioExportOptionTiffGrayscaleIfNeutral,
-             kStudioExportOptionTiffResolutionDpi, kStudioExportOptionMetadataMode},
+             kStudioExportOptionTiffResolutionDpi, kStudioExportOptionMetadataMode,
+             kStudioExportOptionMaxEdge},
             "tiff");
         if (!keys)
         {
@@ -504,6 +511,21 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
         if (!parsed)
             return parsed.error();
         selection.metadata_mode = parsed.value();
+        auto max_edge =
+            exact_integer(input.value(QStringLiteral("maxEdge")), kStudioExportOptionMaxEdge,
+                          export_format_name(selection.format), "studio_export_invalid_option_type");
+        if (!max_edge)
+            return max_edge.error();
+        if (max_edge.value() < static_cast<int>(kExportMaxEdgeMin) ||
+            max_edge.value() > static_cast<int>(kExportMaxEdgeMax))
+        {
+            return conversion_error(
+                QT_TRANSLATE_NOOP("StudioExport", "Long edge must be between 0 and 65535"),
+                {{"field", std::string(kStudioExportOptionMaxEdge)},
+                 {"format", std::string(export_format_name(selection.format))},
+                 {"reason", "studio_export_invalid_max_edge"}});
+        }
+        selection.max_edge = static_cast<std::uint32_t>(max_edge.value());
     }
     if (input != options)
     {
@@ -602,6 +624,7 @@ Result<ExportOptions> make_studio_export_options(const QString &format_name,
     result.png_options = selection.value().png_options;
     result.tiff_options = selection.value().tiff_options;
     result.metadata_mode = selection.value().metadata_mode;
+    result.max_edge = selection.value().max_edge;
     return result;
 }
 

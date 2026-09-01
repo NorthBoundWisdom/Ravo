@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-29
 - Extends: [ADR-0032](0032-encoded-byte-publication-contract.md)
+- Extended by: [ADR-0113](0113-studio-export-long-edge.md)
 
 ## Context
 
