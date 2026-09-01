@@ -8,7 +8,7 @@ ApplicationWindow {
     id: window
     width: 1440
     height: 900
-    visible: true
+    visible: !studioSmoke
     color: Theme.windowColor
     title: studio.catalogOpen ? qsTr("Ravo Studio — %1").arg(studio.catalogPath) : qsTr("Ravo Studio")
     palette.window: Theme.windowColor

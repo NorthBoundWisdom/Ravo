@@ -230,6 +230,7 @@ if(BUILD_TESTING)
             "$<TARGET_FILE:ravo_studio>")
   set_tests_properties(ravo_studio_qml_smoke PROPERTIES
     LABELS "ravo-desktop-smoke"
+    TIMEOUT 90
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:ravo_studio>"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QSG_RHI_BACKEND=software;QT_QUICK_BACKEND=software")
 endif()

@@ -171,10 +171,11 @@ import, directory sidecar skipping, unchanged source hashes, preview cache
 including corrupt-PNG miss, missing/unsupported/cancelled input, and
 recipe/review independence. They do not replace
 local manual Studio Fit/100%/Develop acceptance. Each successful link of
-`ravo_studio` runs `--smoke` on the `offscreen` software backend to load the
-root QML and exit immediately; a QML or command-registry failure fails the
-target build. The same check is `ravo_studio_qml_smoke` in CTest so GitHub
-Actions exercises it after configure/build. Manual check:
+`ravo_studio` runs `--smoke` on the `offscreen` software backend to instantiate
+the root QML and exit before `QGuiApplication::exec()` so Windows CI cannot
+block in the Qt Quick scene-graph loop; a QML or command-registry failure
+fails the target build. The same check is `ravo_studio_qml_smoke` in CTest so
+GitHub Actions exercises it after configure/build. Manual check:
 `$<TARGET_FILE:ravo_studio> --smoke`.
 `ravo_desktop_command_tests` validates built-in command/action coverage,
 stable IDs, runtime-state rechecks, invalid dispatch, shortcut conflicts,

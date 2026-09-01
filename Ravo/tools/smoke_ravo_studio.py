@@ -25,7 +25,7 @@ def main() -> int:
         if language is not None:
             command.extend(("--language", language))
         try:
-            completed = subprocess.run(command, env=env, check=False, timeout=30)
+            completed = subprocess.run(command, env=env, check=False, timeout=90)
         except subprocess.TimeoutExpired:
             print(f"Ravo Studio smoke timed out: {' '.join(command)}", file=sys.stderr)
             return 1

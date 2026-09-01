@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 
 #include <QColor>
 #include <QColorSpace>
@@ -212,6 +213,22 @@ QStringList studio_ui_font_families(const QFont &system_font, const QString &lan
 
 int main(int argc, char *argv[])
 {
+    bool requested_smoke = false;
+    for (int index = 1; index < argc; ++index)
+    {
+        if (std::string_view(argv[index]) == "--smoke")
+        {
+            requested_smoke = true;
+            break;
+        }
+    }
+    if (requested_smoke)
+    {
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+        qputenv("QSG_RHI_BACKEND", "software");
+        qputenv("QT_QUICK_BACKEND", "software");
+    }
+
     // GeoControls is a static NO_PLUGIN QML module under qrc:/GeoControls, not
     // qrc:/qt/qml. Force-init those resources so dead-stripped static constructors
     // cannot leave the AppShell URI registered without MainStatusBar.qml.
@@ -374,6 +391,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("studioLanguage"), &language_manager);
     engine.rootContext()->setContextProperty(QStringLiteral("studioAssistant"),
                                              &assistant_controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioSmoke"), smoke);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         []() { QCoreApplication::exit(1); }, Qt::QueuedConnection);
@@ -381,12 +399,7 @@ int main(int argc, char *argv[])
         &engine, &QQmlApplicationEngine::objectCreated, &application,
         [smoke, &presenter](QObject *object, const QUrl &)
         {
-            if (smoke)
-            {
-                QCoreApplication::exit(object == nullptr ? 1 : 0);
-                return;
-            }
-            if (object == nullptr ||
+            if (smoke || object == nullptr ||
                 !qEnvironmentVariableIntValue("RAVO_TRACE_PREVIEW_PRESENTATION"))
             {
                 return;
@@ -430,6 +443,16 @@ int main(int argc, char *argv[])
         },
         Qt::QueuedConnection);
     engine.loadFromModule("Ravo.Studio", "Main");
+    if (smoke)
+    {
+        const bool loaded = !engine.rootObjects().isEmpty();
+        if (!loaded)
+            LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
+        else
+            LOG_INFO(ravo::logger(), "Ravo Studio smoke loaded");
+        ravo::shutdown_logging();
+        return loaded ? 0 : 1;
+    }
     const int exit_code = QGuiApplication::exec();
     ravo::shutdown_logging();
     return exit_code;
