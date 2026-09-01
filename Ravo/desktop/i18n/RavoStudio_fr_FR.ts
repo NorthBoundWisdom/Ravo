@@ -2857,6 +2857,18 @@
             <translation>Y|Y</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>Comparaison</translation>
+        </message>
+        <message>
+            <source>Virtual Copy</source>
+            <translation>Copie virtuelle</translation>
+        </message>
+        <message>
+            <source>Stack</source>
+            <translation>Pile</translation>
+        </message>
+        <message>
             <source>Size</source>
             <translation>Taille</translation>
         </message>
@@ -2992,8 +3004,40 @@
             <translation>Par date (YYYY/MM/DD)</translation>
         </message>
         <message>
-            <source>Move copies and verifies each photo before removing its source.</source>
-            <translation>Le déplacement copie et vérifie chaque photo avant de supprimer la source.</translation>
+            <source>Rename template</source>
+            <translation>Modèle de renommage</translation>
+        </message>
+        <message>
+            <source>Keep original names</source>
+            <translation>Conserver les noms d’origine</translation>
+        </message>
+        <message>
+            <source>Import filename template</source>
+            <translation>Modèle de nom de fichier d’importation</translation>
+        </message>
+        <message>
+            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
+            <translation>Jetons : {date}, {stem}, {sequence}, {ext}</translation>
+        </message>
+        <message>
+            <source>Second copy</source>
+            <translation>Seconde copie</translation>
+        </message>
+        <message>
+            <source>Choose Second Copy…</source>
+            <translation>Choisir la seconde copie…</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>Effacer</translation>
+        </message>
+        <message>
+            <source>No second copy selected</source>
+            <translation>Aucune seconde copie sélectionnée</translation>
+        </message>
+        <message>
+            <source>Move verifies every requested copy before removing its source.</source>
+            <translation>Le déplacement vérifie chaque copie demandée avant de supprimer la source.</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -3226,6 +3270,38 @@
             <translation>Dernières photos importées</translation>
         </message>
         <message>
+            <source>Collections</source>
+            <translation>Collections</translation>
+        </message>
+        <message>
+            <source>Collection name</source>
+            <translation>Nom de la collection</translation>
+        </message>
+        <message>
+            <source>Collection</source>
+            <translation>Collection</translation>
+        </message>
+        <message>
+            <source>Smart</source>
+            <translation>Dynamique</translation>
+        </message>
+        <message>
+            <source>Smart Collection</source>
+            <translation>Collection dynamique</translation>
+        </message>
+        <message>
+            <source>Add selected photos</source>
+            <translation>Ajouter les photos sélectionnées</translation>
+        </message>
+        <message>
+            <source>Remove selected photos</source>
+            <translation>Retirer les photos sélectionnées</translation>
+        </message>
+        <message>
+            <source>Delete collection</source>
+            <translation>Supprimer la collection</translation>
+        </message>
+        <message>
             <source>All Photographs</source>
             <translation>Toutes les photos</translation>
         </message>
@@ -3357,6 +3433,10 @@
             <translation>Chargement de l’aperçu…</translation>
         </message>
         <message>
+            <source>Loading…</source>
+            <translation>Chargement…</translation>
+        </message>
+        <message>
             <source>%1 photos</source>
             <translation>%1 photos</translation>
         </message>
@@ -3403,6 +3483,10 @@
         <message>
             <source>Open Library</source>
             <translation>Ouvrir une bibliothèque</translation>
+        </message>
+        <message>
+            <source>Choose Import Second Copy</source>
+            <translation>Choisir la seconde copie d’importation</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -4100,6 +4184,10 @@
             <translation>Loupe</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>Comparaison</translation>
+        </message>
+        <message>
             <source>Fit</source>
             <translation>Fit</translation>
         </message>
@@ -4250,6 +4338,26 @@
         <message>
             <source>Refresh Capture Metadata</source>
             <translation>Actualiser les métadonnées de prise de vue</translation>
+        </message>
+        <message>
+            <source>Create Virtual Copy</source>
+            <translation>Créer une copie virtuelle</translation>
+        </message>
+        <message>
+            <source>Stack Photos</source>
+            <translation>Empiler les photos</translation>
+        </message>
+        <message>
+            <source>Unstack Photos</source>
+            <translation>Dépiler les photos</translation>
+        </message>
+        <message>
+            <source>Set Stack Pick</source>
+            <translation>Définir la photo principale de la pile</translation>
+        </message>
+        <message>
+            <source>Collapse Stacks</source>
+            <translation>Réduire les piles</translation>
         </message>
         <message>
             <source>Clear Library Filters</source>
@@ -4656,6 +4764,30 @@
             <translation>Le moteur n’a pas pu démarrer.</translation>
         </message>
         <message>
+            <source>Collection created.</source>
+            <translation>Collection créée.</translation>
+        </message>
+        <message>
+            <source>Smart collection created.</source>
+            <translation>Collection dynamique créée.</translation>
+        </message>
+        <message>
+            <source>Collection renamed.</source>
+            <translation>Collection renommée.</translation>
+        </message>
+        <message>
+            <source>Collection deleted.</source>
+            <translation>Collection supprimée.</translation>
+        </message>
+        <message>
+            <source>Added photos to collection.</source>
+            <translation>Photos ajoutées à la collection.</translation>
+        </message>
+        <message>
+            <source>Removed photos from collection.</source>
+            <translation>Photos retirées de la collection.</translation>
+        </message>
+        <message>
             <source>Library updated from another client.</source>
             <translation>Bibliothèque updated from another client.</translation>
         </message>
@@ -4742,6 +4874,22 @@
         <message>
             <source>Import cancelled after %1 of %2 photos.</source>
             <translation>Importation annulée après %1 photos sur %2.</translation>
+        </message>
+        <message>
+            <source>Virtual copy created.</source>
+            <translation>Copie virtuelle créée.</translation>
+        </message>
+        <message>
+            <source>Photos stacked.</source>
+            <translation>Photos empilées.</translation>
+        </message>
+        <message>
+            <source>Stack dissolved.</source>
+            <translation>Pile dissoute.</translation>
+        </message>
+        <message>
+            <source>Stack pick updated.</source>
+            <translation>Photo principale de la pile mise à jour.</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4953,6 +5101,18 @@
         <message>
             <source>Edit</source>
             <translation>Modifier</translation>
+        </message>
+        <message>
+            <source>V%1</source>
+            <translation>V%1</translation>
+        </message>
+        <message>
+            <source>Stack %1</source>
+            <translation>Pile %1</translation>
+        </message>
+        <message>
+            <source>%1</source>
+            <translation>%1</translation>
         </message>
     </context>
     <context>

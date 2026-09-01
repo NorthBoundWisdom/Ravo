@@ -2857,6 +2857,18 @@
             <translation>예|Y</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>비교 보기</translation>
+        </message>
+        <message>
+            <source>Virtual Copy</source>
+            <translation>가상 복사본</translation>
+        </message>
+        <message>
+            <source>Stack</source>
+            <translation>스택</translation>
+        </message>
+        <message>
             <source>Size</source>
             <translation>크기</translation>
         </message>
@@ -2992,8 +3004,40 @@
             <translation>날짜별 (YYYY/MM/DD)</translation>
         </message>
         <message>
-            <source>Move copies and verifies each photo before removing its source.</source>
-            <translation>이동은 각 사진을 복사하고 확인한 후 원본을 제거합니다.</translation>
+            <source>Rename template</source>
+            <translation>이름 변경 템플릿</translation>
+        </message>
+        <message>
+            <source>Keep original names</source>
+            <translation>원래 이름 유지</translation>
+        </message>
+        <message>
+            <source>Import filename template</source>
+            <translation>가져오기 파일 이름 템플릿</translation>
+        </message>
+        <message>
+            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
+            <translation>토큰: {date}, {stem}, {sequence}, {ext}</translation>
+        </message>
+        <message>
+            <source>Second copy</source>
+            <translation>두 번째 복사본</translation>
+        </message>
+        <message>
+            <source>Choose Second Copy…</source>
+            <translation>두 번째 복사본 선택…</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>지우기</translation>
+        </message>
+        <message>
+            <source>No second copy selected</source>
+            <translation>두 번째 복사본을 선택하지 않았습니다</translation>
+        </message>
+        <message>
+            <source>Move verifies every requested copy before removing its source.</source>
+            <translation>이동 작업은 원본을 제거하기 전에 요청된 모든 복사본을 확인합니다.</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -3226,6 +3270,38 @@
             <translation>마지막으로 가져온 사진</translation>
         </message>
         <message>
+            <source>Collections</source>
+            <translation>컬렉션</translation>
+        </message>
+        <message>
+            <source>Collection name</source>
+            <translation>컬렉션 이름</translation>
+        </message>
+        <message>
+            <source>Collection</source>
+            <translation>컬렉션</translation>
+        </message>
+        <message>
+            <source>Smart</source>
+            <translation>스마트</translation>
+        </message>
+        <message>
+            <source>Smart Collection</source>
+            <translation>스마트 컬렉션</translation>
+        </message>
+        <message>
+            <source>Add selected photos</source>
+            <translation>선택한 사진 추가</translation>
+        </message>
+        <message>
+            <source>Remove selected photos</source>
+            <translation>선택한 사진 제거</translation>
+        </message>
+        <message>
+            <source>Delete collection</source>
+            <translation>컬렉션 삭제</translation>
+        </message>
+        <message>
             <source>All Photographs</source>
             <translation>모든 사진</translation>
         </message>
@@ -3357,6 +3433,10 @@
             <translation>미리 보기 불러오는 중…</translation>
         </message>
         <message>
+            <source>Loading…</source>
+            <translation>불러오는 중…</translation>
+        </message>
+        <message>
             <source>%1 photos</source>
             <translation>%1 사진</translation>
         </message>
@@ -3403,6 +3483,10 @@
         <message>
             <source>Open Library</source>
             <translation>라이브러리 열기</translation>
+        </message>
+        <message>
+            <source>Choose Import Second Copy</source>
+            <translation>가져오기 두 번째 복사본 위치 선택</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -4100,6 +4184,10 @@
             <translation>돋보기</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>비교 보기</translation>
+        </message>
+        <message>
             <source>Fit</source>
             <translation>맞춤</translation>
         </message>
@@ -4250,6 +4338,26 @@
         <message>
             <source>Refresh Capture Metadata</source>
             <translation>촬영 메타데이터 새로 고침</translation>
+        </message>
+        <message>
+            <source>Create Virtual Copy</source>
+            <translation>가상 복사본 만들기</translation>
+        </message>
+        <message>
+            <source>Stack Photos</source>
+            <translation>사진 스택으로 묶기</translation>
+        </message>
+        <message>
+            <source>Unstack Photos</source>
+            <translation>사진 스택 해제</translation>
+        </message>
+        <message>
+            <source>Set Stack Pick</source>
+            <translation>스택 대표 설정</translation>
+        </message>
+        <message>
+            <source>Collapse Stacks</source>
+            <translation>스택 접기</translation>
         </message>
         <message>
             <source>Clear Library Filters</source>
@@ -4656,6 +4764,30 @@
             <translation>엔진을 시작하지 못했습니다.</translation>
         </message>
         <message>
+            <source>Collection created.</source>
+            <translation>컬렉션을 만들었습니다.</translation>
+        </message>
+        <message>
+            <source>Smart collection created.</source>
+            <translation>스마트 컬렉션을 만들었습니다.</translation>
+        </message>
+        <message>
+            <source>Collection renamed.</source>
+            <translation>컬렉션 이름을 변경했습니다.</translation>
+        </message>
+        <message>
+            <source>Collection deleted.</source>
+            <translation>컬렉션을 삭제했습니다.</translation>
+        </message>
+        <message>
+            <source>Added photos to collection.</source>
+            <translation>사진을 컬렉션에 추가했습니다.</translation>
+        </message>
+        <message>
+            <source>Removed photos from collection.</source>
+            <translation>컬렉션에서 사진을 제거했습니다.</translation>
+        </message>
+        <message>
             <source>Library updated from another client.</source>
             <translation>다른 클라이언트에서 라이브러리를 업데이트했습니다.</translation>
         </message>
@@ -4742,6 +4874,22 @@
         <message>
             <source>Import cancelled after %1 of %2 photos.</source>
             <translation>사진 %2장 중 %1장을 처리한 후 가져오기를 취소했습니다.</translation>
+        </message>
+        <message>
+            <source>Virtual copy created.</source>
+            <translation>가상 복사본을 만들었습니다.</translation>
+        </message>
+        <message>
+            <source>Photos stacked.</source>
+            <translation>사진을 스택으로 묶었습니다.</translation>
+        </message>
+        <message>
+            <source>Stack dissolved.</source>
+            <translation>스택을 해제했습니다.</translation>
+        </message>
+        <message>
+            <source>Stack pick updated.</source>
+            <translation>스택 대표를 업데이트했습니다.</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4953,6 +5101,18 @@
         <message>
             <source>Edit</source>
             <translation>편집</translation>
+        </message>
+        <message>
+            <source>V%1</source>
+            <translation>V%1</translation>
+        </message>
+        <message>
+            <source>Stack %1</source>
+            <translation>스택 %1</translation>
+        </message>
+        <message>
+            <source>%1</source>
+            <translation>%1</translation>
         </message>
     </context>
     <context>

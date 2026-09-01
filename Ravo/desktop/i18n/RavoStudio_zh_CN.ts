@@ -2857,6 +2857,18 @@
             <translation>Y|Y</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>对比查看</translation>
+        </message>
+        <message>
+            <source>Virtual Copy</source>
+            <translation>虚拟副本</translation>
+        </message>
+        <message>
+            <source>Stack</source>
+            <translation>堆栈</translation>
+        </message>
+        <message>
             <source>Size</source>
             <translation>大小</translation>
         </message>
@@ -2992,8 +3004,40 @@
             <translation>按日期 (YYYY/MM/DD)</translation>
         </message>
         <message>
-            <source>Move copies and verifies each photo before removing its source.</source>
-            <translation>移动会先复制并验证每张照片，再删除源文件。</translation>
+            <source>Rename template</source>
+            <translation>重命名模板</translation>
+        </message>
+        <message>
+            <source>Keep original names</source>
+            <translation>保留原始名称</translation>
+        </message>
+        <message>
+            <source>Import filename template</source>
+            <translation>导入文件名模板</translation>
+        </message>
+        <message>
+            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
+            <translation>标记：{date}、{stem}、{sequence}、{ext}</translation>
+        </message>
+        <message>
+            <source>Second copy</source>
+            <translation>第二副本</translation>
+        </message>
+        <message>
+            <source>Choose Second Copy…</source>
+            <translation>选择第二副本…</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>清除</translation>
+        </message>
+        <message>
+            <source>No second copy selected</source>
+            <translation>未选择第二副本位置</translation>
+        </message>
+        <message>
+            <source>Move verifies every requested copy before removing its source.</source>
+            <translation>移动操作会先验证每个请求的副本，再删除源文件。</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -3226,6 +3270,38 @@
             <translation>上次导入的照片</translation>
         </message>
         <message>
+            <source>Collections</source>
+            <translation>集合</translation>
+        </message>
+        <message>
+            <source>Collection name</source>
+            <translation>集合名称</translation>
+        </message>
+        <message>
+            <source>Collection</source>
+            <translation>集合</translation>
+        </message>
+        <message>
+            <source>Smart</source>
+            <translation>智能</translation>
+        </message>
+        <message>
+            <source>Smart Collection</source>
+            <translation>智能集合</translation>
+        </message>
+        <message>
+            <source>Add selected photos</source>
+            <translation>添加所选照片</translation>
+        </message>
+        <message>
+            <source>Remove selected photos</source>
+            <translation>移除所选照片</translation>
+        </message>
+        <message>
+            <source>Delete collection</source>
+            <translation>删除集合</translation>
+        </message>
+        <message>
             <source>All Photographs</source>
             <translation>所有照片</translation>
         </message>
@@ -3317,6 +3393,10 @@
             <translation>尚未导入照片。</translation>
         </message>
         <message>
+            <source>Loading…</source>
+            <translation>正在加载…</translation>
+        </message>
+        <message>
             <source>Before</source>
             <translation>之前</translation>
         </message>
@@ -3403,6 +3483,10 @@
         <message>
             <source>Open Library</source>
             <translation>打开图库</translation>
+        </message>
+        <message>
+            <source>Choose Import Second Copy</source>
+            <translation>选择导入的第二副本位置</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -4060,6 +4144,10 @@
             <translation>导入预设...</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>对比查看</translation>
+        </message>
+        <message>
             <source>Photo Information</source>
             <translation>照片信息</translation>
         </message>
@@ -4266,6 +4354,26 @@
         <message>
             <source>Refresh Capture Metadata</source>
             <translation>刷新拍摄元数据</translation>
+        </message>
+        <message>
+            <source>Create Virtual Copy</source>
+            <translation>创建虚拟副本</translation>
+        </message>
+        <message>
+            <source>Stack Photos</source>
+            <translation>堆叠照片</translation>
+        </message>
+        <message>
+            <source>Unstack Photos</source>
+            <translation>取消堆叠</translation>
+        </message>
+        <message>
+            <source>Set Stack Pick</source>
+            <translation>设为堆栈代表</translation>
+        </message>
+        <message>
+            <source>Collapse Stacks</source>
+            <translation>折叠堆栈</translation>
         </message>
         <message>
             <source>Clear Library Filters</source>
@@ -4488,6 +4596,30 @@
             <translation>引擎启动失败。</translation>
         </message>
         <message>
+            <source>Collection created.</source>
+            <translation>已创建集合。</translation>
+        </message>
+        <message>
+            <source>Smart collection created.</source>
+            <translation>已创建智能集合。</translation>
+        </message>
+        <message>
+            <source>Collection renamed.</source>
+            <translation>已重命名集合。</translation>
+        </message>
+        <message>
+            <source>Collection deleted.</source>
+            <translation>已删除集合。</translation>
+        </message>
+        <message>
+            <source>Added photos to collection.</source>
+            <translation>已将照片添加到集合。</translation>
+        </message>
+        <message>
+            <source>Removed photos from collection.</source>
+            <translation>已从集合中移除照片。</translation>
+        </message>
+        <message>
             <source>Library updated from another client.</source>
             <translation>目录已由其他客户端更新。</translation>
         </message>
@@ -4574,6 +4706,22 @@
         <message>
             <source>Import cancelled after %1 of %2 photos.</source>
             <translation>导入已取消，已处理 %2 张照片中的 %1 张。</translation>
+        </message>
+        <message>
+            <source>Virtual copy created.</source>
+            <translation>已创建虚拟副本。</translation>
+        </message>
+        <message>
+            <source>Photos stacked.</source>
+            <translation>已堆叠照片。</translation>
+        </message>
+        <message>
+            <source>Stack dissolved.</source>
+            <translation>已解散堆栈。</translation>
+        </message>
+        <message>
+            <source>Stack pick updated.</source>
+            <translation>已更新堆栈代表。</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4953,6 +5101,18 @@
         <message>
             <source>Edit</source>
             <translation>编辑</translation>
+        </message>
+        <message>
+            <source>V%1</source>
+            <translation>版本 %1</translation>
+        </message>
+        <message>
+            <source>Stack %1</source>
+            <translation>堆栈 %1</translation>
+        </message>
+        <message>
+            <source>%1</source>
+            <translation>%1</translation>
         </message>
     </context>
     <context>

@@ -12,6 +12,8 @@ target_sources(ravo_services
     src/encoded_publication.cpp
     src/original_copy.cpp
     src/catalog_service.cpp
+    src/catalog_service_internal.cpp
+    src/catalog_transfer.cpp
     src/catalog_preview.cpp
     src/catalog_restore.cpp)
 

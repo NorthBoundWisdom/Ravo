@@ -9,10 +9,25 @@ target_sources(ravo_adapters
     src/jpeg_encoder.cpp
     src/crs_xmp.cpp
     src/legacy_xmp.cpp
+    src/legacy_xmp_balance.cpp
+    src/legacy_xmp_color.cpp
+    src/legacy_xmp_effects.cpp
+    src/legacy_xmp_geometry.cpp
     src/png_encoder.cpp
     src/qt_raster_decoder.cpp
+    src/qt_raster_common.cpp
+    src/qt_raster_encoder.cpp
+    src/qt_raster_jpeg.cpp
+    src/qt_raster_png.cpp
+    src/qt_raster_tiff.cpp
+    src/qt_raster_tiff_contract.cpp
     src/radiance_rgbe_decoder.cpp
     src/sqlite_catalog.cpp
+    src/sqlite_catalog_assets.cpp
+    src/sqlite_catalog_internal.cpp
+    src/sqlite_catalog_library.cpp
+    src/sqlite_catalog_recipe.cpp
+    src/sqlite_catalog_recovery.cpp
     src/tiff_encoder.cpp
     src/text_file.cpp)
 

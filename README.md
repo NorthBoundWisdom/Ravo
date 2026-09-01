@@ -139,7 +139,6 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 - [Ravo capabilities and CLI reference](Ravo/README.md)
 - [Architecture and data lifetimes](DevDocs/ARCHITECTURE.md)
 - [Testing and validation strategy](DevDocs/TESTING.md)
-- [Active source decomposition queue](DevDocs/TODO_SOURCE_DECOMPOSITION.md)
 - [Migration policy and capability ledger](DevDocs/MIGRATION.md)
 - [Remaining product P0/P1 release evidence](DevDocs/TODO_PHOTO_MANAGEMENT.md)
 - [Professional workflow gaps versus Lightroom/Capture One](DevDocs/TODO_PRO_WORKFLOW.md)

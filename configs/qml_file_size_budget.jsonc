@@ -1,13 +1,6 @@
 {
-  // Ravo Studio QML follows the same no-growth/removal ratchet as C++ translation units.
+  // The debt list is intentionally empty. Production QML follows the permanent 2,000-line limit.
   "schema_version": 1,
   "line_limit": 2000,
-  "debt": [
-    {
-      "path": "Ravo/desktop/qml/inspect/DevelopPanel.qml",
-      "baseline_lines": 6029,
-      "owner": "Studio Develop control presentation",
-      "removal_phase": "G3 desktop QML decomposition"
-    }
-  ]
+  "debt": []
 }

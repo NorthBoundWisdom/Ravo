@@ -17,6 +17,8 @@ target_sources(ravo_desktop
     src/preview_request_owner.cpp
     src/studio_command_controller.cpp
     src/studio_command_internal.cpp
+    src/studio_command_ids.h
+    src/studio_command_presentation.cpp
     src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
     src/studio_live_session_controller.cpp
@@ -151,6 +153,32 @@ qt_add_qml_module(ravo_studio
     qml/inspect/DevelopHistoryPanel.qml
     qml/inspect/DevelopPresetPanel.qml
     qml/inspect/DevelopPanel.qml
+    qml/inspect/DevelopSection.qml
+    qml/inspect/CurveOptionButton.qml
+    qml/inspect/MixerSlider.qml
+    qml/inspect/PrimariesSlider.qml
+    qml/inspect/MaskEditor.qml
+    qml/inspect/ColorCheckerNumberField.qml
+    qml/inspect/ColorContrastOffsetField.qml
+    qml/inspect/DevelopLightSection.qml
+    qml/inspect/DevelopCurvesSection.qml
+    qml/inspect/DevelopColorCoreSection.qml
+    qml/inspect/DevelopColorEqualizerSection.qml
+    qml/inspect/DevelopColorAdvancedSection.qml
+    qml/inspect/DevelopAdvancedLooks.qml
+    qml/inspect/DevelopAdvancedToning.qml
+    qml/inspect/DevelopAdvancedColorOps.qml
+    qml/inspect/DevelopPrimariesSection.qml
+    qml/inspect/DevelopGeometrySection.qml
+    qml/inspect/DevelopToneEqualizerSection.qml
+    qml/inspect/DevelopGraduatedSection.qml
+    qml/inspect/DevelopEffectsSection.qml
+    qml/inspect/DevelopDetailSection.qml
+    qml/inspect/DevelopRawSection.qml
+    qml/inspect/DevelopCalibrationSection.qml
+    qml/inspect/DevelopInputProfileSection.qml
+    qml/inspect/DevelopProfileGammaSection.qml
+    qml/inspect/DevelopOutputProfileSection.qml
     qml/inspect/DevelopColorSlider.qml
     qml/inspect/ColorGradeWheel.qml
     qml/inspect/ToneCurveEditor.qml

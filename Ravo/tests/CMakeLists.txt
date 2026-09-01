@@ -355,6 +355,7 @@ gtest_discover_tests(ravo_original_copy_cli_tests
   PROPERTIES LABELS "ravo-original-copy-cli")
 
 add_executable(ravo_desktop_command_tests
+  studio_qml_test_support.cpp
   studio_command_test.cpp
   studio_presenter_test.cpp
   studio_qml_contract_test.cpp

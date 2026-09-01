@@ -26,7 +26,6 @@
 #include <QImage>
 #include <QKeySequence>
 #include <QMetaType>
-#include <QProcess>
 #include <QSize>
 #include <QThread>
 #include <QTranslator>
@@ -57,6 +56,7 @@
 #include "ravo/recipe/style.h"
 #include "studio_debug_info.h"
 #include "studio_language_manager.h"
+#include "studio_qml_test_support.h"
 
 namespace ravo
 {
@@ -117,67 +117,10 @@ private:
     bool was_set_ = false;
 };
 
-struct CliProcessResult
-{
-    int exit_code = -1;
-    QByteArray standard_output;
-    QByteArray standard_error;
-};
-
-[[nodiscard]] CliProcessResult run_cli_process(const QStringList &arguments,
-                                               const int timeout_ms = 30000)
-{
-    QProcess process;
-    process.setProgram(QStringLiteral(RAVO_CLI_EXECUTABLE));
-    process.setArguments(arguments);
-    process.start();
-    const bool finished =
-        wait_until([&] { return process.state() == QProcess::NotRunning; }, timeout_ms);
-    if (!finished)
-    {
-        process.kill();
-        process.waitForFinished(5000);
-    }
-    return {finished ? process.exitCode() : -1, process.readAllStandardOutput(),
-            process.readAllStandardError()};
-}
-
-[[nodiscard]] Result<JsonValue> cli_data(const QByteArray &output)
-{
-    const QByteArray trimmed = output.trimmed();
-    auto envelope =
-        parse_json(std::string_view(trimmed.constData(), static_cast<std::size_t>(trimmed.size())));
-    if (!envelope)
-        return envelope.error();
-    const auto *data = envelope.value().find("data");
-    if (data == nullptr)
-        return make_error(ErrorCode::kValidation, "CLI response has no data object");
-    return *data;
-}
-
-[[nodiscard]] QString qml_model_entry(const QString &source, const char *field)
-{
-    const auto needle = QStringLiteral("\"field\": \"%1\"").arg(QString::fromLatin1(field));
-    const auto field_position = source.indexOf(needle);
-    if (field_position < 0)
-    {
-        return {};
-    }
-    const auto begin = source.lastIndexOf(QLatin1Char('{'), field_position);
-    const auto end = source.indexOf(QLatin1Char('}'), field_position);
-    if (begin < 0 || end < field_position)
-    {
-        return {};
-    }
-    return source.mid(begin, end - begin + 1);
-}
-
 TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     const auto light_begin = source.indexOf(QStringLiteral("sectionId: \"light\""));
     const auto light_end = source.indexOf(QStringLiteral("sectionId: \"curves\""), light_begin);
     ASSERT_GE(light_begin, 0);
@@ -240,10 +183,8 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
 
 TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     const auto white_balance = source.indexOf(QStringLiteral("sectionId: \"whiteBalance\""));
     const auto light = source.indexOf(QStringLiteral("sectionId: \"light\""));
     const auto curves = source.indexOf(QStringLiteral("sectionId: \"curves\""));
@@ -379,14 +320,12 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
 
 TEST(StudioQmlContract, RetouchAuthorsOrderedRegionsThroughCommandBoundary)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     EXPECT_TRUE(source.contains(QStringLiteral("id: retouchEditor")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editRetouch.regions")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.commands.addRetouchRegion")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.commands.removeRetouchRegion")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editRetouch.regions")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.commands.addRetouchRegion")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.commands.removeRetouchRegion")));
     EXPECT_TRUE(source.contains(QStringLiteral("[\"clone\", \"heal\", \"blur\", \"fill\"]")));
     EXPECT_TRUE(source.contains(QStringLiteral("\"blurType\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("\"fillMode\"")));
@@ -404,14 +343,12 @@ TEST(StudioQmlContract, RetouchAuthorsOrderedRegionsThroughCommandBoundary)
 
 TEST(StudioQmlContract, DevelopSlidersPublishUserEditsBeforeRelease)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto panel_source = QString::fromUtf8(panel.readAll());
+    const auto panel_source = combined_develop_qml_source();
+    ASSERT_FALSE(panel_source.isEmpty());
     EXPECT_TRUE(panel_source.contains(QStringLiteral("onValueEdited: function (value)")));
     EXPECT_FALSE(panel_source.contains(QStringLiteral("onValueEdited: if (")));
     EXPECT_FALSE(panel_source.contains(
-        QStringLiteral("onValueChanged: if (root.liveReady && root.commands)")));
+        QStringLiteral("onValueChanged: if (panel.liveReady && panel.commands)")));
     EXPECT_TRUE(panel_source.contains(QStringLiteral("onValueCommitted: function (value)")));
     EXPECT_TRUE(panel_source.contains(QStringLiteral("previewDevelopNumber")));
     EXPECT_FALSE(panel_source.contains(QStringLiteral("onValueChanged: retouchEditor.")));
@@ -423,16 +360,14 @@ TEST(StudioQmlContract, DevelopSlidersPublishUserEditsBeforeRelease)
     EXPECT_TRUE(wheel_source.contains(QStringLiteral("onValueEdited: function (value)")));
     EXPECT_FALSE(wheel_source.contains(QStringLiteral("onValueEdited: if (")));
     EXPECT_FALSE(wheel_source.contains(
-        QStringLiteral("onValueChanged: if (root.liveReady && root.commands)")));
+        QStringLiteral("onValueChanged: if (panel.liveReady && panel.commands)")));
     EXPECT_TRUE(wheel_source.contains(QStringLiteral("onValueCommitted: function (value)")));
 }
 
 TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Undo\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Reset all\")")));
     const QStringList order{
@@ -454,8 +389,7 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
         QStringLiteral("profileGamma"),
         QStringLiteral("outputProfile"),
     };
-    qsizetype cursor = source.indexOf(QStringLiteral("component DevelopSection"));
-    ASSERT_GE(cursor, 0);
+    qsizetype cursor = 0;
     for (const auto &id : order)
     {
         const auto needle = QStringLiteral("sectionId: \"%1\"").arg(id);
@@ -475,10 +409,8 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
 
 TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Rotate L\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Flip H\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("RotateCcw.svg")));
@@ -502,7 +434,8 @@ TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
     EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveVertical\"")));
     EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveHorizontal\"")));
     EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveShear\"")));
-    EXPECT_TRUE(geometry.contains(QStringLiteral("root.commands.autoPerspective(modelData.mode)")));
+    EXPECT_TRUE(
+        geometry.contains(QStringLiteral("panel.commands.autoPerspective(modelData.mode)")));
     EXPECT_TRUE(geometry.contains(QStringLiteral("perspectiveConstrainCrop")));
     EXPECT_TRUE(geometry.contains(QStringLiteral("perspectiveInterpolationIndex")));
 }
@@ -1486,7 +1419,6 @@ TEST(StudioPresenterTest, ImportKeepsGalleryStableThenPublishesOneLastImportColl
     EXPECT_FALSE(presenter.lastImportSelected());
     EXPECT_EQ(presenter.lastImportCount(), 0);
 }
-
 
 } // namespace
 } // namespace ravo

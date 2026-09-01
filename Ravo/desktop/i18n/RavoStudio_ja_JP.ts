@@ -2857,6 +2857,18 @@
             <translation>Y|Y</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>比較表示</translation>
+        </message>
+        <message>
+            <source>Virtual Copy</source>
+            <translation>仮想コピー</translation>
+        </message>
+        <message>
+            <source>Stack</source>
+            <translation>スタック</translation>
+        </message>
+        <message>
             <source>Size</source>
             <translation>GalleryReviewBar::Size</translation>
         </message>
@@ -2992,8 +3004,40 @@
             <translation>日付別 (YYYY/MM/DD)</translation>
         </message>
         <message>
-            <source>Move copies and verifies each photo before removing its source.</source>
-            <translation>移動では各写真をコピーして検証した後に読み込み元を削除します。</translation>
+            <source>Rename template</source>
+            <translation>名前変更テンプレート</translation>
+        </message>
+        <message>
+            <source>Keep original names</source>
+            <translation>元の名前を保持</translation>
+        </message>
+        <message>
+            <source>Import filename template</source>
+            <translation>読み込みファイル名テンプレート</translation>
+        </message>
+        <message>
+            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
+            <translation>トークン: {date}、{stem}、{sequence}、{ext}</translation>
+        </message>
+        <message>
+            <source>Second copy</source>
+            <translation>2つ目のコピー</translation>
+        </message>
+        <message>
+            <source>Choose Second Copy…</source>
+            <translation>2つ目のコピー先を選択…</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>クリア</translation>
+        </message>
+        <message>
+            <source>No second copy selected</source>
+            <translation>2つ目のコピー先が選択されていません</translation>
+        </message>
+        <message>
+            <source>Move verifies every requested copy before removing its source.</source>
+            <translation>移動では、元ファイルを削除する前に要求されたすべてのコピーを検証します。</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -3226,6 +3270,38 @@
             <translation>前回読み込んだ写真</translation>
         </message>
         <message>
+            <source>Collections</source>
+            <translation>コレクション</translation>
+        </message>
+        <message>
+            <source>Collection name</source>
+            <translation>コレクション名</translation>
+        </message>
+        <message>
+            <source>Collection</source>
+            <translation>コレクション</translation>
+        </message>
+        <message>
+            <source>Smart</source>
+            <translation>スマート</translation>
+        </message>
+        <message>
+            <source>Smart Collection</source>
+            <translation>スマートコレクション</translation>
+        </message>
+        <message>
+            <source>Add selected photos</source>
+            <translation>選択した写真を追加</translation>
+        </message>
+        <message>
+            <source>Remove selected photos</source>
+            <translation>選択した写真を削除</translation>
+        </message>
+        <message>
+            <source>Delete collection</source>
+            <translation>コレクションを削除</translation>
+        </message>
+        <message>
             <source>All Photographs</source>
             <translation>すべての写真</translation>
         </message>
@@ -3357,6 +3433,10 @@
             <translation>プレビューを読み込み中…</translation>
         </message>
         <message>
+            <source>Loading…</source>
+            <translation>読み込み中…</translation>
+        </message>
+        <message>
             <source>%1 photos</source>
             <translation>%1 枚の写真</translation>
         </message>
@@ -3403,6 +3483,10 @@
         <message>
             <source>Open Library</source>
             <translation>ライブラリを開く</translation>
+        </message>
+        <message>
+            <source>Choose Import Second Copy</source>
+            <translation>読み込み時の2つ目のコピー先を選択</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -4100,6 +4184,10 @@
             <translation>Loupe</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>比較表示</translation>
+        </message>
+        <message>
             <source>Fit</source>
             <translation>StudioCommands::Fit</translation>
         </message>
@@ -4250,6 +4338,26 @@
         <message>
             <source>Refresh Capture Metadata</source>
             <translation>キャプチャ メタデータの更新</translation>
+        </message>
+        <message>
+            <source>Create Virtual Copy</source>
+            <translation>仮想コピーを作成</translation>
+        </message>
+        <message>
+            <source>Stack Photos</source>
+            <translation>写真をスタック</translation>
+        </message>
+        <message>
+            <source>Unstack Photos</source>
+            <translation>写真のスタックを解除</translation>
+        </message>
+        <message>
+            <source>Set Stack Pick</source>
+            <translation>スタック代表を設定</translation>
+        </message>
+        <message>
+            <source>Collapse Stacks</source>
+            <translation>スタックを折りたたむ</translation>
         </message>
         <message>
             <source>Clear Library Filters</source>
@@ -4656,6 +4764,30 @@
             <translation>エンジンの起動に失敗しました。</translation>
         </message>
         <message>
+            <source>Collection created.</source>
+            <translation>コレクションを作成しました。</translation>
+        </message>
+        <message>
+            <source>Smart collection created.</source>
+            <translation>スマートコレクションを作成しました。</translation>
+        </message>
+        <message>
+            <source>Collection renamed.</source>
+            <translation>コレクション名を変更しました。</translation>
+        </message>
+        <message>
+            <source>Collection deleted.</source>
+            <translation>コレクションを削除しました。</translation>
+        </message>
+        <message>
+            <source>Added photos to collection.</source>
+            <translation>写真をコレクションに追加しました。</translation>
+        </message>
+        <message>
+            <source>Removed photos from collection.</source>
+            <translation>写真をコレクションから削除しました。</translation>
+        </message>
+        <message>
             <source>Library updated from another client.</source>
             <translation>ライブラリが別のクライアントから更新されました。</translation>
         </message>
@@ -4742,6 +4874,22 @@
         <message>
             <source>Import cancelled after %1 of %2 photos.</source>
             <translation>%2 枚中 %1 枚の処理後にインポートをキャンセルしました。</translation>
+        </message>
+        <message>
+            <source>Virtual copy created.</source>
+            <translation>仮想コピーを作成しました。</translation>
+        </message>
+        <message>
+            <source>Photos stacked.</source>
+            <translation>写真をスタックしました。</translation>
+        </message>
+        <message>
+            <source>Stack dissolved.</source>
+            <translation>スタックを解除しました。</translation>
+        </message>
+        <message>
+            <source>Stack pick updated.</source>
+            <translation>スタック代表を更新しました。</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4953,6 +5101,18 @@
         <message>
             <source>Edit</source>
             <translation>ThumbnailCell::Edit</translation>
+        </message>
+        <message>
+            <source>V%1</source>
+            <translation>V%1</translation>
+        </message>
+        <message>
+            <source>Stack %1</source>
+            <translation>スタック %1</translation>
+        </message>
+        <message>
+            <source>%1</source>
+            <translation>%1</translation>
         </message>
     </context>
     <context>

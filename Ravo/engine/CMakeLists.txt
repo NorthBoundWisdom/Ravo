@@ -5,6 +5,10 @@ target_sources(ravo_engine
     src/bayer_demosaic.cpp
     src/bayer_demosaic.h
     src/capability_ops.cpp
+    src/capability_raw.cpp
+    src/capability_lens_color.cpp
+    src/capability_color_equalizer.cpp
+    src/capability_tone_equalizer.cpp
     src/canvas_frame.cpp
     src/canvas_frame.h
     src/color_balance_rgb.cpp
@@ -35,6 +39,10 @@ target_sources(ravo_engine
     src/guided_filter.cpp
     src/guided_filter.h
     src/image_ops.cpp
+    src/image_ops_effects.cpp
+    src/image_ops_tone.cpp
+    src/image_recipe_ops.cpp
+    src/image_geometry_ops.cpp
     src/input_color.cpp
     src/input_color.h
     src/lut3d.cpp
@@ -61,6 +69,7 @@ target_sources(ravo_engine
     src/raw_denoise.cpp
     src/raw_denoise.h
     src/raw_pipeline.cpp
+    src/raw_metadata.cpp
     src/recursive_gaussian.cpp
     src/recursive_gaussian.h
     src/retouch.cpp

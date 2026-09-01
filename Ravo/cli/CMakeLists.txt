@@ -2,7 +2,11 @@ add_library(ravo_cli STATIC)
 
 target_sources(ravo_cli
   PRIVATE
-    src/application.cpp)
+    src/application.cpp
+    src/application_catalog.cpp
+    src/application_catalog_args.cpp
+    src/application_catalog_support.cpp
+    src/application_studio.cpp)
 
 target_include_directories(ravo_cli
   PUBLIC

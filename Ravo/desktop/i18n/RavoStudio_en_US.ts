@@ -2857,6 +2857,18 @@
             <translation>Y|Y</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>Survey</translation>
+        </message>
+        <message>
+            <source>Virtual Copy</source>
+            <translation>Virtual Copy</translation>
+        </message>
+        <message>
+            <source>Stack</source>
+            <translation>Stack</translation>
+        </message>
+        <message>
             <source>Size</source>
             <translation>Size</translation>
         </message>
@@ -2992,8 +3004,40 @@
             <translation>By date (YYYY/MM/DD)</translation>
         </message>
         <message>
-            <source>Move copies and verifies each photo before removing its source.</source>
-            <translation>Move copies and verifies each photo before removing its source.</translation>
+            <source>Rename template</source>
+            <translation>Rename template</translation>
+        </message>
+        <message>
+            <source>Keep original names</source>
+            <translation>Keep original names</translation>
+        </message>
+        <message>
+            <source>Import filename template</source>
+            <translation>Import filename template</translation>
+        </message>
+        <message>
+            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
+            <translation>Tokens: {date}, {stem}, {sequence}, {ext}</translation>
+        </message>
+        <message>
+            <source>Second copy</source>
+            <translation>Second copy</translation>
+        </message>
+        <message>
+            <source>Choose Second Copy…</source>
+            <translation>Choose Second Copy…</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>Clear</translation>
+        </message>
+        <message>
+            <source>No second copy selected</source>
+            <translation>No second copy selected</translation>
+        </message>
+        <message>
+            <source>Move verifies every requested copy before removing its source.</source>
+            <translation>Move verifies every requested copy before removing its source.</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -3226,6 +3270,38 @@
             <translation>Last Imported Photos</translation>
         </message>
         <message>
+            <source>Collections</source>
+            <translation>Collections</translation>
+        </message>
+        <message>
+            <source>Collection name</source>
+            <translation>Collection name</translation>
+        </message>
+        <message>
+            <source>Collection</source>
+            <translation>Collection</translation>
+        </message>
+        <message>
+            <source>Smart</source>
+            <translation>Smart</translation>
+        </message>
+        <message>
+            <source>Smart Collection</source>
+            <translation>Smart Collection</translation>
+        </message>
+        <message>
+            <source>Add selected photos</source>
+            <translation>Add selected photos</translation>
+        </message>
+        <message>
+            <source>Remove selected photos</source>
+            <translation>Remove selected photos</translation>
+        </message>
+        <message>
+            <source>Delete collection</source>
+            <translation>Delete collection</translation>
+        </message>
+        <message>
             <source>All Photographs</source>
             <translation>All Photographs</translation>
         </message>
@@ -3317,6 +3393,10 @@
             <translation>No photos imported yet.</translation>
         </message>
         <message>
+            <source>Loading…</source>
+            <translation>Loading…</translation>
+        </message>
+        <message>
             <source>Before</source>
             <translation>Before</translation>
         </message>
@@ -3403,6 +3483,10 @@
         <message>
             <source>Open Library</source>
             <translation>Open Library</translation>
+        </message>
+        <message>
+            <source>Choose Import Second Copy</source>
+            <translation>Choose Import Second Copy</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -4060,6 +4144,10 @@
             <translation>Import Preset...</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>Survey</translation>
+        </message>
+        <message>
             <source>Photo Information</source>
             <translation>Photo Information</translation>
         </message>
@@ -4266,6 +4354,26 @@
         <message>
             <source>Refresh Capture Metadata</source>
             <translation>Refresh Capture Metadata</translation>
+        </message>
+        <message>
+            <source>Create Virtual Copy</source>
+            <translation>Create Virtual Copy</translation>
+        </message>
+        <message>
+            <source>Stack Photos</source>
+            <translation>Stack Photos</translation>
+        </message>
+        <message>
+            <source>Unstack Photos</source>
+            <translation>Unstack Photos</translation>
+        </message>
+        <message>
+            <source>Set Stack Pick</source>
+            <translation>Set Stack Pick</translation>
+        </message>
+        <message>
+            <source>Collapse Stacks</source>
+            <translation>Collapse Stacks</translation>
         </message>
         <message>
             <source>Clear Library Filters</source>
@@ -4488,6 +4596,30 @@
             <translation>Engine failed to start.</translation>
         </message>
         <message>
+            <source>Collection created.</source>
+            <translation>Collection created.</translation>
+        </message>
+        <message>
+            <source>Smart collection created.</source>
+            <translation>Smart collection created.</translation>
+        </message>
+        <message>
+            <source>Collection renamed.</source>
+            <translation>Collection renamed.</translation>
+        </message>
+        <message>
+            <source>Collection deleted.</source>
+            <translation>Collection deleted.</translation>
+        </message>
+        <message>
+            <source>Added photos to collection.</source>
+            <translation>Added photos to collection.</translation>
+        </message>
+        <message>
+            <source>Removed photos from collection.</source>
+            <translation>Removed photos from collection.</translation>
+        </message>
+        <message>
             <source>Library updated from another client.</source>
             <translation>Library updated from another client.</translation>
         </message>
@@ -4574,6 +4706,22 @@
         <message>
             <source>Import cancelled after %1 of %2 photos.</source>
             <translation>Import cancelled after %1 of %2 photos.</translation>
+        </message>
+        <message>
+            <source>Virtual copy created.</source>
+            <translation>Virtual copy created.</translation>
+        </message>
+        <message>
+            <source>Photos stacked.</source>
+            <translation>Photos stacked.</translation>
+        </message>
+        <message>
+            <source>Stack dissolved.</source>
+            <translation>Stack dissolved.</translation>
+        </message>
+        <message>
+            <source>Stack pick updated.</source>
+            <translation>Stack pick updated.</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4953,6 +5101,18 @@
         <message>
             <source>Edit</source>
             <translation>Edit</translation>
+        </message>
+        <message>
+            <source>V%1</source>
+            <translation>V%1</translation>
+        </message>
+        <message>
+            <source>Stack %1</source>
+            <translation>Stack %1</translation>
+        </message>
+        <message>
+            <source>%1</source>
+            <translation>%1</translation>
         </message>
     </context>
     <context>

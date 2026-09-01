@@ -2857,6 +2857,18 @@
             <translation>Y|Y</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>Übersicht</translation>
+        </message>
+        <message>
+            <source>Virtual Copy</source>
+            <translation>Virtuelle Kopie</translation>
+        </message>
+        <message>
+            <source>Stack</source>
+            <translation>Stapel</translation>
+        </message>
+        <message>
             <source>Size</source>
             <translation>Größe</translation>
         </message>
@@ -2992,8 +3004,40 @@
             <translation>Nach Datum (YYYY/MM/DD)</translation>
         </message>
         <message>
-            <source>Move copies and verifies each photo before removing its source.</source>
-            <translation>Beim Verschieben wird jedes Foto kopiert und geprüft, bevor die Quelle entfernt wird.</translation>
+            <source>Rename template</source>
+            <translation>Umbenennungsvorlage</translation>
+        </message>
+        <message>
+            <source>Keep original names</source>
+            <translation>Originalnamen beibehalten</translation>
+        </message>
+        <message>
+            <source>Import filename template</source>
+            <translation>Vorlage für Importdateinamen</translation>
+        </message>
+        <message>
+            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
+            <translation>Platzhalter: {date}, {stem}, {sequence}, {ext}</translation>
+        </message>
+        <message>
+            <source>Second copy</source>
+            <translation>Zweite Kopie</translation>
+        </message>
+        <message>
+            <source>Choose Second Copy…</source>
+            <translation>Zweites Ziel auswählen…</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>Auswahl aufheben</translation>
+        </message>
+        <message>
+            <source>No second copy selected</source>
+            <translation>Kein zweites Ziel ausgewählt</translation>
+        </message>
+        <message>
+            <source>Move verifies every requested copy before removing its source.</source>
+            <translation>Beim Verschieben wird jede angeforderte Kopie geprüft, bevor die Quelle entfernt wird.</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -3226,6 +3270,38 @@
             <translation>Zuletzt importierte Fotos</translation>
         </message>
         <message>
+            <source>Collections</source>
+            <translation>Sammlungen</translation>
+        </message>
+        <message>
+            <source>Collection name</source>
+            <translation>Sammlungsname</translation>
+        </message>
+        <message>
+            <source>Collection</source>
+            <translation>Sammlung</translation>
+        </message>
+        <message>
+            <source>Smart</source>
+            <translation>Intelligent</translation>
+        </message>
+        <message>
+            <source>Smart Collection</source>
+            <translation>Intelligente Sammlung</translation>
+        </message>
+        <message>
+            <source>Add selected photos</source>
+            <translation>Ausgewählte Fotos hinzufügen</translation>
+        </message>
+        <message>
+            <source>Remove selected photos</source>
+            <translation>Ausgewählte Fotos entfernen</translation>
+        </message>
+        <message>
+            <source>Delete collection</source>
+            <translation>Sammlung löschen</translation>
+        </message>
+        <message>
             <source>All Photographs</source>
             <translation>Alle Fotos</translation>
         </message>
@@ -3357,6 +3433,10 @@
             <translation>Vorschau wird geladen …</translation>
         </message>
         <message>
+            <source>Loading…</source>
+            <translation>Wird geladen …</translation>
+        </message>
+        <message>
             <source>%1 photos</source>
             <translation>%1 Fotos</translation>
         </message>
@@ -3403,6 +3483,10 @@
         <message>
             <source>Open Library</source>
             <translation>Bibliothek öffnen</translation>
+        </message>
+        <message>
+            <source>Choose Import Second Copy</source>
+            <translation>Zweites Importziel auswählen</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -4100,6 +4184,10 @@
             <translation>Lupe</translation>
         </message>
         <message>
+            <source>Survey</source>
+            <translation>Übersicht</translation>
+        </message>
+        <message>
             <source>Fit</source>
             <translation>Einpassen</translation>
         </message>
@@ -4250,6 +4338,26 @@
         <message>
             <source>Refresh Capture Metadata</source>
             <translation>Aufnahmemetadaten aktualisieren</translation>
+        </message>
+        <message>
+            <source>Create Virtual Copy</source>
+            <translation>Virtuelle Kopie erstellen</translation>
+        </message>
+        <message>
+            <source>Stack Photos</source>
+            <translation>Fotos stapeln</translation>
+        </message>
+        <message>
+            <source>Unstack Photos</source>
+            <translation>Fotos entstapeln</translation>
+        </message>
+        <message>
+            <source>Set Stack Pick</source>
+            <translation>Stapelbild festlegen</translation>
+        </message>
+        <message>
+            <source>Collapse Stacks</source>
+            <translation>Stapel einklappen</translation>
         </message>
         <message>
             <source>Clear Library Filters</source>
@@ -4656,6 +4764,30 @@
             <translation>Engine konnte nicht gestartet werden.</translation>
         </message>
         <message>
+            <source>Collection created.</source>
+            <translation>Sammlung erstellt.</translation>
+        </message>
+        <message>
+            <source>Smart collection created.</source>
+            <translation>Intelligente Sammlung erstellt.</translation>
+        </message>
+        <message>
+            <source>Collection renamed.</source>
+            <translation>Sammlung umbenannt.</translation>
+        </message>
+        <message>
+            <source>Collection deleted.</source>
+            <translation>Sammlung gelöscht.</translation>
+        </message>
+        <message>
+            <source>Added photos to collection.</source>
+            <translation>Fotos zur Sammlung hinzugefügt.</translation>
+        </message>
+        <message>
+            <source>Removed photos from collection.</source>
+            <translation>Fotos aus der Sammlung entfernt.</translation>
+        </message>
+        <message>
             <source>Library updated from another client.</source>
             <translation>Bibliothek wurde von einem anderen Client aktualisiert.</translation>
         </message>
@@ -4742,6 +4874,22 @@
         <message>
             <source>Import cancelled after %1 of %2 photos.</source>
             <translation>Import nach %1 von %2 Fotos abgebrochen.</translation>
+        </message>
+        <message>
+            <source>Virtual copy created.</source>
+            <translation>Virtuelle Kopie erstellt.</translation>
+        </message>
+        <message>
+            <source>Photos stacked.</source>
+            <translation>Fotos gestapelt.</translation>
+        </message>
+        <message>
+            <source>Stack dissolved.</source>
+            <translation>Stapel aufgelöst.</translation>
+        </message>
+        <message>
+            <source>Stack pick updated.</source>
+            <translation>Stapelbild aktualisiert.</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4953,6 +5101,18 @@
         <message>
             <source>Edit</source>
             <translation>Bearbeiten</translation>
+        </message>
+        <message>
+            <source>V%1</source>
+            <translation>V%1</translation>
+        </message>
+        <message>
+            <source>Stack %1</source>
+            <translation>Stapel %1</translation>
+        </message>
+        <message>
+            <source>%1</source>
+            <translation>%1</translation>
         </message>
     </context>
     <context>

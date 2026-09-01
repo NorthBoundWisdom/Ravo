@@ -309,10 +309,10 @@ probe rather than a pass.
 
 First-party Ravo `.cpp` and production `.qml` files have a 2,000-line limit.
 `configs/translation_unit_size_budget.jsonc` and
-`configs/qml_file_size_budget.jsonc` register existing debt: a registered file
-may shrink but cannot grow, a new oversized file is rejected, and a debt entry
-must be removed once its file reaches the limit. New split files target at most
-1,500 lines; QML section components target at most 1,000 lines.
+`configs/qml_file_size_budget.jsonc` have empty debt lists. The checks reject
+any oversized first-party source; adding a debt entry is not an alternative to
+decomposition. New split files target at most 1,500 lines; QML section
+components target at most 1,000 lines.
 
 `configs/test_split_inventory.jsonc` freezes the ordered GoogleTest case
 inventory and target membership of test files being decomposed. Splitting may

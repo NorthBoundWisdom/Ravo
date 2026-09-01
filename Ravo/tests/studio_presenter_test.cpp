@@ -26,7 +26,6 @@
 #include <QImage>
 #include <QKeySequence>
 #include <QMetaType>
-#include <QProcess>
 #include <QSize>
 #include <QThread>
 #include <QTranslator>
@@ -57,6 +56,7 @@
 #include "ravo/recipe/style.h"
 #include "studio_debug_info.h"
 #include "studio_language_manager.h"
+#include "studio_qml_test_support.h"
 
 namespace ravo
 {
@@ -116,44 +116,6 @@ private:
     QByteArray old_value_;
     bool was_set_ = false;
 };
-
-struct CliProcessResult
-{
-    int exit_code = -1;
-    QByteArray standard_output;
-    QByteArray standard_error;
-};
-
-[[nodiscard]] CliProcessResult run_cli_process(const QStringList &arguments,
-                                               const int timeout_ms = 30000)
-{
-    QProcess process;
-    process.setProgram(QStringLiteral(RAVO_CLI_EXECUTABLE));
-    process.setArguments(arguments);
-    process.start();
-    const bool finished =
-        wait_until([&] { return process.state() == QProcess::NotRunning; }, timeout_ms);
-    if (!finished)
-    {
-        process.kill();
-        process.waitForFinished(5000);
-    }
-    return {finished ? process.exitCode() : -1, process.readAllStandardOutput(),
-            process.readAllStandardError()};
-}
-
-[[nodiscard]] Result<JsonValue> cli_data(const QByteArray &output)
-{
-    const QByteArray trimmed = output.trimmed();
-    auto envelope =
-        parse_json(std::string_view(trimmed.constData(), static_cast<std::size_t>(trimmed.size())));
-    if (!envelope)
-        return envelope.error();
-    const auto *data = envelope.value().find("data");
-    if (data == nullptr)
-        return make_error(ErrorCode::kValidation, "CLI response has no data object");
-    return *data;
-}
 
 [[nodiscard]] QString qml_model_entry(const QString &source, const char *field)
 {
@@ -947,10 +909,8 @@ TEST(StudioPresenterTest, ScopeModeOwnsAllAcceptedDiagnosticsAndRejectsFutureSta
 
 TEST(StudioQmlContract, LegacyColorBalanceSlidersExposeEverySchemaHardEndpoint)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
 
     constexpr std::array<const char *, 14> zero_to_two_fields{
         "legacyColorBalanceLiftFactor",      "legacyColorBalanceLiftRed",
@@ -980,10 +940,8 @@ TEST(StudioQmlContract, LegacyColorBalanceSlidersExposeEverySchemaHardEndpoint)
 
 TEST(StudioQmlContract, ColorCheckerExposesEveryLabFieldWithoutClampingCanonicalFloats)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
 
     constexpr std::array<const char *, 6> fields{
         "colorCheckerSourceL", "colorCheckerSourceA", "colorCheckerSourceB",
@@ -1000,17 +958,15 @@ TEST(StudioQmlContract, ColorCheckerExposesEveryLabFieldWithoutClampingCanonical
     EXPECT_TRUE(source.contains(QStringLiteral("DoubleValidator.ScientificNotation")));
     EXPECT_TRUE(source.contains(QStringLiteral("colorCheckerPreset")));
     EXPECT_TRUE(source.contains(QStringLiteral("colorCheckerPatch")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editColorChecker.patchCount > 0")));
-    EXPECT_FALSE(source.contains(QStringLiteral("root.hasSelection && count > 0")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editColorChecker.patchCount > 0")));
+    EXPECT_FALSE(source.contains(QStringLiteral("panel.hasSelection && count > 0")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"colorChecker\")")));
 }
 
 TEST(StudioQmlContract, ColorCorrectionUsesHardBoundsAndGenericDevelopIntents)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
 
     constexpr std::array<const char *, 4> endpoint_fields{
         "colorCorrectionHighlightA", "colorCorrectionHighlightB", "colorCorrectionShadowA",
@@ -1032,7 +988,7 @@ TEST(StudioQmlContract, ColorCorrectionUsesHardBoundsAndGenericDevelopIntents)
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editColorCorrection")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editColorCorrection")));
     EXPECT_TRUE(section.contains(
         QStringLiteral("setDevelopNumber(\"colorCorrectionEnabled\", checked ? 1 : 0)")));
     EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(modelData.field, value)")));
@@ -1053,10 +1009,8 @@ TEST(StudioQmlContract, ColorCorrectionUsesHardBoundsAndGenericDevelopIntents)
 
 TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIntents)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
 
     for (const auto *field : {"colorContrastASteepness", "colorContrastBSteepness"})
     {
@@ -1078,7 +1032,7 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editColorContrast")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editColorContrast")));
     EXPECT_TRUE(section.contains(
         QStringLiteral("setDevelopNumber(\"colorContrastEnabled\", checked ? 1 : 0)")));
     EXPECT_TRUE(section.contains(QStringLiteral("qsTr(\"Enable Color contrast\")")));
@@ -1119,20 +1073,18 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
 
 TEST(StudioQmlContract, VelviaExposesTheFullV2SurfaceThroughGenericDevelopIntents)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
 
     const auto section_begin = source.indexOf(QStringLiteral("objectName: \"velviaEnabled\""));
     const auto section_end = source.indexOf(QStringLiteral("Color Balance RGB"), section_begin);
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editVelviaParams.enabled")));
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editVelviaParams.strength")));
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editVelviaParams.bias")));
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editVelviaParams.masked")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editVelviaParams.enabled")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editVelviaParams.strength")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editVelviaParams.bias")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editVelviaParams.masked")));
     EXPECT_TRUE(
         section.contains(QStringLiteral("setDevelopNumber(\"velviaEnabled\", checked ? 1 : 0)")));
     EXPECT_TRUE(
@@ -1161,10 +1113,8 @@ TEST(StudioQmlContract, ThreeDimensionalLutUsesTypedPresenterAndGenericDevelopIn
     EXPECT_EQ(state.value(QStringLiteral("spaceChoices")).toList().size(), 6);
     EXPECT_EQ(state.value(QStringLiteral("interpolationChoices")).toList().size(), 2);
 
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     const auto begin = source.indexOf(QStringLiteral("objectName: \"lut3dFile\""));
     const auto end = source.indexOf(QStringLiteral("Color Balance RGB"), begin);
     ASSERT_GE(begin, 0);
@@ -1172,7 +1122,7 @@ TEST(StudioQmlContract, ThreeDimensionalLutUsesTypedPresenterAndGenericDevelopIn
     const auto section = source.mid(begin, end - begin);
     EXPECT_TRUE(source.contains(QStringLiteral("QmlFileDialogPage")));
     EXPECT_TRUE(source.contains(QStringLiteral("Cube LUT (*.cube *.CUBE)")));
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editLut3d.filePath")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editLut3d.filePath")));
     EXPECT_TRUE(section.contains(QStringLiteral("setDevelopText(\"lut3dFile\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("objectName: \"lut3dEnabled\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("lut3dInputSpaceIndex")));
@@ -1185,10 +1135,8 @@ TEST(StudioQmlContract, ThreeDimensionalLutUsesTypedPresenterAndGenericDevelopIn
 
 TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPresentation)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
 
     const auto section_begin = source.indexOf(QStringLiteral("colorHarmonizerEnabled"));
     const auto section_end =
@@ -1196,7 +1144,7 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editColorHarmonizer")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editColorHarmonizer")));
     EXPECT_TRUE(section.contains(
         QStringLiteral("setDevelopNumber(\"colorHarmonizerEnabled\", checked ? 1 : 0)")));
     EXPECT_TRUE(section.contains(QStringLiteral("colorHarmonizerRuleIndex")));
@@ -1218,7 +1166,7 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.customNodeCount")));
     EXPECT_FALSE(section.contains(QStringLiteral("\"minimum\": 0, \"maximum\": 360")));
     EXPECT_FALSE(section.contains(
-        QStringLiteral("modelData.index < root.presenter.editColorHarmonizer.customNodeCount")));
+        QStringLiteral("modelData.index < panel.presenter.editColorHarmonizer.customNodeCount")));
     EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"colorHarmonizer\")")));
     EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
     EXPECT_FALSE(section.contains(QStringLiteral("auto-detect")));
@@ -1227,7 +1175,7 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_FALSE(section.contains(QStringLiteral("harmony guide"), Qt::CaseInsensitive));
     EXPECT_TRUE(section.contains(QStringLiteral("MaskEditor")));
     EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizerMask")));
-    EXPECT_TRUE(source.contains(QStringLiteral("component MaskEditor")));
+    EXPECT_TRUE(source.contains(QStringLiteral("// MaskEditor.qml")));
     EXPECT_TRUE(source.contains(QStringLiteral("editGraduatedMask")));
     EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.numericControls")));
     EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.kindChoices")));
@@ -1254,17 +1202,15 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
 
 TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
 
     const auto section_begin = source.indexOf(QStringLiteral("colorReconstructionEnabled"));
     const auto section_end = source.indexOf(QStringLiteral("qsTr(\"Color Zones\")"), section_begin);
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editColorReconstruction")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editColorReconstruction")));
     EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionPrecedenceIndex")));
     EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionThreshold")));
     EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionSpatial")));
@@ -1300,18 +1246,16 @@ TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
 
 TEST(StudioQmlContract, SharpenExposesAmountRadiusAndThresholdFromOnePresenter)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     const auto begin = source.indexOf(QStringLiteral("title: qsTr(\"Sharpen\")"));
     const auto end = source.indexOf(QStringLiteral("title: qsTr(\"Clarity\")"), begin);
     ASSERT_GE(begin, 0);
     ASSERT_GT(end, begin);
     const auto section = source.mid(begin, end - begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editSharpen")));
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editSharpenRadius")));
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editSharpenThreshold")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editSharpen")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editSharpenRadius")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editSharpenThreshold")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpen\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpenRadius\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpenThreshold\"")));
@@ -1329,10 +1273,8 @@ TEST(StudioQmlContract, TextureIsPrimaryDetailControlWithCollapsedAdvancedScale)
     EXPECT_DOUBLE_EQ(state.value(QStringLiteral("detailThreshold")).toDouble(), 0.2);
     EXPECT_EQ(state.value(QStringLiteral("iterations")).toLongLong(), 1);
 
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     const auto detail = source.indexOf(QStringLiteral("sectionId: \"detail\""));
     const auto texture = source.indexOf(QStringLiteral("title: qsTr(\"Texture\")"), detail);
     const auto sharpen = source.indexOf(QStringLiteral("title: qsTr(\"Sharpen\")"), detail);
@@ -1340,7 +1282,7 @@ TEST(StudioQmlContract, TextureIsPrimaryDetailControlWithCollapsedAdvancedScale)
     ASSERT_GT(texture, detail);
     ASSERT_GT(sharpen, texture);
     const auto section = source.mid(texture, sharpen - texture);
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editTexture.strength")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editTexture.strength")));
     EXPECT_TRUE(section.contains(QStringLiteral("from: -100")));
     EXPECT_TRUE(section.contains(QStringLiteral("to: 100")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"texture\"")));
@@ -1355,18 +1297,16 @@ TEST(StudioQmlContract, TextureIsPrimaryDetailControlWithCollapsedAdvancedScale)
 
 TEST(StudioQmlContract, DehazeExposesStrengthDistanceAndAdaptiveScale)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     const auto begin = source.indexOf(QStringLiteral("title: qsTr(\"Dehaze\")"));
     const auto end = source.indexOf(QStringLiteral("sectionId: \"detail\""), begin);
     ASSERT_GE(begin, 0);
     ASSERT_GT(end, begin);
     const auto section = source.mid(begin, end - begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editDehaze")));
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editDehazeDistance")));
-    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editDehazeAdaptive")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editDehaze")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editDehazeDistance")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editDehazeAdaptive")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"dehaze\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"dehazeDistance\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(\"dehazeAdaptive\"")));
@@ -1376,13 +1316,11 @@ TEST(StudioQmlContract, DehazeExposesStrengthDistanceAndAdaptiveScale)
 
 TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputDitherEnabled\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputDitherMethod\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editOutputDither.methodChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editOutputDither.methodChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("outputDitherMethodIndex")));
     EXPECT_TRUE(source.contains(QStringLiteral("outputDitherDamping")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"outputDither\")")));
@@ -1390,34 +1328,35 @@ TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
     EXPECT_FALSE(source.contains(QStringLiteral("7.0 / 16.0")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"canvasEnabled\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: canvasEnabledBox")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editCanvasEnabled")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editCanvasEnabled")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Enlarge Canvas\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Enable enlarged canvas\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("visible: canvasEnabledBox.checked")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editCanvas.colorChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editCanvas.colorChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("canvasColorIndex")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"canvas\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputFrameEnabled\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editOutputFrame.basisChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editOutputFrame.basisChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("outputFrameLineOffset")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"outputFrame\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"watermarkEnabled\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"watermarkText\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editWatermark.alignmentChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editWatermark.alignmentChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("setDevelopText(\"watermarkText\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"watermark\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorZonesEnabled\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editColorZones.selectByChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editColorZones.selectByChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("colorZonesChroma")));
     EXPECT_TRUE(source.contains(QStringLiteral("colorZonesHueInterpolationIndex")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"colorZones\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"monochromeEnabled\"")));
     EXPECT_TRUE(
-        source.contains(QStringLiteral("root.presenter.editMonochromeFilter[modelData.key]")));
+        source.contains(QStringLiteral("panel.presenter.editMonochromeFilter[modelData.key]")));
     EXPECT_TRUE(source.contains(QStringLiteral("monochromeHighlights")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"monochrome\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"splitToningEnabled\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editSplitToning.shadowSaturation")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("panel.presenter.editSplitToning.shadowSaturation")));
     EXPECT_TRUE(source.contains(QStringLiteral("splitHighlightSaturation")));
     EXPECT_TRUE(source.contains(QStringLiteral("splitCompress")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"splitToning\")")));
@@ -1425,10 +1364,8 @@ TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
 
 TEST(StudioQmlContract, RawSectionExposesSensorAwareDemosaicAndWaveletDenoise)
 {
-    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto source = QString::fromUtf8(panel.readAll());
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
     const auto raw = source.indexOf(QStringLiteral("sectionId: \"raw\""));
     ASSERT_GE(raw, 0);
     EXPECT_GT(source.indexOf(QStringLiteral("qsTr(\"Auto — RCD / Markesteijn 3\")"), raw), raw);
@@ -1441,7 +1378,6 @@ TEST(StudioQmlContract, RawSectionExposesSensorAwareDemosaicAndWaveletDenoise)
               raw);
     EXPECT_GT(source.indexOf(QStringLiteral("selectedMediaType === \"image/x-raw\""), raw), raw);
 }
-
 
 } // namespace
 } // namespace ravo
