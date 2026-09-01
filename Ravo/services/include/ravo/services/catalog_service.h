@@ -79,6 +79,8 @@ public:
     [[nodiscard]] Result<CatalogSnapshot> snapshot() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query) const;
+    [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query,
+                                                               bool collapse_stacks) const;
     [[nodiscard]] Result<LibraryPage> list_assets_page(const LibraryPageRequest &request) const;
     [[nodiscard]] Result<std::vector<FolderRecord>> list_folders() const;
     [[nodiscard]] Result<std::vector<LibrarySetRecord>> list_library_sets() const;
@@ -100,6 +102,19 @@ public:
     [[nodiscard]] Result<LibrarySetMutation>
     remove_library_set_members(std::string_view set_id, const std::vector<std::string> &asset_ids,
                                std::optional<std::int64_t> expected_revision = {});
+    [[nodiscard]] Result<AssetVersionMutation>
+    create_asset_version(std::string_view source_asset_id,
+                         std::optional<std::int64_t> expected_revision = {});
+    [[nodiscard]] Result<LibraryStackMutation>
+    stack_assets(const std::vector<std::string> &asset_ids, std::string_view pick_asset_id,
+                 std::optional<std::int64_t> expected_revision = {});
+    [[nodiscard]] Result<std::int64_t>
+    unstack_assets(std::string_view stack_id, std::optional<std::int64_t> expected_revision = {});
+    [[nodiscard]] Result<LibraryStackMutation>
+    set_stack_pick(std::string_view stack_id, std::string_view pick_asset_id,
+                   std::optional<std::int64_t> expected_revision = {});
+    [[nodiscard]] Result<std::optional<LibraryStackRecord>>
+    find_library_stack(std::string_view stack_id) const;
     [[nodiscard]] Result<FolderRelinkResult>
     relink_folder(std::string_view folder_id, std::string_view replacement_directory,
                   const CancellationToken &cancellation = {});

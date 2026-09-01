@@ -64,12 +64,19 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         case RatingRole:
         case WidthRole:
         case HeightRole:
+        case VersionOrdinalRole:
+        case StackCountRole:
+        case StackPositionRole:
             return 0;
         case ColorLabelRole:
             return QStringLiteral("none");
+        case SourceAssetIdRole:
+        case StackIdRole:
+            return QString{};
         case RejectedRole:
         case HasEditsRole:
         case SelectedRole:
+        case StackPickRole:
             return false;
         case ThumbnailUrlRole:
             return QUrl{};
@@ -121,6 +128,18 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         return selected_ids_.contains(asset.id);
     case CaptureSummaryRole:
         return compact_capture_summary(asset);
+    case VersionOrdinalRole:
+        return asset.version_ordinal;
+    case SourceAssetIdRole:
+        return asset.source_asset_id ? qstring_from_utf8(*asset.source_asset_id) : QString{};
+    case StackIdRole:
+        return asset.stack_id ? qstring_from_utf8(*asset.stack_id) : QString{};
+    case StackCountRole:
+        return asset.stack_count;
+    case StackPickRole:
+        return asset.stack_pick;
+    case StackPositionRole:
+        return asset.stack_position;
     default:
         return {};
     }
@@ -142,7 +161,13 @@ QHash<int, QByteArray> AssetListModel::roleNames() const
             {HeightRole, "pixelHeight"},
             {HasEditsRole, "hasEdits"},
             {SelectedRole, "selected"},
-            {CaptureSummaryRole, "captureSummary"}};
+            {CaptureSummaryRole, "captureSummary"},
+            {VersionOrdinalRole, "versionOrdinal"},
+            {SourceAssetIdRole, "sourceAssetId"},
+            {StackIdRole, "stackId"},
+            {StackCountRole, "stackCount"},
+            {StackPickRole, "stackPick"},
+            {StackPositionRole, "stackPosition"}};
 }
 
 void AssetListModel::setAssets(std::vector<AssetRecord> assets,

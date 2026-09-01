@@ -387,6 +387,266 @@ TEST_F(CatalogServiceTest, NamedLibrarySetsPersistMembershipSmartQueryAndRejectS
     ASSERT_EQ(restored_sets.value().size(), 2U);
 }
 
+TEST_F(CatalogServiceTest, AssetVersionsStacksAndCollapsedListing)
+{
+    ASSERT_TRUE(open_service(true));
+    QImage image(16, 12, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(20, 80, 140));
+    const auto first_path = root / "one.jpg";
+    const auto second_path = root / "two.jpg";
+    ASSERT_TRUE(image.save(QString::fromStdString(first_path.string()), "JPEG", 90));
+    image.fill(QColor(140, 80, 20));
+    ASSERT_TRUE(image.save(QString::fromStdString(second_path.string()), "JPEG", 90));
+    auto first = service->import_one(first_path.string(), CancellationToken{});
+    auto second = service->import_one(second_path.string(), CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(second) << second.error().message;
+    const auto first_id = first.value().asset->id;
+    const auto second_id = second.value().asset->id;
+    ASSERT_TRUE(service->set_rating(first_id, 4));
+    DevelopParams edited;
+    edited.exposure_ev = 0.75;
+    ASSERT_TRUE(service->save_develop(first_id, edited));
+
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot);
+    auto stale = service->create_asset_version(first_id, snapshot.value().revision - 1);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+
+    auto versioned = service->create_asset_version(first_id, snapshot.value().revision);
+    ASSERT_TRUE(versioned) << versioned.error().message;
+    EXPECT_EQ(versioned.value().version.version_ordinal, 1);
+    ASSERT_TRUE(versioned.value().version.source_asset_id);
+    EXPECT_EQ(*versioned.value().version.source_asset_id, first_id);
+    EXPECT_EQ(versioned.value().version.normalized_uri, first.value().asset->normalized_uri);
+    EXPECT_EQ(versioned.value().version.review.rating, 4);
+    EXPECT_TRUE(versioned.value().version.has_edits);
+    const auto version_id = versioned.value().version.id;
+
+    auto by_uri = sqlite_repository->find_asset_by_uri(first.value().asset->normalized_uri);
+    ASSERT_TRUE(by_uri) << by_uri.error().message;
+    ASSERT_TRUE(by_uri.value());
+    EXPECT_EQ(by_uri.value()->id, first_id);
+
+    DevelopParams version_edit;
+    version_edit.exposure_ev = -0.5;
+    ASSERT_TRUE(service->save_develop(version_id, version_edit));
+    auto primary_recipe = service->load_recipe(first_id);
+    auto version_recipe = service->load_recipe(version_id);
+    ASSERT_TRUE(primary_recipe) << primary_recipe.error().message;
+    ASSERT_TRUE(version_recipe) << version_recipe.error().message;
+    auto primary_develop = develop_from_recipe(primary_recipe.value());
+    auto version_develop = develop_from_recipe(version_recipe.value());
+    ASSERT_TRUE(primary_develop) << primary_develop.error().message;
+    ASSERT_TRUE(version_develop) << version_develop.error().message;
+    EXPECT_NEAR(primary_develop.value().exposure_ev, 0.75, 1e-6);
+    EXPECT_NEAR(version_develop.value().exposure_ev, -0.5, 1e-6);
+
+    const auto primary_export = (root / "primary.jpg").string();
+    const auto version_export = (root / "version.jpg").string();
+    ExportRequest primary_request;
+    primary_request.asset_id = first_id;
+    primary_request.output_path = primary_export;
+    primary_request.format = ExportFormat::kJpeg;
+    ExportRequest version_request;
+    version_request.asset_id = version_id;
+    version_request.output_path = version_export;
+    version_request.format = ExportFormat::kJpeg;
+    auto exported_primary = service->export_asset(primary_request);
+    auto exported_version = service->export_asset(version_request);
+    ASSERT_TRUE(exported_primary) << exported_primary.error().message;
+    ASSERT_TRUE(exported_version) << exported_version.error().message;
+    EXPECT_NE(file_sha256(primary_export), file_sha256(version_export));
+    EXPECT_TRUE(std::filesystem::exists(first_path));
+
+    auto all_versions = service->list_assets(LibraryQuery{}, false);
+    ASSERT_TRUE(all_versions);
+    EXPECT_EQ(all_versions.value().size(), 3U);
+
+    snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot);
+    auto stacked = service->stack_assets({first_id, second_id}, first_id, snapshot.value().revision);
+    ASSERT_TRUE(stacked) << stacked.error().message;
+    EXPECT_EQ(stacked.value().stack.member_ids.size(), 2U);
+    EXPECT_EQ(stacked.value().stack.pick_asset_id, first_id);
+
+    auto collapsed = service->list_assets();
+    ASSERT_TRUE(collapsed) << collapsed.error().message;
+    ASSERT_EQ(collapsed.value().size(), 2U);
+    bool saw_pick = false;
+    bool saw_version = false;
+    for (const auto &asset : collapsed.value())
+    {
+        EXPECT_NE(asset.id, second_id);
+        if (asset.id == first_id)
+        {
+            saw_pick = true;
+            EXPECT_TRUE(asset.stack_pick);
+            EXPECT_EQ(asset.stack_count, 2);
+        }
+        if (asset.id == version_id)
+            saw_version = true;
+    }
+    EXPECT_TRUE(saw_pick);
+    EXPECT_TRUE(saw_version);
+
+    auto expanded = service->list_assets(LibraryQuery{}, false);
+    ASSERT_TRUE(expanded);
+    EXPECT_EQ(expanded.value().size(), 3U);
+
+    auto forbidden = service->remove_original_and_catalog(version_id);
+    ASSERT_FALSE(forbidden);
+    EXPECT_EQ(forbidden.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(forbidden.error().context.at("reason"), "version_disk_delete_forbidden");
+    EXPECT_TRUE(std::filesystem::exists(first_path));
+
+    ASSERT_TRUE(service->remove_from_catalog(version_id));
+    EXPECT_TRUE(std::filesystem::exists(first_path));
+    collapsed = service->list_assets(LibraryQuery{}, false);
+    ASSERT_TRUE(collapsed);
+    EXPECT_EQ(collapsed.value().size(), 2U);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto reopened = service->list_assets(LibraryQuery{}, false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    EXPECT_EQ(reopened.value().size(), 2U);
+    auto stacks = service->find_library_stack(stacked.value().stack.id);
+    ASSERT_TRUE(stacks) << stacks.error().message;
+    ASSERT_TRUE(stacks.value());
+    EXPECT_EQ(stacks.value()->pick_asset_id, first_id);
+
+    const auto backup_path = root / "version-backup";
+    auto backup = service->create_backup(backup_path.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+    auto backup_recovery =
+        FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
+    ASSERT_TRUE(backup_recovery);
+    const SqliteCatalogBackupVerifier verifier;
+    const auto restored_path = (root / "version-restored.sqlite").string();
+    CatalogRestoreRequest request;
+    request.backup_directory = backup_path.string();
+    request.destination_catalog = restored_path;
+    auto restored =
+        restore_catalog_backup(verifier, verifier, *backup_recovery.value(), request);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto restored_repo = SqliteCatalogRepository::open(restored_path);
+    ASSERT_TRUE(restored_repo) << restored_repo.error().message;
+    auto restored_stack = restored_repo.value()->find_library_stack(stacked.value().stack.id);
+    ASSERT_TRUE(restored_stack);
+    ASSERT_TRUE(restored_stack.value());
+    EXPECT_EQ(restored_stack.value()->member_ids.size(), 2U);
+
+    auto primary_again = service->create_asset_version(first_id);
+    ASSERT_TRUE(primary_again);
+    ASSERT_TRUE(service->remove_from_catalog(first_id));
+    EXPECT_TRUE(std::filesystem::exists(first_path));
+    auto remaining = service->list_assets(LibraryQuery{}, false);
+    ASSERT_TRUE(remaining);
+    ASSERT_EQ(remaining.value().size(), 1U);
+    EXPECT_EQ(remaining.value().front().id, second_id);
+
+    auto stacked_again = service->stack_assets({second_id}, second_id);
+    ASSERT_FALSE(stacked_again);
+}
+
+TEST_F(CatalogServiceTest, SchemaV10MigratesToAssetVersionsAndStacks)
+{
+    {
+        const auto connection = QStringLiteral("ravo_v10_versions");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA foreign_keys = ON")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE schema_info (id INTEGER PRIMARY KEY CHECK (id = 1), "
+            "schema_version INTEGER NOT NULL, catalog_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+            "created_unix_ms INTEGER NOT NULL, migrated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE catalog_folder (id TEXT PRIMARY KEY, uri TEXT NOT NULL UNIQUE, "
+            "created_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset (id TEXT PRIMARY KEY, normalized_uri TEXT NOT NULL UNIQUE, "
+            "display_name TEXT NOT NULL, folder_uri TEXT NOT NULL, folder_id TEXT NOT NULL "
+            "REFERENCES catalog_folder(id), media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, "
+            "mtime_unix_ms INTEGER NOT NULL, content_fingerprint TEXT, width INTEGER, height INTEGER, "
+            "import_state TEXT NOT NULL, error_code TEXT, error_message TEXT, "
+            "created_unix_ms INTEGER NOT NULL, rating INTEGER NOT NULL DEFAULT 0, "
+            "color_label TEXT NOT NULL DEFAULT 'none', rejected INTEGER NOT NULL DEFAULT 0)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE preview (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "contract_version INTEGER NOT NULL, cache_key TEXT NOT NULL, width INTEGER, "
+            "height INTEGER, state TEXT NOT NULL, cache_relpath TEXT, last_success_unix_ms INTEGER)")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("CREATE TABLE asset_recipe ("
+                           "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+                           "  recipe_schema_version INTEGER NOT NULL,"
+                           "  recipe_json TEXT NOT NULL,"
+                           "  updated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_tag (asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE, "
+            "name TEXT NOT NULL, PRIMARY KEY (asset_id, name))")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_metadata (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "title TEXT, description TEXT, creator TEXT, copyright TEXT, camera_make TEXT, "
+            "camera_model TEXT, iso REAL, aperture REAL, focal_length_mm REAL, shutter_s REAL, "
+            "captured_unix_s INTEGER, captured_local_exif TEXT, captured_subsecond_digits TEXT, "
+            "captured_utc_offset_minutes INTEGER, gps_latitude_e6 INTEGER, gps_longitude_e6 INTEGER, "
+            "gps_altitude_magnitude_mm INTEGER, gps_altitude_ref INTEGER)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_recipe_history (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE, seq INTEGER NOT NULL, "
+            "kind TEXT NOT NULL, label TEXT, recipe_json TEXT NOT NULL, created_unix_ms INTEGER NOT NULL, "
+            "UNIQUE(asset_id, seq))")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_recovery_state (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "generation INTEGER NOT NULL, synchronized_generation INTEGER NOT NULL DEFAULT 0)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE library_set (id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL UNIQUE, "
+            "query_json TEXT, created_unix_ms INTEGER NOT NULL, updated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE library_set_member (set_id TEXT NOT NULL REFERENCES library_set(id) ON DELETE CASCADE, "
+            "asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE, added_unix_ms INTEGER NOT NULL, "
+            "PRIMARY KEY (set_id, asset_id))")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
+            "migrated_unix_ms) VALUES (1, 10, 'cat_v10', 4, 1, 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO catalog_folder(id, uri, created_unix_ms) VALUES ('fld_one', 'file:///tmp', 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset(id, normalized_uri, display_name, folder_uri, folder_id, media_type, "
+            "size_bytes, mtime_unix_ms, import_state, created_unix_ms) VALUES "
+            "('ast_old', 'file:///tmp/old.jpg', 'old.jpg', 'file:///tmp', 'fld_one', 'image/jpeg', "
+            "12, 1, 'imported', 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset_recovery_state(asset_id, generation, synchronized_generation) "
+            "VALUES ('ast_old', 1, 1)")));
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto opened = open_service(false);
+    ASSERT_TRUE(opened) << opened.error().message;
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().id, "ast_old");
+    EXPECT_EQ(listed.value().front().version_ordinal, 0);
+    EXPECT_FALSE(listed.value().front().source_asset_id);
+    auto versioned = service->create_asset_version("ast_old");
+    ASSERT_TRUE(versioned) << versioned.error().message;
+    ASSERT_TRUE(versioned.value().version.source_asset_id);
+    EXPECT_EQ(*versioned.value().version.source_asset_id, "ast_old");
+}
+
 TEST(CatalogSchemaMigrationTest, FolderIdentityMigrationRollsBackAndThenAssignsStableIds)
 {
     const auto root = make_temp_root();
@@ -465,7 +725,14 @@ TEST(CatalogSchemaMigrationTest, FolderIdentityMigrationRollsBackAndThenAssignsS
     }
 
     auto migrated = SqliteCatalogRepository::open(path.string());
-    ASSERT_TRUE(migrated) << migrated.error().message;
+    ASSERT_TRUE(migrated) << migrated.error().message << " action="
+                          << (migrated.error().context.contains("action") ?
+                                  migrated.error().context.at("action") :
+                                  "")
+                          << " qt="
+                          << (migrated.error().context.contains("qt_error") ?
+                                  migrated.error().context.at("qt_error") :
+                                  "");
     auto snapshot = migrated.value()->snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);

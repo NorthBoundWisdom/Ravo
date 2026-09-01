@@ -75,6 +75,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QUrl scopeVectorscopeUrl READ scopeVectorscopeUrl NOTIFY scopesChanged)
     Q_PROPERTY(QUrl scopeSplitUrl READ scopeSplitUrl NOTIFY scopesChanged)
     Q_PROPERTY(QString browseMode READ browseMode NOTIFY browseModeChanged)
+    Q_PROPERTY(bool collapseStacks READ collapseStacks NOTIFY filterChanged)
+    Q_PROPERTY(int surveySlotCount READ surveySlotCount NOTIFY surveyChanged)
+    Q_PROPERTY(QVariantList surveySlots READ surveySlots NOTIFY surveyChanged)
     Q_PROPERTY(QString zoomMode READ zoomMode NOTIFY zoomChanged)
     Q_PROPERTY(double zoomFactor READ zoomFactor NOTIFY zoomChanged)
     Q_PROPERTY(
@@ -358,6 +361,9 @@ public:
     [[nodiscard]] QUrl scopeSplitUrl() const;
     [[nodiscard]] QImage scopeSplitImage() const;
     [[nodiscard]] QString browseMode() const;
+    [[nodiscard]] bool collapseStacks() const noexcept;
+    [[nodiscard]] int surveySlotCount() const noexcept;
+    [[nodiscard]] QVariantList surveySlots() const;
     [[nodiscard]] QString zoomMode() const;
     [[nodiscard]] double zoomFactor() const noexcept;
     [[nodiscard]] int thumbnailSize() const noexcept;
@@ -582,7 +588,14 @@ public:
     Q_INVOKABLE void setBrowseMode(const QString &mode);
     Q_INVOKABLE void openLoupe();
     Q_INVOKABLE void openDevelop();
+    Q_INVOKABLE void openSurvey();
     Q_INVOKABLE void returnToGrid();
+    Q_INVOKABLE void selectSurveySlot(const QString &asset_id);
+    Q_INVOKABLE void createAssetVersion();
+    Q_INVOKABLE void stackSelection();
+    Q_INVOKABLE void unstackSelection();
+    Q_INVOKABLE void setSelectedStackPick();
+    Q_INVOKABLE void setCollapseStacks(bool collapse);
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
     Q_INVOKABLE void setDevelopText(const QString &name, const QString &value);
     Q_INVOKABLE void addRetouchRegion(const QVariantMap &region);
@@ -686,6 +699,7 @@ signals:
     void interactivePreviewPublished(qulonglong revision, qlonglong intentToImageMicroseconds);
     void scopesChanged();
     void browseModeChanged();
+    void surveyChanged();
     void zoomChanged();
     void thumbnailSizeChanged();
     void filterChanged();
@@ -712,6 +726,10 @@ private:
     void applyLibrarySets(std::vector<LibrarySetRecord> sets);
     void clearLastImportQuery();
     void requestPreviewForSelection();
+    void requestSurveyPreviews();
+    void startSurveyPreviewRequest(std::string asset_id);
+    void finishSurveyPreviewRequest(bool success);
+    void rebuild_survey_slots();
     void reloadVisibleAssets();
     void start_catalog_revision_watch(std::int64_t revision);
     void resetThumbnailDemand();
@@ -915,6 +933,13 @@ private:
     QUrl scope_split_url_;
     std::uint64_t scope_revision_ = 0;
     QString browse_mode_{QStringLiteral("grid")};
+    bool collapse_stacks_ = true;
+    std::vector<std::string> survey_slot_ids_;
+    std::unordered_map<std::string, QUrl> survey_preview_urls_;
+    std::deque<std::string> pending_survey_ids_;
+    std::unordered_map<std::string, std::uint64_t> survey_preview_requests_;
+    bool survey_preview_in_flight_ = false;
+    std::uint64_t survey_preview_revision_ = 0;
     QString zoom_mode_{QStringLiteral("fit")};
     double zoom_factor_ = 1.0;
     QString last_non_actual_zoom_mode_{QStringLiteral("fit")};

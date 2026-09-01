@@ -255,10 +255,16 @@ Result<CatalogSnapshot> CatalogService::snapshot() const
 
 Result<std::vector<AssetRecord>> CatalogService::list_assets() const
 {
-    return list_assets(LibraryQuery{});
+    return list_assets(LibraryQuery{}, true);
 }
 
 Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery &query) const
+{
+    return list_assets(query, true);
+}
+
+Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery &query,
+                                                            const bool collapse_stacks) const
 {
     if (repository_ == nullptr)
     {
@@ -269,32 +275,24 @@ Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery 
     {
         return valid_query.error();
     }
-    if (!query.collection_id.empty())
+    std::vector<AssetRecord> assets;
+    LibraryPageRequest page_request;
+    page_request.query = query;
+    page_request.collapse_stacks = collapse_stacks;
+    page_request.limit = kLibraryPageMaximumSize;
+    while (true)
     {
-        std::vector<AssetRecord> assets;
-        LibraryPageRequest page_request;
-        page_request.query = query;
-        page_request.limit = kLibraryPageMaximumSize;
-        while (true)
-        {
-            auto page = list_assets_page(page_request);
-            if (!page)
-                return page.error();
-            assets.insert(assets.end(), page.value().assets.begin(), page.value().assets.end());
-            if (!page.value().has_more || page.value().assets.empty())
-                break;
-            page_request.offset += page.value().assets.size();
-            page_request.known_total = page.value().total;
-            page_request.after_asset_id = page.value().assets.back().id;
-        }
-        return assets;
+        auto page = list_assets_page(page_request);
+        if (!page)
+            return page.error();
+        assets.insert(assets.end(), page.value().assets.begin(), page.value().assets.end());
+        if (!page.value().has_more || page.value().assets.empty())
+            break;
+        page_request.offset += page.value().assets.size();
+        page_request.known_total = page.value().total;
+        page_request.after_asset_id = page.value().assets.back().id;
     }
-    auto listed = repository_->list_assets();
-    if (!listed)
-    {
-        return listed.error();
-    }
-    return filter_and_sort_assets(std::move(listed).value(), query);
+    return assets;
 }
 
 Result<LibraryPage> CatalogService::list_assets_page(const LibraryPageRequest &request) const
@@ -394,6 +392,54 @@ Result<LibrarySetMutation> CatalogService::remove_library_set_members(
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     return repository_->remove_library_set_members(set_id, asset_ids, expected_revision);
+}
+
+Result<AssetVersionMutation> CatalogService::create_asset_version(
+    const std::string_view source_asset_id, const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto created = repository_->create_asset_version(source_asset_id, expected_revision);
+    if (!created)
+        return created.error();
+    auto recovered = synchronize_committed_change(created.value().version.id);
+    if (!recovered)
+        return recovered.error();
+    return created;
+}
+
+Result<LibraryStackMutation> CatalogService::stack_assets(
+    const std::vector<std::string> &asset_ids, const std::string_view pick_asset_id,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->stack_assets(asset_ids, pick_asset_id, expected_revision);
+}
+
+Result<std::int64_t> CatalogService::unstack_assets(
+    const std::string_view stack_id, const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->unstack_assets(stack_id, expected_revision);
+}
+
+Result<LibraryStackMutation> CatalogService::set_stack_pick(
+    const std::string_view stack_id, const std::string_view pick_asset_id,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->set_stack_pick(stack_id, pick_asset_id, expected_revision);
+}
+
+Result<std::optional<LibraryStackRecord>>
+CatalogService::find_library_stack(const std::string_view stack_id) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->find_library_stack(stack_id);
 }
 
 Result<std::vector<PreviewRecord>> CatalogService::list_previews() const
@@ -737,12 +783,18 @@ Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", std::string(asset_id)}});
     }
+    auto version_ids = repository_->list_version_asset_ids(asset_id);
+    if (!version_ids)
+        return version_ids.error();
+    std::vector<std::string> removed_ids = std::move(version_ids).value();
+    removed_ids.push_back(std::string(asset_id));
     if (cache_ != nullptr)
     {
-        const auto removed_cache = cache_->remove_for_asset(asset_id);
-        if (!removed_cache)
+        for (const auto &id : removed_ids)
         {
-            return removed_cache.error();
+            const auto removed_cache = cache_->remove_for_asset(id);
+            if (!removed_cache)
+                return removed_cache.error();
         }
     }
     auto removed = repository_->remove_asset(asset_id);
@@ -752,13 +804,16 @@ Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id
     }
     if (recovery_ != nullptr)
     {
-        auto removed_recovery = recovery_->remove_asset(asset_id);
-        if (!removed_recovery)
+        for (const auto &id : removed_ids)
         {
-            auto error = removed_recovery.error();
-            error.context.insert_or_assign("asset_id", std::string(asset_id));
-            error.context.insert_or_assign("catalog_removed", "true");
-            return error;
+            auto removed_recovery = recovery_->remove_asset(id);
+            if (!removed_recovery)
+            {
+                auto error = removed_recovery.error();
+                error.context.insert_or_assign("asset_id", id);
+                error.context.insert_or_assign("catalog_removed", "true");
+                return error;
+            }
         }
     }
     return {};
@@ -779,6 +834,13 @@ Result<void> CatalogService::remove_original_and_catalog(const std::string_view 
     {
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", std::string(asset_id)}});
+    }
+    if (asset.value()->version_ordinal != kAssetVersionOrdinalPrimary)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Only a primary asset can delete the original file",
+                          {{"asset_id", std::string(asset_id)},
+                           {"reason", "version_disk_delete_forbidden"}});
     }
     auto location = normalize_local_input(asset.value()->normalized_uri);
     if (!location)

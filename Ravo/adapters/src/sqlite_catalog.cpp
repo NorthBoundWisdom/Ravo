@@ -48,7 +48,7 @@ const char *kSchemaStatements[] = {
     ")",
     "CREATE TABLE asset ("
     "  id TEXT PRIMARY KEY,"
-    "  normalized_uri TEXT NOT NULL UNIQUE,"
+    "  normalized_uri TEXT NOT NULL,"
     "  display_name TEXT NOT NULL,"
     "  folder_uri TEXT NOT NULL,"
     "  folder_id TEXT NOT NULL REFERENCES catalog_folder(id),"
@@ -64,7 +64,12 @@ const char *kSchemaStatements[] = {
     "  created_unix_ms INTEGER NOT NULL,"
     "  rating INTEGER NOT NULL DEFAULT 0,"
     "  color_label TEXT NOT NULL DEFAULT 'none',"
-    "  rejected INTEGER NOT NULL DEFAULT 0"
+    "  rejected INTEGER NOT NULL DEFAULT 0,"
+    "  version_ordinal INTEGER NOT NULL DEFAULT 0,"
+    "  source_asset_id TEXT REFERENCES asset(id) ON DELETE CASCADE,"
+    "  UNIQUE(normalized_uri, version_ordinal),"
+    "  CHECK((version_ordinal = 0 AND source_asset_id IS NULL) OR "
+    "        (version_ordinal > 0 AND source_asset_id IS NOT NULL))"
     ")",
     "CREATE TABLE preview ("
     "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
@@ -120,13 +125,16 @@ const char *kSchemaStatements[] = {
     ")",
 };
 
-constexpr const char *kSchemaV7Indexes[] = {
+constexpr const char *kSchemaV7AssetIndexes[] = {
     "CREATE INDEX IF NOT EXISTS asset_created_id_idx ON asset(created_unix_ms, id)",
     "CREATE INDEX IF NOT EXISTS asset_display_name_id_idx ON asset(display_name, id)",
     "CREATE INDEX IF NOT EXISTS asset_folder_uri_idx ON asset(folder_uri)",
     "CREATE INDEX IF NOT EXISTS asset_rating_id_idx ON asset(rating, id)",
     "CREATE INDEX IF NOT EXISTS asset_size_id_idx ON asset(size_bytes, id)",
     "CREATE INDEX IF NOT EXISTS asset_media_type_idx ON asset(media_type)",
+};
+
+constexpr const char *kSchemaV7RelatedIndexes[] = {
     "CREATE INDEX IF NOT EXISTS asset_tag_name_idx ON asset_tag(name, asset_id)",
     ("CREATE INDEX IF NOT EXISTS asset_metadata_capture_idx ON "
      "asset_metadata(captured_unix_s, asset_id)"),
@@ -169,6 +177,24 @@ constexpr const char *kSchemaV10Statements[] = {
     ")",
     "CREATE INDEX IF NOT EXISTS library_set_member_asset_idx ON library_set_member(asset_id, set_id)",
     "CREATE INDEX IF NOT EXISTS library_set_name_idx ON library_set(name)",
+};
+
+constexpr const char *kSchemaV11VersionIndex =
+    "CREATE INDEX IF NOT EXISTS asset_source_version_idx ON asset(source_asset_id, version_ordinal)";
+
+constexpr const char *kSchemaV11Statements[] = {
+    "CREATE TABLE IF NOT EXISTS library_stack ("
+    "  id TEXT PRIMARY KEY,"
+    "  pick_asset_id TEXT NOT NULL REFERENCES asset(id),"
+    "  created_unix_ms INTEGER NOT NULL"
+    ")",
+    "CREATE TABLE IF NOT EXISTS library_stack_member ("
+    "  stack_id TEXT NOT NULL REFERENCES library_stack(id) ON DELETE CASCADE,"
+    "  asset_id TEXT NOT NULL UNIQUE REFERENCES asset(id) ON DELETE CASCADE,"
+    "  position INTEGER NOT NULL,"
+    "  PRIMARY KEY (stack_id, asset_id)"
+    ")",
+    "CREATE INDEX IF NOT EXISTS library_stack_pick_idx ON library_stack(pick_asset_id)",
 };
 
 constexpr const char *kSchemaV4Statements[] = {
@@ -726,6 +752,8 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
     asset.review.color_label = label ? label.value() : ColorLabel::kNone;
     asset.review.rejected = query.value(14).toInt() != 0;
     asset.has_edits = query.value(15).toInt() != 0;
+    asset.version_ordinal = query.value(16).toInt();
+    asset.source_asset_id = string_column(query, 17);
     return asset;
 }
 
@@ -898,6 +926,29 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
         {
             return valid_capture.error();
         }
+    }
+    QSqlQuery stacks(database);
+    stacks.prepare(
+        QStringLiteral("SELECT m.asset_id, m.stack_id, m.position, s.pick_asset_id, "
+                       "(SELECT COUNT(*) FROM library_stack_member c WHERE c.stack_id = m.stack_id) "
+                       "FROM library_stack_member m INNER JOIN library_stack s ON s.id = m.stack_id "
+                       "WHERE m.asset_id IN (") +
+        in_clause + QStringLiteral(")"));
+    for (const auto &asset : assets)
+        stacks.addBindValue(qstring_from_utf8(asset.id));
+    if (!stacks.exec())
+        return map_sql_error(stacks, "list_asset_stacks");
+    while (stacks.next())
+    {
+        const auto id = utf8_from_qstring(stacks.value(0).toString());
+        const auto found = by_id.find(id);
+        if (found == by_id.end())
+            continue;
+        found->second->stack_id = utf8_from_qstring(stacks.value(1).toString());
+        found->second->stack_position = stacks.value(2).toInt();
+        found->second->stack_pick =
+            utf8_from_qstring(stacks.value(3).toString()) == id;
+        found->second->stack_count = stacks.value(4).toInt();
     }
     return {};
 }
@@ -1313,13 +1364,15 @@ constexpr const char *kAssetSelect =
     "SELECT id, normalized_uri, media_type, size_bytes, mtime_unix_ms, content_fingerprint, "
     "width, height, import_state, error_code, error_message, created_unix_ms, rating, "
     "color_label, rejected, "
-    "EXISTS(SELECT 1 FROM asset_recipe WHERE asset_id = asset.id) FROM asset";
+    "EXISTS(SELECT 1 FROM asset_recipe WHERE asset_id = asset.id), "
+    "version_ordinal, source_asset_id FROM asset";
 
 constexpr const char *kAssetPageSelect =
     "SELECT a.id, a.normalized_uri, a.media_type, a.size_bytes, a.mtime_unix_ms, "
     "a.content_fingerprint, a.width, a.height, a.import_state, a.error_code, a.error_message, "
     "a.created_unix_ms, a.rating, a.color_label, a.rejected, "
-    "EXISTS(SELECT 1 FROM asset_recipe r WHERE r.asset_id = a.id) "
+    "EXISTS(SELECT 1 FROM asset_recipe r WHERE r.asset_id = a.id), "
+    "a.version_ordinal, a.source_asset_id "
     "FROM asset a LEFT JOIN asset_metadata m ON m.asset_id = a.id";
 
 constexpr const char *kPreviewSelect =
@@ -1622,7 +1675,13 @@ SqliteCatalogRepository::create(const std::string_view database_path)
             return impl->abort_transaction(created.error());
         }
     }
-    for (const char *statement : kSchemaV7Indexes)
+    for (const char *statement : kSchemaV7AssetIndexes)
+    {
+        const auto created = impl->exec(QString::fromUtf8(statement), "create_library_index");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
+    for (const char *statement : kSchemaV7RelatedIndexes)
     {
         const auto created = impl->exec(QString::fromUtf8(statement), "create_library_index");
         if (!created)
@@ -1641,6 +1700,16 @@ SqliteCatalogRepository::create(const std::string_view database_path)
     for (const char *statement : kSchemaV10Statements)
     {
         const auto created = impl->exec(QString::fromUtf8(statement), "create_library_set");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
+    const auto version_index =
+        impl->exec(QString::fromUtf8(kSchemaV11VersionIndex), "create_asset_version_index");
+    if (!version_index)
+        return impl->abort_transaction(version_index.error());
+    for (const char *statement : kSchemaV11Statements)
+    {
+        const auto created = impl->exec(QString::fromUtf8(statement), "create_library_stack");
         if (!created)
             return impl->abort_transaction(created.error());
     }
@@ -1695,6 +1764,9 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                           {{"path", std::string(database_path)}});
     }
     auto version = query.value(0).toLongLong();
+    const auto catalog_id = utf8_from_qstring(query.value(1).toString());
+    const auto revision = query.value(2).toLongLong();
+    query.finish();
     if (version > kCatalogSchemaVersion)
     {
         return make_error(
@@ -1709,6 +1781,10 @@ SqliteCatalogRepository::open(const std::string_view database_path)
     }
     if (version < kCatalogSchemaVersion)
     {
+        auto disable_fk =
+            impl->exec(QStringLiteral("PRAGMA foreign_keys = OFF"), "disable_foreign_keys");
+        if (!disable_fk)
+            return disable_fk.error();
         if (!impl->database.transaction())
         {
             return make_error(ErrorCode::kIo, "Unable to start catalog migration transaction",
@@ -1860,7 +1936,14 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                     return impl->abort_transaction(
                         map_sql_error(update_asset, "migrate_v7_index_asset"));
             }
-            for (const char *statement : kSchemaV7Indexes)
+            for (const char *statement : kSchemaV7AssetIndexes)
+            {
+                const auto created =
+                    impl->exec(QString::fromUtf8(statement), "migrate_v7_library_index");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            for (const char *statement : kSchemaV7RelatedIndexes)
             {
                 const auto created =
                     impl->exec(QString::fromUtf8(statement), "migrate_v7_library_index");
@@ -1962,6 +2045,89 @@ SqliteCatalogRepository::open(const std::string_view database_path)
             }
             version = 10;
         }
+        if (version == 10)
+        {
+            auto rebuilt = impl->exec(
+                QStringLiteral(
+                    "CREATE TABLE asset_v11 ("
+                    "  id TEXT PRIMARY KEY,"
+                    "  normalized_uri TEXT NOT NULL,"
+                    "  display_name TEXT NOT NULL,"
+                    "  folder_uri TEXT NOT NULL,"
+                    "  folder_id TEXT NOT NULL REFERENCES catalog_folder(id),"
+                    "  media_type TEXT NOT NULL,"
+                    "  size_bytes INTEGER NOT NULL,"
+                    "  mtime_unix_ms INTEGER NOT NULL,"
+                    "  content_fingerprint TEXT,"
+                    "  width INTEGER,"
+                    "  height INTEGER,"
+                    "  import_state TEXT NOT NULL,"
+                    "  error_code TEXT,"
+                    "  error_message TEXT,"
+                    "  created_unix_ms INTEGER NOT NULL,"
+                    "  rating INTEGER NOT NULL DEFAULT 0,"
+                    "  color_label TEXT NOT NULL DEFAULT 'none',"
+                    "  rejected INTEGER NOT NULL DEFAULT 0,"
+                    "  version_ordinal INTEGER NOT NULL DEFAULT 0,"
+                    "  source_asset_id TEXT REFERENCES asset_v11(id) ON DELETE CASCADE,"
+                    "  UNIQUE(normalized_uri, version_ordinal),"
+                    "  CHECK((version_ordinal = 0 AND source_asset_id IS NULL) OR "
+                    "        (version_ordinal > 0 AND source_asset_id IS NOT NULL))"
+                    ")"),
+                "migrate_v11_create_asset");
+            if (!rebuilt)
+                return impl->abort_transaction(rebuilt.error());
+            auto copied = impl->exec(
+                QStringLiteral(
+                    "INSERT INTO asset_v11(id, normalized_uri, display_name, folder_uri, folder_id, "
+                    "media_type, size_bytes, mtime_unix_ms, content_fingerprint, width, height, "
+                    "import_state, error_code, error_message, created_unix_ms, rating, color_label, "
+                    "rejected, version_ordinal, source_asset_id) "
+                    "SELECT id, normalized_uri, display_name, folder_uri, folder_id, media_type, "
+                    "size_bytes, mtime_unix_ms, content_fingerprint, width, height, import_state, "
+                    "error_code, error_message, created_unix_ms, rating, color_label, rejected, 0, "
+                    "NULL FROM asset"),
+                "migrate_v11_copy_asset");
+            if (!copied)
+                return impl->abort_transaction(copied.error());
+            auto dropped = impl->exec(QStringLiteral("DROP TABLE asset"), "migrate_v11_drop_asset");
+            if (!dropped)
+                return impl->abort_transaction(dropped.error());
+            auto renamed = impl->exec(QStringLiteral("ALTER TABLE asset_v11 RENAME TO asset"),
+                                      "migrate_v11_rename_asset");
+            if (!renamed)
+                return impl->abort_transaction(renamed.error());
+            for (const char *sql : kSchemaV7AssetIndexes)
+            {
+                auto index = impl->exec(QString::fromUtf8(sql), "migrate_v11_restore_indexes");
+                if (!index)
+                    return impl->abort_transaction(index.error());
+            }
+            auto folder_index = impl->exec(QString::fromUtf8(kSchemaV9FolderIdentityIndex),
+                                           "migrate_v11_folder_index");
+            if (!folder_index)
+                return impl->abort_transaction(folder_index.error());
+            auto version_index = impl->exec(QString::fromUtf8(kSchemaV11VersionIndex),
+                                            "migrate_v11_version_index");
+            if (!version_index)
+                return impl->abort_transaction(version_index.error());
+            auto insert_trigger =
+                impl->exec(QString::fromUtf8(kSchemaV6Triggers[0]), "migrate_v11_asset_insert_trigger");
+            if (!insert_trigger)
+                return impl->abort_transaction(insert_trigger.error());
+            auto update_trigger =
+                impl->exec(QString::fromUtf8(kSchemaV6AssetUpdateTrigger),
+                           "migrate_v11_asset_update_trigger");
+            if (!update_trigger)
+                return impl->abort_transaction(update_trigger.error());
+            for (const char *sql : kSchemaV11Statements)
+            {
+                auto created = impl->exec(QString::fromUtf8(sql), "migrate_v11_library_stack");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            version = 11;
+        }
         if (version != kCatalogSchemaVersion)
         {
             return impl->abort_transaction(
@@ -1987,6 +2153,10 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                 make_error(ErrorCode::kIo, "Unable to commit catalog migration",
                            {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}}));
         }
+        auto enable_fk =
+            impl->exec(QStringLiteral("PRAGMA foreign_keys = ON"), "enable_foreign_keys");
+        if (!enable_fk)
+            return enable_fk.error();
     }
     auto repaired = impl->repair_v5_capture_columns();
     if (!repaired)
@@ -1994,8 +2164,8 @@ SqliteCatalogRepository::open(const std::string_view database_path)
         return repaired.error();
     }
     impl->snapshot.schema_version = kCatalogSchemaVersion;
-    impl->snapshot.catalog_id = utf8_from_qstring(query.value(1).toString());
-    impl->snapshot.revision = query.value(2).toLongLong();
+    impl->snapshot.catalog_id = catalog_id;
+    impl->snapshot.revision = revision;
     impl->snapshot.database_path = impl->database_path;
     return std::unique_ptr<SqliteCatalogRepository>(new SqliteCatalogRepository(std::move(impl)));
 }
@@ -2055,6 +2225,13 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
     append_library_query_predicates(request.query, predicates, bindings);
     if (request.additional_query)
         append_library_query_predicates(*request.additional_query, predicates, bindings);
+    if (request.collapse_stacks)
+    {
+        predicates.push_back(QStringLiteral(
+            "a.id NOT IN (SELECT m.asset_id FROM library_stack_member m "
+            "INNER JOIN library_stack s ON s.id = m.stack_id "
+            "WHERE m.asset_id <> s.pick_asset_id)"));
+    }
 
     const auto filter_where =
         predicates.empty() ? QString{} :
@@ -2458,6 +2635,23 @@ SqliteCatalogRepository::find_asset_by_id(const std::string_view asset_id) const
     return std::optional<AssetRecord>{std::move(asset)};
 }
 
+Result<std::vector<std::string>>
+SqliteCatalogRepository::list_version_asset_ids(const std::string_view asset_id) const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "SELECT id FROM asset WHERE source_asset_id = ? ORDER BY version_ordinal ASC, id ASC"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+        return map_sql_error(query, "list_version_asset_ids");
+    std::vector<std::string> ids;
+    while (query.next())
+        ids.push_back(utf8_from_qstring(query.value(0).toString()));
+    return ids;
+}
+
 Result<std::optional<AssetRecord>>
 SqliteCatalogRepository::find_asset_by_uri(const std::string_view normalized_uri) const
 {
@@ -2466,7 +2660,8 @@ SqliteCatalogRepository::find_asset_by_uri(const std::string_view normalized_uri
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
     QSqlQuery query(impl_->database);
-    query.prepare(QString(kAssetSelect) + QStringLiteral(" WHERE normalized_uri = ?"));
+    query.prepare(QString(kAssetSelect) +
+                  QStringLiteral(" WHERE normalized_uri = ? AND version_ordinal = 0"));
     query.addBindValue(qstring_from_utf8(normalized_uri));
     if (!query.exec())
     {
@@ -2515,8 +2710,8 @@ Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
         "INSERT INTO asset(id, normalized_uri, display_name, folder_uri, folder_id, media_type, size_bytes, "
         "mtime_unix_ms, "
         "content_fingerprint, width, height, import_state, error_code, error_message, "
-        "created_unix_ms, rating, color_label, rejected) VALUES "
-        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+        "created_unix_ms, rating, color_label, rejected, version_ordinal, source_asset_id) VALUES "
+        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
     query.addBindValue(qstring_from_utf8(asset.id));
     query.addBindValue(qstring_from_utf8(asset.normalized_uri));
     query.addBindValue(qstring_from_utf8(uri_display_name(asset.normalized_uri)));
@@ -2535,6 +2730,8 @@ Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
     query.addBindValue(asset.review.rating);
     query.addBindValue(qstring_from_utf8(color_label_name(asset.review.color_label)));
     query.addBindValue(asset.review.rejected ? 1 : 0);
+    query.addBindValue(asset.version_ordinal);
+    query.addBindValue(optional_string(asset.source_asset_id));
     if (!query.exec())
     {
         if (query.lastError().nativeErrorCode() == QStringLiteral("2067") ||
@@ -2625,6 +2822,72 @@ Result<void> SqliteCatalogRepository::remove_asset(const std::string_view asset_
         return make_error(ErrorCode::kIo, "Unable to begin asset removal transaction",
                           {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
     }
+    const auto repair_stack = [&](const std::string_view id) -> Result<void>
+    {
+        QSqlQuery member(impl_->database);
+        member.prepare(QStringLiteral(
+            "SELECT m.stack_id, s.pick_asset_id, "
+            "(SELECT COUNT(*) FROM library_stack_member c WHERE c.stack_id = m.stack_id) "
+            "FROM library_stack_member m INNER JOIN library_stack s ON s.id = m.stack_id "
+            "WHERE m.asset_id = ?"));
+        member.addBindValue(qstring_from_utf8(id));
+        if (!member.exec())
+            return map_sql_error(member, "read_remove_stack");
+        if (!member.next())
+            return {};
+        const auto stack_id = member.value(0).toString();
+        const auto pick = utf8_from_qstring(member.value(1).toString());
+        const auto count = member.value(2).toInt();
+        if (count <= 2)
+        {
+            QSqlQuery drop(impl_->database);
+            drop.prepare(QStringLiteral("DELETE FROM library_stack WHERE id = ?"));
+            drop.addBindValue(stack_id);
+            if (!drop.exec())
+                return map_sql_error(drop, "dissolve_stack");
+            return {};
+        }
+        if (pick == id)
+        {
+            QSqlQuery next_pick(impl_->database);
+            next_pick.prepare(QStringLiteral(
+                "SELECT asset_id FROM library_stack_member WHERE stack_id = ? AND asset_id <> ? "
+                "ORDER BY position ASC, asset_id ASC LIMIT 1"));
+            next_pick.addBindValue(stack_id);
+            next_pick.addBindValue(qstring_from_utf8(id));
+            if (!next_pick.exec() || !next_pick.next())
+                return map_sql_error(next_pick, "reassign_stack_pick");
+            QSqlQuery update(impl_->database);
+            update.prepare(QStringLiteral("UPDATE library_stack SET pick_asset_id = ? WHERE id = ?"));
+            update.addBindValue(next_pick.value(0));
+            update.addBindValue(stack_id);
+            if (!update.exec())
+                return map_sql_error(update, "update_stack_pick");
+        }
+        return {};
+    };
+    QSqlQuery versions(impl_->database);
+    versions.prepare(QStringLiteral("SELECT id FROM asset WHERE source_asset_id = ?"));
+    versions.addBindValue(qstring_from_utf8(asset_id));
+    if (!versions.exec())
+        return impl_->abort_transaction(map_sql_error(versions, "list_asset_versions"));
+    std::vector<std::string> version_ids;
+    while (versions.next())
+        version_ids.push_back(utf8_from_qstring(versions.value(0).toString()));
+    for (const auto &version_id : version_ids)
+    {
+        auto repaired = repair_stack(version_id);
+        if (!repaired)
+            return impl_->abort_transaction(repaired.error());
+        QSqlQuery drop_version(impl_->database);
+        drop_version.prepare(QStringLiteral("DELETE FROM asset WHERE id = ?"));
+        drop_version.addBindValue(qstring_from_utf8(version_id));
+        if (!drop_version.exec())
+            return impl_->abort_transaction(map_sql_error(drop_version, "remove_asset_version"));
+    }
+    auto repaired = repair_stack(asset_id);
+    if (!repaired)
+        return impl_->abort_transaction(repaired.error());
     QSqlQuery query(impl_->database);
     query.prepare(QStringLiteral("DELETE FROM asset WHERE id = ?"));
     query.addBindValue(qstring_from_utf8(asset_id));
@@ -4395,6 +4658,402 @@ Result<LibrarySetMutation> SqliteCatalogRepository::remove_library_set_members(
         return make_error(ErrorCode::kNotFound, "Library set was not found",
                           {{"set_id", std::string(set_id)}, {"reason", "unknown_library_set"}});
     return LibrarySetMutation{std::move(*loaded.value()), next_revision};
+}
+
+Result<AssetVersionMutation> SqliteCatalogRepository::create_asset_version(
+    const std::string_view source_asset_id, const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start asset version transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_version_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"},
+             {"expected_revision", std::to_string(*expected_revision)},
+             {"revision", std::to_string(current_revision)}}));
+    }
+    auto source = find_asset_by_id(source_asset_id);
+    if (!source)
+        return impl_->abort_transaction(source.error());
+    if (!source.value())
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Asset does not exist",
+                                                   {{"asset_id", std::string(source_asset_id)}}));
+    }
+    const auto primary_id = source.value()->source_asset_id.value_or(source.value()->id);
+    QSqlQuery ordinal(impl_->database);
+    ordinal.prepare(QStringLiteral(
+        "SELECT MAX(version_ordinal) FROM asset WHERE normalized_uri = ?"));
+    ordinal.addBindValue(qstring_from_utf8(source.value()->normalized_uri));
+    if (!ordinal.exec() || !ordinal.next())
+        return impl_->abort_transaction(map_sql_error(ordinal, "max_version_ordinal"));
+    const auto next_ordinal = ordinal.value(0).toInt() + 1;
+    if (next_ordinal > kAssetVersionMaximum)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kValidation, "Asset already has the maximum number of versions",
+            {{"reason", "asset_version_limit"},
+             {"maximum", std::to_string(kAssetVersionMaximum)}}));
+    }
+    const auto version_id = generate_asset_id();
+    const auto now = now_unix_ms();
+    QSqlQuery insert(impl_->database);
+    insert.prepare(QStringLiteral(
+        "INSERT INTO asset(id, normalized_uri, display_name, folder_uri, folder_id, media_type, "
+        "size_bytes, mtime_unix_ms, content_fingerprint, width, height, import_state, error_code, "
+        "error_message, created_unix_ms, rating, color_label, rejected, version_ordinal, "
+        "source_asset_id) "
+        "SELECT ?, normalized_uri, display_name, folder_uri, folder_id, media_type, size_bytes, "
+        "mtime_unix_ms, content_fingerprint, width, height, import_state, error_code, "
+        "error_message, ?, rating, color_label, rejected, ?, ? FROM asset WHERE id = ?"));
+    insert.addBindValue(qstring_from_utf8(version_id));
+    insert.addBindValue(static_cast<qlonglong>(now));
+    insert.addBindValue(next_ordinal);
+    insert.addBindValue(qstring_from_utf8(primary_id));
+    insert.addBindValue(qstring_from_utf8(source_asset_id));
+    if (!insert.exec())
+        return impl_->abort_transaction(map_sql_error(insert, "insert_asset_version"));
+    QSqlQuery copy_tags(impl_->database);
+    copy_tags.prepare(QStringLiteral(
+        "INSERT INTO asset_tag(asset_id, name) SELECT ?, name FROM asset_tag WHERE asset_id = ?"));
+    copy_tags.addBindValue(qstring_from_utf8(version_id));
+    copy_tags.addBindValue(qstring_from_utf8(source_asset_id));
+    if (!copy_tags.exec())
+        return impl_->abort_transaction(map_sql_error(copy_tags, "copy_version_tags"));
+    QSqlQuery copy_metadata(impl_->database);
+    copy_metadata.prepare(QStringLiteral(
+        "INSERT INTO asset_metadata SELECT ?, title, description, creator, copyright, camera_make, "
+        "camera_model, iso, aperture, focal_length_mm, shutter_s, captured_unix_s, "
+        "captured_local_exif, captured_subsecond_digits, captured_utc_offset_minutes, "
+        "gps_latitude_e6, gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref "
+        "FROM asset_metadata WHERE asset_id = ?"));
+    copy_metadata.addBindValue(qstring_from_utf8(version_id));
+    copy_metadata.addBindValue(qstring_from_utf8(source_asset_id));
+    if (!copy_metadata.exec())
+        return impl_->abort_transaction(map_sql_error(copy_metadata, "copy_version_metadata"));
+    QSqlQuery copy_recipe(impl_->database);
+    copy_recipe.prepare(QStringLiteral(
+        "INSERT INTO asset_recipe(asset_id, recipe_schema_version, recipe_json, updated_unix_ms) "
+        "SELECT ?, recipe_schema_version, recipe_json, ? FROM asset_recipe WHERE asset_id = ?"));
+    copy_recipe.addBindValue(qstring_from_utf8(version_id));
+    copy_recipe.addBindValue(static_cast<qlonglong>(now));
+    copy_recipe.addBindValue(qstring_from_utf8(source_asset_id));
+    if (!copy_recipe.exec())
+        return impl_->abort_transaction(map_sql_error(copy_recipe, "copy_version_recipe"));
+    QSqlQuery copy_history(impl_->database);
+    copy_history.prepare(QStringLiteral(
+        "INSERT INTO asset_recipe_history(asset_id, seq, kind, label, recipe_json, created_unix_ms) "
+        "SELECT ?, seq, kind, label, recipe_json, created_unix_ms FROM asset_recipe_history "
+        "WHERE asset_id = ?"));
+    copy_history.addBindValue(qstring_from_utf8(version_id));
+    copy_history.addBindValue(qstring_from_utf8(source_asset_id));
+    if (!copy_history.exec())
+        return impl_->abort_transaction(map_sql_error(copy_history, "copy_version_history"));
+    auto bumped = impl_->exec(
+        QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+        "bump_version_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_version_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit asset version",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    auto loaded = find_asset_by_id(version_id);
+    if (!loaded || !loaded.value())
+        return make_error(ErrorCode::kIo, "Asset version was not visible after commit",
+                          {{"reason", "asset_version_missing_after_commit"}});
+    return AssetVersionMutation{std::move(*loaded.value()), next_revision};
+}
+
+Result<std::optional<LibraryStackRecord>>
+SqliteCatalogRepository::find_library_stack(const std::string_view stack_id) const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "SELECT id, pick_asset_id, created_unix_ms FROM library_stack WHERE id = ?"));
+    query.addBindValue(qstring_from_utf8(stack_id));
+    if (!query.exec())
+        return map_sql_error(query, "find_library_stack");
+    if (!query.next())
+        return std::optional<LibraryStackRecord>{};
+    LibraryStackRecord record;
+    record.id = utf8_from_qstring(query.value(0).toString());
+    record.pick_asset_id = utf8_from_qstring(query.value(1).toString());
+    record.created_unix_ms = query.value(2).toLongLong();
+    QSqlQuery members(impl_->database);
+    members.prepare(QStringLiteral(
+        "SELECT asset_id FROM library_stack_member WHERE stack_id = ? ORDER BY position, asset_id"));
+    members.addBindValue(qstring_from_utf8(record.id));
+    if (!members.exec())
+        return map_sql_error(members, "list_library_stack_members");
+    while (members.next())
+        record.member_ids.push_back(utf8_from_qstring(members.value(0).toString()));
+    return std::optional<LibraryStackRecord>{std::move(record)};
+}
+
+Result<LibraryStackMutation> SqliteCatalogRepository::stack_assets(
+    const std::vector<std::string> &asset_ids, const std::string_view pick_asset_id,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    const auto members = unique_asset_ids(asset_ids);
+    if (members.size() < 2 || members.size() > kLibraryStackMaximumMembers)
+    {
+        return make_error(ErrorCode::kValidation, "A stack requires between 2 and 64 assets",
+                          {{"reason", "invalid_library_stack_members"}});
+    }
+    bool pick_found = false;
+    for (const auto &id : members)
+    {
+        if (id == pick_asset_id)
+            pick_found = true;
+    }
+    if (!pick_found)
+    {
+        return make_error(ErrorCode::kValidation, "Stack pick must be one of the members",
+                          {{"reason", "invalid_library_stack_pick"}});
+    }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start stack transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_stack_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"}}));
+    }
+    QSqlQuery count(impl_->database);
+    if (!count.exec(QStringLiteral("SELECT COUNT(*) FROM library_stack")) || !count.next())
+        return impl_->abort_transaction(map_sql_error(count, "count_library_stacks"));
+    if (static_cast<std::size_t>(count.value(0).toLongLong()) >= kLibraryStackMaximumCount)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kValidation, "Catalog already has the maximum number of stacks",
+            {{"reason", "library_stack_limit"}}));
+    }
+    QStringList placeholders;
+    for (std::size_t index = 0; index < members.size(); ++index)
+        placeholders.push_back(QStringLiteral("?"));
+    QSqlQuery existing(impl_->database);
+    existing.prepare(QStringLiteral("SELECT COUNT(*) FROM asset WHERE id IN (") +
+                     placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    for (const auto &id : members)
+        existing.addBindValue(qstring_from_utf8(id));
+    if (!existing.exec() || !existing.next())
+        return impl_->abort_transaction(map_sql_error(existing, "verify_stack_assets"));
+    if (static_cast<std::size_t>(existing.value(0).toLongLong()) != members.size())
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Stack member does not exist",
+                                                   {{"reason", "unknown_library_stack_asset"}}));
+    }
+    QSqlQuery occupied(impl_->database);
+    occupied.prepare(QStringLiteral("SELECT COUNT(*) FROM library_stack_member WHERE asset_id IN (") +
+                     placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    for (const auto &id : members)
+        occupied.addBindValue(qstring_from_utf8(id));
+    if (!occupied.exec() || !occupied.next())
+        return impl_->abort_transaction(map_sql_error(occupied, "verify_stack_free"));
+    if (occupied.value(0).toLongLong() != 0)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "An asset already belongs to a stack",
+            {{"reason", "asset_already_stacked"}}));
+    }
+    const auto stack_id = generate_library_stack_id();
+    const auto now = now_unix_ms();
+    QSqlQuery insert(impl_->database);
+    insert.prepare(QStringLiteral(
+        "INSERT INTO library_stack(id, pick_asset_id, created_unix_ms) VALUES (?, ?, ?)"));
+    insert.addBindValue(qstring_from_utf8(stack_id));
+    insert.addBindValue(qstring_from_utf8(pick_asset_id));
+    insert.addBindValue(static_cast<qlonglong>(now));
+    if (!insert.exec())
+        return impl_->abort_transaction(map_sql_error(insert, "insert_library_stack"));
+    QSqlQuery member(impl_->database);
+    member.prepare(QStringLiteral(
+        "INSERT INTO library_stack_member(stack_id, asset_id, position) VALUES (?, ?, ?)"));
+    int position = 0;
+    for (const auto &id : members)
+    {
+        member.addBindValue(qstring_from_utf8(stack_id));
+        member.addBindValue(qstring_from_utf8(id));
+        member.addBindValue(position++);
+        if (!member.exec())
+            return impl_->abort_transaction(map_sql_error(member, "insert_stack_member"));
+        member.finish();
+    }
+    auto bumped = impl_->exec(
+        QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+        "bump_stack_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_stack_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit stack",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    auto loaded = find_library_stack(stack_id);
+    if (!loaded || !loaded.value())
+        return make_error(ErrorCode::kIo, "Stack was not visible after commit",
+                          {{"reason", "library_stack_missing_after_commit"}});
+    return LibraryStackMutation{std::move(*loaded.value()), next_revision};
+}
+
+Result<std::int64_t> SqliteCatalogRepository::unstack_assets(
+    const std::string_view stack_id, const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start stack transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_stack_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"}}));
+    }
+    QSqlQuery drop(impl_->database);
+    drop.prepare(QStringLiteral("DELETE FROM library_stack WHERE id = ?"));
+    drop.addBindValue(qstring_from_utf8(stack_id));
+    if (!drop.exec())
+        return impl_->abort_transaction(map_sql_error(drop, "delete_library_stack"));
+    if (drop.numRowsAffected() != 1)
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Stack was not found",
+                                                   {{"reason", "unknown_library_stack"}}));
+    }
+    auto bumped = impl_->exec(
+        QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+        "bump_stack_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_stack_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit unstack",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    return next_revision;
+}
+
+Result<LibraryStackMutation> SqliteCatalogRepository::set_stack_pick(
+    const std::string_view stack_id, const std::string_view pick_asset_id,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start stack transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_stack_revision"));
+    const auto current_revision = revision.value(0).toLongLong();
+    if (expected_revision && *expected_revision != current_revision)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"}}));
+    }
+    QSqlQuery member(impl_->database);
+    member.prepare(QStringLiteral(
+        "SELECT 1 FROM library_stack_member WHERE stack_id = ? AND asset_id = ?"));
+    member.addBindValue(qstring_from_utf8(stack_id));
+    member.addBindValue(qstring_from_utf8(pick_asset_id));
+    if (!member.exec())
+        return impl_->abort_transaction(map_sql_error(member, "verify_stack_pick"));
+    if (!member.next())
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kValidation, "Stack pick must be a member of the stack",
+            {{"reason", "invalid_library_stack_pick"}}));
+    }
+    QSqlQuery update(impl_->database);
+    update.prepare(QStringLiteral("UPDATE library_stack SET pick_asset_id = ? WHERE id = ?"));
+    update.addBindValue(qstring_from_utf8(pick_asset_id));
+    update.addBindValue(qstring_from_utf8(stack_id));
+    if (!update.exec())
+        return impl_->abort_transaction(map_sql_error(update, "update_stack_pick"));
+    if (update.numRowsAffected() != 1)
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Stack was not found",
+                                                   {{"reason", "unknown_library_stack"}}));
+    }
+    auto bumped = impl_->exec(
+        QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1"),
+        "bump_stack_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    QSqlQuery read_revision(impl_->database);
+    if (!read_revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !read_revision.next())
+        return impl_->abort_transaction(map_sql_error(read_revision, "read_stack_revision"));
+    const auto next_revision = read_revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit stack pick",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    auto loaded = find_library_stack(stack_id);
+    if (!loaded || !loaded.value())
+        return make_error(ErrorCode::kNotFound, "Stack was not found",
+                          {{"reason", "unknown_library_stack"}});
+    return LibraryStackMutation{std::move(*loaded.value()), next_revision};
 }
 
 Result<std::int64_t> SqliteCatalogRepository::bump_revision()

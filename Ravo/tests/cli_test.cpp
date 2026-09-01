@@ -4002,6 +4002,92 @@ TEST_F(CliTest, CatalogNamedLibrarySetsCreateListAndFilter)
     std::filesystem::remove_all(root, ignored);
 }
 
+TEST_F(CliTest, CatalogVersionsStacksAndCollapsedList)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-versions-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                         "0000-nop" / "expected.png";
+    const auto first_source = root / "first.png";
+    const auto second_source = root / "second.png";
+    std::filesystem::copy_file(fixture, first_source);
+    std::filesystem::copy_file(fixture, second_source);
+    const auto first_text = first_source.string();
+    const auto second_text = second_source.string();
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "create", "--path", catalog,
+                                                            "--json"}),
+              0)
+        << stdout_stream.str();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
+                                                            catalog, "--input", first_text,
+                                                            "--input", second_text, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported);
+    const auto *items = imported.value().find("data")->find("items")->array_if();
+    ASSERT_NE(items, nullptr);
+    ASSERT_EQ(items->size(), 2U);
+    const auto first_id = *items->front().find("asset")->find("id")->string_if();
+    const auto second_id = *items->back().find("asset")->find("id")->string_if();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "version-create", "--catalog", catalog, "--asset-id", first_id,
+                  "--json"}),
+              0)
+        << stdout_stream.str();
+    auto versioned = parse_json(stdout_stream.str());
+    ASSERT_TRUE(versioned) << versioned.error().message;
+    const auto *ordinal = versioned.value().find("data")->find("asset")->find("version_ordinal");
+    ASSERT_NE(ordinal, nullptr);
+    ASSERT_NE(ordinal->number_if(), nullptr);
+    EXPECT_EQ(ordinal->number_if()->text, "1");
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "stack", "--catalog", catalog, "--asset-id", first_id, "--asset-id",
+                  second_id, "--pick-id", first_id, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto stacked = parse_json(stdout_stream.str());
+    ASSERT_TRUE(stacked) << stacked.error().message;
+    const auto stack_id = *stacked.value().find("data")->find("stack")->find("id")->string_if();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "list", "--catalog", catalog,
+                                                            "--json"}),
+              0)
+        << stdout_stream.str();
+    auto collapsed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(collapsed);
+    EXPECT_EQ(collapsed.value().find("data")->find("assets")->array_if()->size(), 2U);
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "list", "--catalog", catalog, "--stack-expanded", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto expanded = parse_json(stdout_stream.str());
+    ASSERT_TRUE(expanded);
+    EXPECT_EQ(expanded.value().find("data")->find("assets")->array_if()->size(), 3U);
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "unstack", "--catalog", catalog, "--stack-id", stack_id, "--json"}),
+              0)
+        << stdout_stream.str();
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CliTest, CatalogBatchExportUsesStrictTemplateAndSharedTypedOptions)
 {
     const auto root =

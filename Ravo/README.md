@@ -108,6 +108,15 @@ Current implementation status:
   catalog revision and reject a stale observed revision. Studio and
   `ravo catalog sets|set-create|set-rename|set-delete|set-add|set-remove|list --set-id`
   share CatalogService; QML does not own membership (ADR-0103).
+  Schema v11 keeps the asset as the selectable identity. A virtual copy is
+  another asset row sharing the original URI with `version_ordinal >= 1`.
+  Stacks group existing asset IDs with one pick; listing defaults to collapsed
+  so non-pick members are omitted. Studio **Survey** shows two or four selected
+  photos as exact browse previews on the serial owner and does not start N
+  Develop pipelines. Disk deletion is allowed only on a primary.
+  `ravo catalog version-create|stack|unstack|stack-pick|list --stack-expanded`
+  share CatalogService (ADR-0105). Automatic RAW+JPEG pairing on import remains
+  out of scope.
 - Studio built-in commands are projected by one C++ registry into menus,
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
@@ -130,7 +139,7 @@ Current implementation status:
   (ADR-0066). Studio also persists typed Assistant endpoint URL, model, and API
   key (ADR-0081) for the floating chat panel; assistant HTTP and credentials
   stay desktop-only. The separate Qt local-control socket exposes neither.
-- Basic Develop uses the current catalog schema v10 with one canonical recipe per image,
+- Basic Develop uses the current catalog schema v11 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), adaptive Y0U0V0 edge-aware
   wavelet denoising, lensfun poly3/vignette, dt UCS `colorequal`, graduated

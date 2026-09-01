@@ -62,16 +62,16 @@ ApplicationWindow {
     property real inspectAnimOriginY: 0
     readonly property int inspectZoomDurationMs: 240
     readonly property bool comparisonReady: studio.comparisonActive && studio.comparisonBeforeUrl.toString().length > 0 && studio.previewUrl.toString().length > 0
-    readonly property bool previewPlaceholderReady: studio.browseMode !== "grid" && studio.previewLoading && studio.previewUrl.toString().length === 0 && studio.selectedThumbnailUrl.toString().length > 0 && studio.selectedImportState !== "missing"
+    readonly property bool previewPlaceholderReady: studio.browseMode !== "grid" && studio.browseMode !== "survey" && studio.previewLoading && studio.previewUrl.toString().length === 0 && studio.selectedThumbnailUrl.toString().length > 0 && studio.selectedImportState !== "missing"
     readonly property bool photoInspectEnabled: {
-        if (studio.browseMode === "grid" || (studio.browseMode === "develop" && studio.cropToolActive))
+        if (studio.browseMode === "grid" || studio.browseMode === "survey" || (studio.browseMode === "develop" && studio.cropToolActive))
             return false;
         if (typeof previewImage === "undefined")
             return false;
         return previewImage.status === Image.Ready && studio.previewUrl.toString().length > 0;
     }
     readonly property rect navigatorVisible: {
-        if (studio.browseMode === "grid" || typeof photoPlane === "undefined" || photoPlane.width < 1 || scroller.width < 1)
+        if (studio.browseMode === "grid" || studio.browseMode === "survey" || typeof photoPlane === "undefined" || photoPlane.width < 1 || scroller.width < 1)
             return Qt.rect(0, 0, 1, 1);
         const s = Math.max(window.inspectAnimScale, 0.0001);
         const ox = window.inspectAnimOriginX;
@@ -90,7 +90,7 @@ ApplicationWindow {
     }
 
     function seekNavigatorViewport(nx, ny) {
-        if (studio.browseMode === "grid" || typeof photoPlane === "undefined" || photoPlane.width < 1)
+        if (studio.browseMode === "grid" || studio.browseMode === "survey" || typeof photoPlane === "undefined" || photoPlane.width < 1)
             return;
         const maxX = Math.max(0, scroller.contentWidth - scroller.width);
         const maxY = Math.max(0, scroller.contentHeight - scroller.height);
@@ -707,7 +707,7 @@ ApplicationWindow {
     Connections {
         target: studio
         function onBrowseModeChanged() {
-            if (studio.browseMode === "grid" || studio.browseMode === "loupe")
+            if (studio.browseMode === "grid" || studio.browseMode === "loupe" || studio.browseMode === "survey")
                 window.lastGalleryMode = studio.browseMode;
         }
     }
@@ -888,6 +888,9 @@ ApplicationWindow {
                         required property int pixelWidth
                         required property int pixelHeight
                         required property string captureSummary
+                        required property int versionOrdinal
+                        required property int stackCount
+                        required property bool stackPick
                         required property int index
                         width: grid.cellWidth
                         height: grid.cellHeight
@@ -912,6 +915,9 @@ ApplicationWindow {
                             colorLabel: tile.colorLabel
                             rejected: tile.rejected
                             hasEdits: tile.hasEdits
+                            versionOrdinal: tile.versionOrdinal
+                            stackCount: tile.stackCount
+                            stackPick: tile.stackPick
                             selected: tile.selected
                             current: tile.assetId === studio.selectedAssetId
                             sequenceNumber: tile.index + 1
@@ -937,12 +943,64 @@ ApplicationWindow {
                     }
                 }
 
+                Grid {
+                    id: surveyStage
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: galleryReviewBar.top
+                    anchors.margins: Fonts.size8
+                    visible: studio.browseMode === "survey"
+                    columns: 2
+                    rows: studio.surveySlotCount === 4 ? 2 : 1
+                    columnSpacing: Fonts.size8
+                    rowSpacing: Fonts.size8
+
+                    Repeater {
+                        model: studio.surveySlots
+                        delegate: Item {
+                            required property var modelData
+                            width: Math.max(1, (surveyStage.width - surveyStage.columnSpacing) / 2)
+                            height: Math.max(1, (surveyStage.height - (surveyStage.rows > 1 ? surveyStage.rowSpacing : 0)) / surveyStage.rows)
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: Theme.imageSurroundColor
+                                border.width: modelData.assetId === studio.selectedAssetId ? 2 : 1
+                                border.color: modelData.assetId === studio.selectedAssetId ? Theme.selectedBorderColor : Theme.dividerColor
+
+                                Image {
+                                    anchors.fill: parent
+                                    anchors.margins: 2
+                                    fillMode: Image.PreserveAspectFit
+                                    asynchronous: true
+                                    cache: true
+                                    source: modelData.url
+                                    visible: modelData.url.toString().length > 0
+                                }
+
+                                CustomLabel {
+                                    anchors.centerIn: parent
+                                    visible: modelData.loading || modelData.url.toString().length === 0
+                                    text: qsTr("Loading…")
+                                    color: Theme.placeholderTextColor
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: studio.selectSurveySlot(modelData.assetId)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 ColumnLayout {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: galleryReviewBar.top
-                    visible: studio.browseMode !== "grid"
+                    visible: studio.browseMode !== "grid" && studio.browseMode !== "survey"
                     spacing: 0
 
                     Item {

@@ -73,6 +73,7 @@ inline constexpr auto kLibraryRenameSet = "studio.library.rename_set";
 inline constexpr auto kLibraryDeleteSet = "studio.library.delete_set";
 inline constexpr auto kLibraryAddSelectionToSet = "studio.library.add_selection_to_set";
 inline constexpr auto kLibraryRemoveSelectionFromSet = "studio.library.remove_selection_from_set";
+inline constexpr auto kLibraryToggleStackCollapse = "studio.library.toggle_stack_collapse";
 inline constexpr auto kLibraryFolderRelink = "studio.library.folder_relink";
 inline constexpr auto kLibraryFolderRelinkPath = "studio.library.folder_relink_path";
 inline constexpr auto kPhotoSelect = "studio.photo.select";
@@ -93,9 +94,14 @@ inline constexpr auto kPhotoPrevious = "studio.photo.previous";
 inline constexpr auto kPhotoNext = "studio.photo.next";
 inline constexpr auto kPhotoCopyInfo = "studio.photo.copy_info";
 inline constexpr auto kPhotoCopyParameters = "studio.photo.copy_parameters";
+inline constexpr auto kPhotoCreateVersion = "studio.photo.create_version";
+inline constexpr auto kPhotoStackSelection = "studio.photo.stack_selection";
+inline constexpr auto kPhotoUnstack = "studio.photo.unstack";
+inline constexpr auto kPhotoSetStackPick = "studio.photo.set_stack_pick";
 inline constexpr auto kViewGrid = "studio.view.show_grid";
 inline constexpr auto kViewLoupe = "studio.view.show_loupe";
 inline constexpr auto kViewDevelop = "studio.view.show_develop";
+inline constexpr auto kViewSurvey = "studio.view.show_survey";
 inline constexpr auto kViewFit = "studio.view.fit";
 inline constexpr auto kViewFill = "studio.view.fill";
 inline constexpr auto kViewActual = "studio.view.actual_size";
@@ -181,6 +187,7 @@ enum class Condition
     kSelection,
     kReadySelection,
     kNonGrid,
+    kSurveySelection,
     kDevelop,
     kDevelopSelection,
     kModifiedParameters,
@@ -406,6 +413,7 @@ QStringList command_ids()
             QLatin1String(command::kLibraryDeleteSet),
             QLatin1String(command::kLibraryAddSelectionToSet),
             QLatin1String(command::kLibraryRemoveSelectionFromSet),
+            QLatin1String(command::kLibraryToggleStackCollapse),
             QLatin1String(command::kLibraryFolderRelink),
             QLatin1String(command::kLibraryFolderRelinkPath),
             QLatin1String(command::kPhotoSelect),
@@ -426,9 +434,14 @@ QStringList command_ids()
             QLatin1String(command::kPhotoNext),
             QLatin1String(command::kPhotoCopyInfo),
             QLatin1String(command::kPhotoCopyParameters),
+            QLatin1String(command::kPhotoCreateVersion),
+            QLatin1String(command::kPhotoStackSelection),
+            QLatin1String(command::kPhotoUnstack),
+            QLatin1String(command::kPhotoSetStackPick),
             QLatin1String(command::kViewGrid),
             QLatin1String(command::kViewLoupe),
             QLatin1String(command::kViewDevelop),
+            QLatin1String(command::kViewSurvey),
             QLatin1String(command::kViewFit),
             QLatin1String(command::kViewFill),
             QLatin1String(command::kViewActual),
@@ -629,6 +642,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Edit")), view,
         {QStringLiteral("develop")}, QStringLiteral("view.mode"), 30, true,
         {key(primary_key(QStringLiteral("3"))), key(QStringLiteral("D"), true)});
+    add(command::kViewSurvey, command::kViewSurvey,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Survey")), view,
+        {QStringLiteral("compare"), QStringLiteral("cull"), QStringLiteral("n-up")},
+        QStringLiteral("view.mode"), 40, true, {key(QStringLiteral("N"), true)});
     add(command::kViewFit, command::kViewFit,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Fit")), view,
         {QStringLiteral("zoom")}, QStringLiteral("view.zoom"), 10, true,
@@ -754,6 +771,27 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Refresh Capture Metadata")), photo,
         {QStringLiteral("exif"), QStringLiteral("capture"), QStringLiteral("refresh")},
         QStringLiteral("photo.metadata"), 10, true);
+    add(command::kPhotoCreateVersion, command::kPhotoCreateVersion,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Create Virtual Copy")), photo,
+        {QStringLiteral("version"), QStringLiteral("variant")}, QStringLiteral("photo.library"), 10,
+        true);
+    add(command::kPhotoStackSelection, command::kPhotoStackSelection,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Stack Photos")), photo,
+        {QStringLiteral("group"), QStringLiteral("burst")}, QStringLiteral("photo.library"), 20,
+        true);
+    add(command::kPhotoUnstack, command::kPhotoUnstack,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Unstack Photos")), photo,
+        {QStringLiteral("group"), QStringLiteral("burst")}, QStringLiteral("photo.library"), 30,
+        true);
+    add(command::kPhotoSetStackPick, command::kPhotoSetStackPick,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Set Stack Pick")), photo,
+        {QStringLiteral("pick"), QStringLiteral("stack")}, QStringLiteral("photo.library"), 40,
+        true);
+    add(command::kLibraryToggleStackCollapse, command::kLibraryToggleStackCollapse,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Collapse Stacks")),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
+        {QStringLiteral("stack"), QStringLiteral("expand")}, QStringLiteral("library.view"), 10,
+        true);
     add(command::kLibraryClearFilters, command::kLibraryClearFilters,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Clear Library Filters")),
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
@@ -1538,6 +1576,9 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kLibraryRemoveSelectionFromSet, Condition::kReadySelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.removeSelectionFromLibrarySet(argument.toString()); });
+    add(command::kLibraryToggleStackCollapse, Condition::kCatalogOpen, no_argument,
+        [this](const QVariant &, const QString &)
+        { presenter_.setCollapseStacks(!presenter_.collapseStacks()); });
     add(command::kLibraryFolderRelink, Condition::kCatalogReady, non_empty_string,
         [present](const QVariant &argument, const QString &)
         { present(command::kLibraryFolderRelink, argument); });
@@ -1771,12 +1812,29 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                 presenter_.selectAssetRange(presenter_.assets()->assetIdAt(row + 1));
         });
 
+    add(command::kPhotoCreateVersion, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.createAssetVersion(); });
+    add(
+        command::kPhotoStackSelection, Condition::kReadySelection,
+        [this](const QVariant &)
+        {
+            return presenter_.selectedCount() >= 2 ?
+                       QString{} :
+                       QStringLiteral("Select at least two photos to stack.");
+        },
+        [this](const QVariant &, const QString &) { presenter_.stackSelection(); });
+    add(command::kPhotoUnstack, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.unstackSelection(); });
+    add(command::kPhotoSetStackPick, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.setSelectedStackPick(); });
     add(command::kViewGrid, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.returnToGrid(); });
     add(command::kViewLoupe, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.openLoupe(); });
     add(command::kViewDevelop, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.openDevelop(); });
+    add(command::kViewSurvey, Condition::kSurveySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.openSurvey(); });
     add(command::kViewFit, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
         { presenter_.setZoomMode(QStringLiteral("fit")); });
@@ -2228,6 +2286,8 @@ QVariantMap StudioCommandController::ids() const
          QLatin1String(command::kLibraryAddSelectionToSet)},
         {QStringLiteral("libraryRemoveSelectionFromSet"),
          QLatin1String(command::kLibraryRemoveSelectionFromSet)},
+        {QStringLiteral("libraryToggleStackCollapse"),
+         QLatin1String(command::kLibraryToggleStackCollapse)},
         {QStringLiteral("libraryFolderRelink"), QLatin1String(command::kLibraryFolderRelink)},
         {QStringLiteral("libraryFolderRelinkPath"),
          QLatin1String(command::kLibraryFolderRelinkPath)},
@@ -2252,6 +2312,11 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("viewGrid"), QLatin1String(command::kViewGrid)},
         {QStringLiteral("viewLoupe"), QLatin1String(command::kViewLoupe)},
         {QStringLiteral("viewDevelop"), QLatin1String(command::kViewDevelop)},
+        {QStringLiteral("viewSurvey"), QLatin1String(command::kViewSurvey)},
+        {QStringLiteral("photoCreateVersion"), QLatin1String(command::kPhotoCreateVersion)},
+        {QStringLiteral("photoStackSelection"), QLatin1String(command::kPhotoStackSelection)},
+        {QStringLiteral("photoUnstack"), QLatin1String(command::kPhotoUnstack)},
+        {QStringLiteral("photoSetStackPick"), QLatin1String(command::kPhotoSetStackPick)},
         {QStringLiteral("viewFit"), QLatin1String(command::kViewFit)},
         {QStringLiteral("viewFill"), QLatin1String(command::kViewFill)},
         {QStringLiteral("viewActual"), QLatin1String(command::kViewActual)},
@@ -2363,9 +2428,18 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     case Condition::kNonGrid:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
-        return presenter.browseMode() != QLatin1String("grid") ?
+        return presenter.browseMode() != QLatin1String("grid") &&
+                       presenter.browseMode() != QLatin1String("survey") ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Open a photo first."))};
+    case Condition::kSurveySelection:
+        if (!ready)
+            return {false, !catalog_open ?
+                               tr_command(QStringLiteral("Open a library first.")) :
+                               tr_command(QStringLiteral("Wait for library work to finish."))};
+        return presenter.selectedCount() >= 2 ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Select two or four photos first."))};
     case Condition::kDevelop:
         return presenter.browseMode() == QLatin1String("develop") ?
                    State{} :
@@ -2433,7 +2507,8 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     bool checked = false;
     if (found->id == QLatin1String(command::kViewGrid) ||
         found->id == QLatin1String(command::kViewLoupe) ||
-        found->id == QLatin1String(command::kViewDevelop))
+        found->id == QLatin1String(command::kViewDevelop) ||
+        found->id == QLatin1String(command::kViewSurvey))
     {
         checkable = true;
         checked = (found->id == QLatin1String(command::kViewGrid) &&
@@ -2441,7 +2516,14 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
                   (found->id == QLatin1String(command::kViewLoupe) &&
                    presenter_.browseMode() == QLatin1String("loupe")) ||
                   (found->id == QLatin1String(command::kViewDevelop) &&
-                   presenter_.browseMode() == QLatin1String("develop"));
+                   presenter_.browseMode() == QLatin1String("develop")) ||
+                  (found->id == QLatin1String(command::kViewSurvey) &&
+                   presenter_.browseMode() == QLatin1String("survey"));
+    }
+    else if (found->id == QLatin1String(command::kLibraryToggleStackCollapse))
+    {
+        checkable = true;
+        checked = presenter_.collapseStacks();
     }
     else if (found->id == QLatin1String(command::kViewFit) ||
              found->id == QLatin1String(command::kViewFill) ||

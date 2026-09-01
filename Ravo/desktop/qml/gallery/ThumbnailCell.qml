@@ -12,6 +12,9 @@ Item {
     property string colorLabel: "none"
     property bool rejected: false
     property bool hasEdits: false
+    property int versionOrdinal: 0
+    property int stackCount: 0
+    property bool stackPick: false
     property bool selected: false
     property bool current: false
     property int sequenceNumber: 0
@@ -251,6 +254,36 @@ Item {
                         visible: !root.compact
                         text: qsTr("Edit")
                         color: Theme.windowColor
+                        font.pixelSize: Fonts.size10
+                    }
+                }
+
+                Rectangle {
+                    visible: root.versionOrdinal > 0
+                    width: root.compact ? 8 : 28
+                    height: root.compact ? 8 : 16
+                    radius: root.compact ? 4 : 3
+                    color: "#2f6fed"
+                    CustomLabel {
+                        anchors.centerIn: parent
+                        visible: !root.compact
+                        text: qsTr("V%1").arg(root.versionOrdinal)
+                        color: "#ffffff"
+                        font.pixelSize: Fonts.size10
+                    }
+                }
+
+                Rectangle {
+                    visible: root.stackCount > 1
+                    width: root.compact ? 8 : (root.stackPick ? 48 : 36)
+                    height: root.compact ? 8 : 16
+                    radius: root.compact ? 4 : 3
+                    color: "#5a4a2a"
+                    CustomLabel {
+                        anchors.centerIn: parent
+                        visible: !root.compact
+                        text: root.stackPick ? qsTr("Stack %1").arg(root.stackCount) : qsTr("%1").arg(root.stackCount)
+                        color: "#ffffff"
                         font.pixelSize: Fonts.size10
                     }
                 }

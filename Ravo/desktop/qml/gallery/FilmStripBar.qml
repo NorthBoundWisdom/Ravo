@@ -69,6 +69,9 @@ Rectangle {
             required property string colorLabel
             required property bool rejected
             required property bool hasEdits
+            required property int versionOrdinal
+            required property int stackCount
+            required property bool stackPick
             required property bool selected
             required property int pixelWidth
             required property int pixelHeight
@@ -88,6 +91,9 @@ Rectangle {
                 colorLabel: stripDelegate.colorLabel
                 rejected: stripDelegate.rejected
                 hasEdits: stripDelegate.hasEdits
+                versionOrdinal: stripDelegate.versionOrdinal
+                stackCount: stripDelegate.stackCount
+                stackPick: stripDelegate.stackPick
                 selected: stripDelegate.selected
                 current: root.presenter ? stripDelegate.assetId === root.presenter.selectedAssetId : false
                 sequenceNumber: stripDelegate.index + 1

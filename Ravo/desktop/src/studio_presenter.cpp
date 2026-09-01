@@ -108,7 +108,8 @@ void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
     return text;
 }
 
-CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery &query)
+CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery &query,
+                                    const bool collapse_stacks)
 {
     CatalogListing listing;
     if (service == nullptr)
@@ -122,6 +123,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     }
     LibraryPageRequest page_request;
     page_request.query = query;
+    page_request.collapse_stacks = collapse_stacks;
     auto page = service->list_assets_page(page_request);
     if (page)
     {
@@ -429,7 +431,8 @@ bool StudioPresenter::canDeleteFromDisk() const
     for (const auto &id : selected_ids_)
     {
         const auto asset = assets_.assetById(qstring_from_utf8(id));
-        if (!asset || asset->import_state == kImportStateMissing)
+        if (!asset || asset->import_state == kImportStateMissing ||
+            asset->version_ordinal != kAssetVersionOrdinalPrimary)
         {
             return false;
         }
@@ -440,6 +443,32 @@ bool StudioPresenter::canDeleteFromDisk() const
 QString StudioPresenter::browseMode() const
 {
     return browse_mode_;
+}
+
+bool StudioPresenter::collapseStacks() const noexcept
+{
+    return collapse_stacks_;
+}
+
+int StudioPresenter::surveySlotCount() const noexcept
+{
+    return static_cast<int>(survey_slot_ids_.size());
+}
+
+QVariantList StudioPresenter::surveySlots() const
+{
+    QVariantList items;
+    items.reserve(static_cast<qsizetype>(survey_slot_ids_.size()));
+    for (const auto &id : survey_slot_ids_)
+    {
+        QVariantMap slot;
+        slot.insert(QStringLiteral("assetId"), qstring_from_utf8(id));
+        const auto url = survey_preview_urls_.find(id);
+        slot.insert(QStringLiteral("url"), url == survey_preview_urls_.end() ? QUrl{} : url->second);
+        slot.insert(QStringLiteral("loading"), url == survey_preview_urls_.end());
+        items.push_back(slot);
+    }
+    return items;
 }
 
 QString StudioPresenter::zoomMode() const
@@ -1195,9 +1224,9 @@ void StudioPresenter::reloadVisibleAssets()
         return;
     }
     executor_.post(
-        [this, query = current_query()]()
+        [this, query = current_query(), collapse = collapse_stacks_]()
         {
-            auto listing = load_catalog_listing(service_.get(), query);
+            auto listing = load_catalog_listing(service_.get(), query, collapse);
             QMetaObject::invokeMethod(
                 this,
                 [this, listing = std::move(listing)]() mutable
@@ -1265,11 +1294,13 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
     const auto generation = library_query_generation_;
     const auto query = current_query();
     const auto known_total = library_total_;
+    const auto collapse = collapse_stacks_;
     library_page_in_flight_ = true;
     pending_library_page_offset_.reset();
     emit libraryWorkChanged();
     executor_.post(
-        [this, offset, generation, query, cursor = std::move(cursor), known_total, sequential]
+        [this, offset, generation, query, cursor = std::move(cursor), known_total, sequential,
+         collapse]
         {
             Result<LibraryPage> page = make_error(ErrorCode::kIo, "Catalog session is closed");
             CatalogListing listing;
@@ -1277,6 +1308,7 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
             {
                 LibraryPageRequest request;
                 request.query = query;
+                request.collapse_stacks = collapse;
                 request.offset = offset;
                 request.after_asset_id = cursor;
                 request.known_total = known_total;
@@ -1350,8 +1382,9 @@ void StudioPresenter::pollCatalogRevision()
     const auto query = current_query();
     const auto selected = utf8_from_qstring(selected_asset_id_);
     const auto observed = observed_catalog_revision_;
+    const auto collapse = collapse_stacks_;
     executor_.post(
-        [this, query, selected, observed]()
+        [this, query, selected, observed, collapse]()
         {
             Result<CatalogSnapshot> snapshot =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1366,7 +1399,7 @@ void StudioPresenter::pollCatalogRevision()
                 if (snapshot && snapshot.value().revision != observed)
                 {
                     changed = true;
-                    listing = load_catalog_listing(service_.get(), query);
+                    listing = load_catalog_listing(service_.get(), query, collapse);
                     if (!selected.empty())
                     {
                         recipe = service_->load_recipe(selected);
@@ -1499,7 +1532,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
         initial_query.imported_before_unix_ms.reset();
     }
     executor_.post(
-        [this, path, initial_query]()
+        [this, path, initial_query, collapse = collapse_stacks_]()
         {
             QString failure;
             CatalogListing listing;
@@ -1510,7 +1543,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
             }
             else
             {
-                listing = load_catalog_listing(built.value().get(), initial_query);
+                listing = load_catalog_listing(built.value().get(), initial_query, collapse);
                 if (!listing.assets)
                 {
                     failure = catalog_error_text(listing.assets.error());
@@ -1581,7 +1614,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
         initial_query.imported_before_unix_ms.reset();
     }
     executor_.post(
-        [this, path, initial_query]()
+        [this, path, initial_query, collapse = collapse_stacks_]()
         {
             QString failure;
             CatalogListing listing;
@@ -1600,7 +1633,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
             }
             else
             {
-                listing = load_catalog_listing(built.value().get(), initial_query);
+                listing = load_catalog_listing(built.value().get(), initial_query, collapse);
                 if (!listing.assets)
                 {
                     LOG_ERROR(logger(),
@@ -1990,9 +2023,9 @@ void StudioPresenter::finishImportBatch()
     }
     executor_.post(
         [this, results = std::move(results), query, imported_after, imported_before, imported_count,
-         cancelled, completed, total]() mutable
+         cancelled, completed, total, collapse = collapse_stacks_]() mutable
         {
-            auto listing = load_catalog_listing(service_.get(), query);
+            auto listing = load_catalog_listing(service_.get(), query, collapse);
             QMetaObject::invokeMethod(
                 this,
                 [this, results = std::move(results), listing = std::move(listing), cancelled, query,
@@ -2207,6 +2240,10 @@ void StudioPresenter::setBrowseMode(const QString &mode)
     {
         normalized = QStringLiteral("develop");
     }
+    else if (mode == QStringLiteral("survey"))
+    {
+        normalized = QStringLiteral("survey");
+    }
     if (browse_mode_ == normalized)
     {
         return;
@@ -2224,8 +2261,21 @@ void StudioPresenter::setBrowseMode(const QString &mode)
         emit editChanged();
         emit previewChanged();
     }
+    if (normalized == QLatin1String("survey"))
+    {
+        requestSurveyPreviews();
+        return;
+    }
+    if (previous == QLatin1String("survey"))
+    {
+        pending_survey_ids_.clear();
+        survey_preview_requests_.clear();
+        survey_preview_in_flight_ = false;
+        emit surveyChanged();
+    }
     if (normalized != QLatin1String("grid") &&
-        (previous == QLatin1String("grid") || normalized == QLatin1String("develop")) &&
+        (previous == QLatin1String("grid") || previous == QLatin1String("survey") ||
+         normalized == QLatin1String("develop")) &&
         !selected_asset_id_.isEmpty())
     {
         requestPreviewForSelection();
@@ -2250,9 +2300,169 @@ void StudioPresenter::openDevelop()
     setBrowseMode(QStringLiteral("develop"));
 }
 
+void StudioPresenter::openSurvey()
+{
+    if (selected_ids_.size() < static_cast<std::size_t>(kSurveySlotMinimum))
+        return;
+    setBrowseMode(QStringLiteral("survey"));
+}
+
+void StudioPresenter::selectSurveySlot(const QString &asset_id)
+{
+    if (asset_id.isEmpty() || !selected_ids_.contains(utf8_from_qstring(asset_id)))
+        return;
+    selected_asset_id_ = asset_id;
+    publish_selection();
+    emit surveyChanged();
+}
+
 void StudioPresenter::returnToGrid()
 {
     setBrowseMode(QStringLiteral("grid"));
+}
+
+void StudioPresenter::createAssetVersion()
+{
+    if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
+        return;
+    const auto source_id = utf8_from_qstring(selected_asset_id_);
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, source_id, revision]()
+        {
+            Result<AssetVersionMutation> created =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                created = service_->create_asset_version(source_id, revision);
+            QMetaObject::invokeMethod(
+                this,
+                [this, created = std::move(created)]() mutable
+                {
+                    if (!created)
+                    {
+                        setError(qstring_from_utf8(created.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = created.value().revision;
+                    const auto version_id = qstring_from_utf8(created.value().version.id);
+                    selected_ids_.clear();
+                    selected_ids_.insert(created.value().version.id);
+                    selected_asset_id_ = version_id;
+                    selection_anchor_id_ = version_id;
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Virtual copy created."));
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::stackSelection()
+{
+    if (catalog_path_.isEmpty())
+        return;
+    const auto ids = selected_asset_ids();
+    if (ids.size() < 2)
+        return;
+    const auto pick = selected_asset_id_.isEmpty() ? ids.front() : utf8_from_qstring(selected_asset_id_);
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, ids, pick, revision]()
+        {
+            Result<LibraryStackMutation> stacked =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                stacked = service_->stack_assets(ids, pick, revision);
+            QMetaObject::invokeMethod(
+                this,
+                [this, stacked = std::move(stacked)]() mutable
+                {
+                    if (!stacked)
+                    {
+                        setError(qstring_from_utf8(stacked.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = stacked.value().revision;
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Photos stacked."));
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::unstackSelection()
+{
+    if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
+        return;
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset || !asset->stack_id)
+        return;
+    const auto stack_id = *asset->stack_id;
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, stack_id, revision]()
+        {
+            Result<std::int64_t> unstacked =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                unstacked = service_->unstack_assets(stack_id, revision);
+            QMetaObject::invokeMethod(
+                this,
+                [this, unstacked = std::move(unstacked)]() mutable
+                {
+                    if (!unstacked)
+                    {
+                        setError(qstring_from_utf8(unstacked.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = unstacked.value();
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Stack dissolved."));
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::setSelectedStackPick()
+{
+    if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
+        return;
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset || !asset->stack_id)
+        return;
+    const auto stack_id = *asset->stack_id;
+    const auto pick = utf8_from_qstring(selected_asset_id_);
+    const auto revision = observed_catalog_revision_;
+    executor_.post(
+        [this, stack_id, pick, revision]()
+        {
+            Result<LibraryStackMutation> mutated =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                mutated = service_->set_stack_pick(stack_id, pick, revision);
+            QMetaObject::invokeMethod(
+                this,
+                [this, mutated = std::move(mutated)]() mutable
+                {
+                    if (!mutated)
+                    {
+                        setError(qstring_from_utf8(mutated.error().message));
+                        return;
+                    }
+                    observed_catalog_revision_ = mutated.value().revision;
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Stack pick updated."));
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::setCollapseStacks(const bool collapse)
+{
+    if (collapse_stacks_ == collapse)
+        return;
+    collapse_stacks_ = collapse;
+    emit filterChanged();
+    reloadVisibleAssets();
 }
 
 void StudioPresenter::setZoomMode(const QString &mode)

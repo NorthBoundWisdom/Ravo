@@ -157,8 +157,8 @@ the command registry. It intentionally records no recent-query history. QML
 never sees catalog columns or legacy rule strings.
 
 Library listing is additionally a bounded page boundary. `LibraryPageRequest`
-owns validated query, offset, a limit no greater than 512, optional keyset
-cursor, and an optional known total. `LibraryPage` returns only that page plus
+owns validated query, optional stack collapse (default on), offset, a limit no
+greater than 512, optional keyset cursor, and an optional known total. `LibraryPage` returns only that page plus
 total/next-cursor, materialized-row count, and database elapsed time. Ordinary
 sequential traversal uses the stable sort key and asset ID cursor; an explicit
 viewport jump may use offset. The adapter attaches tags, metadata, and preview
@@ -300,9 +300,15 @@ last-success/next-run/bytes/failure observations. Schema v9 owns stable direct-
 containing-folder IDs and binds each asset to one of them. Schema v10 owns named
 manual membership collections and smart `LibraryQuery` documents, revision-
 checked mutations, and paged listing that never materializes a whole set
-(ADR-0103). New catalogs and
+(ADR-0103). Schema v11 replaces global URI uniqueness with
+`(normalized_uri, version_ordinal)`, copies recipe/history into a new asset ID
+for a virtual copy, and adds `library_stack` / `library_stack_member` with one
+pick. Listing collapse is session state on `LibraryPageRequest`, not a smart
+collection field. Studio Survey is a browse mode that requests exact
+`PreviewPurpose::kBrowse` images serially and does not start N Develop
+pipelines (ADR-0105). New catalogs and
 migrations use transactions, and an unknown higher schema version fails fast
-(ADR-0100/0101/0103).
+(ADR-0100/0101/0103/0105).
 
 The repository adapter atomically publishes the current recipe row (or baseline
 clearing), optional deletion of history rows newer than a cursor, automatic

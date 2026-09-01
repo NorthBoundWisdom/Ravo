@@ -44,6 +44,31 @@ Rectangle {
             Accessible.name: tooltipText
         }
 
+        CustomButton {
+            Layout.alignment: Qt.AlignVCenter
+            visible: root.gridOpen || (root.hasPresenter && root.presenter.browseMode === "survey")
+            text: qsTr("Survey")
+            enabled: root.hasPresenter && root.presenter.selectedCount >= 2
+            onClicked: if (root.commands)
+                root.commands.run(root.commands.ids.viewSurvey)
+        }
+        CustomButton {
+            Layout.alignment: Qt.AlignVCenter
+            visible: root.gridOpen
+            text: qsTr("Virtual Copy")
+            enabled: root.hasSelection
+            onClicked: if (root.commands)
+                root.commands.run(root.commands.ids.photoCreateVersion)
+        }
+        CustomButton {
+            Layout.alignment: Qt.AlignVCenter
+            visible: root.gridOpen
+            text: qsTr("Stack")
+            enabled: root.hasPresenter && root.presenter.selectedCount >= 2
+            onClicked: if (root.commands)
+                root.commands.run(root.commands.ids.photoStackSelection)
+        }
+
         RowLayout {
             visible: root.gridOpen
             spacing: Fonts.smallSpacing

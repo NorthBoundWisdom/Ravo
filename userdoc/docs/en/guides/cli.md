@@ -327,6 +327,18 @@ ravo catalog list --catalog "/work/Ravo Library.sqlite" --set-id <set-id> --json
 A smart collection stores a versioned library query (`--kind smart --query`).
 Selecting a set is session state in Studio; the set itself survives reopen.
 
+Virtual copies and stacks:
+
+```text
+ravo catalog version-create --catalog "/work/Ravo Library.sqlite" --asset-id <id> --json
+ravo catalog stack --catalog "/work/Ravo Library.sqlite" \
+  --asset-id <id> --asset-id <id> --pick-id <id> --json
+ravo catalog list --catalog "/work/Ravo Library.sqlite" --json
+ravo catalog list --catalog "/work/Ravo Library.sqlite" --stack-expanded --json
+```
+
+Listing hides non-pick stack members unless `--stack-expanded` is passed.
+
 ## Import files or directories
 
 ```text

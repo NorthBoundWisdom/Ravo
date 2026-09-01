@@ -47,6 +47,8 @@ often assume is missing:
 - ratings, color labels, reject, folder tree, named manual/smart collections,
   tags, title/creator/copyright, and validated `LibraryQuery` filters
   (ADR-0059/0103);
+- virtual copies of one original, collapsed stacks with a pick, and Survey
+  N-up cull without N Develop pipelines (ADR-0105);
 - scene-referred Light/Curves/Color Mixer/Color Balance RGB/Calibration stack,
   tone equalizer, lens, denoise, retouch, perspective, crop, soft proof, and a
   bounded mask graph (gradient/circle/ellipse/parametric/path/brush/groups);
@@ -62,7 +64,6 @@ Develop.”
 
 | Rank | User outcome | Why it is obvious versus Lightroom/Capture One | Contract owner | Readiness |
 | --- | --- | --- | --- | --- |
-| **PW1 — versions, stacks, and N-up cull** | Virtual copies/variants, RAW+JPEG or burst stacks, and compare/survey of several photos | Culling is half of a professional day. Ravo rates/rejects one grid and compares Before/After of the *same* photo | ProductRoadmap stacking/versions; schema is one recipe per asset | Blocked |
 | **PW2 — shoot ingest** | Card/camera ingest, rename templates, second-copy backup, HEIC/HEIF | First hour of a shoot. ADR-0104 accepts the filesystem rename/verified-second-copy tranche; PTP/MTP, DNG conversion, Smart Previews, HEIC, and video remain undecided | ProductRoadmap ingest/format expansion | Blocked after accepted ADR-0104 tranche |
 | **PW3 — metadata depth** | Hierarchical keywords, IPTC/location write, camera/lens/date facets | Client delivery and stock workflows. Ravo writes three catalog fields and flat tags; capture Exif is read-only; GPS writeback is unsupported | ProductRoadmap metadata; ADR-0064/S9 | Blocked |
 | **PW4 — apply Develop to many** | Sync/copy current edits onto an explicit multi-selection with a field chooser | After culling, one grade is applied to tens of frames. Current copy/paste is a session clipboard onto destinations one command at a time, not a selection-wide sync | ADR-0078/0098 plus a new multi-asset mutation contract | Blocked |
@@ -77,30 +78,9 @@ gaps that already have owners: do not duplicate them here.
 
 ## 4. Rank details
 
-PW0 named library sets are accepted under ADR-0103 (schema v10). Durable facts
-live in README/ARCHITECTURE/TESTING, not here.
-
-### PW1 — versions, stacks, and N-up cull
-
-**Current fact.** One canonical recipe per asset. Filmstrip and Gallery show
-whole images. Comparison is Before/After or synchronized two-pane of one photo.
-
-**Missing contract.** Version/variant identity (same original, several recipes),
-stack grouping (burst or RAW+JPEG), pick of stack representative, and an N-up
-cull view that is ID-based and revision-safe.
-
-**Dependencies.** PW0 is not required, but both touch asset identity. RAW+JPEG
-pairing needs an explicit duplicate/group policy (ADR-0059 currently leaves
-group IDs unsupported).
-
-**Risk.** Silent recipe forking, or using preview placeholders as cull oracles.
-
-**Validation.** Variant create/delete/export isolation; stack collapse/expand;
-N-up selection does not start N Develop pipelines; close/reopen preserves
-group identity.
-
-**Acceptance gate.** A photographer can keep two grades of one RAW and cull a
-burst without duplicating files on disk.
+PW0 named library sets are accepted under ADR-0103 (schema v10). PW1 virtual
+copies, stacks, and Survey are accepted under ADR-0105 (schema v11). Durable
+facts live in README/ARCHITECTURE/TESTING, not here.
 
 ### PW2 — shoot ingest
 

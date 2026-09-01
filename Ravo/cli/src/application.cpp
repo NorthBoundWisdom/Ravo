@@ -272,6 +272,9 @@ struct CatalogCliArguments
     std::string_view set_name;
     std::string_view set_kind;
     std::string_view query_json;
+    std::string_view stack_id;
+    std::string_view pick_id;
+    bool stack_expanded = false;
     std::optional<std::int64_t> expected_revision;
     std::optional<std::int64_t> history_id;
 };
@@ -471,7 +474,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         batch_export ||
         (positional.size() > 1U &&
          (positional[1] == "preview-rebuild" || positional[1] == "set-create" ||
-          positional[1] == "set-add" || positional[1] == "set-remove"));
+          positional[1] == "set-add" || positional[1] == "set-remove" ||
+          positional[1] == "stack"));
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -501,6 +505,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "--no-recursive can only be specified once");
             result.import_recursive = false;
+            continue;
+        }
+        if (option == "--stack-expanded")
+        {
+            if (result.stack_expanded)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--stack-expanded can only be specified once");
+            result.stack_expanded = true;
             continue;
         }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
@@ -877,6 +889,18 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "Library query document was specified twice");
             result.query_json = value;
+        }
+        else if (option == "--stack-id")
+        {
+            if (!result.stack_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Stack ID was specified twice");
+            result.stack_id = value;
+        }
+        else if (option == "--pick-id")
+        {
+            if (!result.pick_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Stack pick ID was specified twice");
+            result.pick_id = value;
         }
         else if (option == "--revision")
         {
@@ -1351,8 +1375,14 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"metadata", std::move(metadata)},
         {"rating", JsonValue::number(std::to_string(asset.review.rating))},
         {"rejected", asset.review.rejected},
+        {"source_asset_id", optional_string_json(asset.source_asset_id)},
+        {"stack_count", JsonValue::number(std::to_string(asset.stack_count))},
+        {"stack_id", optional_string_json(asset.stack_id)},
+        {"stack_pick", asset.stack_pick},
+        {"stack_position", JsonValue::number(std::to_string(asset.stack_position))},
         {"tags", std::move(tags)},
         {"uri", asset.normalized_uri},
+        {"version_ordinal", JsonValue::number(std::to_string(asset.version_ordinal))},
     };
 }
 
@@ -1530,6 +1560,36 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"revision", JsonValue::number(std::to_string(mutation.revision))},
         {"set", std::move(set).value()},
     }};
+}
+
+[[nodiscard]] JsonValue library_stack_to_json(const LibraryStackRecord &stack)
+{
+    JsonValue::Array members;
+    members.reserve(stack.member_ids.size());
+    for (const auto &id : stack.member_ids)
+        members.push_back(id);
+    return JsonValue::Object{
+        {"created_unix_ms", JsonValue::number(std::to_string(stack.created_unix_ms))},
+        {"id", stack.id},
+        {"member_ids", std::move(members)},
+        {"pick_asset_id", stack.pick_asset_id},
+    };
+}
+
+[[nodiscard]] JsonValue library_stack_mutation_to_json(const LibraryStackMutation &mutation)
+{
+    return JsonValue::Object{
+        {"revision", JsonValue::number(std::to_string(mutation.revision))},
+        {"stack", library_stack_to_json(mutation.stack)},
+    };
+}
+
+[[nodiscard]] JsonValue asset_version_mutation_to_json(const AssetVersionMutation &mutation)
+{
+    return JsonValue::Object{
+        {"asset", asset_to_json(mutation.version)},
+        {"revision", JsonValue::number(std::to_string(mutation.revision))},
+    };
 }
 
 [[nodiscard]] JsonValue folder_relink_to_json(const FolderRelinkResult &result)
@@ -2521,7 +2581,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove> "
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
     const auto subcommand = positional[1];
@@ -2567,8 +2627,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "Folder relink options are only valid for catalog folder-relink");
     const bool has_set_options = !flags.value().set_id.empty() || !flags.value().set_name.empty() ||
                                  !flags.value().set_kind.empty() ||
-                                 !flags.value().query_json.empty() ||
-                                 flags.value().expected_revision.has_value();
+                                 !flags.value().query_json.empty();
     const bool set_command = subcommand == "sets" || subcommand == "set-create" ||
                              subcommand == "set-rename" || subcommand == "set-delete" ||
                              subcommand == "set-add" || subcommand == "set-remove" ||
@@ -2579,6 +2638,20 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (!flags.value().query_json.empty() && subcommand != "set-create")
         return make_error(ErrorCode::kInvalidArgument,
                           "--query is only valid for catalog set-create");
+    const bool version_command = subcommand == "version-create";
+    const bool stack_command =
+        subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
+    if (flags.value().expected_revision && !set_command && !version_command && !stack_command)
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--revision is only valid for catalog set, version, or stack commands");
+    if (!flags.value().stack_id.empty() && subcommand != "unstack" && subcommand != "stack-pick")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--stack-id is only valid for catalog unstack or stack-pick");
+    if (!flags.value().pick_id.empty() && subcommand != "stack")
+        return make_error(ErrorCode::kInvalidArgument, "--pick-id is only valid for catalog stack");
+    if (flags.value().stack_expanded && subcommand != "list")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--stack-expanded is only valid for catalog list");
     const bool has_import_options =
         !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
@@ -2940,6 +3013,59 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return mutated.error();
         return library_set_mutation_to_json(mutated.value());
     }
+    if (subcommand == "version-create")
+    {
+        if (flags.value().asset_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog version-create requires --asset-id <id>");
+        auto created =
+            service.create_asset_version(flags.value().asset_id, flags.value().expected_revision);
+        if (!created)
+            return created.error();
+        return asset_version_mutation_to_json(created.value());
+    }
+    if (subcommand == "stack")
+    {
+        std::vector<std::string> asset_ids;
+        if (!flags.value().asset_id.empty())
+            asset_ids.emplace_back(flags.value().asset_id);
+        for (const auto asset_id : flags.value().asset_ids)
+            asset_ids.emplace_back(asset_id);
+        if (asset_ids.size() < 2)
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog stack requires at least two --asset-id values");
+        const auto pick = flags.value().pick_id.empty() ? std::string_view{asset_ids.front()} :
+                                                          flags.value().pick_id;
+        auto stacked = service.stack_assets(asset_ids, pick, flags.value().expected_revision);
+        if (!stacked)
+            return stacked.error();
+        return library_stack_mutation_to_json(stacked.value());
+    }
+    if (subcommand == "unstack")
+    {
+        if (flags.value().stack_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog unstack requires --stack-id <id>");
+        auto unstacked =
+            service.unstack_assets(flags.value().stack_id, flags.value().expected_revision);
+        if (!unstacked)
+            return unstacked.error();
+        return JsonValue{JsonValue::Object{
+            {"revision", JsonValue::number(std::to_string(unstacked.value()))},
+            {"stack_id", std::string(flags.value().stack_id)},
+        }};
+    }
+    if (subcommand == "stack-pick")
+    {
+        if (flags.value().stack_id.empty() || flags.value().asset_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog stack-pick requires --stack-id <id> --asset-id <id>");
+        auto picked = service.set_stack_pick(flags.value().stack_id, flags.value().asset_id,
+                                             flags.value().expected_revision);
+        if (!picked)
+            return picked.error();
+        return library_stack_mutation_to_json(picked.value());
+    }
     if (subcommand == "import")
     {
         if (flags.value().inputs.empty())
@@ -3062,7 +3188,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }
         if (!flags.value().set_id.empty())
             query.collection_id = std::string(flags.value().set_id);
-        auto listed = service.list_assets(query);
+        auto listed = service.list_assets(query, !flags.value().stack_expanded);
         if (!listed)
         {
             return listed.error();

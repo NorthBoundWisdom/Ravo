@@ -30,7 +30,7 @@ admit a new dependency.
 
 The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
 integration, including first-frame Bayer RAW/DNG errors and preview-cache miss
-rebuild. Review contracts include schema v2→v10 migration, review
+rebuild. Review contracts include schema v2→v11 migration, review
 persistence, filtering, and missing-source state. Develop contracts include one
 canonical recipe per image, schema-v1/v2 → v3 explicit colour-boundary upgrade,
 CPU Develop operations, edited previews, and
@@ -85,6 +85,12 @@ Schema v10 tests create manual membership and smart `LibraryQuery` sets,
 reject stale catalog revisions and invalid/unknown IDs, keep empty sets, page
 listing without materializing the catalog, reopen and restore the rows through
 verified backup, and pin Studio/CLI/QML wiring (ADR-0103).
+Schema v11 tests create a virtual copy that shares the original URI, isolate
+recipe/export of the version, refuse disk deletion of a non-primary, cascade
+catalog deletion of versions with a primary, collapse stacked non-picks from
+the default page total, expand on request, migrate v10 catalogs, reopen and
+restore stack identity, and pin Survey as a browse mode that does not start N
+Develop pipelines (ADR-0105).
 Assistant tests pin default xAI endpoint/model, reject non-http(s) URLs and
 blank models, persist valid URL/model/key, repair malformed stored URL, and
 toggle the floating panel command. Copy/paste parameter tests pin an empty

@@ -63,6 +63,21 @@ public:
     [[nodiscard]] virtual Result<LibrarySetMutation>
     remove_library_set_members(std::string_view set_id, const std::vector<std::string> &asset_ids,
                                std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<AssetVersionMutation>
+    create_asset_version(std::string_view source_asset_id,
+                         std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<LibraryStackMutation>
+    stack_assets(const std::vector<std::string> &asset_ids, std::string_view pick_asset_id,
+                 std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<std::int64_t>
+    unstack_assets(std::string_view stack_id, std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<LibraryStackMutation>
+    set_stack_pick(std::string_view stack_id, std::string_view pick_asset_id,
+                   std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<std::optional<LibraryStackRecord>>
+    find_library_stack(std::string_view stack_id) const = 0;
+    [[nodiscard]] virtual Result<std::vector<std::string>>
+    list_version_asset_ids(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::optional<FolderRecord>>
     find_folder_by_id(std::string_view folder_id) const = 0;
     [[nodiscard]] virtual Result<std::vector<AssetRecord>>

@@ -16,7 +16,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 10;
+inline constexpr std::int64_t kCatalogSchemaVersion = 11;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 1;
@@ -74,6 +74,12 @@ inline constexpr std::size_t kLibrarySetNameMaxLength = 128;
 inline constexpr std::size_t kLibrarySetMaximumCount = 1'000U;
 inline constexpr std::string_view kLibrarySetKindManual = "manual";
 inline constexpr std::string_view kLibrarySetKindSmart = "smart";
+inline constexpr int kAssetVersionOrdinalPrimary = 0;
+inline constexpr int kAssetVersionMaximum = 64;
+inline constexpr std::size_t kLibraryStackMaximumCount = 10'000U;
+inline constexpr std::size_t kLibraryStackMaximumMembers = 64U;
+inline constexpr int kSurveySlotMinimum = 2;
+inline constexpr int kSurveySlotMaximum = 4;
 inline constexpr std::size_t kImportBatchMaximumAssets = 100'000U;
 inline constexpr std::size_t kImportFilenameTemplateMaxBytes = 512U;
 inline constexpr std::size_t kImportFilenameMaxBytes = 240U;
@@ -347,6 +353,7 @@ struct LibraryPageRequest
 {
     LibraryQuery query;
     std::optional<LibraryQuery> additional_query;
+    bool collapse_stacks = true;
     std::size_t offset = 0U;
     std::size_t limit = kLibraryPageDefaultSize;
     std::optional<std::string> after_asset_id;
@@ -551,6 +558,32 @@ struct AssetRecord
     std::vector<std::string> tags;
     CaptureMetadata capture;
     WritableMetadata metadata;
+    int version_ordinal = kAssetVersionOrdinalPrimary;
+    std::optional<std::string> source_asset_id;
+    std::optional<std::string> stack_id;
+    int stack_position = 0;
+    int stack_count = 0;
+    bool stack_pick = false;
+};
+
+struct AssetVersionMutation
+{
+    AssetRecord version;
+    std::int64_t revision = 0;
+};
+
+struct LibraryStackRecord
+{
+    std::string id;
+    std::string pick_asset_id;
+    std::vector<std::string> member_ids;
+    std::int64_t created_unix_ms = 0;
+};
+
+struct LibraryStackMutation
+{
+    LibraryStackRecord stack;
+    std::int64_t revision = 0;
 };
 
 struct LibraryPage
@@ -895,6 +928,7 @@ struct FileIdentity
 [[nodiscard]] std::string generate_asset_id();
 [[nodiscard]] std::string generate_folder_id();
 [[nodiscard]] std::string generate_library_set_id();
+[[nodiscard]] std::string generate_library_stack_id();
 [[nodiscard]] std::string_view catalog_restore_stage_name(CatalogRestoreStage stage) noexcept;
 [[nodiscard]] std::string make_content_fingerprint(const FileIdentity &identity);
 [[nodiscard]] std::string make_preview_cache_key(std::string_view asset_id, std::uint32_t width,

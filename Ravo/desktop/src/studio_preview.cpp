@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -879,7 +880,112 @@ void StudioPresenter::requestPreviewForSelection()
         refresh_scopes_from_thumbnail(selected_asset_id_);
         return;
     }
+    if (browse_mode_ == QLatin1String("survey"))
+    {
+        preview_loading_ = false;
+        emit previewChanged();
+        requestSurveyPreviews();
+        return;
+    }
     enqueue_preview();
+}
+
+void StudioPresenter::rebuild_survey_slots()
+{
+    survey_slot_ids_.clear();
+    const auto ids = selected_asset_ids();
+    std::size_t count = 0U;
+    if (ids.size() >= static_cast<std::size_t>(kSurveySlotMaximum))
+        count = static_cast<std::size_t>(kSurveySlotMaximum);
+    else if (ids.size() >= static_cast<std::size_t>(kSurveySlotMinimum))
+        count = static_cast<std::size_t>(kSurveySlotMinimum);
+    survey_slot_ids_.assign(ids.begin(), ids.begin() + static_cast<std::ptrdiff_t>(count));
+    for (auto it = survey_preview_urls_.begin(); it != survey_preview_urls_.end();)
+    {
+        if (std::find(survey_slot_ids_.begin(), survey_slot_ids_.end(), it->first) ==
+            survey_slot_ids_.end())
+            it = survey_preview_urls_.erase(it);
+        else
+            ++it;
+    }
+}
+
+void StudioPresenter::requestSurveyPreviews()
+{
+    rebuild_survey_slots();
+    emit surveyChanged();
+    for (const auto &id : survey_slot_ids_)
+    {
+        if (survey_preview_urls_.contains(id) || survey_preview_requests_.contains(id))
+            continue;
+        if (std::find(pending_survey_ids_.begin(), pending_survey_ids_.end(), id) !=
+            pending_survey_ids_.end())
+            continue;
+        pending_survey_ids_.push_back(id);
+    }
+    if (!survey_preview_in_flight_ && !pending_survey_ids_.empty())
+    {
+        auto next = pending_survey_ids_.front();
+        pending_survey_ids_.pop_front();
+        startSurveyPreviewRequest(std::move(next));
+    }
+}
+
+void StudioPresenter::startSurveyPreviewRequest(std::string id)
+{
+    const auto revision = ++survey_preview_revision_;
+    survey_preview_in_flight_ = true;
+    survey_preview_requests_[id] = revision;
+    const auto cancellation = thumbnail_work_.token();
+    static_cast<void>(executor_.post(
+        [this, id, revision, cancellation]()
+        {
+            Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                PreviewRequest request;
+                request.asset_id = id;
+                request.max_edge = kDefaultPreviewMaxEdge;
+                request.request_revision = revision;
+                request.purpose = PreviewPurpose::kBrowse;
+                request.prefer_embedded_preview = false;
+                request.cancellation = cancellation;
+                preview = service_->request_preview(request);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, id, revision, preview = std::move(preview)]() mutable
+                {
+                    const auto latest = survey_preview_requests_.find(id);
+                    if (latest == survey_preview_requests_.end() || latest->second != revision)
+                    {
+                        finishSurveyPreviewRequest(false);
+                        return;
+                    }
+                    survey_preview_requests_.erase(latest);
+                    if (preview)
+                    {
+                        survey_preview_urls_[id] = QUrl::fromLocalFile(
+                            qstring_from_utf8(preview.value().cache_path));
+                        emit surveyChanged();
+                        finishSurveyPreviewRequest(true);
+                        return;
+                    }
+                    finishSurveyPreviewRequest(false);
+                },
+                Qt::QueuedConnection);
+        }));
+}
+
+void StudioPresenter::finishSurveyPreviewRequest(const bool success)
+{
+    static_cast<void>(success);
+    survey_preview_in_flight_ = false;
+    if (browse_mode_ != QLatin1String("survey") || pending_survey_ids_.empty())
+        return;
+    auto next = pending_survey_ids_.front();
+    pending_survey_ids_.pop_front();
+    startSurveyPreviewRequest(std::move(next));
 }
 
 } // namespace ravo

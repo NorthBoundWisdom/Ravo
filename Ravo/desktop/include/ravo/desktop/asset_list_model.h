@@ -42,6 +42,12 @@ public:
         HasEditsRole,
         SelectedRole,
         CaptureSummaryRole,
+        VersionOrdinalRole,
+        SourceAssetIdRole,
+        StackIdRole,
+        StackCountRole,
+        StackPickRole,
+        StackPositionRole,
     };
 
     explicit AssetListModel(QObject *parent = nullptr);

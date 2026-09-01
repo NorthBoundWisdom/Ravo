@@ -81,6 +81,15 @@ discarded when the catalog closes; the set itself survives reopen. Deleting a
 collection does not delete photos. The CLI exposes the same sets through
 `ravo catalog sets` and related commands.
 
+Create a **virtual copy** of the selected photo to keep a second grade of the
+same original. The copy is another catalog asset with its own recipe and
+history; it does not duplicate the file. Stack two or more selected photos to
+group a burst or a RAW+JPEG pair; collapsed Library view shows the pick.
+**Survey** shows two or four selected photos as exact previews for culling.
+Deleting a virtual copy removes only that catalog row. Deleting the original
+from disk is allowed only on the primary asset and removes every version of
+that file from the catalog.
+
 ## Filter and sort the library
 
 Enable **Filter** in the top bar. The default control is a star strip:

@@ -112,3 +112,4 @@ supersession relationship when direction changes.
 | [0102](0102-planned-managed-import-workspace.md) | Accepted | One import workspace plans Add/Copy/Move, no-replace destinations, XMP companions, and background preview policies. |
 | [0103](0103-named-library-sets.md) | Accepted | Schema v10 persists manual membership collections and smart `LibraryQuery` sets with revision-checked mutations and paged listing. |
 | [0104](0104-bounded-rename-and-verified-second-copy-ingest.md) | Accepted | Copy/Move ingest adds a bounded portable rename grammar and an independently byte-verified second-copy tree before catalog publication. |
+| [0105](0105-asset-versions-stacks-and-survey.md) | Accepted | Schema v11 adds virtual copies of one original, collapsed stacks with a pick, and a Survey browse mode for N-up culling. |

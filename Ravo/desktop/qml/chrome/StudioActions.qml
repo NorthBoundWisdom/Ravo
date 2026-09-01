@@ -39,6 +39,10 @@ Item {
         root.trigger(root.ids.viewLoupe);
     }
     function openGallery(preferredMode) {
+        if (preferredMode === "survey" && root.presenter && root.presenter.selectedCount >= 2) {
+            root.trigger(root.ids.viewSurvey);
+            return;
+        }
         root.trigger(preferredMode === "loupe" && root.hasSelection ? root.ids.viewLoupe : root.ids.viewGrid);
     }
     function setRating(value) {

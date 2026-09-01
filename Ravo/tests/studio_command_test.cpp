@@ -4371,6 +4371,100 @@ TEST(StudioPresenterTest, NamedLibrarySetsSurviveReloadAndFilterListing)
     EXPECT_EQ(presenter.visibleCount(), 1);
 }
 
+TEST(StudioQmlContract, SurveyAndVersionBadgesStayInPresenterOwnedQml)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto main_source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: surveyStage")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.browseMode === \"survey\"")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.surveySlots")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.selectSurveySlot")));
+    EXPECT_FALSE(main_source.contains(QStringLiteral("version_ordinal")));
+    EXPECT_FALSE(main_source.contains(QStringLiteral("library_stack_member")));
+
+    QFile thumbnail(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/gallery/ThumbnailCell.qml"));
+    ASSERT_TRUE(thumbnail.open(QIODevice::ReadOnly | QIODevice::Text))
+        << thumbnail.errorString().toStdString();
+    const auto thumbnail_source = QString::fromUtf8(thumbnail.readAll());
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("property int versionOrdinal")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("property int stackCount")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("property bool stackPick")));
+
+    QFile bar(QStringLiteral(RAVO_REPOSITORY_ROOT
+                             "/Ravo/desktop/qml/gallery/GalleryReviewBar.qml"));
+    ASSERT_TRUE(bar.open(QIODevice::ReadOnly | QIODevice::Text)) << bar.errorString().toStdString();
+    const auto bar_source = QString::fromUtf8(bar.readAll());
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.viewSurvey")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.photoCreateVersion")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.photoStackSelection")));
+}
+
+TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString first = directory.filePath(QStringLiteral("one.png"));
+    const QString second = directory.filePath(QStringLiteral("two.png"));
+    QImage image(24, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 90, 130));
+    ASSERT_TRUE(image.save(first, "PNG"));
+    image.fill(QColor(130, 90, 40));
+    ASSERT_TRUE(image.save(second, "PNG"));
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({first, second});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 2 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy() && !presenter.importWorkActive();
+        }))
+        << presenter.errorText().toStdString();
+    const QString primary = presenter.assets()->assetIdAt(0);
+    const QString other = presenter.assets()->assetIdAt(1);
+    presenter.selectAsset(primary);
+    presenter.toggleAssetSelected(other);
+    EXPECT_EQ(presenter.selectedCount(), 2);
+    commands.executeCommand(QStringLiteral("studio.view.show_survey"));
+    ASSERT_TRUE(wait_until([&] { return presenter.browseMode() == QLatin1String("survey"); }))
+        << presenter.errorText().toStdString();
+    EXPECT_NE(presenter.browseMode(), QLatin1String("develop"));
+    EXPECT_EQ(presenter.surveySlotCount(), 2);
+    EXPECT_EQ(presenter.surveySlots().size(), 2);
+    commands.executeCommand(QStringLiteral("studio.view.show_grid"));
+    ASSERT_TRUE(wait_until([&] { return presenter.browseMode() == QLatin1String("grid"); }));
+    presenter.selectFolder(QString{});
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 2 && !presenter.lastImportSelected(); }))
+        << presenter.errorText().toStdString();
+    presenter.selectAsset(primary);
+    commands.executeCommand(QStringLiteral("studio.photo.create_version"));
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 3; }))
+        << presenter.errorText().toStdString();
+    bool saw_version = false;
+    for (int row = 0; row < presenter.assets()->rowCount(); ++row)
+    {
+        if (presenter.assets()
+                ->data(presenter.assets()->index(row, 0), AssetListModel::VersionOrdinalRole)
+                .toInt() > 0)
+            saw_version = true;
+    }
+    EXPECT_TRUE(saw_version);
+    presenter.selectAsset(primary);
+    presenter.toggleAssetSelected(other);
+    commands.executeCommand(QStringLiteral("studio.photo.stack_selection"));
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 2 && presenter.collapseStacks(); }))
+        << presenter.errorText().toStdString();
+}
+
 TEST(StudioQmlContract, LibrarySidePanelShowsCommandOwnedLastImportGroup)
 {
     QFile library(QStringLiteral(RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML));

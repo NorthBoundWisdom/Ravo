@@ -66,8 +66,9 @@ than entering a generic export rewrite.
 ## Extended library workflows
 
 Named manual collections and smart `LibraryQuery` sets are accepted
-(ADR-0103). Still undecided: stacking/versions/virtual copies, N-up
-compare/survey, duplicate-content detection, hierarchical keywords and IPTC
+(ADR-0103). Virtual copies, collapsed stacks with a pick, and Survey N-up
+cull are accepted (ADR-0105). Automatic RAW+JPEG pairing on import is not.
+Still undecided: duplicate-content detection, hierarchical keywords and IPTC
 depth, face/GPS workflows, selection-wide Develop sync, dual-monitor viewers,
 and removable or network catalogs. Each remaining topic requires explicit
 privacy, indexing, offline/conflict, persistence, cancellation, and recovery
