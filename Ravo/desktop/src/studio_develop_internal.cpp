@@ -45,8 +45,16 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
 
 [[nodiscard]] QString develop_mask_field_prefix(const DevelopMaskTarget target)
 {
-    return target == DevelopMaskTarget::kColorHarmonizer ? QStringLiteral("colorHarmonizerMask") :
-                                                           QStringLiteral("graduatedMask");
+    switch (target)
+    {
+    case DevelopMaskTarget::kColorHarmonizer:
+        return QStringLiteral("colorHarmonizerMask");
+    case DevelopMaskTarget::kGraduatedNd:
+        return QStringLiteral("graduatedMask");
+    case DevelopMaskTarget::kColorBalanceRgb:
+        return QStringLiteral("colorBalanceRgbMask");
+    }
+    return QStringLiteral("colorHarmonizerMask");
 }
 
 [[nodiscard]] QString develop_mask_kind_label(const std::string_view name)

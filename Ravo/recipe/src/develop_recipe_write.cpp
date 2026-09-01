@@ -274,11 +274,11 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       kColorBalanceOperationSchemaVersion, std::nullopt,
                       clamped.color_effect_enabled);
     }
-    if (!clamped.color_balance_rgb.is_identity())
+    if (!clamped.color_balance_rgb.is_identity() || clamped.color_balance_rgb_mask_id.has_value())
     {
         add_operation(recipe, "ravo.color.colorbalancergb", "colorbalancergb-1",
-                      color_balance_rgb_to_parameters(clamped.color_balance_rgb), 1, std::nullopt,
-                      clamped.color_effect_enabled);
+                      color_balance_rgb_to_parameters(clamped.color_balance_rgb), 1,
+                      clamped.color_balance_rgb_mask_id, clamped.color_effect_enabled);
     }
     if (clamped.color_correction_enabled)
     {

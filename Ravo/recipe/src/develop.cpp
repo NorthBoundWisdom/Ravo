@@ -1115,6 +1115,7 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
                params.velvia_mask_id.has_value() || params.lut3d_present || params.lut3d_enabled ||
                params.color_balance_enabled || !params.color_balance.is_identity() ||
                params.color_checker_enabled || !params.color_balance_rgb.is_identity() ||
+               params.color_balance_rgb_mask_id.has_value() ||
                params.color_correction_enabled || params.color_contrast_enabled ||
                params.color_reconstruction_enabled || params.color_zones_present ||
                params.color_zones_enabled || params.color_zones_mask_id.has_value() ||

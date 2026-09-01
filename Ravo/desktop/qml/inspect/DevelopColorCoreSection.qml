@@ -460,5 +460,10 @@ DevelopSection {
                 }
             }
         }
+        MaskEditor {
+            panel: sectionRoot.panel
+            objectName: "colorBalanceRgbMaskEditor"
+            mask: panel.hasPresenter ? panel.presenter.editColorBalanceRgbMask : ({})
+        }
     }
 }

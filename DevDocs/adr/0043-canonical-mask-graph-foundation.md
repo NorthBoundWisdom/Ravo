@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-28
 - Extends: [ADR-0035](0035-colorharmonizer-core-contract.md), [ADR-0041](0041-colorharmonizer-smoothing-zero-vertical-slice.md), [ADR-0042](0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
+- Extended by: [ADR-0108](0108-masked-color-balance-rgb.md)
 
 ## Context
 
@@ -73,10 +74,12 @@ is not a product contract.
 - The only canonical blend is normal masked interpolation
   `input + alpha * (operation_output - input)`. Exact alpha zero copies input
   bits; exact alpha one retains operation-output bits. The unmasked dispatch
-  remains untouched. Only `ravo.color.colorharmonizer` and
-  `ravo.effect.graduatednd` advertise and execute `supports_mask`; all other
-  attached operations fail closed. Graduated ND's own density gradient remains
-  its operation mathematics, distinct from an optional generic attachment.
+  remains untouched. `ravo.color.colorharmonizer`, `ravo.effect.graduatednd`,
+  and `ravo.color.colorbalancergb` (ADR-0108) advertise and execute
+  `supports_mask`; other attached operations fail closed unless a later ADR
+  names them. Graduated ND's own density gradient remains its operation
+  mathematics, distinct from an optional generic attachment. Color Balance
+  RGB's Filmlight Yrg luminance opacities likewise stay internal.
 - `DevelopParams` holds the typed graph and both supported operation attachments
   (including disabled/default instances). `recipe_from_develop` and
   `develop_from_recipe` preserve them through live preview, save, cache key,

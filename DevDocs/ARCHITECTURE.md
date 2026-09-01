@@ -568,14 +568,15 @@ is normal `input + alpha * (operation_output - input)`, with exact alpha 0/1
 source selection. Raw budgeting uses saturating arithmetic for the masked
 snapshot/output/alpha/evaluator peak.
 
-Only Color Harmonizer and Graduated ND currently dispatch a canonical mask.
-Their unmasked path remains bit-identical; a masked operation retains a local
-pre-operation image, produces local output, evaluates alpha, then mixes before
-the result becomes the next recipe input. `DevelopParams` keeps the typed graph
-and both attachments, including disabled/default instances, so live preview,
-save/reopen and ordinary Develop edits cannot baseline-elide a loaded mask.
-Studio projects two read-only mask-editor maps and forwards numeric intents to
-the recipe helper through the existing Develop preview/commit path. Unshared
+Color Harmonizer, Graduated ND, Color Balance RGB, and the other named
+`supports_mask` operations dispatch a canonical mask. Their unmasked path
+remains bit-identical; a masked operation retains a local pre-operation image,
+produces local output, evaluates alpha, then mixes before the result becomes
+the next recipe input. `DevelopParams` keeps the typed graph and attachments,
+including disabled/default instances, so live preview, save/reopen and ordinary
+Develop edits cannot baseline-elide a loaded mask. Studio projects read-only
+mask-editor maps and forwards numeric intents to the recipe helper through the
+existing Develop preview/commit path. Unshared
 Studio-owned leaves and groups are editable; external IDs and shared
 attachments are visibly read-only and may only be explicitly detached. Studio can
 show a preview-only yellow overlay of the named attachment, author owned group

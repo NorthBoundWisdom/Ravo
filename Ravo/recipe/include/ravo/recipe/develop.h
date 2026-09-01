@@ -348,6 +348,9 @@ struct DevelopParams
     ColorCheckerParams color_checker;
     std::int64_t color_checker_patch = 0;
     ColorBalanceRgbParams color_balance_rgb;
+    std::optional<std::string> color_balance_rgb_mask_id;
+    std::int64_t color_balance_rgb_mask_child_index = 0;
+    std::int64_t color_balance_rgb_mask_point_index = 0;
     bool color_correction_enabled = false;
     ColorCorrectionParams color_correction;
     bool color_contrast_enabled = false;

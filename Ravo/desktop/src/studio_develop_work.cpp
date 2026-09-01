@@ -227,10 +227,11 @@ StudioPresenter::current_overlay_mask_id(const DevelopParams &params) const
     {
         return std::nullopt;
     }
-    const auto &attachment = mask_overlay_target_ == QLatin1String("graduatednd") ?
-                                 params.graduated_mask_id :
-                                 params.color_harmonizer_mask_id;
-    return attachment;
+    if (mask_overlay_target_ == QLatin1String("graduatednd"))
+        return params.graduated_mask_id;
+    if (mask_overlay_target_ == QLatin1String("color_balance_rgb"))
+        return params.color_balance_rgb_mask_id;
+    return params.color_harmonizer_mask_id;
 }
 
 void StudioPresenter::preview_develop(DevelopParams params)

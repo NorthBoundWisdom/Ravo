@@ -74,6 +74,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.mask_id.has_value() && operation.id != kColorHarmonizerOperationId &&
             operation.id != kColorZonesOperationId && operation.id != kMonochromeOperationId &&
             operation.id != kSplitToningOperationId && operation.id != kVelviaOperationId &&
+            operation.id != "ravo.color.colorbalancergb" &&
             operation.id != "ravo.effect.graduatednd")
         {
             return make_error(ErrorCode::kUnsupported,
@@ -368,10 +369,19 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.color.colorbalancergb")
         {
-            auto balanced = apply_color_balance_rgb(image, operation, cancellation);
-            if (!balanced)
+            if (operation.mask_id.has_value())
             {
-                return balanced.error();
+                auto balanced = apply_masked_color_balance_rgb(std::move(image), recipe, operation,
+                                                               cancellation);
+                if (!balanced)
+                    return balanced.error();
+                image = std::move(balanced).value();
+            }
+            else
+            {
+                auto balanced = apply_color_balance_rgb(image, operation, cancellation);
+                if (!balanced)
+                    return balanced.error();
             }
             continue;
         }

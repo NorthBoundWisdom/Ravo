@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-26
 - Relates to: ADR-0006, ADR-0015, `DevDocs/MIGRATION.md` C2
+- Extended by: [ADR-0108](0108-masked-color-balance-rgb.md)
 - Supersedes: ADR-0009's lift/gamma/gain approximation
 
 ## Context

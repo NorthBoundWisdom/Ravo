@@ -244,6 +244,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
     else if (field == "colorBalanceRgb")
     {
         destination.color_balance_rgb = source.color_balance_rgb;
+        destination.color_balance_rgb_mask_id = source.color_balance_rgb_mask_id;
     }
     else if (field == "colorCorrection")
     {
@@ -447,6 +448,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.velvia_mask_id = source.velvia_mask_id;
         destination.color_zones_mask_id = source.color_zones_mask_id;
         destination.color_harmonizer_mask_id = source.color_harmonizer_mask_id;
+        destination.color_balance_rgb_mask_id = source.color_balance_rgb_mask_id;
         destination.monochrome_mask_id = source.monochrome_mask_id;
         destination.split_toning_mask_id = source.split_toning_mask_id;
         destination.graduated_mask_id = source.graduated_mask_id;
@@ -491,8 +493,8 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
 [[nodiscard]] bool selected_field_carries_masks(const std::string_view field) noexcept
 {
     return field == "masks" || field == "retouch" || field == "velvia" || field == "colorZones" ||
-           field == "colorHarmonizer" || field == "monochrome" || field == "splitToning" ||
-           field == "graduated";
+           field == "colorHarmonizer" || field == "colorBalanceRgb" || field == "monochrome" ||
+           field == "splitToning" || field == "graduated";
 }
 
 void merge_develop_masks(DevelopParams &destination, const DevelopParams &source)

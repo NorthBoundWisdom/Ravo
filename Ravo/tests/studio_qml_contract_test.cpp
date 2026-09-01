@@ -215,6 +215,8 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(source.contains(QStringLiteral("hueField: \"colorBalanceShadowsHue\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("chromaField: \"colorBalanceShadowsChroma\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceGlobalWheel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceRgbMaskEditor\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("editColorBalanceRgbMask")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingThreeWay\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingGlobal\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingDetails\"")));

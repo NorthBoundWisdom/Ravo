@@ -21,14 +21,16 @@ Implementation status belongs in code, tests, or the applicable TODO.
 ## Local adjustment expansion
 
 Ravo already owns the bounded canonical mask graph, normal mix, overlay, and
-Studio authoring described by ADR-0043–0045. Still undecided:
+Studio authoring described by ADR-0043–0045. Color Balance RGB may carry one
+owned canonical mask (ADR-0108). Still undecided:
 
 - additional blend modes with a named operation consumer and exact ROI/order
   semantics;
 - picker or histogram-assisted authoring that keeps graph mathematics out of
   QML;
-- additional masked operations whose geometry survives Canvas, Perspective,
-  crop, and sub-ROI evaluation without implicit coordinate conversion.
+- additional masked operations (Light, Curves, multi-instance Color Balance
+  RGB) whose geometry survives Canvas, Perspective, crop, and sub-ROI
+  evaluation without implicit coordinate conversion.
 
 Legacy mask/custom-blend import remains fail-closed until an accepted mapping
 exists.

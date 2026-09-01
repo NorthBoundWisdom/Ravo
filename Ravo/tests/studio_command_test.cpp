@@ -693,6 +693,10 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("targetB")).toDouble(), 14.0600004196167);
     const auto balance = presenter.editColorBalanceRgb();
     EXPECT_EQ(balance.size(), 33);
+    const auto balance_mask = presenter.editColorBalanceRgbMask();
+    EXPECT_FALSE(balance_mask.value(QStringLiteral("attached")).toBool());
+    EXPECT_EQ(balance_mask.value(QStringLiteral("kindField")).toString(),
+              QStringLiteral("colorBalanceRgbMaskKind"));
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("shadowsFalloff")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("highlightsFalloff")).toDouble(), 1.0);

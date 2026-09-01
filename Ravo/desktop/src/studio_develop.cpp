@@ -770,7 +770,9 @@ void StudioPresenter::removeRetouchRegion(const int index)
                      [&mask_id](const RetouchRegion &region)
                      { return region.mask_id == mask_id; }) &&
         (!next.color_harmonizer_mask_id || *next.color_harmonizer_mask_id != mask_id) &&
-        (!next.graduated_mask_id || *next.graduated_mask_id != mask_id) && !group_references_mask)
+        (!next.graduated_mask_id || *next.graduated_mask_id != mask_id) &&
+        (!next.color_balance_rgb_mask_id || *next.color_balance_rgb_mask_id != mask_id) &&
+        !group_references_mask)
     {
         next.masks.erase(std::remove_if(next.masks.begin(), next.masks.end(),
                                         [&mask_id](const Mask &mask)

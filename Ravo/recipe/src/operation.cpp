@@ -783,7 +783,7 @@ Result<OperationRegistry> make_phase1_registry()
           {"contrast", ParameterType::kNumber, true, std::nullopt, -1.0, 1.0},
           {"saturation_formula", ParameterType::kString, true, std::nullopt, std::nullopt,
            std::nullopt}},
-         false,
+         true,
          true},
         {std::string(kColorContrastOperationId),
          "Color Contrast",

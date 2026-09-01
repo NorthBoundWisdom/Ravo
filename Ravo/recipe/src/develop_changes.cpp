@@ -212,7 +212,8 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                      before.color_balance != after.color_balance ||
                          before.color_balance_enabled != after.color_balance_enabled);
     add_named_change(changes, "colorBalanceRgb",
-                     before.color_balance_rgb != after.color_balance_rgb);
+                     before.color_balance_rgb != after.color_balance_rgb ||
+                         before.color_balance_rgb_mask_id != after.color_balance_rgb_mask_id);
     add_named_change(changes, "colorReconstruction",
                      before.color_reconstruction != after.color_reconstruction ||
                          before.color_reconstruction_enabled != after.color_reconstruction_enabled);

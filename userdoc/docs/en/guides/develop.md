@@ -200,7 +200,8 @@ The Color section currently exposes:
 - **Color Balance RGB · linear sRGB D50 / Filmlight Yrg**, with Shadows /
   Midtones / Highlights wheels for hue and chroma plus a luminance slider.
   Formula, global, and extra numeric fields stay under **Color Balance RGB ·
-  more**.
+  more**. The Color panel Mask editor can attach a circle, brush, or other
+  canonical mask so the grade applies only inside that shape.
 - **Split Toning**, with independent shadow/highlight hue and saturation,
   balance pivot, midtone compression, and mix. It preserves HSL lightness while
   blending the selected endpoint outside the compressed midtone band. Imported

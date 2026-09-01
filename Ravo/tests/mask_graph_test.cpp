@@ -491,6 +491,7 @@ TEST(MaskGraphEngineTest, NormalMixAndOnlySupportedOperationDispatchUseTheGraph)
     ASSERT_TRUE(registry) << registry.error().message;
     EXPECT_TRUE(registry.value().find(kColorHarmonizerOperationId)->supports_mask);
     EXPECT_TRUE(registry.value().find("ravo.effect.graduatednd")->supports_mask);
+    EXPECT_TRUE(registry.value().find("ravo.color.colorbalancergb")->supports_mask);
     EXPECT_FALSE(registry.value().find("ravo.core.gamma")->supports_mask);
 
     WorkingImage input;
@@ -708,6 +709,72 @@ TEST(DevelopMaskAuthoringTest, CreatesTypedStudioOwnedLeavesAndRoundTripsOrdinar
     EXPECT_EQ(ordinary_edit.masks, params.masks);
     EXPECT_EQ(ordinary_edit.color_harmonizer_mask_id, params.color_harmonizer_mask_id);
     EXPECT_EQ(ordinary_edit.graduated_mask_id, params.graduated_mask_id);
+}
+
+TEST(DevelopMaskAuthoringTest, ColorBalanceRgbOwnsCircleAndBrushMasksAndRoundTrips)
+{
+    DevelopParams params;
+    params.color_balance_rgb.saturation_global = 0.4;
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorBalanceRgbMaskKind", 3.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorBalanceRgbMaskCenterX", 0.3));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorBalanceRgbMaskRadius", 0.35));
+    ASSERT_TRUE(params.color_balance_rgb_mask_id);
+    EXPECT_EQ(*params.color_balance_rgb_mask_id, "ravo.studio.mask.color_balance_rgb.1");
+    auto circle_state = develop_mask_editor_state(params, DevelopMaskTarget::kColorBalanceRgb);
+    EXPECT_EQ(circle_state.kind_name, "circle");
+    EXPECT_DOUBLE_EQ(circle_state.center_x, 0.3);
+    EXPECT_DOUBLE_EQ(circle_state.radius, 0.35);
+
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorBalanceRgbMaskKind", 8.0));
+    auto brush_state = develop_mask_editor_state(params, DevelopMaskTarget::kColorBalanceRgb);
+    EXPECT_EQ(brush_state.kind_name, "brush");
+    EXPECT_EQ(*params.color_balance_rgb_mask_id, "ravo.studio.mask.color_balance_rgb.1");
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto *operation = find_operation(recipe.value(), "ravo.color.colorbalancergb");
+    ASSERT_NE(operation, nullptr);
+    EXPECT_EQ(operation->mask_id, params.color_balance_rgb_mask_id);
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().color_balance_rgb_mask_id, params.color_balance_rgb_mask_id);
+    EXPECT_EQ(restored.value().masks, params.masks);
+    EXPECT_NEAR(restored.value().color_balance_rgb.saturation_global, 0.4, 1e-12);
+}
+
+TEST(MaskGraphEngineTest, ColorBalanceRgbNormalMixMatchesUnmaskedAndZeroOpacityInput)
+{
+    ColorBalanceRgbParams grade;
+    grade.saturation_global = 0.5;
+    auto parameters = color_balance_rgb_to_parameters(grade);
+    OperationInstance operation{"ravo.color.colorbalancergb",
+                                1,
+                                "colorbalancergb-1",
+                                true,
+                                std::move(parameters),
+                                std::nullopt};
+    WorkingImage input;
+    input.width = 2U;
+    input.height = 2U;
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
+                 0.41F, 0.60F, 0.10F, 0.25F};
+    WorkingImage expected = input;
+    ASSERT_TRUE(apply_color_balance_rgb(expected, operation, CancellationToken{}));
+
+    Recipe all_recipe;
+    all_recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    all_recipe.masks.push_back(all_mask("all"));
+    operation.mask_id = "all";
+    all_recipe.operations.push_back(operation);
+    const auto masked_all = apply_recipe_ops(input, all_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_all) << masked_all.error().message;
+    EXPECT_EQ(masked_all.value().rgb, expected.rgb);
+
+    Recipe zero_recipe = all_recipe;
+    zero_recipe.masks.front().common.opacity = 0.0;
+    const auto masked_zero = apply_recipe_ops(input, zero_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_zero) << masked_zero.error().message;
+    EXPECT_EQ(masked_zero.value().rgb, input.rgb);
 }
 
 TEST(DevelopMaskAuthoringTest, StrictlyValidatesSelectorsBoundsAndParametricOrderWithoutMutation)

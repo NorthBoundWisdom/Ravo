@@ -526,6 +526,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return color_balance.error();
             }
             params.color_balance_rgb = std::move(color_balance).value();
+            params.color_balance_rgb_mask_id = operation.mask_id;
             note_section("color", operation.enabled);
         }
         else if (operation.id == kColorCorrectionOperationId)

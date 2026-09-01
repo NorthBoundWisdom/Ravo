@@ -1,6 +1,6 @@
 # Professional Workflow Gap TODO
 
-> **Status: PW0, PW1, and PW4 accepted; remaining ranks not independently ready**
+> **Status: PW0, PW1, PW4, and ADR-0108 Color Balance RGB mask tranche accepted; remaining ranks not independently ready**
 >
 > **Updated: 2026-09-01**
 
@@ -51,8 +51,9 @@ often assume is missing:
   N-up cull without N Develop pipelines (ADR-0105);
 - scene-referred Light/Curves/Color Mixer/Color Balance RGB/Calibration stack,
   tone equalizer, lens, denoise, retouch, perspective, crop, soft proof,
-  photographic grain/vignette/bloom/soften amounts, and a bounded mask graph
-  (gradient/circle/ellipse/parametric/path/brush/groups);
+  photographic grain/vignette/bloom/soften amounts, a bounded mask graph
+  (gradient/circle/ellipse/parametric/path/brush/groups), and one owned
+  canonical mask on Color Balance RGB (ADR-0108);
 - typed JPEG/PNG/TIFF/original-copy export with privacy modes;
 - catalog recovery generations, verified backups, scheduled retention, and
   stable folder relink (ADR-0097/0099–0101).
@@ -67,7 +68,7 @@ Develop.”
 | --- | --- | --- | --- | --- |
 | **PW2 — shoot ingest** | Card/camera ingest, rename templates, second-copy backup, HEIC/HEIF | First hour of a shoot. ADR-0104 accepts the filesystem rename/verified-second-copy tranche; PTP/MTP, DNG conversion, Smart Previews, HEIC, and video remain undecided | ProductRoadmap ingest/format expansion | Blocked after accepted ADR-0104 tranche |
 | **PW3 — metadata depth** | Hierarchical keywords, IPTC/location write, camera/lens/date facets | Client delivery and stock workflows. Ravo writes three catalog fields and flat tags; capture Exif is read-only; GPS writeback is unsupported | ProductRoadmap metadata; ADR-0064/S9 | Blocked |
-| **PW5 — local grading on the stack** | Masked Light/Color/Curves instances, picker-assisted authoring, named extra blend modes | Capture One layers and Lightroom masking are how local color is done. Ravo’s mask graph exists but everyday grading tools are still mostly global; multi-instance legacy state still rejects | ProductRoadmap “Local adjustment expansion” | Blocked |
+| **PW5 — local grading on the stack** | Masked Light/Curves, picker-assisted authoring, named extra blend modes | Color Balance RGB can carry one owned mask (ADR-0108). Light and Curves remain global; extra blend modes and multi-instance remain undecided | ProductRoadmap “Local adjustment expansion”; ADR-0108 | Blocked after accepted Color Balance RGB mask tranche |
 | **PW6 — delivery export** | Long-edge/box resize, output sharpen, reusable export presets, restartable background jobs | “Export for web/client” is daily. Ravo already has typed codecs and batch atomic publication, but no geometry/sharpen stage, remembered preset, or durable job | ProductRoadmap “Export and background work” | Blocked |
 | **PW7 — interchange** | Explicit XMP/catalog round-trip and external-editor round-trip without a second live authority | Studios move between Ravo, Lightroom, and Photoshop. Adjacent XMP writeback, legacy catalog import, and external editors are undecided; automatic sidecars stay forbidden (ADR-0063) | ProductRoadmap “Originals, catalogs, and interchange” | Blocked |
 | **PW9 — capture and presentation leftovers** | Tether, print, map, slideshow, publish | Lightroom/Capture One include these modules. Ravo records them as deleted leftovers, not ports | `MIGRATION.md` explicit leftovers | Unauthorized unless a new dated decision reverses that |
@@ -79,7 +80,8 @@ gaps that already have owners: do not duplicate them here.
 
 PW0 named library sets are accepted under ADR-0103 (schema v10). PW1 virtual
 copies, stacks, and Survey are accepted under ADR-0105 (schema v11). PW4
-multi-asset Develop apply is accepted under ADR-0107. Durable facts live in
+multi-asset Develop apply is accepted under ADR-0107. Color Balance RGB may
+carry one owned canonical mask under ADR-0108. Durable facts live in
 README/ARCHITECTURE/TESTING, not here.
 
 ### PW2 — shoot ingest
@@ -135,14 +137,16 @@ defined IPTC subset, originals untouched.
 ### PW5 — local grading on the stack
 
 **Current fact.** Canonical mask DAG and Studio authoring exist
-(ADR-0043–0045). Color Harmonizer and Graduated ND consume them. Everyday
-Light/Color/Curves remain global. Historic blend modes and extra masked
-operations are undecided. Legacy mask/custom-blend/multi-instance import still
-rejects.
+(ADR-0043–0045). Color Balance RGB may carry one owned canonical mask
+(ADR-0108). Color Harmonizer, Graduated ND, Velvia, Color Zones, Monochrome,
+and Split Toning also consume the graph. Everyday Light and Curves remain
+global. Historic blend modes, extra masked operations, and multi-instance
+Color Balance RGB are undecided. Legacy mask/custom-blend/multi-instance
+import still rejects.
 
-**Missing contract.** Which grading operations may carry an owned mask; whether
-multiple instances of one operation are allowed; picker/histogram-assisted
-authoring that keeps graph math in C++.
+**Missing contract.** Which additional grading operations (Light, Curves) may
+carry an owned mask; whether multiple instances of one operation are allowed;
+picker/histogram-assisted authoring that keeps graph math in C++.
 
 **Dependencies.** ProductRoadmap local-adjustment bullets. Do not wait on AI
 subject detection or leftover IOP ports.
@@ -153,8 +157,8 @@ subject detection or leftover IOP ports.
 after crop/perspective; cancellation/resource bounds; no change to unmasked
 defaults.
 
-**Acceptance gate.** A radial or brush mask can grade Color Balance RGB (or
-another named consumer) through the same recipe CLI/Studio path.
+**Acceptance gate.** A radial or brush mask can grade a named remaining
+everyday tool (Light or Curves) through the same recipe CLI/Studio path.
 
 ### PW6 — delivery export
 

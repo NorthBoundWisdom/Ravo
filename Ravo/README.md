@@ -409,8 +409,10 @@ Current implementation status:
   `linear_srgb_d50` workspace, with Filmlight Yrg three-zone luminance mask,
   grading RGB offset/slope/power, fulcrumed luminance, and DT UCS 2022 as the
   default saturation/brilliance gamut path. JzAzBz 2021 is an explicit optional
-  formula. Studio exposes the complete canonical parameters; the prior
-  Lift/Color gamma/Gain approximation operation is removed.
+  formula. Studio exposes the complete canonical parameters and may attach one
+  owned canonical mask (circle, brush, and the other graph kinds) through the
+  same MaskEditor as Color Harmonizer (ADR-0108). The prior Lift/Color
+  gamma/Gain approximation operation is removed.
 - Legacy Color Balance provides the separate `ravo.color.colorbalance` v1
   contract for the complete frozen lift/gamma/gain and slope/offset/power
   paths. Its 17 legacy fields drive the Lab D50/ProPhoto conversion, corrected

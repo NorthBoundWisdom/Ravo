@@ -243,6 +243,13 @@ QVariantMap StudioPresenter::editColorHarmonizerMask() const
         DevelopMaskTarget::kColorHarmonizer);
 }
 
+QVariantMap StudioPresenter::editColorBalanceRgbMask() const
+{
+    return develop_mask_editor_map(
+        develop_mask_editor_state(develop_, DevelopMaskTarget::kColorBalanceRgb),
+        DevelopMaskTarget::kColorBalanceRgb);
+}
+
 bool StudioPresenter::maskOverlayVisible() const noexcept
 {
     return mask_overlay_visible_;
@@ -255,9 +262,11 @@ QString StudioPresenter::maskOverlayTarget() const
 
 void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
 {
-    const QString normalized = target == QLatin1String("graduatednd") ?
-                                   QStringLiteral("graduatednd") :
-                                   QStringLiteral("color_harmonizer");
+    QString normalized = QStringLiteral("color_harmonizer");
+    if (target == QLatin1String("graduatednd"))
+        normalized = QStringLiteral("graduatednd");
+    else if (target == QLatin1String("color_balance_rgb"))
+        normalized = QStringLiteral("color_balance_rgb");
     const bool comparison_changed = visible && clear_comparison();
     const bool changed = mask_overlay_visible_ != visible || mask_overlay_target_ != normalized;
     mask_overlay_visible_ = visible;

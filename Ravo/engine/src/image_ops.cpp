@@ -21,6 +21,7 @@
 #include <zlib.h>
 
 #include "capability_ops.h"
+#include "color_balance_rgb.h"
 #include "canvas_frame.h"
 #include "color_contrast.h"
 #include "color_correction.h"
@@ -688,6 +689,35 @@ try
 catch (const std::bad_alloc &)
 {
     return make_error(ErrorCode::kIo, "Masked Velvia allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
+[[nodiscard]] Result<WorkingImage>
+apply_masked_color_balance_rgb(WorkingImage image, const Recipe &recipe,
+                               const OperationInstance &operation,
+                               const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    WorkingImage operation_output = pre_operation;
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto balanced = apply_color_balance_rgb(operation_output, unmasked, cancellation);
+    if (!balanced)
+        return balanced.error();
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe, *operation.mask_id,
+                                         cancellation);
+    if (!alpha)
+        return alpha.error();
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+        return mixed.error();
+    return operation_output;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Color Balance RGB allocation failed",
                       {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
 }
 

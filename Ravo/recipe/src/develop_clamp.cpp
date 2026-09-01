@@ -433,6 +433,7 @@ bool DevelopParams::is_identity() const noexcept
            !watermark_enabled && !velvia_present && !velvia_enabled &&
            !velvia_mask_id.has_value() && !lut3d_present && !lut3d_enabled &&
            !color_balance_enabled && !color_checker_enabled && color_balance_rgb.is_identity() &&
+           !color_balance_rgb_mask_id.has_value() &&
            !color_correction_enabled && !color_contrast_enabled && !color_reconstruction_enabled &&
            !color_zones_present && !color_zones_enabled && !color_zones_mask_id.has_value() &&
            !color_harmonizer_enabled && !monochrome_present && !monochrome_enabled &&
