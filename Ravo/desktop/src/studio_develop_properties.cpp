@@ -25,6 +25,8 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include "studio_develop_internal.h"
+
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/recipe.h"
@@ -36,6 +38,7 @@
 
 namespace ravo
 {
+using studio_develop_internal::develop_mask_editor_map;
 
 bool StudioPresenter::beforeAfter() const noexcept
 {
@@ -197,6 +200,12 @@ QVariantMap StudioPresenter::editExposureParams() const
             {QStringLiteral("compensateExposureBias"), develop_.exposure_compensate_exposure_bias},
             {QStringLiteral("compensateHighlightPreservation"),
              develop_.exposure_compensate_highlight_preservation}};
+}
+
+QVariantMap StudioPresenter::editExposureMask() const
+{
+    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kExposure),
+                                   DevelopMaskTarget::kExposure);
 }
 
 double StudioPresenter::editExposure() const noexcept

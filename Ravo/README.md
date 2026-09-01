@@ -251,14 +251,15 @@ Current implementation status:
   old Kelvin/tint RGB approximation and generic fallback are removed.
 - Exposure provides `ravo.core.exposure` v2 with the frozen manual EV and black
   response, optional camera exposure-bias/highlight-preservation compensation,
-  and deflicker percentile-to-EV analysis. RAW deflicker owns an immutable 65,536-bin snapshot
+  and deflicker percentile-to-EV analysis. Studio may attach one owned canonical
+  mask through the same MaskEditor as Color Harmonizer (ADR-0109). RAW deflicker owns an immutable 65,536-bin snapshot
   from the original decoded sensor data before repair, resize, or demosaic;
   private pinned Exiv2 supplies value-only metadata without crossing the engine
   boundary. Memory, cancellation, missing-tag, metadata-read-failure, and raster
   unsupported states are explicit. CLI render, Catalog preview/save/reopen/
   export, and Studio use the same recipe/engine path. The legacy spot picker is
   not serialized exposure math, and the strict importer accepts only the exact
-  default-unmasked legacy boundary.
+  default-unmasked leftover boundary.
 - Input Color provides `ravo.color.input` v1 with explicit input/working
   profile identifiers, intent, gamut-normalization target, and RAW blue
   mapping. RAW publishes a camera-to-XYZ D50 matrix; raster decode preserves

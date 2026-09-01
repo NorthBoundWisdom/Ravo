@@ -5,7 +5,7 @@
 Make non-destructive edits to a selected photo, inspect their effect, and keep
 or recover the result through the catalog recipe and history.
 
-**Last reviewed:** 2026-08-31 against the current Develop recipe and Studio
+**Last reviewed:** 2026-09-01 against the current Develop recipe and Studio
 presenter contracts.
 
 ## Applies to
@@ -146,7 +146,9 @@ Light controls include:
 - Exposure black and manual Exposure EV.
 - Optional exposure-bias and highlight-preservation compensation.
 - Deflicker percentile and target EV when Deflicker is selected.
-- Contrast, Highlights, Shadows, Whites, Blacks, and Gamma.
+- The Light-panel Mask editor can attach a circle, brush, or other canonical
+  mask so Exposure applies only inside that shape. Contrast, Highlights,
+  Shadows, Whites, Blacks, and Gamma stay global.
 
 ### Curves
 

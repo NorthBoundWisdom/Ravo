@@ -70,9 +70,10 @@ command succeeds.
 for ordinary local grading, repeatable batch treatment, web/client exports, or
 explicit external-editor interchange.
 
-**Decision themes:** masked Light/Curves and picker-assisted authoring, output
-resize and sharpen order, reusable export presets, restartable jobs, explicit
-XMP/catalog conversion, and derived-asset external-editor round trips.
+**Decision themes:** remaining masked Highlights/Shadows/Curves and
+picker-assisted authoring, output resize and sharpen order, reusable export
+presets, restartable jobs, explicit XMP/catalog conversion, and derived-asset
+external-editor round trips.
 
 **Exit gate:** preview, export, reopen, history, undo, and batch application use
 one canonical result; package and colour behavior are verified on supported
@@ -134,11 +135,14 @@ execution queue.
 
 ### Local adjustment expansion
 
-Ravo already owns the canonical mask graph and accepted consumers. Decide which
-additional everyday operations may own a mask, whether multi-instance grading
-is allowed, how picker/histogram assistance stays in C++, and how mask geometry
-survives Canvas, Perspective, crop, sub-ROI evaluation, preview, and export.
-Legacy mask/custom-blend import remains fail-closed without an exact mapping.
+Ravo already owns the canonical mask graph and accepted consumers. Color
+Balance RGB (ADR-0108) and Exposure (ADR-0109) each may carry one owned
+canonical mask. Decide which additional everyday operations (Highlights,
+Shadows, Whites, Blacks, Curves) may own a mask, whether multi-instance
+grading is allowed, how picker/histogram assistance stays in C++, and how mask
+geometry survives Canvas, Perspective, crop, sub-ROI evaluation, preview, and
+export. Legacy mask/custom-blend import remains fail-closed without an exact
+mapping.
 
 ### Originals, catalogs, and interchange
 

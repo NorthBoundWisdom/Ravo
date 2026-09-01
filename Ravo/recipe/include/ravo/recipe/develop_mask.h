@@ -18,11 +18,13 @@ enum class DevelopMaskTarget
     kColorHarmonizer,
     kGraduatedNd,
     kColorBalanceRgb,
+    kExposure,
 };
 
 inline constexpr std::string_view kColorHarmonizerMaskFieldPrefix = "colorHarmonizerMask";
 inline constexpr std::string_view kGraduatedMaskFieldPrefix = "graduatedMask";
 inline constexpr std::string_view kColorBalanceRgbMaskFieldPrefix = "colorBalanceRgbMask";
+inline constexpr std::string_view kExposureMaskFieldPrefix = "exposureMask";
 
 enum class DevelopMaskAttachmentStatus
 {

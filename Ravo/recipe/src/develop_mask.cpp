@@ -158,6 +158,11 @@ struct ParsedMaskField
         return parse_suffix(DevelopMaskTarget::kColorBalanceRgb,
                             field.substr(kColorBalanceRgbMaskFieldPrefix.size()));
     }
+    if (field.starts_with(kExposureMaskFieldPrefix))
+    {
+        return parse_suffix(DevelopMaskTarget::kExposure,
+                            field.substr(kExposureMaskFieldPrefix.size()));
+    }
     return std::nullopt;
 }
 
@@ -171,6 +176,8 @@ struct ParsedMaskField
         return "ravo.studio.mask.graduatednd.";
     case DevelopMaskTarget::kColorBalanceRgb:
         return "ravo.studio.mask.color_balance_rgb.";
+    case DevelopMaskTarget::kExposure:
+        return "ravo.studio.mask.exposure.";
     }
     return {};
 }
@@ -203,6 +210,8 @@ struct ParsedMaskField
         return params.graduated_mask_id;
     case DevelopMaskTarget::kColorBalanceRgb:
         return params.color_balance_rgb_mask_id;
+    case DevelopMaskTarget::kExposure:
+        return params.exposure_mask_id;
     }
     return params.color_harmonizer_mask_id;
 }
@@ -218,6 +227,8 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
         return params.graduated_mask_id;
     case DevelopMaskTarget::kColorBalanceRgb:
         return params.color_balance_rgb_mask_id;
+    case DevelopMaskTarget::kExposure:
+        return params.exposure_mask_id;
     }
     return params.color_harmonizer_mask_id;
 }
@@ -240,7 +251,7 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
 [[nodiscard]] bool develop_mask_attachments_resolve(const DevelopParams &params) noexcept
 {
     for (const auto target : {DevelopMaskTarget::kColorHarmonizer, DevelopMaskTarget::kGraduatedNd,
-                              DevelopMaskTarget::kColorBalanceRgb})
+                              DevelopMaskTarget::kColorBalanceRgb, DevelopMaskTarget::kExposure})
     {
         const auto &attachment = mask_attachment(params, target);
         if (attachment && find_mask(params.masks, *attachment) == nullptr)
@@ -276,7 +287,7 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
 {
     for (const auto other :
          {DevelopMaskTarget::kColorHarmonizer, DevelopMaskTarget::kGraduatedNd,
-          DevelopMaskTarget::kColorBalanceRgb})
+          DevelopMaskTarget::kColorBalanceRgb, DevelopMaskTarget::kExposure})
     {
         if (other == target)
             continue;
@@ -388,6 +399,8 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
         return params.graduated_mask_child_index;
     case DevelopMaskTarget::kColorBalanceRgb:
         return params.color_balance_rgb_mask_child_index;
+    case DevelopMaskTarget::kExposure:
+        return params.exposure_mask_child_index;
     }
     return params.color_harmonizer_mask_child_index;
 }
@@ -403,6 +416,8 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
         return params.graduated_mask_child_index;
     case DevelopMaskTarget::kColorBalanceRgb:
         return params.color_balance_rgb_mask_child_index;
+    case DevelopMaskTarget::kExposure:
+        return params.exposure_mask_child_index;
     }
     return params.color_harmonizer_mask_child_index;
 }
@@ -418,6 +433,8 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
         return params.graduated_mask_point_index;
     case DevelopMaskTarget::kColorBalanceRgb:
         return params.color_balance_rgb_mask_point_index;
+    case DevelopMaskTarget::kExposure:
+        return params.exposure_mask_point_index;
     }
     return params.color_harmonizer_mask_point_index;
 }
@@ -433,6 +450,8 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
         return params.graduated_mask_point_index;
     case DevelopMaskTarget::kColorBalanceRgb:
         return params.color_balance_rgb_mask_point_index;
+    case DevelopMaskTarget::kExposure:
+        return params.exposure_mask_point_index;
     }
     return params.color_harmonizer_mask_point_index;
 }
@@ -578,6 +597,10 @@ void smooth_brush_handles(std::vector<BrushMaskPoint> &points) noexcept
     {
         ++count;
     }
+    if (params.exposure_mask_id && *params.exposure_mask_id == id)
+    {
+        ++count;
+    }
     for (const auto &mask : params.masks)
     {
         const auto *group = std::get_if<MaskGroup>(&mask.payload);
@@ -715,6 +738,8 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
         params.graduated_enabled = true;
         return;
     case DevelopMaskTarget::kColorBalanceRgb:
+        return;
+    case DevelopMaskTarget::kExposure:
         return;
     }
 }
@@ -1122,6 +1147,8 @@ std::string_view develop_mask_target_name(const DevelopMaskTarget target) noexce
         return "graduatednd";
     case DevelopMaskTarget::kColorBalanceRgb:
         return "color_balance_rgb";
+    case DevelopMaskTarget::kExposure:
+        return "exposure";
     }
     return "unknown";
 }
@@ -1151,7 +1178,8 @@ bool is_develop_mask_field(const std::string_view field) noexcept
 {
     return field.starts_with(kColorHarmonizerMaskFieldPrefix) ||
            field.starts_with(kGraduatedMaskFieldPrefix) ||
-           field.starts_with(kColorBalanceRgbMaskFieldPrefix);
+           field.starts_with(kColorBalanceRgbMaskFieldPrefix) ||
+           field.starts_with(kExposureMaskFieldPrefix);
 }
 
 DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
@@ -1728,6 +1756,8 @@ Result<void> apply_develop_mask_field_strict(DevelopParams &params, const std::s
                                    DevelopMaskTarget::kGraduatedNd :
                                field.starts_with(kColorBalanceRgbMaskFieldPrefix) ?
                                    DevelopMaskTarget::kColorBalanceRgb :
+                               field.starts_with(kExposureMaskFieldPrefix) ?
+                                   DevelopMaskTarget::kExposure :
                                    DevelopMaskTarget::kColorHarmonizer;
     try
     {
@@ -1836,6 +1866,8 @@ Result<void> reset_develop_mask_field(DevelopParams &params, const std::string_v
                                    DevelopMaskTarget::kGraduatedNd :
                                field.starts_with(kColorBalanceRgbMaskFieldPrefix) ?
                                    DevelopMaskTarget::kColorBalanceRgb :
+                               field.starts_with(kExposureMaskFieldPrefix) ?
+                                   DevelopMaskTarget::kExposure :
                                    DevelopMaskTarget::kColorHarmonizer;
     try
     {

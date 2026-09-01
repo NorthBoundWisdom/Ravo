@@ -220,6 +220,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.exposure_compensate_exposure_bias = exposure.value().compensate_exposure_bias;
             params.exposure_compensate_highlight_preservation =
                 exposure.value().compensate_highlight_preservation;
+            params.exposure_mask_id = operation.mask_id;
             note_section("light", operation.enabled);
         }
         else if (operation.id == kColorCheckerOperationId)

@@ -591,6 +591,10 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_FALSE(balance_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(balance_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("colorBalanceRgbMaskKind"));
+    const auto exposure_mask = presenter.editExposureMask();
+    EXPECT_FALSE(exposure_mask.value(QStringLiteral("attached")).toBool());
+    EXPECT_EQ(exposure_mask.value(QStringLiteral("kindField")).toString(),
+              QStringLiteral("exposureMaskKind"));
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("shadowsFalloff")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("highlightsFalloff")).toDouble(), 1.0);

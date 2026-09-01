@@ -492,6 +492,7 @@ TEST(MaskGraphEngineTest, NormalMixAndOnlySupportedOperationDispatchUseTheGraph)
     EXPECT_TRUE(registry.value().find(kColorHarmonizerOperationId)->supports_mask);
     EXPECT_TRUE(registry.value().find("ravo.effect.graduatednd")->supports_mask);
     EXPECT_TRUE(registry.value().find("ravo.color.colorbalancergb")->supports_mask);
+    EXPECT_TRUE(registry.value().find(kExposureOperationId)->supports_mask);
     EXPECT_FALSE(registry.value().find("ravo.core.gamma")->supports_mask);
 
     WorkingImage input;
@@ -775,6 +776,100 @@ TEST(MaskGraphEngineTest, ColorBalanceRgbNormalMixMatchesUnmaskedAndZeroOpacityI
     const auto masked_zero = apply_recipe_ops(input, zero_recipe, CancellationToken{});
     ASSERT_TRUE(masked_zero) << masked_zero.error().message;
     EXPECT_EQ(masked_zero.value().rgb, input.rgb);
+}
+
+TEST(DevelopMaskAuthoringTest, ExposureOwnsCircleAndBrushMasksAndRoundTrips)
+{
+    DevelopParams params;
+    params.exposure_ev = 0.75;
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskKind", 3.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskCenterX", 0.3));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskRadius", 0.35));
+    ASSERT_TRUE(params.exposure_mask_id);
+    EXPECT_EQ(*params.exposure_mask_id, "ravo.studio.mask.exposure.1");
+    auto circle_state = develop_mask_editor_state(params, DevelopMaskTarget::kExposure);
+    EXPECT_EQ(circle_state.kind_name, "circle");
+    EXPECT_DOUBLE_EQ(circle_state.center_x, 0.3);
+    EXPECT_DOUBLE_EQ(circle_state.radius, 0.35);
+
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskKind", 8.0));
+    auto brush_state = develop_mask_editor_state(params, DevelopMaskTarget::kExposure);
+    EXPECT_EQ(brush_state.kind_name, "brush");
+    EXPECT_EQ(*params.exposure_mask_id, "ravo.studio.mask.exposure.1");
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto *operation = find_operation(recipe.value(), kExposureOperationId);
+    ASSERT_NE(operation, nullptr);
+    EXPECT_EQ(operation->mask_id, params.exposure_mask_id);
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().exposure_mask_id, params.exposure_mask_id);
+    EXPECT_EQ(restored.value().masks, params.masks);
+    EXPECT_NEAR(restored.value().exposure_ev, 0.75, 1e-12);
+
+    DevelopParams identity_mask;
+    ASSERT_TRUE(apply_develop_mask_field_strict(identity_mask, "exposureMaskKind", 3.0));
+    EXPECT_TRUE(identity_mask.exposure_ev == 0.0);
+    auto identity_recipe =
+        recipe_from_develop({"asset-2", "file:///fixture.raw", std::nullopt}, identity_mask);
+    ASSERT_TRUE(identity_recipe) << identity_recipe.error().message;
+    const auto *identity_operation = find_operation(identity_recipe.value(), kExposureOperationId);
+    ASSERT_NE(identity_operation, nullptr);
+    EXPECT_EQ(identity_operation->mask_id, identity_mask.exposure_mask_id);
+
+    auto section_reset = restored.value();
+    ASSERT_TRUE(reset_develop_section(section_reset, "light"));
+    EXPECT_EQ(section_reset.exposure_mask_id, params.exposure_mask_id);
+    EXPECT_EQ(section_reset.masks, params.masks);
+}
+
+TEST(MaskGraphEngineTest, ExposureNormalMixMatchesUnmaskedAndZeroOpacityInput)
+{
+    ExposureParams grade;
+    grade.exposure_ev = 1.0;
+    OperationInstance operation{std::string(kExposureOperationId),
+                                kExposureOperationSchemaVersion,
+                                "exposure-1",
+                                true,
+                                exposure_to_parameters(grade),
+                                std::nullopt};
+    WorkingImage input;
+    input.width = 2U;
+    input.height = 2U;
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
+                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.color_profile.kind = ColorProfileKind::kMatrix;
+    input.color_profile.model = ColorModel::kRgb;
+    const auto expected = apply_exposure(input, operation, CancellationToken{});
+    ASSERT_TRUE(expected) << expected.error().message;
+
+    Recipe all_recipe;
+    all_recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    all_recipe.masks.push_back(all_mask("all"));
+    operation.mask_id = "all";
+    all_recipe.operations.push_back(operation);
+    const auto masked_all = apply_recipe_ops(input, all_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_all) << masked_all.error().message;
+    EXPECT_EQ(masked_all.value().rgb, expected.value().rgb);
+
+    Recipe zero_recipe = all_recipe;
+    zero_recipe.masks.front().common.opacity = 0.0;
+    const auto masked_zero = apply_recipe_ops(input, zero_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_zero) << masked_zero.error().message;
+    EXPECT_EQ(masked_zero.value().rgb, input.rgb);
+
+    OperationInstance identity{std::string(kExposureOperationId),
+                               kExposureOperationSchemaVersion,
+                               "exposure-identity",
+                               true,
+                               exposure_to_parameters(ExposureParams{}),
+                               "all"};
+    Recipe identity_recipe = all_recipe;
+    identity_recipe.operations = {identity};
+    const auto masked_identity = apply_recipe_ops(input, identity_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_identity) << masked_identity.error().message;
+    EXPECT_EQ(masked_identity.value().rgb, input.rgb);
 }
 
 TEST(DevelopMaskAuthoringTest, StrictlyValidatesSelectorsBoundsAndParametricOrderWithoutMutation)

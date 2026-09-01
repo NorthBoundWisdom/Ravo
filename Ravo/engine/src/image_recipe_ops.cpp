@@ -75,7 +75,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             operation.id != kColorZonesOperationId && operation.id != kMonochromeOperationId &&
             operation.id != kSplitToningOperationId && operation.id != kVelviaOperationId &&
             operation.id != "ravo.color.colorbalancergb" &&
-            operation.id != "ravo.effect.graduatednd")
+            operation.id != "ravo.effect.graduatednd" && operation.id != kExposureOperationId)
         {
             return make_error(ErrorCode::kUnsupported,
                               "Operation does not support canonical mask evaluation",
@@ -113,7 +113,10 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == kExposureOperationId)
         {
-            auto exposed = apply_exposure(image, operation, cancellation);
+            auto exposed =
+                operation.mask_id.has_value() ?
+                    apply_masked_exposure(std::move(image), recipe, operation, cancellation) :
+                    apply_exposure(image, operation, cancellation);
             if (!exposed)
             {
                 return exposed.error();

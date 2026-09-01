@@ -36,6 +36,11 @@ DevelopSection {
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("exposure")
         }
+        MaskEditor {
+            panel: sectionRoot.panel
+            objectName: "exposureMaskEditor"
+            mask: panel.hasPresenter ? panel.presenter.editExposureMask : ({})
+        }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Contrast")

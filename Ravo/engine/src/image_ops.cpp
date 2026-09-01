@@ -721,6 +721,33 @@ catch (const std::bad_alloc &)
                       {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
 }
 
+[[nodiscard]] Result<WorkingImage> apply_masked_exposure(WorkingImage image, const Recipe &recipe,
+                                                         const OperationInstance &operation,
+                                                         const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto operation_output = apply_exposure(pre_operation, unmasked, cancellation);
+    if (!operation_output)
+        return operation_output.error();
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output.value(), recipe,
+                                         *operation.mask_id, cancellation);
+    if (!alpha)
+        return alpha.error();
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.value().rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+        return mixed.error();
+    return std::move(operation_output).value();
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Exposure allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
 [[nodiscard]] Result<WorkingImage> apply_masked_graduated_nd(WorkingImage image,
                                                              const Recipe &recipe,
                                                              const OperationInstance &operation,

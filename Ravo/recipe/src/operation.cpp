@@ -419,7 +419,7 @@ Result<OperationRegistry> make_phase1_registry()
            std::nullopt},
           {"compensate_highlight_preservation", ParameterType::kBoolean, true, std::nullopt,
            std::nullopt, std::nullopt}},
-         false,
+         true,
          true},
         {"ravo.color.temperature",
          "White balance",

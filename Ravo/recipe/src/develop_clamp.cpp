@@ -417,6 +417,7 @@ bool DevelopParams::is_identity() const noexcept
            near(exposure_deflicker_percentile, kExposureDeflickerPercentileDefault) &&
            near(exposure_deflicker_target_ev, kExposureDeflickerTargetEvDefault) &&
            !exposure_compensate_exposure_bias && !exposure_compensate_highlight_preservation &&
+           !exposure_mask_id.has_value() &&
            near(contrast, 0.0) && near(highlights, 0.0) && near(shadows, 0.0) &&
            near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) && near(saturation, 0.0) &&
            rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&

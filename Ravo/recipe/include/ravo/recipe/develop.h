@@ -285,6 +285,9 @@ struct DevelopParams
     double exposure_deflicker_target_ev = kExposureDeflickerTargetEvDefault;
     bool exposure_compensate_exposure_bias = false;
     bool exposure_compensate_highlight_preservation = false;
+    std::optional<std::string> exposure_mask_id;
+    std::int64_t exposure_mask_child_index = 0;
+    std::int64_t exposure_mask_point_index = 0;
     double contrast = 0.0;
     double highlights = 0.0;
     double shadows = 0.0;

@@ -77,6 +77,7 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     const auto light = source.mid(light_begin, light_end - light_begin);
 
     const auto exposure = light.indexOf(QStringLiteral("previewDevelopNumber(\"exposure\""));
+    const auto exposure_mask = light.indexOf(QStringLiteral("objectName: \"exposureMaskEditor\""));
     const auto sigmoid_contrast =
         light.indexOf(QStringLiteral("previewDevelopNumber(\"sigmoidContrast\""));
     const auto raster_contrast = light.indexOf(QStringLiteral("previewDevelopNumber(\"contrast\""));
@@ -98,6 +99,7 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     const auto rgb_levels = light.indexOf(QStringLiteral("qsTr(\"RGB levels\")"));
 
     ASSERT_GE(exposure, 0);
+    ASSERT_GE(exposure_mask, 0);
     ASSERT_GE(sigmoid_contrast, 0);
     ASSERT_GE(raster_contrast, 0);
     ASSERT_GE(highlights, 0);
@@ -113,6 +115,8 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     ASSERT_GE(gamma, 0);
     ASSERT_GE(rgb_levels, 0);
 
+    EXPECT_LT(exposure, exposure_mask);
+    EXPECT_LT(exposure_mask, sigmoid_contrast);
     EXPECT_LT(exposure, sigmoid_contrast);
     EXPECT_LT(exposure, raster_contrast);
     EXPECT_LT(sigmoid_contrast, highlights);
@@ -166,6 +170,8 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceGlobalWheel\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceRgbMaskEditor\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("editColorBalanceRgbMask")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exposureMaskEditor\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("editExposureMask")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingThreeWay\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingGlobal\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingDetails\"")));

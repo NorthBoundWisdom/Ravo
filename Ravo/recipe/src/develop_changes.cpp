@@ -88,6 +88,7 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     }
     std::vector<DevelopChange> changes;
     add_scaled_change(changes, "exposure", before.exposure_ev, after.exposure_ev, 1.0);
+    add_named_change(changes, "exposureMask", before.exposure_mask_id != after.exposure_mask_id);
     add_scaled_change(changes, "black", before.exposure_black, after.exposure_black, 10.0);
     add_scaled_change(changes, "contrast", before.contrast, after.contrast, 10.0);
     add_scaled_change(changes, "highlights", before.highlights, after.highlights, 10.0);

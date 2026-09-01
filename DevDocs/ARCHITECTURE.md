@@ -568,7 +568,7 @@ is normal `input + alpha * (operation_output - input)`, with exact alpha 0/1
 source selection. Raw budgeting uses saturating arithmetic for the masked
 snapshot/output/alpha/evaluator peak.
 
-Color Harmonizer, Graduated ND, Color Balance RGB, and the other named
+Color Harmonizer, Graduated ND, Color Balance RGB, Exposure, and the other named
 `supports_mask` operations dispatch a canonical mask. Their unmasked path
 remains bit-identical; a masked operation retains a local pre-operation image,
 produces local output, evaluates alpha, then mixes before the result becomes

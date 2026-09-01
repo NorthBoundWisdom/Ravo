@@ -104,6 +104,7 @@ TEST(RecipeTest, ExposureSchemaV2IsExplicitAndRejectsAmbiguousParameters)
     ASSERT_EQ(descriptor->parameters.size(), 7U);
     EXPECT_TRUE(std::all_of(descriptor->parameters.begin(), descriptor->parameters.end(),
                             [](const ParameterRule &rule) { return rule.required; }));
+    EXPECT_TRUE(descriptor->supports_mask);
 
     Recipe recipe;
     recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};

@@ -150,6 +150,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.exposure_compensate_exposure_bias = source.exposure_compensate_exposure_bias;
         destination.exposure_compensate_highlight_preservation =
             source.exposure_compensate_highlight_preservation;
+        destination.exposure_mask_id = source.exposure_mask_id;
     }
     else if (field == "contrast")
     {
@@ -449,6 +450,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.color_zones_mask_id = source.color_zones_mask_id;
         destination.color_harmonizer_mask_id = source.color_harmonizer_mask_id;
         destination.color_balance_rgb_mask_id = source.color_balance_rgb_mask_id;
+        destination.exposure_mask_id = source.exposure_mask_id;
         destination.monochrome_mask_id = source.monochrome_mask_id;
         destination.split_toning_mask_id = source.split_toning_mask_id;
         destination.graduated_mask_id = source.graduated_mask_id;

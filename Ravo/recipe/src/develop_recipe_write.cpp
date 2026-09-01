@@ -141,11 +141,11 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                                   clamped.exposure_deflicker_target_ev,
                                   clamped.exposure_compensate_exposure_bias,
                                   clamped.exposure_compensate_highlight_preservation};
-    if (!exposure.is_identity())
+    if (!exposure.is_identity() || clamped.exposure_mask_id.has_value())
     {
         add_operation(recipe, std::string(kExposureOperationId), "exposure-1",
                       exposure_to_parameters(exposure), kExposureOperationSchemaVersion,
-                      std::nullopt, clamped.light_effect_enabled);
+                      clamped.exposure_mask_id, clamped.light_effect_enabled);
     }
     if (!near(clamped.tone_eq_blacks, 0.0) || !near(clamped.tone_eq_shadows, 0.0) ||
         !near(clamped.tone_eq_midtones, 0.0) || !near(clamped.tone_eq_highlights, 0.0) ||
