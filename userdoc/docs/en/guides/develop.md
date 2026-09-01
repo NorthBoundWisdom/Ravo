@@ -164,8 +164,8 @@ Light controls include:
 - Click to add a point (up to 20); drag to reshape; double-click or Delete
   removes an interior point; arrow keys nudge the selected point.
 - The Curves-panel Mask editor can attach a circle, brush, or other canonical
-  mask so the RGB curve applies only inside that shape. Tone Curve stays
-  global.
+  mask so the RGB or Tone curve applies only inside that shape. The RGB editor
+  shows with the RGB family; the Tone editor shows with the Tone family.
 
 Compensate middle grey and region splits stay under **Curves · more**.
 

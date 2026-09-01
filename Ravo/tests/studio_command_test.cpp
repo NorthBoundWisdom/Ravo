@@ -599,6 +599,10 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_FALSE(rgb_curve_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(rgb_curve_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("rgbCurveMaskKind"));
+    const auto tone_curve_mask = presenter.editToneCurveMask();
+    EXPECT_FALSE(tone_curve_mask.value(QStringLiteral("attached")).toBool());
+    EXPECT_EQ(tone_curve_mask.value(QStringLiteral("kindField")).toString(),
+              QStringLiteral("toneCurveMaskKind"));
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("shadowsFalloff")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("highlightsFalloff")).toDouble(), 1.0);

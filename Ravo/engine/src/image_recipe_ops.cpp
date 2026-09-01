@@ -76,7 +76,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             operation.id != kSplitToningOperationId && operation.id != kVelviaOperationId &&
             operation.id != "ravo.color.colorbalancergb" &&
             operation.id != "ravo.effect.graduatednd" && operation.id != kExposureOperationId &&
-            operation.id != "ravo.color.rgbcurve")
+            operation.id != "ravo.color.rgbcurve" && operation.id != "ravo.core.tonecurve")
         {
             return make_error(ErrorCode::kUnsupported,
                               "Operation does not support canonical mask evaluation",
@@ -311,10 +311,19 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.core.tonecurve")
         {
-            auto curved = apply_tone_curve(image, operation, cancellation);
-            if (!curved)
+            if (operation.mask_id.has_value())
             {
-                return curved.error();
+                auto curved = apply_masked_tone_curve(std::move(image), recipe, operation,
+                                                      cancellation);
+                if (!curved)
+                    return curved.error();
+                image = std::move(curved).value();
+            }
+            else
+            {
+                auto curved = apply_tone_curve(image, operation, cancellation);
+                if (!curved)
+                    return curved.error();
             }
             continue;
         }

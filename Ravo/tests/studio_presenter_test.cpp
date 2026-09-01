@@ -1199,6 +1199,8 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exposureMaskEditor\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("editRgbCurveMask")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"rgbCurveMaskEditor\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("editToneCurveMask")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"toneCurveMaskEditor\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("// MaskEditor.qml")));
     EXPECT_TRUE(source.contains(QStringLiteral("editGraduatedMask")));
     EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.numericControls")));

@@ -20,6 +20,7 @@ enum class DevelopMaskTarget
     kColorBalanceRgb,
     kExposure,
     kRgbCurve,
+    kToneCurve,
 };
 
 inline constexpr std::string_view kColorHarmonizerMaskFieldPrefix = "colorHarmonizerMask";
@@ -27,6 +28,7 @@ inline constexpr std::string_view kGraduatedMaskFieldPrefix = "graduatedMask";
 inline constexpr std::string_view kColorBalanceRgbMaskFieldPrefix = "colorBalanceRgbMask";
 inline constexpr std::string_view kExposureMaskFieldPrefix = "exposureMask";
 inline constexpr std::string_view kRgbCurveMaskFieldPrefix = "rgbCurveMask";
+inline constexpr std::string_view kToneCurveMaskFieldPrefix = "toneCurveMask";
 
 enum class DevelopMaskAttachmentStatus
 {

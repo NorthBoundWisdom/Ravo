@@ -776,6 +776,34 @@ catch (const std::bad_alloc &)
                       {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
 }
 
+[[nodiscard]] Result<WorkingImage> apply_masked_tone_curve(WorkingImage image, const Recipe &recipe,
+                                                           const OperationInstance &operation,
+                                                           const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    WorkingImage operation_output = pre_operation;
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto curved = apply_tone_curve(operation_output, unmasked, cancellation);
+    if (!curved)
+        return curved.error();
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe, *operation.mask_id,
+                                         cancellation);
+    if (!alpha)
+        return alpha.error();
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+        return mixed.error();
+    return operation_output;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Tone Curve allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
 [[nodiscard]] Result<WorkingImage> apply_masked_graduated_nd(WorkingImage image,
                                                              const Recipe &recipe,
                                                              const OperationInstance &operation,

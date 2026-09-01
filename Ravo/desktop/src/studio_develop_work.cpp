@@ -235,6 +235,8 @@ StudioPresenter::current_overlay_mask_id(const DevelopParams &params) const
         return params.exposure_mask_id;
     if (mask_overlay_target_ == QLatin1String("rgb_curve"))
         return params.rgb_curve_mask_id;
+    if (mask_overlay_target_ == QLatin1String("tone_curve"))
+        return params.tone_curve_mask_id;
     return params.color_harmonizer_mask_id;
 }
 

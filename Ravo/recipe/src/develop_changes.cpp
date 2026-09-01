@@ -203,7 +203,8 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                          before.tone_curve_interpolation != after.tone_curve_interpolation ||
                          before.tone_curve_channel_mode != after.tone_curve_channel_mode ||
                          before.tone_curve_preserve_colors != after.tone_curve_preserve_colors ||
-                         before.tone_curve_working_space != after.tone_curve_working_space);
+                         before.tone_curve_working_space != after.tone_curve_working_space ||
+                         before.tone_curve_mask_id != after.tone_curve_mask_id);
     add_toggle_change(changes, "curves", before.curves_effect_enabled, after.curves_effect_enabled);
     add_named_change(changes, "demosaic", before.demosaic_mode != after.demosaic_mode);
     add_named_change(changes, "whiteBalance", before.temperature != after.temperature);

@@ -656,7 +656,7 @@ Result<OperationRegistry> make_phase1_registry()
                    ParameterValue::Object{{"x", ParameterValue{1.0}}, {"y", ParameterValue{1.0}}}},
            }},
            std::nullopt, std::nullopt}},
-         false,
+         true,
          true},
         {std::string(kColorBalanceOperationId),
          "Color Balance",

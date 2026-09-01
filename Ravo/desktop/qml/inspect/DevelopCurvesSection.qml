@@ -415,5 +415,11 @@ DevelopSection {
             visible: curveControls.rgbFamily
             mask: panel.hasPresenter ? panel.presenter.editRgbCurveMask : ({})
         }
+        MaskEditor {
+            panel: sectionRoot.panel
+            objectName: "toneCurveMaskEditor"
+            visible: !curveControls.rgbFamily
+            mask: panel.hasPresenter ? panel.presenter.editToneCurveMask : ({})
+        }
     }
 }

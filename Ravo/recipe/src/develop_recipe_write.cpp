@@ -249,7 +249,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     const bool tone_independent =
         clamped.tone_curve_channel_mode == kToneCurveChannelModeIndependent ||
         clamped.tone_curve_working_space == kToneCurveWorkingSpaceLabIndependent;
-    if (!tone_curve_is_identity(clamped.tone_curve) ||
+    if (!tone_curve_is_identity(clamped.tone_curve) || clamped.tone_curve_mask_id.has_value() ||
         (tone_independent && (!tone_curve_is_identity(clamped.tone_curve_a) ||
                               !tone_curve_is_identity(clamped.tone_curve_b))))
     {
@@ -267,7 +267,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                                      tone_curve_points_to_parameter(clamped.tone_curve_b));
         }
         add_operation(recipe, "ravo.core.tonecurve", "tonecurve-1", std::move(curve_parameters), 1,
-                      std::nullopt, clamped.curves_effect_enabled);
+                      clamped.tone_curve_mask_id, clamped.curves_effect_enabled);
     }
     if (clamped.color_balance_enabled)
     {

@@ -5,7 +5,8 @@
 - Extends: [ADR-0035](0035-colorharmonizer-core-contract.md), [ADR-0041](0041-colorharmonizer-smoothing-zero-vertical-slice.md), [ADR-0042](0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
 - Extended by: [ADR-0108](0108-masked-color-balance-rgb.md),
   [ADR-0109](0109-masked-exposure.md),
-  [ADR-0110](0110-masked-rgb-curve.md)
+  [ADR-0110](0110-masked-rgb-curve.md),
+  [ADR-0111](0111-masked-tone-curve.md)
 
 ## Context
 
@@ -78,8 +79,9 @@ is not a product contract.
   bits; exact alpha one retains operation-output bits. The unmasked dispatch
   remains untouched. `ravo.color.colorharmonizer`, `ravo.effect.graduatednd`,
   `ravo.color.colorbalancergb` (ADR-0108), `ravo.core.exposure` (ADR-0109),
-  and `ravo.color.rgbcurve` (ADR-0110) advertise and execute `supports_mask`;
-  other attached operations fail closed unless a later ADR names them. Graduated ND's own density gradient remains its operation
+  `ravo.color.rgbcurve` (ADR-0110), and `ravo.core.tonecurve` (ADR-0111)
+  advertise and execute `supports_mask`; other attached operations fail closed
+  unless a later ADR names them. Graduated ND's own density gradient remains its operation
   mathematics, distinct from an optional generic attachment. Color Balance
   RGB's Filmlight Yrg luminance opacities likewise stay internal.
 - `DevelopParams` holds the typed graph and both supported operation attachments

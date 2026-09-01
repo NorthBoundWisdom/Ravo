@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
@@ -494,6 +495,7 @@ TEST(MaskGraphEngineTest, NormalMixAndOnlySupportedOperationDispatchUseTheGraph)
     EXPECT_TRUE(registry.value().find("ravo.color.colorbalancergb")->supports_mask);
     EXPECT_TRUE(registry.value().find(kExposureOperationId)->supports_mask);
     EXPECT_TRUE(registry.value().find("ravo.color.rgbcurve")->supports_mask);
+    EXPECT_TRUE(registry.value().find("ravo.core.tonecurve")->supports_mask);
     EXPECT_FALSE(registry.value().find("ravo.core.gamma")->supports_mask);
 
     WorkingImage input;
@@ -965,6 +967,107 @@ TEST(MaskGraphEngineTest, RgbCurveNormalMixMatchesUnmaskedAndZeroOpacityInput)
     identity_unmasked.operations = {identity};
     const auto unmasked_identity =
         apply_recipe_ops(input, identity_unmasked, CancellationToken{});
+    ASSERT_TRUE(unmasked_identity) << unmasked_identity.error().message;
+    identity.mask_id = "all";
+    Recipe identity_recipe = all_recipe;
+    identity_recipe.operations = {identity};
+    const auto masked_identity = apply_recipe_ops(input, identity_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_identity) << masked_identity.error().message;
+    EXPECT_EQ(masked_identity.value().rgb, unmasked_identity.value().rgb);
+}
+
+TEST(DevelopMaskAuthoringTest, ToneCurveOwnsCircleAndBrushMasksAndRoundTrips)
+{
+    DevelopParams params;
+    params.tone_curve = {{0.0, 0.0}, {0.5, 0.75}, {1.0, 1.0}};
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "toneCurveMaskKind", 3.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "toneCurveMaskCenterX", 0.3));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "toneCurveMaskRadius", 0.35));
+    ASSERT_TRUE(params.tone_curve_mask_id);
+    EXPECT_EQ(*params.tone_curve_mask_id, "ravo.studio.mask.tone_curve.1");
+    auto circle_state = develop_mask_editor_state(params, DevelopMaskTarget::kToneCurve);
+    EXPECT_EQ(circle_state.kind_name, "circle");
+    EXPECT_DOUBLE_EQ(circle_state.center_x, 0.3);
+    EXPECT_DOUBLE_EQ(circle_state.radius, 0.35);
+
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "toneCurveMaskKind", 8.0));
+    auto brush_state = develop_mask_editor_state(params, DevelopMaskTarget::kToneCurve);
+    EXPECT_EQ(brush_state.kind_name, "brush");
+    EXPECT_EQ(*params.tone_curve_mask_id, "ravo.studio.mask.tone_curve.1");
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto *operation = find_operation(recipe.value(), "ravo.core.tonecurve");
+    ASSERT_NE(operation, nullptr);
+    EXPECT_EQ(operation->mask_id, params.tone_curve_mask_id);
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().tone_curve_mask_id, params.tone_curve_mask_id);
+    EXPECT_EQ(restored.value().masks, params.masks);
+
+    DevelopParams identity_mask;
+    ASSERT_TRUE(apply_develop_mask_field_strict(identity_mask, "toneCurveMaskKind", 3.0));
+    auto identity_recipe =
+        recipe_from_develop({"asset-2", "file:///fixture.raw", std::nullopt}, identity_mask);
+    ASSERT_TRUE(identity_recipe) << identity_recipe.error().message;
+    const auto *identity_operation = find_operation(identity_recipe.value(), "ravo.core.tonecurve");
+    ASSERT_NE(identity_operation, nullptr);
+    EXPECT_EQ(identity_operation->mask_id, identity_mask.tone_curve_mask_id);
+
+    auto section_reset = restored.value();
+    ASSERT_TRUE(reset_develop_section(section_reset, "curves"));
+    EXPECT_EQ(section_reset.tone_curve_mask_id, params.tone_curve_mask_id);
+    EXPECT_EQ(section_reset.masks, params.masks);
+}
+
+TEST(MaskGraphEngineTest, ToneCurveNormalMixMatchesUnmaskedAndZeroOpacityInput)
+{
+    std::map<std::string, ParameterValue, std::less<>> parameters{
+        {"working_space", ParameterValue{std::string(kToneCurveWorkingSpaceSrgb)}},
+        {"interpolation", ParameterValue{std::string(kToneCurveInterpolationMonotoneHermite)}},
+        {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
+        {"preserve_colors", ParameterValue{std::string(kToneCurvePreserveColorsAverage)}},
+        {"points", tone_curve_points_to_parameter({{0.0, 0.0}, {0.5, 0.75}, {1.0, 1.0}})}};
+    OperationInstance operation{"ravo.core.tonecurve", 1, "tonecurve-1", true, parameters,
+                                std::nullopt};
+    WorkingImage input;
+    input.width = 2U;
+    input.height = 2U;
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
+                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.color_profile.kind = ColorProfileKind::kMatrix;
+    input.color_profile.model = ColorModel::kRgb;
+    Recipe expected_recipe;
+    expected_recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    expected_recipe.operations.push_back(operation);
+    const auto expected = apply_recipe_ops(input, expected_recipe, CancellationToken{});
+    ASSERT_TRUE(expected) << expected.error().message;
+
+    Recipe all_recipe = expected_recipe;
+    all_recipe.masks.push_back(all_mask("all"));
+    all_recipe.operations.front().mask_id = "all";
+    const auto masked_all = apply_recipe_ops(input, all_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_all) << masked_all.error().message;
+    EXPECT_EQ(masked_all.value().rgb, expected.value().rgb);
+
+    Recipe zero_recipe = all_recipe;
+    zero_recipe.masks.front().common.opacity = 0.0;
+    const auto masked_zero = apply_recipe_ops(input, zero_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_zero) << masked_zero.error().message;
+    EXPECT_EQ(masked_zero.value().rgb, input.rgb);
+
+    std::map<std::string, ParameterValue, std::less<>> identity_parameters{
+        {"working_space", ParameterValue{std::string(kToneCurveWorkingSpaceSrgb)}},
+        {"interpolation", ParameterValue{std::string(kToneCurveInterpolationMonotoneHermite)}},
+        {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
+        {"preserve_colors", ParameterValue{std::string(kToneCurvePreserveColorsAverage)}},
+        {"points", tone_curve_points_to_parameter({{0.0, 0.0}, {1.0, 1.0}})}};
+    OperationInstance identity{"ravo.core.tonecurve", 1, "tonecurve-identity", true,
+                               identity_parameters, std::nullopt};
+    Recipe identity_unmasked;
+    identity_unmasked.asset = all_recipe.asset;
+    identity_unmasked.operations = {identity};
+    const auto unmasked_identity = apply_recipe_ops(input, identity_unmasked, CancellationToken{});
     ASSERT_TRUE(unmasked_identity) << unmasked_identity.error().message;
     identity.mask_id = "all";
     Recipe identity_recipe = all_recipe;

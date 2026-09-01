@@ -568,8 +568,8 @@ is normal `input + alpha * (operation_output - input)`, with exact alpha 0/1
 source selection. Raw budgeting uses saturating arithmetic for the masked
 snapshot/output/alpha/evaluator peak.
 
-Color Harmonizer, Graduated ND, Color Balance RGB, Exposure, RGB Curve, and the
-other named `supports_mask` operations dispatch a canonical mask. Their unmasked path
+Color Harmonizer, Graduated ND, Color Balance RGB, Exposure, RGB Curve, Tone
+Curve, and the other named `supports_mask` operations dispatch a canonical mask. Their unmasked path
 remains bit-identical; a masked operation retains a local pre-operation image,
 produces local output, evaluates alpha, then mixes before the result becomes
 the next recipe input. `DevelopParams` keeps the typed graph and attachments,
@@ -613,8 +613,8 @@ independent channel curves is instead composed into a restricted
 encode/evaluate/decode round trip and rejects preserve-color, compensation, or
 parametric combinations in that mode (ADR-0088).
 `ravo.core.tonecurve` remains the Lab D50 → ProPhoto RGB-linked default with
-`preserve_colors=average` and explicit `lab` / `xyz` / `lab_independent`
-working spaces. Both share recipe-owned `monotone_hermite`, `catmull_rom`,
+`preserve_colors=average`, explicit `lab` / `xyz` / `lab_independent`
+working spaces, and one owned canonical mask (ADR-0111). Both share recipe-owned `monotone_hermite`, `catmull_rom`,
 and `cubic_spline` evaluators (2–20 nodes). Recipe also owns dense LUT
 construction so an evaluator prepares interpolation coefficients once per
 curve instead of once per sample; Engine consumes that API without changing

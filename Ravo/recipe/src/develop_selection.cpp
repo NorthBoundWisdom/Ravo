@@ -211,6 +211,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.tone_curve_interpolation = source.tone_curve_interpolation;
         destination.tone_curve_channel_mode = source.tone_curve_channel_mode;
         destination.tone_curve_preserve_colors = source.tone_curve_preserve_colors;
+        destination.tone_curve_mask_id = source.tone_curve_mask_id;
     }
     else if (field == "vibrance")
     {
@@ -453,6 +454,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.color_balance_rgb_mask_id = source.color_balance_rgb_mask_id;
         destination.exposure_mask_id = source.exposure_mask_id;
         destination.rgb_curve_mask_id = source.rgb_curve_mask_id;
+        destination.tone_curve_mask_id = source.tone_curve_mask_id;
         destination.monochrome_mask_id = source.monochrome_mask_id;
         destination.split_toning_mask_id = source.split_toning_mask_id;
         destination.graduated_mask_id = source.graduated_mask_id;

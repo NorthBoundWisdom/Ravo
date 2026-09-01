@@ -57,6 +57,8 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
         return QStringLiteral("exposureMask");
     case DevelopMaskTarget::kRgbCurve:
         return QStringLiteral("rgbCurveMask");
+    case DevelopMaskTarget::kToneCurve:
+        return QStringLiteral("toneCurveMask");
     }
     return QStringLiteral("colorHarmonizerMask");
 }

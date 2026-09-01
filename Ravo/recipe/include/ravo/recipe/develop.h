@@ -392,6 +392,9 @@ struct DevelopParams
     std::string tone_curve_interpolation{std::string(kToneCurveInterpolationMonotoneHermite)};
     std::string tone_curve_channel_mode{std::string(kToneCurveChannelModeRgb)};
     std::string tone_curve_preserve_colors{std::string(kToneCurvePreserveColorsAverage)};
+    std::optional<std::string> tone_curve_mask_id;
+    std::int64_t tone_curve_mask_child_index = 0;
+    std::int64_t tone_curve_mask_point_index = 0;
     bool sigmoid_enabled = false;
     double sigmoid_contrast = kSigmoidContrastDefault;
     double sigmoid_skew = kSigmoidSkewDefault;

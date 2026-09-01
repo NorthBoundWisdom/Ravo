@@ -475,6 +475,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             {
                 return points.error();
             }
+            params.tone_curve_mask_id = operation.mask_id;
             note_section("curves", operation.enabled);
         }
         else if (operation.id == "ravo.color.vibrance")

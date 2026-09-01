@@ -192,6 +192,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantList editToneCurveSamples READ editToneCurveSamples NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editCurve READ editCurve NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editRgbCurveMask READ editRgbCurveMask NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editToneCurveMask READ editToneCurveMask NOTIFY editChanged)
     Q_PROPERTY(QVariantList editCurvePoints READ editCurvePoints NOTIFY editChanged)
     Q_PROPERTY(QVariantList editCurveSamples READ editCurveSamples NOTIFY editChanged)
     Q_PROPERTY(bool editSigmoidEnabled READ editSigmoidEnabled NOTIFY editChanged)
@@ -475,6 +476,7 @@ public:
     [[nodiscard]] QVariantList editToneCurveSamples() const;
     [[nodiscard]] QVariantMap editCurve() const;
     [[nodiscard]] QVariantMap editRgbCurveMask() const;
+    [[nodiscard]] QVariantMap editToneCurveMask() const;
     [[nodiscard]] QVariantList editCurvePoints() const;
     [[nodiscard]] QVariantList editCurveSamples() const;
     [[nodiscard]] bool editSigmoidEnabled() const noexcept;

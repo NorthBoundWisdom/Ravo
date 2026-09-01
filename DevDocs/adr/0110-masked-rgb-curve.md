@@ -7,6 +7,7 @@
   [ADR-0045](0045-studio-mask-overlay-group-path.md),
   [ADR-0108](0108-masked-color-balance-rgb.md),
   [ADR-0109](0109-masked-exposure.md)
+- Extended by: [ADR-0111](0111-masked-tone-curve.md)
 
 ## Context
 

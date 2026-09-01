@@ -214,6 +214,12 @@ QVariantMap StudioPresenter::editRgbCurveMask() const
                                    DevelopMaskTarget::kRgbCurve);
 }
 
+QVariantMap StudioPresenter::editToneCurveMask() const
+{
+    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kToneCurve),
+                                   DevelopMaskTarget::kToneCurve);
+}
+
 double StudioPresenter::editExposure() const noexcept
 {
     return develop_.exposure_ev;

@@ -1106,6 +1106,7 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     if (section == "curves")
     {
         return !params.rgb_curve.is_identity() || params.rgb_curve_mask_id.has_value() ||
+               params.tone_curve_mask_id.has_value() ||
                !tone_curve_is_identity(params.tone_curve) ||
                !tone_curve_is_identity(params.tone_curve_a) ||
                !tone_curve_is_identity(params.tone_curve_b);
