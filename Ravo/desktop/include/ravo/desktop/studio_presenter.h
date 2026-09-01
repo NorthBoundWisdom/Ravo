@@ -682,6 +682,7 @@ public:
     [[nodiscard]] QString presetDebugInfo(const QString &path) const;
     Q_INVOKABLE void copySelectedPhotoDebugInfo();
     Q_INVOKABLE void copySelectedPhotoParametersDebugInfo();
+    Q_INVOKABLE void revealSelectedPhotoInFileManager();
     Q_INVOKABLE void copyPresetDebugInfo(const QString &path);
     Q_INVOKABLE void createSnapshot(const QString &label);
     Q_INVOKABLE void renameSnapshot(int history_id, const QString &label);

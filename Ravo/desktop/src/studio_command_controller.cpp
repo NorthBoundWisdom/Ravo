@@ -1025,6 +1025,9 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kPhotoCopyParameters, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &)
         { presenter_.copySelectedPhotoParametersDebugInfo(); });
+    add(command::kPhotoRevealInFileManager, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &)
+        { presenter_.revealSelectedPhotoInFileManager(); });
     add(command::kPhotoRequestRemove, Condition::kSelection, no_argument,
         [request_confirmation](const QVariant &, const QString &)
         { request_confirmation(command::kPhotoRequestRemove, command::kPhotoRemove); });

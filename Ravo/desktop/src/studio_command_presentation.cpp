@@ -113,6 +113,8 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("photoNext"), QLatin1String(command::kPhotoNext)},
         {QStringLiteral("photoCopyInfo"), QLatin1String(command::kPhotoCopyInfo)},
         {QStringLiteral("photoCopyParameters"), QLatin1String(command::kPhotoCopyParameters)},
+        {QStringLiteral("photoRevealInFileManager"),
+         QLatin1String(command::kPhotoRevealInFileManager)},
         {QStringLiteral("viewGrid"), QLatin1String(command::kViewGrid)},
         {QStringLiteral("viewLoupe"), QLatin1String(command::kViewLoupe)},
         {QStringLiteral("viewDevelop"), QLatin1String(command::kViewDevelop)},

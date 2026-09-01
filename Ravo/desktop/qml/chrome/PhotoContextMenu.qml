@@ -97,6 +97,10 @@ StudioContextMenu {
     StudioContextMenuItem {
         action: root.commands.copyPhotoParameters
     }
+    StudioContextMenuItem {
+        objectName: "revealInFileManagerMenuItem"
+        action: root.commands.revealInFileManager
+    }
     StudioContextMenuSeparator {}
     StudioContextMenuItem {
         action: root.commands.exportPhoto

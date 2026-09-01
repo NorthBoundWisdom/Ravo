@@ -717,6 +717,8 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
     EXPECT_TRUE(source.contains(QStringLiteral("pasteParametersToSelection")));
     EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoInfo")));
     EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoParameters")));
+    EXPECT_TRUE(source.contains(QStringLiteral("revealInFileManager")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"revealInFileManagerMenuItem\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"viewPhotoMenuItem\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"editPhotoMenuItem\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("action: root.commands.loupe")));
@@ -727,6 +729,8 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
               source.indexOf(QStringLiteral("copyPhotoInfo")));
     EXPECT_LT(source.indexOf(QStringLiteral("copyPhotoInfo")),
               source.indexOf(QStringLiteral("copyPhotoParameters")));
+    EXPECT_LT(source.indexOf(QStringLiteral("copyPhotoParameters")),
+              source.indexOf(QStringLiteral("revealInFileManager")));
     EXPECT_FALSE(source.contains(QStringLiteral("ravo.debug.photo")));
     EXPECT_FALSE(source.contains(QStringLiteral("ravo.debug.parameters")));
 
@@ -746,6 +750,8 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
     EXPECT_TRUE(action_source.contains(QStringLiteral("copyPhotoInfo")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoCopyParameters")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("copyPhotoParameters")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoRevealInFileManager")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("revealInFileManager")));
 }
 
 TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)

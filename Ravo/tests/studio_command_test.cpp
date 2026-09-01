@@ -33,6 +33,7 @@
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QUrl>
 #include <QUrlQuery>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
@@ -56,6 +57,7 @@
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/style.h"
 #include "studio_debug_info.h"
+#include "studio_file_manager.h"
 #include "studio_language_manager.h"
 
 #include "studio_test_support.h"
@@ -1334,6 +1336,85 @@ TEST(StudioPresenterTest, ManagedPresetRenameAndDeleteAreScopedAndPreserveConten
     EXPECT_TRUE(presenter.editPresets().isEmpty());
     EXPECT_EQ(presenter.statusText(),
               QCoreApplication::translate("StudioPresenter", "Preset deleted."));
+}
+
+TEST(StudioFileManager, RevealLaunchSelectsAnExistingFile)
+{
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString path = directory.filePath(QStringLiteral("photo.png"));
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(file.write("x") > 0);
+    file.close();
+
+    const auto missing =
+        file_manager_reveal_launch(directory.filePath(QStringLiteral("missing.png")));
+    EXPECT_FALSE(missing);
+    EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
+
+    const auto empty_uri = local_file_path_from_asset_uri(QString{});
+    EXPECT_FALSE(empty_uri);
+    EXPECT_EQ(empty_uri.error().code, ErrorCode::kInvalidArgument);
+
+    const QUrl uri = QUrl::fromLocalFile(path);
+    const auto resolved = local_file_path_from_asset_uri(uri.toString());
+    ASSERT_TRUE(resolved) << resolved.error().message;
+    EXPECT_EQ(resolved.value(), QFileInfo(path).absoluteFilePath());
+
+    const auto launch = file_manager_reveal_launch(resolved.value());
+    ASSERT_TRUE(launch) << launch.error().message;
+#if defined(Q_OS_MACOS)
+    EXPECT_EQ(launch.value().program, QStringLiteral("open"));
+    EXPECT_EQ(launch.value().arguments,
+              QStringList({QStringLiteral("-R"), QFileInfo(path).absoluteFilePath()}));
+#elif defined(Q_OS_WIN)
+    EXPECT_EQ(launch.value().program, QStringLiteral("explorer"));
+    ASSERT_EQ(launch.value().arguments.size(), 1);
+    EXPECT_TRUE(launch.value().arguments.front().startsWith(QStringLiteral("/select,")));
+    EXPECT_TRUE(launch.value().arguments.front().endsWith(
+        QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath())));
+#else
+    EXPECT_EQ(launch.value().program, QStringLiteral("dbus-send"));
+    EXPECT_TRUE(
+        launch.value().arguments.contains(QStringLiteral("--dest=org.freedesktop.FileManager1")));
+#endif
+}
+
+TEST(StudioPresenterTest, RevealInFileManagerRequiresSelectionAndExistingOriginal)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    presenter.revealSelectedPhotoInFileManager();
+    EXPECT_EQ(presenter.errorText(),
+              QCoreApplication::translate("StudioPresenter", "Select a photo first."));
+
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("photo.png"));
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(120, 130, 140));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+
+    ASSERT_TRUE(QFile::remove(photo));
+    presenter.revealSelectedPhotoInFileManager();
+    EXPECT_EQ(presenter.errorText(),
+              QCoreApplication::translate(
+                  "StudioPresenter",
+                  "The original file is missing and cannot be shown in the file manager."));
 }
 
 } // namespace

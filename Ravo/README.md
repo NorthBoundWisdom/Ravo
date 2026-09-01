@@ -121,7 +121,8 @@ Current implementation status:
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
   a visible reason. The photo context menu copies versioned English identity
-  and current canonical-parameter blocks without assembling recipe text in QML.
+  and current canonical-parameter blocks without assembling recipe text in QML,
+  and reveals the selected original in Finder, Explorer, or the file manager.
 - Live Studio control uses `ravo-studio-control/v1` over an owner-only local
   socket. CLI can discover sessions, read the revisioned current selection and
   current/saved recipe, commit an ordered strict Develop batch through the

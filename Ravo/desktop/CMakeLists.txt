@@ -19,6 +19,8 @@ target_sources(ravo_desktop
     src/studio_command_internal.cpp
     src/studio_command_ids.h
     src/studio_command_presentation.cpp
+    src/studio_file_manager.cpp
+    src/studio_file_manager.h
     src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
     src/studio_live_session_controller.cpp

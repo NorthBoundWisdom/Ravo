@@ -33,6 +33,7 @@
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
+#include "studio_file_manager.h"
 #include "studio_qt.h"
 
 namespace ravo
@@ -750,6 +751,39 @@ QString StudioPresenter::selectedUri() const
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     return asset ? qstring_from_utf8(asset->normalized_uri) : QString{};
+}
+
+void StudioPresenter::revealSelectedPhotoInFileManager()
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset)
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Select a photo first."));
+        return;
+    }
+    const auto path = local_file_path_from_asset_uri(qstring_from_utf8(asset->normalized_uri));
+    if (!path)
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "The selected photo has no local file path."));
+        return;
+    }
+    const auto launch = file_manager_reveal_launch(path.value());
+    if (!launch)
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter",
+            "The original file is missing and cannot be shown in the file manager."));
+        return;
+    }
+    if (!start_file_manager_reveal(launch.value()))
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "The file manager could not be opened."));
+        return;
+    }
+    setError({});
+    setStatus(QCoreApplication::translate("StudioPresenter", "Showing the original file."));
 }
 
 LibraryQuery StudioPresenter::current_query() const

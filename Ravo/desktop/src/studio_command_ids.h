@@ -69,6 +69,7 @@ inline constexpr auto kPhotoPrevious = "studio.photo.previous";
 inline constexpr auto kPhotoNext = "studio.photo.next";
 inline constexpr auto kPhotoCopyInfo = "studio.photo.copy_info";
 inline constexpr auto kPhotoCopyParameters = "studio.photo.copy_parameters";
+inline constexpr auto kPhotoRevealInFileManager = "studio.photo.reveal_in_file_manager";
 inline constexpr auto kPhotoCreateVersion = "studio.photo.create_version";
 inline constexpr auto kPhotoStackSelection = "studio.photo.stack_selection";
 inline constexpr auto kPhotoUnstack = "studio.photo.unstack";

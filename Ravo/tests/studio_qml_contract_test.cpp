@@ -581,9 +581,11 @@ TEST(StudioCommands, CopyDebugTextRequiresSelectionOrPresetPath)
     const auto ids = controller.ids();
     const auto photo_copy = ids.value(QStringLiteral("photoCopyInfo")).toString();
     const auto parameters_copy = ids.value(QStringLiteral("photoCopyParameters")).toString();
+    const auto reveal = ids.value(QStringLiteral("photoRevealInFileManager")).toString();
     const auto preset_copy = ids.value(QStringLiteral("presetCopyInfo")).toString();
     ASSERT_EQ(photo_copy, QStringLiteral("studio.photo.copy_info"));
     ASSERT_EQ(parameters_copy, QStringLiteral("studio.photo.copy_parameters"));
+    ASSERT_EQ(reveal, QStringLiteral("studio.photo.reveal_in_file_manager"));
     ASSERT_EQ(preset_copy, QStringLiteral("studio.preset.copy_info"));
 
     const auto photo_action = controller.action(photo_copy);
@@ -601,6 +603,14 @@ TEST(StudioCommands, CopyDebugTextRequiresSelectionOrPresetPath)
         controller.executeAction(parameters_copy, QStringLiteral("control"));
     EXPECT_FALSE(parameters_rejected.value(QStringLiteral("accepted")).toBool());
     EXPECT_EQ(parameters_rejected.value(QStringLiteral("code")).toString(),
+              QStringLiteral("unavailable"));
+
+    const auto reveal_action = controller.action(reveal);
+    EXPECT_FALSE(reveal_action.value(QStringLiteral("enabled")).toBool());
+    EXPECT_FALSE(reveal_action.value(QStringLiteral("disabledReason")).toString().isEmpty());
+    const auto reveal_rejected = controller.executeAction(reveal, QStringLiteral("control"));
+    EXPECT_FALSE(reveal_rejected.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(reveal_rejected.value(QStringLiteral("code")).toString(),
               QStringLiteral("unavailable"));
 
     const auto preset_rejected =

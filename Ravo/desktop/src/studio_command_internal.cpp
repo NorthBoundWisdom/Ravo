@@ -90,7 +90,10 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "Done Cropping"),
     QT_TRANSLATE_NOOP("StudioCommands", "Unknown action: %1"),
     QT_TRANSLATE_NOOP("StudioCommands", "Unknown command: %1"),
-    QT_TRANSLATE_NOOP("StudioCommands", "Unknown command source: %1")};
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown command source: %1"),
+    QT_TRANSLATE_NOOP("StudioCommands", "Show in Finder"),
+    QT_TRANSLATE_NOOP("StudioCommands", "Show in Explorer"),
+    QT_TRANSLATE_NOOP("StudioCommands", "Show in File Manager")};
 
 QString primary_key(const QString &key, const bool shift, const bool alt)
 {
@@ -178,6 +181,7 @@ QStringList command_ids()
             QLatin1String(command::kPhotoNext),
             QLatin1String(command::kPhotoCopyInfo),
             QLatin1String(command::kPhotoCopyParameters),
+            QLatin1String(command::kPhotoRevealInFileManager),
             QLatin1String(command::kPhotoCreateVersion),
             QLatin1String(command::kPhotoStackSelection),
             QLatin1String(command::kPhotoUnstack),
@@ -511,6 +515,18 @@ QVector<ActionSpec> builtin_actions()
         {QStringLiteral("parameters"), QStringLiteral("recipe"), QStringLiteral("debug"),
          QStringLiteral("clipboard")},
         QStringLiteral("photo.review"), 30, true);
+    add(command::kPhotoRevealInFileManager, command::kPhotoRevealInFileManager,
+#if defined(Q_OS_MACOS)
+        QString::fromUtf8("Show in Finder"),
+#elif defined(Q_OS_WIN)
+        QString::fromUtf8("Show in Explorer"),
+#else
+        QString::fromUtf8("Show in File Manager"),
+#endif
+        photo,
+        {QStringLiteral("finder"), QStringLiteral("explorer"), QStringLiteral("folder"),
+         QStringLiteral("reveal"), QStringLiteral("show")},
+        QStringLiteral("photo.review"), 35, true);
     add(command::kPhotoRequestRemove, command::kPhotoRequestRemove,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Remove from Catalog...")), photo,
         {QStringLiteral("library"), QStringLiteral("delete")}, QStringLiteral("photo.delete"), 10,
