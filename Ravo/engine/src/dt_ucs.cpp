@@ -157,7 +157,8 @@ Triplet jch_to_xyy(const Triplet jch, const float white_lightness) noexcept
     for (std::size_t channel = 0U; channel < uv.size(); ++channel)
     {
         const float numerator = -half_values[channel] * uv_star[channel];
-        const float denominator = std::fabs(uv_star[channel]) - factors[channel];
+        const float denominator =
+            signed_denominator(std::fabs(uv_star[channel]) - factors[channel]);
         uv[channel] = numerator / denominator;
     }
 

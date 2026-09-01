@@ -45,9 +45,8 @@ and machine contracts are demonstrably safe on supported hosts and a real
 mixed-photo corpus.
 
 **Exit gate:** the private-corpus and Gallery measurement items in `TODO.md`
-pass without host-specific hidden fallback. Windows and Linux Debug/Release
-loops and three-platform same-commit closeout live in
-[TODO_WINDOWS_LINUX.md](TODO_WINDOWS_LINUX.md) and do not block other product
+pass without host-specific hidden fallback. Three-platform package evidence
+lives in [Packaging.md](Packaging.md) and does not block other product
 execution. Release evidence records source preservation and does not
 generalize one host's latency budget to another.
 

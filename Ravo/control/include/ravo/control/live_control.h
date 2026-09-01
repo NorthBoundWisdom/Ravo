@@ -55,7 +55,8 @@ live_session_descriptor_from_json(const JsonValue &value);
 [[nodiscard]] std::filesystem::path filesystem_path_from_utf8(std::string_view text);
 
 // Walks upward from a file or directory until it finds a Ravo checkout root.
-// An installed executable that is not inside a checkout returns nullopt.
+// An unreadable ancestor marker is treated as absent. An installed executable
+// that is not inside a checkout returns nullopt.
 [[nodiscard]] Result<std::optional<std::filesystem::path>>
 find_ravo_workspace_root(const std::filesystem::path &start);
 

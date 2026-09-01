@@ -93,7 +93,11 @@ target_sources(ravo_engine
 target_include_directories(ravo_engine
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  PRIVATE
+    BEFORE
+    "${RAVO_EXIV2_SOURCE_ROOT}/include"
+    "${CMAKE_BINARY_DIR}")
 
 target_link_libraries(ravo_engine
   PUBLIC ravo_recipe

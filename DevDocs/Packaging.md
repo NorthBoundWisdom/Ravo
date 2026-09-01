@@ -126,3 +126,16 @@ cmake --build build/<release-preset> --target RavoPackage
 
 The package build must be run on each target host. A macOS result does not
 validate Windows DLL deployment or the Linux AppDir runtime.
+
+Installed launch must work after the archive is copied away from the build
+tree. Settings, logs, and live-control sockets use `QStandardPaths` under the
+user home or an explicit `RAVO_LIVE_CONTROL_DIR`, never the build tree.
+Distribution Studio binaries ship the native Qt platform plugin (`cocoa`,
+`windows`, or the Linux desktop plugin), not `offscreen`. Linux DEB launchers
+under `/usr/bin` exec `/opt/RavoStudio/bin/...` and are valid only after
+`dpkg -i`. A Linux payload may still `RUNPATH` the packaging host's Qt prefix
+for transitive ICU; that is a host-kit leftover, not a build-tree dependency.
+Linux `appimagetool` may be a PATH command or the seeded
+`appimagetool-x86_64.AppImage` plus `runtime-x86_64`. Live-control workspace
+discovery treats an unreadable ancestor marker as absent so a packaged
+executable outside a Ravo checkout can start.

@@ -599,10 +599,9 @@ Current implementation status:
   Configure requires JPEG/GIF/WebP/TIFF imageformat plugins and the QSQLITE
   driver; missing them is a hard error.
 
-Unfinished product execution is in [TODO.md](../DevDocs/TODO.md). Windows and
-Linux Debug/Release evidence is in
-[TODO_WINDOWS_LINUX.md](../DevDocs/TODO_WINDOWS_LINUX.md) and does not block
-other product work. Leftover algorithm ports are closed
+Unfinished product execution is in [TODO.md](../DevDocs/TODO.md). Windows,
+Linux, and macOS Release package closeout is recorded in
+[Packaging](../DevDocs/Packaging.md). Leftover algorithm ports are closed
 ([ADR-0106](../DevDocs/adr/0106-close-legacy-algorithm-migration.md)). Changes of
 direction are recorded in dated ADRs, beginning with
 [ADR-0007](../DevDocs/adr/0007-first-usable-catalog-viewer.md).
@@ -689,10 +688,9 @@ compatible Package variant. Run Config before Package; tagged CI releases
 always use Release.
 
 The repository-root CMake builds only Ravo; it must not configure, compile, or
-run leftover darktable. Windows/MSVC and local macOS/Clang have
-previously validated the current engine/CLI graph; Linux still requires
-validation on its target host. The addition of Qt Gui/Qml/Quick/Sql, QML
-modules, runtime plugins, and desktop requires renewed three-platform results.
+run leftover darktable. Windows/MSVC, Linux/Clang, and macOS/Clang host
+Debug/Release graphs and Release packages are validated on their target
+hosts; a result on one OS is not evidence for another.
 
 ## Studio localization
 
@@ -884,7 +882,7 @@ libraries, load old IOPs, or access global `darktable`.
 - [ADR index](../DevDocs/adr/README.md): durable architecture decisions;
 - [product execution TODO](../DevDocs/TODO.md): unfinished corpus, Gallery,
   professional workflow, and AI items;
-- [Windows/Linux TODO](../DevDocs/TODO_WINDOWS_LINUX.md): independent Windows
-  and Linux host evidence;
+- [Packaging](../DevDocs/Packaging.md): three-platform Release artifacts and
+  installed-launch constraints;
 
 The repository is distributed under GPLv3; see the root [LICENSE](../LICENSE).

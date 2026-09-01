@@ -46,7 +46,7 @@ IOP fails closed.
 
 [The Ravo product document](Ravo/README.md), the
 [product execution queue](DevDocs/TODO.md), and
-[Windows/Linux host evidence](DevDocs/TODO_WINDOWS_LINUX.md) define
+[packaging](DevDocs/Packaging.md) define
 the supported scope, validation status, and next work item.
 
 ## Screenshots
@@ -141,7 +141,7 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 - [Testing and validation strategy](DevDocs/TESTING.md)
 - [Migration policy and capability ledger](DevDocs/MIGRATION.md)
 - [Product execution queue](DevDocs/TODO.md)
-- [Windows and Linux host evidence](DevDocs/TODO_WINDOWS_LINUX.md)
+- [Packaging](DevDocs/Packaging.md)
 - [Developer documentation index](DevDocs/README.md)
 
 ## Install and build from source
@@ -188,8 +188,8 @@ Issues and pull requests are welcome. Start with
 [`AGENTS.md`](AGENTS.md) for repository-wide engineering constraints,
 [`Ravo/AGENTS.md`](Ravo/AGENTS.md) for the `Ravo/` subtree, and
 [`DevDocs/TODO.md`](DevDocs/TODO.md) for unfinished product execution.
-Windows and Linux host evidence lives in
-[`DevDocs/TODO_WINDOWS_LINUX.md`](DevDocs/TODO_WINDOWS_LINUX.md) and does not
+Three-platform package evidence lives in
+[`DevDocs/Packaging.md`](DevDocs/Packaging.md) and does not
 block other product work. Leftover algorithm ports are closed
 ([ADR-0106](DevDocs/adr/0106-close-legacy-algorithm-migration.md)).
 Behavior changes need matching Ravo unit or contract tests.

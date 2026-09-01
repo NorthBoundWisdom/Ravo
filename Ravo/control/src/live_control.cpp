@@ -608,16 +608,12 @@ find_ravo_workspace_root(const std::filesystem::path &start)
         {
             error.clear();
             const auto status = std::filesystem::status(path, error);
-            if (error == std::errc::no_such_file_or_directory)
-            {
-                error.clear();
-                return false;
-            }
             if (error)
             {
-                return make_error(
-                    ErrorCode::kIo, "Cannot inspect a workspace marker",
-                    {{"path", filesystem_path_to_utf8(path)}, {"reason", error.message()}});
+                // Packaged launch walks toward filesystem root. An unreadable
+                // ancestor marker is not a Ravo checkout.
+                error.clear();
+                return false;
             }
             return std::filesystem::is_regular_file(status);
         };

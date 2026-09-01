@@ -13,9 +13,9 @@ constraint.
    not infer from upstream darktable habits.
 4. Confirm that work belongs to an item in
    [`../DevDocs/TODO.md`](../DevDocs/TODO.md) or to a cross-cutting reliability
-   gate. Windows and Linux host evidence is
-   [`../DevDocs/TODO_WINDOWS_LINUX.md`](../DevDocs/TODO_WINDOWS_LINUX.md) and
-   does not independently authorize product implementation. Desktop uses Qt 6
+   gate. Current Windows/Linux/macOS package evidence lives in
+   [`../DevDocs/Packaging.md`](../DevDocs/Packaging.md) and does
+   not independently authorize product implementation. Desktop uses Qt 6
    Quick/QML; Qt Sql remains solely in the private SQLite adapter. Qt Widgets,
    a second presentation architecture, and an old GTK adapter are not approved.
 5. Before cross-layer work, state ownership, lifecycle, thread boundaries,

@@ -154,6 +154,8 @@ set_target_properties(ravo_libjpeg_turbo PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${_ravo_libjpeg_turbo_install}/include"
   INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_ravo_libjpeg_turbo_install}/include")
 add_dependencies(ravo_libjpeg_turbo ravo_libjpeg_turbo_external)
+set(RAVO_LIBJPEG_TURBO_INCLUDE_DIR "${_ravo_libjpeg_turbo_install}/include"
+    CACHE INTERNAL "Pinned libjpeg-turbo include directory")
 unset(_ravo_libjpeg_turbo_archive)
 unset(_ravo_libjpeg_turbo_cmake_args)
 unset(_ravo_libjpeg_turbo_install)
@@ -410,9 +412,14 @@ function(ravo_add_private_exiv2)
   endif()
   add_subdirectory("${RAVO_EXIV2_SOURCE_ROOT}" "${CMAKE_BINARY_DIR}/_deps/exiv2" EXCLUDE_FROM_ALL)
   if(TARGET exiv2lib)
-    target_include_directories(exiv2lib SYSTEM INTERFACE
+    # The frozen profile is a static library. Host prefix paths (vcpkg) may
+    # also ship shared Exiv2 headers that define EXIV2API as dllimport; those
+    # headers must not win, or ravo_engine objects fail to link exiv2d.lib.
+    target_include_directories(exiv2lib SYSTEM BEFORE INTERFACE
       "$<BUILD_INTERFACE:${RAVO_EXIV2_SOURCE_ROOT}/include>"
       "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>")
+    target_compile_definitions(exiv2lib INTERFACE
+      $<BUILD_INTERFACE:exiv2lib_STATIC>)
   endif()
   # Exiv2 owns its source diagnostics. Keep the pinned third-party target from
   # leaking its known unused callback parameter into otherwise warning-clean

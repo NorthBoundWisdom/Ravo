@@ -98,11 +98,13 @@ using Triplet = std::array<float, 3>;
 
 [[nodiscard]] float srgb_to_linear(const float srgb) noexcept
 {
-    const float toe = srgb / 12.92F;
+    if (srgb <= 0.04045F)
+    {
+        return srgb / 12.92F;
+    }
     const float offset_srgb = srgb + 0.055F;
     const float scaled_srgb = offset_srgb / 1.055F;
-    const float linearized = std::pow(scaled_srgb, 2.4F);
-    return srgb <= 0.04045F ? toe : linearized;
+    return std::pow(scaled_srgb, 2.4F);
 }
 
 [[nodiscard]] float rgb_hue_to_ryb(const float hue) noexcept

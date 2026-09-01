@@ -5,8 +5,8 @@
 > **Updated:** 2026-09-01
 
 This file contains unfinished product work, dependencies, risks, validation,
-and acceptance gates. Windows and Linux host loops live in
-[TODO_WINDOWS_LINUX.md](TODO_WINDOWS_LINUX.md) and do not block items here.
+and acceptance gates. Three-platform Release package evidence lives in
+[Packaging.md](Packaging.md) and does not block items here.
 Current behavior belongs in `Ravo/README.md`,
 [ARCHITECTURE.md](ARCHITECTURE.md), [TESTING.md](TESTING.md), code, tests, and
 accepted ADRs. Cross-layer ideas without an accepted product contract remain in
@@ -66,21 +66,7 @@ RAVO_INTERACTIVE_BURST_BUDGET_MS=10 \
 
 **Risk:** an unset `RAVO_PHOTO_CORPUS` skips the probe and is not evidence.
 
-Windows and Linux Debug/Release loops and the three-platform same-commit
-closeout live in [TODO_WINDOWS_LINUX.md](TODO_WINDOWS_LINUX.md). They do not
-block other items in this file. A macOS result is not evidence for those hosts.
-
-## REL-04 — macOS package closeout
-
-- Confirm the current macOS results target this commit and the current
-  dependency pins.
-- Confirm package contents, version metadata, checksums, generated third-party
-  notices, translations, settings/support directories, and installed launch do
-  not depend on the build tree.
-- Record only durable platform constraints in stable authorities; keep run logs,
-  private corpus details, and transient screenshots outside the repository.
-
-Three-platform release-ready labeling remains [WL-03](TODO_WINDOWS_LINUX.md).
+A macOS corpus result is not evidence for Windows or Linux hosts.
 
 # P0 — Gallery and Develop performance evidence
 

@@ -248,7 +248,8 @@ frozen_dt_ucs_xyy_to_jch_oracle(const FrozenD50Triplet xyy, const float white_li
     for (std::size_t channel = 0U; channel < uv.size(); ++channel)
     {
         const float numerator = -half_values[channel] * uv_star[channel];
-        const float denominator = std::fabs(uv_star[channel]) - factors[channel];
+        const float denominator =
+            frozen_dt_ucs_signed_denominator(std::fabs(uv_star[channel]) - factors[channel]);
         uv[channel] = numerator / denominator;
     }
 
@@ -315,11 +316,13 @@ frozen_harmony_xyz_d65_to_linear_rec709(const FrozenD50Triplet xyz,
 
 [[nodiscard]] float frozen_harmony_srgb_to_linear(const float srgb, const float threshold) noexcept
 {
-    const float toe = srgb / 12.92F;
+    if (srgb <= threshold)
+    {
+        return srgb / 12.92F;
+    }
     const float offset_srgb = srgb + 0.055F;
     const float scaled_srgb = offset_srgb / 1.055F;
-    const float linearized = std::pow(scaled_srgb, 2.4F);
-    return srgb <= threshold ? toe : linearized;
+    return std::pow(scaled_srgb, 2.4F);
 }
 
 [[nodiscard]] FrozenD50Triplet

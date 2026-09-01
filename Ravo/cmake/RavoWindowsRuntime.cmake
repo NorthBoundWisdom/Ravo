@@ -17,6 +17,42 @@ function(ravo_copy_windows_runtime_dlls target_name)
       -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/copy_runtime_dlls.cmake"
     COMMENT "Copying $<CONFIG> runtime DLLs for ${target_name}"
     VERBATIM)
+
+  # windeployqt already deploys Studio. Copying the same plugin trees here
+  # races that POST_BUILD step. Build-tree CLI/tests still need the plugins.
+  if(target_name STREQUAL "ravo_studio")
+    return()
+  endif()
+
+  # windeployqt is only run for Studio. Build-tree CLI/tests still need
+  # imageformat plugins (QImage fixtures) and QSQLITE (catalog create/open).
+  set(_ravo_image_plugins)
+  foreach(_ravo_plugin IN ITEMS Qt6::QJpegPlugin Qt6::QGifPlugin Qt6::QWebpPlugin Qt6::QTiffPlugin)
+    if(TARGET "${_ravo_plugin}")
+      list(APPEND _ravo_image_plugins "$<TARGET_FILE:${_ravo_plugin}>")
+    endif()
+  endforeach()
+  if(_ravo_image_plugins)
+    add_custom_command(TARGET "${target_name}" POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory
+        "$<TARGET_FILE_DIR:${target_name}>/imageformats"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        ${_ravo_image_plugins}
+        "$<TARGET_FILE_DIR:${target_name}>/imageformats"
+      COMMENT "Copying $<CONFIG> Qt imageformat plugins for ${target_name}"
+      VERBATIM)
+  endif()
+  unset(_ravo_image_plugins)
+  if(TARGET Qt6::QSQLiteDriverPlugin)
+    add_custom_command(TARGET "${target_name}" POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory
+        "$<TARGET_FILE_DIR:${target_name}>/sqldrivers"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "$<TARGET_FILE:Qt6::QSQLiteDriverPlugin>"
+        "$<TARGET_FILE_DIR:${target_name}>/sqldrivers"
+      COMMENT "Copying $<CONFIG> Qt QSQLITE plugin for ${target_name}"
+      VERBATIM)
+  endif()
 endfunction()
 
 function(ravo_deploy_windows_qt_runtime target_name)

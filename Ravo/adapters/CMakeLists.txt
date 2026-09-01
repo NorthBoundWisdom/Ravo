@@ -31,7 +31,12 @@ target_sources(ravo_adapters
     src/tiff_encoder.cpp
     src/text_file.cpp)
 
-target_include_directories(ravo_adapters SYSTEM BEFORE PRIVATE
+# Host prefixes inject -isystem jpeglib.h (JPEG 80) ahead of any target
+# include we add. Name the pinned 6b headers in the encoder TU instead.
+target_compile_definitions(ravo_adapters PRIVATE
+  "RAVO_PINNED_JPEGLIB_H=\"${RAVO_LIBJPEG_TURBO_INCLUDE_DIR}/jpeglib.h\""
+  "RAVO_PINNED_JERROR_H=\"${RAVO_LIBJPEG_TURBO_INCLUDE_DIR}/jerror.h\"")
+target_include_directories(ravo_adapters PRIVATE
   $<TARGET_PROPERTY:ravo_libjpeg_turbo,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:ravo_libtiff,INTERFACE_INCLUDE_DIRECTORIES>)
 target_include_directories(ravo_adapters

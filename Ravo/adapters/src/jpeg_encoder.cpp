@@ -18,8 +18,11 @@
 #include <string_view>
 #include <utility>
 
-#include <jerror.h>
-#include <jpeglib.h>
+#if !defined(RAVO_PINNED_JERROR_H) || !defined(RAVO_PINNED_JPEGLIB_H)
+#error "jpeg_encoder.cpp must be compiled with RAVO_PINNED_JERROR_H and RAVO_PINNED_JPEGLIB_H"
+#endif
+#include RAVO_PINNED_JERROR_H
+#include RAVO_PINNED_JPEGLIB_H
 
 namespace ravo::detail
 {
@@ -28,6 +31,9 @@ namespace
 
 static_assert(static_cast<long>(kJpegMaxDimension) == JPEG_MAX_DIMENSION,
               "The JPEG dimension contract must track the pinned encoder");
+static_assert(JPEG_LIB_VERSION == 62,
+              "jpeg_encoder.cpp must compile against the pinned libjpeg-turbo "
+              "JPEG 6b headers, not a host libjpeg 7/8 prefix");
 
 inline constexpr std::size_t kDestinationChunkBytes = 64U * 1024U;
 inline constexpr std::size_t kMaximumDestinationChunks =

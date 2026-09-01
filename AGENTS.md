@@ -86,7 +86,7 @@ More-specific implementation and validation rules for this boundary live in
    infer current behavior from upstream darktable habits.
 3. For product/leftover boundaries, read `DevDocs/MIGRATION.md` first. For
    current product execution, then read [`DevDocs/TODO.md`](DevDocs/TODO.md).
-   Windows and Linux host evidence is [`DevDocs/TODO_WINDOWS_LINUX.md`](DevDocs/TODO_WINDOWS_LINUX.md)
+   Three-platform package evidence is [`DevDocs/Packaging.md`](DevDocs/Packaging.md)
    and does not block other product work. Leftover algorithm ports are closed
    by ADR-0106. Read `DevDocs/GPU_Baseline.md` for GPU work.
 4. Before cross-layer changes, make ownership, lifecycle, thread boundaries,
@@ -101,8 +101,8 @@ define unfinished execution work.
 
 - The C++20 Ravo Engine, supported `ravo` CLI, and Ravo Studio share one
   service layer. `Ravo/README.md` records the currently accepted baseline;
-  `DevDocs/TODO.md` owns unfinished product execution, `DevDocs/TODO_WINDOWS_LINUX.md`
-  owns Windows and Linux host evidence, and leftover algorithm ports are closed
+  `DevDocs/TODO.md` owns unfinished product execution, `DevDocs/Packaging.md`
+  records three-platform package evidence, and leftover algorithm ports are closed
   (ADR-0106).
 - The `domain`, `services`, and Qt 6 Quick/QML `desktop` targets are already
   established. `Qt6::Qml`/`Qt6::Quick` and

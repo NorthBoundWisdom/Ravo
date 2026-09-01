@@ -8,8 +8,7 @@ reference, not a second algorithm owner. The P0/P1 implementation now includes
 catalog restore/operator recovery, bounded large-library paging and scheduling,
 verified recurring backup retention, and stable missing-folder relink
 (ADR-0099–0101). [`TODO.md`](TODO.md) retains unfinished product execution.
-[`TODO_WINDOWS_LINUX.md`](TODO_WINDOWS_LINUX.md) owns Windows and Linux host
-evidence.
+[`Packaging.md`](Packaging.md) records three-platform package evidence.
 Leftover algorithm ports are closed by
 [ADR-0106](adr/0106-close-legacy-algorithm-migration.md). Unaccepted leftover
 IOPs are leftovers, not C++ ports. The leftover source tree is gone. New
@@ -99,8 +98,9 @@ capability is final only when all of these are true:
 ## Migration order
 
 1. Keep the accepted catalog/review/develop/export baseline regressible.
-2. Close remaining private-corpus and three-platform P0/P1 evidence in the
-   photo-management TODO. Photographer-useful remaining product work is
+2. Close remaining private-corpus and Gallery measurement evidence in
+   [`TODO.md`](TODO.md). Three-platform package evidence lives in
+   [`Packaging.md`](Packaging.md). Photographer-useful remaining product work is
    independent Ravo work under the professional-workflow TODO and product
    roadmap, not leftover IOP twins.
 3. Do not resume leftover-faithful IOP, pixelpipe, GTK, or OpenCL ports.
@@ -145,7 +145,7 @@ unsupported presentation adapters.
 | SQLite catalog | common/database | domain + SQLite adapter | In progress | schema v11 create/reopen/migrate/newer-version rejection tested. v5 adds capture datetime/GPS, v6 transactional recovery generations, v7 page projections/indexes, v8 backup policy, v9 stable direct-folder identity, v10 named library sets, and v11 virtual copies plus collapsed stacks. Folder migration and relink rollback, recovery restart, cancellable preview-free snapshots, strict restore, scheduling, retention, collection membership/smart-query reopen, version create/delete/export isolation, and stack collapse/expand are tested; no frozen old-catalog migration (ADR-0097/0099–0101/0103/0105) |
 | Local import and ingest | common/imageio/import | services + adapters | In progress | PNG/JPEG/TIFF and LibRaw RAW (including ARW/DNG suffix) plus recursive local-root import. Add retains a reference; Copy/Move plan one managed tree with optional bounded rename and a distinct independently byte-verified second-copy tree, including same-stem XMP, complete portable conflict preflight, cancellation cleanup, and source-safe Move ordering (ADR-0102/0104). Catalog fully decodes JPEG/PNG/TIFF before insert and only TIFF RAW containers may fall through to LibRaw. PTP/MTP, HEIC/HEIF, DNG conversion, Smart Previews, X-Trans completion, and leftover wrappers remain later |
 | Preview cache | mipmap/cache/imageio | services + adapters | Ravo contract accepted; shared cleanup remains | atomic PNG cache outside the library; 512 MiB hard byte budget; deterministic mtime/key startup order and in-process LRU promotion; pre-commit eviction; corrupt-signature cleanup; cancellation immediately before publication; close/reopen rebuild. Shared old cache/imagebuf owners remain until their develop/imageio/job/GTK consumers reach zero (ADR-0047/0067) |
-| Gallery/viewer | lighttable/darkroom | desktop + services | Ravo contract accepted; three-platform release evidence remains | Studio can create/open/import/fit/fill/100%; keyset pages and a three-page sparse model bound a 10,000-row library, delegates request bounded look-ahead, and foreground Develop interleaves with one-item import dispatch. Private real-photo and Windows/Linux release loops remain in the product TODO (ADR-0100) |
+| Gallery/viewer | lighttable/darkroom | desktop + services | Ravo contract accepted; private-corpus release evidence remains | Studio can create/open/import/fit/fill/100%; keyset pages and a three-page sparse model bound a 10,000-row library, delegates request bounded look-ahead, and foreground Develop interleaves with one-item import dispatch. Private real-photo corpus and interactive latency remain in the product TODO; three-platform package evidence is in Packaging.md (ADR-0100) |
 | Photo navigation | `libs/navigation.c` | Studio presenter + QML Flickable/navigator | Old implementation removed | Fit/Fill/Actual/custom 0.1–8 zoom, wheel steps, inspect magnifier click-to-1:1 with restore of the last non-Actual view, GPU scale/pan animation on inspect click, bounded pan, normalized navigator seek, crop ownership, grid reveal, and active-asset/mode/zoom recenter lifecycle are explicit and tested. Review notifications for the same asset preserve pan. No viewport telemetry or old config compatibility is persisted (ADR-0060/0076) |
 | Preview scopes | `libs/histogram.c`, `libs/scopes*` | engine statistics + Studio projection | Old implementation removed | exact RGB8 preview validation; 256-bin Histogram; 160-tone/360-bin HLG Waveform and Parade; fixed 384-square linear D50 CIE u*v* Vectorscope with 2×2 sampling; max-preserving Waveform/Vectorscope Split. All use displayed preview/thumbnail pixels and revisioned image URLs. AzBz/RYB/log/harmony/profile/picker/exposure-drag state is explicitly unsupported (ADR-0061) |
 | Library query/filter | `libs/recentcollect.c`, `libs/filtering.c`, `libs/filters/*`, shared collection state | domain `LibraryQuery` + services + Studio | GTK filter owners removed; shared core remains | strict current-query validation covers review/folder/tag/text/media/edit/camera/capture/numeric predicates and stable import/capture/name/rating/size sorting. Invalid ranges/text/enums fail before listing. Studio exposes common predicates through commands. Persistent recent-query history and legacy-only bookkeeping/group/module fields are explicit unsupported product decisions (ADR-0059). Shared `common/collection*`, proxies/config/manual state and S8 deletion wait for remaining consumers |
