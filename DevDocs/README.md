@@ -1,47 +1,79 @@
 # Ravo developer documentation
 
-Repository-owned development, architecture, execution, compliance, and legacy
-evidence documents are centralized here. `README.md` files remain beside the
-audience or component they introduce, and `AGENTS.md` files remain at their
-scope roots for tool discovery.
+`DevDocs/` is the repository-owned source for architecture, product planning,
+validation, dependency, packaging, compliance, and historical migration
+records. Component `README.md` files remain beside the code they describe, and
+`AGENTS.md` files remain at their scope roots for tool discovery.
 
-The following are separate owners and are not folded into `DevDocs/`:
+Ravo's product north star is a professional, cross-platform photo manager and
+non-destructive editor for working photographers, with optional AI-assisted
+culling, retouching, and colour work that remains reviewable, reversible,
+private by default, and reproducible enough to audit.
 
-- `userdoc/`: publishable user handbook;
-- `FreeCM/`: independent submodule;
-- `.codex/skills/`: executable agent workflows.
+## Document authority
 
-## Current authorities
+| Document | Owns | Does not own |
+| --- | --- | --- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Current target boundaries, ownership, lifecycle, threads, data, and failure behavior | Future work or run diaries |
+| [MIGRATION.md](MIGRATION.md) | Accepted capability history, removed leftovers, and retirement decisions | Product backlog |
+| [ProductRoadmap.md](ProductRoadmap.md) | Outcome order, product principles, and cross-layer decisions not ready for execution | Task-level status |
+| [TODO.md](TODO.md) | The single unfinished execution queue, dependencies, risks, validation, and acceptance gates | Completed behavior or durable decisions |
+| [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, performance probes, and validation depth | Product priority |
+| [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history | Mutable implementation status |
 
-| Document | Authority |
-| --- | --- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Target boundaries, ownership, lifecycle, threads, data, and failure behavior |
-| [MIGRATION.md](MIGRATION.md) | Accepted capabilities, leftovers, and retirement rules |
-| [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, performance probes, and validation depth |
-| [TODO_PHOTO_MANAGEMENT.md](TODO_PHOTO_MANAGEMENT.md) | Remaining P0/P1 platform, corpus, and interactive-latency release evidence |
-| [TODO_GALLERY_PERFORMANCE.md](TODO_GALLERY_PERFORMANCE.md) | Release measurements and gated Gallery concurrency/cache candidates |
-| [TODO_PRO_WORKFLOW.md](TODO_PRO_WORKFLOW.md) | Ranked Lightroom/Capture One user-outcome gaps; not independently ready |
-| [ProductRoadmap.md](ProductRoadmap.md) | Cross-layer product decisions not ready for a TODO |
-| [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history |
+The former specialized TODO paths are pointer-only compatibility pages. They
+must not receive new work; every active item belongs in [TODO.md](TODO.md).
 
 ## Operations and compliance
 
 | Document | Scope |
 | --- | --- |
 | [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM source roots, local integration, refresh, and publication order |
-| [Packaging.md](Packaging.md) | Release packaging ownership, artifacts, and validation |
 | [GPU_Baseline.md](GPU_Baseline.md) | Ravo-only GPU correctness and performance admission gates |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party attribution and license notices packaged with Ravo |
+| [Packaging.md](Packaging.md) | Release packaging ownership, artifacts, and validation |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Generated third-party attribution and licence notices packaged with Ravo |
+
+The following remain separate owners and are not folded into `DevDocs/`:
+
+- `Ravo/README.md`: current user-visible and machine-visible capability baseline;
+- `userdoc/`: publishable user handbook;
+- `FreeCM/`: independent submodule;
+- `.codex/skills/`: executable agent workflows.
+
+## Planning flow
+
+A product idea moves through one direction only:
+
+```text
+ProductRoadmap -> dated ADR -> TODO -> code/tests -> current authorities
+```
+
+1. Keep an undecided cross-layer capability in `ProductRoadmap.md`.
+2. Before implementation, accept a dated ADR that names the user outcome,
+   owner, persisted or machine contract, cancellation/failure behavior,
+   privacy and security constraints where relevant, and validation gate.
+3. Add only the unfinished execution slice to `TODO.md`.
+4. On completion, move durable facts to code, tests, `Ravo/README.md`,
+   `ARCHITECTURE.md`, or `TESTING.md`, then delete the completed TODO item.
+5. Record removed or explicitly rejected legacy behavior in `MIGRATION.md`.
 
 ## Maintenance rules
 
-1. Keep one authority per topic. ADRs retain durable decisions; current facts
-   belong in architecture, migration, testing, code, or tests.
-2. TODOs contain only unfinished work, dependencies, risks, validation commands,
-   and acceptance gates. Delete a completed TODO after moving durable facts.
-3. Remove obsolete plans, historical run diaries, and concept mockups instead of
-   archiving competing descriptions.
-4. Update every tracked reference in the same change when a document moves or is
-   renamed. Do not leave redirects or compatibility copies.
-5. Keep transient reports and private measurements outside the repository.
-6. Update generated evidence only through its owning script.
+1. Keep one authority per topic. Do not duplicate current behavior across the
+   roadmap, TODO, architecture, and migration documents.
+2. TODO entries contain only unfinished work, dependencies, risks, concrete
+   validation, and acceptance gates. They do not contain completed checklists.
+3. Do not use target dates as a substitute for evidence. Priorities are ordered
+   by user outcome, dependency, and release risk.
+4. Remove obsolete plans, historical run diaries, and concept mockups instead
+   of archiving competing descriptions.
+5. A compatibility pointer may contain only a link to the new authority. It
+   must never carry a second backlog and should be removed after all inbound
+   references are migrated.
+6. Keep transient reports, private-corpus results, screenshots, and machine-
+   local measurements outside the repository unless a stable test fixture or
+   generated evidence owner explicitly requires them.
+7. Update generated output, including third-party notices, only through its
+   owning script.
+8. For documentation-only changes, verify real paths, relative links, commands,
+   terminology, and whitespace; do not claim an unrun platform check passed.

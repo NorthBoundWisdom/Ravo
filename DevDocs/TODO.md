@@ -1,0 +1,392 @@
+# Ravo product execution TODO
+
+> **Status:** single repository execution queue
+>
+> **Updated:** 2026-09-01
+
+This file contains only unfinished work, dependencies, risks, validation, and
+acceptance gates. Current behavior belongs in `Ravo/README.md`,
+[ARCHITECTURE.md](ARCHITECTURE.md), [TESTING.md](TESTING.md), code, tests, and
+accepted ADRs. Cross-layer ideas without an accepted product contract remain in
+[ProductRoadmap.md](ProductRoadmap.md).
+
+Leftover-faithful algorithm ports are closed by ADR-0106. No item below
+reopens the old GTK UI, dynamic IOP ABI, OpenCL path, or deleted application.
+
+## Queue rules
+
+Priority is dependency-based:
+
+- **P0 — Active release gate:** evidence needed to claim the current product is
+  release-ready.
+- **P1 — Ready after an accepted ADR:** professional workflow slices whose owner
+  and contract are decided.
+- **P2 — Decision required:** valuable outcomes that remain blocked in the
+  roadmap until a dated ADR exists.
+
+Every implementation item must name its owner, lifecycle, persisted or machine
+contract, error/cancellation behavior, smallest validation set, and acceptance
+gate. Delete a completed item after moving durable facts to their authority.
+
+# P0 — Release evidence
+
+## REL-01 — Private mixed-photo corpus and interactive latency
+
+**Dependency:** an explicit read-only mixed RAW/raster tree in
+`RAVO_PHOTO_CORPUS`; generated catalogs, previews, recovery files, backups, and
+reports remain under a unique temporary root. Use a Release build on the release
+candidate host.
+
+```text
+RAVO_PHOTO_CORPUS=/absolute/private/photos \
+  build/mac_clang_release/Ravo/tests/ravo_catalog_tests \
+  --gtest_filter=CatalogServiceTest.PrivatePhotoManagementReleaseProbePreservesCorpus
+RAVO_INTERACTIVE_PERF_CATALOG=/temporary/private-corpus/library.sqlite \
+RAVO_INTERACTIVE_PERF_ASSET_ID=<imported-raw-asset-id> \
+RAVO_INTERACTIVE_PERF_P90_BUDGET_MS=10 \
+RAVO_INTERACTIVE_BURST_BUDGET_MS=10 \
+  build/mac_clang_release/Ravo/tests/ravo_desktop_command_tests \
+  --gtest_filter='StudioInteractivePreviewPerformanceProbe.*'
+```
+
+**Acceptance gate:**
+
+- record RAW/raster import, cold/warm settled preview, page, sequential
+  interactive P50/P90/max, and rapid-intent first/latest/frame-gap timings using
+  the definitions in `TESTING.md`;
+- record the opt-in native frame-swap trace with display refresh rate and power
+  state separately from owned-image latency;
+- freeze host-local budgets only from a repeatable candidate run, then rerun
+  with those budget variables enabled;
+- prove every corpus file retains exact SHA-256, size, and modification time;
+- retain private reports outside the repository and do not generalize one host
+  result to another OS, storage device, GPU, or toolchain.
+
+**Risk:** an unset `RAVO_PHOTO_CORPUS` skips the probe and is not evidence.
+
+## REL-02 — Windows Debug and Release loop
+
+**Dependency:** a Windows host with the current source-root lock materialized and
+the supported Qt/MSVC toolchain.
+
+```text
+python configs/source_roots.py show --format json
+python configs/source_roots.py resolve --format json
+python configs/source_roots.py verify
+python3 Ravo/tools/freeze_legacy_manifest.py --check
+python3 Ravo/tools/check_ravo_dependency_boundary.py
+cmake --preset win_msvc_debug -DBUILD_TESTING=ON
+cmake --build --preset win_msvc_debug
+ctest --test-dir build/win_msvc_debug --output-on-failure
+cmake --preset win_msvc_release -DBUILD_TESTING=ON
+cmake --build --preset win_msvc_release
+ctest --test-dir build/win_msvc_release --output-on-failure
+```
+
+**Acceptance gate:** Debug and Release cover restore publication/cleanup,
+cancellable shutdown, 10,000-row paging, deterministic import, verified
+retention, schema migration/relink rollback, translations, QML smoke, and the
+staged installed-product create/import/reopen/recovery loop without leaked
+temporary files, locked catalogs, build-tree dependencies, or hidden platform
+fallback.
+
+## REL-03 — Linux Debug and Release loop
+
+**Dependency:** a Linux host with the current source-root lock materialized and
+the supported Qt/Clang toolchain.
+
+```text
+python configs/source_roots.py show --format json
+python configs/source_roots.py resolve --format json
+python configs/source_roots.py verify
+python3 Ravo/tools/freeze_legacy_manifest.py --check
+python3 Ravo/tools/check_ravo_dependency_boundary.py
+cmake --preset linux_clang_debug -DBUILD_TESTING=ON
+cmake --build --preset linux_clang_debug
+ctest --test-dir build/linux_clang_debug --output-on-failure
+cmake --preset linux_clang_release -DBUILD_TESTING=ON
+cmake --build --preset linux_clang_release
+ctest --test-dir build/linux_clang_release --output-on-failure
+```
+
+**Acceptance gate:** the same behavior and installed-product loop as Windows
+passes without a Linux-only fallback. A macOS or Windows result is not evidence
+for this gate.
+
+## REL-04 — Same-commit release closeout
+
+- Confirm macOS, Windows, and Linux results target the same commit and current
+  dependency pins.
+- Confirm package contents, version metadata, checksums, generated third-party
+  notices, translations, settings/support directories, and installed launch do
+  not depend on the build tree.
+- Record only durable platform constraints in stable authorities; keep run logs,
+  private corpus details, and transient screenshots outside the repository.
+- A failed or skipped gate remains open. Do not label the commit release-ready
+  until every P0 item is current.
+
+# P0 — Gallery and Develop performance evidence
+
+## PERF-01 — Representative Gallery-to-viewer measurement
+
+**Dependency:** the same explicit read-only mixed corpus used by `REL-01`, a
+Release build, declared storage type, and a stable power/performance state.
+
+Measure cold and warm folder enumeration/import, first thumbnail, viewport
+completion, placeholder publication, exact 1600-edge publication, adjacent-photo
+revisit, page query, and interactive Develop publication over two warmups plus
+at least eight recorded samples.
+
+Record P50/P90/max, cache state, source kind, file count, host, storage kind,
+worker count, peak owned bytes, display refresh rate where applicable, and source
+SHA-256/size/mtime preservation.
+
+Suggested focused validation:
+
+```text
+cmake --preset mac_clang_debug -DBUILD_TESTING=ON
+cmake --build --preset mac_clang_debug --target ravo_desktop_command_tests ravo_studio
+ctest --test-dir build/mac_clang_debug --output-on-failure -R 'StudioPresenterTest|StudioQmlContract|ravo_studio_qml_smoke'
+cmake --preset mac_clang_release -DBUILD_TESTING=ON
+cmake --build --preset mac_clang_release --target ravo_desktop_command_tests ravo_studio
+```
+
+**Acceptance gate:** the report distinguishes enumeration, catalog publication,
+thumbnail demand, exact preview, image ownership, native frame swap, and cache
+state; source preservation passes; observed stalls have an owner and trace
+rather than a guessed optimization.
+
+## PERF-02 — Admit only measured browse optimizations
+
+**Dependency:** `PERF-01` identifies a dominant bottleneck on the same corpus.
+Evaluate each candidate independently:
+
+- a byte-bounded browse worker pool;
+- a profiled medium browse resource;
+- a byte-bounded adjacent-preview LRU;
+- deferred optional capture metadata;
+- a non-PNG browse encoding.
+
+**Acceptance gate:** adopt a candidate only when same-corpus end-to-end P90
+improves without foreground-Develop latency, deterministic publication,
+cancellation, memory, source-safety, colour/profile, HDD-seek, or package
+regression. Item-count-only memory limits are insufficient. Browse placeholders
+and embedded JPEGs remain presentation resources, never RAW correctness
+references or silent Develop fallbacks. GPU work remains under
+[GPU_Baseline.md](GPU_Baseline.md).
+
+# P1/P2 — Professional photographer workflows
+
+Each section below is **P2 / Decision required** until the linked theme in
+`ProductRoadmap.md` becomes a dated ADR. After acceptance, move only the bounded
+implementation tranche to **P1 / Ready** and add its exact tests.
+
+## PRO-INGEST — Camera/card and modern-format ingest
+
+**Outcome:** ingest from supported card/camera sources with explicit destination,
+rename, verified second copy, and resumable failure handling; define HEIC/HEIF,
+DNG conversion, and Smart Preview scope.
+
+**Dependencies:** existing Add/Copy/Move planner and ADR-0104 publication rules;
+a new PTP/MTP and format ADR; decoder/licence/package review.
+
+**Risks:** destination collisions, device disappearance, source mutation,
+pretending HEIC is JPEG, background DNG replacement of originals, and partially
+cataloged batches.
+
+**Acceptance gate:** preflight every primary/second-copy path, publish no catalog
+row on unresolved conflict, preserve source bytes, report partial completion by
+item, and leave the next ingest reusable after cancel, disconnect, or error.
+
+## PRO-METADATA — Hierarchical keywords and delivery metadata
+
+**Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
+and camera/lens/date facets with transactional multi-selection editing.
+
+**Dependencies:** schema/migration ADR; export embed/omit policy; LibraryQuery and
+index plan; privacy rules for location and people data.
+
+**Risks:** two live metadata authorities, refresh clobbering catalog-only values,
+QML-built SQL, hierarchy rename losing membership, and privacy stripping that
+does not match export.
+
+**Acceptance gate:** hierarchy edits survive reopen/backup/restore, source refresh
+preserves catalog-only fields, bulk failure rolls back or reports exact partial
+state according to the accepted contract, queries remain bounded, and export
+privacy is exact.
+
+## PRO-LOCAL — Everyday masked grading
+
+**Outcome:** attach canonical masks to selected everyday operations such as Light
+or Curves and provide C++-owned picker/histogram-assisted authoring.
+
+**Dependencies:** local-adjustment ADR defining operation consumers,
+multi-instance policy, coordinate frame, ROI/order semantics, and importer
+behavior.
+
+**Risks:** QML-owned mask pixels, coordinate drift after Canvas/Perspective/crop,
+silent approximation of legacy blend modes, and altered unmasked defaults.
+
+**Acceptance gate:** preview/export/reopen equality, geometry correctness,
+cancellation/resource bounds, CLI/Studio parity, and no change to unmasked
+identity/default behavior.
+
+## PRO-EXPORT — Repeatable delivery jobs
+
+**Outcome:** long-edge/box resize, do-not-enlarge, output sharpening, reusable
+export presets, and restartable background batch delivery.
+
+**Dependencies:** accepted geometry/sharpen order, preset artifact owner, durable
+job state, and reuse of existing encoders and atomic publication.
+
+**Risks:** resizing in QML, a second encoder/job owner, overwrite/skip guessing,
+recipe mutation, and ambiguous partial delivery after restart.
+
+**Acceptance gate:** exact JPEG/PNG/TIFF dimensions and colour, explicit conflict
+preflight, cancel/restart semantics, completed-file retention, no source/recipe
+rewrite, and exact preset apply after reopen.
+
+## PRO-INTERCHANGE — Explicit XMP, catalog conversion, and external editors
+
+**Outcome:** user-initiated interchange without adjacent XMP becoming a second
+live authority, plus external-editor output as a new derived asset/version.
+
+**Dependencies:** conflict matrix, supported source-version matrix, read-only
+conversion artifact, derived-asset lifecycle, and external process timeout/
+cancel policy.
+
+**Risks:** in-place foreign-catalog migration, hidden external renderer, original
+RAW mutation, watcher races, and unsupported fields silently dropped.
+
+**Acceptance gate:** catalog-newer/sidecar-newer/both-changed conflicts are
+explicit; unsupported state fails closed; conversions are read-only; external
+results enter as new assets/versions; original bytes remain unchanged.
+
+## PRO-PRESENT — Tether, print, map, slideshow, and publishing
+
+**Status:** unauthorized while `MIGRATION.md` records these as removed leftovers.
+
+A new dated product decision must independently define each outcome, owner,
+hardware/service lifecycle, offline/cancel behavior, package dependencies,
+privacy, and validation. Do not port GTK modules or add empty panes to claim
+coverage.
+
+# P2 — AI-assisted photo work
+
+No AI image item is Ready until `AI-00` is accepted. The existing Studio chat
+assistant does not authorize model inference, image upload, automatic catalog
+mutation, or generated-pixel publication.
+
+## AI-00 — AI architecture, privacy, provenance, and licence ADR
+
+**Decision work:**
+
+- define conversational assistant, inference provider, proposal, apply, and
+  derived-asset owners without moving business rules into QML;
+- define local and remote provider ports, explicit user initiation, payload
+  preview/minimization, cancellation, timeout, retry, concurrency, and memory
+  bounds;
+- define credential storage and redaction; no key, prompt payload, original path,
+  EXIF, catalog state, or provider response enters logs unintentionally;
+- define a versioned `proposal` contract for normal recipe fields and canonical
+  masks, including source asset/revision, provider/model/version or weight hash,
+  parameters, confidence/alternatives where meaningful, and deterministic
+  validation before apply;
+- define a separate immutable derived-asset contract for non-replayable generated
+  pixels, including source revision, model identity, settings, output hash,
+  retention, backup/restore, and missing-model behavior;
+- decide model-runtime and weight distribution, GPL compatibility, third-party
+  notices, package size, update policy, local cache, telemetry, retention, and
+  whether providers may train on user photos; the default must not be implicit;
+- define a licensed evaluation corpus and human review protocol across RAW/raster,
+  cameras, lighting, genres, skin tones, edge cases, and known failures.
+
+**Acceptance gate:** one or more dated ADRs name all owners and contracts; threat
+and privacy review is recorded; dependency/licence/package implications are
+known; failure and no-model/offline behavior are testable; no implementation
+requires originals to be writable.
+
+## AI-01 — Reviewable global edit proposals
+
+**Status:** blocked by `AI-00`.
+
+**Outcome:** propose white balance, exposure, tone, colour, crop/straighten, and
+reference-grade adjustments as ordinary validated recipe fields. Show the exact
+field diff, preview before apply, and alternatives where the model supports
+them.
+
+**Acceptance gate:** reject/cancel changes nothing; apply creates normal
+history/undo and survives reopen/export; unknown fields, stale asset/revision,
+invalid bounds, provider failure, or missing model fail without partial state;
+quality regressions are caught by the evaluation corpus and human review.
+
+## AI-02 — Semantic selections as canonical masks
+
+**Status:** blocked by `AI-00` and the applicable local-adjustment contract.
+
+**Outcome:** propose subject, sky, background, person/skin, clothing, and named
+object selections as bounded canonical masks that users can inspect and edit.
+
+**Acceptance gate:** mask coordinates remain correct through orientation,
+Perspective, crop, Canvas, preview, export, and reopen; uncertain/empty masks are
+visible; CPU/GPU/model absence has explicit behavior; generated mask data is
+bounded, cancellable, versioned, and never silently approximated.
+
+## AI-03 — Shoot-level consistency and batch assistance
+
+**Status:** blocked by `AI-01` and `AI-02` as applicable.
+
+**Outcome:** use an explicit reference image or accepted style to propose a
+consistent grade across a selected shoot while preserving per-image exposure,
+white balance, and exceptions.
+
+**Acceptance gate:** the user selects every destination; preflight binds the
+observed catalog and asset revisions; partial completion and cancellation follow
+the existing multi-selection contract; each image records its own proposal/apply
+history and can be independently reverted.
+
+## AI-04 — Metadata, culling, and similarity suggestions
+
+**Status:** blocked by `AI-00` and the relevant metadata/privacy ADR.
+
+**Outcome:** optional keyword/caption suggestions, focus/exposure/duplicate cues,
+and near-duplicate grouping that never auto-rejects, deletes, publishes, or
+writes identity-sensitive metadata without explicit acceptance.
+
+**Acceptance gate:** suggestions are separated from catalog facts, confidence and
+model identity remain inspectable, private/people/location policy is explicit,
+and accepting a batch is transactional or reports exact partial state.
+
+## AI-05 — Retouch and generated-pixel results
+
+**Status:** blocked by `AI-00`; schedule after proposal/mask workflows are proven.
+
+**Outcome:** accelerate dust, blemish, distraction, and object cleanup. Use
+canonical Retouch regions when the result is replayable; otherwise publish a
+new immutable derived asset/version rather than hiding pixels in a recipe field.
+
+**Acceptance gate:** originals remain byte-identical; generated output is atomic,
+content-addressed, attributable, cancel-safe, backup/restore aware, and visible
+as generated; failure leaves no partial asset; reopen and export do not require
+the original provider to be online.
+
+# Cross-cutting acceptance
+
+Any newly Ready `PRO-*` or `AI-*` tranche adapts this minimum set rather than
+weakening it:
+
+```text
+python3 configs/source_roots.py verify
+python3 Ravo/tools/freeze_legacy_manifest.py --check
+python3 Ravo/tools/check_ravo_dependency_boundary.py
+cmake --preset mac_clang_debug -DBUILD_TESTING=ON
+cmake --build --preset mac_clang_debug --target ravo_catalog_tests ravo_desktop_command_tests ravo_contract_tests
+ctest --test-dir build/mac_clang_debug --output-on-failure -R 'CatalogServiceTest|StudioPresenterTest|StudioQmlContract'
+```
+
+Add domain/service/CLI contracts first, then desktop presentation and QML smoke.
+Add schema migration/reopen/backup/restore tests for persisted state; stale
+revision, conflict, cancellation, source disappearance, resource exhaustion,
+and partial publication tests for asynchronous work; package and generated
+third-party notice checks for new dependencies/models. Windows and Linux remain
+untested until those hosts run. A skip is not a pass.
