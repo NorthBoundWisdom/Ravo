@@ -4,6 +4,7 @@ import GeoControls 1.0
 
 ColumnLayout {
     id: root
+
     property string title: ""
     property string hueField
     property string chromaField
@@ -15,15 +16,17 @@ ColumnLayout {
     property double luminanceFrom: -1
     property double luminanceTo: 1
     property double luminanceStep: 0.01
-    property int luminanceDecimals: 2
+    property int luminanceDecimals: 0
     property double luminanceReset: 0
+    property double luminanceDisplayScale: 100
+    property double wheelDiameter: Fonts.scaledUiSize(112)
     property bool editorEnabled: true
     property var commands
     property bool liveReady: false
 
     spacing: Fonts.size4
     Layout.fillWidth: true
-    Layout.preferredWidth: 1
+    Layout.preferredWidth: wheelDiameter
 
     function polarFromPoint(px, py) {
         const size = wheel.width;
@@ -31,7 +34,7 @@ ColumnLayout {
         const cy = size / 2;
         const radius = Math.max(1, size / 2 - 2);
         const dx = px - cx;
-        const dy = py - cy;
+        const dy = cy - py;
         const distance = Math.sqrt(dx * dx + dy * dy);
         let nextHue = Math.atan2(dy, dx) * 180 / Math.PI;
         if (nextHue < 0)
@@ -54,26 +57,42 @@ ColumnLayout {
             root.commands.setDevelopNumbers(fields);
     }
 
+    function resetWheel() {
+        if (!root.commands)
+            return;
+        const fields = {};
+        fields[root.hueField] = 0;
+        fields[root.chromaField] = 0;
+        fields[root.luminanceField] = root.luminanceReset;
+        root.commands.setDevelopNumbers(fields);
+    }
+
     CustomLabel {
         Layout.fillWidth: true
         text: root.title
         horizontalAlignment: Text.AlignHCenter
-        wrapMode: Text.WordWrap
         font.bold: true
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.editorEnabled
+            onDoubleClicked: root.resetWheel()
+        }
     }
 
     Canvas {
         id: wheel
         objectName: root.objectName.length ? root.objectName + "Disk" : ""
         Layout.alignment: Qt.AlignHCenter
-        Layout.preferredWidth: Fonts.scaledUiSize(96)
-        Layout.preferredHeight: Fonts.scaledUiSize(96)
+        Layout.preferredWidth: Math.min(root.wheelDiameter, root.width)
+        Layout.preferredHeight: Layout.preferredWidth
         width: Layout.preferredWidth
         height: Layout.preferredHeight
         antialiasing: true
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
         Component.onCompleted: requestPaint()
+
         onPaint: {
             const ctx = getContext("2d");
             const size = width;
@@ -84,9 +103,10 @@ ColumnLayout {
             for (let angle = 0; angle < 360; ++angle) {
                 ctx.beginPath();
                 ctx.moveTo(cx, cy);
-                ctx.arc(cx, cy, radius, (angle - 0.6) * Math.PI / 180, (angle + 1.6) * Math.PI / 180);
+                ctx.arc(cx, cy, radius, (angle - 0.7) * Math.PI / 180, (angle + 1.7) * Math.PI / 180);
                 ctx.closePath();
-                ctx.fillStyle = "hsl(" + angle + ", 100%, 50%)";
+                const hue = (360 - angle) % 360;
+                ctx.fillStyle = "hsl(" + hue + ", 100%, 50%)";
                 ctx.fill();
             }
             const fade = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
@@ -99,31 +119,35 @@ ColumnLayout {
             ctx.fill();
             ctx.beginPath();
             ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-            ctx.strokeStyle = Theme.midColor;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
             ctx.lineWidth = 1;
             ctx.stroke();
+
             const chromaRatio = root.maxChroma <= 0 ? 0 : Math.min(1, Math.max(0, root.chroma / root.maxChroma));
             const markerRadius = chromaRatio * radius;
             const markerAngle = root.hue * Math.PI / 180;
             const mx = cx + Math.cos(markerAngle) * markerRadius;
-            const my = cy + Math.sin(markerAngle) * markerRadius;
+            const my = cy - Math.sin(markerAngle) * markerRadius;
             ctx.beginPath();
-            ctx.arc(mx, my, 5, 0, Math.PI * 2);
-            ctx.fillStyle = Theme.windowColor;
+            ctx.arc(mx, my, Math.max(4, Fonts.size6), 0, Math.PI * 2);
+            ctx.fillStyle = chromaRatio > 0.04 ? "hsl(" + root.hue + ", 100%, 50%)" : "#d8d8d8";
             ctx.fill();
-            ctx.strokeStyle = Theme.textColor;
+            ctx.strokeStyle = "#ffffff";
             ctx.lineWidth = 1.5;
             ctx.stroke();
         }
+
         MouseArea {
             anchors.fill: parent
             enabled: root.editorEnabled
             preventStealing: true
+
             function emitAt(px, py, live) {
                 const next = root.polarFromPoint(px, py);
                 if (root.liveReady)
                     root.applyWheel(next.hue, next.chroma, live);
             }
+
             onPressed: function (event) {
                 emitAt(event.x, event.y, true);
             }
@@ -134,21 +158,36 @@ ColumnLayout {
             onReleased: function (event) {
                 emitAt(event.x, event.y, false);
             }
+            onDoubleClicked: root.resetWheel()
         }
     }
 
-    CustomSlider {
+    DevelopColorSlider {
         Layout.fillWidth: true
-        title: qsTr("Luminance")
+        title: "☀"
         from: root.luminanceFrom
         to: root.luminanceTo
         stepSize: root.luminanceStep
-        validatorDecimals: root.luminanceDecimals
-        showReset: true
+        displayDecimals: root.luminanceDecimals
+        displayScale: root.luminanceDisplayScale
         resetValue: root.luminanceReset
-        delayedCommit: true
         enabled: root.editorEnabled
         value: root.luminance
+        trackGradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop {
+                position: 0
+                color: "#050505"
+            }
+            GradientStop {
+                position: 0.52
+                color: "#6f6f6f"
+            }
+            GradientStop {
+                position: 1
+                color: "#f4f4f4"
+            }
+        }
         onValueEdited: function (value) {
             if (root.liveReady && root.commands)
                 root.commands.previewDevelopNumber(root.luminanceField, value);
@@ -159,19 +198,6 @@ ColumnLayout {
         }
         onResetRequested: if (root.commands)
             root.commands.resetControl(root.luminanceField)
-    }
-
-    CustomButton {
-        Layout.fillWidth: true
-        text: qsTr("Reset wheel")
-        enabled: root.editorEnabled
-        onClicked: if (root.commands) {
-            const fields = {};
-            fields[root.hueField] = 0;
-            fields[root.chromaField] = 0;
-            fields[root.luminanceField] = root.luminanceReset;
-            root.commands.setDevelopNumbers(fields);
-        }
     }
 
     Connections {

@@ -141,11 +141,26 @@ public:
                                                              std::string_view label);
     [[nodiscard]] Result<AssetRecord> restore_recipe_history(std::string_view asset_id,
                                                              std::int64_t history_id);
-    [[nodiscard]] Result<ImportItemResult> import_one(std::string_view path,
-                                                      const CancellationToken &cancellation);
+    [[nodiscard]] Result<ImportItemResult>
+    import_one(std::string_view path, const CancellationToken &cancellation,
+               ImportPreviewPolicy preview = ImportPreviewPolicy::kMinimal,
+               bool defer_preview = false);
+    [[nodiscard]] Result<ImportCandidate>
+    inspect_import_candidate(std::string_view path, std::string_view source_root,
+                             const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<RasterBuffer>
+    decode_import_candidate_thumbnail(std::string_view path,
+                                      const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<ImportBatchResult>
+    execute_import(const ImportRequest &request,
+                   const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
+                       &progress = {});
+    [[nodiscard]] Result<PreviewResult> build_import_preview(std::string_view asset_id,
+                                                             ImportPreviewPolicy policy,
+                                                             const CancellationToken &cancellation);
     [[nodiscard]] Result<std::vector<std::string>>
     enumerate_import_inputs(const std::vector<std::string> &paths,
-                            const CancellationToken &cancellation) const;
+                            const CancellationToken &cancellation, bool recursive = true) const;
     [[nodiscard]] Result<std::vector<ImportItemResult>>
     import_inputs(const std::vector<std::string> &paths, const CancellationToken &cancellation,
                   const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>

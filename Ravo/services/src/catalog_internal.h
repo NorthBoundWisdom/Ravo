@@ -77,7 +77,8 @@ struct EncodedPublicationCheckpointHook
 [[nodiscard]] bool is_raw_extension(const std::filesystem::path &path);
 [[nodiscard]] bool is_import_candidate(const std::filesystem::path &path);
 [[nodiscard]] Result<std::vector<std::string>>
-collect_import_paths(const std::vector<std::string> &inputs, const CancellationToken &cancellation);
+collect_import_paths(const std::vector<std::string> &inputs, const CancellationToken &cancellation,
+                     bool recursive = true);
 [[nodiscard]] std::string fnv1a64_hex(std::string_view text);
 [[nodiscard]] Recipe identity_recipe_for(const AssetRecord &asset, const std::string &path);
 [[nodiscard]] DevelopParams baseline_develop_for(const AssetRecord &asset);

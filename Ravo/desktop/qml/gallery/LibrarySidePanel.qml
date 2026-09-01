@@ -66,7 +66,7 @@ Rectangle {
             Layout.rightMargin: Fonts.standardMargin
             Layout.bottomMargin: Fonts.size8
             spacing: Fonts.size6
-            visible: !root.developOpen && root.presenter && (root.presenter.importWorkActive || root.presenter.previewWorkActive || root.presenter.catalogOperationActive || (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal) || (root.presenter.previewWorkTotal > 0 && root.presenter.previewWorkCompleted < root.presenter.previewWorkTotal))
+            visible: !root.developOpen && root.presenter && (root.presenter.importWorkActive || root.presenter.importPreviewWorkActive || root.presenter.previewWorkActive || root.presenter.catalogOperationActive || (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal) || (root.presenter.previewWorkTotal > 0 && root.presenter.previewWorkCompleted < root.presenter.previewWorkTotal))
 
             function meterVisible(active, completed, total) {
                 return active || (total > 0 && completed < total);
@@ -144,6 +144,44 @@ Rectangle {
                         radius: 3
                         color: Theme.highlightColor
                     }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+                visible: root.presenter.importPreviewWorkActive
+                RowLayout {
+                    Layout.fillWidth: true
+                    CustomLabel {
+                        text: qsTr("Import previews")
+                        font.pixelSize: Fonts.size10
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                    CustomLabel {
+                        text: root.presenter.importPreviewWorkCompleted + " / " + root.presenter.importPreviewWorkTotal
+                        color: Theme.placeholderTextColor
+                        font.pixelSize: Fonts.size10
+                    }
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 6
+                    radius: 3
+                    color: Theme.midlightColor
+                    Rectangle {
+                        width: parent.width * (root.presenter.importPreviewWorkTotal > 0 ? Math.min(1, root.presenter.importPreviewWorkCompleted / root.presenter.importPreviewWorkTotal) : 0)
+                        height: parent.height
+                        radius: 3
+                        color: Theme.highlightColor
+                    }
+                }
+                CustomButton {
+                    Layout.alignment: Qt.AlignRight
+                    text: qsTr("Cancel")
+                    onClicked: root.presenter.cancelImportPreviews()
                 }
             }
 
@@ -432,6 +470,56 @@ Rectangle {
                 root.commands.setTagFilter(text)
         }
 
+        Item {
+            id: lastImportRow
+            objectName: "lastImportGroup"
+            Layout.fillWidth: true
+            Layout.leftMargin: Fonts.size8
+            Layout.rightMargin: Fonts.size8
+            Layout.preferredHeight: visible ? Fonts.listItemHeight : 0
+            visible: !root.developOpen && root.presenter && root.presenter.lastImportAvailable
+
+            Rectangle {
+                anchors.fill: parent
+                color: root.presenter && root.presenter.lastImportSelected ? Theme.buttonHoveredColor : lastImportMouse.containsMouse ? Theme.buttonHoveredColor : Theme.alternateBaseColor
+                border.color: root.presenter && root.presenter.lastImportSelected ? Theme.highlightColor : Theme.dividerColor
+                border.width: root.presenter && root.presenter.lastImportSelected ? ControlState.borderFocus : ControlState.borderThin
+                radius: ControlState.radiusSmall
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Fonts.size8
+                anchors.rightMargin: Fonts.size8
+                spacing: Fonts.size8
+
+                CustomLabel {
+                    text: "◷"
+                    color: Theme.highlightColor
+                    font.pixelSize: Fonts.size16
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Last Imported Photos")
+                    font.bold: root.presenter && root.presenter.lastImportSelected
+                    elide: Text.ElideRight
+                }
+                CustomLabel {
+                    text: root.presenter ? String(root.presenter.lastImportCount) : "0"
+                    color: Theme.placeholderTextColor
+                }
+            }
+
+            MouseArea {
+                id: lastImportMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (root.commands)
+                    root.commands.run(root.commands.ids.librarySelectLastImport)
+            }
+        }
+
         ListView {
             id: folderList
             Layout.fillWidth: true
@@ -469,7 +557,7 @@ Rectangle {
                 Rectangle {
                     anchors.fill: parent
                     color: {
-                        if (root.presenter && folderRow.folderUri === root.presenter.selectedFolderUri)
+                        if (root.presenter && !root.presenter.lastImportSelected && folderRow.folderUri === root.presenter.selectedFolderUri)
                             return Theme.buttonHoveredColor;
                         if (folderMouse.containsMouse)
                             return Theme.buttonHoveredColor;
@@ -650,7 +738,7 @@ Rectangle {
                 text: qsTr("Import…")
                 enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.importWorkActive
                 onClicked: if (root.commands)
-                    root.commands.importFolder.trigger()
+                    root.commands.importPhotos.trigger()
             }
             CustomButton {
                 Layout.fillWidth: true

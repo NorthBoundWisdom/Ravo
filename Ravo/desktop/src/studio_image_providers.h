@@ -46,12 +46,11 @@ public:
 
     QImage requestImage(const QString &id, QSize *size, const QSize &) override
     {
-        const QImage image = id.startsWith(QLatin1String("waveform")) ?
-                                 studio_->scopeWaveformImage() :
-                             id.startsWith(QLatin1String("vectorscope")) ?
-                                 studio_->scopeVectorscopeImage() :
-                             id.startsWith(QLatin1String("split")) ? studio_->scopeSplitImage() :
-                                                                    studio_->scopeParadeImage();
+        const QImage image =
+            id.startsWith(QLatin1String("waveform"))    ? studio_->scopeWaveformImage() :
+            id.startsWith(QLatin1String("vectorscope")) ? studio_->scopeVectorscopeImage() :
+            id.startsWith(QLatin1String("split"))       ? studio_->scopeSplitImage() :
+                                                          studio_->scopeParadeImage();
         if (size != nullptr)
         {
             *size = image.size();
@@ -61,6 +60,29 @@ public:
 
 private:
     StudioPresenter *studio_ = nullptr;
+};
+
+class ImportCandidateImageProvider final : public QQuickImageProvider
+{
+public:
+    explicit ImportCandidateImageProvider(ImportCandidateListModel &model)
+        : QQuickImageProvider(QQuickImageProvider::Image)
+        , model_(&model)
+    {
+    }
+
+    QImage requestImage(const QString &id, QSize *size, const QSize &) override
+    {
+        bool ok = false;
+        const int row = id.section(QLatin1Char('?'), 0, 0).toInt(&ok);
+        const QImage image = ok ? model_->thumbnail(row) : QImage{};
+        if (size != nullptr)
+            *size = image.size();
+        return image;
+    }
+
+private:
+    ImportCandidateListModel *model_ = nullptr;
 };
 
 } // namespace ravo

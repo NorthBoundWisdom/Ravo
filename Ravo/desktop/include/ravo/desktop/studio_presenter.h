@@ -27,6 +27,7 @@
 
 #include "ravo/desktop/asset_list_model.h"
 #include "ravo/desktop/folder_list_model.h"
+#include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/domain/types.h"
 #include "ravo/engine/engine.h"
@@ -236,6 +237,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
     Q_PROPERTY(QUrl selectedThumbnailUrl READ selectedThumbnailUrl NOTIFY thumbnailsChanged)
     Q_PROPERTY(QString selectedFolderUri READ selectedFolderUri NOTIFY folderChanged)
+    Q_PROPERTY(bool lastImportAvailable READ lastImportAvailable NOTIFY folderChanged)
+    Q_PROPERTY(bool lastImportSelected READ lastImportSelected NOTIFY folderChanged)
+    Q_PROPERTY(int lastImportCount READ lastImportCount NOTIFY folderChanged)
     Q_PROPERTY(QString selectedDisplayName READ selectedDisplayName NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedFolderPath READ selectedFolderPath NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedMediaType READ selectedMediaType NOTIFY selectionChanged)
@@ -260,6 +264,19 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(int libraryTotal READ libraryTotal NOTIFY filterChanged)
     Q_PROPERTY(bool libraryHasMore READ libraryHasMore NOTIFY filterChanged)
     Q_PROPERTY(QVariantMap backupScheduleStatus READ backupScheduleStatus NOTIFY libraryWorkChanged)
+    Q_PROPERTY(bool importPageOpen READ importPageOpen NOTIFY importPageChanged)
+    Q_PROPERTY(bool importScanActive READ importScanActive NOTIFY importPageChanged)
+    Q_PROPERTY(bool importPreviewWorkActive READ importPreviewWorkActive NOTIFY libraryWorkChanged)
+    Q_PROPERTY(
+        int importPreviewWorkCompleted READ importPreviewWorkCompleted NOTIFY libraryWorkChanged)
+    Q_PROPERTY(int importPreviewWorkTotal READ importPreviewWorkTotal NOTIFY libraryWorkChanged)
+    Q_PROPERTY(QString importSourceRoot READ importSourceRoot NOTIFY importPageChanged)
+    Q_PROPERTY(QString importDestination READ importDestination NOTIFY importPageChanged)
+    Q_PROPERTY(QString importMode READ importMode NOTIFY importPageChanged)
+    Q_PROPERTY(QString importOrganization READ importOrganization NOTIFY importPageChanged)
+    Q_PROPERTY(QString importPreviewPolicy READ importPreviewPolicy NOTIFY importPageChanged)
+    Q_PROPERTY(bool importRecursive READ importRecursive NOTIFY importPageChanged)
+    Q_PROPERTY(ImportCandidateListModel *importCandidates READ importCandidates CONSTANT)
 
 public:
     explicit StudioPresenter(QObject *parent = nullptr);
@@ -286,6 +303,18 @@ public:
     [[nodiscard]] int libraryTotal() const noexcept;
     [[nodiscard]] bool libraryHasMore() const noexcept;
     [[nodiscard]] QVariantMap backupScheduleStatus() const;
+    [[nodiscard]] bool importPageOpen() const noexcept;
+    [[nodiscard]] bool importScanActive() const noexcept;
+    [[nodiscard]] bool importPreviewWorkActive() const noexcept;
+    [[nodiscard]] int importPreviewWorkCompleted() const noexcept;
+    [[nodiscard]] int importPreviewWorkTotal() const noexcept;
+    [[nodiscard]] QString importSourceRoot() const;
+    [[nodiscard]] QString importDestination() const;
+    [[nodiscard]] QString importMode() const;
+    [[nodiscard]] QString importOrganization() const;
+    [[nodiscard]] QString importPreviewPolicy() const;
+    [[nodiscard]] bool importRecursive() const noexcept;
+    [[nodiscard]] ImportCandidateListModel *importCandidates() noexcept;
     [[nodiscard]] bool busy() const noexcept;
     [[nodiscard]] QString statusText() const;
     [[nodiscard]] QString errorText() const;
@@ -477,6 +506,9 @@ public:
     [[nodiscard]] FolderListModel *folders() noexcept;
     [[nodiscard]] QUrl selectedThumbnailUrl() const;
     [[nodiscard]] QString selectedFolderUri() const;
+    [[nodiscard]] bool lastImportAvailable() const noexcept;
+    [[nodiscard]] bool lastImportSelected() const noexcept;
+    [[nodiscard]] int lastImportCount() const noexcept;
     [[nodiscard]] QString selectedDisplayName() const;
     [[nodiscard]] QString selectedFolderPath() const;
     [[nodiscard]] QString selectedMediaType() const;
@@ -492,6 +524,17 @@ public:
     Q_INVOKABLE void openCatalogFromPath(const QString &path);
     Q_INVOKABLE void importFilePaths(const QStringList &paths);
     Q_INVOKABLE void importFolderFromPath(const QString &path);
+    Q_INVOKABLE void openImportPage();
+    Q_INVOKABLE void closeImportPage();
+    Q_INVOKABLE void setImportSourceRoot(const QString &path);
+    Q_INVOKABLE void setImportDestination(const QString &path);
+    Q_INVOKABLE void setImportMode(const QString &mode);
+    Q_INVOKABLE void setImportOrganization(const QString &organization);
+    Q_INVOKABLE void setImportPreviewPolicy(const QString &policy);
+    Q_INVOKABLE void setImportRecursive(bool recursive);
+    Q_INVOKABLE void ensureImportThumbnail(int row);
+    Q_INVOKABLE void startPlannedImport();
+    Q_INVOKABLE void cancelImportPreviews();
     Q_INVOKABLE void refreshRecoveryStatus();
     Q_INVOKABLE void synchronizeRecovery();
     Q_INVOKABLE void createBackupAtPath(const QString &path);
@@ -608,6 +651,7 @@ public:
     Q_INVOKABLE void setSort(const QString &field, const QString &direction);
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);
+    Q_INVOKABLE void selectLastImport();
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
     Q_INVOKABLE void ensureLibraryRow(int row);
     Q_INVOKABLE void loadNextLibraryPage();
@@ -632,6 +676,7 @@ signals:
     void presetsChanged();
     void libraryWorkChanged();
     void thumbnailsChanged();
+    void importPageChanged();
 
 private:
     friend class StudioCommandController;
@@ -645,6 +690,7 @@ private:
                      std::unordered_map<std::string, QString> thumbnail_states = {},
                      std::size_t total = 0U, bool has_more = false);
     void applyFolders(std::vector<FolderRecord> folders);
+    void clearLastImportQuery();
     void requestPreviewForSelection();
     void reloadVisibleAssets();
     void start_catalog_revision_watch(std::int64_t revision);
@@ -658,8 +704,9 @@ private:
     void setCatalogOperation(QString stage, int completed, int total, bool active);
     void startPreviewRebuild(std::vector<std::string> asset_ids, std::size_t expected_total);
     void startScheduledBackup(bool force);
-    void ingestImportedItem(const ImportItemResult &item);
     void finishThumbnailRequest(bool success);
+    void rescanImportSource();
+    void startNextImportPreview();
     void load_develop_for_selection();
     void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
     void reload_recipe_history();
@@ -753,12 +800,14 @@ private:
     CancellationSource thumbnail_work_;
     CancellationSource catalog_operation_;
     CancellationSource import_operation_;
+    CancellationSource import_preview_operation_;
     QTimer *catalog_revision_timer_ = nullptr;
     QTimer *backup_schedule_timer_ = nullptr;
     bool catalog_poll_in_flight_ = false;
     std::int64_t observed_catalog_revision_ = -1;
     AssetListModel assets_;
     FolderListModel folders_;
+    ImportCandidateListModel import_candidates_;
     LibraryQuery query_;
     QString catalog_path_;
     QVariantList develop_presets_;
@@ -770,6 +819,25 @@ private:
     std::vector<ImportItemResult> import_results_;
     std::size_t import_next_index_ = 0U;
     LibraryQuery import_query_snapshot_;
+    bool import_page_open_ = false;
+    bool import_scan_active_ = false;
+    bool import_preview_work_active_ = false;
+    int import_preview_work_completed_ = 0;
+    int import_preview_work_total_ = 0;
+    QString import_source_root_;
+    QString import_destination_;
+    QString import_mode_{QStringLiteral("add")};
+    QString import_organization_{QStringLiteral("single")};
+    QString import_preview_policy_{QStringLiteral("standard")};
+    bool import_recursive_ = true;
+    std::uint64_t import_scan_generation_ = 0U;
+    std::unordered_set<int> import_thumbnail_requests_;
+    std::deque<std::string> pending_import_preview_ids_;
+    ImportPreviewPolicy pending_import_preview_policy_ = ImportPreviewPolicy::kStandard;
+    std::optional<std::int64_t> last_import_after_unix_ms_;
+    std::optional<std::int64_t> last_import_before_unix_ms_;
+    std::size_t last_import_count_ = 0U;
+    bool last_import_selected_ = false;
     bool preview_work_active_ = false;
     int preview_work_completed_ = 0;
     int preview_work_total_ = 0;
@@ -812,7 +880,7 @@ private:
     QMutex preview_analysis_queue_mutex_;
     std::optional<std::function<void()>> pending_preview_analysis_;
     bool preview_analysis_worker_active_ = false;
-    QString scope_mode_{QStringLiteral("histogram")};
+    QString scope_mode_{QStringLiteral("parade")};
     RgbHistogram scope_histogram_{};
     QImage scope_parade_image_;
     QUrl scope_parade_url_;

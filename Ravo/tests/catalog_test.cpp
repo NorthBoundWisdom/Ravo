@@ -1436,6 +1436,94 @@ TEST_F(CatalogServiceTest, ImportPngAndRawThenReopenPreview)
     EXPECT_TRUE(std::filesystem::exists(previewed_again.value().cache_path));
 }
 
+TEST_F(CatalogServiceTest, ManagedCopyPublishesExactMediaAndXmpWithoutChangingSources)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "copy-source";
+    const auto destination = root / "copy-destination";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    const auto source = source_dir / "photo.png";
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(30, 90, 150));
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    const auto sidecar = source_dir / "photo.xmp";
+    {
+        std::ofstream output(sidecar, std::ios::binary);
+        output << "<x:xmpmeta>keep me</x:xmpmeta>";
+    }
+    const auto source_hash = file_sha256(source.string());
+    const auto sidecar_hash = file_sha256(sidecar.string());
+
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kCopy;
+    request.organization = ImportOrganization::kSingleFolder;
+    request.preview = ImportPreviewPolicy::kStandard;
+    request.destination_directory = destination.string();
+    request.defer_previews = true;
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().imported, 1U);
+    ASSERT_EQ(imported.value().items.size(), 1U);
+    EXPECT_TRUE(imported.value().items[0].preview_pending);
+    const auto copied = destination / "photo.png";
+    const auto copied_sidecar = destination / "photo.xmp";
+    EXPECT_EQ(file_sha256(copied.string()), source_hash);
+    EXPECT_EQ(file_sha256(copied_sidecar.string()), sidecar_hash);
+    EXPECT_EQ(file_sha256(source.string()), source_hash);
+    EXPECT_EQ(file_sha256(sidecar.string()), sidecar_hash);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value()[0].normalized_uri, normalize_local_input(copied.string()).value().uri);
+}
+
+TEST_F(CatalogServiceTest, ManagedMoveDeletesVerifiedSourcesAndPreflightConflictPublishesNothing)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "move-source";
+    const auto destination = root / "move-destination";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    const auto source = source_dir / "move.png";
+    QImage image(40, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(120, 50, 20));
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    const auto source_hash = file_sha256(source.string());
+
+    ImportRequest move;
+    move.inputs = {source.string()};
+    move.source_root = source_dir.string();
+    move.mode = ImportTransferMode::kMove;
+    move.destination_directory = destination.string();
+    move.preview = ImportPreviewPolicy::kMinimal;
+    auto moved = service->execute_import(move);
+    ASSERT_TRUE(moved) << moved.error().message;
+    ASSERT_EQ(moved.value().imported, 1U);
+    EXPECT_FALSE(std::filesystem::exists(source));
+    EXPECT_EQ(file_sha256((destination / "move.png").string()), source_hash);
+
+    const auto conflict_source = source_dir / "conflict.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(conflict_source.string()), "PNG"));
+    ASSERT_TRUE(image.save(QString::fromStdString((destination / "conflict.png").string()), "PNG"));
+    ImportRequest conflict;
+    conflict.inputs = {conflict_source.string()};
+    conflict.source_root = source_dir.string();
+    conflict.mode = ImportTransferMode::kCopy;
+    conflict.destination_directory = destination.string();
+    auto rejected = service->execute_import(conflict);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "import_destination_conflict");
+    EXPECT_TRUE(std::filesystem::exists(conflict_source));
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    EXPECT_EQ(listed.value().size(), 1U);
+}
+
 TEST(QtRasterDecoderTest, DecodeMemoryAppliesClockwiseQuarterTurnsWithoutExif)
 {
     QImage source(32, 16, QImage::Format_RGB888);

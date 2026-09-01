@@ -1,6 +1,6 @@
 # ADR-0007: Deliver the catalog/import/viewer vertical slice first
 
-- Status: Accepted
+- Status: Accepted; reference-only import superseded by ADR-0102
 - Date: 2026-08-24
 - Supersedes in part: ADR-0001, ADR-0005
 

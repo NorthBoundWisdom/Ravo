@@ -88,17 +88,6 @@
         </message>
     </context>
     <context>
-        <name>ColorGradeWheel</name>
-        <message>
-            <source>Luminance</source>
-            <translation>Luminancia</translation>
-        </message>
-        <message>
-            <source>Reset wheel</source>
-            <translation>Reiniciar rueda</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Original</source>
@@ -294,10 +283,6 @@
         <message>
             <source>Manual coefficients</source>
             <translation>Coeficientes manuales</translation>
-        </message>
-        <message>
-            <source>Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.</source>
-            <translation>Los modos automáticos resuelven los metadatos de la cámara antes que el mosaico. Escala de valores manual R, G1, B y G2/CYGM canal 4.</translation>
         </message>
         <message>
             <source>Pick white on photo</source>
@@ -652,10 +637,6 @@
             <translation>Luminosidad</translation>
         </message>
         <message>
-            <source>Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.</source>
-            <translation>Ocho bandas de tonos combinan con un mezclador Lightroom HSL: rojo, naranja, amarillo, verde, aguamarina, azul, morado y magenta.</translation>
-        </message>
-        <message>
             <source>Color</source>
             <translation>Color</translation>
         </message>
@@ -728,16 +709,8 @@
             <translation>Desactivar y restablecer LUT 3D</translation>
         </message>
         <message>
-            <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
-            <translation>Balance de color RGB · lineal sRGB D50 / Filmlight Yrg</translation>
-        </message>
-        <message>
             <source>Midtones</source>
             <translation>Medios tonos</translation>
-        </message>
-        <message>
-            <source>Reset Color Balance RGB</source>
-            <translation>Restablecer equilibrio de color RGB</translation>
         </message>
         <message>
             <source>Color Balance RGB · more</source>
@@ -954,6 +927,30 @@
         <message>
             <source>Color · Advanced</source>
             <translation>Color · Avanzado</translation>
+        </message>
+        <message>
+            <source>Presence</source>
+            <translation>Presencia</translation>
+        </message>
+        <message>
+            <source>Color Grading</source>
+            <translation>Etalonaje de color</translation>
+        </message>
+        <message>
+            <source>Global</source>
+            <translation>Global</translation>
+        </message>
+        <message>
+            <source>Shadows falloff</source>
+            <translation>Caída de sombras</translation>
+        </message>
+        <message>
+            <source>Highlights falloff</source>
+            <translation>Caída de luces</translation>
+        </message>
+        <message>
+            <source>Color Mixer</source>
+            <translation>Mezclador de colores</translation>
         </message>
         <message>
             <source>Color look-up table · D50 Lab</source>
@@ -2881,6 +2878,137 @@
         </message>
     </context>
     <context>
+        <name>ImportPage</name>
+        <message>
+            <source>Back</source>
+            <translation>Atrás</translation>
+        </message>
+        <message>
+            <source>Import Photos</source>
+            <translation>Importar fotos</translation>
+        </message>
+        <message>
+            <source>Add</source>
+            <translation>Añadir</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>Copiar</translation>
+        </message>
+        <message>
+            <source>Move</source>
+            <translation>Mover</translation>
+        </message>
+        <message>
+            <source>Source</source>
+            <translation>Fuente</translation>
+        </message>
+        <message>
+            <source>Choose Source…</source>
+            <translation>Elegir origen…</translation>
+        </message>
+        <message>
+            <source>No source selected</source>
+            <translation>No se ha seleccionado un origen</translation>
+        </message>
+        <message>
+            <source>Include subfolders</source>
+            <translation>Incluir subcarpetas</translation>
+        </message>
+        <message>
+            <source>Selected: %1 of %2</source>
+            <translation>Seleccionadas: %1 de %2</translation>
+        </message>
+        <message>
+            <source>Check All</source>
+            <translation>Seleccionar todo</translation>
+        </message>
+        <message>
+            <source>Uncheck All</source>
+            <translation>Deseleccionar todo</translation>
+        </message>
+        <message>
+            <source>No supported photos found</source>
+            <translation>No se encontraron fotos compatibles</translation>
+        </message>
+        <message>
+            <source>Choose a source folder</source>
+            <translation>Elige una carpeta de origen</translation>
+        </message>
+        <message>
+            <source>Already imported</source>
+            <translation>Ya importada</translation>
+        </message>
+        <message>
+            <source>Unavailable</source>
+            <translation>No disponible</translation>
+        </message>
+        <message>
+            <source>File Handling</source>
+            <translation>Administración de archivos</translation>
+        </message>
+        <message>
+            <source>Build Previews</source>
+            <translation>Crear previsualizaciones</translation>
+        </message>
+        <message>
+            <source>Minimal (320)</source>
+            <translation>Mínima (320)</translation>
+        </message>
+        <message>
+            <source>Standard (1600)</source>
+            <translation>Estándar (1600)</translation>
+        </message>
+        <message>
+            <source>1:1</source>
+            <translation>1:1</translation>
+        </message>
+        <message>
+            <source>Destination</source>
+            <translation>Destino</translation>
+        </message>
+        <message>
+            <source>Choose Destination…</source>
+            <translation>Elegir destino…</translation>
+        </message>
+        <message>
+            <source>No destination selected</source>
+            <translation>No se ha seleccionado un destino</translation>
+        </message>
+        <message>
+            <source>Organize</source>
+            <translation>Organizar</translation>
+        </message>
+        <message>
+            <source>Into one folder</source>
+            <translation>En una carpeta</translation>
+        </message>
+        <message>
+            <source>Preserve hierarchy</source>
+            <translation>Conservar jerarquía</translation>
+        </message>
+        <message>
+            <source>By date (YYYY/MM/DD)</source>
+            <translation>Por fecha (YYYY/MM/DD)</translation>
+        </message>
+        <message>
+            <source>Move copies and verifies each photo before removing its source.</source>
+            <translation>Mover copia y verifica cada foto antes de eliminar el origen.</translation>
+        </message>
+        <message>
+            <source>Importing %1 / %2…</source>
+            <translation>Importando %1 / %2…</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancelar</translation>
+        </message>
+        <message>
+            <source>Import</source>
+            <translation>Importar</translation>
+        </message>
+    </context>
+    <context>
         <name>LibraryFilterBar</name>
         <message>
             <source>Remove filter</source>
@@ -3042,6 +3170,10 @@
             <translation>Vistas previas</translation>
         </message>
         <message>
+            <source>Import previews</source>
+            <translation>Previsualizaciones de importación</translation>
+        </message>
+        <message>
             <source>Scheduled backups</source>
             <translation>Copias programadas</translation>
         </message>
@@ -3088,6 +3220,10 @@
         <message>
             <source>Filter by tag</source>
             <translation>Filtrar por etiqueta</translation>
+        </message>
+        <message>
+            <source>Last Imported Photos</source>
+            <translation>Últimas fotos importadas</translation>
         </message>
         <message>
             <source>All Photographs</source>
@@ -3209,6 +3345,14 @@
             <translation>Cree o abra una biblioteca para importar fotografías.</translation>
         </message>
         <message>
+            <source>Choose Import Source</source>
+            <translation>Elegir origen de importación</translation>
+        </message>
+        <message>
+            <source>Choose Import Destination</source>
+            <translation>Elegir destino de importación</translation>
+        </message>
+        <message>
             <source>Loading preview…</source>
             <translation>Cargando vista previa…</translation>
         </message>
@@ -3259,14 +3403,6 @@
         <message>
             <source>Open Library</source>
             <translation>Abrir biblioteca</translation>
-        </message>
-        <message>
-            <source>Import Photos</source>
-            <translation>Importar fotos</translation>
-        </message>
-        <message>
-            <source>Import Folder</source>
-            <translation>Importar carpeta</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -3872,14 +4008,6 @@
             <translation>Abrir biblioteca...</translation>
         </message>
         <message>
-            <source>Import Photos...</source>
-            <translation>Importar fotos...</translation>
-        </message>
-        <message>
-            <source>Import Folder...</source>
-            <translation>Importar carpeta...</translation>
-        </message>
-        <message>
             <source>Export Selected...</source>
             <translation>Exportar seleccionado...</translation>
         </message>
@@ -4098,6 +4226,10 @@
         <message>
             <source>Copy parameters first.</source>
             <translation>Copie primero los parámetros.</translation>
+        </message>
+        <message>
+            <source>Import...</source>
+            <translation>Importar…</translation>
         </message>
         <message>
             <source>Paste Parameters</source>
@@ -4586,6 +4718,10 @@
         <message>
             <source>Scanning folder…</source>
             <translation>Escaneando carpeta…</translation>
+        </message>
+        <message>
+            <source>Choose an import destination.</source>
+            <translation>Elige un destino de importación.</translation>
         </message>
         <message>
             <source>Importing 0 / %1…</source>

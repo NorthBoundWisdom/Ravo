@@ -1413,7 +1413,9 @@ Result<AssetRecord> CatalogService::restore_recipe_history(const std::string_vie
 }
 
 Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
-                                                    const CancellationToken &cancellation)
+                                                    const CancellationToken &cancellation,
+                                                    const ImportPreviewPolicy preview_policy,
+                                                    const bool defer_preview)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -1620,7 +1622,7 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         return failed_item(location.value().path, published.error());
     }
 
-    if (validated_raster)
+    if (validated_raster && preview_policy == ImportPreviewPolicy::kMinimal)
     {
         RasterBuffer raster;
         raster.width = validated_raster->width;
@@ -1634,37 +1636,41 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
                                  kThumbnailMaxEdge, std::move(raster)};
     }
 
-    PreviewRequest imported_preview;
-    imported_preview.max_edge = kThumbnailMaxEdge;
-    imported_preview.purpose = PreviewPurpose::kBrowse;
-    imported_preview.prefer_embedded_preview = is_raw_media_type(asset.media_type);
-    imported_preview.cancellation = cancellation;
     Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Preview was not generated");
-    if (embedded_preview)
+    if (!defer_preview)
     {
-        preview = persist_embedded_browse_preview(asset, *embedded_preview, kThumbnailMaxEdge,
-                                                  cancellation);
-    }
-    if (!preview)
-    {
-        preview = generate_preview(asset, imported_preview, {});
-    }
-    if (!preview)
-    {
-        LOG_ERROR(ravo::logger(), "preview failed asset={} path={} error={}", asset.id,
-                  location.value().path, preview.error().message);
-        PreviewRecord failed;
-        failed.asset_id = asset.id;
-        failed.state = std::string(kPreviewStateFailed);
-        failed.cache_key =
-            make_preview_cache_key(asset.id, asset.width.value_or(0), asset.height.value_or(0),
-                                   asset.content_fingerprint.value_or("none"));
-        static_cast<void>(repository_->upsert_preview(failed));
-    }
-    else
-    {
-        LOG_INFO(ravo::logger(), "preview ready asset={} cache={}", asset.id,
-                 preview.value().cache_path);
+        const std::uint32_t preview_edge =
+            preview_policy == ImportPreviewPolicy::kMinimal  ? kThumbnailMaxEdge :
+            preview_policy == ImportPreviewPolicy::kStandard ? kDefaultPreviewMaxEdge :
+                                                               0U;
+        PreviewRequest imported_preview;
+        imported_preview.max_edge = preview_edge;
+        imported_preview.purpose = PreviewPurpose::kBrowse;
+        imported_preview.prefer_embedded_preview =
+            preview_policy == ImportPreviewPolicy::kMinimal && is_raw_media_type(asset.media_type);
+        imported_preview.cancellation = cancellation;
+        if (embedded_preview && preview_policy == ImportPreviewPolicy::kMinimal)
+            preview = persist_embedded_browse_preview(asset, *embedded_preview, preview_edge,
+                                                      cancellation);
+        if (!preview)
+            preview = generate_preview(asset, imported_preview, {});
+        if (!preview)
+        {
+            LOG_ERROR(ravo::logger(), "preview failed asset={} path={} error={}", asset.id,
+                      location.value().path, preview.error().message);
+            PreviewRecord failed;
+            failed.asset_id = asset.id;
+            failed.state = std::string(kPreviewStateFailed);
+            failed.cache_key =
+                make_preview_cache_key(asset.id, asset.width.value_or(0), asset.height.value_or(0),
+                                       asset.content_fingerprint.value_or("none"));
+            static_cast<void>(repository_->upsert_preview(failed));
+        }
+        else
+        {
+            LOG_INFO(ravo::logger(), "preview ready asset={} cache={}", asset.id,
+                     preview.value().cache_path);
+        }
     }
 
     ImportItemResult result;
@@ -1675,6 +1681,7 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     {
         result.preview_cache_path = preview.value().cache_path;
     }
+    result.preview_pending = defer_preview;
     auto recovered = synchronize_committed_change(asset.id, cancellation);
     if (!recovered)
     {
@@ -1685,11 +1692,12 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
 
 Result<std::vector<std::string>>
 CatalogService::enumerate_import_inputs(const std::vector<std::string> &paths,
-                                        const CancellationToken &cancellation) const
+                                        const CancellationToken &cancellation,
+                                        const bool recursive) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return collect_import_paths(paths, cancellation);
+    return collect_import_paths(paths, cancellation, recursive);
 }
 
 Result<std::vector<ImportItemResult>> CatalogService::import_inputs(

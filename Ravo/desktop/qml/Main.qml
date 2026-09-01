@@ -34,7 +34,7 @@ ApplicationWindow {
     property string presetDeleteConfirmationToken: ""
     property string presetDeletePath: ""
     property string presetDeleteName: ""
-    readonly property bool studioInteractive: !settingsOpen && !studioCommands.paletteOpen
+    readonly property bool studioInteractive: !settingsOpen && !studio.importPageOpen && !studioCommands.paletteOpen
     readonly property bool textInputActive: activeFocusItem && (activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit)
     property string lastGalleryMode: "grid"
     property string pendingExportFormat: ""
@@ -451,13 +451,11 @@ ApplicationWindow {
     }
 
     function openImportDialog() {
-        importDialog.currentFolder = studio.defaultCatalogFolder;
-        importDialog.openDialog();
+        studio.openImportPage();
     }
 
     function openImportFolderDialog() {
-        importFolderDialog.currentFolder = studio.defaultCatalogFolder;
-        importFolderDialog.openDialog();
+        studio.openImportPage();
     }
 
     function openBackupCreateDialog() {
@@ -632,7 +630,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible
+        value: studio.importPageOpen || removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible
     }
 
     StudioCommandShortcuts {
@@ -1355,6 +1353,22 @@ ApplicationWindow {
         onCloseRequested: window.settingsOpen = false
     }
 
+    ImportPage {
+        anchors.fill: parent
+        visible: studio.importPageOpen
+        z: 25
+        presenter: studio
+        onCloseRequested: studio.closeImportPage()
+        onChooseSourceRequested: {
+            importSourceDialog.currentFolder = studio.defaultCatalogFolder;
+            importSourceDialog.openDialog();
+        }
+        onChooseDestinationRequested: {
+            importDestinationDialog.currentFolder = studio.defaultCatalogFolder;
+            importDestinationDialog.openDialog();
+        }
+    }
+
     AssistantPanel {
         id: assistantPanel
         assistant: studioAssistant
@@ -1471,21 +1485,19 @@ ApplicationWindow {
         }
     }
 
-    QmlFileDialogPage {
-        id: importDialog
-        dialogTitle: qsTr("Import Photos")
-        dialogMode: "openFiles"
-        nameFilters: ["Photos (*.png *.jpg *.jpeg *.JPG *.JPEG *.tif *.tiff *.bmp *.gif *.webp *.arw *.ARW *.cr2 *.CR2 *.cr3 *.CR3 *.nef *.NEF *.dng *.DNG *.raf *.orf *.rw2)", "All files (*)"]
-        onFileAccepted: function (filePath, selectedFilter, filePaths) {
-            studioActions.run(studioActions.ids.libraryImportPaths, filePaths);
+    FolderDialogPage {
+        id: importSourceDialog
+        dialogTitle: qsTr("Choose Import Source")
+        onFolderAccepted: function (folderPath) {
+            studio.setImportSourceRoot(folderPath);
         }
     }
 
     FolderDialogPage {
-        id: importFolderDialog
-        dialogTitle: qsTr("Import Folder")
+        id: importDestinationDialog
+        dialogTitle: qsTr("Choose Import Destination")
         onFolderAccepted: function (folderPath) {
-            studioActions.run(studioActions.ids.libraryImportFolderPath, folderPath);
+            studio.setImportDestination(folderPath);
         }
     }
 

@@ -8,6 +8,7 @@ target_sources(ravo_services
     src/catalog_backup_schedule.cpp
     src/catalog_folder.cpp
     src/catalog_internal.cpp
+    src/catalog_import.cpp
     src/encoded_publication.cpp
     src/original_copy.cpp
     src/catalog_service.cpp

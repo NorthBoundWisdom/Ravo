@@ -88,17 +88,6 @@
         </message>
     </context>
     <context>
-        <name>ColorGradeWheel</name>
-        <message>
-            <source>Luminance</source>
-            <translation>휘도</translation>
-        </message>
-        <message>
-            <source>Reset wheel</source>
-            <translation>휠 재설정</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Original</source>
@@ -294,10 +283,6 @@
         <message>
             <source>Manual coefficients</source>
             <translation>수동 계수</translation>
-        </message>
-        <message>
-            <source>Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.</source>
-            <translation>자동 모드는 디모자이킹 전에 카메라 메타데이터를 해석합니다. 수동 값은 R, G1, B 및 G2/CYGM 채널 4의 배율을 조정합니다.</translation>
         </message>
         <message>
             <source>Pick white on photo</source>
@@ -652,10 +637,6 @@
             <translation>명도</translation>
         </message>
         <message>
-            <source>Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.</source>
-            <translation>8개 색조 밴드는 Lightroom HSL 믹서와 같습니다: 빨강, 주황, 노랑, 녹색, 아쿠아, 파랑, 보라, 마젠타.</translation>
-        </message>
-        <message>
             <source>Color</source>
             <translation>색상</translation>
         </message>
@@ -728,16 +709,8 @@
             <translation>3D LUT 비활성화 및 초기화</translation>
         </message>
         <message>
-            <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
-            <translation>색상 균형 RGB · 선형 sRGB D50 / Filmlight Yrg</translation>
-        </message>
-        <message>
             <source>Midtones</source>
             <translation>중간톤</translation>
-        </message>
-        <message>
-            <source>Reset Color Balance RGB</source>
-            <translation>색상 균형 RGB 초기화</translation>
         </message>
         <message>
             <source>Color Balance RGB · more</source>
@@ -954,6 +927,30 @@
         <message>
             <source>Color · Advanced</source>
             <translation>색상 · 고급</translation>
+        </message>
+        <message>
+            <source>Presence</source>
+            <translation>표현</translation>
+        </message>
+        <message>
+            <source>Color Grading</source>
+            <translation>색상 그레이딩</translation>
+        </message>
+        <message>
+            <source>Global</source>
+            <translation>전체</translation>
+        </message>
+        <message>
+            <source>Shadows falloff</source>
+            <translation>어두운 영역 감쇠</translation>
+        </message>
+        <message>
+            <source>Highlights falloff</source>
+            <translation>밝은 영역 감쇠</translation>
+        </message>
+        <message>
+            <source>Color Mixer</source>
+            <translation>색상 믹서</translation>
         </message>
         <message>
             <source>Color look-up table · D50 Lab</source>
@@ -2881,6 +2878,137 @@
         </message>
     </context>
     <context>
+        <name>ImportPage</name>
+        <message>
+            <source>Back</source>
+            <translation>뒤로</translation>
+        </message>
+        <message>
+            <source>Import Photos</source>
+            <translation>사진 가져오기</translation>
+        </message>
+        <message>
+            <source>Add</source>
+            <translation>추가</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>복사</translation>
+        </message>
+        <message>
+            <source>Move</source>
+            <translation>이동</translation>
+        </message>
+        <message>
+            <source>Source</source>
+            <translation>소스</translation>
+        </message>
+        <message>
+            <source>Choose Source…</source>
+            <translation>원본 선택…</translation>
+        </message>
+        <message>
+            <source>No source selected</source>
+            <translation>원본이 선택되지 않음</translation>
+        </message>
+        <message>
+            <source>Include subfolders</source>
+            <translation>하위 폴더 포함</translation>
+        </message>
+        <message>
+            <source>Selected: %1 of %2</source>
+            <translation>선택: %1 / %2</translation>
+        </message>
+        <message>
+            <source>Check All</source>
+            <translation>모두 선택</translation>
+        </message>
+        <message>
+            <source>Uncheck All</source>
+            <translation>모두 해제</translation>
+        </message>
+        <message>
+            <source>No supported photos found</source>
+            <translation>지원되는 사진을 찾을 수 없음</translation>
+        </message>
+        <message>
+            <source>Choose a source folder</source>
+            <translation>원본 폴더를 선택하세요</translation>
+        </message>
+        <message>
+            <source>Already imported</source>
+            <translation>이미 가져옴</translation>
+        </message>
+        <message>
+            <source>Unavailable</source>
+            <translation>사용할 수 없음</translation>
+        </message>
+        <message>
+            <source>File Handling</source>
+            <translation>파일 처리</translation>
+        </message>
+        <message>
+            <source>Build Previews</source>
+            <translation>미리보기 생성</translation>
+        </message>
+        <message>
+            <source>Minimal (320)</source>
+            <translation>최소 (320)</translation>
+        </message>
+        <message>
+            <source>Standard (1600)</source>
+            <translation>표준 (1600)</translation>
+        </message>
+        <message>
+            <source>1:1</source>
+            <translation>1:1</translation>
+        </message>
+        <message>
+            <source>Destination</source>
+            <translation>대상</translation>
+        </message>
+        <message>
+            <source>Choose Destination…</source>
+            <translation>대상 선택…</translation>
+        </message>
+        <message>
+            <source>No destination selected</source>
+            <translation>대상이 선택되지 않음</translation>
+        </message>
+        <message>
+            <source>Organize</source>
+            <translation>정리</translation>
+        </message>
+        <message>
+            <source>Into one folder</source>
+            <translation>하나의 폴더에 넣기</translation>
+        </message>
+        <message>
+            <source>Preserve hierarchy</source>
+            <translation>폴더 계층 유지</translation>
+        </message>
+        <message>
+            <source>By date (YYYY/MM/DD)</source>
+            <translation>날짜별 (YYYY/MM/DD)</translation>
+        </message>
+        <message>
+            <source>Move copies and verifies each photo before removing its source.</source>
+            <translation>이동은 각 사진을 복사하고 확인한 후 원본을 제거합니다.</translation>
+        </message>
+        <message>
+            <source>Importing %1 / %2…</source>
+            <translation>%1 / %2 가져오는 중…</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>취소</translation>
+        </message>
+        <message>
+            <source>Import</source>
+            <translation>가져오기</translation>
+        </message>
+    </context>
+    <context>
         <name>LibraryFilterBar</name>
         <message>
             <source>Remove filter</source>
@@ -3042,6 +3170,10 @@
             <translation>미리 보기</translation>
         </message>
         <message>
+            <source>Import previews</source>
+            <translation>가져오기 미리보기</translation>
+        </message>
+        <message>
             <source>Scheduled backups</source>
             <translation>정기 백업</translation>
         </message>
@@ -3088,6 +3220,10 @@
         <message>
             <source>Filter by tag</source>
             <translation>태그로 필터링</translation>
+        </message>
+        <message>
+            <source>Last Imported Photos</source>
+            <translation>마지막으로 가져온 사진</translation>
         </message>
         <message>
             <source>All Photographs</source>
@@ -3209,6 +3345,14 @@
             <translation>사진을 가져오려면 라이브러리를 만들거나 여세요.</translation>
         </message>
         <message>
+            <source>Choose Import Source</source>
+            <translation>가져올 원본 선택</translation>
+        </message>
+        <message>
+            <source>Choose Import Destination</source>
+            <translation>가져올 대상 선택</translation>
+        </message>
+        <message>
             <source>Loading preview…</source>
             <translation>미리 보기 불러오는 중…</translation>
         </message>
@@ -3259,14 +3403,6 @@
         <message>
             <source>Open Library</source>
             <translation>라이브러리 열기</translation>
-        </message>
-        <message>
-            <source>Import Photos</source>
-            <translation>사진 가져오기</translation>
-        </message>
-        <message>
-            <source>Import Folder</source>
-            <translation>폴더 가져오기</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -3872,14 +4008,6 @@
             <translation>라이브러리 열기...</translation>
         </message>
         <message>
-            <source>Import Photos...</source>
-            <translation>사진 가져오기...</translation>
-        </message>
-        <message>
-            <source>Import Folder...</source>
-            <translation>폴더 가져오기...</translation>
-        </message>
-        <message>
             <source>Export Selected...</source>
             <translation>선택한 사진 내보내기...</translation>
         </message>
@@ -4098,6 +4226,10 @@
         <message>
             <source>Copy parameters first.</source>
             <translation>먼저 매개변수를 복사하세요.</translation>
+        </message>
+        <message>
+            <source>Import...</source>
+            <translation>가져오기…</translation>
         </message>
         <message>
             <source>Paste Parameters</source>
@@ -4586,6 +4718,10 @@
         <message>
             <source>Scanning folder…</source>
             <translation>폴더 검사 중…</translation>
+        </message>
+        <message>
+            <source>Choose an import destination.</source>
+            <translation>가져올 대상을 선택하세요.</translation>
         </message>
         <message>
             <source>Importing 0 / %1…</source>

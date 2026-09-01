@@ -88,17 +88,6 @@
         </message>
     </context>
     <context>
-        <name>ColorGradeWheel</name>
-        <message>
-            <source>Luminance</source>
-            <translation>ColorGradeWheel::Luminance</translation>
-        </message>
-        <message>
-            <source>Reset wheel</source>
-            <translation>ホイールをリセット</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Original</source>
@@ -294,10 +283,6 @@
         <message>
             <source>Manual coefficients</source>
             <translation>手動係数</translation>
-        </message>
-        <message>
-            <source>Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.</source>
-            <translation>自動モードは、デモザイク前にカメラのメタデータを解決します。手動値は R、G1、B、G2/CYGM チャンネル 4 をスケーリングします。</translation>
         </message>
         <message>
             <source>Pick white on photo</source>
@@ -652,10 +637,6 @@
             <translation>明度</translation>
         </message>
         <message>
-            <source>Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.</source>
-            <translation>8 つの色相バンドは Lightroom の HSL ミキサーに対応します: レッド、オレンジ、イエロー、グリーン、アクア、ブルー、パープル、マゼンタ。</translation>
-        </message>
-        <message>
             <source>Color</source>
             <translation>カラー</translation>
         </message>
@@ -728,16 +709,8 @@
             <translation>3D LUTを無効化してリセット</translation>
         </message>
         <message>
-            <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
-            <translation>カラー バランス RGB · リニア sRGB D50 / Filmlight Yrg</translation>
-        </message>
-        <message>
             <source>Midtones</source>
             <translation>ミッドトーン</translation>
-        </message>
-        <message>
-            <source>Reset Color Balance RGB</source>
-            <translation>カラー バランス RGB をリセット</translation>
         </message>
         <message>
             <source>Color Balance RGB · more</source>
@@ -954,6 +927,30 @@
         <message>
             <source>Color · Advanced</source>
             <translation>カラー · 高度な</translation>
+        </message>
+        <message>
+            <source>Presence</source>
+            <translation>プレゼンス</translation>
+        </message>
+        <message>
+            <source>Color Grading</source>
+            <translation>カラーグレーディング</translation>
+        </message>
+        <message>
+            <source>Global</source>
+            <translation>全体</translation>
+        </message>
+        <message>
+            <source>Shadows falloff</source>
+            <translation>シャドウのフォールオフ</translation>
+        </message>
+        <message>
+            <source>Highlights falloff</source>
+            <translation>ハイライトのフォールオフ</translation>
+        </message>
+        <message>
+            <source>Color Mixer</source>
+            <translation>カラーミキサー</translation>
         </message>
         <message>
             <source>Color look-up table · D50 Lab</source>
@@ -2881,6 +2878,137 @@
         </message>
     </context>
     <context>
+        <name>ImportPage</name>
+        <message>
+            <source>Back</source>
+            <translation>戻る</translation>
+        </message>
+        <message>
+            <source>Import Photos</source>
+            <translation>写真のインポート</translation>
+        </message>
+        <message>
+            <source>Add</source>
+            <translation>追加</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>コピー</translation>
+        </message>
+        <message>
+            <source>Move</source>
+            <translation>移動</translation>
+        </message>
+        <message>
+            <source>Source</source>
+            <translation>ソース</translation>
+        </message>
+        <message>
+            <source>Choose Source…</source>
+            <translation>読み込み元を選択…</translation>
+        </message>
+        <message>
+            <source>No source selected</source>
+            <translation>読み込み元が選択されていません</translation>
+        </message>
+        <message>
+            <source>Include subfolders</source>
+            <translation>サブフォルダーを含める</translation>
+        </message>
+        <message>
+            <source>Selected: %1 of %2</source>
+            <translation>選択：%1 / %2</translation>
+        </message>
+        <message>
+            <source>Check All</source>
+            <translation>すべて選択</translation>
+        </message>
+        <message>
+            <source>Uncheck All</source>
+            <translation>すべて解除</translation>
+        </message>
+        <message>
+            <source>No supported photos found</source>
+            <translation>対応する写真が見つかりません</translation>
+        </message>
+        <message>
+            <source>Choose a source folder</source>
+            <translation>読み込み元フォルダーを選択</translation>
+        </message>
+        <message>
+            <source>Already imported</source>
+            <translation>読み込み済み</translation>
+        </message>
+        <message>
+            <source>Unavailable</source>
+            <translation>利用できません</translation>
+        </message>
+        <message>
+            <source>File Handling</source>
+            <translation>ファイル処理</translation>
+        </message>
+        <message>
+            <source>Build Previews</source>
+            <translation>プレビューを作成</translation>
+        </message>
+        <message>
+            <source>Minimal (320)</source>
+            <translation>最小 (320)</translation>
+        </message>
+        <message>
+            <source>Standard (1600)</source>
+            <translation>標準 (1600)</translation>
+        </message>
+        <message>
+            <source>1:1</source>
+            <translation>1:1</translation>
+        </message>
+        <message>
+            <source>Destination</source>
+            <translation>保存先</translation>
+        </message>
+        <message>
+            <source>Choose Destination…</source>
+            <translation>保存先を選択…</translation>
+        </message>
+        <message>
+            <source>No destination selected</source>
+            <translation>保存先が選択されていません</translation>
+        </message>
+        <message>
+            <source>Organize</source>
+            <translation>整理</translation>
+        </message>
+        <message>
+            <source>Into one folder</source>
+            <translation>1 つのフォルダーに格納</translation>
+        </message>
+        <message>
+            <source>Preserve hierarchy</source>
+            <translation>フォルダー階層を保持</translation>
+        </message>
+        <message>
+            <source>By date (YYYY/MM/DD)</source>
+            <translation>日付別 (YYYY/MM/DD)</translation>
+        </message>
+        <message>
+            <source>Move copies and verifies each photo before removing its source.</source>
+            <translation>移動では各写真をコピーして検証した後に読み込み元を削除します。</translation>
+        </message>
+        <message>
+            <source>Importing %1 / %2…</source>
+            <translation>インポート中 %1 / %2…</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>キャンセル</translation>
+        </message>
+        <message>
+            <source>Import</source>
+            <translation>インポート</translation>
+        </message>
+    </context>
+    <context>
         <name>LibraryFilterBar</name>
         <message>
             <source>Remove filter</source>
@@ -3042,6 +3170,10 @@
             <translation>プレビュー</translation>
         </message>
         <message>
+            <source>Import previews</source>
+            <translation>読み込みプレビュー</translation>
+        </message>
+        <message>
             <source>Scheduled backups</source>
             <translation>定期バックアップ</translation>
         </message>
@@ -3088,6 +3220,10 @@
         <message>
             <source>Filter by tag</source>
             <translation>タグによるフィルター</translation>
+        </message>
+        <message>
+            <source>Last Imported Photos</source>
+            <translation>前回読み込んだ写真</translation>
         </message>
         <message>
             <source>All Photographs</source>
@@ -3209,6 +3345,14 @@
             <translation>写真をインポートするためのライブラリを作成するか開いてください。</translation>
         </message>
         <message>
+            <source>Choose Import Source</source>
+            <translation>読み込み元を選択</translation>
+        </message>
+        <message>
+            <source>Choose Import Destination</source>
+            <translation>読み込み先を選択</translation>
+        </message>
+        <message>
             <source>Loading preview…</source>
             <translation>プレビューを読み込み中…</translation>
         </message>
@@ -3259,14 +3403,6 @@
         <message>
             <source>Open Library</source>
             <translation>ライブラリを開く</translation>
-        </message>
-        <message>
-            <source>Import Photos</source>
-            <translation>写真のインポート</translation>
-        </message>
-        <message>
-            <source>Import Folder</source>
-            <translation>フォルダーのインポート</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -3872,14 +4008,6 @@
             <translation>ライブラリを開く...</translation>
         </message>
         <message>
-            <source>Import Photos...</source>
-            <translation>写真のインポート...</translation>
-        </message>
-        <message>
-            <source>Import Folder...</source>
-            <translation>フォルダーのインポート...</translation>
-        </message>
-        <message>
             <source>Export Selected...</source>
             <translation>選択内容をエクスポート...</translation>
         </message>
@@ -4098,6 +4226,10 @@
         <message>
             <source>Copy parameters first.</source>
             <translation>先にパラメーターをコピーしてください。</translation>
+        </message>
+        <message>
+            <source>Import...</source>
+            <translation>読み込み…</translation>
         </message>
         <message>
             <source>Paste Parameters</source>
@@ -4586,6 +4718,10 @@
         <message>
             <source>Scanning folder…</source>
             <translation>フォルダーをスキャン中…</translation>
+        </message>
+        <message>
+            <source>Choose an import destination.</source>
+            <translation>読み込み先を選択してください。</translation>
         </message>
         <message>
             <source>Importing 0 / %1…</source>

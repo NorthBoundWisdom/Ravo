@@ -334,6 +334,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}"
   RAVO_STUDIO_TRANSLATION_DIR="${CMAKE_BINARY_DIR}/Ravo/desktop/i18n"
   RAVO_STUDIO_DEVELOP_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPanel.qml"
+  RAVO_STUDIO_DEVELOP_COLOR_SLIDER_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopColorSlider.qml"
   RAVO_STUDIO_COLOR_GRADE_WHEEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ColorGradeWheel.qml"
   RAVO_STUDIO_DEVELOP_HISTORY_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopHistoryPanel.qml"
   RAVO_STUDIO_DEVELOP_PRESET_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPresetPanel.qml"
@@ -348,6 +349,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_PRESET_SAVE_DIALOG_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/PresetSaveDialog.qml"
   RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/PhotoContextMenu.qml"
   RAVO_STUDIO_SETTINGS_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsPage.qml"
+  RAVO_STUDIO_IMPORT_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ImportPage.qml"
   RAVO_STUDIO_ASSISTANT_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/AssistantPanel.qml"
   RAVO_STUDIO_MAIN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/Main.qml")
 add_dependencies(ravo_desktop_command_tests ravo ravo_studio_translations)

@@ -65,6 +65,7 @@ inline constexpr auto kLibrarySetEditFilter = "studio.library.set_edit_filter";
 inline constexpr auto kLibrarySetSort = "studio.library.set_sort";
 inline constexpr auto kLibraryClearFilters = "studio.library.clear_filters";
 inline constexpr auto kLibrarySelectFolder = "studio.library.select_folder";
+inline constexpr auto kLibrarySelectLastImport = "studio.library.select_last_import";
 inline constexpr auto kLibraryFolderRelink = "studio.library.folder_relink";
 inline constexpr auto kLibraryFolderRelinkPath = "studio.library.folder_relink_path";
 inline constexpr auto kPhotoSelect = "studio.photo.select";
@@ -389,6 +390,7 @@ QStringList command_ids()
             QLatin1String(command::kLibrarySetSort),
             QLatin1String(command::kLibraryClearFilters),
             QLatin1String(command::kLibrarySelectFolder),
+            QLatin1String(command::kLibrarySelectLastImport),
             QLatin1String(command::kLibraryFolderRelink),
             QLatin1String(command::kLibraryFolderRelinkPath),
             QLatin1String(command::kPhotoSelect),
@@ -499,13 +501,9 @@ QVector<ActionSpec> builtin_actions()
         {QStringLiteral("catalog")}, QStringLiteral("file.library"), 20, true,
         {key(primary_key(QStringLiteral("O")))});
     add(command::kLibraryImportFiles, command::kLibraryImportFiles,
-        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Import Photos...")), file,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Import...")), file,
         {QStringLiteral("files"), QStringLiteral("photos")}, QStringLiteral("file.transfer"), 10,
         true, {key(primary_key(QStringLiteral("I")))});
-    add(command::kLibraryImportFolder, command::kLibraryImportFolder,
-        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Import Folder...")), file,
-        {QStringLiteral("directory"), QStringLiteral("photos")}, QStringLiteral("file.transfer"),
-        20, true, {key(primary_key(QStringLiteral("I"), true))});
     add(command::kLibraryExport, command::kLibraryExport,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Export Selected...")), file,
         {QStringLiteral("save"), QStringLiteral("render")}, QStringLiteral("file.transfer"), 30,
@@ -1484,6 +1482,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         command::kLibrarySelectFolder, Condition::kCatalogOpen, [](const QVariant &)
         { return QString{}; }, [this](const QVariant &argument, const QString &)
         { presenter_.selectFolder(argument.toString()); });
+    add(command::kLibrarySelectLastImport, Condition::kCatalogOpen, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.selectLastImport(); });
     add(command::kLibraryFolderRelink, Condition::kCatalogReady, non_empty_string,
         [present](const QVariant &argument, const QString &)
         { present(command::kLibraryFolderRelink, argument); });
@@ -2155,6 +2155,8 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("librarySetSort"), QLatin1String(command::kLibrarySetSort)},
         {QStringLiteral("libraryClearFilters"), QLatin1String(command::kLibraryClearFilters)},
         {QStringLiteral("librarySelectFolder"), QLatin1String(command::kLibrarySelectFolder)},
+        {QStringLiteral("librarySelectLastImport"),
+         QLatin1String(command::kLibrarySelectLastImport)},
         {QStringLiteral("libraryFolderRelink"), QLatin1String(command::kLibraryFolderRelink)},
         {QStringLiteral("libraryFolderRelinkPath"),
          QLatin1String(command::kLibraryFolderRelinkPath)},

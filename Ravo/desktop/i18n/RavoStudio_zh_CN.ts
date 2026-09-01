@@ -88,17 +88,6 @@
         </message>
     </context>
     <context>
-        <name>ColorGradeWheel</name>
-        <message>
-            <source>Luminance</source>
-            <translation>亮度</translation>
-        </message>
-        <message>
-            <source>Reset wheel</source>
-            <translation>重置色轮</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Snapshot #%1</source>
@@ -226,10 +215,6 @@
         <message>
             <source>Manual coefficients</source>
             <translation>手动系数</translation>
-        </message>
-        <message>
-            <source>Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.</source>
-            <translation>自动模式会在去马赛克前解析相机元数据。手动值会缩放 R、G1、B 及 G2/CYGM 第 4 通道。</translation>
         </message>
         <message>
             <source>Red coefficient</source>
@@ -672,10 +657,6 @@
             <translation>色彩均衡器</translation>
         </message>
         <message>
-            <source>Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.</source>
-            <translation>八个色相区段对应 Lightroom HSL 混色器：红色、橙色、黄色、绿色、浅绿色、蓝色、紫色、洋红。</translation>
-        </message>
-        <message>
             <source>Enable Velvia</source>
             <translation>启用 Velvia</translation>
         </message>
@@ -736,10 +717,6 @@
             <translation>停用并重置 3D LUT</translation>
         </message>
         <message>
-            <source>Reset Color Balance RGB</source>
-            <translation>重置 RGB 色彩平衡</translation>
-        </message>
-        <message>
             <source>Color Balance RGB · more</source>
             <translation>RGB 色彩平衡 · 更多</translation>
         </message>
@@ -774,6 +751,30 @@
         <message>
             <source>Color · Advanced</source>
             <translation>颜色 · 高级</translation>
+        </message>
+        <message>
+            <source>Presence</source>
+            <translation>鲜艳度</translation>
+        </message>
+        <message>
+            <source>Color Grading</source>
+            <translation>颜色分级</translation>
+        </message>
+        <message>
+            <source>Global</source>
+            <translation>全局</translation>
+        </message>
+        <message>
+            <source>Shadows falloff</source>
+            <translation>阴影衰减</translation>
+        </message>
+        <message>
+            <source>Highlights falloff</source>
+            <translation>高光衰减</translation>
+        </message>
+        <message>
+            <source>Color Mixer</source>
+            <translation>颜色混合器</translation>
         </message>
         <message>
             <source>Camera Calibration</source>
@@ -1690,10 +1691,6 @@
         <message>
             <source>Disable and reset legacy Color Balance</source>
             <translation>禁用并重置旧版色彩平衡</translation>
-        </message>
-        <message>
-            <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
-            <translation>RGB 色彩平衡 · 线性 sRGB D50 / Filmlight Yrg</translation>
         </message>
         <message>
             <source>darktable UCS (2022)</source>
@@ -2881,6 +2878,137 @@
         </message>
     </context>
     <context>
+        <name>ImportPage</name>
+        <message>
+            <source>Back</source>
+            <translation>返回</translation>
+        </message>
+        <message>
+            <source>Import Photos</source>
+            <translation>导入照片</translation>
+        </message>
+        <message>
+            <source>Add</source>
+            <translation>添加</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>复制</translation>
+        </message>
+        <message>
+            <source>Move</source>
+            <translation>移动</translation>
+        </message>
+        <message>
+            <source>Source</source>
+            <translation>来源</translation>
+        </message>
+        <message>
+            <source>Choose Source…</source>
+            <translation>选择来源…</translation>
+        </message>
+        <message>
+            <source>No source selected</source>
+            <translation>未选择来源</translation>
+        </message>
+        <message>
+            <source>Include subfolders</source>
+            <translation>包含子文件夹</translation>
+        </message>
+        <message>
+            <source>Selected: %1 of %2</source>
+            <translation>已选：%1 / %2</translation>
+        </message>
+        <message>
+            <source>Check All</source>
+            <translation>全选</translation>
+        </message>
+        <message>
+            <source>Uncheck All</source>
+            <translation>全部取消</translation>
+        </message>
+        <message>
+            <source>No supported photos found</source>
+            <translation>未找到支持的照片</translation>
+        </message>
+        <message>
+            <source>Choose a source folder</source>
+            <translation>选择来源文件夹</translation>
+        </message>
+        <message>
+            <source>Already imported</source>
+            <translation>已导入</translation>
+        </message>
+        <message>
+            <source>Unavailable</source>
+            <translation>不可用</translation>
+        </message>
+        <message>
+            <source>File Handling</source>
+            <translation>文件处理</translation>
+        </message>
+        <message>
+            <source>Build Previews</source>
+            <translation>构建预览</translation>
+        </message>
+        <message>
+            <source>Minimal (320)</source>
+            <translation>最小 (320)</translation>
+        </message>
+        <message>
+            <source>Standard (1600)</source>
+            <translation>标准 (1600)</translation>
+        </message>
+        <message>
+            <source>1:1</source>
+            <translation>1:1</translation>
+        </message>
+        <message>
+            <source>Destination</source>
+            <translation>目标位置</translation>
+        </message>
+        <message>
+            <source>Choose Destination…</source>
+            <translation>选择目标位置…</translation>
+        </message>
+        <message>
+            <source>No destination selected</source>
+            <translation>未选择目标位置</translation>
+        </message>
+        <message>
+            <source>Organize</source>
+            <translation>组织方式</translation>
+        </message>
+        <message>
+            <source>Into one folder</source>
+            <translation>放入单一文件夹</translation>
+        </message>
+        <message>
+            <source>Preserve hierarchy</source>
+            <translation>保留目录层级</translation>
+        </message>
+        <message>
+            <source>By date (YYYY/MM/DD)</source>
+            <translation>按日期 (YYYY/MM/DD)</translation>
+        </message>
+        <message>
+            <source>Move copies and verifies each photo before removing its source.</source>
+            <translation>移动会先复制并验证每张照片，再删除源文件。</translation>
+        </message>
+        <message>
+            <source>Importing %1 / %2…</source>
+            <translation>正在导入 %1 / %2…</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+        <message>
+            <source>Import</source>
+            <translation>导入</translation>
+        </message>
+    </context>
+    <context>
         <name>LibraryFilterBar</name>
         <message>
             <source>Remove filter</source>
@@ -3042,6 +3170,10 @@
             <translation>预览</translation>
         </message>
         <message>
+            <source>Import previews</source>
+            <translation>导入预览</translation>
+        </message>
+        <message>
             <source>Scheduled backups</source>
             <translation>定时备份</translation>
         </message>
@@ -3088,6 +3220,10 @@
         <message>
             <source>Filter by tag</source>
             <translation>按标签筛选</translation>
+        </message>
+        <message>
+            <source>Last Imported Photos</source>
+            <translation>上次导入的照片</translation>
         </message>
         <message>
             <source>All Photographs</source>
@@ -3205,6 +3341,14 @@
             <translation>创建或打开图库以导入照片。</translation>
         </message>
         <message>
+            <source>Choose Import Source</source>
+            <translation>选择导入来源</translation>
+        </message>
+        <message>
+            <source>Choose Import Destination</source>
+            <translation>选择导入目标位置</translation>
+        </message>
+        <message>
             <source>Loading preview…</source>
             <translation>正在加载预览…</translation>
         </message>
@@ -3259,14 +3403,6 @@
         <message>
             <source>Open Library</source>
             <translation>打开图库</translation>
-        </message>
-        <message>
-            <source>Import Photos</source>
-            <translation>导入照片</translation>
-        </message>
-        <message>
-            <source>Import Folder</source>
-            <translation>导入文件夹</translation>
         </message>
         <message>
             <source>Create Catalog Backup</source>
@@ -3872,14 +4008,6 @@
             <translation>打开图库…</translation>
         </message>
         <message>
-            <source>Import Photos...</source>
-            <translation>导入照片…</translation>
-        </message>
-        <message>
-            <source>Import Folder...</source>
-            <translation>导入文件夹…</translation>
-        </message>
-        <message>
             <source>Export Selected...</source>
             <translation>导出所选项…</translation>
         </message>
@@ -3990,6 +4118,10 @@
         <message>
             <source>Copy parameters first.</source>
             <translation>请先复制参数。</translation>
+        </message>
+        <message>
+            <source>Import...</source>
+            <translation>导入…</translation>
         </message>
         <message>
             <source>Apply Recipe Style...</source>
@@ -4418,6 +4550,10 @@
         <message>
             <source>Scanning folder…</source>
             <translation>正在扫描文件夹…</translation>
+        </message>
+        <message>
+            <source>Choose an import destination.</source>
+            <translation>请选择导入目标位置。</translation>
         </message>
         <message>
             <source>Importing 0 / %1…</source>

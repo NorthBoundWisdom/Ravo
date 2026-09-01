@@ -9,9 +9,9 @@ Rectangle {
     property var commands
 
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
-    readonly property bool histogramMode: !hasPresenter || presenter.scopeMode === "histogram"
+    readonly property bool histogramMode: hasPresenter && presenter.scopeMode === "histogram"
     readonly property bool waveformMode: hasPresenter && presenter.scopeMode === "waveform"
-    readonly property bool paradeMode: hasPresenter && presenter.scopeMode === "parade"
+    readonly property bool paradeMode: !hasPresenter || presenter.scopeMode === "parade"
     readonly property bool vectorscopeMode: hasPresenter && presenter.scopeMode === "vectorscope"
     readonly property bool splitMode: hasPresenter && presenter.scopeMode === "split"
 
@@ -87,11 +87,7 @@ Rectangle {
             fillMode: Image.Stretch
             asynchronous: false
             cache: false
-            source: !root.hasPresenter ? ""
-                    : root.waveformMode ? root.presenter.scopeWaveformUrl
-                    : root.paradeMode ? root.presenter.scopeParadeUrl
-                    : root.vectorscopeMode ? root.presenter.scopeVectorscopeUrl
-                    : root.presenter.scopeSplitUrl
+            source: !root.hasPresenter ? "" : root.waveformMode ? root.presenter.scopeWaveformUrl : root.paradeMode ? root.presenter.scopeParadeUrl : root.vectorscopeMode ? root.presenter.scopeVectorscopeUrl : root.presenter.scopeSplitUrl
             opacity: 0.95
         }
 
@@ -149,7 +145,7 @@ Rectangle {
         implicitHeight: Math.max(Fonts.listItemHeight, Fonts.size24)
         leftPadding: Fonts.size12
         rightPadding: Fonts.size12
-        readonly property bool current: root.hasPresenter ? root.presenter.scopeMode === modeId : modeId === "histogram"
+        readonly property bool current: root.hasPresenter ? root.presenter.scopeMode === modeId : modeId === "parade"
         contentItem: Text {
             text: (item.current ? "\u2713  " : "    ") + item.text
             font: Fonts.standardFont
@@ -218,11 +214,26 @@ Rectangle {
                 border.width: 1
                 radius: 4
             }
-            ScopeModeItem { text: qsTr("Histogram"); modeId: "histogram" }
-            ScopeModeItem { text: qsTr("Waveform"); modeId: "waveform" }
-            ScopeModeItem { text: qsTr("Parade"); modeId: "parade" }
-            ScopeModeItem { text: qsTr("Vectorscope"); modeId: "vectorscope" }
-            ScopeModeItem { text: qsTr("Split"); modeId: "split" }
+            ScopeModeItem {
+                text: qsTr("Histogram")
+                modeId: "histogram"
+            }
+            ScopeModeItem {
+                text: qsTr("Waveform")
+                modeId: "waveform"
+            }
+            ScopeModeItem {
+                text: qsTr("Parade")
+                modeId: "parade"
+            }
+            ScopeModeItem {
+                text: qsTr("Vectorscope")
+                modeId: "vectorscope"
+            }
+            ScopeModeItem {
+                text: qsTr("Split")
+                modeId: "split"
+            }
         }
     }
 

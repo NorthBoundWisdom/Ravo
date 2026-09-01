@@ -504,99 +504,6 @@ ColumnLayout {
             ColumnLayout {
                 Layout.fillWidth: true
                 width: parent.width
-                DevelopSection {
-                    title: qsTr("White Balance")
-                    sectionId: "whiteBalance"
-                    collapsible: false
-                    animateHeight: false
-                    borderWidth: 0
-                    borderRadius: 0
-                    padding: 0
-                    panelColor: "transparent"
-                    titleBarColor: "transparent"
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        width: parent.width
-                        CustomComboBox {
-                            Layout.fillWidth: true
-                            model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
-                            enabled: root.hasSelection
-                            currentIndex: root.hasPresenter ? root.presenter.editWhiteBalance.modeIndex : 0
-                            onActivated: if (root.commands)
-                                root.commands.setDevelopNumber("whiteBalanceMode", currentIndex)
-                        }
-                        CustomLabel {
-                            Layout.fillWidth: true
-                            text: qsTr("Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.")
-                            wrapMode: Text.WordWrap
-                            opacity: 0.75
-                        }
-                        CustomCheckBox {
-                            objectName: "whiteBalancePickActive"
-                            text: qsTr("Pick white on photo")
-                            enabled: root.hasSelection && root.hasPresenter && root.presenter.editWhiteBalance.canPick
-                            checked: root.hasPresenter && root.presenter.whiteBalancePickActive
-                            onToggled: if (root.commands)
-                                root.commands.setWhiteBalancePickActive(checked)
-                        }
-                        CustomLabel {
-                            Layout.fillWidth: true
-                            visible: root.hasPresenter && root.presenter.whiteBalancePickActive
-                            text: qsTr("Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.")
-                            wrapMode: Text.WordWrap
-                            opacity: 0.75
-                        }
-                        Repeater {
-                            model: [
-                                {
-                                    "title": qsTr("Red coefficient"),
-                                    "key": "red",
-                                    "field": "whiteBalanceRed"
-                                },
-                                {
-                                    "title": qsTr("Green coefficient"),
-                                    "key": "green",
-                                    "field": "whiteBalanceGreen"
-                                },
-                                {
-                                    "title": qsTr("Blue coefficient"),
-                                    "key": "blue",
-                                    "field": "whiteBalanceBlue"
-                                },
-                                {
-                                    "title": qsTr("Fourth coefficient"),
-                                    "key": "fourth",
-                                    "field": "whiteBalanceFourth"
-                                }
-                            ]
-                            delegate: CustomSlider {
-                                required property var modelData
-                                Layout.fillWidth: true
-                                visible: root.hasPresenter && (root.presenter.editWhiteBalance.modeIndex === 3 || root.presenter.editWhiteBalance.hasCoefficients)
-                                title: modelData.title
-                                from: 0.000001
-                                to: 8
-                                stepSize: 0.01
-                                validatorDecimals: 3
-                                showReset: true
-                                resetValue: 1
-                                delayedCommit: true
-                                enabled: root.hasSelection
-                                value: root.hasPresenter ? root.presenter.editWhiteBalance[modelData.key] : 1
-                                onValueEdited: function (value) {
-                                    if (root.liveReady && root.commands)
-                                        root.commands.previewDevelopNumber(modelData.field, value);
-                                }
-                                onValueCommitted: function (value) {
-                                    if (root.commands)
-                                        root.commands.setDevelopNumber(modelData.field, value);
-                                }
-                                onResetRequested: if (root.commands)
-                                    root.commands.resetControl(modelData.field)
-                            }
-                        }
-                    }
-                }
                 CustomSlider {
                     Layout.fillWidth: true
                     title: qsTr("Exposure")
@@ -1339,10 +1246,19 @@ ColumnLayout {
                     }
                 }
 
-                Expander {
+                CustomEditPanel {
                     Layout.fillWidth: true
                     title: qsTr("Curve settings")
-                    expanded: false
+                    initialExpanded: false
+                    showAddButton: false
+                    showDeleteButton: false
+                    showResetButton: false
+                    showApplyButton: false
+                    panelColor: Theme.alternateBaseColor
+                    titleBarColor: Theme.contentSurfaceColor
+                    borderColor: Theme.lightColor
+                    borderWidth: ControlState.borderFocus
+                    padding: Fonts.size10
 
                     GridLayout {
                         Layout.fillWidth: true
@@ -1467,71 +1383,158 @@ ColumnLayout {
             }
         }
         DevelopSection {
-            title: qsTr("Color Equalizer")
-            sectionId: "colorEqualizer"
-            ColumnLayout {
-                Layout.fillWidth: true
-                width: parent.width
-                CustomComboBox {
-                    id: colorEqChannel
-                    objectName: "colorEqChannel"
-                    Layout.fillWidth: true
-                    model: [qsTr("Saturation"), qsTr("Hue"), qsTr("Lightness")]
-                    enabled: root.hasSelection
-                    currentIndex: 0
-                }
-                Repeater {
-                    id: colorEqBands
-                    model: root.hasPresenter ? root.presenter.editColorEqBands : []
-                    delegate: CustomSlider {
-                        required property var modelData
-                        objectName: "colorEqBand" + modelData.index
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: colorEqChannel.currentIndex === 1 ? -0.5 : -1
-                        to: colorEqChannel.currentIndex === 1 ? 0.5 : 1
-                        stepSize: colorEqChannel.currentIndex === 1 ? 0.005 : 0.05
-                        validatorDecimals: colorEqChannel.currentIndex === 1 ? 3 : 2
-                        showReset: true
-                        resetValue: 0
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: colorEqChannel.currentIndex === 0 ? modelData.sat : colorEqChannel.currentIndex === 1 ? modelData.hue : modelData.light
-                        readonly property string fieldName: colorEqChannel.currentIndex === 0 ? modelData.satField : colorEqChannel.currentIndex === 1 ? modelData.hueField : modelData.lightField
-                        onValueEdited: function (value) {
-                            if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(fieldName, value);
-                        }
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(fieldName, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(fieldName)
-                    }
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.75
-                    text: qsTr("Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.")
-                }
-            }
-        }
-        DevelopSection {
             title: qsTr("Color")
             sectionId: "color"
             ColumnLayout {
+                id: colorCore
+                property int gradingMode: 0
+                property bool gradingDetails: false
+
                 Layout.fillWidth: true
                 width: parent.width
-                CustomSlider {
+                spacing: Fonts.size12
+
+                DevelopSection {
+                    title: qsTr("White Balance")
+                    sectionId: "whiteBalance"
+                    collapsible: false
+                    animateHeight: false
+                    borderWidth: 0
+                    borderRadius: 0
+                    padding: 0
+                    panelColor: "transparent"
+                    titleBarColor: "transparent"
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        width: parent.width
+                        spacing: Fonts.size6
+
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editWhiteBalance.modeIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("whiteBalanceMode", currentIndex)
+                        }
+                        CustomCheckBox {
+                            objectName: "whiteBalancePickActive"
+                            text: qsTr("Pick white on photo")
+                            enabled: root.hasSelection && root.hasPresenter && root.presenter.editWhiteBalance.canPick
+                            checked: root.hasPresenter && root.presenter.whiteBalancePickActive
+                            onToggled: if (root.commands)
+                                root.commands.setWhiteBalancePickActive(checked)
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            visible: root.hasPresenter && root.presenter.whiteBalancePickActive
+                            text: qsTr("Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.")
+                            wrapMode: Text.WordWrap
+                            opacity: 0.75
+                        }
+                        Repeater {
+                            model: root.hasPresenter && (root.presenter.editWhiteBalance.modeIndex === 3 || root.presenter.editWhiteBalance.hasCoefficients) ? [
+                                {
+                                    "title": qsTr("Red coefficient"),
+                                    "key": "red",
+                                    "field": "whiteBalanceRed",
+                                    "low": "#4091bd",
+                                    "high": "#e7a044",
+                                    "value": root.presenter.editWhiteBalance.red,
+                                    "commands": root.commands,
+                                    "liveReady": root.liveReady,
+                                    "enabled": root.hasSelection
+                                },
+                                {
+                                    "title": qsTr("Green coefficient"),
+                                    "key": "green",
+                                    "field": "whiteBalanceGreen",
+                                    "low": "#43af56",
+                                    "high": "#d24bab",
+                                    "value": root.presenter.editWhiteBalance.green,
+                                    "commands": root.commands,
+                                    "liveReady": root.liveReady,
+                                    "enabled": root.hasSelection
+                                },
+                                {
+                                    "title": qsTr("Blue coefficient"),
+                                    "key": "blue",
+                                    "field": "whiteBalanceBlue",
+                                    "low": "#e7a044",
+                                    "high": "#4091bd",
+                                    "value": root.presenter.editWhiteBalance.blue,
+                                    "commands": root.commands,
+                                    "liveReady": root.liveReady,
+                                    "enabled": root.hasSelection
+                                },
+                                {
+                                    "title": qsTr("Fourth coefficient"),
+                                    "key": "fourth",
+                                    "field": "whiteBalanceFourth",
+                                    "low": "#43af56",
+                                    "high": "#d24bab",
+                                    "value": root.presenter.editWhiteBalance.fourth,
+                                    "commands": root.commands,
+                                    "liveReady": root.liveReady,
+                                    "enabled": root.hasSelection
+                                }
+                            ] : []
+                            delegate: DevelopColorSlider {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                visible: true
+                                title: modelData.title
+                                from: 0.000001
+                                to: 8
+                                stepSize: 0.01
+                                displayDecimals: 2
+                                resetValue: 1
+                                enabled: modelData.enabled
+                                value: modelData.value
+                                trackGradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop {
+                                        position: 0
+                                        color: modelData.low
+                                    }
+                                    GradientStop {
+                                        position: 0.5
+                                        color: "#bebebe"
+                                    }
+                                    GradientStop {
+                                        position: 1
+                                        color: modelData.high
+                                    }
+                                }
+                                onValueEdited: function (value) {
+                                    if (modelData.liveReady && modelData.commands)
+                                        modelData.commands.previewDevelopNumber(modelData.field, value);
+                                }
+                                onValueCommitted: function (value) {
+                                    if (modelData.commands)
+                                        modelData.commands.setDevelopNumber(modelData.field, value);
+                                }
+                                onResetRequested: if (modelData.commands)
+                                    modelData.commands.resetControl(modelData.field)
+                            }
+                        }
+                    }
+                }
+
+                CustomLabel {
                     Layout.fillWidth: true
+                    text: qsTr("Presence")
+                    font.bold: true
+                }
+                DevelopColorSlider {
                     title: qsTr("Vibrance")
                     from: -1
                     to: 1
-                    showReset: true
+                    stepSize: 0.01
+                    displayScale: 100
+                    displayDecimals: 0
                     resetValue: 0
-                    delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVibrance : 0
                     onValueEdited: function (value) {
@@ -1545,14 +1548,14 @@ ColumnLayout {
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("vibrance")
                 }
-                CustomSlider {
-                    Layout.fillWidth: true
+                DevelopColorSlider {
                     title: qsTr("Saturation")
                     from: -1
                     to: 1
-                    showReset: true
+                    stepSize: 0.01
+                    displayScale: 100
+                    displayDecimals: 0
                     resetValue: 0
-                    delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSaturation : 0
                     onValueEdited: function (value) {
@@ -1566,6 +1569,452 @@ ColumnLayout {
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("saturation")
                 }
+
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Hue")
+                    font.bold: true
+                }
+                DevelopColorSlider {
+                    objectName: "colorHueRotation"
+                    title: qsTr("Hue")
+                    from: -180
+                    to: 180
+                    stepSize: 1
+                    displayDecimals: 0
+                    resetValue: 0
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editColorBalanceRgb.hueRotation : 0
+                    trackGradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop {
+                            position: 0
+                            color: "#e45c65"
+                        }
+                        GradientStop {
+                            position: 0.17
+                            color: "#e4d642"
+                        }
+                        GradientStop {
+                            position: 0.34
+                            color: "#63c85b"
+                        }
+                        GradientStop {
+                            position: 0.5
+                            color: "#4ad7d2"
+                        }
+                        GradientStop {
+                            position: 0.67
+                            color: "#597ce5"
+                        }
+                        GradientStop {
+                            position: 0.84
+                            color: "#c850dc"
+                        }
+                        GradientStop {
+                            position: 1
+                            color: "#e45c65"
+                        }
+                    }
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("colorBalanceHueRotation", value);
+                    }
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("colorBalanceHueRotation", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("colorBalanceHueRotation")
+                }
+
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Color Grading")
+                    font.bold: true
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.size8
+
+                    CustomIconActionButton {
+                        objectName: "colorGradingThreeWay"
+                        iconText: "◉"
+                        active: colorCore.gradingMode === 0
+                        activeColor: "transparent"
+                        inactiveColor: Theme.buttonPressedColor
+                        borderColor: active ? Theme.textColor : "transparent"
+                        borderWidth: active ? Fonts.size2 : 0
+                        onClicked: colorCore.gradingMode = 0
+                    }
+                    CustomIconActionButton {
+                        objectName: "colorGradingGlobal"
+                        iconText: "●"
+                        active: colorCore.gradingMode === 1
+                        activeColor: "transparent"
+                        inactiveColor: Theme.buttonPressedColor
+                        borderColor: active ? Theme.textColor : "transparent"
+                        borderWidth: active ? Fonts.size2 : 0
+                        onClicked: colorCore.gradingMode = 1
+                    }
+                    Rectangle {
+                        Layout.preferredWidth: Fonts.size1
+                        Layout.preferredHeight: Fonts.size20
+                        color: Theme.midColor
+                        opacity: 0.45
+                    }
+                    CustomIconActionButton {
+                        objectName: "colorGradingDetails"
+                        iconText: "☷"
+                        active: colorCore.gradingDetails
+                        activeColor: Theme.buttonHoveredColor
+                        inactiveColor: "transparent"
+                        onClicked: colorCore.gradingDetails = !colorCore.gradingDetails
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    visible: colorCore.gradingMode === 0
+                    spacing: Fonts.size12
+
+                    ColorGradeWheel {
+                        objectName: "colorBalanceMidtonesWheel"
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: Math.min(Fonts.scaledUiSize(156), colorCore.width * 0.58)
+                        title: qsTr("Midtones")
+                        wheelDiameter: Layout.preferredWidth
+                        hueField: "colorBalanceMidtonesHue"
+                        chromaField: "colorBalanceMidtonesChroma"
+                        luminanceField: "colorBalanceMidtonesY"
+                        hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesHue : 0
+                        chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesChroma : 0
+                        luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesY : 0
+                        maxChroma: 0.1
+                        luminanceFrom: -0.25
+                        luminanceTo: 0.25
+                        luminanceStep: 0.005
+                        luminanceDecimals: 0
+                        editorEnabled: root.hasSelection
+                        commands: root.commands
+                        liveReady: root.liveReady
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Fonts.size12
+
+                        ColorGradeWheel {
+                            objectName: "colorBalanceShadowsWheel"
+                            title: qsTr("Shadows")
+                            wheelDiameter: Fonts.scaledUiSize(132)
+                            hueField: "colorBalanceShadowsHue"
+                            chromaField: "colorBalanceShadowsChroma"
+                            luminanceField: "colorBalanceShadowsY"
+                            hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsHue : 0
+                            chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsChroma : 0
+                            luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsY : 0
+                            maxChroma: 0.5
+                            luminanceFrom: -1
+                            luminanceTo: 1
+                            luminanceStep: 0.01
+                            luminanceDecimals: 0
+                            editorEnabled: root.hasSelection
+                            commands: root.commands
+                            liveReady: root.liveReady
+                        }
+                        ColorGradeWheel {
+                            objectName: "colorBalanceHighlightsWheel"
+                            title: qsTr("Highlights")
+                            wheelDiameter: Fonts.scaledUiSize(132)
+                            hueField: "colorBalanceHighlightsHue"
+                            chromaField: "colorBalanceHighlightsChroma"
+                            luminanceField: "colorBalanceHighlightsY"
+                            hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsHue : 0
+                            chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsChroma : 0
+                            luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsY : 0
+                            maxChroma: 0.2
+                            luminanceFrom: -0.5
+                            luminanceTo: 0.5
+                            luminanceStep: 0.01
+                            luminanceDecimals: 0
+                            editorEnabled: root.hasSelection
+                            commands: root.commands
+                            liveReady: root.liveReady
+                        }
+                    }
+                }
+                ColorGradeWheel {
+                    objectName: "colorBalanceGlobalWheel"
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: Math.min(Fonts.scaledUiSize(180), colorCore.width * 0.72)
+                    visible: colorCore.gradingMode === 1
+                    title: qsTr("Global")
+                    wheelDiameter: Layout.preferredWidth
+                    hueField: "colorBalanceGlobalHue"
+                    chromaField: "colorBalanceGlobalChroma"
+                    luminanceField: "colorBalanceGlobalY"
+                    hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.globalHue : 0
+                    chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.globalChroma : 0
+                    luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.globalY : 0
+                    maxChroma: 0.5
+                    luminanceFrom: -0.05
+                    luminanceTo: 0.05
+                    luminanceStep: 0.001
+                    luminanceDecimals: 0
+                    editorEnabled: root.hasSelection
+                    commands: root.commands
+                    liveReady: root.liveReady
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    visible: colorCore.gradingDetails
+                    spacing: Fonts.size6
+
+                    Repeater {
+                        model: [
+                            {
+                                "title": qsTr("Shadows falloff"),
+                                "key": "shadowsFalloff",
+                                "field": "colorBalanceShadowsFalloff",
+                                "from": 0,
+                                "to": 3,
+                                "reset": 1,
+                                "value": root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsFalloff : 1,
+                                "commands": root.commands,
+                                "liveReady": root.liveReady,
+                                "enabled": root.hasSelection
+                            },
+                            {
+                                "title": qsTr("Highlights falloff"),
+                                "key": "highlightsFalloff",
+                                "field": "colorBalanceHighlightsFalloff",
+                                "from": 0,
+                                "to": 3,
+                                "reset": 1,
+                                "value": root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsFalloff : 1,
+                                "commands": root.commands,
+                                "liveReady": root.liveReady,
+                                "enabled": root.hasSelection
+                            },
+                            {
+                                "title": qsTr("Mask grey fulcrum"),
+                                "key": "maskGreyFulcrum",
+                                "field": "colorBalanceMaskGreyFulcrum",
+                                "from": 0,
+                                "to": 1,
+                                "reset": 0.1845,
+                                "value": root.hasPresenter ? root.presenter.editColorBalanceRgb.maskGreyFulcrum : 0.1845,
+                                "commands": root.commands,
+                                "liveReady": root.liveReady,
+                                "enabled": root.hasSelection
+                            }
+                        ]
+                        delegate: DevelopColorSlider {
+                            required property var modelData
+                            title: modelData.title
+                            from: modelData.from
+                            to: modelData.to
+                            stepSize: 0.01
+                            displayDecimals: 2
+                            resetValue: modelData.reset
+                            enabled: modelData.enabled
+                            value: modelData.value
+                            onValueEdited: function (value) {
+                                if (modelData.liveReady && modelData.commands)
+                                    modelData.commands.previewDevelopNumber(modelData.field, value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (modelData.commands)
+                                    modelData.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (modelData.commands)
+                                modelData.commands.resetControl(modelData.field)
+                        }
+                    }
+                }
+            }
+        }
+        DevelopSection {
+            title: qsTr("Color Mixer")
+            sectionId: "colorEqualizer"
+            ColumnLayout {
+                id: colorMixer
+                property int activeBand: 0
+                readonly property var bands: root.hasPresenter ? root.presenter.editColorEqBands : []
+                readonly property var band: bands.length > activeBand ? bands[activeBand] : null
+                readonly property var colors: ["#f87171", "#fb923c", "#facc15", "#4ade80", "#2dd4bf", "#60a5fa", "#a78bfa", "#f472b6"]
+                readonly property var hues: [0, 0.0833, 0.1667, 0.3333, 0.5, 0.6667, 0.8333, 0.9444]
+                readonly property var bandNames: [qsTr("Red"), qsTr("Orange"), qsTr("Yellow"), qsTr("Green"), qsTr("Aqua"), qsTr("Blue"), qsTr("Purple"), qsTr("Magenta")]
+
+                function hueColor(offset) {
+                    let hue = colorMixer.hues[colorMixer.activeBand] + offset;
+                    while (hue < 0)
+                        hue += 1;
+                    while (hue > 1)
+                        hue -= 1;
+                    return Qt.hsla(hue, 0.72, 0.56, 1);
+                }
+
+                Layout.fillWidth: true
+                width: parent.width
+                spacing: Fonts.size8
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: Fonts.size4
+                    Layout.bottomMargin: Fonts.size8
+                    spacing: Fonts.size8
+
+                    Repeater {
+                        id: colorEqBands
+                        model: colorMixer.colors.length
+                        delegate: Rectangle {
+                            required property int index
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: Fonts.size24
+                            Layout.preferredHeight: width
+                            Layout.maximumWidth: Fonts.scaledUiSize(28)
+                            Layout.maximumHeight: Fonts.scaledUiSize(28)
+                            color: colorMixer.colors[index]
+                            radius: width / 2
+                            border.color: colorMixer.activeBand === index ? "#ffffff" : "transparent"
+                            border.width: colorMixer.activeBand === index ? Fonts.size2 : 0
+                            scale: colorMixer.activeBand === index ? 1.08 : swatchHover.hovered ? 1.04 : 1
+                            Accessible.name: colorMixer.bandNames[index]
+
+                            HoverHandler {
+                                id: swatchHover
+                            }
+                            TapHandler {
+                                onTapped: colorMixer.activeBand = index
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 110
+                                }
+                            }
+                        }
+                    }
+                }
+                DevelopColorSlider {
+                    objectName: "colorEqBand" + colorMixer.activeBand + "Hue"
+                    title: qsTr("Hue")
+                    from: -0.5
+                    to: 0.5
+                    stepSize: 0.005
+                    displayScale: 200
+                    displayDecimals: 0
+                    resetValue: 0
+                    enabled: root.hasSelection && colorMixer.band !== null
+                    value: colorMixer.band ? colorMixer.band.hue : 0
+                    trackGradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop {
+                            position: 0
+                            color: colorMixer.hueColor(-0.18)
+                        }
+                        GradientStop {
+                            position: 0.5
+                            color: colorMixer.hueColor(0)
+                        }
+                        GradientStop {
+                            position: 1
+                            color: colorMixer.hueColor(0.18)
+                        }
+                    }
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands && colorMixer.band)
+                            root.commands.previewDevelopNumber(colorMixer.band.hueField, value);
+                    }
+                    onValueCommitted: function (value) {
+                        if (root.commands && colorMixer.band)
+                            root.commands.setDevelopNumber(colorMixer.band.hueField, value);
+                    }
+                    onResetRequested: if (root.commands && colorMixer.band)
+                        root.commands.resetControl(colorMixer.band.hueField)
+                }
+                DevelopColorSlider {
+                    objectName: "colorEqBand" + colorMixer.activeBand + "Saturation"
+                    title: qsTr("Saturation")
+                    from: -1
+                    to: 1
+                    stepSize: 0.05
+                    displayScale: 100
+                    displayDecimals: 0
+                    resetValue: 0
+                    enabled: root.hasSelection && colorMixer.band !== null
+                    value: colorMixer.band ? colorMixer.band.sat : 0
+                    trackGradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop {
+                            position: 0
+                            color: "#929292"
+                        }
+                        GradientStop {
+                            position: 1
+                            color: colorMixer.hueColor(0)
+                        }
+                    }
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands && colorMixer.band)
+                            root.commands.previewDevelopNumber(colorMixer.band.satField, value);
+                    }
+                    onValueCommitted: function (value) {
+                        if (root.commands && colorMixer.band)
+                            root.commands.setDevelopNumber(colorMixer.band.satField, value);
+                    }
+                    onResetRequested: if (root.commands && colorMixer.band)
+                        root.commands.resetControl(colorMixer.band.satField)
+                }
+                DevelopColorSlider {
+                    objectName: "colorEqBand" + colorMixer.activeBand + "Luminance"
+                    title: qsTr("Luminance")
+                    from: -1
+                    to: 1
+                    stepSize: 0.05
+                    displayScale: 100
+                    displayDecimals: 0
+                    resetValue: 0
+                    enabled: root.hasSelection && colorMixer.band !== null
+                    value: colorMixer.band ? colorMixer.band.light : 0
+                    trackGradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop {
+                            position: 0
+                            color: "#050505"
+                        }
+                        GradientStop {
+                            position: 0.5
+                            color: colorMixer.hueColor(0)
+                        }
+                        GradientStop {
+                            position: 1
+                            color: "#f4f4f4"
+                        }
+                    }
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands && colorMixer.band)
+                            root.commands.previewDevelopNumber(colorMixer.band.lightField, value);
+                    }
+                    onValueCommitted: function (value) {
+                        if (root.commands && colorMixer.band)
+                            root.commands.setDevelopNumber(colorMixer.band.lightField, value);
+                    }
+                    onResetRequested: if (root.commands && colorMixer.band)
+                        root.commands.resetControl(colorMixer.band.lightField)
+                }
+            }
+        }
+        DevelopSection {
+            title: qsTr("Color · Advanced")
+            sectionId: "color"
+            initialExpanded: false
+            ColumnLayout {
+                Layout.fillWidth: true
+                width: parent.width
                 CustomLabel {
                     Layout.fillWidth: true
                     text: qsTr("Velvia")
@@ -1754,76 +2203,6 @@ ColumnLayout {
                     enabled: root.hasSelection && root.hasPresenter && root.presenter.editLut3d.present
                     onClicked: if (root.commands)
                         root.commands.resetControl("lut3d")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Color Balance RGB · linear sRGB D50 / Filmlight Yrg")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Fonts.size6
-                    ColorGradeWheel {
-                        objectName: "colorBalanceShadowsWheel"
-                        title: qsTr("Shadows")
-                        hueField: "colorBalanceShadowsHue"
-                        chromaField: "colorBalanceShadowsChroma"
-                        luminanceField: "colorBalanceShadowsY"
-                        hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsHue : 0
-                        chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsChroma : 0
-                        luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsY : 0
-                        maxChroma: 0.5
-                        luminanceFrom: -1
-                        luminanceTo: 1
-                        luminanceStep: 0.01
-                        luminanceDecimals: 2
-                        editorEnabled: root.hasSelection
-                        commands: root.commands
-                        liveReady: root.liveReady
-                    }
-                    ColorGradeWheel {
-                        objectName: "colorBalanceMidtonesWheel"
-                        title: qsTr("Midtones")
-                        hueField: "colorBalanceMidtonesHue"
-                        chromaField: "colorBalanceMidtonesChroma"
-                        luminanceField: "colorBalanceMidtonesY"
-                        hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesHue : 0
-                        chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesChroma : 0
-                        luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesY : 0
-                        maxChroma: 0.1
-                        luminanceFrom: -0.25
-                        luminanceTo: 0.25
-                        luminanceStep: 0.005
-                        luminanceDecimals: 3
-                        editorEnabled: root.hasSelection
-                        commands: root.commands
-                        liveReady: root.liveReady
-                    }
-                    ColorGradeWheel {
-                        objectName: "colorBalanceHighlightsWheel"
-                        title: qsTr("Highlights")
-                        hueField: "colorBalanceHighlightsHue"
-                        chromaField: "colorBalanceHighlightsChroma"
-                        luminanceField: "colorBalanceHighlightsY"
-                        hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsHue : 0
-                        chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsChroma : 0
-                        luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsY : 0
-                        maxChroma: 0.2
-                        luminanceFrom: -0.5
-                        luminanceTo: 0.5
-                        luminanceStep: 0.01
-                        luminanceDecimals: 2
-                        editorEnabled: root.hasSelection
-                        commands: root.commands
-                        liveReady: root.liveReady
-                    }
-                }
-                CustomButton {
-                    text: qsTr("Reset Color Balance RGB")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("colorBalance")
                 }
                 Expander {
                     Layout.fillWidth: true

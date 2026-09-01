@@ -367,6 +367,8 @@ int main(int argc, char *argv[])
                             new ravo::StudioPreviewImageProvider(presenter));
     engine.addImageProvider(QStringLiteral("studioScope"),
                             new ravo::StudioScopeImageProvider(presenter));
+    engine.addImageProvider(QStringLiteral("importCandidate"),
+                            new ravo::ImportCandidateImageProvider(*presenter.importCandidates()));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
     engine.rootContext()->setContextProperty(QStringLiteral("studioCommands"), &command_controller);
     engine.rootContext()->setContextProperty(QStringLiteral("studioLanguage"), &language_manager);

@@ -79,7 +79,8 @@ namespace ravo
 }
 
 [[nodiscard]] Result<std::vector<std::string>>
-collect_import_paths(const std::vector<std::string> &inputs, const CancellationToken &cancellation)
+collect_import_paths(const std::vector<std::string> &inputs, const CancellationToken &cancellation,
+                     const bool recursive)
 {
     std::vector<std::string> files;
     for (const auto &input : inputs)
@@ -111,27 +112,43 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
             continue;
         }
         const auto options = std::filesystem::directory_options::skip_permission_denied;
-        for (std::filesystem::recursive_directory_iterator iterator(path, options, error), end;
-             iterator != end && !error; iterator.increment(error))
+        const auto append_candidate = [&](const std::filesystem::path &candidate) -> Result<void>
         {
-            cancelled = cancellation.check();
-            if (!cancelled)
+            auto still_active = cancellation.check();
+            if (!still_active)
+                return still_active.error();
+            if (!is_import_candidate(candidate))
+                return {};
+            const auto utf8 = candidate.generic_u8string();
+            files.emplace_back(reinterpret_cast<const char *>(utf8.data()), utf8.size());
+            if (files.size() > kImportBatchMaximumAssets)
+                return make_error(ErrorCode::kValidation, "Import enumeration exceeds its bound",
+                                  {{"maximum_assets", std::to_string(kImportBatchMaximumAssets)},
+                                   {"reason", "import_asset_count_exceeded"}});
+            return {};
+        };
+        if (recursive)
+        {
+            for (std::filesystem::recursive_directory_iterator iterator(path, options, error), end;
+                 iterator != end && !error; iterator.increment(error))
             {
-                return cancelled.error();
+                if (!iterator->is_regular_file(error) || error)
+                    continue;
+                auto appended = append_candidate(iterator->path());
+                if (!appended)
+                    return appended.error();
             }
-            if (!iterator->is_regular_file(error) || error)
+        }
+        else
+        {
+            for (std::filesystem::directory_iterator iterator(path, options, error), end;
+                 iterator != end && !error; iterator.increment(error))
             {
-                continue;
-            }
-            if (is_import_candidate(iterator->path()))
-            {
-                const auto utf8 = iterator->path().generic_u8string();
-                files.emplace_back(reinterpret_cast<const char *>(utf8.data()), utf8.size());
-                if (files.size() > kImportBatchMaximumAssets)
-                    return make_error(
-                        ErrorCode::kValidation, "Import enumeration exceeds its bound",
-                        {{"maximum_assets", std::to_string(kImportBatchMaximumAssets)},
-                         {"reason", "import_asset_count_exceeded"}});
+                if (!iterator->is_regular_file(error) || error)
+                    continue;
+                auto appended = append_candidate(iterator->path());
+                if (!appended)
+                    return appended.error();
             }
         }
         if (error)

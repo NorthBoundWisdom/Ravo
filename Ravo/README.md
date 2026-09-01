@@ -31,7 +31,7 @@ Current implementation status:
   (ADR-0048–0054).
   Mask, custom blend, multi-instance, and conflicting-revision state rejects
   structurally.
-- The catalog vertical slice is implemented: reference-only JPEG/PNG/TIFF/RAW
+- The catalog vertical slice is implemented: Add/Copy/Move JPEG/PNG/TIFF/RAW
   import, preview cache outside the library, and the `ravo_studio` Qt Quick
   window using controls from the `GeoControls` source root. Catalog fully
   decodes JPEG/PNG/TIFF before inserting an asset; only TIFF RAW containers
@@ -50,6 +50,13 @@ Current implementation status:
   The cache has a 512 MiB hard byte budget, promotes valid hits, and evicts the
   least-recently-used rebuildable PNG deterministically across reopen
   (ADR-0047/0067).
+- Studio import opens one full-page source browser. New photos start selected
+  and can be added by reference, copied, or moved to an explicit destination
+  using one folder, preserved hierarchy, or `YYYY/MM/DD` organization.
+  Copy/Move preserve names and same-stem XMP, preflight all conflicts, and use
+  atomic no-replace copies. Move removes a reverified source only after the
+  destination is cataloged. Minimal 320, Standard 1600, and 1:1 previews run in
+  a cancellable background queue after Last Imported Photos opens (ADR-0102).
 - Browse & Review includes ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
   images like the grid and shows number/rating/flags in its letterbox;
@@ -57,7 +64,8 @@ Current implementation status:
   filename/metadata/camera text, media, edit/review/folder/tag/capture/numeric
   filtering and stable import/capture/name/rating/size sorting; additive
   Cmd/Ctrl click and range Shift selection; plus RGB
-  Histogram/Waveform/Parade/D50-u*v*-Vectorscope/Split scopes in the right panel.
+  Histogram/Waveform/Parade/D50-u*v*-Vectorscope/Split scopes in the right panel,
+  with RGB Parade selected for a new Studio session.
   Preview refresh computes the Curves histogram plus the currently visible
   scope instead of rebuilding all five diagnostics on every slider event.
   Photo navigation uses bounded Flickable pan plus a normalized left
@@ -80,6 +88,13 @@ Current implementation status:
   indexes. Studio import enumerates deterministically and dispatches one
   normal-priority photo at a time, so foreground Develop work interleaves and
   cancellation stops every undispatched item (ADR-0100).
+  During a Studio import, Gallery keeps its current rows fixed instead of
+  publishing each sorted insertion. At batch completion it refreshes once and
+  selects the session-only **Last Imported Photos** group, which contains the
+  successfully imported time range; a partially cancelled batch exposes only
+  its completed imports. Selecting any catalog folder leaves the group. The
+  group is cleared when another catalog opens and is never persisted as catalog
+  data.
 - Studio built-in commands are projected by one C++ registry into menus,
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
@@ -139,13 +154,15 @@ Current implementation status:
   one session Undo step; changing controls or navigation/history state starts
   a new step. Section lamps are gray at identity, green when modified, and
   black when those parameters are kept but bypassed. The default grading stack
-  is White Balance, Light, Curves, Color Equalizer, Color Balance RGB wheels,
-  and Camera Calibration (ADR-0082/0084/0085). Color Equalizer is an eight-band
-  named mixer. Light begins
-  with White Balance, then presents Exposure, Contrast, Highlights, Shadows,
-  Whites, and Blacks; Exposure mode and black point, Deflicker, Sigmoid shaping,
-  Gamma, and RGB Levels follow. Bayer RAW white-balance pick writes
-  manual coefficients (ADR-0083);
+  is Light, Curves, Color, Color Mixer, Color · Advanced, and Camera
+  Calibration (ADR-0082/0084/0085). Color uses a compact photographic layout
+  for White Balance, Presence, global Hue, three-way/global Color Balance RGB
+  wheels, and their real recipe fields. Color Mixer presents the eight named
+  Color Equalizer bands as swatches with Hue, Saturation, and Luminance tracks.
+  Light presents Exposure, Contrast, Highlights, Shadows, Whites, and Blacks;
+  Exposure mode and black point, Deflicker, Sigmoid shaping, Gamma, and RGB
+  Levels follow. Bayer RAW white-balance pick writes manual coefficients
+  (ADR-0083);
   plus single-photo Before/After, a toolbar Left/Right comparison whose two
   panes share zoom and pan, session undo/redo, and selective Copy Parameters /
   Paste Parameters. Copy opens the same initially-empty modified-parameter

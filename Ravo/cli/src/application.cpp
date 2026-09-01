@@ -220,6 +220,11 @@ struct CatalogCliArguments
     bool baseline = false;
     std::string_view catalog;
     std::vector<std::string_view> inputs;
+    std::string_view import_mode;
+    std::string_view import_destination;
+    std::string_view import_organization;
+    std::string_view import_preview;
+    bool import_recursive = true;
     std::string_view asset_id;
     std::vector<std::string_view> asset_ids;
     std::optional<int> rating;
@@ -480,6 +485,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.tiff_grayscale_if_neutral = true;
             continue;
         }
+        if (option == "--no-recursive")
+        {
+            if (!result.import_recursive)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--no-recursive can only be specified once");
+            result.import_recursive = false;
+            continue;
+        }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {
             return make_error(ErrorCode::kInvalidArgument, "Catalog option requires a value",
@@ -497,6 +510,33 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         else if (option == "--input")
         {
             result.inputs.push_back(value);
+        }
+        else if (option == "--mode")
+        {
+            if (!result.import_mode.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Import mode was specified twice");
+            result.import_mode = value;
+        }
+        else if (option == "--destination")
+        {
+            if (!result.import_destination.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Import destination was specified twice");
+            result.import_destination = value;
+        }
+        else if (option == "--organize")
+        {
+            if (!result.import_organization.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Import organization was specified twice");
+            result.import_organization = value;
+        }
+        else if (option == "--preview")
+        {
+            if (!result.import_preview.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Import preview policy was specified twice");
+            result.import_preview = value;
         }
         else if (option == "--asset-id")
         {
@@ -2420,6 +2460,13 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (has_folder_relink_options && subcommand != "folder-relink")
         return make_error(ErrorCode::kInvalidArgument,
                           "Folder relink options are only valid for catalog folder-relink");
+    const bool has_import_options =
+        !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
+        !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
+        !flags.value().import_recursive;
+    if (has_import_options && subcommand != "import")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Import options are only valid for catalog import");
     if (!flags.value().from_xmp.empty() && subcommand != "develop")
     {
         return make_error(ErrorCode::kInvalidArgument,
@@ -2684,20 +2731,55 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return make_error(ErrorCode::kInvalidArgument, "catalog import requires --input");
         }
-        std::vector<std::string> inputs;
-        inputs.reserve(flags.value().inputs.size());
+        ImportRequest request;
+        request.inputs.reserve(flags.value().inputs.size());
         for (const auto input : flags.value().inputs)
-        {
-            inputs.emplace_back(input);
-        }
-        auto imported = service.import_inputs(inputs, CancellationToken{});
+            request.inputs.emplace_back(input);
+        const auto mode =
+            flags.value().import_mode.empty() ? std::string_view{"add"} : flags.value().import_mode;
+        if (mode == "add")
+            request.mode = ImportTransferMode::kAdd;
+        else if (mode == "copy")
+            request.mode = ImportTransferMode::kCopy;
+        else if (mode == "move")
+            request.mode = ImportTransferMode::kMove;
+        else
+            return make_error(ErrorCode::kInvalidArgument, "Unknown import mode",
+                              {{"mode", std::string(mode)}});
+        const auto organization = flags.value().import_organization.empty() ?
+                                      std::string_view{"single"} :
+                                      flags.value().import_organization;
+        if (organization == "single")
+            request.organization = ImportOrganization::kSingleFolder;
+        else if (organization == "hierarchy")
+            request.organization = ImportOrganization::kPreserveHierarchy;
+        else if (organization == "date")
+            request.organization = ImportOrganization::kCaptureDate;
+        else
+            return make_error(ErrorCode::kInvalidArgument, "Unknown import organization",
+                              {{"organization", std::string(organization)}});
+        const auto preview = flags.value().import_preview.empty() ? std::string_view{"standard"} :
+                                                                    flags.value().import_preview;
+        if (preview == "minimal")
+            request.preview = ImportPreviewPolicy::kMinimal;
+        else if (preview == "standard")
+            request.preview = ImportPreviewPolicy::kStandard;
+        else if (preview == "one-to-one")
+            request.preview = ImportPreviewPolicy::kOneToOne;
+        else
+            return make_error(ErrorCode::kInvalidArgument, "Unknown import preview policy",
+                              {{"preview", std::string(preview)}});
+        request.destination_directory = std::string(flags.value().import_destination);
+        request.source_root = request.inputs.front();
+        request.recursive = flags.value().import_recursive;
+        request.cancellation = CancellationToken{};
+        auto imported = service.execute_import(request);
         if (!imported)
         {
             return imported.error();
         }
         JsonValue::Array items;
-        int imported_count = 0;
-        for (const auto &item : imported.value())
+        for (const auto &item : imported.value().items)
         {
             JsonValue::Object row{
                 {"input", item.input_path},
@@ -2714,14 +2796,23 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {
                 row.emplace("error", error_object(*item.error));
             }
-            if (item.status == ImportItemStatus::kImported)
-            {
-                ++imported_count;
-            }
+            if (item.destination_path)
+                row.emplace("destination", *item.destination_path);
+            if (item.sidecar_destination_path)
+                row.emplace("sidecar_destination", *item.sidecar_destination_path);
+            if (item.source_cleanup_error)
+                row.emplace("source_cleanup_error", error_object(*item.source_cleanup_error));
             items.emplace_back(std::move(row));
         }
         return JsonValue{JsonValue::Object{
-            {"imported", JsonValue::number(std::to_string(imported_count))},
+            {"mode", std::string(mode)},
+            {"preview", std::string(preview)},
+            {"imported", JsonValue::number(std::to_string(imported.value().imported))},
+            {"duplicates", JsonValue::number(std::to_string(imported.value().duplicates))},
+            {"unsupported", JsonValue::number(std::to_string(imported.value().unsupported))},
+            {"failed", JsonValue::number(std::to_string(imported.value().failed))},
+            {"source_cleanup_failed",
+             JsonValue::number(std::to_string(imported.value().source_cleanup_failed))},
             {"items", std::move(items)},
         }};
     }

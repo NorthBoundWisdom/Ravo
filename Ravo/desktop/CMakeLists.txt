@@ -12,12 +12,14 @@ target_sources(ravo_desktop
   PRIVATE
     src/asset_list_model.cpp
     src/folder_list_model.cpp
+    src/import_candidate_list_model.cpp
     src/preview_request_owner.cpp
     src/studio_command_controller.cpp
     src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
     src/studio_live_session_controller.cpp
     src/studio_presenter.cpp
+    src/studio_import.cpp
     src/studio_recovery.cpp
     src/studio_preview.cpp
     src/studio_develop.cpp
@@ -25,6 +27,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/asset_list_model.h
     include/ravo/desktop/export_option_conversion.h
     include/ravo/desktop/folder_list_model.h
+    include/ravo/desktop/import_candidate_list_model.h
     include/ravo/desktop/preview_request_owner.h
     include/ravo/desktop/studio_assistant_controller.h
     include/ravo/desktop/studio_command_controller.h
@@ -135,6 +138,7 @@ qt_add_qml_module(ravo_studio
     qml/inspect/DevelopHistoryPanel.qml
     qml/inspect/DevelopPresetPanel.qml
     qml/inspect/DevelopPanel.qml
+    qml/inspect/DevelopColorSlider.qml
     qml/inspect/ColorGradeWheel.qml
     qml/inspect/ToneCurveEditor.qml
     qml/inspect/ScopePanel.qml
@@ -142,6 +146,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/BackupScheduleDialog.qml
     qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
+    qml/chrome/ImportPage.qml
     qml/chrome/AssistantPanel.qml
     qml/chrome/StudioActions.qml
     qml/chrome/StudioCommandMenuItems.qml

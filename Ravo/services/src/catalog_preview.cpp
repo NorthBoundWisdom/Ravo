@@ -16,6 +16,21 @@
 
 namespace ravo
 {
+
+Result<PreviewResult> CatalogService::build_import_preview(const std::string_view asset_id,
+                                                           const ImportPreviewPolicy policy,
+                                                           const CancellationToken &cancellation)
+{
+    PreviewRequest request;
+    request.asset_id = std::string(asset_id);
+    request.max_edge = policy == ImportPreviewPolicy::kMinimal  ? kThumbnailMaxEdge :
+                       policy == ImportPreviewPolicy::kStandard ? kDefaultPreviewMaxEdge :
+                                                                  0U;
+    request.purpose = PreviewPurpose::kBrowse;
+    request.prefer_embedded_preview = policy == ImportPreviewPolicy::kMinimal;
+    request.cancellation = cancellation;
+    return request_preview(request);
+}
 Result<PreviewResult>
 CatalogService::request_preview(const PreviewRequest &request,
                                 const std::optional<DevelopParams> &live_develop)

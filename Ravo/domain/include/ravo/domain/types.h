@@ -144,6 +144,27 @@ enum class ImportItemStatus
     kFailed,
 };
 
+enum class ImportTransferMode
+{
+    kAdd,
+    kCopy,
+    kMove,
+};
+
+enum class ImportOrganization
+{
+    kSingleFolder,
+    kPreserveHierarchy,
+    kCaptureDate,
+};
+
+enum class ImportPreviewPolicy
+{
+    kMinimal,
+    kStandard,
+    kOneToOne,
+};
+
 enum class ColorLabel
 {
     kNone,
@@ -661,6 +682,53 @@ struct ImportItemResult
     std::string input_path;
     std::optional<AssetRecord> asset;
     std::optional<std::string> preview_cache_path;
+    std::optional<TaskError> error;
+    std::optional<std::string> destination_path;
+    std::optional<std::string> sidecar_destination_path;
+    std::optional<TaskError> source_cleanup_error;
+    bool preview_pending = false;
+};
+
+struct ImportRequest
+{
+    std::vector<std::string> inputs;
+    ImportTransferMode mode = ImportTransferMode::kAdd;
+    ImportOrganization organization = ImportOrganization::kSingleFolder;
+    ImportPreviewPolicy preview = ImportPreviewPolicy::kStandard;
+    std::string destination_directory;
+    std::optional<std::string> source_root;
+    bool recursive = true;
+    bool include_xmp_sidecars = true;
+    bool defer_previews = false;
+    CancellationToken cancellation{};
+};
+
+struct ImportBatchResult
+{
+    ImportTransferMode mode = ImportTransferMode::kAdd;
+    ImportPreviewPolicy preview = ImportPreviewPolicy::kStandard;
+    std::vector<ImportItemResult> items;
+    std::size_t imported = 0U;
+    std::size_t duplicates = 0U;
+    std::size_t unsupported = 0U;
+    std::size_t failed = 0U;
+    std::size_t source_cleanup_failed = 0U;
+};
+
+struct ImportCandidate
+{
+    std::string source_path;
+    std::string relative_path;
+    std::string display_name;
+    std::string media_type;
+    std::uint64_t size_bytes = 0U;
+    std::int64_t mtime_unix_ms = 0;
+    std::optional<std::uint32_t> width;
+    std::optional<std::uint32_t> height;
+    std::optional<std::int64_t> captured_unix_s;
+    std::optional<std::string> captured_date_path;
+    bool duplicate = false;
+    bool supported = true;
     std::optional<TaskError> error;
 };
 

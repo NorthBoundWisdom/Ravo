@@ -54,7 +54,13 @@ bounded pages, require at most 200 materialized assets per page, and pin page,
 tag, and stable-folder query plans. A sparse-model test exposes 10,000 logical
 rows while retaining no more than three pages. Import tests require one-item
 dispatch, deterministic result order, foreground interleaving, and cancellation
-that commits no undispatched input (ADR-0100). LibraryQuery tests cover every
+that commits no undispatched input (ADR-0100). Studio additionally pins a
+stable Gallery model throughout an active batch, one final switch to the
+successful Last Imported Photos range, partial-cancellation membership, folder
+exit, command/QML wiring, and catalog-lifecycle reset. Managed-import tests
+add exact Copy/Move bytes, same-stem XMP, three destination organizations,
+zero-publication conflicts, source-change and cleanup failures, CLI JSON,
+workspace selection, and cancellable background preview policies. LibraryQuery tests cover every
 supported predicate, missing capture values, inclusive numeric/time endpoints,
 ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
 text/range state, deterministic capture/file-size sorting, Catalog validation
@@ -97,11 +103,12 @@ commands. Copy Info and Copy Parameters tests pin the
 payloads, current saved/pending canonical recipe text, empty selection/unknown-file
 failure, and photo/preset context-menu command wiring (QML does not assemble
 the identity or parameter text). QML contract tests pin the default grading
-stack, Lightroom-style White Balance and common-first Light control order,
-first-class Curves, Camera Calibration after Color,
-vignette geometry including centre, HSL band names, Detail profile denoise,
-Color Equalizer versus Graduated ND, Color
-Balance RGB wheels, Color · Advanced, and RAW white-balance pick wiring.
+stack, the compact Color grouping for White Balance/Presence/Hue, three-way
+and global Color Balance RGB wheels, the eight-swatch Color Mixer with
+Hue/Saturation/Luminance tracks, common-first Light control order, first-class
+Curves, Camera Calibration after Color, vignette geometry including centre,
+HSL band names, Detail profile denoise, Color Mixer versus Graduated ND, Color
+· Advanced, and RAW white-balance pick wiring.
 Engine tests pin CFA sampling of a warm Bayer patch to manual coefficients;
 catalog tests reject raster pick.
 Session undo is the single stack for right-panel Develop commits and
@@ -125,7 +132,8 @@ than a C++ timing contract. Develop toolbar comparison tests require that its
 baseline is non-persistent and immutable while the edited pane refreshes,
 rapid exit rejects a late baseline, and QML presents two whole images through
 one shared zoom/pan plane.
-Scope tests pin histogram bins/max plus Rec.709 luma, Waveform/Parade 8/9 white placement and RGB
+Scope tests pin RGB Parade as the initial Studio mode, histogram bins/max plus
+Rec.709 luma, Waveform/Parade 8/9 white placement and RGB
 composition, neutral-center versus saturated-red D50 u*v*, exact image sizes,
 Split left equality and max-preserved right signal, exact-buffer rejection,
 five presenter/command/QML modes, provider URLs, translations, and offscreen

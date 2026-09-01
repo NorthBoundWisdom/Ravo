@@ -1261,7 +1261,17 @@ assemble the same services, ports, and adapters.
 
 Ravo Studio owns:
 
-- creating/opening catalogs and choosing files/directories;
+- creating/opening catalogs and one session-owned import workspace for local
+  source browsing, selection, Add/Copy/Move planning, destination organization,
+  and initial preview policy. Services own enumeration, inspection, complete
+  preflight, atomic transfer, catalog publication, XMP companions, and source
+  cleanup; QML only presents state and forwards intents (ADR-0102);
+- a session-only Last Imported Photos source group. The desktop presenter owns
+  its successful-batch time bounds and selection lifecycle; import suppresses
+  per-item model insertion and catalog polling, then performs one bounded page
+  query and source switch after completion. Cancellation publishes only
+  completed items, folder selection leaves the group, and catalog replacement
+  destroys it. No schema row or QML-owned asset list is introduced;
 - Gallery list states: loading, ready, missing, unsupported, and failed;
 - selection, Gallery grid/loupe and Edit panes, fit, 100%, and pan. Grid and
   filmstrip use whole-image containment with letterbox number, rating,
@@ -1269,12 +1279,14 @@ Ravo Studio owns:
   tag filter, and Import/Export; Edit's left rail is the selected photo's
   recipe history and snapshots. Clicking a step previews that recipe and dims
   newer rows; a subsequent parameter edit discards the dimmed rows. The default
-  Edit grading stack is Light, Curves, Color Equalizer, Color Balance RGB
-  wheels, and Camera Calibration; Light begins with the independently resettable
-  White Balance subsection before its common tone controls. Overlapping Lab
-  color tools stay under Color · Advanced (ADR-0082/0084/0085). Color Equalizer
-  exposes eight named bands; Bayer white-balance pick writes manual temperature
-  coefficients (ADR-0083);
+  Edit grading stack is Light, Curves, Color, Color Mixer, Color · Advanced,
+  and Camera Calibration. Color groups the independently resettable White
+  Balance owner, Presence, global Hue, and three-way/global Color Balance RGB
+  wheels without moving parameter math into QML. Color Mixer projects the
+  Color Equalizer's eight named bands as swatches with Hue, Saturation, and
+  Luminance tracks. Overlapping Lab and legacy color tools stay under Color ·
+  Advanced (ADR-0082/0084/0085). Bayer white-balance pick writes manual
+  temperature coefficients (ADR-0083);
 - Presets place **Save…** immediately to the right of **Import…**. Save shows
   only baseline-relative modifications, selects none initially, and publishes
   a managed selective `.rstyle.json`; imported complete styles and Lightroom
@@ -1282,8 +1294,9 @@ Ravo Studio owns:
 - Edit history presents exactly **Copy Parameters** and **Paste Parameters**.
   Copy requires explicit baseline-relative field selection; paste changes only
   that immutable session selection and preserves other target edits;
-- shared scopes above the right Gallery/Edit panel, remaining visible while
-  the Edit list scrolls: frozen 256-bin RGB Histogram, overlaid Waveform, RGB
+- shared scopes above the right Gallery/Edit panel, defaulting a new Studio
+  session to RGB Parade and remaining visible while the Edit list scrolls:
+  frozen 256-bin RGB Histogram, overlaid Waveform, RGB
   Parade, fixed linear D50 CIE u*v* Vectorscope, and Waveform/Vectorscope
   Split. Each preview refreshes the histogram used by Curves and only the
   currently selected diagnostic; switching modes recomputes that mode from the

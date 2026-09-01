@@ -1333,6 +1333,7 @@ TEST(StudioPresenterTest, ManagedPresetRenameAndDeleteAreScopedAndPreserveConten
     }
 
     StudioPresenter presenter;
+    StudioCommandController commands(presenter);
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
@@ -2146,7 +2147,7 @@ TEST(StudioPresenterTest, ScopeModeOwnsAllAcceptedDiagnosticsAndRejectsFutureSta
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    EXPECT_EQ(presenter.scopeMode(), QStringLiteral("histogram"));
+    EXPECT_EQ(presenter.scopeMode(), QStringLiteral("parade"));
     for (const auto &mode : {QStringLiteral("waveform"), QStringLiteral("parade"),
                              QStringLiteral("vectorscope"), QStringLiteral("split")})
     {
@@ -2500,7 +2501,7 @@ TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
 
     const auto monochrome = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"));
     const auto split_toning = source.indexOf(QStringLiteral("qsTr(\"Split Toning\")"));
-    const auto advanced = source.indexOf(QStringLiteral("qsTr(\"Color · Advanced\")"));
+    const auto advanced = source.indexOf(QStringLiteral("qsTr(\"Color · Advanced\")"), monochrome);
     const auto harmonizer = source.indexOf(QStringLiteral("colorHarmonizerEnabled"));
     const auto reconstruction = source.indexOf(QStringLiteral("colorReconstructionEnabled"));
     ASSERT_GE(monochrome, 0);
@@ -2658,7 +2659,7 @@ TEST(StudioQmlContract, RawSectionExposesSensorAwareDemosaicAndWaveletDenoise)
     EXPECT_GT(source.indexOf(QStringLiteral("selectedMediaType === \"image/x-raw\""), raw), raw);
 }
 
-TEST(StudioQmlContract, LightPresentsWhiteBalanceAndCommonControlsBeforeSpecializedSettings)
+TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
 {
     QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
     ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -2670,9 +2671,6 @@ TEST(StudioQmlContract, LightPresentsWhiteBalanceAndCommonControlsBeforeSpeciali
     ASSERT_GT(light_end, light_begin);
     const auto light = source.mid(light_begin, light_end - light_begin);
 
-    const auto white_balance = light.indexOf(QStringLiteral("sectionId: \"whiteBalance\""));
-    const auto white_balance_mode =
-        light.indexOf(QStringLiteral("setDevelopNumber(\"whiteBalanceMode\""));
     const auto exposure = light.indexOf(QStringLiteral("previewDevelopNumber(\"exposure\""));
     const auto sigmoid_contrast =
         light.indexOf(QStringLiteral("previewDevelopNumber(\"sigmoidContrast\""));
@@ -2694,8 +2692,6 @@ TEST(StudioQmlContract, LightPresentsWhiteBalanceAndCommonControlsBeforeSpeciali
     const auto gamma = light.indexOf(QStringLiteral("previewDevelopNumber(\"gamma\""));
     const auto rgb_levels = light.indexOf(QStringLiteral("qsTr(\"RGB levels\")"));
 
-    ASSERT_GE(white_balance, 0);
-    ASSERT_GE(white_balance_mode, 0);
     ASSERT_GE(exposure, 0);
     ASSERT_GE(sigmoid_contrast, 0);
     ASSERT_GE(raster_contrast, 0);
@@ -2712,8 +2708,6 @@ TEST(StudioQmlContract, LightPresentsWhiteBalanceAndCommonControlsBeforeSpeciali
     ASSERT_GE(gamma, 0);
     ASSERT_GE(rgb_levels, 0);
 
-    EXPECT_LT(white_balance, white_balance_mode);
-    EXPECT_LT(white_balance_mode, exposure);
     EXPECT_LT(exposure, sigmoid_contrast);
     EXPECT_LT(exposure, raster_contrast);
     EXPECT_LT(sigmoid_contrast, highlights);
@@ -2752,13 +2746,13 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     ASSERT_GE(geometry, 0);
     ASSERT_GE(graduated, 0);
     EXPECT_LT(light, white_balance);
-    EXPECT_LT(white_balance, curves);
     EXPECT_LT(light, curves);
-    EXPECT_LT(curves, color_eq);
-    EXPECT_LT(color_eq, color);
+    EXPECT_LT(curves, color);
+    EXPECT_LT(color, white_balance);
+    EXPECT_LT(white_balance, color_eq);
     EXPECT_LT(color, geometry);
     EXPECT_LT(geometry, graduated);
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Color Equalizer\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Color Mixer\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Graduated ND\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("Graduated ND / Color EQ")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceShadowsWheel\"")));
@@ -2766,10 +2760,18 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceHighlightsWheel\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("hueField: \"colorBalanceShadowsHue\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("chromaField: \"colorBalanceShadowsChroma\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceGlobalWheel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingThreeWay\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingGlobal\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingDetails\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Color Balance RGB · more\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Color · Advanced\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorEqChannel\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorEqBand\" + modelData.index")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("objectName: \"colorEqBand\" + colorMixer.activeBand + \"Hue\"")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("objectName: \"colorEqBand\" + colorMixer.activeBand + \"Saturation\"")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("objectName: \"colorEqBand\" + colorMixer.activeBand + \"Luminance\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("editColorEqBands")));
     EXPECT_TRUE(source.contains(QStringLiteral("satField")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curveFamily\"")));
@@ -2784,7 +2786,19 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"resetActiveCurve\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Channel\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Parametric regions\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Curve settings\")")));
+    const auto curve_settings = source.indexOf(QStringLiteral("qsTr(\"Curve settings\")"));
+    const auto curve_settings_owner =
+        source.lastIndexOf(QStringLiteral("CustomEditPanel {"), curve_settings);
+    ASSERT_GE(curve_settings, 0);
+    ASSERT_GE(curve_settings_owner, 0);
+    const auto curve_settings_section =
+        source.mid(curve_settings_owner, curve_settings - curve_settings_owner + 600);
+    EXPECT_TRUE(curve_settings_section.contains(QStringLiteral("initialExpanded: false")));
+    EXPECT_TRUE(curve_settings_section.contains(
+        QStringLiteral("titleBarColor: Theme.contentSurfaceColor")));
+    EXPECT_TRUE(curve_settings_section.contains(QStringLiteral("borderColor: Theme.lightColor")));
+    EXPECT_TRUE(
+        curve_settings_section.contains(QStringLiteral("borderWidth: ControlState.borderFocus")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("curveControls.rgbFamily ? \"rgbCurve\" : \"toneCurve\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("histogramMode")));
@@ -2821,7 +2835,19 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     const auto wheel_source = QString::fromUtf8(wheel.readAll());
     EXPECT_TRUE(wheel_source.contains(QStringLiteral("previewDevelopNumbers")));
     EXPECT_TRUE(wheel_source.contains(QStringLiteral("setDevelopNumbers")));
+    EXPECT_TRUE(wheel_source.contains(QStringLiteral("DevelopColorSlider")));
+    EXPECT_TRUE(wheel_source.contains(QStringLiteral("const hue = (360 - angle) % 360")));
     EXPECT_FALSE(wheel_source.contains(QStringLiteral("OpenCL")));
+
+    QFile color_slider(QStringLiteral(RAVO_STUDIO_DEVELOP_COLOR_SLIDER_QML));
+    ASSERT_TRUE(color_slider.open(QIODevice::ReadOnly | QIODevice::Text))
+        << color_slider.errorString().toStdString();
+    const auto color_slider_source = QString::fromUtf8(color_slider.readAll());
+    EXPECT_TRUE(color_slider_source.contains(QStringLiteral("signal valueEdited(double value)")));
+    EXPECT_TRUE(
+        color_slider_source.contains(QStringLiteral("signal valueCommitted(double value)")));
+    EXPECT_TRUE(color_slider_source.contains(QStringLiteral("property Gradient trackGradient")));
+    EXPECT_TRUE(color_slider_source.contains(QStringLiteral("pauseAncestorFlickable")));
 
     auto curve_editor_path = QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML);
     curve_editor_path.replace(QStringLiteral("DevelopPanel.qml"),
@@ -2899,6 +2925,8 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
     const QStringList order{
         QStringLiteral("light"),
         QStringLiteral("curves"),
+        QStringLiteral("color"),
+        QStringLiteral("whiteBalance"),
         QStringLiteral("colorEqualizer"),
         QStringLiteral("color"),
         QStringLiteral("primaries"),
@@ -2928,7 +2956,8 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
     const auto curves = source.indexOf(QStringLiteral("sectionId: \"curves\""), light);
     ASSERT_GE(light, 0);
     ASSERT_GT(white_balance, light);
-    ASSERT_GT(curves, white_balance);
+    ASSERT_GT(curves, light);
+    ASSERT_GT(white_balance, curves);
 }
 
 TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
@@ -3252,6 +3281,17 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("颜色查找表 · D50 Lab"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Color Correction · D50 Lab"),
               QStringLiteral("色彩校正 · D50 Lab"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Presence"), QStringLiteral("鲜艳度"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Color Grading"),
+              QStringLiteral("颜色分级"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Color Mixer"),
+              QStringLiteral("颜色混合器"));
+    EXPECT_EQ(QCoreApplication::translate("LibrarySidePanel", "Last Imported Photos"),
+              QStringLiteral("上次导入的照片"));
+    EXPECT_EQ(QCoreApplication::translate("ImportPage", "Build Previews"),
+              QStringLiteral("构建预览"));
+    EXPECT_EQ(QCoreApplication::translate("ImportPage", "Preserve hierarchy"),
+              QStringLiteral("保留目录层级"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Allow extended chroma"),
               QStringLiteral("允许扩展色度"));
     EXPECT_EQ(QCoreApplication::translate("DevelopHistoryPanel", "Copy Parameters"),
@@ -3762,6 +3802,9 @@ TEST(StudioPresenterTest, ImportCancellationStopsUndispatchedItemsAtItemBoundary
     ASSERT_TRUE(wait_until([&] { return cancelled && !presenter.importWorkActive(); }, 30000))
         << presenter.errorText().toStdString();
     EXPECT_EQ(presenter.visibleCount(), 1);
+    EXPECT_TRUE(presenter.lastImportAvailable());
+    EXPECT_TRUE(presenter.lastImportSelected());
+    EXPECT_EQ(presenter.lastImportCount(), 1);
     EXPECT_TRUE(presenter.statusText().contains(QStringLiteral("cancel"), Qt::CaseInsensitive));
     for (int index = 0; index < photos.size(); ++index)
     {
@@ -3770,6 +3813,172 @@ TEST(StudioPresenterTest, ImportCancellationStopsUndispatchedItemsAtItemBoundary
         EXPECT_EQ(QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256),
                   hashes[static_cast<std::size_t>(index)]);
     }
+}
+
+TEST(StudioPresenterTest, ImportKeepsGalleryStableThenPublishesOneLastImportCollection)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto make_photo = [&](const QString &name, const QColor &color)
+    {
+        const QString path = directory.filePath(name);
+        QImage image(64, 48, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(color);
+        EXPECT_TRUE(image.save(path, "PNG"));
+        return path;
+    };
+    const QString baseline = make_photo(QStringLiteral("baseline.png"), QColor(20, 40, 60));
+    const QString corrupt = directory.filePath(QStringLiteral("batch-corrupt.png"));
+    QFile corrupt_file(corrupt);
+    ASSERT_TRUE(corrupt_file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(corrupt_file.write("not a png"), 9);
+    corrupt_file.close();
+    const QStringList batch{make_photo(QStringLiteral("batch-a.png"), QColor(80, 20, 30)),
+                            make_photo(QStringLiteral("batch-b.png"), QColor(20, 90, 40)),
+                            make_photo(QStringLiteral("batch-c.png"), QColor(30, 40, 120)),
+                            corrupt};
+
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.importFilePaths({baseline});
+    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+        << presenter.errorText().toStdString();
+    ASSERT_TRUE(presenter.lastImportSelected());
+    presenter.selectFolder(QString{});
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.lastImportSelected() && presenter.visibleCount() == 1; }));
+
+    int resets_while_importing = 0;
+    int inserts_while_importing = 0;
+    bool observed_intermediate_progress = false;
+    QObject::connect(presenter.assets(), &QAbstractItemModel::modelReset, &presenter,
+                     [&]
+                     {
+                         if (presenter.importWorkActive())
+                             ++resets_while_importing;
+                     });
+    QObject::connect(presenter.assets(), &QAbstractItemModel::rowsInserted, &presenter,
+                     [&]
+                     {
+                         if (presenter.importWorkActive())
+                             ++inserts_while_importing;
+                     });
+    QObject::connect(&presenter, &StudioPresenter::libraryWorkChanged, &presenter,
+                     [&]
+                     {
+                         if (presenter.importWorkActive() && presenter.importWorkCompleted() > 0 &&
+                             presenter.importWorkCompleted() < presenter.importWorkTotal())
+                         {
+                             observed_intermediate_progress = true;
+                             EXPECT_EQ(presenter.assets()->rowCount(), 1);
+                         }
+                     });
+
+    presenter.importFilePaths(batch);
+    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(observed_intermediate_progress);
+    EXPECT_EQ(resets_while_importing, 0);
+    EXPECT_EQ(inserts_while_importing, 0);
+    EXPECT_TRUE(presenter.lastImportAvailable());
+    EXPECT_TRUE(presenter.lastImportSelected());
+    EXPECT_EQ(presenter.lastImportCount(), 3);
+    ASSERT_EQ(presenter.visibleCount(), 3);
+
+    std::vector<QString> names;
+    for (int row = 0; row < presenter.assets()->rowCount(); ++row)
+    {
+        names.push_back(
+            presenter.assets()
+                ->data(presenter.assets()->index(row, 0), AssetListModel::DisplayNameRole)
+                .toString());
+    }
+    std::ranges::sort(names);
+    EXPECT_EQ(names,
+              std::vector<QString>({QStringLiteral("batch-a.png"), QStringLiteral("batch-b.png"),
+                                    QStringLiteral("batch-c.png")}));
+
+    presenter.selectFolder(QString{});
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.lastImportSelected() && presenter.visibleCount() == 4; }));
+    const auto selected_last = commands.executeCommand(
+        commands.ids().value(QStringLiteral("librarySelectLastImport")).toString(), {},
+        QStringLiteral("control"));
+    ASSERT_TRUE(selected_last.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(wait_until(
+        [&] { return presenter.lastImportSelected() && presenter.visibleCount() == 3; }));
+
+    const QString next_catalog = directory.filePath(QStringLiteral("next-library.sqlite"));
+    presenter.createCatalogFromPath(next_catalog);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.catalogPath() == next_catalog && !presenter.busy() &&
+                   presenter.visibleCount() == 0;
+        }));
+    EXPECT_FALSE(presenter.lastImportAvailable());
+    EXPECT_FALSE(presenter.lastImportSelected());
+    EXPECT_EQ(presenter.lastImportCount(), 0);
+}
+
+TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBackground)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString source_dir = QDir(directory.path()).filePath(QStringLiteral("source"));
+    const QString destination = QDir(directory.path()).filePath(QStringLiteral("destination"));
+    ASSERT_TRUE(QDir().mkpath(source_dir));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    const QString photo = QDir(source_dir).filePath(QStringLiteral("workspace.png"));
+    QImage image(80, 60, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(50, 100, 150));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QByteArray source_hash = [&]
+    {
+        QFile file(photo);
+        EXPECT_TRUE(file.open(QIODevice::ReadOnly));
+        return QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256);
+    }();
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(
+        QDir(directory.path()).filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.openImportPage();
+    presenter.setImportSourceRoot(source_dir);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 1; },
+        30000));
+    EXPECT_EQ(presenter.importCandidates()->selectedCount(), 1);
+    presenter.setImportMode(QStringLiteral("copy"));
+    presenter.setImportDestination(destination);
+    presenter.setImportPreviewPolicy(QStringLiteral("standard"));
+    presenter.startPlannedImport();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importWorkActive() && !presenter.importPageOpen(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.lastImportSelected());
+    EXPECT_EQ(presenter.lastImportCount(), 1);
+    const QString copied = QDir(destination).filePath(QStringLiteral("workspace.png"));
+    ASSERT_TRUE(QFileInfo::exists(copied));
+    QFile copied_file(copied);
+    ASSERT_TRUE(copied_file.open(QIODevice::ReadOnly));
+    EXPECT_EQ(QCryptographicHash::hash(copied_file.readAll(), QCryptographicHash::Sha256),
+              source_hash);
+    QFile source_file(photo);
+    ASSERT_TRUE(source_file.open(QIODevice::ReadOnly));
+    EXPECT_EQ(QCryptographicHash::hash(source_file.readAll(), QCryptographicHash::Sha256),
+              source_hash);
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewWorkActive(); }, 30000));
 }
 
 TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing)
@@ -3983,6 +4192,47 @@ TEST(StudioQmlContract, GalleryRequestsSparsePagesFromVisibleDelegates)
     EXPECT_FALSE(source.contains(QStringLiteral("cacheBuffer: cellHeight * 8")));
 }
 
+TEST(StudioQmlContract, LibrarySidePanelShowsCommandOwnedLastImportGroup)
+{
+    QFile library(QStringLiteral(RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML));
+    ASSERT_TRUE(library.open(QIODevice::ReadOnly | QIODevice::Text))
+        << library.errorString().toStdString();
+    const auto source = QString::fromUtf8(library.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"lastImportGroup\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Last Imported Photos\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.lastImportAvailable")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.lastImportSelected")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.lastImportCount")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.librarySelectLastImport")));
+    EXPECT_FALSE(source.contains(QStringLiteral("imported_after_unix_ms")));
+}
+
+TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPolicy)
+{
+    QFile page(QStringLiteral(RAVO_STUDIO_IMPORT_PAGE_QML));
+    ASSERT_TRUE(page.open(QIODevice::ReadOnly | QIODevice::Text))
+        << page.errorString().toStdString();
+    const auto source = QString::fromUtf8(page.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Add\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Move\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.toggleSelected")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.setAllSelected")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setImportOrganization")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setImportPreviewPolicy")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Minimal (320)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Standard (1600)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("startPlannedImport")));
+
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto main_source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ImportPage")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.openImportPage()")));
+    EXPECT_FALSE(main_source.contains(QStringLiteral("id: importDialog")));
+    EXPECT_FALSE(main_source.contains(QStringLiteral("id: importFolderDialog")));
+}
+
 TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
 {
     QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
@@ -4164,6 +4414,7 @@ TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)
     EXPECT_TRUE(source.contains(QStringLiteral("anchors.top: plot.top")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: scopeModeMenu")));
     EXPECT_TRUE(source.contains(QStringLiteral("modeId: \"histogram\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("modeId === \"parade\"")));
     EXPECT_FALSE(source.contains(QStringLiteral("SegmentedControl")));
     EXPECT_FALSE(source.contains(QStringLiteral("srgb_to_linear")));
     EXPECT_FALSE(source.contains(QStringLiteral("rgb_to_d50_uv")));
