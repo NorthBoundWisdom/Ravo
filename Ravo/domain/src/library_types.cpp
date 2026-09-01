@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <locale>
 #include <map>
 #include <new>
 #include <set>
@@ -773,6 +774,23 @@ namespace
     return JsonValue{std::move(object)};
 }
 
+[[nodiscard]] bool parse_library_query_double(const std::string_view text, double &result)
+{
+    if (text.empty())
+        return false;
+    // Apple libc++ does not yet provide floating-point std::from_chars. JSON
+    // always uses '.', so require classic-locale, finite, complete consumption.
+    std::istringstream stream{std::string(text)};
+    stream.imbue(std::locale::classic());
+    stream >> std::noskipws;
+    double parsed = 0.0;
+    if (!(stream >> parsed) || stream.peek() != std::char_traits<char>::eof() ||
+        !std::isfinite(parsed))
+        return false;
+    result = parsed;
+    return true;
+}
+
 [[nodiscard]] Result<std::optional<double>> json_optional_double(const JsonValue &value,
                                                                  const std::string_view field)
 {
@@ -785,10 +803,7 @@ namespace
                           {{"field", std::string(field)}, {"reason", "invalid_library_query"}});
     }
     double parsed = 0.0;
-    const auto *begin = number->text.data();
-    const auto *end = begin + number->text.size();
-    const auto result = std::from_chars(begin, end, parsed);
-    if (result.ec != std::errc{} || result.ptr != end)
+    if (!parse_library_query_double(number->text, parsed))
     {
         return make_error(ErrorCode::kValidation, "Library query number is invalid",
                           {{"field", std::string(field)}, {"reason", "invalid_library_query"}});

@@ -51,8 +51,6 @@ jobs:
         run: |
           set -euo pipefail
           python Ravo/tools/freeze_legacy_manifest.py --check
-          python Ravo/tools/check_capability_inventory.py
-          python Ravo/tools/check_freeze_reference.py
           python Ravo/tools/check_ravo_dependency_boundary.py
           python Ravo/tools/check_vertical_slice_plan.py
           python Ravo/tools/check_fixture_classification_ledger.py

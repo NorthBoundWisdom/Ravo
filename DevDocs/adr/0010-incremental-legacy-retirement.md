@@ -30,10 +30,10 @@ acceptance would destroy static evidence still needed for the rewrite.
 - After an explicitly resumed legacy migration TODO item meets its
   Ravo-accepted gate, delete only the named old owner files. Record them in
   the retired leftover path list.
-- Remaining leftover files must continue to match the freeze-commit blobs.
-  `check_freeze_reference.py` verifies that invariant plus the retired set.
-  Leftover `iop/CMakeLists.txt` and `libs/CMakeLists.txt` may drop retired
-  registrations and are not blob-compared to the freeze.
+- While the leftover tree existed, its remaining files continued to match the
+  freeze-commit blobs and retirement tooling verified that invariant. Those
+  source checks ended when ADR-0106's accepted deletion removed `legacy/`;
+  current static fixture integrity is owned by `freeze_legacy_manifest.py`.
 - Shared decode, fixture, and leftover GTK/Lua/OpenCL paths stay until their
   own acceptance or the leftover list in `DevDocs/MIGRATION.md`.
 - The first retired owners are `libs/export.c` and `libs/export_metadata.c`,
