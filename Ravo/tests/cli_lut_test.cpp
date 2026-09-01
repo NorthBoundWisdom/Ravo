@@ -58,14 +58,14 @@ namespace
 [[nodiscard]] std::string mire1_path()
 {
     const auto path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
 }
 
 [[nodiscard]] std::string mire1_xtrans_path()
 {
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
                       "mire1-xtrans.raf";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
@@ -713,7 +713,7 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
         std::filesystem::temp_directory_path() / ("ravo-cli-probe-" + generate_catalog_id());
     std::filesystem::create_directories(root);
     const auto catalog = (root / "library.sqlite").string();
-    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                       "0000-nop" / "expected.png")
                          .generic_u8string();
     const std::string png_path(png.begin(), png.end());
@@ -993,7 +993,7 @@ TEST_F(CliTest, RealCliColorHarmonizerDevelopSetPersistsAndRejectsInvalidInput)
         std::filesystem::temp_directory_path() / ("ravo-cli-harmonizer-" + generate_catalog_id());
     std::filesystem::create_directories(root);
     const auto catalog = (root / "library.sqlite").string();
-    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                       "0000-nop" / "expected.png")
                          .generic_u8string();
     const QString catalog_q = QString::fromStdString(catalog);
@@ -1157,7 +1157,7 @@ TEST_F(CliTest, RealCliLut3dPersistsProbesExportsAndRejectsChangedCorruptSource)
     std::filesystem::create_directories(root);
     const auto catalog = root / "library.sqlite";
     const auto cube = root / "red-compression.cube";
-    const auto source = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto source = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                         "0000-nop" / "expected.png";
     const auto source_before = source_file_snapshot(source.string());
     ASSERT_TRUE(source_before);

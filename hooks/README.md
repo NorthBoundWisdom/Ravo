@@ -21,7 +21,7 @@ cp hooks/path.ini.sample hooks/path.ini
 `CLANG_FORMAT_PATH` must point to an executable `clang-format`.
 `QMLFORMAT_PATH` is optional; leave it empty to skip QML/JS formatting.
 `SOURCE_ROOTS=Ravo` keeps clang-format and qmlformat on first-party sources.
-Frozen `legacy/` and the `FreeCM/` submodule stay outside that root.
+The `FreeCM/` submodule stays outside that root.
 
 3. Install into this repository's Git hooks directory:
 

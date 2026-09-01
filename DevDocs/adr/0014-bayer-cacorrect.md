@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-26
-- Relates to: ADR-0013, `DevDocs/TODO_LEGACY_MIGRATION.md` RAW repair
+- Relates to: ADR-0013, `DevDocs/MIGRATION.md` RAW repair
 
 ## Context
 

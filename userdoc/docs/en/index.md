@@ -108,7 +108,7 @@ workflows.
 ## Scope and safety
 
 Ravo Studio is an independent Qt Quick application with a C++ service and CPU
-engine. The old GTK application under `legacy/` is read-only migration evidence
+engine. The old GTK application from leftover darktable is read-only migration evidence
 and is not a supported Ravo dependency or runtime. Ravo does not open an old
 catalog in place. For historical sidecars, use the strict CLI XMP import path
 described in [the CLI guide](guides/cli.md); unsupported history is reported as

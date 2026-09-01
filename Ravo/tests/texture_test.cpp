@@ -132,7 +132,7 @@ void cancel_at_checkpoint(void *const context, const detail::TextureCheckpoint c
 
 [[nodiscard]] std::string raw_fixture_path()
 {
-    return (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+    return (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
             "mire1.cr2")
         .string();
 }

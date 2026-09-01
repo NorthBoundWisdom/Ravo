@@ -7,9 +7,9 @@
 This queue ranks unfinished photographer-visible outcomes against Lightroom
 Classic and Capture One. It is not a clone list, a second P0/P1, or permission
 to start work. Current capability stays in `Ravo/README.md`. Undecided contracts
-stay in `ProductRoadmap.md`. Algorithm exactness stays in
-`TODO_LEGACY_MIGRATION.md`. Gallery latency stays in
-`TODO_GALLERY_PERFORMANCE.md`. Private-corpus and Windows/Linux release
+stay in `ProductRoadmap.md`. Leftover C is leftover, not a port queue
+([ADR-0106](adr/0106-close-legacy-algorithm-migration.md)). Gallery latency
+stays in `TODO_GALLERY_PERFORMANCE.md`. Private-corpus and Windows/Linux release
 evidence stays in `TODO_PHOTO_MANAGEMENT.md` and keeps repository-wide
 precedence.
 
@@ -50,8 +50,9 @@ often assume is missing:
 - virtual copies of one original, collapsed stacks with a pick, and Survey
   N-up cull without N Develop pipelines (ADR-0105);
 - scene-referred Light/Curves/Color Mixer/Color Balance RGB/Calibration stack,
-  tone equalizer, lens, denoise, retouch, perspective, crop, soft proof, and a
-  bounded mask graph (gradient/circle/ellipse/parametric/path/brush/groups);
+  tone equalizer, lens, denoise, retouch, perspective, crop, soft proof,
+  photographic grain/vignette/bloom/soften amounts, and a bounded mask graph
+  (gradient/circle/ellipse/parametric/path/brush/groups);
 - typed JPEG/PNG/TIFF/original-copy export with privacy modes;
 - catalog recovery generations, verified backups, scheduled retention, and
   stable folder relink (ADR-0097/0099–0101).
@@ -67,10 +68,9 @@ Develop.”
 | **PW2 — shoot ingest** | Card/camera ingest, rename templates, second-copy backup, HEIC/HEIF | First hour of a shoot. ADR-0104 accepts the filesystem rename/verified-second-copy tranche; PTP/MTP, DNG conversion, Smart Previews, HEIC, and video remain undecided | ProductRoadmap ingest/format expansion | Blocked after accepted ADR-0104 tranche |
 | **PW3 — metadata depth** | Hierarchical keywords, IPTC/location write, camera/lens/date facets | Client delivery and stock workflows. Ravo writes three catalog fields and flat tags; capture Exif is read-only; GPS writeback is unsupported | ProductRoadmap metadata; ADR-0064/S9 | Blocked |
 | **PW4 — apply Develop to many** | Sync/copy current edits onto an explicit multi-selection with a field chooser | After culling, one grade is applied to tens of frames. Current copy/paste is a session clipboard onto destinations one command at a time, not a selection-wide sync | ADR-0078/0098 plus a new multi-asset mutation contract | Blocked |
-| **PW5 — local grading on the stack** | Masked Light/Color/Curves instances, picker-assisted authoring, named extra blend modes | Capture One layers and Lightroom masking are how local color is done. Ravo’s mask graph exists but everyday grading tools are still mostly global; multi-instance legacy state still rejects | ProductRoadmap “Local adjustment expansion”; MR2 | Blocked |
+| **PW5 — local grading on the stack** | Masked Light/Color/Curves instances, picker-assisted authoring, named extra blend modes | Capture One layers and Lightroom masking are how local color is done. Ravo’s mask graph exists but everyday grading tools are still mostly global; multi-instance legacy state still rejects | ProductRoadmap “Local adjustment expansion” | Blocked |
 | **PW6 — delivery export** | Long-edge/box resize, output sharpen, reusable export presets, restartable background jobs | “Export for web/client” is daily. Ravo already has typed codecs and batch atomic publication, but no geometry/sharpen stage, remembered preset, or durable job | ProductRoadmap “Export and background work” | Blocked |
 | **PW7 — interchange** | Explicit XMP/catalog round-trip and external-editor round-trip without a second live authority | Studios move between Ravo, Lightroom, and Photoshop. Adjacent XMP writeback, legacy catalog import, and external editors are undecided; automatic sidecars stay forbidden (ADR-0063) | ProductRoadmap “Originals, catalogs, and interchange” | Blocked |
-| **PW8 — finishing tools** | Optional grain, vignette, bloom, and extra display transforms as non-default recipe operations | Common look finishing. Defaults stay Sigmoid/Color Equalizer | `TODO_LEGACY_MIGRATION.md` MR4 (`M7`/`M8`/`M6`/`T4`/`T5`) | Blocked behind P0/P1 then MR0–MR3 |
 | **PW9 — capture and presentation leftovers** | Tether, print, map, slideshow, publish | Lightroom/Capture One include these modules. Ravo records them as deleted leftovers, not ports | `MIGRATION.md` explicit leftovers | Unauthorized unless a new dated decision reverses that |
 
 Interactive preview P90 and Gallery browse concurrency are professional-feeling
@@ -167,8 +167,8 @@ rejects.
 multiple instances of one operation are allowed; picker/histogram-assisted
 authoring that keeps graph math in C++.
 
-**Dependencies.** ProductRoadmap local-adjustment bullets; MR2 for additional
-blend modes. Do not wait on AI subject detection.
+**Dependencies.** ProductRoadmap local-adjustment bullets. Do not wait on AI
+subject detection or leftover IOP ports.
 
 **Risk.** QML-owned mask pixels; coordinate drift after Canvas/Perspective/crop.
 
@@ -223,20 +223,12 @@ conversion artifact is read-only; originals’ bytes unchanged.
 **Acceptance gate.** A user can export/import an explicit interchange package
 and round-trip a TIFF to an external editor as a new catalog asset.
 
-### PW8 — finishing tools
+### PW8 — finishing tools (not a remaining gap)
 
-**Current fact.** Texture, dehaze, split toning, velvia, monochrome, 3D LUT,
-and watermark exist. Grain, vignette, bloom, and extra display transforms
-(`filmicrgb`/`agx`) remain MR4 leftovers.
-
-**Dependencies.** P0/P1 evidence closeout, then Ready `MR*` order. Defaults
-must stay Sigmoid/Color Equalizer.
-
-**Validation.** Frozen CPU math, fixtures, CLI/Catalog/Studio persistence, no
-default-output change.
-
-**Acceptance gate.** Optional grain/vignette are recipe operations with goldens;
-unedited photos still match the current baseline.
+Photographic grain, vignette, bloom, and soften amounts already exist on the
+Develop stack. Extra leftover display transforms (`filmicrgb`/`agx`) stay
+leftovers, not ports (ADR-0106). Do not reopen this rank as leftover-faithful
+IOP work.
 
 ### PW9 — leftovers
 
@@ -252,8 +244,6 @@ Minimum set for any newly authorized `PW*` (adapt owners, do not skip):
 ```text
 python3 configs/source_roots.py verify
 python3 Ravo/tools/freeze_legacy_manifest.py --check
-python3 Ravo/tools/check_capability_inventory.py
-python3 Ravo/tools/check_freeze_reference.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
 cmake --preset mac_clang_debug -DBUILD_TESTING=ON
 cmake --build --preset mac_clang_debug --target ravo_catalog_tests ravo_desktop_command_tests ravo_contract_tests

@@ -205,7 +205,7 @@ TEST(BayerDemosaicTest, RcdAndPpgBoundFalseColourOnAHighContrastMonochromeEdge)
 
 TEST(BayerDemosaicTest, RealCanonRawHasFrozenRcdAndPpgGoldens)
 {
-    const auto input = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto input = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                        "images" / "mire1.cr2";
     auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;

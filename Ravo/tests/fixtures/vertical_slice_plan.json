@@ -2,7 +2,7 @@
   "fixtures": [
     {
       "expected_png": {
-        "path": "legacy/tests/0000-nop/expected.png",
+        "path": "Ravo/tests/fixtures/frozen/0000-nop/expected.png",
         "sha256": "207ecde1f59eadea107d830bf0b6b9fd33147db333e46d86e122f6bf3c5221d5",
         "size_bytes": 5146216
       },
@@ -10,14 +10,14 @@
       "legacy_cpu_status": "not-run-by-policy",
       "role": "neutral",
       "xmp": {
-        "path": "legacy/tests/0000-nop/nop.xmp",
+        "path": "Ravo/tests/fixtures/frozen/0000-nop/nop.xmp",
         "sha256": "fb8f07afa73b073661bc7022927d9ae216b93d852d1b499d2072ee497af2811d",
         "size_bytes": 4374
       }
     },
     {
       "expected_png": {
-        "path": "legacy/tests/0001-exposure/expected.png",
+        "path": "Ravo/tests/fixtures/frozen/0001-exposure/expected.png",
         "sha256": "48906ecaca2a32f1eeb45237f8aed3b9a9c60b296661c669ed3be79607d83c1b",
         "size_bytes": 5146216
       },
@@ -25,7 +25,7 @@
       "legacy_cpu_status": "not-run-by-policy",
       "role": "visible-operation",
       "xmp": {
-        "path": "legacy/tests/0001-exposure/exposure.xmp",
+        "path": "Ravo/tests/fixtures/frozen/0001-exposure/exposure.xmp",
         "sha256": "16f6db156279fce27667b3cd6a86b49c4906227346fd2e55a08b9ed16b3817ac",
         "size_bytes": 4758
       }
@@ -50,7 +50,7 @@
     }
   },
   "source_image": {
-    "path": "legacy/tests/images/mire1.cr2",
+    "path": "Ravo/tests/fixtures/frozen/images/mire1.cr2",
     "sha256": "578dc1b45add995be167802f9f874a95de3113d2f133cc86d2cf931448f76f3f",
     "size_bytes": 15855600
   },

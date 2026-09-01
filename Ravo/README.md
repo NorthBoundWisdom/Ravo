@@ -601,9 +601,8 @@ evidence remaining in
 Lightroom/Capture One user-outcome gaps are in
 [TODO_PRO_WORKFLOW.md](../DevDocs/TODO_PRO_WORKFLOW.md); ADR-0104 accepts its
 bounded filesystem-ingest tranche while the table retains the remaining rank
-readiness. Legacy
-absorption and retirement remains paused in the separate `MR*` queue in
-[TODO_LEGACY_MIGRATION.md](../DevDocs/TODO_LEGACY_MIGRATION.md); changes of
+readiness. Leftover algorithm ports are closed
+([ADR-0106](../DevDocs/adr/0106-close-legacy-algorithm-migration.md)). Changes of
 direction are recorded in dated ADRs, beginning with
 [ADR-0007](../DevDocs/adr/0007-first-usable-catalog-viewer.md).
 
@@ -689,7 +688,7 @@ compatible Package variant. Run Config before Package; tagged CI releases
 always use Release.
 
 The repository-root CMake builds only Ravo; it must not configure, compile, or
-run frozen 0.9 (`legacy/src/`). Windows/MSVC and local macOS/Clang have
+run leftover darktable. Windows/MSVC and local macOS/Clang have
 previously validated the current engine/CLI graph; Linux still requires
 validation on its target host. The addition of Qt Gui/Qml/Quick/Sql, QML
 modules, runtime plugins, and desktop requires renewed three-platform results.
@@ -860,17 +859,14 @@ After a Debug build, Studio is at
 works like GeoDebugger/DwgParser: first run
 `cmake --build --preset … --target ravo_studio`, then start the GUI directly.
 The first manual loop is: Create Library → Import
-`legacy/tests/0000-nop/expected.png` and `legacy/tests/images/mire1.cr2` →
+`Ravo/tests/fixtures/frozen/0000-nop/expected.png` and `Ravo/tests/fixtures/frozen/images/mire1.cr2` →
 select an asset → Fit / 1:1.
 
-## Relationship to frozen `legacy/src/`
+## Relationship to darktable 0.9
 
-`legacy/src/` is the read-only factual source for 0.9 behavior; Ravo is the
-only growth direction. Ravo may statically read source and fixtures, but
-production targets must not include old private headers, link old libraries,
-load old IOPs, or access global `darktable`. The frozen application also
-receives no Ravo adapter. Handle the remaining old application only after Ravo
-meets the product and migration TODO release-transition and rollback gates.
+Darktable 0.9 is a historical reference. Ravo is the only growth direction.
+Production targets must not include leftover private headers, link old
+libraries, load old IOPs, or access global `darktable`.
 
 ## Documentation entry points
 
@@ -888,7 +884,5 @@ meets the product and migration TODO release-transition and rollback gates.
   corpus and non-macOS P0/P1 release evidence;
 - [professional workflow TODO](../DevDocs/TODO_PRO_WORKFLOW.md): ranked
   Lightroom/Capture One DAM and delivery gaps; not independently ready;
-- [legacy migration TODO](../DevDocs/TODO_LEGACY_MIGRATION.md): unfinished
-  `MR*` algorithm-absorption and retirement gates only.
 
 The repository is distributed under GPLv3; see the root [LICENSE](../LICENSE).

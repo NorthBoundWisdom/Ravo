@@ -58,14 +58,14 @@ namespace
 [[nodiscard]] std::string mire1_path()
 {
     const auto path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
 }
 
 [[nodiscard]] std::string mire1_xtrans_path()
 {
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
                       "mire1-xtrans.raf";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
@@ -787,14 +787,12 @@ TEST_F(CliTest, LegacyXmpMapsRgbLevelsOntoCanonicalToneOp)
     ASSERT_TRUE(default_blend) << default_blend.error().message;
     EXPECT_EQ(default_blend.value().operations[1].id, "ravo.color.rgblevels");
 
-    const auto fixture_linked_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" /
-                                     "tests" / "0054-rgblevels-linked" / "rgblevels-linked.xmp";
+    const auto fixture_linked_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "0054-rgblevels-linked" / "rgblevels-linked.xmp";
     const auto fixture_linked = read_utf8_text_file(fixture_linked_path.generic_string());
     ASSERT_TRUE(fixture_linked) << fixture_linked.error().message;
     EXPECT_NE(fixture_linked.value().find(kFixtureLinked), std::string::npos);
 
-    const auto fixture_indep_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" /
-                                    "tests" / "0055-rgblevels-indep" / "rgblevels-indep.xmp";
+    const auto fixture_indep_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "0055-rgblevels-indep" / "rgblevels-indep.xmp";
     const auto fixture_indep = read_utf8_text_file(fixture_indep_path.generic_string());
     ASSERT_TRUE(fixture_indep) << fixture_indep.error().message;
     EXPECT_NE(fixture_indep.value().find(kFixtureIndependent), std::string::npos);
@@ -856,7 +854,7 @@ TEST_F(CliTest, LegacyXmpMapsRgbCurveIncludingMiddleGrey)
     ASSERT_EQ(developed.value().rgb_curve.channels[0].size(), 9U);
     EXPECT_NEAR(developed.value().rgb_curve.channels[0].front().x, 0.056114, 1e-5);
 
-    const auto fixture_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto fixture_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                               "0060-rgbcurve-indep" / "rgbcurve-indep.xmp";
     const auto fixture_text = read_utf8_text_file(fixture_path.generic_string());
     ASSERT_TRUE(fixture_text) << fixture_text.error().message;
@@ -893,7 +891,7 @@ TEST_F(CliTest, LegacyXmpMapsRawDenoiseV2)
     EXPECT_NEAR(std::get<double>(imported.value().operations[1].parameters.at("y_all0").value),
                 0.9756162762641907, 1e-6);
 
-    const auto fixture_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto fixture_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                               "0049-rawdenoise" / "rawdenoise.xmp";
     const auto fixture_text = read_utf8_text_file(fixture_path.generic_string());
     ASSERT_TRUE(fixture_text) << fixture_text.error().message;
@@ -902,7 +900,7 @@ TEST_F(CliTest, LegacyXmpMapsRawDenoiseV2)
 
 TEST_F(CliTest, LegacyXmpGammaFixtureCensusPinsEveryFrozenMandatoryBoundary)
 {
-    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";
+    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen";
     std::vector<std::filesystem::path> xmp_paths;
     for (const auto &entry : std::filesystem::recursive_directory_iterator(fixture_root))
     {

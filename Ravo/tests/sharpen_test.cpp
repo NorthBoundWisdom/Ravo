@@ -46,7 +46,7 @@ constexpr std::string_view kFrozenBlendV11 = "gz13eJxjYGBgYAJiCQYYOOHEgAZY0QVwgg
 
 [[nodiscard]] std::string mire1_path()
 {
-    return (repository_root() / "legacy" / "tests" / "images" / "mire1.cr2").string();
+    return (repository_root() / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2").string();
 }
 
 [[nodiscard]] std::optional<std::string> read_file(const std::filesystem::path &path)
@@ -361,7 +361,7 @@ TEST(SharpenLegacyXmpTest, ThreeFrozenRecordsMapOnlyTheirDefaultUnmaskedSingleto
 
     std::vector<std::filesystem::path> records;
     for (const auto &entry :
-         std::filesystem::recursive_directory_iterator(repository_root() / "legacy" / "tests"))
+         std::filesystem::recursive_directory_iterator(repository_root() / "Ravo" / "tests" / "fixtures" / "frozen"))
     {
         if (!entry.is_regular_file() || entry.path().extension() != ".xmp")
         {

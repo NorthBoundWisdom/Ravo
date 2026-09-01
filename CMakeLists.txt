@@ -10,8 +10,8 @@ if(POLICY CMP0179)
   cmake_policy(SET CMP0179 NEW)
 endif()
 
-# Ravo is the only buildable product. Frozen Darktable 0.9 lives in
-# legacy/src/ as read-only reference and is not part of this graph.
+# Ravo is the only buildable product. Darktable 0.9 is a historical
+# reference and is not part of this graph.
 project(Ravo VERSION 0.1.9 LANGUAGES CXX)
 unset(PROJECT_VERSION CACHE)
 

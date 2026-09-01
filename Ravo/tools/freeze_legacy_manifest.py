@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Build a deterministic inventory of the legacy image-regression assets.
+"""Build a deterministic inventory of Ravo-owned frozen image fixtures.
 
-The manifest deliberately records the complete committed static reference set.
-It never configures, builds, or invokes the frozen legacy project; runtime
-acceptance evidence belongs to Ravo.
+The manifest records committed static XMP, goldens, and source images under
+Ravo/tests/fixtures/frozen. It does not run leftover software.
 """
 
 from __future__ import annotations
@@ -58,7 +57,7 @@ def xmp_metadata(path: Path) -> tuple[list[str], list[str]]:
 
 
 def build_manifest(repository_root: Path) -> dict[str, Any]:
-    tests_root = repository_root / "legacy" / "tests"
+    tests_root = repository_root / "Ravo" / "tests" / "fixtures" / "frozen"
     fixture_directories = sorted(
         path for path in tests_root.iterdir() if path.is_dir() and re.match(r"^\d{4}-", path.name)
     )
@@ -111,8 +110,8 @@ def build_manifest(repository_root: Path) -> dict[str, Any]:
         "manifest_schema_version": 1,
         "state": "frozen-static-reference",
         "notice": (
-            "Hashes identify committed legacy assets. They do not certify that a legacy "
-            "CPU run reproduced expected_png; consult DevDocs/legacy/Baseline.md."
+            "Hashes identify committed Ravo-owned frozen fixtures. They do not "
+            "certify a leftover CPU run of expected_png."
         ),
         "fixture_count": len(fixtures),
         "legacy_xmp_schema_versions": sorted(all_schema_versions),

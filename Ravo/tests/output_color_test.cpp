@@ -628,7 +628,7 @@ TEST(OutputColorTest, RenderExportApisShareRecipeStageAndKeepPreviewRgb8)
 
 TEST(OutputColorTest, EveryFrozenSchemaFivePayloadMapsToSrgbPerceptual)
 {
-    const auto tests_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";
+    const auto tests_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen";
     std::set<std::string> distinct_payloads;
     std::size_t entries = 0;
     for (const auto &directory : std::filesystem::directory_iterator(tests_root))
@@ -882,8 +882,8 @@ TEST(OutputColorTest, XyzLabSoftproofAndGamutWarningUseOwnedResultState)
 TEST(OutputColorTest, FrozenNopAndMire1HaveSrgbWideAndFileIccReferences)
 {
     const auto repository = std::filesystem::path(RAVO_REPOSITORY_ROOT);
-    const auto xmp_path = repository / "legacy" / "tests" / "0000-nop" / "nop.xmp";
-    const auto raw_path = repository / "legacy" / "tests" / "images" / "mire1.cr2";
+    const auto xmp_path = repository / "Ravo" / "tests" / "fixtures" / "frozen" / "0000-nop" / "nop.xmp";
+    const auto raw_path = repository / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
     QFile xmp(QString::fromStdString(xmp_path.string()));
     ASSERT_TRUE(xmp.open(QIODevice::ReadOnly));
     const auto xmp_bytes = xmp.readAll();

@@ -362,7 +362,7 @@ context_fixture(const std::uint32_t width, const std::uint32_t height, const boo
 
 [[nodiscard]] std::string fixture_path(const std::string_view name)
 {
-    return (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / name)
+    return (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / name)
         .string();
 }
 

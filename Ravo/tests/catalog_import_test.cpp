@@ -75,17 +75,17 @@ namespace
 
 [[nodiscard]] std::string png_fixture_path()
 {
-    return repository_path(std::filesystem::path("legacy") / "tests" / "0000-nop" / "expected.png");
+    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "0000-nop" / "expected.png");
 }
 
 [[nodiscard]] std::string raw_fixture_path()
 {
-    return repository_path(std::filesystem::path("legacy") / "tests" / "images" / "mire1.cr2");
+    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2");
 }
 
 [[nodiscard]] std::string xtrans_fixture_path()
 {
-    return repository_path(std::filesystem::path("legacy") / "tests" / "images" /
+    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "images" /
                            "mire1-xtrans.raf");
 }
 
@@ -506,7 +506,7 @@ TEST_F(CatalogServiceTest, RecognizedTiffLayoutsDoNotStealRawRouting)
     EXPECT_EQ(floating.value().error->context.at("reason"), "unsupported_tiff_float_samples");
     EXPECT_EQ(file_sha256(float_path), float_hash);
 
-    const auto arw = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+    const auto arw = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
                      "hlrecovery.arw";
     const auto disguised = root / "camera.tif";
     std::filesystem::copy_file(arw, disguised);

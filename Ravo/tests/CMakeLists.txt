@@ -397,11 +397,9 @@ gtest_discover_tests(ravo_desktop_command_tests
   PROPERTIES LABELS "ravo-desktop-smoke")
 
 ravo_add_repository_check(ravo_fixture_manifest freeze_legacy_manifest.py --check)
-ravo_add_repository_check(ravo_capability_inventory check_capability_inventory.py)
 ravo_add_repository_check(ravo_dependency_boundary check_ravo_dependency_boundary.py)
 ravo_add_repository_check(ravo_vertical_slice_plan check_vertical_slice_plan.py)
 ravo_add_repository_check(ravo_fixture_classification_ledger check_fixture_classification_ledger.py)
-ravo_add_repository_check(ravo_freeze_reference check_freeze_reference.py)
 
 add_test(
   NAME ravo_repo_check_utils_tests

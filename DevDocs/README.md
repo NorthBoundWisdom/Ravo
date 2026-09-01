@@ -8,7 +8,6 @@ scope roots for tool discovery.
 The following are separate owners and are not folded into `DevDocs/`:
 
 - `userdoc/`: publishable user handbook;
-- `legacy/`: frozen darktable source and static reference notes;
 - `FreeCM/`: independent submodule;
 - `.codex/skills/`: executable agent workflows.
 
@@ -17,10 +16,9 @@ The following are separate owners and are not folded into `DevDocs/`:
 | Document | Authority |
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Target boundaries, ownership, lifecycle, threads, data, and failure behavior |
-| [MIGRATION.md](MIGRATION.md) | Ravo/legacy boundary, accepted capabilities, leftovers, and retirement rules |
+| [MIGRATION.md](MIGRATION.md) | Accepted capabilities, leftovers, and retirement rules |
 | [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, performance probes, and validation depth |
 | [TODO_PHOTO_MANAGEMENT.md](TODO_PHOTO_MANAGEMENT.md) | Remaining P0/P1 platform, corpus, and interactive-latency release evidence |
-| [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md) | Paused legacy absorption and retirement execution queue |
 | [TODO_GALLERY_PERFORMANCE.md](TODO_GALLERY_PERFORMANCE.md) | Release measurements and gated Gallery concurrency/cache candidates |
 | [TODO_PRO_WORKFLOW.md](TODO_PRO_WORKFLOW.md) | Ranked Lightroom/Capture One user-outcome gaps; not independently ready |
 | [TODO_SOURCE_DECOMPOSITION.md](TODO_SOURCE_DECOMPOSITION.md) | Active source-size debt removal and split-integrity execution queue |
@@ -35,15 +33,6 @@ The following are separate owners and are not folded into `DevDocs/`:
 | [Packaging.md](Packaging.md) | Release packaging ownership, artifacts, and validation |
 | [GPU_Baseline.md](GPU_Baseline.md) | Ravo-only GPU correctness and performance admission gates |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party attribution and license notices packaged with Ravo |
-
-## Frozen legacy evidence
-
-| Document | Scope |
-| --- | --- |
-| [legacy/Baseline.md](legacy/Baseline.md) | Frozen commit/tree identities and live-oracle limitation |
-| [legacy/CapabilityInventory.md](legacy/CapabilityInventory.md) | Machine-checked remaining IOP and fixture census |
-| `legacy/retired-src-paths.txt` | Freeze-check exclusions for accepted retired source owners |
-| `legacy/retired-host-data-paths.txt` | Freeze-check exclusions for accepted retired host-data owners |
 
 ## Maintenance rules
 

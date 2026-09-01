@@ -26,7 +26,7 @@ compatibility work untestable.
 - Operation IDs and each operation parameter schema have independent numeric
   versions.  A recipe operation always stores both.  The stable IDs reserved
   for the first vertical-slice descriptors are documented in
-  [legacy capability census](../legacy/CapabilityInventory.md).
+  [explicit leftovers](../MIGRATION.md).
 - JSON selected by `--json` is written only to stdout.  Human diagnostics,
   progress, and verbose logs use stderr.  Keys are emitted in stable order so
   command snapshots are meaningful.

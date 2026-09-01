@@ -246,7 +246,7 @@ TEST(RetouchTest, CloneFillBlurHealAndWaveletRegionsAreOrderedAndBounded)
 
 TEST(RetouchLegacyXmpTest, FourFrozenFixtureFamiliesHaveOneStrictCanonicalWinner)
 {
-    const auto root = repository_root() / "legacy" / "tests";
+    const auto root = repository_root() / "Ravo" / "tests" / "fixtures" / "frozen";
     const std::array<std::string_view, 4> names{"0021-retouch-wavelets", "0074-retouch-clone",
                                                "0075-retouch-heal",
                                                "0076-retouch-blur-fill"};

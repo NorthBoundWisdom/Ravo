@@ -17,12 +17,12 @@ supersession relationship when direction changes.
 | [0007](0007-first-usable-catalog-viewer.md) | Accepted | C++ and Qt Quick/QML first deliver an SQLite catalog, image import, and desktop viewer vertical slice. |
 | [0008](0008-p0-review-catalog-v2.md) | Accepted | Catalog schema v2 persists P0 rating/color/reject and advances the preview contract. |
 | [0009](0009-p1-develop-recipe.md) | Partially superseded by 0016 | Catalog schema v4 has one canonical recipe per image plus tags/metadata/history; ADR-0016 replaces the old lift/gamma/gain path. |
-| [0010](0010-incremental-legacy-retirement.md) | Accepted | Incrementally remove accepted Ravo legacy owners through the legacy migration TODO; remaining leftovers still map to the freeze blob. |
+| [0010](0010-incremental-legacy-retirement.md) | Partially superseded by 0106 | Incrementally remove accepted Ravo leftover owners; remaining leftover C left with leftover-tree deletion rather than leftover-faithful ports. |
 | [0011](0011-atomic-develop-publication.md) | Accepted | Publish recipe/history/revision atomically; Develop preview owns cancellation and late-result rejection by revision. |
 | [0012](0012-explicit-channelmixerrgb.md) | Partially superseded by 0017 | `channelmixerrgb` V3 CPU mathematics use an explicit D50 workspace, adaptation, and canonical schema; ADR-0017 finalizes WB ownership. |
 | [0013](0013-bayer-hotpixels-preprocess.md) | Accepted | `hotpixels` runs on an owned Bayer CFA copy under the frozen four-neighbor contract and enters the RAW cache key. |
 | [0014](0014-bayer-cacorrect.md) | Accepted | `cacorrect` retains the Bayer two-pass tile statistics, polynomial shift fit, and avoid-color-shift path. |
-| [0015](0015-migrate-all-non-ui-algorithms.md) | Accepted | Migrate every remaining non-UI algorithm to C++ individually; GTK/Lua/dynamic ABI/OpenCL are ultimately removed rather than ported. |
+| [0015](0015-migrate-all-non-ui-algorithms.md) | Partially superseded by 0106 | Remaining leftover algorithms were in-scope C++ ports; ADR-0106 makes unaccepted leftover IOPs leftovers rather than ports. |
 | [0016](0016-filmlight-colorbalancergb.md) | Accepted | `colorbalancergb` retains Filmlight Yrg three-zone grading, the DT UCS default, and an explicit JzAzBz gamut contract. |
 | [0017](0017-explicit-raw-temperature.md) | Accepted | `temperature` owns pre-demosaic as-shot/daylight/manual four-channel scaling; late reference uses explicit CAT only. |
 | [0018](0018-explicit-input-color-profiles.md) | Accepted | Input profiles use explicit decode state, matrix/shaper or private ICC transforms, and profile-aware cache keys without sRGB fallback. |
@@ -113,3 +113,4 @@ supersession relationship when direction changes.
 | [0103](0103-named-library-sets.md) | Accepted | Schema v10 persists manual membership collections and smart `LibraryQuery` sets with revision-checked mutations and paged listing. |
 | [0104](0104-bounded-rename-and-verified-second-copy-ingest.md) | Accepted | Copy/Move ingest adds a bounded portable rename grammar and an independently byte-verified second-copy tree before catalog publication. |
 | [0105](0105-asset-versions-stacks-and-survey.md) | Accepted | Schema v11 adds virtual copies of one original, collapsed stacks with a pick, and a Survey browse mode for N-up culling. |
+| [0106](0106-close-legacy-algorithm-migration.md) | Accepted | Unaccepted leftover image algorithms are leftovers, not C++ ports; leftover tree retirement is a single deletion, not a leftover-faithful IOP queue. |

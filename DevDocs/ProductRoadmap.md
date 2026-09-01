@@ -9,7 +9,8 @@ queue.
   [TODO_GALLERY_PERFORMANCE.md](TODO_GALLERY_PERFORMANCE.md)
 - Ranked Lightroom/Capture One user-outcome gaps (not independently ready):
   [TODO_PRO_WORKFLOW.md](TODO_PRO_WORKFLOW.md)
-- Legacy absorption and retirement: [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md)
+- Leftover algorithm ports are closed
+  ([ADR-0106](adr/0106-close-legacy-algorithm-migration.md))
 - Accepted ownership and invariants: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Legacy boundary and capability status: [MIGRATION.md](MIGRATION.md)
 
@@ -77,7 +78,8 @@ session filters are not a smart-collection substitute.
 
 ## Non-candidates
 
-The non-algorithm UI/ABI/OpenCL/data leftovers listed in
-[MIGRATION.md](MIGRATION.md) are removed rather than redesigned. Remaining image
-algorithms stay in migration scope under ADR-0015 and enter execution only
-through [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md).
+The UI/ABI/OpenCL/data leftovers listed in [MIGRATION.md](MIGRATION.md) are
+removed rather than redesigned. Unaccepted leftover image algorithms are
+leftovers, not C++ ports (ADR-0106). Extra blend modes, export geometry, and
+explicit XMP/external-editor work need dated contracts here before they become
+execution; they are not leftover-faithful IOP twins.

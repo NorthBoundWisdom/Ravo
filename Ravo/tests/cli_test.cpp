@@ -58,14 +58,14 @@ namespace
 [[nodiscard]] std::string mire1_path()
 {
     const auto path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
 }
 
 [[nodiscard]] std::string mire1_xtrans_path()
 {
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
                       "mire1-xtrans.raf";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
@@ -1297,7 +1297,7 @@ TEST_F(CliTest, LegacyXmpImportCreatesAnExplicitInputRecipeAtomically)
 TEST_F(CliTest, FrozenNopXmpMapsItsInputProfileExplicitly)
 {
     const auto path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "0000-nop" / "nop.xmp";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "0000-nop" / "nop.xmp";
     const auto path_u8 = path.generic_u8string();
     const std::string path_argument(path_u8.begin(), path_u8.end());
     const auto xmp = read_utf8_text_file(path_argument);

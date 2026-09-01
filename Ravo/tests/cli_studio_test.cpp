@@ -58,14 +58,14 @@ namespace
 [[nodiscard]] std::string mire1_path()
 {
     const auto path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
 }
 
 [[nodiscard]] std::string mire1_xtrans_path()
 {
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
                       "mire1-xtrans.raf";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
@@ -713,7 +713,7 @@ TEST_F(CliTest, CatalogSidecarAndBackupCommandsExposeVersionedJsonArtifacts)
         std::filesystem::temp_directory_path() / ("ravo-cli-backup-" + generate_catalog_id());
     std::filesystem::create_directories(root);
     const auto catalog = (root / "library.sqlite").string();
-    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                          "0000-nop" / "expected.png";
     const auto source = root / "source.png";
     std::filesystem::copy_file(fixture, source);
@@ -913,7 +913,7 @@ TEST_F(CliTest, CatalogFoldersExposeStableMissingIdentityAndRelinkExplicitly)
     const auto replacement = root / "replacement";
     std::filesystem::create_directories(original);
     const auto catalog = (root / "library.sqlite").string();
-    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                          "0000-nop" / "expected.png";
     const auto source = original / "source.png";
     std::filesystem::copy_file(fixture, source);
@@ -1011,7 +1011,7 @@ TEST_F(CliTest, CatalogNamedLibrarySetsCreateListAndFilter)
         std::filesystem::temp_directory_path() / ("ravo-cli-sets-" + generate_catalog_id());
     std::filesystem::create_directories(root);
     const auto catalog = (root / "library.sqlite").string();
-    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                       "0000-nop" / "expected.png")
                          .generic_u8string();
     const std::string png_path(png.begin(), png.end());
@@ -1069,7 +1069,7 @@ TEST_F(CliTest, CatalogVersionsStacksAndCollapsedList)
         std::filesystem::temp_directory_path() / ("ravo-cli-versions-" + generate_catalog_id());
     std::filesystem::create_directories(root);
     const auto catalog = (root / "library.sqlite").string();
-    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                          "0000-nop" / "expected.png";
     const auto first_source = root / "first.png";
     const auto second_source = root / "second.png";
@@ -1155,7 +1155,7 @@ TEST_F(CliTest, CatalogBatchExportUsesStrictTemplateAndSharedTypedOptions)
         std::filesystem::temp_directory_path() / ("ravo-cli-batch-" + generate_catalog_id());
     std::filesystem::create_directories(root);
     const auto catalog = (root / "library.sqlite").string();
-    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                          "0000-nop" / "expected.png";
     const auto first_source = root / "first.png";
     const auto second_source = root / "second.png";
@@ -1252,7 +1252,7 @@ TEST_F(CliTest, CatalogListJsonIncludesCapturedAtAndGps)
     std::filesystem::create_directories(root);
     const auto catalog = (root / "library.sqlite").string();
     const auto raw =
-        (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2")
+        (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2")
             .generic_u8string();
     const std::string raw_path(raw.begin(), raw.end());
     const auto located_path = root / "located.tif";

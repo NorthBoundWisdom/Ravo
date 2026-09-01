@@ -23,6 +23,7 @@ SOURCE_SUFFIXES = frozenset({".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".qml"})
 FORBIDDEN_INCLUDE_PATTERNS = (
     (re.compile(r"^\s*#\s*include\s*[<\"](?:\.\./)*src/", re.MULTILINE), "frozen src header"),
     (re.compile(r"^\s*#\s*include\s*[<\"](?:\.\./)*legacy-0\.9/", re.MULTILINE), "frozen 0.9 header"),
+    (re.compile(r"^\s*#\s*include\s*[<\"](?:\.\./)*legacy/", re.MULTILINE), "leftover tree header"),
     (re.compile(r"^\s*#\s*include\s*[<\"](?:gtk|dtgtk)/", re.MULTILINE), "GTK header"),
     (re.compile(r"^\s*#\s*include\s*[<\"](?:darktable|libdarktable)", re.MULTILINE), "legacy core header"),
     (re.compile(r"^\s*#\s*include\s*[<\"](?:sqlite|sqlite3)", re.MULTILINE), "direct SQLite header"),

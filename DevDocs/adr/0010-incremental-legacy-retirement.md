@@ -1,9 +1,15 @@
 # ADR-0010: Retire accepted legacy owners incrementally
 
-- Status: Accepted
+- Status: Partially superseded by
+  [ADR-0106](0106-close-legacy-algorithm-migration.md) for remaining leftover C
 - Date: 2026-08-25
 - Supersedes: ADR-0004 deletion timing only
-- Relates to: ADR-0004, `DevDocs/TODO_LEGACY_MIGRATION.md`
+- Relates to: ADR-0004, `DevDocs/MIGRATION.md`
+
+Remaining leftover C is deleted with `legacy/` under leftover TODO L0 rather
+than per-IOP leftover-faithful ports (ADR-0106). Incremental retirement already
+applied to accepted owners whose leftover files were removed before that
+decision.
 
 ## Context
 
@@ -23,7 +29,7 @@ acceptance would destroy static evidence still needed for the rewrite.
 - Configuring, compiling, or running the 0.9 application remains forbidden.
 - After an explicitly resumed legacy migration TODO item meets its
   Ravo-accepted gate, delete only the named old owner files. Record them in
-  [`DevDocs/legacy/retired-src-paths.txt`](../legacy/retired-src-paths.txt).
+  the retired leftover path list.
 - Remaining leftover files must continue to match the freeze-commit blobs.
   `check_freeze_reference.py` verifies that invariant plus the retired set.
   Leftover `iop/CMakeLists.txt` and `libs/CMakeLists.txt` may drop retired

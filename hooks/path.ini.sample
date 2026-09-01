@@ -1,7 +1,7 @@
 CLANG_FORMAT_PATH=<path to clang-format>
 # Optional. Leave empty to skip QML/JS formatting.
 QMLFORMAT_PATH=
-# Format only first-party Ravo sources. Frozen legacy/ and FreeCM/ stay outside this root.
+# Format only first-party Ravo sources. FreeCM/ stays outside this root.
 SOURCE_ROOTS=Ravo
 EXCLUDE_DIRS=
 USE_GIT_CONFIG=false

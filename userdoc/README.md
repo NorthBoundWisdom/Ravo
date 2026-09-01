@@ -5,7 +5,7 @@ the current source-backed behavior of Ravo Studio and the supported `ravo` CLI.
 
 The handbook follows the current development baseline. It is not a promise that
 every migration item in the repository is already a finished darktable
-replacement, and it does not document the frozen `legacy/` application as a
+replacement, and it does not document a leftover GTK application as a
 supported runtime.
 
 ## Read the handbook

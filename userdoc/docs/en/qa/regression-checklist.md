@@ -99,4 +99,4 @@ Record:
 - whether the check was not applicable or not run.
 
 Only claim the platform and checks actually executed. Never configure, build, or
-run the frozen `legacy/` application as part of this checklist.
+run a leftover GTK application as part of this checklist.

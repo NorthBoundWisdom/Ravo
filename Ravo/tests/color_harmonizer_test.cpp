@@ -388,7 +388,7 @@ TEST(ColorHarmonizerLegacyXmpTest, RejectsEveryNonEvidencedEnvelopeAndPayload)
 TEST(ColorHarmonizerLegacyXmpTest,
      Frozen0176BytesMatchHardCodedRecordPayloadsWithoutImportingTheDocument)
 {
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                       "0176-color-harmonizer" / "color-harmonizer.xmp";
     std::ifstream stream(path);
     ASSERT_TRUE(stream) << path;

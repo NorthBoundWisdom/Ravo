@@ -472,7 +472,7 @@ TEST(PngAdapterTest, MapsOnlyFrozenFullRangeRgbCicpProfiles)
 TEST(PngAdapterTest, DecodesFrozenCicpAndIccFixtureEquallyFromPathAndMemory)
 {
     const std::filesystem::path path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy/tests/0000-nop/expected.png";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo/tests/fixtures/frozen/0000-nop/expected.png";
     const QByteArray encoded = read_file(path);
     ASSERT_FALSE(encoded.isEmpty());
     std::vector<std::uint8_t> memory = vector_bytes(encoded);

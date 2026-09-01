@@ -8,8 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(GNUInstallDirs)
 
-# Included from the repository-root CMakeLists.txt. Frozen 0.9 is in
-# legacy/src/ and is not part of this graph.
+# Included from the repository-root CMakeLists.txt. Darktable 0.9 is a
+# historical reference and is not part of this graph.
 
 # Qt's Qml package auto-includes every shipped QML plugin. Optional plugins such
 # as AssetDownloader require Qt TaskTree, which is not part of the Ravo prefix

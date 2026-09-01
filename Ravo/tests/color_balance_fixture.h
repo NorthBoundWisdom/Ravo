@@ -8,7 +8,7 @@ namespace ravo::test
 [[nodiscard]] inline ColorBalanceRgbParams color_balance_0083_params()
 {
     // Static little-endian decode of the 128-byte schema-v4 blob in
-    // legacy/tests/0083-colorbalancergb/colorbalancergb.xmp. Schema v4 predates the
+    // Ravo/tests/fixtures/frozen/0083-colorbalancergb/colorbalancergb.xmp. Schema v4 predates the
     // formula field; current frozen migration semantics select the default DT UCS path.
     ColorBalanceRgbParams params;
     params.shadows_y = -0.25450000166893005;
@@ -49,7 +49,7 @@ namespace ravo::test
 [[nodiscard]] inline ColorBalanceRgbParams color_balance_0093_params()
 {
     // Static little-endian decode of the schema-v5 DT UCS blob in
-    // legacy/tests/0093-colorbalancergb-ucs/colorbalancergb-ucs.xmp.
+    // Ravo/tests/fixtures/frozen/0093-colorbalancergb-ucs/colorbalancergb-ucs.xmp.
     ColorBalanceRgbParams params;
     params.shadows_falloff = 1.0;
     params.highlights_falloff = 1.0;

@@ -58,14 +58,14 @@ namespace
 [[nodiscard]] std::string mire1_path()
 {
     const auto path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
 }
 
 [[nodiscard]] std::string mire1_xtrans_path()
 {
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
                       "mire1-xtrans.raf";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
@@ -709,7 +709,7 @@ legacy_primaries_xmp(const std::string_view version = "1", const std::string_vie
 
 TEST_F(CliTest, LegacyXmpExposureFixtureCensusPinsRevisionsSingletonsMasksAndBlendStates)
 {
-    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";
+    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen";
     std::vector<std::filesystem::path> xmp_paths;
     for (const auto &entry : std::filesystem::recursive_directory_iterator(fixture_root))
     {
@@ -895,7 +895,7 @@ TEST_F(CliTest, LegacyXmpExposureFixtureCensusPinsRevisionsSingletonsMasksAndBle
 
 TEST_F(CliTest, LegacyXmpImportsTheFrozenRealExposureFixture)
 {
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
                       "0001-exposure" / "exposure.xmp";
     const auto source = read_utf8_text_file(path.string());
     ASSERT_TRUE(source) << source.error().message;
@@ -1190,7 +1190,7 @@ TEST_F(CliTest, LegacyXmpColorBalanceRejectsEveryUnfrozenVersionPresentationAndM
 
 TEST_F(CliTest, LegacyXmpColorBalanceRealFixtureCensusIsNegativeAndSeparateFromSyntheticSupport)
 {
-    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";
+    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen";
     std::vector<std::filesystem::path> xmp_paths;
     for (const auto &entry : std::filesystem::recursive_directory_iterator(fixture_root))
     {
@@ -1384,7 +1384,7 @@ TEST_F(CliTest, LegacyXmpColorContrastRejectsUnfrozenPresentationAndMalformedDat
 
 TEST_F(CliTest, LegacyXmpColorContrastCensusPinsTheRealRecordAndFullDocumentNegative)
 {
-    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";
+    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen";
     std::vector<std::filesystem::path> xmp_paths;
     for (const auto &entry : std::filesystem::recursive_directory_iterator(fixture_root))
     {

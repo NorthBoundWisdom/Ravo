@@ -13,8 +13,7 @@
 
 Ravo is a **complete redesign**, not a fork: a from-scratch C++20 and Qt 6
 implementation that takes the photo-workflow and image-processing behavior of
-**darktable 0.9** as its reference. The frozen darktable source tree and test
-fixtures in [`legacy/`](legacy/README.md) are read-only behavioral evidence.
+**darktable 0.9** as its reference. Frozen static fixtures live in `Ravo/tests/fixtures/frozen`.
 Ravo ships its own service layer, catalog, CPU image engine, command-line
 client, and Qt Quick desktop application, and it never links, loads, or launches
 the old GTK program at runtime.
@@ -37,13 +36,17 @@ dozens of image operations are implemented against the frozen darktable
 reference. Expect gaps, evolving schemas, and platform-specific validation
 status. There is no binary release channel yet; build from source.
 
-Ravo is **not yet a complete darktable replacement**. Historic blend modes,
-remaining image operations, sidecar/history metadata policy, GPU acceleration,
-and end-to-end installation verification on every platform are still open.
+Ravo is an independent C++20 catalog and Develop product, not a darktable
+compatibility project. Remaining photographer-useful work is private-corpus
+and three-platform evidence, then the ranked DAM/delivery gaps. Unaccepted
+leftover algorithms are leftovers, not ports
+([ADR-0106](DevDocs/adr/0106-close-legacy-algorithm-migration.md)). GPU remains
+behind CPU goldens. Historic leftover XMP that names an unaccepted leftover
+IOP fails closed.
+
 [The Ravo product document](Ravo/README.md), the
-[remaining product P0/P1 release gates](DevDocs/TODO_PHOTO_MANAGEMENT.md), the
-[professional workflow gap ranking](DevDocs/TODO_PRO_WORKFLOW.md), and
-the separate [legacy migration TODO](DevDocs/TODO_LEGACY_MIGRATION.md) define
+[remaining product P0/P1 release gates](DevDocs/TODO_PHOTO_MANAGEMENT.md), and
+the [professional workflow gap ranking](DevDocs/TODO_PRO_WORKFLOW.md) define
 the supported scope, validation status, and next work item.
 
 ## Screenshots
@@ -140,9 +143,7 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 - [Migration policy and capability ledger](DevDocs/MIGRATION.md)
 - [Remaining product P0/P1 release evidence](DevDocs/TODO_PHOTO_MANAGEMENT.md)
 - [Professional workflow gaps versus Lightroom/Capture One](DevDocs/TODO_PRO_WORKFLOW.md)
-- [Legacy algorithm migration and retirement](DevDocs/TODO_LEGACY_MIGRATION.md)
 - [Developer documentation index](DevDocs/README.md)
-- [Frozen darktable 0.9 reference tree](legacy/README.md)
 
 ## Install and build from source
 
@@ -171,11 +172,9 @@ platform instructions.
 ## How Ravo relates to darktable
 
 Ravo keeps the photography behavior that darktable 0.9 proved, and drops the
-implementation that made it hard to evolve. The frozen copy in
-[`legacy/`](legacy/README.md) is used only for static source reading and fixture
-validation: Ravo production code does not include old private headers, link old
-libraries, load old plugins, or configure, build, or run the former
-application.
+implementation that made it hard to evolve. Production code does not include
+old private headers, link old libraries, load old plugins, or configure, build,
+or run a leftover GTK application.
 
 What changed: the GTK UI, the dynamic plugin ABI, global mutable state, and the
 OpenCL path are replaced by a Qt 6 Quick front end, built-in versioned
@@ -192,10 +191,9 @@ Issues and pull requests are welcome. Start with
 [`DevDocs/TODO_PHOTO_MANAGEMENT.md`](DevDocs/TODO_PHOTO_MANAGEMENT.md) for the
 remaining product P0/P1 release gates. Ranked Lightroom/Capture One gaps live in
 [`DevDocs/TODO_PRO_WORKFLOW.md`](DevDocs/TODO_PRO_WORKFLOW.md) and are not
-independently ready. Legacy algorithm work additionally
-follows [`DevDocs/TODO_LEGACY_MIGRATION.md`](DevDocs/TODO_LEGACY_MIGRATION.md).
-Behavior changes need matching Ravo unit or contract tests; `legacy/` is
-read-only.
+independently ready. Leftover algorithm ports are closed
+([ADR-0106](DevDocs/adr/0106-close-legacy-algorithm-migration.md)).
+Behavior changes need matching Ravo unit or contract tests.
 
 ## License
 

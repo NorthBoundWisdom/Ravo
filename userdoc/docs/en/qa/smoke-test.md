@@ -77,8 +77,7 @@ ravo catalog backup-verify --backup <created-backup-directory> --json
 ```
 
 The CLI path must use the same catalog and source as Studio when checking
-cross-client persistence. Do not use the old CLI, old CTest project, or
-`legacy/tests/run` as a live oracle.
+cross-client persistence. Do not use leftover software as a live oracle.
 
 ## Pass criteria
 

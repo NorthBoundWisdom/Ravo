@@ -4,19 +4,17 @@
 
 Frozen 0.9 assets are used only for static evidence:
 
-- `legacy/tests/` contains 158 XMP + `expected.png` fixture sets and five
+- `Ravo/tests/fixtures/frozen/` contains 158 XMP + `expected.png` fixture sets and five
   source images.
 - Fixtures cover 68 operation names; that number is an asset inventory, not
   Ravo coverage.
-- The old project, old CLI, old CTest, old package targets, and
-  `legacy/tests/run` are all prohibited from execution.
+- Those fixtures are read-only static evidence. They are not a leftover-faithful
+  algorithm port queue (ADR-0106).
 
 Boundary checks:
 
 ```text
 python3 Ravo/tools/freeze_legacy_manifest.py --check
-python3 Ravo/tools/check_capability_inventory.py
-python3 Ravo/tools/check_freeze_reference.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
 ```
 
@@ -161,11 +159,10 @@ masks. FreeCM Test and
 `ctest --test-dir build/<preset>` run the same suite
 from the repository root. GitHub Actions runs the same CTest set on
 `mac_clang_debug`, `linux_clang_debug`, and `win_msvc_debug`, plus static
-freeze/capability/boundary checks. CI runs `--init`, updates Qt/PATH in the
+fixture-manifest and dependency-boundary checks. CI runs `--init`, updates Qt/PATH in the
 active lock, then runs `--update`. Builds use `cmake --build build/<preset>` so
 they do not depend on the Linux template's `ClangDebug` build-preset name and
-Windows gtest discovery can see Qt on runner `Path`. CI does not build
-`legacy/`.
+Windows gtest discovery can see Qt on runner `Path`.
 
 Unit/contract coverage includes foundation/recipe/executor, CLI JSON/exit
 codes, bounded strict XMP mappings, and real `mire1.cr2` inspect/render. Catalog tests
@@ -379,7 +376,7 @@ fake upgrade success by directly editing an old fixture.
 ## Import and source-image safety
 
 The baseline integration covers both a repository PNG and
-`legacy/tests/images/mire1.cr2`. JPEG/PNG/TIFF catalog import now fully decodes
+`Ravo/tests/fixtures/frozen/images/mire1.cr2`. JPEG/PNG/TIFF catalog import now fully decodes
 before publication: truncated JPEG/PNG/TIFF publish no asset or preview;
 recognized but unimplemented TIFF layouts stay `unsupported` and do not become
 RAW; a camera TIFF without a RAW suffix may still import through
@@ -454,8 +451,7 @@ missing, non-regular, unreadable, missing/non-directory/unwritable parents, and
 same/pre-existing outputs with complete `reason`/`source`/`output` context. CLI
 tests cover all three aliases plus complete conflict/I/O JSON. CLI end-to-end
 cancellation is not injectable in this tranche and must not be reported as
-covered. These contracts do not retire `legacy/src/imageio/format/copy.c` or
-claim I14 batch/storage policy; ADR-0068 tests that higher owner separately.
+covered. These contracts do not claim I14 batch/storage policy; ADR-0068 tests that higher owner separately.
 
 Encoded-publication tests freeze exact multi-chunk and empty output, immutable
 input bytes, preservation of the old fixed temporary sentinel, and cleanup of

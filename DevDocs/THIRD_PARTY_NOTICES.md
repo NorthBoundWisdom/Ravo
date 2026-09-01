@@ -35,7 +35,7 @@ Sources:
 
 - Frozen darktable sources at repository commit
   `f7ea869a2bd3daafd04186c49f72861b2a574102`:
-  `legacy/src/iop/demosaicing/xtrans.c` and `legacy/src/iop/rawdenoise.c`.
+  `darktable 0.9 src/iop/demosaicing/xtrans.c` and `darktable 0.9 src/iop/rawdenoise.c`.
 - RawTherapee commit `498f623784e33fd9a7077fcd8937fe0734033366`:
   <https://github.com/Beep6581/RawTherapee/blob/498f62378/rtengine/xtrans_demosaic.cc>.
 
@@ -68,7 +68,7 @@ Sources reviewed:
 
 - Frozen darktable source at repository commit
   `f7ea869a2bd3daafd04186c49f72861b2a574102`,
-  `legacy/src/iop/lut3d.c` and `legacy/host/data/kernels/lut3d.cl`.
+  `darktable 0.9 src/iop/lut3d.c` and `darktable 0.9 data/data/kernels/lut3d.cl`.
 - ART commit `6f511409afe28b2096c38483a6dfa3afcf167f5b`,
   `rtengine/LUT3D.cc`.
 

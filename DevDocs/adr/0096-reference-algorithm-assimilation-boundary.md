@@ -128,7 +128,7 @@ demosaicModeIndex=1`, Catalog, styles and Studio's RAW panel.
 Automated evidence includes smooth colour fields, a high-contrast monochrome
 edge with false-colour bounds, cancellation/allocation estimates, duplicate and
 unsupported-state rejection, source immutability, and quantized RCD/PPG goldens
-from `legacy/tests/images/mire1.cr2`. File-level authorship, exact source paths,
+from `Ravo/tests/fixtures/frozen/images/mire1.cr2`. File-level authorship, exact source paths,
 licenses and Ravo modifications are recorded in the implementation and
 `DevDocs/THIRD_PARTY_NOTICES.md`.
 
@@ -207,7 +207,7 @@ four-float-plane peak is included in RAW preflight.
 
 Synthetic 6×6 fields freeze sample preservation, smooth-scene accuracy,
 1/3-pass differences, deterministic preview reduction, cancellation, source
-immutability and strict sensor/mode errors. `legacy/tests/images/mire1-xtrans.raf`
+immutability and strict sensor/mode errors. `Ravo/tests/fixtures/frozen/images/mire1-xtrans.raf`
 freezes decoded CFA counts and a quantized 320-pixel Markesteijn golden; Catalog
 publishes an Engine-rendered preview through the same service path. CLI,
 Recipe, Catalog and Studio expose the four indexed choices. With the RAW

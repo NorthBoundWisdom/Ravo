@@ -75,17 +75,17 @@ namespace
 
 [[nodiscard]] std::string png_fixture_path()
 {
-    return repository_path(std::filesystem::path("legacy") / "tests" / "0000-nop" / "expected.png");
+    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "0000-nop" / "expected.png");
 }
 
 [[nodiscard]] std::string raw_fixture_path()
 {
-    return repository_path(std::filesystem::path("legacy") / "tests" / "images" / "mire1.cr2");
+    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2");
 }
 
 [[nodiscard]] std::string xtrans_fixture_path()
 {
-    return repository_path(std::filesystem::path("legacy") / "tests" / "images" /
+    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "images" /
                            "mire1-xtrans.raf");
 }
 

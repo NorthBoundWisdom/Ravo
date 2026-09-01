@@ -1,7 +1,0 @@
-#!/bin/sh
-
-launcher_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-
-# Keep the app as the launcher's process. Development Run actions can then
-# terminate the previous instance before starting a replacement.
-exec "$launcher_dir/darktable.app/Contents/MacOS/darktable" "$@"

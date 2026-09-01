@@ -41,12 +41,12 @@ constexpr std::string_view kFrozenBlendV10 = "gz13eJxjYGBgYAJiCQYYOOHEgAYY0QVwgg
 
 [[nodiscard]] std::string mire1_path()
 {
-    return (repository_root() / "legacy" / "tests" / "images" / "mire1.cr2").string();
+    return (repository_root() / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2").string();
 }
 
 [[nodiscard]] std::string fixture_xmp_path()
 {
-    return (repository_root() / "legacy" / "tests" / "0052-color-reconstruction" /
+    return (repository_root() / "Ravo" / "tests" / "fixtures" / "frozen" / "0052-color-reconstruction" /
             "color-reconstruction.xmp")
         .string();
 }
@@ -360,7 +360,7 @@ TEST(ColorReconstructionLegacyXmpTest, ImportsOnlyTheVerbatim0052V3SingletonBoun
     std::size_t record_count = 0U;
     std::filesystem::path record_path;
     for (const auto &entry :
-         std::filesystem::recursive_directory_iterator(repository_root() / "legacy" / "tests"))
+         std::filesystem::recursive_directory_iterator(repository_root() / "Ravo" / "tests" / "fixtures" / "frozen"))
     {
         if (!entry.is_regular_file() || entry.path().extension() != ".xmp")
         {

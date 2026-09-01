@@ -155,5 +155,5 @@ Windows and Linux use the corresponding preset directory and
 
 ### Does launching Studio start the old application?
 
-No. Ravo Studio is a separate Qt Quick application. The frozen `legacy/`
+No. Ravo Studio is a separate Qt Quick application. The frozen leftover darktable
 application is not configured, built, or launched by this workflow.

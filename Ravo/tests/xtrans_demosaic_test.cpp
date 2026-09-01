@@ -203,7 +203,7 @@ TEST(XTransDemosaicTest, SensorDefaultAndExplicitModesHaveStrictBoundaries)
 
 TEST(XTransDemosaicTest, DecodeAndRealFixtureHaveFrozenCfaAndPreviewGolden)
 {
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
                       "mire1-xtrans.raf";
     auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;

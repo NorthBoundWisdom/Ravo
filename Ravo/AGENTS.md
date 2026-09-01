@@ -9,13 +9,10 @@ constraint.
 1. Run `git status --short --branch` and preserve user changes.
 2. Read `Ravo/README.md`, `../DevDocs/ARCHITECTURE.md`,
    `../DevDocs/MIGRATION.md`, `../DevDocs/TESTING.md`, and relevant ADRs.
-3. For old behavior or algorithms, read the corresponding `legacy/src/`
-   implementation and fixtures; do not infer from upstream darktable habits.
+3. For old behavior, read Ravo code, tests, and `tests/fixtures/frozen`; do
+   not infer from upstream darktable habits.
 4. Confirm that work belongs to the active product/release item in
-   [`../DevDocs/TODO_PHOTO_MANAGEMENT.md`](../DevDocs/TODO_PHOTO_MANAGEMENT.md),
-   to an explicitly
-   resumed `MR*` item in
-   [`../DevDocs/TODO_LEGACY_MIGRATION.md`](../DevDocs/TODO_LEGACY_MIGRATION.md),
+   [`../DevDocs/TODO_PHOTO_MANAGEMENT.md`](../DevDocs/TODO_PHOTO_MANAGEMENT.md)
    or to a
    cross-cutting reliability gate.
    [`../DevDocs/TODO_PRO_WORKFLOW.md`](../DevDocs/TODO_PRO_WORKFLOW.md) ranks
@@ -135,13 +132,9 @@ constraint.
   read-only preview-resource contract. QML/JavaScript only presents, binds, and
   forwards input; it must not access the database, codecs, engine-private
   state, or own business rules.
-- Ravo production code must not include `legacy/src/` headers, link old
-  libraries, `dlopen` old modules, or read old global state. Tests may read
-  frozen fixtures and source only; they must not configure, compile, or run the
-  old CLI, old CTest, or `legacy/tests/run`.
-- The old application does not reuse Ravo and receives no adapter. Production
-  dependencies remain completely independent. Delete old owners only after the
-  legacy migration TODO accepts them.
+- Ravo production code must not include leftover darktable headers, link old
+  libraries, `dlopen` old modules, or read old global state. Tests use
+  `tests/fixtures/frozen` and must not add a leftover tree or leftover runner.
 
 ## C++ implementation rules
 
@@ -158,27 +151,20 @@ constraint.
 - Format only touched code. Update ADRs, architecture, and validation notes
   with public API, dependency, thread, or data-format changes. Installed commit
   hooks format staged `Ravo/` C/C++ and, when configured, QML/JS; do not
-  manually redo their pure formatting changes or format `legacy/`.
+  manually redo their pure formatting changes.
 
 ## Algorithm migration
 
-- The migration unit is a user- and CLI-observable capability/operation batch,
-  not a directory or line count.
-- Read frozen C source directly and reproduce its default CPU path: formulas,
-  color space, filters, and default mode must match. Then cover key branches
-  with focused Ravo unit tests. Do not compile or run old unit tests.
-- GUI, old module lifecycle, configuration shims, dynamic registration, OpenCL
-  types, and unconsumed code may be removed. A simplified substitute algorithm
-  must not be presented as a completed migration (for example, HSL for UCS,
-  neighborhood average for opposed reconstruction, three-level Gaussian for
-  a-trous Y0U0V0, or five bands for nine-band toneequal).
-- After the explicitly resumed legacy-migration TODO accepts a Ravo item,
-  delete the corresponding legacy owner (CMake, registration, resources,
-  documentation, and checks). Do not delete unaccepted items or leftovers
-  early. Search the whole repository to confirm there are no consumers.
-- Do not port old OpenCL to Ravo or replace it with Metal in 0.9. Ravo GPU may
-  only be implemented as an independent adapter after its own CPU path is
-  accepted.
+Unaccepted leftover image algorithms are leftovers, not ports (ADR-0106).
+Do not rewrite leftover C, OpenCL, GTK, or dynamic ABI to finish leftover.
+New photographic tools are independent Ravo product work under
+`TODO_PHOTO_MANAGEMENT.md`, `TODO_PRO_WORKFLOW.md`, and `ProductRoadmap.md`.
+
+Accepted Ravo operations keep their current contracts. Frozen fixtures live
+in `tests/fixtures/frozen`.
+
+Do not port leftover OpenCL. Ravo GPU may only be implemented as an
+independent adapter after its own CPU path is accepted.
 
 ## Validation and delivery
 

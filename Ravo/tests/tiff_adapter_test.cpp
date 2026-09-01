@@ -915,7 +915,7 @@ TEST(TiffAdapterTest, RejectsFloatPagesSubIfdsAndRawContainersWithoutStealingRaw
                       ErrorCode::kUnsupported, "unsupported_tiff_raw_container", "memory");
 
     const std::filesystem::path arw =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy/tests/images/hlrecovery.arw";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo/tests/fixtures/frozen/images/hlrecovery.arw";
     const QByteArray arw_bytes = read_file(arw);
     ASSERT_FALSE(arw_bytes.isEmpty());
     const QByteArray before = hash(arw_bytes);

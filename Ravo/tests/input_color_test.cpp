@@ -421,7 +421,7 @@ TEST(InputColorTest, Frozen0000EnhancedMatrixHasARealMire1WorkingReference)
     auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
     const auto raw_path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
     auto decoded = engine.value().decode_raw_frame(raw_path.string(), CancellationToken{});
     ASSERT_TRUE(decoded) << decoded.error().message;
     const auto original_pixels = decoded.value().pixels;

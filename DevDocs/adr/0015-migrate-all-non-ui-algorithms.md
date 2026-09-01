@@ -1,9 +1,12 @@
 # ADR-0015: Migrate every remaining non-UI algorithm and delete legacy UI
 
-- Status: Accepted
+- Status: Partially superseded by [ADR-0106](0106-close-legacy-algorithm-migration.md)
 - Date: 2026-08-26
 - Supersedes: ADR-0010 final leftover disposition; product-decision register algorithm leftovers
-- Relates to: ADR-0004, ADR-0010, `DevDocs/TODO_LEGACY_MIGRATION.md`
+- Relates to: ADR-0004, ADR-0010, `DevDocs/MIGRATION.md`
+
+Accepted Ravo operations remain. Unaccepted leftover image algorithms are
+leftovers, not ports (ADR-0106).
 
 ## Context
 

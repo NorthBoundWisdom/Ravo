@@ -23,8 +23,8 @@ ravo CLI ───────────────┐
                  │ implements    │ implements
        SQLite/Recovery/FS     RAW/Raster/Cache Adapters
 
-Frozen 0.9 legacy/src/ ──read-only source and fixture evidence──▶ Ravo tests
-Frozen 0.9 legacy/src/ ╳────────────────────────────────────────▶ Ravo production
+Frozen fixtures in Ravo/tests/fixtures/frozen ──static evidence──▶ Ravo tests
+Leftover darktable source ╳──────────────────────────────────────▶ Ravo production
 ```
 
 [ADR-0007](adr/0007-first-usable-catalog-viewer.md) established the initial

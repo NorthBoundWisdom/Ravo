@@ -2,46 +2,37 @@
 
 ## Goal
 
-Ravo will ultimately replace `legacy/src/`. Catalog/import/viewer and Basic
-Develop are already implemented in Ravo. The P0/P1 implementation now includes
+Ravo owns the product. Catalog/import/viewer and Basic
+Develop are already implemented in Ravo. Darktable 0.9 is a historical
+reference, not a second algorithm owner. The P0/P1 implementation now includes
 catalog restore/operator recovery, bounded large-library paging and scheduling,
 verified recurring backup retention, and stable missing-folder relink
 (ADR-0099–0101). [`TODO_PHOTO_MANAGEMENT.md`](TODO_PHOTO_MANAGEMENT.md)
 retains only the unfinished private-corpus and non-macOS release evidence.
-Legacy absorption remains paused until those release gates are accepted;
-when explicitly resumed it follows the `MR*` ranks in
-[`TODO_LEGACY_MIGRATION.md`](TODO_LEGACY_MIGRATION.md), bundling the legacy
-owners required for one user-visible outcome instead of walking old source
-order. Delete each corresponding old owner only after it is “Ravo accepted.”
-New ownership lives only in `Ravo/`. Version 0.9 remains prohibited from
-configuration, compilation, and execution.
-
-Under [ADR-0015](adr/0015-migrate-all-non-ui-algorithms.md), every
-remaining non-UI image algorithm is in scope for C++20 migration. Defaults
-remain unchanged, but substitute algorithms are not permanent leftovers. GTK,
-Lua, dynamic ABI, and OpenCL are ultimately removed rather than ported.
+Leftover algorithm ports are closed by
+[ADR-0106](adr/0106-close-legacy-algorithm-migration.md). Unaccepted leftover
+IOPs are leftovers, not C++ ports. The leftover source tree is gone. New
+ownership lives only in `Ravo/`. Defaults remain Sigmoid and Color Equalizer.
+GTK, Lua, dynamic ABI, and OpenCL are deleted rather than ported.
 
 ## One-way boundary
 
 Allowed:
 
-- Ravo tests may read source images, XMP, and goldens in `legacy/tests/`.
-- Ravo may statically read `legacy/src/` source to study algorithms, catalog,
-  import, and UI call chains.
+- Ravo tests may read source images, XMP, and goldens in
+  `Ravo/tests/fixtures/frozen/`.
 - Ravo may directly consume pinned third-party dependencies through FreeCM.
 - Ravo may implement its own SQLite catalog, import services, preview pipeline,
   and C++-backed Qt Quick/QML desktop.
 
 Forbidden:
 
-- Ravo production targets must not include `legacy/src/` private headers, link
-  `libdarktable`, load old IOPs, or read global `darktable` state.
-- Do not configure, compile, or run the old CLI, old CTest, `legacy/tests/run`,
-  or old packaging targets.
-- Do not make the frozen application call Ravo or add adapters, entry points,
-  or build dependencies to the old GTK application for migration.
-- Do not generate a live oracle through the old CLI or wrap old catalog/GTK
-  types as new APIs.
+- Ravo production targets must not include leftover darktable private headers,
+  link `libdarktable`, load old IOPs, or read global `darktable` state.
+- Do not add a leftover tree, leftover CLI, leftover CTest, or leftover
+  packaging targets.
+- Do not generate a live oracle through leftover software or wrap old
+  catalog/GTK types as new APIs.
 - Do not let QML/JavaScript issue SQL, decode images directly, own engine tasks,
   or duplicate services business logic.
 - Do not use permanent shims, silent fallbacks, or copied implementations to
@@ -76,25 +67,18 @@ first version.
 
 ## Subsequent algorithm migration unit
 
-For an editing capability, shared algorithm, or operation, use this order:
+Do not start a leftover-faithful port of an unaccepted leftover IOP
+(ADR-0106). The leftover source tree is gone.
 
-1. Inventory old owner, registration, callers, parameters, threads, cache, GPU,
-   resources, and fixtures.
-2. Freeze real RAW/XMP/pixel/metadata evidence statically; do not run the old
-   CPU path.
-3. Define canonical schema, input/output, ownership, cancellation/failure, and
-   incompatibilities.
-4. Reproduce the frozen C default CPU mathematics and behavior: formulas,
-   color space, filters, and default modes. Remove GUI, old lifecycle, global
-   state, dynamic ABI, and OpenCL types. A simplified substitute algorithm
-   (such as HSL for UCS, neighborhood averaging for opposed reconstruction, or
-   a three-level Gaussian for a-trous Y0U0V0) is not acceptable as a completed
-   migration or reason to delete old code.
-5. Run unit, synthetic, old-mapping, real-RAW/golden, error/cancellation, and
-   resource validation.
-6. Make CLI and Studio supported consumers through the same services/engine.
-7. Under the explicitly resumed legacy-migration TODO, delete the old
-   owner after Ravo accepts the item and synchronize freeze/inventory checks.
+New photographic tools are independent Ravo product work under
+[`TODO_PHOTO_MANAGEMENT.md`](TODO_PHOTO_MANAGEMENT.md),
+[`TODO_PRO_WORKFLOW.md`](TODO_PRO_WORKFLOW.md), and
+[`ProductRoadmap.md`](ProductRoadmap.md). They need a dated contract, owned
+CPU mathematics, CLI/Studio consumers, and cancellation/resource failures.
+They are not leftover C twins.
+
+Accepted Ravo operations keep their current contracts. Historic leftover XMP
+that names an unaccepted leftover IOP stays fail-closed.
 
 ## Definition of “absorbed by Ravo”
 
@@ -109,50 +93,47 @@ capability is final only when all of these are true:
   tested.
 - Release transition is complete and production builds have no second reachable
   old implementation.
-- The corresponding `src` source, build wiring, registration, configuration,
-  resources, and entry points are removed under the legacy migration TODO.
+- Production builds have no leftover darktable source tree.
 - Documentation, search, and the link graph have no accidental consumers or
   reverse dependencies.
 
 ## Migration order
 
 1. Keep the accepted catalog/review/develop/export baseline regressible.
-2. Close the remaining private-corpus and three-platform P0/P1 release evidence
-   in the photo-management TODO. Standalone algorithm consumption and cleanup
-   remain paused during that validation.
-3. After those gates pass and migration is explicitly resumed, take the first
-   Ready `MR*` outcome in the legacy TODO. Do not select the next IOP or cleanup
-   merely because its inventory row comes next.
-4. Bundle the mask, RAW/color/geometry/output, service, data, and UI owners that
-   one outcome genuinely requires. Pull a lower-ranked foundation forward only
-   as a named dependency; each owner keeps its own evidence and deletion gate.
-5. Apply data-safety, cache/resource, accessibility, and three-platform gates
-   continuously. Legacy catalog import and adjacent-XMP interoperability still
-   need separate dated product decisions, and optional GPU remains behind CPU
-   acceptance.
-6. Delete an old owner only after its capability is Ravo accepted. After both
-   queues are empty, demonstrate release transition/rollback, then handle
-   explicit leftover archiving and final cleanup.
+2. Close remaining private-corpus and three-platform P0/P1 evidence in the
+   photo-management TODO. Photographer-useful remaining product work is
+   independent Ravo work under the professional-workflow TODO and product
+   roadmap, not leftover IOP twins.
+3. Do not resume leftover-faithful IOP, pixelpipe, GTK, or OpenCL ports.
+4. Apply data-safety, cache/resource, accessibility, and three-platform gates
+   continuously. Leftover catalog import and adjacent-XMP interoperability
+   still need dated product decisions. Optional GPU remains behind CPU goldens.
 
-## Explicit non-algorithm leftovers
+## Explicit leftovers
 
-The following old implementations are deleted rather than ported. Shared files
-that still have algorithm consumers wait until their active TODO items are
-accepted:
+The following old implementations are deleted rather than ported:
 
 - GTK Lighttable/Darkroom, dtgtk, Bauhaus, and old module layout/UI ABI;
 - Lua, dynamic IOP loading, and historic plugin ABI;
 - 0.9 OpenCL; Ravo GPU does not reuse its API;
 - old catalog/styles binaries and unproven complete XMP-history replay;
-- map, tethering, print, slideshow, and remote publishing.
+- map, tethering, print, slideshow, and remote publishing;
+- every leftover IOP that is not already a Ravo-accepted operation, including
+  `filmicrgb`, `agx`, `basecurve`, `nlmeans`, `atrous`, `bilat`, `bilateral`,
+  `diffuse`, `highpass`, `lowpass`, `shadhi`, `blurs`, `soften`, leftover-exact
+  `grain`/`vignette`/`bloom`, `negadoctor`, `liquify`, `colorize`,
+  `colormapping`, `lowlight`, `censorize`, `overlay`, `overexposed`,
+  `rawoverexposed`, `cacorrectrgb`, `rasterfile`, `rotatepixels`,
+  `scalepixels`, `mask_manager`, leftover imageio plugins, and leftover
+  jobs/control/core.
 
-`filmicrgb`, `agx`, `colorzones`, other diagnostic calculations, creative/
-repair modules, and all other remaining IOPs remain algorithm-migration
-candidates; they must not become empty shells or be deleted en masse before
-their active TODO acceptance. The retired final-display channel and mask
-branches are explicitly unsupported presentation adapters. Sigmoid and
-`colorequal` remain the default display transform and default HSL partition
-respectively.
+Accepted Ravo operations (including Color Zones, crop, flip, demosaic, RGB
+curve/levels, and photographic grain/vignette/bloom amounts already on the
+Develop stack) keep their current contracts. Historic leftover XMP that names
+an unaccepted leftover IOP stays
+fail-closed. Sigmoid and `colorequal` remain the default display transform and
+default HSL partition. The retired final-display channel and mask branches stay
+unsupported presentation adapters.
 
 ## Migration ledger
 
@@ -218,12 +199,12 @@ respectively.
 | Text watermark | `iop/watermark.c` + `host/data/watermarks/*` | `ravo.output.watermark` final engine stage | Old implementation/resources removed | schema v1 owns bounded portable ASCII text, fixed 5×7 glyphs, source stem/asset token expansion, RGB/opacity, short-side scale, rotation, normalized offsets, nine-way alignment, four-sample coverage, and alpha composition after Frame. Recipe/CLI/Catalog/Studio/style/reopen/export, finite/cancellation/source ownership, and exact glyph tests pass. Arbitrary SVG/PNG, system fonts, broad metadata variables, and the missing `promo.svg` silent no-op are explicit unsupported decisions. Shared crop/develop/imageio/order/module-group/manual strings remain other-owner cleanup (ADR-0071) |
 | Original-copy publication | `imageio/format/copy.c` + dynamic imageio/storage/job consumers | services + CLI | In progress | explicit source→destination exact bytes stream through 64 KiB; unique exclusive adjacent temp, sync, atomic no-replace, conflict/cancellation/source-change/disk-full taxonomy, cleanup, source immutability, new destination metadata, and complete CLI context are tested. No XMP is generated. I1/I14/U10/J2 must reach zero consumers before the legacy plugin or registration can retire |
 | Tone curve | `iop/tonecurve.c` | `ravo.core.tonecurve` + Curves section | Old implementation removed | frozen C default `RGB, linked`: Lab D50 → ProPhoto, `preserve_colors=average`. Studio authors RGB-linked, Lab, XYZ, and Lab-independent L/a/b with monotone Hermite, centripetal Catmull-Rom, or cubic spline. Histogram overlay uses engine-owned display RGB8 + luma bins (ADR-0084) |
-| RGB curve | `iop/rgbcurve.c` | `ravo.color.rgbcurve` + Curves section | Ravo accepted | Linked/independent working-RGB, preserve-colors, middle-grey uncompensate, 2–20 nodes, leftover interpolators, and Studio parametric regions. Dedicated editor is accepted (ADR-0052/0053/0084). Leftover IOP stays until freeze census is zero |
+| RGB curve | `iop/rgbcurve.c` | `ravo.color.rgbcurve` + Curves section | Ravo accepted | Linked/independent working-RGB, preserve-colors, middle-grey uncompensate, 2–20 nodes, leftover interpolators, and Studio parametric regions. Dedicated editor is accepted (ADR-0052/0053/0084) |
 | Default display transform | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | Old implementation removed | default per-channel generalized log-logistic + hue preservation; `rgb_ratio` is the C second mode. Linear sRGB, Standard SDR target. `filmicrgb`/`agx` remain leftovers |
 | CLI | `src/cli` | cli + control | In progress | engine/recipe/catalog/develop/export JSON use supported services/engine; `ravo-studio-control/v1` adds owner-only discovery, revisioned selection/current+saved recipe inspection, strict command-controller Develop mutation, and exact no-replace preview artifacts without UI automation (ADR-0090) |
 | GPU | OpenCL/pixelpipe | engine adapter | Deferred | Start only after the applicable CPU TODO and GPU baseline goldens plus end-to-end benefit proof |
 
 Use only these statuses: “Not started / Baseline frozen / In progress / Ravo
-accepted / Old implementation removed / Deferred / Unsupported.” Physically
-delete an old owner under the legacy migration TODO acceptance for that item;
-do not wait for the entire package to retire.
+accepted / Old implementation removed / Deferred / Unsupported.” The leftover
+source tree is gone. Ledger rows that still mention shared leftover cleanup are
+historical; they are not permission to resume leftover-faithful ports.

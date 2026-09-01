@@ -55,8 +55,6 @@ python configs/source_roots.py show --format json
 python configs/source_roots.py resolve --format json
 python configs/source_roots.py verify
 python3 Ravo/tools/freeze_legacy_manifest.py --check
-python3 Ravo/tools/check_capability_inventory.py
-python3 Ravo/tools/check_freeze_reference.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
 cmake --preset win_msvc_debug -DBUILD_TESTING=ON
 cmake --build --preset win_msvc_debug
@@ -82,8 +80,6 @@ python configs/source_roots.py show --format json
 python configs/source_roots.py resolve --format json
 python configs/source_roots.py verify
 python3 Ravo/tools/freeze_legacy_manifest.py --check
-python3 Ravo/tools/check_capability_inventory.py
-python3 Ravo/tools/check_freeze_reference.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
 cmake --preset linux_clang_debug -DBUILD_TESTING=ON
 cmake --build --preset linux_clang_debug
@@ -102,5 +98,5 @@ without platform fallback. A macOS result is not evidence for either gate.
   current dependency pins.
 - Update only stable authorities with any durable platform constraint; do not
   append per-run logs or completed checklists.
-- Delete this file and every tracked reference to it in the same change, then
-  explicitly resume the first Ready `MR*` item in `TODO_LEGACY_MIGRATION.md`.
+- Delete this file and every tracked reference to it in the same change.
+  Leftover algorithm ports stay closed (ADR-0106).

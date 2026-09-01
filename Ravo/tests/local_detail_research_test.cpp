@@ -524,7 +524,7 @@ void declare_input(Recipe &recipe)
 
 [[nodiscard]] std::string fixture_path(const std::string_view name)
 {
-    return (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / name)
+    return (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / name)
         .string();
 }
 
