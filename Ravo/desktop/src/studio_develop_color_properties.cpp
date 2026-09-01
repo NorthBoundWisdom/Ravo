@@ -273,6 +273,14 @@ void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
         normalized = QStringLiteral("rgb_curve");
     else if (target == QLatin1String("tone_curve"))
         normalized = QStringLiteral("tone_curve");
+    else if (target == QLatin1String("highlights"))
+        normalized = QStringLiteral("highlights");
+    else if (target == QLatin1String("shadows"))
+        normalized = QStringLiteral("shadows");
+    else if (target == QLatin1String("whites"))
+        normalized = QStringLiteral("whites");
+    else if (target == QLatin1String("blacks"))
+        normalized = QStringLiteral("blacks");
     const bool comparison_changed = visible && clear_comparison();
     const bool changed = mask_overlay_visible_ != visible || mask_overlay_target_ != normalized;
     mask_overlay_visible_ = visible;

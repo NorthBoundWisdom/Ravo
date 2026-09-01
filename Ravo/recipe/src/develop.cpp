@@ -1093,8 +1093,10 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
                                       params.exposure_compensate_highlight_preservation};
         return !exposure.is_identity() || params.exposure_mask_id.has_value() ||
                !near(params.contrast, 0.0) ||
-               !near(params.highlights, 0.0) || !near(params.shadows, 0.0) ||
-               !near(params.whites, 0.0) || !near(params.blacks, 0.0) ||
+               !near(params.highlights, 0.0) || params.highlights_mask_id.has_value() ||
+               !near(params.shadows, 0.0) || params.shadows_mask_id.has_value() ||
+               !near(params.whites, 0.0) || params.whites_mask_id.has_value() ||
+               !near(params.blacks, 0.0) || params.blacks_mask_id.has_value() ||
                !near(params.gamma, kDevelopGammaDefault) || !params.rgb_levels.is_identity() ||
                params.sigmoid_enabled ||
                !near(params.sigmoid_contrast, identity.sigmoid_contrast) ||

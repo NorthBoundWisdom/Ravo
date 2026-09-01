@@ -237,6 +237,14 @@ StudioPresenter::current_overlay_mask_id(const DevelopParams &params) const
         return params.rgb_curve_mask_id;
     if (mask_overlay_target_ == QLatin1String("tone_curve"))
         return params.tone_curve_mask_id;
+    if (mask_overlay_target_ == QLatin1String("highlights"))
+        return params.highlights_mask_id;
+    if (mask_overlay_target_ == QLatin1String("shadows"))
+        return params.shadows_mask_id;
+    if (mask_overlay_target_ == QLatin1String("whites"))
+        return params.whites_mask_id;
+    if (mask_overlay_target_ == QLatin1String("blacks"))
+        return params.blacks_mask_id;
     return params.color_harmonizer_mask_id;
 }
 

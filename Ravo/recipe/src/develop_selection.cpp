@@ -159,18 +159,22 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
     else if (field == "highlights")
     {
         destination.highlights = source.highlights;
+        destination.highlights_mask_id = source.highlights_mask_id;
     }
     else if (field == "shadows")
     {
         destination.shadows = source.shadows;
+        destination.shadows_mask_id = source.shadows_mask_id;
     }
     else if (field == "whites")
     {
         destination.whites = source.whites;
+        destination.whites_mask_id = source.whites_mask_id;
     }
     else if (field == "blacks")
     {
         destination.blacks = source.blacks;
+        destination.blacks_mask_id = source.blacks_mask_id;
     }
     else if (field == "gamma")
     {
@@ -455,6 +459,10 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.exposure_mask_id = source.exposure_mask_id;
         destination.rgb_curve_mask_id = source.rgb_curve_mask_id;
         destination.tone_curve_mask_id = source.tone_curve_mask_id;
+        destination.highlights_mask_id = source.highlights_mask_id;
+        destination.shadows_mask_id = source.shadows_mask_id;
+        destination.whites_mask_id = source.whites_mask_id;
+        destination.blacks_mask_id = source.blacks_mask_id;
         destination.monochrome_mask_id = source.monochrome_mask_id;
         destination.split_toning_mask_id = source.split_toning_mask_id;
         destination.graduated_mask_id = source.graduated_mask_id;

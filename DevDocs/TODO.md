@@ -161,23 +161,23 @@ privacy is exact.
 ## PRO-LOCAL — Everyday masked grading
 
 **Status:** P2 / Decision required after accepted Color Balance RGB (ADR-0108),
-Exposure (ADR-0109), RGB Curve (ADR-0110), and Tone Curve (ADR-0111) mask
-tranches.
+Exposure (ADR-0109), RGB Curve (ADR-0110), Tone Curve (ADR-0111), and Light
+HSWB (ADR-0112) mask tranches.
 
-**Outcome:** attach canonical masks to remaining everyday operations such as
-Highlights/Shadows, and provide C++-owned picker/histogram-assisted authoring.
+**Outcome:** provide C++-owned picker/histogram-assisted authoring for the
+accepted masked everyday operations.
 
-**Dependencies:** local-adjustment ADR defining additional operation consumers,
+**Dependencies:** local-adjustment ADR defining picker/histogram assistance,
 multi-instance policy, coordinate frame, ROI/order semantics, and importer
 behavior.
 
 **Risks:** QML-owned mask pixels, coordinate drift after Canvas/Perspective/crop,
 silent approximation of legacy blend modes, and altered unmasked defaults.
 
-**Acceptance gate:** a radial or brush mask grades a named remaining everyday
-tool through the same recipe CLI/Studio path; preview/export/reopen equality;
-geometry correctness; cancellation/resource bounds; and no change to unmasked
-identity/default behavior.
+**Acceptance gate:** C++-owned picker/histogram assistance authors a canonical
+mask for an accepted everyday consumer through the same recipe CLI/Studio path;
+preview/export/reopen equality; geometry correctness; cancellation/resource
+bounds; and no change to unmasked identity/default behavior.
 
 ## PRO-EXPORT — Repeatable delivery jobs
 

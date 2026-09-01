@@ -92,9 +92,14 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_scaled_change(changes, "black", before.exposure_black, after.exposure_black, 10.0);
     add_scaled_change(changes, "contrast", before.contrast, after.contrast, 10.0);
     add_scaled_change(changes, "highlights", before.highlights, after.highlights, 10.0);
+    add_named_change(changes, "highlightsMask",
+                     before.highlights_mask_id != after.highlights_mask_id);
     add_scaled_change(changes, "shadows", before.shadows, after.shadows, 10.0);
+    add_named_change(changes, "shadowsMask", before.shadows_mask_id != after.shadows_mask_id);
     add_scaled_change(changes, "whites", before.whites, after.whites, 10.0);
+    add_named_change(changes, "whitesMask", before.whites_mask_id != after.whites_mask_id);
     add_scaled_change(changes, "blacks", before.blacks, after.blacks, 10.0);
+    add_named_change(changes, "blacksMask", before.blacks_mask_id != after.blacks_mask_id);
     add_scaled_change(changes, "vibrance", before.vibrance, after.vibrance, 10.0);
     add_scaled_change(changes, "saturation", before.saturation, after.saturation, 10.0);
     add_named_change(changes, "velvia",

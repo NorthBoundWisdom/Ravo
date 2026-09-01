@@ -496,6 +496,10 @@ TEST(MaskGraphEngineTest, NormalMixAndOnlySupportedOperationDispatchUseTheGraph)
     EXPECT_TRUE(registry.value().find(kExposureOperationId)->supports_mask);
     EXPECT_TRUE(registry.value().find("ravo.color.rgbcurve")->supports_mask);
     EXPECT_TRUE(registry.value().find("ravo.core.tonecurve")->supports_mask);
+    EXPECT_TRUE(registry.value().find("ravo.core.highlights")->supports_mask);
+    EXPECT_TRUE(registry.value().find("ravo.core.shadows")->supports_mask);
+    EXPECT_TRUE(registry.value().find("ravo.core.whites")->supports_mask);
+    EXPECT_TRUE(registry.value().find("ravo.core.blacks")->supports_mask);
     EXPECT_FALSE(registry.value().find("ravo.core.gamma")->supports_mask);
 
     WorkingImage input;
@@ -1075,6 +1079,172 @@ TEST(MaskGraphEngineTest, ToneCurveNormalMixMatchesUnmaskedAndZeroOpacityInput)
     const auto masked_identity = apply_recipe_ops(input, identity_recipe, CancellationToken{});
     ASSERT_TRUE(masked_identity) << masked_identity.error().message;
     EXPECT_EQ(masked_identity.value().rgb, unmasked_identity.value().rgb);
+}
+
+TEST(DevelopMaskAuthoringTest, LightControlsOwnCircleAndBrushMasksAndRoundTrip)
+{
+    struct Case
+    {
+        const char *kind_field;
+        const char *center_field;
+        const char *radius_field;
+        DevelopMaskTarget target;
+        const char *operation_id;
+        std::optional<std::string> DevelopParams::* attachment;
+        const char *studio_id;
+    };
+    const std::array cases{
+        Case{"highlightsMaskKind", "highlightsMaskCenterX", "highlightsMaskRadius",
+             DevelopMaskTarget::kHighlights, "ravo.core.highlights",
+             &DevelopParams::highlights_mask_id, "ravo.studio.mask.highlights.1"},
+        Case{"shadowsMaskKind", "shadowsMaskCenterX", "shadowsMaskRadius",
+             DevelopMaskTarget::kShadows, "ravo.core.shadows", &DevelopParams::shadows_mask_id,
+             "ravo.studio.mask.shadows.1"},
+        Case{"whitesMaskKind", "whitesMaskCenterX", "whitesMaskRadius", DevelopMaskTarget::kWhites,
+             "ravo.core.whites", &DevelopParams::whites_mask_id, "ravo.studio.mask.whites.1"},
+        Case{"blacksMaskKind", "blacksMaskCenterX", "blacksMaskRadius", DevelopMaskTarget::kBlacks,
+             "ravo.core.blacks", &DevelopParams::blacks_mask_id, "ravo.studio.mask.blacks.1"},
+    };
+    for (const auto &test : cases)
+    {
+        DevelopParams params;
+        params.highlights = 0.4;
+        params.shadows = -0.3;
+        params.whites = 0.2;
+        params.blacks = -0.1;
+        ASSERT_TRUE(apply_develop_mask_field_strict(params, test.kind_field, 3.0));
+        ASSERT_TRUE(apply_develop_mask_field_strict(params, test.center_field, 0.3));
+        ASSERT_TRUE(apply_develop_mask_field_strict(params, test.radius_field, 0.35));
+        ASSERT_TRUE(params.*(test.attachment));
+        EXPECT_EQ(*(params.*(test.attachment)), test.studio_id);
+        auto circle_state = develop_mask_editor_state(params, test.target);
+        EXPECT_EQ(circle_state.kind_name, "circle");
+        EXPECT_DOUBLE_EQ(circle_state.center_x, 0.3);
+        EXPECT_DOUBLE_EQ(circle_state.radius, 0.35);
+
+        ASSERT_TRUE(apply_develop_mask_field_strict(params, test.kind_field, 8.0));
+        EXPECT_EQ(develop_mask_editor_state(params, test.target).kind_name, "brush");
+        EXPECT_EQ(*(params.*(test.attachment)), test.studio_id);
+
+        auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+        ASSERT_TRUE(recipe) << recipe.error().message;
+        const auto *operation = find_operation(recipe.value(), test.operation_id);
+        ASSERT_NE(operation, nullptr);
+        EXPECT_EQ(operation->mask_id, params.*(test.attachment));
+        auto restored = develop_from_recipe(recipe.value());
+        ASSERT_TRUE(restored) << restored.error().message;
+        EXPECT_EQ(restored.value().*(test.attachment), params.*(test.attachment));
+
+        DevelopParams identity_mask;
+        ASSERT_TRUE(apply_develop_mask_field_strict(identity_mask, test.kind_field, 3.0));
+        auto identity_recipe =
+            recipe_from_develop({"asset-2", "file:///fixture.raw", std::nullopt}, identity_mask);
+        ASSERT_TRUE(identity_recipe) << identity_recipe.error().message;
+        const auto *identity_operation = find_operation(identity_recipe.value(), test.operation_id);
+        ASSERT_NE(identity_operation, nullptr);
+        EXPECT_EQ(identity_operation->mask_id, identity_mask.*(test.attachment));
+
+        auto section_reset = restored.value();
+        ASSERT_TRUE(reset_develop_section(section_reset, "light"));
+        EXPECT_EQ(section_reset.*(test.attachment), params.*(test.attachment));
+    }
+}
+
+TEST(MaskGraphEngineTest, HighlightsNormalMixMatchesUnmaskedAndZeroOpacityInput)
+{
+    OperationInstance operation{"ravo.core.highlights",
+                                1,
+                                "highlights-1",
+                                true,
+                                {{"amount", ParameterValue{0.6}}},
+                                std::nullopt};
+    WorkingImage input;
+    input.width = 2U;
+    input.height = 2U;
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
+                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.color_profile.kind = ColorProfileKind::kMatrix;
+    input.color_profile.model = ColorModel::kRgb;
+    Recipe expected_recipe;
+    expected_recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    expected_recipe.operations.push_back(operation);
+    const auto expected = apply_recipe_ops(input, expected_recipe, CancellationToken{});
+    ASSERT_TRUE(expected) << expected.error().message;
+
+    Recipe all_recipe = expected_recipe;
+    all_recipe.masks.push_back(all_mask("all"));
+    all_recipe.operations.front().mask_id = "all";
+    const auto masked_all = apply_recipe_ops(input, all_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_all) << masked_all.error().message;
+    EXPECT_EQ(masked_all.value().rgb, expected.value().rgb);
+
+    Recipe zero_recipe = all_recipe;
+    zero_recipe.masks.front().common.opacity = 0.0;
+    const auto masked_zero = apply_recipe_ops(input, zero_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_zero) << masked_zero.error().message;
+    EXPECT_EQ(masked_zero.value().rgb, input.rgb);
+
+    OperationInstance identity{"ravo.core.highlights",
+                               1,
+                               "highlights-identity",
+                               true,
+                               {{"amount", ParameterValue{0.0}}},
+                               std::nullopt};
+    Recipe identity_unmasked;
+    identity_unmasked.asset = all_recipe.asset;
+    identity_unmasked.operations = {identity};
+    const auto unmasked_identity = apply_recipe_ops(input, identity_unmasked, CancellationToken{});
+    ASSERT_TRUE(unmasked_identity) << unmasked_identity.error().message;
+    identity.mask_id = "all";
+    Recipe identity_recipe = all_recipe;
+    identity_recipe.operations = {identity};
+    const auto masked_identity = apply_recipe_ops(input, identity_recipe, CancellationToken{});
+    ASSERT_TRUE(masked_identity) << masked_identity.error().message;
+    EXPECT_EQ(masked_identity.value().rgb, unmasked_identity.value().rgb);
+}
+
+TEST(MaskGraphEngineTest, MaskedHighlightsDoesNotFuseWithFollowingShadows)
+{
+    WorkingImage input;
+    input.width = 2U;
+    input.height = 2U;
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
+                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.color_profile.kind = ColorProfileKind::kMatrix;
+    input.color_profile.model = ColorModel::kRgb;
+    OperationInstance highlights{"ravo.core.highlights",
+                                 1,
+                                 "highlights-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.6}}},
+                                 std::nullopt};
+    OperationInstance shadows{"ravo.core.shadows",
+                              1,
+                              "shadows-1",
+                              true,
+                              {{"amount", ParameterValue{-0.5}}},
+                              std::nullopt};
+    Recipe sequential_highlights;
+    sequential_highlights.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    sequential_highlights.operations = {highlights};
+    const auto after_highlights =
+        apply_recipe_ops(input, sequential_highlights, CancellationToken{});
+    ASSERT_TRUE(after_highlights) << after_highlights.error().message;
+    Recipe sequential_shadows;
+    sequential_shadows.asset = sequential_highlights.asset;
+    sequential_shadows.operations = {shadows};
+    const auto sequential =
+        apply_recipe_ops(after_highlights.value(), sequential_shadows, CancellationToken{});
+    ASSERT_TRUE(sequential) << sequential.error().message;
+
+    Recipe masked;
+    masked.asset = sequential_highlights.asset;
+    masked.masks.push_back(all_mask("all"));
+    highlights.mask_id = "all";
+    masked.operations = {highlights, shadows};
+    const auto masked_result = apply_recipe_ops(input, masked, CancellationToken{});
+    ASSERT_TRUE(masked_result) << masked_result.error().message;
+    EXPECT_EQ(masked_result.value().rgb, sequential.value().rgb);
 }
 
 TEST(DevelopMaskAuthoringTest, StrictlyValidatesSelectorsBoundsAndParametricOrderWithoutMutation)

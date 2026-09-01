@@ -208,6 +208,30 @@ QVariantMap StudioPresenter::editExposureMask() const
                                    DevelopMaskTarget::kExposure);
 }
 
+QVariantMap StudioPresenter::editHighlightsMask() const
+{
+    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kHighlights),
+                                   DevelopMaskTarget::kHighlights);
+}
+
+QVariantMap StudioPresenter::editShadowsMask() const
+{
+    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kShadows),
+                                   DevelopMaskTarget::kShadows);
+}
+
+QVariantMap StudioPresenter::editWhitesMask() const
+{
+    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kWhites),
+                                   DevelopMaskTarget::kWhites);
+}
+
+QVariantMap StudioPresenter::editBlacksMask() const
+{
+    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kBlacks),
+                                   DevelopMaskTarget::kBlacks);
+}
+
 QVariantMap StudioPresenter::editRgbCurveMask() const
 {
     return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kRgbCurve),

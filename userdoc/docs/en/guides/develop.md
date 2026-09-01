@@ -146,9 +146,9 @@ Light controls include:
 - Exposure black and manual Exposure EV.
 - Optional exposure-bias and highlight-preservation compensation.
 - Deflicker percentile and target EV when Deflicker is selected.
-- The Light-panel Mask editor can attach a circle, brush, or other canonical
-  mask so Exposure applies only inside that shape. Contrast, Highlights,
-  Shadows, Whites, Blacks, and Gamma stay global.
+- The Light-panel Mask editors can attach a circle, brush, or other canonical
+  mask so Exposure, Highlights, Shadows, Whites, or Blacks apply only inside
+  that shape. Contrast, Gamma, and RGB levels stay global.
 
 ### Curves
 

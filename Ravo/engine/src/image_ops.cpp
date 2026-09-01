@@ -804,6 +804,56 @@ catch (const std::bad_alloc &)
                       {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
 }
 
+[[nodiscard]] Result<WorkingImage> apply_masked_light_control(WorkingImage image,
+                                                              const Recipe &recipe,
+                                                              const OperationInstance &operation,
+                                                              const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    WorkingImage operation_output = pre_operation;
+    LightControlAmounts amounts;
+    const double amount = parameter(operation, "amount", 0.0);
+    switch (light_control_rank(operation.id))
+    {
+    case 0:
+        amounts.highlights = amount;
+        break;
+    case 1:
+        amounts.shadows = amount;
+        break;
+    case 2:
+        amounts.whites = amount;
+        break;
+    case 3:
+        amounts.blacks = amount;
+        break;
+    default:
+        return make_error(ErrorCode::kUnsupported,
+                          "Operation does not support canonical mask evaluation",
+                          {{"operation_id", operation.id},
+                           {"mask_id", operation.mask_id.value_or(std::string{})},
+                           {"reason", "unsupported_operation_mask"}});
+    }
+    auto adjusted = apply_light_controls(operation_output, amounts, cancellation);
+    if (!adjusted)
+        return adjusted.error();
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe, *operation.mask_id,
+                                         cancellation);
+    if (!alpha)
+        return alpha.error();
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+        return mixed.error();
+    return operation_output;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Light control allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
 [[nodiscard]] Result<WorkingImage> apply_masked_graduated_nd(WorkingImage image,
                                                              const Recipe &recipe,
                                                              const OperationInstance &operation,

@@ -603,6 +603,19 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_FALSE(tone_curve_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(tone_curve_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("toneCurveMaskKind"));
+    const auto highlights_mask = presenter.editHighlightsMask();
+    EXPECT_FALSE(highlights_mask.value(QStringLiteral("attached")).toBool());
+    EXPECT_EQ(highlights_mask.value(QStringLiteral("kindField")).toString(),
+              QStringLiteral("highlightsMaskKind"));
+    const auto shadows_mask = presenter.editShadowsMask();
+    EXPECT_EQ(shadows_mask.value(QStringLiteral("kindField")).toString(),
+              QStringLiteral("shadowsMaskKind"));
+    const auto whites_mask = presenter.editWhitesMask();
+    EXPECT_EQ(whites_mask.value(QStringLiteral("kindField")).toString(),
+              QStringLiteral("whitesMaskKind"));
+    const auto blacks_mask = presenter.editBlacksMask();
+    EXPECT_EQ(blacks_mask.value(QStringLiteral("kindField")).toString(),
+              QStringLiteral("blacksMaskKind"));
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("shadowsFalloff")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("highlightsFalloff")).toDouble(), 1.0);

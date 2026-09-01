@@ -116,6 +116,10 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editChannelMixerBB READ editChannelMixerBB NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editExposureParams READ editExposureParams NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editExposureMask READ editExposureMask NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editHighlightsMask READ editHighlightsMask NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editShadowsMask READ editShadowsMask NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editWhitesMask READ editWhitesMask NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editBlacksMask READ editBlacksMask NOTIFY editChanged)
     Q_PROPERTY(double editExposure READ editExposure NOTIFY editChanged)
     Q_PROPERTY(double editContrast READ editContrast NOTIFY editChanged)
     Q_PROPERTY(double editHighlights READ editHighlights NOTIFY editChanged)
@@ -403,6 +407,10 @@ public:
     [[nodiscard]] double editChannelMixerBB() const noexcept;
     [[nodiscard]] QVariantMap editExposureParams() const;
     [[nodiscard]] QVariantMap editExposureMask() const;
+    [[nodiscard]] QVariantMap editHighlightsMask() const;
+    [[nodiscard]] QVariantMap editShadowsMask() const;
+    [[nodiscard]] QVariantMap editWhitesMask() const;
+    [[nodiscard]] QVariantMap editBlacksMask() const;
     [[nodiscard]] double editExposure() const noexcept;
     [[nodiscard]] double editContrast() const noexcept;
     [[nodiscard]] double editHighlights() const noexcept;

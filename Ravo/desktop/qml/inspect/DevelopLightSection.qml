@@ -108,6 +108,11 @@ DevelopSection {
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("highlights")
         }
+        MaskEditor {
+            panel: sectionRoot.panel
+            objectName: "highlightsMaskEditor"
+            mask: panel.hasPresenter ? panel.presenter.editHighlightsMask : ({})
+        }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Shadows")
@@ -129,6 +134,11 @@ DevelopSection {
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("shadows")
         }
+        MaskEditor {
+            panel: sectionRoot.panel
+            objectName: "shadowsMaskEditor"
+            mask: panel.hasPresenter ? panel.presenter.editShadowsMask : ({})
+        }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Whites")
@@ -149,6 +159,11 @@ DevelopSection {
             }
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("whites")
+        }
+        MaskEditor {
+            panel: sectionRoot.panel
+            objectName: "whitesMaskEditor"
+            mask: panel.hasPresenter ? panel.presenter.editWhitesMask : ({})
         }
         CustomSlider {
             Layout.fillWidth: true
@@ -172,6 +187,11 @@ DevelopSection {
             }
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("blacks")
+        }
+        MaskEditor {
+            panel: sectionRoot.panel
+            objectName: "blacksMaskEditor"
+            mask: panel.hasPresenter ? panel.presenter.editBlacksMask : ({})
         }
         CustomLabel {
             Layout.fillWidth: true

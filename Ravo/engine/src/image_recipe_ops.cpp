@@ -76,7 +76,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             operation.id != kSplitToningOperationId && operation.id != kVelviaOperationId &&
             operation.id != "ravo.color.colorbalancergb" &&
             operation.id != "ravo.effect.graduatednd" && operation.id != kExposureOperationId &&
-            operation.id != "ravo.color.rgbcurve" && operation.id != "ravo.core.tonecurve")
+            operation.id != "ravo.color.rgbcurve" && operation.id != "ravo.core.tonecurve" &&
+            light_control_rank(operation.id) < 0)
         {
             return make_error(ErrorCode::kUnsupported,
                               "Operation does not support canonical mask evaluation",
@@ -132,6 +133,15 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (light_control_rank(operation.id) >= 0)
         {
+            if (operation.mask_id.has_value())
+            {
+                auto adjusted = apply_masked_light_control(std::move(image), recipe, operation,
+                                                           cancellation);
+                if (!adjusted)
+                    return adjusted.error();
+                image = std::move(adjusted).value();
+                continue;
+            }
             LightControlAmounts amounts;
             int previous_rank = -1;
             auto candidate = iterator;

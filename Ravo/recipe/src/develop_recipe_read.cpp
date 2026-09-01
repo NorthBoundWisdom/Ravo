@@ -270,21 +270,25 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         else if (operation.id == "ravo.core.highlights")
         {
             params.highlights = number("amount", params.highlights);
+            params.highlights_mask_id = operation.mask_id;
             note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.shadows")
         {
             params.shadows = number("amount", params.shadows);
+            params.shadows_mask_id = operation.mask_id;
             note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.whites")
         {
             params.whites = number("amount", params.whites);
+            params.whites_mask_id = operation.mask_id;
             note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.blacks")
         {
             params.blacks = number("amount", params.blacks);
+            params.blacks_mask_id = operation.mask_id;
             note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.gamma")

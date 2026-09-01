@@ -193,28 +193,28 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       clamped.color_harmonizer_mask_id,
                       clamped.color_effect_enabled && clamped.color_harmonizer_enabled);
     }
-    if (!near(clamped.highlights, 0.0))
+    if (!near(clamped.highlights, 0.0) || clamped.highlights_mask_id.has_value())
     {
         add_operation(recipe, "ravo.core.highlights", "highlights-1",
-                      {{"amount", ParameterValue{clamped.highlights}}}, 1, std::nullopt,
-                      clamped.light_effect_enabled);
+                      {{"amount", ParameterValue{clamped.highlights}}}, 1,
+                      clamped.highlights_mask_id, clamped.light_effect_enabled);
     }
-    if (!near(clamped.shadows, 0.0))
+    if (!near(clamped.shadows, 0.0) || clamped.shadows_mask_id.has_value())
     {
         add_operation(recipe, "ravo.core.shadows", "shadows-1",
-                      {{"amount", ParameterValue{clamped.shadows}}}, 1, std::nullopt,
+                      {{"amount", ParameterValue{clamped.shadows}}}, 1, clamped.shadows_mask_id,
                       clamped.light_effect_enabled);
     }
-    if (!near(clamped.whites, 0.0))
+    if (!near(clamped.whites, 0.0) || clamped.whites_mask_id.has_value())
     {
         add_operation(recipe, "ravo.core.whites", "whites-1",
-                      {{"amount", ParameterValue{clamped.whites}}}, 1, std::nullopt,
+                      {{"amount", ParameterValue{clamped.whites}}}, 1, clamped.whites_mask_id,
                       clamped.light_effect_enabled);
     }
-    if (!near(clamped.blacks, 0.0))
+    if (!near(clamped.blacks, 0.0) || clamped.blacks_mask_id.has_value())
     {
         add_operation(recipe, "ravo.core.blacks", "blacks-1",
-                      {{"amount", ParameterValue{clamped.blacks}}}, 1, std::nullopt,
+                      {{"amount", ParameterValue{clamped.blacks}}}, 1, clamped.blacks_mask_id,
                       clamped.light_effect_enabled);
     }
     if (!near(clamped.contrast, 0.0))

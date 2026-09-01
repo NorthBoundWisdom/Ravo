@@ -569,7 +569,8 @@ source selection. Raw budgeting uses saturating arithmetic for the masked
 snapshot/output/alpha/evaluator peak.
 
 Color Harmonizer, Graduated ND, Color Balance RGB, Exposure, RGB Curve, Tone
-Curve, and the other named `supports_mask` operations dispatch a canonical mask. Their unmasked path
+Curve, Highlights, Shadows, Whites, Blacks, and the other named `supports_mask`
+operations dispatch a canonical mask. Their unmasked path
 remains bit-identical; a masked operation retains a local pre-operation image,
 produces local output, evaluates alpha, then mixes before the result becomes
 the next recipe input. `DevelopParams` keeps the typed graph and attachments,
@@ -630,6 +631,9 @@ owned by Sigmoid, Highlights/Shadows use the calibrated scene-EV response from
 ADR-0088, and Whites/Blacks use the positivity- and tone-order-preserving
 response from ADR-0091. A contiguous canonical Highlights → Shadows → Whites →
 Blacks sequence composes the same ordered EV maps in one cancellable row pass.
+Each of those four operations may carry one owned canonical mask (ADR-0112);
+an enabled masked control leaves the fused pass and mixes as a single-amount
+envelope, while remaining unmasked neighbours still fuse.
 Lab-backed controls share the engine's D50 working conversion; Grain, Bloom,
 and Soften defaults use the corresponding source parameters, while Sharpen and
 post-crop vignette geometry (signed amount, midpoint, falloff, shape, centre)

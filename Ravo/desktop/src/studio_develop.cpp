@@ -775,6 +775,10 @@ void StudioPresenter::removeRetouchRegion(const int index)
         (!next.exposure_mask_id || *next.exposure_mask_id != mask_id) &&
         (!next.rgb_curve_mask_id || *next.rgb_curve_mask_id != mask_id) &&
         (!next.tone_curve_mask_id || *next.tone_curve_mask_id != mask_id) &&
+        (!next.highlights_mask_id || *next.highlights_mask_id != mask_id) &&
+        (!next.shadows_mask_id || *next.shadows_mask_id != mask_id) &&
+        (!next.whites_mask_id || *next.whites_mask_id != mask_id) &&
+        (!next.blacks_mask_id || *next.blacks_mask_id != mask_id) &&
         !group_references_mask)
     {
         next.masks.erase(std::remove_if(next.masks.begin(), next.masks.end(),

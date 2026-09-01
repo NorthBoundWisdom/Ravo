@@ -8,6 +8,7 @@
   [ADR-0108](0108-masked-color-balance-rgb.md),
   [ADR-0109](0109-masked-exposure.md),
   [ADR-0110](0110-masked-rgb-curve.md)
+- Extended by: [ADR-0112](0112-masked-light-controls.md)
 
 ## Context
 
