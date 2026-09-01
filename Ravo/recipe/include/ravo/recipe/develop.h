@@ -382,6 +382,9 @@ struct DevelopParams
     double gamma = kDevelopGammaDefault;
     RgbLevelsParams rgb_levels;
     RgbCurveParams rgb_curve;
+    std::optional<std::string> rgb_curve_mask_id;
+    std::int64_t rgb_curve_mask_child_index = 0;
+    std::int64_t rgb_curve_mask_point_index = 0;
     std::vector<ToneCurvePoint> tone_curve;
     std::vector<ToneCurvePoint> tone_curve_a;
     std::vector<ToneCurvePoint> tone_curve_b;

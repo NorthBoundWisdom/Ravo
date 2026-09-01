@@ -172,6 +172,8 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(source.contains(QStringLiteral("editColorBalanceRgbMask")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exposureMaskEditor\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("editExposureMask")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"rgbCurveMaskEditor\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("editRgbCurveMask")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingThreeWay\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingGlobal\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorGradingDetails\"")));

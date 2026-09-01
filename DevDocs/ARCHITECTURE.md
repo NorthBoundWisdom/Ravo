@@ -568,8 +568,8 @@ is normal `input + alpha * (operation_output - input)`, with exact alpha 0/1
 source selection. Raw budgeting uses saturating arithmetic for the masked
 snapshot/output/alpha/evaluator peak.
 
-Color Harmonizer, Graduated ND, Color Balance RGB, Exposure, and the other named
-`supports_mask` operations dispatch a canonical mask. Their unmasked path
+Color Harmonizer, Graduated ND, Color Balance RGB, Exposure, RGB Curve, and the
+other named `supports_mask` operations dispatch a canonical mask. Their unmasked path
 remains bit-identical; a masked operation retains a local pre-operation image,
 produces local output, evaluates alpha, then mixes before the result becomes
 the next recipe input. `DevelopParams` keeps the typed graph and attachments,
@@ -604,8 +604,9 @@ substitutes (ADR-0086/0088/0091).
 
 Studio's Curves section authors two operations without folding them.
 `ravo.color.rgbcurve` is the default RGB/R/G/B working-space curve, with
-optional preserve-colors, middle-grey uncompensate, and a parametric
-shadows/darks/lights/highlights map composed as `point_curve(parametric(x))`.
+optional preserve-colors, middle-grey uncompensate, a parametric
+shadows/darks/lights/highlights map composed as `point_curve(parametric(x))`,
+and one owned canonical mask (ADR-0110).
 Its optional `application_space` defaults to `scene_linear`. A CRS master plus
 independent channel curves is instead composed into a restricted
 `display_srgb` curve after sigmoid; the engine performs an explicit sRGB

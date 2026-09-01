@@ -411,6 +411,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 number("parametric_split_mid", params.rgb_curve.parametric_split_mid);
             params.rgb_curve.parametric_split_highlights =
                 number("parametric_split_highlights", params.rgb_curve.parametric_split_highlights);
+            params.rgb_curve_mask_id = operation.mask_id;
             note_section("curves", operation.enabled);
         }
         else if (operation.id == "ravo.core.tonecurve")

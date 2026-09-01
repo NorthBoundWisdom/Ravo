@@ -955,7 +955,7 @@ gated (ADR-0096).
   finiteness, pre/node/row cancellation, and owned alpha scratch bounds. Engine
   tests cover exact normal alpha 0/1 selection, spatial mix, overlay composite,
   unsupported-operation failure, Color Balance RGB masked mix (ADR-0108),
-  Exposure masked mix (ADR-0109), and RAW
+  Exposure masked mix (ADR-0109), RGB Curve masked mix (ADR-0110), and RAW
   saturating masked memory estimates. CLI direct render parity and Catalog
   preview/cache/save/close/reopen tests retain graph/attachments through an
   ordinary Develop edit; reset_recipe alone clears the stored graph. Failed

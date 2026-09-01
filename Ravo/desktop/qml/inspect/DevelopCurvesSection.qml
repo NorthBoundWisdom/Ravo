@@ -409,5 +409,11 @@ DevelopSection {
                 }
             }
         }
+        MaskEditor {
+            panel: sectionRoot.panel
+            objectName: "rgbCurveMaskEditor"
+            visible: curveControls.rgbFamily
+            mask: panel.hasPresenter ? panel.presenter.editRgbCurveMask : ({})
+        }
     }
 }

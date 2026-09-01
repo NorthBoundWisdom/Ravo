@@ -71,7 +71,7 @@ command succeeds.
 for ordinary local grading, repeatable batch treatment, web/client exports, or
 explicit external-editor interchange.
 
-**Decision themes:** remaining masked Highlights/Shadows/Curves and
+**Decision themes:** remaining masked Highlights/Shadows/Tone Curve and
 picker-assisted authoring, output resize and sharpen order, reusable export
 presets, restartable jobs, explicit XMP/catalog conversion, and derived-asset
 external-editor round trips.
@@ -137,13 +137,13 @@ execution queue.
 ### Local adjustment expansion
 
 Ravo already owns the canonical mask graph and accepted consumers. Color
-Balance RGB (ADR-0108) and Exposure (ADR-0109) each may carry one owned
-canonical mask. Decide which additional everyday operations (Highlights,
-Shadows, Whites, Blacks, Curves) may own a mask, whether multi-instance
-grading is allowed, how picker/histogram assistance stays in C++, and how mask
-geometry survives Canvas, Perspective, crop, sub-ROI evaluation, preview, and
-export. Legacy mask/custom-blend import remains fail-closed without an exact
-mapping.
+Balance RGB (ADR-0108), Exposure (ADR-0109), and RGB Curve (ADR-0110) each may
+carry one owned canonical mask. Decide which additional everyday operations
+(Highlights, Shadows, Whites, Blacks, Tone Curve) may own a mask, whether
+multi-instance grading is allowed, how picker/histogram assistance stays in
+C++, and how mask geometry survives Canvas, Perspective, crop, sub-ROI
+evaluation, preview, and export. Legacy mask/custom-blend import remains
+fail-closed without an exact mapping.
 
 ### Originals, catalogs, and interchange
 

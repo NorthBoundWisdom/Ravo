@@ -441,6 +441,7 @@ bool DevelopParams::is_identity() const noexcept
            !monochrome_mask_id.has_value() && !split_toning_present && !split_toning_enabled &&
            !split_toning_mask_id.has_value() && near(gamma, kDevelopGammaDefault) &&
            rgb_levels.is_identity() && rgb_curve.is_identity() &&
+           !rgb_curve_mask_id.has_value() &&
            tone_curve_is_identity(tone_curve) && tone_curve_is_identity(tone_curve_a) &&
            tone_curve_is_identity(tone_curve_b) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
            near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&

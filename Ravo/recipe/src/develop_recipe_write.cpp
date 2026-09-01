@@ -235,13 +235,15 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       rgb_levels_to_parameters(clamped.rgb_levels), 1, std::nullopt,
                       clamped.light_effect_enabled);
     }
-    const bool has_rgb_curve = !clamped.rgb_curve.is_identity();
-    const bool display_rgb_curve = has_rgb_curve && clamped.rgb_curve.application_space ==
-                                                        kRgbCurveApplicationSpaceDisplaySrgb;
+    const bool has_rgb_curve =
+        !clamped.rgb_curve.is_identity() || clamped.rgb_curve_mask_id.has_value();
+    const bool display_rgb_curve = !clamped.rgb_curve.is_identity() &&
+                                   clamped.rgb_curve.application_space ==
+                                       kRgbCurveApplicationSpaceDisplaySrgb;
     if (has_rgb_curve && !display_rgb_curve)
     {
         add_operation(recipe, "ravo.color.rgbcurve", "rgbcurve-1",
-                      rgb_curve_to_parameters(clamped.rgb_curve), 1, std::nullopt,
+                      rgb_curve_to_parameters(clamped.rgb_curve), 1, clamped.rgb_curve_mask_id,
                       clamped.curves_effect_enabled);
     }
     const bool tone_independent =
@@ -511,7 +513,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     if (display_rgb_curve)
     {
         add_operation(recipe, "ravo.color.rgbcurve", "rgbcurve-1",
-                      rgb_curve_to_parameters(clamped.rgb_curve), 1, std::nullopt,
+                      rgb_curve_to_parameters(clamped.rgb_curve), 1, clamped.rgb_curve_mask_id,
                       clamped.curves_effect_enabled);
     }
     if (clamped.color_reconstruction_enabled)

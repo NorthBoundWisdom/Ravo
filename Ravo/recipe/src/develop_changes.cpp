@@ -108,7 +108,9 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                          before.lut3d != after.lut3d);
     add_scaled_change(changes, "gamma", before.gamma, after.gamma, 10.0);
     add_named_change(changes, "rgbLevels", before.rgb_levels != after.rgb_levels);
-    add_named_change(changes, "rgbCurve", before.rgb_curve != after.rgb_curve);
+    add_named_change(changes, "rgbCurve",
+                     before.rgb_curve != after.rgb_curve ||
+                         before.rgb_curve_mask_id != after.rgb_curve_mask_id);
     add_scaled_change(changes, "sharpen", before.sharpen, after.sharpen, 10.0);
     add_scaled_change(changes, "sharpenRadius", before.sharpen_radius, after.sharpen_radius, 1.0);
     add_scaled_change(changes, "sharpenThreshold", before.sharpen_threshold,

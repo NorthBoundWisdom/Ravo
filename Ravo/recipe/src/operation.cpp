@@ -619,7 +619,7 @@ Result<OperationRegistry> make_phase1_registry()
           {"parametric_split_mid", ParameterType::kNumber, false, ParameterValue{0.50}, 0.10, 0.95},
           {"parametric_split_highlights", ParameterType::kNumber, false, ParameterValue{0.75}, 0.15,
            0.98}},
-         false,
+         true,
          true},
         {"ravo.core.tonecurve",
          "Tone curve",

@@ -105,6 +105,9 @@ apply_masked_color_balance_rgb(WorkingImage image, const Recipe &recipe,
 [[nodiscard]] Result<WorkingImage> apply_masked_exposure(WorkingImage image, const Recipe &recipe,
                                                          const OperationInstance &operation,
                                                          const CancellationToken &cancellation);
+[[nodiscard]] Result<WorkingImage> apply_masked_rgb_curve(WorkingImage image, const Recipe &recipe,
+                                                          const OperationInstance &operation,
+                                                          const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> apply_masked_graduated_nd(WorkingImage image,
                                                              const Recipe &recipe,
                                                              const OperationInstance &operation,

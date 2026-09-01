@@ -75,7 +75,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             operation.id != kColorZonesOperationId && operation.id != kMonochromeOperationId &&
             operation.id != kSplitToningOperationId && operation.id != kVelviaOperationId &&
             operation.id != "ravo.color.colorbalancergb" &&
-            operation.id != "ravo.effect.graduatednd" && operation.id != kExposureOperationId)
+            operation.id != "ravo.effect.graduatednd" && operation.id != kExposureOperationId &&
+            operation.id != "ravo.color.rgbcurve")
         {
             return make_error(ErrorCode::kUnsupported,
                               "Operation does not support canonical mask evaluation",
@@ -292,10 +293,19 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.color.rgbcurve")
         {
-            auto curved = apply_rgb_curve(image, operation, cancellation);
-            if (!curved)
+            if (operation.mask_id.has_value())
             {
-                return curved.error();
+                auto curved = apply_masked_rgb_curve(std::move(image), recipe, operation,
+                                                     cancellation);
+                if (!curved)
+                    return curved.error();
+                image = std::move(curved).value();
+            }
+            else
+            {
+                auto curved = apply_rgb_curve(image, operation, cancellation);
+                if (!curved)
+                    return curved.error();
             }
             continue;
         }

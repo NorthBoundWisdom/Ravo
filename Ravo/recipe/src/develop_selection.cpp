@@ -200,6 +200,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
     else if (field == "rgbCurve")
     {
         destination.rgb_curve = source.rgb_curve;
+        destination.rgb_curve_mask_id = source.rgb_curve_mask_id;
     }
     else if (field == "toneCurve")
     {
@@ -451,6 +452,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.color_harmonizer_mask_id = source.color_harmonizer_mask_id;
         destination.color_balance_rgb_mask_id = source.color_balance_rgb_mask_id;
         destination.exposure_mask_id = source.exposure_mask_id;
+        destination.rgb_curve_mask_id = source.rgb_curve_mask_id;
         destination.monochrome_mask_id = source.monochrome_mask_id;
         destination.split_toning_mask_id = source.split_toning_mask_id;
         destination.graduated_mask_id = source.graduated_mask_id;

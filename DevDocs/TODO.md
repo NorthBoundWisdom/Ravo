@@ -160,11 +160,11 @@ privacy is exact.
 
 ## PRO-LOCAL — Everyday masked grading
 
-**Status:** P2 / Decision required after accepted Color Balance RGB (ADR-0108)
-and Exposure (ADR-0109) mask tranches.
+**Status:** P2 / Decision required after accepted Color Balance RGB (ADR-0108),
+Exposure (ADR-0109), and RGB Curve (ADR-0110) mask tranches.
 
 **Outcome:** attach canonical masks to remaining everyday operations such as
-Highlights/Shadows or Curves, and provide C++-owned picker/histogram-assisted
+Highlights/Shadows or Tone Curve, and provide C++-owned picker/histogram-assisted
 authoring.
 
 **Dependencies:** local-adjustment ADR defining additional operation consumers,
