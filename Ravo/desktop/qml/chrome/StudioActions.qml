@@ -234,6 +234,7 @@ Item {
     property alias resetEdits: resetEditsAction
     property alias copyParameters: copyParametersAction
     property alias pasteParameters: pasteParametersAction
+    property alias pasteParametersToSelection: pasteParametersToSelectionAction
     property alias copyPhotoInfo: copyPhotoInfoAction
     property alias copyPhotoParameters: copyPhotoParametersAction
     property alias cropTool: cropToolAction
@@ -352,6 +353,10 @@ Item {
     RegisteredAction {
         id: pasteParametersAction
         actionId: root.ids.editPasteParameters || ""
+    }
+    RegisteredAction {
+        id: pasteParametersToSelectionAction
+        actionId: root.ids.editPasteParametersToSelection || ""
     }
     RegisteredAction {
         id: copyPhotoInfoAction

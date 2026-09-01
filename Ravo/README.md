@@ -188,8 +188,9 @@ Current implementation status:
   plus single-photo Before/After, a toolbar Left/Right comparison whose two
   panes share zoom and pan, session undo/redo, and selective Copy Parameters /
   Paste Parameters. Copy opens the same initially-empty modified-parameter
-  chooser as preset saving; paste preserves every unselected destination edit
-  (ADR-0078/0098).
+  chooser as preset saving; paste preserves every unselected destination edit.
+  **Paste Parameters to Selection** applies that same clipboard through
+  CatalogService to every ID in an explicit multi-selection (ADR-0078/0098/0107).
   RAW preview retains bounded 960px interactive and 1600px settled
   scene-linear working images. An ordinary committed edit publishes the exact
   960px in-memory result first, then replaces it with the exact persisted
@@ -779,6 +780,7 @@ ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--se
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog refresh-metadata --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--from-xmp <preset.xmp>] [--set <field>=<number>]... [--set-text <field>=<text>]... [--exposure-ev N] [--watermark-text <text>] --json
+ravo catalog develop-apply --catalog <library.sqlite> --from-asset <id> --asset-id <id> [--asset-id <id>]... --fields exposure,temperature [--revision N] --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog tag --catalog <library.sqlite> --asset-id <id> [--add <tags>] [--remove <tags>] --json
 ravo catalog metadata --catalog <library.sqlite> --asset-id <id> [--title <text>] [--description <text>] [--creator <text>] [--copyright <text>] --json

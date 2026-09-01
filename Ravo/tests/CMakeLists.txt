@@ -123,6 +123,7 @@ add_executable(ravo_catalog_tests
   catalog_library_test.cpp
   catalog_recipe_test.cpp
   catalog_develop_test.cpp
+  catalog_develop_batch_test.cpp
   catalog_capture_test.cpp
   catalog_import_test.cpp
   jpeg_adapter_test.cpp

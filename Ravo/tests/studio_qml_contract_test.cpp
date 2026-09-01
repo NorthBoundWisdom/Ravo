@@ -550,6 +550,7 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editCopyParameters")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editCopyParametersSelected")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPasteParameters")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPasteParametersToSelection")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetNumbers")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPickWhiteBalance")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetWhiteBalancePick")));

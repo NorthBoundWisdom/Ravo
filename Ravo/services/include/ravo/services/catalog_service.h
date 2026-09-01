@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -45,6 +46,57 @@ struct RecipeSaveResult
     std::int64_t revision = 0;
     std::optional<std::int64_t> history_id;
 };
+
+struct DevelopApplyRequest
+{
+    DevelopParams source;
+    std::vector<std::string> fields;
+    std::vector<std::string> asset_ids;
+    std::optional<std::int64_t> expected_revision;
+    CancellationToken cancellation;
+};
+
+enum class DevelopApplyItemStatus : std::uint8_t
+{
+    kApplied = 0,
+    kFailed = 1,
+    kSkipped = 2,
+};
+
+struct DevelopApplyItemResult
+{
+    std::string asset_id;
+    DevelopApplyItemStatus status = DevelopApplyItemStatus::kFailed;
+    std::optional<std::int64_t> history_id;
+    std::optional<TaskError> error;
+};
+
+struct DevelopApplyResult
+{
+    std::size_t applied = 0;
+    std::size_t failed = 0;
+    std::size_t skipped = 0;
+    std::int64_t revision = 0;
+    std::vector<DevelopApplyItemResult> items;
+};
+
+using DevelopApplyProgressCallback =
+    std::function<void(std::size_t completed, std::size_t total, const DevelopApplyItemResult *)>;
+
+[[nodiscard]] inline std::string_view
+develop_apply_item_status_name(const DevelopApplyItemStatus status) noexcept
+{
+    switch (status)
+    {
+    case DevelopApplyItemStatus::kApplied:
+        return "applied";
+    case DevelopApplyItemStatus::kFailed:
+        return "failed";
+    case DevelopApplyItemStatus::kSkipped:
+        return "skipped";
+    }
+    return "failed";
+}
 
 // Verifies a self-contained backup without opening or mutating a live catalog.
 [[nodiscard]] Result<CatalogBackupVerification>
@@ -158,6 +210,9 @@ public:
     [[nodiscard]] Result<RecipeSaveResult>
     save_develop_with_history(std::string_view asset_id, const DevelopParams &params,
                               RecipeSaveOptions options = {});
+    [[nodiscard]] Result<DevelopApplyResult>
+    apply_develop_selection(const DevelopApplyRequest &request,
+                            const DevelopApplyProgressCallback &progress = {});
     [[nodiscard]] Result<std::array<double, 4>>
     sample_white_balance(std::string_view asset_id, const WhiteBalancePickRequest &request,
                          const CancellationToken &cancellation);

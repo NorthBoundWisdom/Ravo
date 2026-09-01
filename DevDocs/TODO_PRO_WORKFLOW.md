@@ -1,6 +1,6 @@
 # Professional Workflow Gap TODO
 
-> **Status: PW0 and ADR-0104 filesystem ingest tranche accepted; remaining ranks not independently ready**
+> **Status: PW0, PW1, and PW4 accepted; remaining ranks not independently ready**
 >
 > **Updated: 2026-09-01**
 
@@ -40,8 +40,8 @@ Ravo already ships a professional *edit* core that Lightroom/Capture One users
 often assume is missing:
 
 - non-destructive canonical recipe, history, snapshots, session undo, and
-  selective copy/paste and presets, including fail-closed Lightroom CRS import
-  (ADR-0078/0086/0098);
+  selective copy/paste, multi-selection Develop apply, and presets, including
+  fail-closed Lightroom CRS import (ADR-0078/0086/0098/0107);
 - Add/Copy/Move ingest with conflict preflight and `YYYY/MM/DD` or preserved
   hierarchy (ADR-0102);
 - ratings, color labels, reject, folder tree, named manual/smart collections,
@@ -67,7 +67,6 @@ Develop.”
 | --- | --- | --- | --- | --- |
 | **PW2 — shoot ingest** | Card/camera ingest, rename templates, second-copy backup, HEIC/HEIF | First hour of a shoot. ADR-0104 accepts the filesystem rename/verified-second-copy tranche; PTP/MTP, DNG conversion, Smart Previews, HEIC, and video remain undecided | ProductRoadmap ingest/format expansion | Blocked after accepted ADR-0104 tranche |
 | **PW3 — metadata depth** | Hierarchical keywords, IPTC/location write, camera/lens/date facets | Client delivery and stock workflows. Ravo writes three catalog fields and flat tags; capture Exif is read-only; GPS writeback is unsupported | ProductRoadmap metadata; ADR-0064/S9 | Blocked |
-| **PW4 — apply Develop to many** | Sync/copy current edits onto an explicit multi-selection with a field chooser | After culling, one grade is applied to tens of frames. Current copy/paste is a session clipboard onto destinations one command at a time, not a selection-wide sync | ADR-0078/0098 plus a new multi-asset mutation contract | Blocked |
 | **PW5 — local grading on the stack** | Masked Light/Color/Curves instances, picker-assisted authoring, named extra blend modes | Capture One layers and Lightroom masking are how local color is done. Ravo’s mask graph exists but everyday grading tools are still mostly global; multi-instance legacy state still rejects | ProductRoadmap “Local adjustment expansion” | Blocked |
 | **PW6 — delivery export** | Long-edge/box resize, output sharpen, reusable export presets, restartable background jobs | “Export for web/client” is daily. Ravo already has typed codecs and batch atomic publication, but no geometry/sharpen stage, remembered preset, or durable job | ProductRoadmap “Export and background work” | Blocked |
 | **PW7 — interchange** | Explicit XMP/catalog round-trip and external-editor round-trip without a second live authority | Studios move between Ravo, Lightroom, and Photoshop. Adjacent XMP writeback, legacy catalog import, and external editors are undecided; automatic sidecars stay forbidden (ADR-0063) | ProductRoadmap “Originals, catalogs, and interchange” | Blocked |
@@ -79,8 +78,9 @@ gaps that already have owners: do not duplicate them here.
 ## 4. Rank details
 
 PW0 named library sets are accepted under ADR-0103 (schema v10). PW1 virtual
-copies, stacks, and Survey are accepted under ADR-0105 (schema v11). Durable
-facts live in README/ARCHITECTURE/TESTING, not here.
+copies, stacks, and Survey are accepted under ADR-0105 (schema v11). PW4
+multi-asset Develop apply is accepted under ADR-0107. Durable facts live in
+README/ARCHITECTURE/TESTING, not here.
 
 ### PW2 — shoot ingest
 
@@ -131,29 +131,6 @@ refresh from source does not clobber catalog-only keywords.
 
 **Acceptance gate.** A job can be keyworded hierarchically and exported with a
 defined IPTC subset, originals untouched.
-
-### PW4 — apply Develop to many
-
-**Current fact.** Selective Copy/Paste Parameters uses the same field chooser
-as presets and pastes onto destinations through ordinary history/undo
-(ADR-0078/0098). Develop itself operates on the active photo.
-
-**Missing contract.** One explicit command that applies a chosen field set to
-every ID in the current selection (or a named PW0 set), with per-asset
-revision checks, partial-failure reports, and cancellation that leaves
-completed photos committed.
-
-**Dependencies.** Existing chooser/merge owner; do not invent a second recipe
-model.
-
-**Risk.** Resetting unselected fields; applying pending in-memory sliders from
-the wrong photo.
-
-**Validation.** Multi-asset dry-run preflight, stale-revision rejection,
-cancellation mid-batch, reopen equality of each recipe.
-
-**Acceptance gate.** Ten selected photos receive the same Exposure/WB subset
-and keep unrelated local edits.
 
 ### PW5 — local grading on the stack
 

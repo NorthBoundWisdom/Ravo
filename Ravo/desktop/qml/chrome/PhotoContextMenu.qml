@@ -87,6 +87,9 @@ StudioContextMenu {
     StudioContextMenuItem {
         action: root.commands.pasteParameters
     }
+    StudioContextMenuItem {
+        action: root.commands.pasteParametersToSelection
+    }
     StudioContextMenuSeparator {}
     StudioContextMenuItem {
         action: root.commands.copyPhotoInfo

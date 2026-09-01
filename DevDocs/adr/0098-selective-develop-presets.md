@@ -5,6 +5,7 @@
 - Extends: [ADR-0065](0065-versioned-recipe-style-artifact.md)
 - Extends: [ADR-0078](0078-copy-paste-develop-edits.md)
 - Relates to: [ADR-0086](0086-lightroom-crs-interchange.md)
+- Extended by: [ADR-0107](0107-apply-develop-selection.md)
 
 ## Context
 

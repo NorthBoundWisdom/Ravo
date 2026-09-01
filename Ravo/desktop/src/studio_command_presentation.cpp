@@ -136,6 +136,8 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("editCopyParametersSelected"),
          QLatin1String(command::kEditCopyParametersSelected)},
         {QStringLiteral("editPasteParameters"), QLatin1String(command::kEditPasteParameters)},
+        {QStringLiteral("editPasteParametersToSelection"),
+         QLatin1String(command::kEditPasteParametersToSelection)},
         {QStringLiteral("editResetAll"), QLatin1String(command::kEditResetAll)},
         {QStringLiteral("editResetSection"), QLatin1String(command::kEditResetSection)},
         {QStringLiteral("editSetSectionEnabled"), QLatin1String(command::kEditSetSectionEnabled)},

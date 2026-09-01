@@ -27,11 +27,12 @@
         "Ravo/tests/catalog_library_test.cpp",
         "Ravo/tests/catalog_recipe_test.cpp",
         "Ravo/tests/catalog_develop_test.cpp",
+        "Ravo/tests/catalog_develop_batch_test.cpp",
         "Ravo/tests/catalog_capture_test.cpp",
         "Ravo/tests/catalog_import_test.cpp"
       ],
-      "case_count": 126,
-      "case_sha256": "cb06643d51c623177fb4c50ce68f43f823ce7d8e7ea4a741c63acfae88ba5157"
+      "case_count": 130,
+      "case_sha256": "fc4e7fe90b7aaf6e195e83568df77ce46cb85852e8e8b045c418794a3ec206f1"
     },
     {
       "sources": [
@@ -42,8 +43,8 @@
         "Ravo/tests/cli_studio_test.cpp",
         "Ravo/tests/cli_lut_test.cpp"
       ],
-      "case_count": 62,
-      "case_sha256": "54651136ec1ea3329c3d0303f2648433edcc03b2b34a66c750e831bfe9541fdc"
+      "case_count": 63,
+      "case_sha256": "65f369d323b561a7da8ee15fc0951887cbb1535b2f517084502448587ac7798e"
     },
     {
       "sources": [
@@ -52,8 +53,8 @@
         "Ravo/tests/studio_qml_contract_test.cpp",
         "Ravo/tests/studio_live_control_test.cpp"
       ],
-      "case_count": 86,
-      "case_sha256": "189d3cb5aec9034e91b72f70ed18e209b649035ed3261147b12bc496812aa8b1"
+      "case_count": 87,
+      "case_sha256": "4d736a80d08e1bd2f12db8b44ed5715dc925d084c0c6f8426c38206962cb8fdb"
     },
     {
       "sources": [

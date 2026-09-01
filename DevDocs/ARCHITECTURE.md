@@ -1317,7 +1317,11 @@ Ravo Studio owns:
   CRS presets remain supported alongside it;
 - Edit history presents exactly **Copy Parameters** and **Paste Parameters**.
   Copy requires explicit baseline-relative field selection; paste changes only
-  that immutable session selection and preserves other target edits;
+  that immutable session selection and preserves other target edits. **Paste
+  Parameters to Selection** is a separate command: CatalogService overlays the
+  same clipboard onto every ID in an explicit multi-selection, with catalog
+  revision preflight, per-item partial failure, and cancellation that keeps
+  completed photos. Session undo remains one-photo (ADR-0078/0098/0107);
 - shared scopes above the right Gallery/Edit panel, defaulting a new Studio
   session to RGB Parade and remaining visible while the Edit list scrolls:
   frozen 256-bin RGB Histogram, overlaid Waveform, RGB

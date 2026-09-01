@@ -1125,8 +1125,12 @@ gated (ADR-0096).
   **Import…**, managed-folder pre-existing conflict plus atomic complete output,
   stale-field rejection, and apply through the existing recipe/history/undo
   transaction rather than a parallel preset store. The same selection dialog
-  and Recipe merge owner cover session Copy/Paste Parameters. Translation
-  catalogs and offscreen smoke cover the dialog. ADR-0072 removes all bundled
+  and Recipe merge owner cover session Copy/Paste Parameters. CatalogService
+  `apply_develop_selection` tests cover multi-asset overlay, fail-closed
+  preflight without writes, stale catalog revision, cancellation that keeps
+  completed photos, and partial item failure. CLI `catalog develop-apply` and
+  Studio **Paste Parameters to Selection** share that contract (ADR-0107).
+  Translation catalogs and offscreen smoke cover the dialog. ADR-0072 removes all bundled
   `.dtstyle` examples and their exclusive translation generator; the parser's
   whole-format rejection remains the test truth rather than per-example
   conversion tests (ADR-0065/0098).

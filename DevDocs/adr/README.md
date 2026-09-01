@@ -85,7 +85,7 @@ supersession relationship when direction changes.
 | [0075](0075-split-toning-hsl-contract.md) | Accepted | Split Toning replaces fixed saturation/compression with the full frozen shadow/highlight HSL pivot, masks, and strict v1 import. |
 | [0076](0076-photo-inspect-toggle-actual-size.md) | Accepted | Inspect photo click toggles Actual 1:1 and restores the last Fit/Fill/custom view; QML owns the magnifier pointer, click pan, and GPU scale animation. |
 | [0077](0077-compact-library-filter-bar.md) | Accepted | Filter checkbox reveals a default rating-star strip; other library predicates are added and removed as session chips. |
-| [0078](0078-copy-paste-develop-edits.md) | Accepted; selective field owner extended by 0097 | Copy/Paste Parameters use an explicit-field session clipboard and commit through ordinary history/undo. |
+| [0078](0078-copy-paste-develop-edits.md) | Accepted; selective field owner extended by 0098/0107 | Copy/Paste Parameters use an explicit-field session clipboard and commit through ordinary history/undo. |
 | [0079](0079-develop-set-inventory-and-probe-png.md) | Accepted; Studio observation added by 0080 | Recipe owns the CLI `--set` field inventory; `catalog probe --output` writes a throwaway PNG without mutating recipe or preview records. |
 | [0080](0080-studio-observes-catalog-revision.md) | Accepted | Studio polls live catalog revision on the existing snapshot contract; MCP around `ravo` is not the control plane. |
 | [0081](0081-studio-assistant-endpoint-panel.md) | Partially superseded by 0090 | Typed assistant URL/model/key settings and a floating non-modal Studio panel; assistant HTTP and credentials remain desktop-only. |
@@ -114,3 +114,4 @@ supersession relationship when direction changes.
 | [0104](0104-bounded-rename-and-verified-second-copy-ingest.md) | Accepted | Copy/Move ingest adds a bounded portable rename grammar and an independently byte-verified second-copy tree before catalog publication. |
 | [0105](0105-asset-versions-stacks-and-survey.md) | Accepted | Schema v11 adds virtual copies of one original, collapsed stacks with a pick, and a Survey browse mode for N-up culling. |
 | [0106](0106-close-legacy-algorithm-migration.md) | Accepted | Unaccepted leftover image algorithms are leftovers, not C++ ports; leftover tree retirement is a single deletion, not a leftover-faithful IOP queue. |
+| [0107](0107-apply-develop-selection.md) | Accepted | CatalogService applies a chosen Develop field set to an explicit multi-selection with catalog-revision preflight, per-item partial failure, and cancellation that keeps completed photos. |

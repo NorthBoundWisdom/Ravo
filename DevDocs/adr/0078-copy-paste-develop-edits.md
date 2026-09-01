@@ -3,7 +3,8 @@
 - Status: Accepted
 - Date: 2026-08-29
 - Extends: [ADR-0065](0065-versioned-recipe-style-artifact.md)
-- Extended by: [ADR-0098](0098-selective-develop-presets.md)
+- Extended by: [ADR-0098](0098-selective-develop-presets.md),
+  [ADR-0107](0107-apply-develop-selection.md)
 
 ## Context
 
@@ -37,8 +38,9 @@ without creating a file, merging history stacks, or resetting unrelated edits.
 ## Consequences
 
 Copy/paste is a Studio session gesture over the same stable field inventory as
-schema-v2 presets. CLI style-create/apply is unchanged. Multi-photo paste and
-OS clipboard exchange remain later work.
+schema-v2 presets. CLI style-create/apply is unchanged. Applying the same
+clipboard onto an explicit multi-selection is [ADR-0107](0107-apply-develop-selection.md).
+OS clipboard exchange remains later work.
 
 ## Rejected alternatives
 

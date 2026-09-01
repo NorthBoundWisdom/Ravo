@@ -36,8 +36,9 @@ QML workspace.
    wait for the preview, then press **Before / After**. Press **Y|Y** to compare
    the immutable baseline and live edit side by side with shared zoom and pan.
 7. Choose **Copy Parameters**, explicitly select that changed field, move to a
-   second photo, and use **Paste Parameters**. Unselected target edits remain
-   unchanged.
+   second photo, and use **Paste Parameters**. Select both photos and use
+   **Paste Parameters to Selection** to apply the same clipboard to the whole
+   selection. Unselected target edits remain unchanged.
 8. Press **Undo**, then **Redo**. Use the individual reset button or **Reset
    all** if you do not want to keep the change.
 9. Return to **Gallery**, select the edited photo, and choose **File → Export

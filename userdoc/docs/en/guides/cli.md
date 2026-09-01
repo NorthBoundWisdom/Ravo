@@ -433,6 +433,18 @@ ravo catalog develop --catalog "/work/Ravo Library.sqlite" \
 That overlays mapped look groups and keeps crop, masks, Retouch, and profiles.
 `--from-xmp` can be combined with later `--set` values.
 
+Apply a chosen Develop field set from one catalog asset onto explicit
+destinations. Unrelated destination edits stay. Preflight rejects empty or
+duplicate IDs, unknown fields, missing assets, and a stale `--revision` with
+no writes. Per-item failures and cancellation leave completed photos
+committed:
+
+```text
+ravo catalog develop-apply --catalog "/work/Ravo Library.sqlite" \
+  --from-asset asset-source --asset-id asset-a --asset-id asset-b \
+  --fields exposure,temperature --json
+```
+
 Convenience flags are available for `--exposure-ev`, `--saturation`, and
 `--contrast`. Use repeated `--set name=value` for the numeric Develop fields
 exposed by the current recipe contract, including geometry, profiles, white

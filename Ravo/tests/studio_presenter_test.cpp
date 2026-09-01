@@ -267,6 +267,93 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
 }
 
+TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSessionUndo)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    QImage image(96, 64, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(90, 120, 170));
+    const QString first_photo = directory.filePath(QStringLiteral("one.png"));
+    const QString second_photo = directory.filePath(QStringLiteral("two.png"));
+    ASSERT_TRUE(image.save(first_photo, "PNG"));
+    image.fill(QColor(170, 120, 90));
+    ASSERT_TRUE(image.save(second_photo, "PNG"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({first_photo, second_photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 2 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    const QString first_id = presenter.assets()->assetIdAt(0);
+    const QString second_id = presenter.assets()->assetIdAt(1);
+    ASSERT_FALSE(first_id.isEmpty());
+    ASSERT_FALSE(second_id.isEmpty());
+    presenter.selectAsset(first_id);
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+    presenter.setDevelopNumber(QStringLiteral("exposure"), 0.75);
+    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.4);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.editExposure() - 0.75) < 1e-9 &&
+                   std::abs(presenter.editSaturation() - 0.4) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.copyParametersSelected(QVariantList{QStringLiteral("exposure")});
+    ASSERT_TRUE(presenter.hasCopiedParameters());
+
+    presenter.selectAsset(second_id);
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+    presenter.setDevelopNumber(QStringLiteral("saturation"), -0.3);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.editSaturation() + 0.3) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.toggleAssetSelected(first_id);
+    ASSERT_EQ(presenter.selectedCount(), 2);
+    presenter.pasteParametersToSelection();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.catalogOperationActive() && !presenter.previewLoading() &&
+                   std::abs(presenter.editExposure() - 0.75) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_NEAR(presenter.editSaturation(), 0.4, 1e-9);
+    EXPECT_FALSE(presenter.canUndo());
+    EXPECT_EQ(presenter.statusText(),
+              QCoreApplication::translate("StudioPresenter",
+                                          "Parameters applied to the selection."));
+
+    presenter.selectAsset(second_id);
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(presenter.editExposure() - 0.75) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
+}
+
 TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
 {
     ensure_qt_core();

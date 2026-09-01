@@ -44,6 +44,39 @@
 
 namespace ravo::cli_internal
 {
+[[nodiscard]] Result<std::vector<std::string>>
+parse_develop_apply_fields(const std::string_view text)
+{
+    std::vector<std::string> fields;
+    std::size_t begin = 0;
+    while (begin <= text.size())
+    {
+        const auto comma = text.find(',', begin);
+        const auto token = text.substr(begin, comma == std::string_view::npos ? std::string_view::npos :
+                                                                               comma - begin);
+        const auto first = token.find_first_not_of(" \t");
+        if (first == std::string_view::npos)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog develop-apply --fields requires comma-separated names",
+                              {{"value", std::string(text)},
+                               {"reason", "empty_develop_apply_field_token"}});
+        }
+        const auto last = token.find_last_not_of(" \t");
+        fields.emplace_back(token.substr(first, last - first + 1));
+        if (comma == std::string_view::npos)
+            break;
+        begin = comma + 1;
+    }
+    if (fields.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "catalog develop-apply --fields requires comma-separated names",
+                          {{"reason", "empty_develop_field_selection"}});
+    }
+    return fields;
+}
+
 [[nodiscard]] Result<JsonValue>
 run_catalog_command(const EngineFacade &engine, const std::span<const std::string_view> positional)
 {
@@ -51,7 +84,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(
             ErrorCode::kInvalidArgument,
-            "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|fields|rate|"
+            "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|develop-apply|"
+            "fields|rate|"
             "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|sets|set-create|set-rename|"
@@ -115,9 +149,18 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool version_command = subcommand == "version-create";
     const bool stack_command =
         subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
-    if (flags.value().expected_revision && !set_command && !version_command && !stack_command)
+    const bool develop_apply_command = subcommand == "develop-apply";
+    if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
+        !develop_apply_command)
         return make_error(ErrorCode::kInvalidArgument,
-                          "--revision is only valid for catalog set, version, or stack commands");
+                          "--revision is only valid for catalog set, version, stack, or "
+                          "develop-apply commands");
+    if (!flags.value().from_asset.empty() && !develop_apply_command)
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--from-asset is only valid for catalog develop-apply");
+    if (!flags.value().fields.empty() && !develop_apply_command)
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--fields is only valid for catalog develop-apply");
     if (!flags.value().stack_id.empty() && subcommand != "unstack" && subcommand != "stack-pick")
         return make_error(ErrorCode::kInvalidArgument,
                           "--stack-id is only valid for catalog unstack or stack-pick");
@@ -949,6 +992,68 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         object.emplace("omitted", crs_omissions_json(crs_omitted));
         object.emplace("preset_name", crs_name);
         return JsonValue{std::move(object)};
+    }
+    if (subcommand == "develop-apply")
+    {
+        if (flags.value().from_asset.empty() || flags.value().asset_ids.empty() ||
+            flags.value().fields.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog develop-apply requires --from-asset, --asset-id, and "
+                              "--fields");
+        }
+        if (!flags.value().develop_sets.empty() || !flags.value().develop_text_sets.empty() ||
+            flags.value().exposure_ev || flags.value().saturation || flags.value().contrast ||
+            flags.value().pick_white || flags.value().watermark_text ||
+            !flags.value().from_xmp.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog develop-apply does not accept develop --set overrides");
+        }
+        auto fields = parse_develop_apply_fields(flags.value().fields);
+        if (!fields)
+            return fields.error();
+        auto source_recipe = service.load_recipe(flags.value().from_asset);
+        if (!source_recipe)
+            return source_recipe.error();
+        auto source = develop_from_recipe(source_recipe.value());
+        if (!source)
+            return source.error();
+        DevelopApplyRequest request;
+        request.source = std::move(source).value();
+        request.fields = std::move(fields).value();
+        request.asset_ids.reserve(flags.value().asset_ids.size());
+        for (const auto asset_id : flags.value().asset_ids)
+            request.asset_ids.emplace_back(asset_id);
+        request.expected_revision = flags.value().expected_revision;
+        auto applied = service.apply_develop_selection(request);
+        if (!applied)
+            return applied.error();
+        JsonValue::Array items;
+        items.reserve(applied.value().items.size());
+        for (const auto &item : applied.value().items)
+        {
+            JsonValue::Object row{{"asset_id", item.asset_id},
+                                  {"status", std::string(develop_apply_item_status_name(item.status))}};
+            if (item.history_id)
+                row.emplace("history_id", JsonValue::number(std::to_string(*item.history_id)));
+            if (item.error)
+                row.emplace("error", error_object(*item.error));
+            items.emplace_back(std::move(row));
+        }
+        JsonValue::Array field_json;
+        field_json.reserve(request.fields.size());
+        for (const auto &field : request.fields)
+            field_json.emplace_back(field);
+        return JsonValue{JsonValue::Object{
+            {"applied", JsonValue::number(std::to_string(applied.value().applied))},
+            {"failed", JsonValue::number(std::to_string(applied.value().failed))},
+            {"fields", std::move(field_json)},
+            {"from_asset", std::string(flags.value().from_asset)},
+            {"items", std::move(items)},
+            {"revision", JsonValue::number(std::to_string(applied.value().revision))},
+            {"skipped", JsonValue::number(std::to_string(applied.value().skipped))},
+        }};
     }
     if (subcommand == "rate")
     {

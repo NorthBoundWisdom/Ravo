@@ -91,6 +91,7 @@ inline constexpr auto kEditRedo = "studio.edit.redo";
 inline constexpr auto kEditCopyParameters = "studio.edit.copy_parameters";
 inline constexpr auto kEditCopyParametersSelected = "studio.edit.copy_parameters_selected";
 inline constexpr auto kEditPasteParameters = "studio.edit.paste_parameters";
+inline constexpr auto kEditPasteParametersToSelection = "studio.edit.paste_parameters_to_selection";
 inline constexpr auto kEditSetNumbers = "studio.edit.set_numbers";
 inline constexpr auto kEditPickWhiteBalance = "studio.edit.pick_white_balance";
 inline constexpr auto kEditSetWhiteBalancePick = "studio.edit.set_white_balance_pick";

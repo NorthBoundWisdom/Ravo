@@ -632,6 +632,7 @@ public:
     Q_INVOKABLE void resetAllEdits();
     Q_INVOKABLE void copyParametersSelected(const QVariantList &fields);
     Q_INVOKABLE void pasteParameters();
+    Q_INVOKABLE void pasteParametersToSelection();
     Q_INVOKABLE void previewDevelopNumbers(const QVariantMap &fields);
     Q_INVOKABLE void setDevelopNumbers(const QVariantMap &fields);
     Q_INVOKABLE void undoEdit();

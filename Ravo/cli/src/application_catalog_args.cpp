@@ -117,7 +117,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         batch_export ||
         (positional.size() > 1U &&
          (positional[1] == "preview-rebuild" || positional[1] == "set-create" ||
-          positional[1] == "set-add" || positional[1] == "set-remove" || positional[1] == "stack"));
+          positional[1] == "set-add" || positional[1] == "set-remove" || positional[1] == "stack" ||
+          positional[1] == "develop-apply"));
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -544,6 +545,19 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             if (!result.pick_id.empty())
                 return make_error(ErrorCode::kInvalidArgument, "Stack pick ID was specified twice");
             result.pick_id = value;
+        }
+        else if (option == "--from-asset")
+        {
+            if (!result.from_asset.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Source asset ID was specified twice");
+            result.from_asset = value;
+        }
+        else if (option == "--fields")
+        {
+            if (!result.fields.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Develop field list was specified twice");
+            result.fields = value;
         }
         else if (option == "--revision")
         {

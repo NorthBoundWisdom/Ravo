@@ -1142,6 +1142,101 @@ void StudioPresenter::pasteParameters()
         setStatus(QCoreApplication::translate("StudioPresenter", "Parameters pasted."));
 }
 
+void StudioPresenter::pasteParametersToSelection()
+{
+    if (catalog_path_.isEmpty() || !copied_parameters_)
+        return;
+    if (busy_ || catalog_operation_active_ || import_work_active_)
+        return;
+    auto ids = selected_asset_ids();
+    if (ids.size() < 2)
+        return;
+    catalog_operation_ = CancellationSource{};
+    const auto cancellation = catalog_operation_.token();
+    DevelopApplyRequest request;
+    request.source = copied_parameters_->source;
+    request.fields = copied_parameters_->fields;
+    request.asset_ids = std::move(ids);
+    if (observed_catalog_revision_ >= 0)
+        request.expected_revision = observed_catalog_revision_;
+    request.cancellation = cancellation;
+    const auto selected = utf8_from_qstring(selected_asset_id_);
+    const bool reload_selected =
+        std::find(request.asset_ids.begin(), request.asset_ids.end(), selected) !=
+        request.asset_ids.end();
+    setError({});
+    setCatalogOperation(
+        QCoreApplication::translate("StudioPresenter", "Applying parameters to selection…"), 0,
+        static_cast<int>(request.asset_ids.size()), true);
+    executor_.post(
+        [this, request = std::move(request), selected, reload_selected]() mutable
+        {
+            Result<DevelopApplyResult> applied =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                applied = service_->apply_develop_selection(
+                    request,
+                    [this](const std::size_t completed, const std::size_t total,
+                           const DevelopApplyItemResult *)
+                    {
+                        QMetaObject::invokeMethod(
+                            this,
+                            [this, completed, total]()
+                            {
+                                if (!catalog_operation_active_)
+                                    return;
+                                setCatalogOperation(
+                                    QCoreApplication::translate(
+                                        "StudioPresenter", "Applying parameters to selection…"),
+                                    static_cast<int>(completed), static_cast<int>(total), true);
+                            },
+                            Qt::QueuedConnection);
+                    });
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, applied = std::move(applied), selected, reload_selected]() mutable
+                {
+                    setCatalogOperation({}, 0, 0, false);
+                    if (!applied)
+                    {
+                        setError(qstring_from_utf8(applied.error().message));
+                        setStatus(QCoreApplication::translate(
+                            "StudioPresenter", "Applying parameters to selection failed."));
+                        return;
+                    }
+                    observed_catalog_revision_ = applied.value().revision;
+                    const auto total = applied.value().items.size();
+                    if (applied.value().failed > 0 || applied.value().skipped > 0)
+                    {
+                        setStatus(QCoreApplication::translate(
+                                      "StudioPresenter",
+                                      "Applied parameters to %1 of %2 selected photos.")
+                                      .arg(applied.value().applied)
+                                      .arg(total));
+                        for (const auto &item : applied.value().items)
+                        {
+                            if (item.status == DevelopApplyItemStatus::kFailed && item.error)
+                            {
+                                setError(qstring_from_utf8(item.error->message));
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        setStatus(QCoreApplication::translate(
+                            "StudioPresenter", "Parameters applied to the selection."));
+                    }
+                    if (reload_selected && utf8_from_qstring(selected_asset_id_) == selected)
+                        load_develop_for_selection();
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
 void StudioPresenter::applyDevelopNumbers(const QVariantMap &fields, const DevelopEdit edit)
 {
     if (fields.isEmpty())

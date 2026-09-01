@@ -815,6 +815,7 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
     const auto source = QString::fromUtf8(menu.readAll());
     EXPECT_TRUE(source.contains(QStringLiteral("copyParameters")));
     EXPECT_TRUE(source.contains(QStringLiteral("pasteParameters")));
+    EXPECT_TRUE(source.contains(QStringLiteral("pasteParametersToSelection")));
     EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoInfo")));
     EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoParameters")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"viewPhotoMenuItem\"")));

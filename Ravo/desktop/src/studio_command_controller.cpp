@@ -47,6 +47,7 @@ enum class Condition
     kCanUndo,
     kCanRedo,
     kCanPasteParameters,
+    kCanPasteParametersToSelection,
     kCanDelete,
     kCatalogOperation,
 };
@@ -1174,6 +1175,9 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     add(command::kEditPasteParameters, Condition::kCanPasteParameters, no_argument,
         [this](const QVariant &, const QString &) { presenter_.pasteParameters(); });
+    add(command::kEditPasteParametersToSelection, Condition::kCanPasteParametersToSelection,
+        no_argument,
+        [this](const QVariant &, const QString &) { presenter_.pasteParametersToSelection(); });
     add(command::kEditResetAll, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.resetAllEdits(); });
     add(command::kEditResetSection, Condition::kDevelopSelection, non_empty_string,
@@ -1563,6 +1567,18 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
             return {false, tr_command(QStringLiteral("Open a library first."))};
         if (!selection)
             return {false, tr_command(QStringLiteral("Select a photo first."))};
+        return presenter.hasCopiedParameters() ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Copy parameters first."))};
+    case Condition::kCanPasteParametersToSelection:
+        if (!ready)
+            return {false, !catalog_open ?
+                               tr_command(QStringLiteral("Open a library first.")) :
+                               tr_command(QStringLiteral("Wait for library work to finish."))};
+        if (presenter.catalogOperationActive())
+            return {false, tr_command(QStringLiteral("Wait for library work to finish."))};
+        if (presenter.selectedCount() < 2)
+            return {false, tr_command(QStringLiteral("Select at least two photos first."))};
         return presenter.hasCopiedParameters() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Copy parameters first."))};

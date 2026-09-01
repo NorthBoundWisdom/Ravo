@@ -46,6 +46,8 @@ struct CatalogCliArguments
     std::optional<std::pair<double, double>> pick_white;
     std::optional<std::string_view> watermark_text;
     std::string_view from_xmp;
+    std::string_view from_asset;
+    std::string_view fields;
     std::string_view output;
     std::string_view output_directory;
     std::string_view filename_template;

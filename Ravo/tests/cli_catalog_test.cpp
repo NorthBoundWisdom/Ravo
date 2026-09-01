@@ -22,6 +22,7 @@
 #include <QColorSpace>
 #include <QCoreApplication>
 #include <QImage>
+#include <QString>
 #include <QProcess>
 #include <QXmlStreamReader>
 #include <gtest/gtest.h>
@@ -1374,6 +1375,130 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     ASSERT_NE(code, nullptr);
     ASSERT_NE(code->string_if(), nullptr);
     EXPECT_EQ(*code->string_if(), "conflict");
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, CatalogDevelopApplyOverlaysSelectionAndRejectsPreflight)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-develop-apply-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    QImage image(16, 12, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(30, 90, 150));
+    const auto first_photo = (root / "one.png").string();
+    const auto second_photo = (root / "two.png").string();
+    ASSERT_TRUE(image.save(QString::fromStdString(first_photo), "PNG"));
+    image.fill(QColor(150, 90, 30));
+    ASSERT_TRUE(image.save(QString::fromStdString(second_photo), "PNG"));
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    EXPECT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
+                                                            catalog, "--input", first_photo,
+                                                            "--input", second_photo, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_EQ(items->array_if()->size(), 2U);
+    const auto *first_asset = items->array_if()->front().find("asset");
+    const auto *second_asset = items->array_if()->back().find("asset");
+    ASSERT_NE(first_asset, nullptr);
+    ASSERT_NE(second_asset, nullptr);
+    const auto *first_id = first_asset->find("id");
+    const auto *second_id = second_asset->find("id");
+    ASSERT_NE(first_id, nullptr);
+    ASSERT_NE(second_id, nullptr);
+    ASSERT_NE(first_id->string_if(), nullptr);
+    ASSERT_NE(second_id->string_if(), nullptr);
+    const auto source_id = *first_id->string_if();
+    const auto destination_id = *second_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "develop", "--catalog", catalog, "--asset-id", source_id,
+                  "--exposure-ev", "0.6", "--set", "saturation=0.25", "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "develop", "--catalog", catalog, "--asset-id", destination_id,
+                  "--set", "contrast=0.2", "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_NE(application.run(std::vector<std::string_view>{
+                  "catalog", "develop-apply", "--catalog", catalog, "--from-asset", source_id,
+                  "--asset-id", destination_id, "--fields", "exposure", "--revision", "0",
+                  "--json"}),
+              0)
+        << stdout_stream.str();
+    auto stale = parse_json(stdout_stream.str());
+    ASSERT_TRUE(stale) << stale.error().message;
+    const auto *error = stale.value().find("error");
+    ASSERT_NE(error, nullptr);
+    const auto *code = error->find("code");
+    ASSERT_NE(code, nullptr);
+    ASSERT_NE(code->string_if(), nullptr);
+    EXPECT_EQ(*code->string_if(), "conflict");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "develop-apply", "--catalog", catalog, "--from-asset", source_id,
+                  "--asset-id", destination_id, "--fields", "exposure", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto applied = parse_json(stdout_stream.str());
+    ASSERT_TRUE(applied) << applied.error().message;
+    data = applied.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *applied_count = data->find("applied");
+    ASSERT_NE(applied_count, nullptr);
+    ASSERT_NE(applied_count->number_if(), nullptr);
+    EXPECT_EQ(applied_count->number_if()->text, "1");
+    const auto *failed = data->find("failed");
+    ASSERT_NE(failed, nullptr);
+    ASSERT_NE(failed->number_if(), nullptr);
+    EXPECT_EQ(failed->number_if()->text, "0");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "recipe", "--catalog",
+                                                            catalog, "--asset-id", destination_id,
+                                                            "--json"}),
+              0)
+        << stdout_stream.str();
+    auto recipe = parse_json(stdout_stream.str());
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    data = recipe.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *has_edits = data->find("has_edits");
+    ASSERT_NE(has_edits, nullptr);
+    ASSERT_NE(has_edits->boolean_if(), nullptr);
+    EXPECT_TRUE(*has_edits->boolean_if());
 
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

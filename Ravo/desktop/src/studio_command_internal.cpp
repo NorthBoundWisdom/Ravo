@@ -82,6 +82,7 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "Nothing to redo."),
     QT_TRANSLATE_NOOP("StudioCommands", "No modified parameters to copy."),
     QT_TRANSLATE_NOOP("StudioCommands", "Copy parameters first."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Select at least two photos first."),
     QT_TRANSLATE_NOOP("StudioCommands", "The selected originals cannot be deleted."),
     QT_TRANSLATE_NOOP("StudioCommands", "No catalog operation is running."),
     QT_TRANSLATE_NOOP("StudioCommands", "Command unavailable in the current context."),
@@ -199,6 +200,7 @@ QStringList command_ids()
             QLatin1String(command::kEditCopyParameters),
             QLatin1String(command::kEditCopyParametersSelected),
             QLatin1String(command::kEditPasteParameters),
+            QLatin1String(command::kEditPasteParametersToSelection),
             QLatin1String(command::kEditResetAll),
             QLatin1String(command::kEditResetSection),
             QLatin1String(command::kEditSetSectionEnabled),
@@ -367,6 +369,11 @@ QVector<ActionSpec> builtin_actions()
         {QStringLiteral("history"), QStringLiteral("clipboard"), QStringLiteral("copy")},
         QStringLiteral("edit.history"), 40, true,
         {key(primary_key(QStringLiteral("V"), false, true), true)});
+    add(command::kEditPasteParametersToSelection, command::kEditPasteParametersToSelection,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Paste Parameters to Selection")),
+        edit, {QStringLiteral("history"), QStringLiteral("clipboard"), QStringLiteral("sync")},
+        QStringLiteral("edit.history"), 45, true,
+        {key(primary_key(QStringLiteral("V"), true), true)});
     add(command::kEditResetAll, command::kEditResetAll,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reset All Edits")), edit,
         {QStringLiteral("develop"), QStringLiteral("clear")}, QStringLiteral("edit.reset"), 10,

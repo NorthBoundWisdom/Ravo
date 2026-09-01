@@ -410,9 +410,13 @@ white-balance pick, or mask editing takes the image surface.
   modifications. After you explicitly select fields, Studio stores that
   immutable parameter snapshot in a session clipboard. **Paste Parameters**
   (`Cmd/Ctrl+Alt+V`) overlays only those selected logical fields on the active
-  photo through normal history, undo, validation, and preview. Unselected
-  destination edits and target-only mask state are preserved. The clipboard is
-  not a file or the system pasteboard; a style remains the portable artifact.
+  photo through normal history, undo, validation, and preview. **Paste
+  Parameters to Selection** (`Cmd/Ctrl+Shift+V`) applies the same clipboard to
+  every photo in an explicit multi-selection through the catalog. Unselected
+  destination edits and target-only mask state are preserved. Session undo
+  does not revert the other destinations; those photos keep per-photo history.
+  The clipboard is not a file or the system pasteboard; a style remains the
+  portable artifact.
 - A control reset changes one field back to its default.
 - A mask-control reset keeps its attached editable mask. **Reset to all**
   changes that mask to All, while **Detach mask** removes only the current
