@@ -85,14 +85,10 @@ More-specific implementation and validation rules for this boundary live in
 2. Read the source files and documents directly relevant to the task; do not
    infer current behavior from upstream darktable habits.
 3. For product/leftover boundaries, read `DevDocs/MIGRATION.md` first. For
-   current product release evidence, then read
-   [`DevDocs/TODO_PHOTO_MANAGEMENT.md`](DevDocs/TODO_PHOTO_MANAGEMENT.md); for
-   leftover boundaries, additionally read
-   [`DevDocs/MIGRATION.md`](DevDocs/MIGRATION.md)
-   (leftover algorithm ports are closed by ADR-0106). For
-   Lightroom/Capture One user-outcome ranking, read
-   [`DevDocs/TODO_PRO_WORKFLOW.md`](DevDocs/TODO_PRO_WORKFLOW.md) — it is not
-   independently ready. Read `DevDocs/GPU_Baseline.md` for GPU work.
+   current product execution, then read [`DevDocs/TODO.md`](DevDocs/TODO.md).
+   Windows and Linux host evidence is [`DevDocs/TODO_WINDOWS_LINUX.md`](DevDocs/TODO_WINDOWS_LINUX.md)
+   and does not block other product work. Leftover algorithm ports are closed
+   by ADR-0106. Read `DevDocs/GPU_Baseline.md` for GPU work.
 4. Before cross-layer changes, make ownership, lifecycle, thread boundaries,
    and the minimum validation set explicit.
 
@@ -105,11 +101,9 @@ define unfinished execution work.
 
 - The C++20 Ravo Engine, supported `ravo` CLI, and Ravo Studio share one
   service layer. `Ravo/README.md` records the currently accepted baseline;
-  `DevDocs/TODO_PHOTO_MANAGEMENT.md` owns unfinished product P0/P1 execution or
-  release evidence, `DevDocs/TODO_GALLERY_PERFORMANCE.md` owns Gallery
-  measurement candidates, `DevDocs/TODO_PRO_WORKFLOW.md` ranks professional
-  DAM/delivery gaps but is not independently ready. Leftover algorithm ports
-  are closed (ADR-0106).
+  `DevDocs/TODO.md` owns unfinished product execution, `DevDocs/TODO_WINDOWS_LINUX.md`
+  owns Windows and Linux host evidence, and leftover algorithm ports are closed
+  (ADR-0106).
 - The `domain`, `services`, and Qt 6 Quick/QML `desktop` targets are already
   established. `Qt6::Qml`/`Qt6::Quick` and
   `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts` imports may only be

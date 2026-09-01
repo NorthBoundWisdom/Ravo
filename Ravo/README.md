@@ -599,13 +599,10 @@ Current implementation status:
   Configure requires JPEG/GIF/WebP/TIFF imageformat plugins and the QSQLITE
   driver; missing them is a hard error.
 
-The implemented product now has only private-corpus and non-macOS release
-evidence remaining in
-[TODO_PHOTO_MANAGEMENT.md](../DevDocs/TODO_PHOTO_MANAGEMENT.md). Ranked
-Lightroom/Capture One user-outcome gaps are in
-[TODO_PRO_WORKFLOW.md](../DevDocs/TODO_PRO_WORKFLOW.md); ADR-0104 accepts its
-bounded filesystem-ingest tranche while the table retains the remaining rank
-readiness. Leftover algorithm ports are closed
+Unfinished product execution is in [TODO.md](../DevDocs/TODO.md). Windows and
+Linux Debug/Release evidence is in
+[TODO_WINDOWS_LINUX.md](../DevDocs/TODO_WINDOWS_LINUX.md) and does not block
+other product work. Leftover algorithm ports are closed
 ([ADR-0106](../DevDocs/adr/0106-close-legacy-algorithm-migration.md)). Changes of
 direction are recorded in dated ADRs, beginning with
 [ADR-0007](../DevDocs/adr/0007-first-usable-catalog-viewer.md).
@@ -885,9 +882,9 @@ libraries, load old IOPs, or access global `darktable`.
 - [i18n workflow](../.codex/skills/i18n-translation-workflow/SKILL.md):
   source extraction, locale-specific translation memory, and catalog validation;
 - [ADR index](../DevDocs/adr/README.md): durable architecture decisions;
-- [photo-management TODO](../DevDocs/TODO_PHOTO_MANAGEMENT.md): remaining private-
-  corpus and non-macOS P0/P1 release evidence;
-- [professional workflow TODO](../DevDocs/TODO_PRO_WORKFLOW.md): ranked
-  Lightroom/Capture One DAM and delivery gaps; not independently ready;
+- [product execution TODO](../DevDocs/TODO.md): unfinished corpus, Gallery,
+  professional workflow, and AI items;
+- [Windows/Linux TODO](../DevDocs/TODO_WINDOWS_LINUX.md): independent Windows
+  and Linux host evidence;
 
 The repository is distributed under GPLv3; see the root [LICENSE](../LICENSE).

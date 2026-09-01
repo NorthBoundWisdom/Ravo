@@ -1,11 +1,13 @@
 # Ravo product execution TODO
 
-> **Status:** single repository execution queue
+> **Status:** product execution queue
 >
 > **Updated:** 2026-09-01
 
-This file contains only unfinished work, dependencies, risks, validation, and
-acceptance gates. Current behavior belongs in `Ravo/README.md`,
+This file contains unfinished product work, dependencies, risks, validation,
+and acceptance gates. Windows and Linux host loops live in
+[TODO_WINDOWS_LINUX.md](TODO_WINDOWS_LINUX.md) and do not block items here.
+Current behavior belongs in `Ravo/README.md`,
 [ARCHITECTURE.md](ARCHITECTURE.md), [TESTING.md](TESTING.md), code, tests, and
 accepted ADRs. Cross-layer ideas without an accepted product contract remain in
 [ProductRoadmap.md](ProductRoadmap.md).
@@ -64,66 +66,21 @@ RAVO_INTERACTIVE_BURST_BUDGET_MS=10 \
 
 **Risk:** an unset `RAVO_PHOTO_CORPUS` skips the probe and is not evidence.
 
-## REL-02 — Windows Debug and Release loop
+Windows and Linux Debug/Release loops and the three-platform same-commit
+closeout live in [TODO_WINDOWS_LINUX.md](TODO_WINDOWS_LINUX.md). They do not
+block other items in this file. A macOS result is not evidence for those hosts.
 
-**Dependency:** a Windows host with the current source-root lock materialized and
-the supported Qt/MSVC toolchain.
+## REL-04 — macOS package closeout
 
-```text
-python configs/source_roots.py show --format json
-python configs/source_roots.py resolve --format json
-python configs/source_roots.py verify
-python3 Ravo/tools/freeze_legacy_manifest.py --check
-python3 Ravo/tools/check_ravo_dependency_boundary.py
-cmake --preset win_msvc_debug -DBUILD_TESTING=ON
-cmake --build --preset win_msvc_debug
-ctest --test-dir build/win_msvc_debug --output-on-failure
-cmake --preset win_msvc_release -DBUILD_TESTING=ON
-cmake --build --preset win_msvc_release
-ctest --test-dir build/win_msvc_release --output-on-failure
-```
-
-**Acceptance gate:** Debug and Release cover restore publication/cleanup,
-cancellable shutdown, 10,000-row paging, deterministic import, verified
-retention, schema migration/relink rollback, translations, QML smoke, and the
-staged installed-product create/import/reopen/recovery loop without leaked
-temporary files, locked catalogs, build-tree dependencies, or hidden platform
-fallback.
-
-## REL-03 — Linux Debug and Release loop
-
-**Dependency:** a Linux host with the current source-root lock materialized and
-the supported Qt/Clang toolchain.
-
-```text
-python configs/source_roots.py show --format json
-python configs/source_roots.py resolve --format json
-python configs/source_roots.py verify
-python3 Ravo/tools/freeze_legacy_manifest.py --check
-python3 Ravo/tools/check_ravo_dependency_boundary.py
-cmake --preset linux_clang_debug -DBUILD_TESTING=ON
-cmake --build --preset linux_clang_debug
-ctest --test-dir build/linux_clang_debug --output-on-failure
-cmake --preset linux_clang_release -DBUILD_TESTING=ON
-cmake --build --preset linux_clang_release
-ctest --test-dir build/linux_clang_release --output-on-failure
-```
-
-**Acceptance gate:** the same behavior and installed-product loop as Windows
-passes without a Linux-only fallback. A macOS or Windows result is not evidence
-for this gate.
-
-## REL-04 — Same-commit release closeout
-
-- Confirm macOS, Windows, and Linux results target the same commit and current
+- Confirm the current macOS results target this commit and the current
   dependency pins.
 - Confirm package contents, version metadata, checksums, generated third-party
   notices, translations, settings/support directories, and installed launch do
   not depend on the build tree.
 - Record only durable platform constraints in stable authorities; keep run logs,
   private corpus details, and transient screenshots outside the repository.
-- A failed or skipped gate remains open. Do not label the commit release-ready
-  until every P0 item is current.
+
+Three-platform release-ready labeling remains [WL-03](TODO_WINDOWS_LINUX.md).
 
 # P0 — Gallery and Develop performance evidence
 

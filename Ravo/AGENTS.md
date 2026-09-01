@@ -11,15 +11,13 @@ constraint.
    `../DevDocs/MIGRATION.md`, `../DevDocs/TESTING.md`, and relevant ADRs.
 3. For old behavior, read Ravo code, tests, and `tests/fixtures/frozen`; do
    not infer from upstream darktable habits.
-4. Confirm that work belongs to the active product/release item in
-   [`../DevDocs/TODO_PHOTO_MANAGEMENT.md`](../DevDocs/TODO_PHOTO_MANAGEMENT.md)
-   or to a
-   cross-cutting reliability gate.
-   [`../DevDocs/TODO_PRO_WORKFLOW.md`](../DevDocs/TODO_PRO_WORKFLOW.md) ranks
-   Lightroom/Capture One gaps and does not independently authorize
-   implementation. Desktop uses Qt 6 Quick/QML; Qt Sql remains
-   solely in the private SQLite adapter. Qt Widgets, a second presentation
-   architecture, and an old GTK adapter are not approved.
+4. Confirm that work belongs to an item in
+   [`../DevDocs/TODO.md`](../DevDocs/TODO.md) or to a cross-cutting reliability
+   gate. Windows and Linux host evidence is
+   [`../DevDocs/TODO_WINDOWS_LINUX.md`](../DevDocs/TODO_WINDOWS_LINUX.md) and
+   does not independently authorize product implementation. Desktop uses Qt 6
+   Quick/QML; Qt Sql remains solely in the private SQLite adapter. Qt Widgets,
+   a second presentation architecture, and an old GTK adapter are not approved.
 5. Before cross-layer work, state ownership, lifecycle, thread boundaries,
    error/cancellation paths, and the smallest validation set.
 
@@ -157,8 +155,8 @@ constraint.
 
 Unaccepted leftover image algorithms are leftovers, not ports (ADR-0106).
 Do not rewrite leftover C, OpenCL, GTK, or dynamic ABI to finish leftover.
-New photographic tools are independent Ravo product work under
-`TODO_PHOTO_MANAGEMENT.md`, `TODO_PRO_WORKFLOW.md`, and `ProductRoadmap.md`.
+New photographic tools are independent Ravo product work under `TODO.md`
+and `ProductRoadmap.md`.
 
 Accepted Ravo operations keep their current contracts. Frozen fixtures live
 in `tests/fixtures/frozen`.

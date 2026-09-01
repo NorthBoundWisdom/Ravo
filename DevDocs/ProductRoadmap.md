@@ -44,10 +44,12 @@ relies on are current.
 and machine contracts are demonstrably safe on supported hosts and a real
 mixed-photo corpus.
 
-**Exit gate:** the private-corpus, Gallery measurement, Windows, Linux, and
-same-commit closeout items in `TODO.md` pass without platform-specific hidden
-fallback. Release evidence records source preservation and does not generalize
-one host's latency budget to another.
+**Exit gate:** the private-corpus and Gallery measurement items in `TODO.md`
+pass without host-specific hidden fallback. Windows and Linux Debug/Release
+loops and three-platform same-commit closeout live in
+[TODO_WINDOWS_LINUX.md](TODO_WINDOWS_LINUX.md) and do not block other product
+execution. Release evidence records source preservation and does not
+generalize one host's latency budget to another.
 
 ### R1 — Professional ingest, catalog, and culling
 

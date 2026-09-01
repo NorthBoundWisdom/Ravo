@@ -7,8 +7,9 @@ Develop are already implemented in Ravo. Darktable 0.9 is a historical
 reference, not a second algorithm owner. The P0/P1 implementation now includes
 catalog restore/operator recovery, bounded large-library paging and scheduling,
 verified recurring backup retention, and stable missing-folder relink
-(ADR-0099–0101). [`TODO_PHOTO_MANAGEMENT.md`](TODO_PHOTO_MANAGEMENT.md)
-retains only the unfinished private-corpus and non-macOS release evidence.
+(ADR-0099–0101). [`TODO.md`](TODO.md) retains unfinished product execution.
+[`TODO_WINDOWS_LINUX.md`](TODO_WINDOWS_LINUX.md) owns Windows and Linux host
+evidence.
 Leftover algorithm ports are closed by
 [ADR-0106](adr/0106-close-legacy-algorithm-migration.md). Unaccepted leftover
 IOPs are leftovers, not C++ ports. The leftover source tree is gone. New
@@ -71,9 +72,7 @@ Do not start a leftover-faithful port of an unaccepted leftover IOP
 (ADR-0106). The leftover source tree is gone.
 
 New photographic tools are independent Ravo product work under
-[`TODO_PHOTO_MANAGEMENT.md`](TODO_PHOTO_MANAGEMENT.md),
-[`TODO_PRO_WORKFLOW.md`](TODO_PRO_WORKFLOW.md), and
-[`ProductRoadmap.md`](ProductRoadmap.md). They need a dated contract, owned
+[`TODO.md`](TODO.md) and [`ProductRoadmap.md`](ProductRoadmap.md). They need a dated contract, owned
 CPU mathematics, CLI/Studio consumers, and cancellation/resource failures.
 They are not leftover C twins.
 

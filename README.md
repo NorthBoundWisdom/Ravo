@@ -45,8 +45,8 @@ behind CPU goldens. Historic leftover XMP that names an unaccepted leftover
 IOP fails closed.
 
 [The Ravo product document](Ravo/README.md), the
-[remaining product P0/P1 release gates](DevDocs/TODO_PHOTO_MANAGEMENT.md), and
-the [professional workflow gap ranking](DevDocs/TODO_PRO_WORKFLOW.md) define
+[product execution queue](DevDocs/TODO.md), and
+[Windows/Linux host evidence](DevDocs/TODO_WINDOWS_LINUX.md) define
 the supported scope, validation status, and next work item.
 
 ## Screenshots
@@ -140,8 +140,8 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 - [Architecture and data lifetimes](DevDocs/ARCHITECTURE.md)
 - [Testing and validation strategy](DevDocs/TESTING.md)
 - [Migration policy and capability ledger](DevDocs/MIGRATION.md)
-- [Remaining product P0/P1 release evidence](DevDocs/TODO_PHOTO_MANAGEMENT.md)
-- [Professional workflow gaps versus Lightroom/Capture One](DevDocs/TODO_PRO_WORKFLOW.md)
+- [Product execution queue](DevDocs/TODO.md)
+- [Windows and Linux host evidence](DevDocs/TODO_WINDOWS_LINUX.md)
 - [Developer documentation index](DevDocs/README.md)
 
 ## Install and build from source
@@ -187,10 +187,10 @@ reports unsupported state instead of silently approximating it.
 Issues and pull requests are welcome. Start with
 [`AGENTS.md`](AGENTS.md) for repository-wide engineering constraints,
 [`Ravo/AGENTS.md`](Ravo/AGENTS.md) for the `Ravo/` subtree, and
-[`DevDocs/TODO_PHOTO_MANAGEMENT.md`](DevDocs/TODO_PHOTO_MANAGEMENT.md) for the
-remaining product P0/P1 release gates. Ranked Lightroom/Capture One gaps live in
-[`DevDocs/TODO_PRO_WORKFLOW.md`](DevDocs/TODO_PRO_WORKFLOW.md) and are not
-independently ready. Leftover algorithm ports are closed
+[`DevDocs/TODO.md`](DevDocs/TODO.md) for unfinished product execution.
+Windows and Linux host evidence lives in
+[`DevDocs/TODO_WINDOWS_LINUX.md`](DevDocs/TODO_WINDOWS_LINUX.md) and does not
+block other product work. Leftover algorithm ports are closed
 ([ADR-0106](DevDocs/adr/0106-close-legacy-algorithm-migration.md)).
 Behavior changes need matching Ravo unit or contract tests.
 

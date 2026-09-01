@@ -17,12 +17,15 @@ private by default, and reproducible enough to audit.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Current target boundaries, ownership, lifecycle, threads, data, and failure behavior | Future work or run diaries |
 | [MIGRATION.md](MIGRATION.md) | Accepted capability history, removed leftovers, and retirement decisions | Product backlog |
 | [ProductRoadmap.md](ProductRoadmap.md) | Outcome order, product principles, and cross-layer decisions not ready for execution | Task-level status |
-| [TODO.md](TODO.md) | The single unfinished execution queue, dependencies, risks, validation, and acceptance gates | Completed behavior or durable decisions |
+| [TODO.md](TODO.md) | Product execution queue: corpus/latency, Gallery evidence, professional workflow, and AI | Completed behavior, durable decisions, or Windows/Linux host loops |
+| [TODO_WINDOWS_LINUX.md](TODO_WINDOWS_LINUX.md) | Windows and Linux Debug/Release verification and three-platform closeout | Product feature work or macOS-only corpus/Gallery evidence |
 | [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, performance probes, and validation depth | Product priority |
 | [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history | Mutable implementation status |
 
 The former specialized TODO paths are pointer-only compatibility pages. They
-must not receive new work; every active item belongs in [TODO.md](TODO.md).
+must not receive new work. Product execution belongs in [TODO.md](TODO.md).
+Windows and Linux host evidence belongs in
+[TODO_WINDOWS_LINUX.md](TODO_WINDOWS_LINUX.md).
 
 ## Operations and compliance
 
@@ -52,7 +55,8 @@ ProductRoadmap -> dated ADR -> TODO -> code/tests -> current authorities
 2. Before implementation, accept a dated ADR that names the user outcome,
    owner, persisted or machine contract, cancellation/failure behavior,
    privacy and security constraints where relevant, and validation gate.
-3. Add only the unfinished execution slice to `TODO.md`.
+3. Add only the unfinished execution slice to `TODO.md`, or to
+   `TODO_WINDOWS_LINUX.md` when the work is Windows/Linux host evidence.
 4. On completion, move durable facts to code, tests, `Ravo/README.md`,
    `ARCHITECTURE.md`, or `TESTING.md`, then delete the completed TODO item.
 5. Record removed or explicitly rejected legacy behavior in `MIGRATION.md`.
