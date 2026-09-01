@@ -54,4 +54,54 @@ void append_legacy_color_balance_develop_names(std::vector<std::string> &names);
 void clamp_color_balance(ColorBalanceRgbParams &params) noexcept;
 void append_color_balance_develop_names(std::vector<std::string> &names);
 
+[[nodiscard]] bool
+bands_near_zero(const std::array<double, kColorEqualizerBandCount> &values) noexcept;
+void make_studio_color_zones_curves(ColorZonesParams &params);
+[[nodiscard]] bool studio_color_zones_curves(const ColorZonesParams &params) noexcept;
+[[nodiscard]] ParameterValue
+band_array_parameter(const std::array<double, kColorEqualizerBandCount> &values);
+[[nodiscard]] std::array<std::string_view, 7> rgb_levels_preserve_names() noexcept;
+
+[[nodiscard]] bool apply_color_checker_field(DevelopParams &params, std::string_view name,
+                                             double value);
+[[nodiscard]] bool reset_color_checker_field(DevelopParams &params, std::string_view name);
+[[nodiscard]] bool apply_color_correction_field(DevelopParams &params, std::string_view name,
+                                                double value) noexcept;
+[[nodiscard]] bool reset_color_correction_field(DevelopParams &params,
+                                                std::string_view name) noexcept;
+void clamp_color_correction(ColorCorrectionParams &params) noexcept;
+[[nodiscard]] bool apply_color_contrast_field(DevelopParams &params, std::string_view name,
+                                              double value) noexcept;
+[[nodiscard]] bool reset_color_contrast_field(DevelopParams &params,
+                                              std::string_view name) noexcept;
+void clamp_color_contrast(ColorContrastParams &params) noexcept;
+[[nodiscard]] bool apply_color_reconstruction_field(DevelopParams &params, std::string_view name,
+                                                    double value) noexcept;
+[[nodiscard]] bool reset_color_reconstruction_field(DevelopParams &params,
+                                                    std::string_view name) noexcept;
+void clamp_color_reconstruction(ColorReconstructionParams &params) noexcept;
+void clamp_rgb_levels(RgbLevelsParams &params) noexcept;
+[[nodiscard]] bool apply_rgb_levels_field(DevelopParams &params, std::string_view name,
+                                          double value) noexcept;
+[[nodiscard]] bool apply_rgb_curve_field(DevelopParams &params, std::string_view name,
+                                         double value) noexcept;
+[[nodiscard]] bool reset_rgb_curve_field(DevelopParams &params, std::string_view name) noexcept;
+[[nodiscard]] bool reset_rgb_levels_field(DevelopParams &params, std::string_view name) noexcept;
+[[nodiscard]] bool exact_develop_integer(double value, std::int64_t minimum,
+                                         std::int64_t maximum, std::int64_t &parsed) noexcept;
+[[nodiscard]] bool assign_color_harmonizer_hue_turns(double &target, double degrees) noexcept;
+[[nodiscard]] bool apply_color_harmonizer_field(DevelopParams &params, std::string_view name,
+                                                double value) noexcept;
+[[nodiscard]] bool reset_color_harmonizer_field(DevelopParams &params,
+                                                std::string_view name) noexcept;
+void clamp_color_harmonizer(ColorHarmonizerParams &params) noexcept;
+void append_develop_numeric_field_names(std::vector<std::string> &names);
+[[nodiscard]] bool assign_develop_field(DevelopParams &params, std::string_view name,
+                                        double value);
+[[nodiscard]] bool develop_set_field_accepts(std::string_view name, double value);
+[[nodiscard]] std::optional<double> first_accepted_develop_set_value(std::string_view name);
+[[nodiscard]] double develop_set_field_extreme(std::string_view name, double seed,
+                                               double direction, bool integer);
+[[nodiscard]] std::vector<std::string> candidate_develop_set_names();
+
 } // namespace ravo::develop_internal

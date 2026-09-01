@@ -6,25 +6,11 @@
   "line_limit": 2000,
   "debt": [
     {
-      "path": "Ravo/recipe/src/develop.cpp",
-      "baseline_lines": 7223,
-      "classification": "production",
-      "owner": "Recipe Develop schema, fields, clamp, and serialization",
-      "removal_phase": "G2 Recipe decomposition"
-    },
-    {
       "path": "Ravo/adapters/src/legacy_xmp.cpp",
       "baseline_lines": 5440,
       "classification": "production",
       "owner": "Strict legacy XMP import adapter",
       "removal_phase": "G4 adapter decomposition"
-    },
-    {
-      "path": "Ravo/desktop/src/studio_develop.cpp",
-      "baseline_lines": 4649,
-      "classification": "production",
-      "owner": "Studio Develop presenter",
-      "removal_phase": "G3 desktop decomposition"
     },
     {
       "path": "Ravo/adapters/src/sqlite_catalog.cpp",
@@ -55,13 +41,6 @@
       "removal_phase": "G5 engine decomposition"
     },
     {
-      "path": "Ravo/desktop/src/studio_presenter.cpp",
-      "baseline_lines": 3223,
-      "classification": "production",
-      "owner": "Studio catalog, library, browse, and review presenter",
-      "removal_phase": "G3 desktop decomposition"
-    },
-    {
       "path": "Ravo/engine/src/raw_pipeline.cpp",
       "baseline_lines": 2934,
       "classification": "production",
@@ -70,7 +49,7 @@
     },
     {
       "path": "Ravo/desktop/src/studio_command_controller.cpp",
-      "baseline_lines": 3007,
+      "baseline_lines": 2899,
       "classification": "production",
       "owner": "Studio command registry and dispatch",
       "removal_phase": "G3 desktop decomposition"

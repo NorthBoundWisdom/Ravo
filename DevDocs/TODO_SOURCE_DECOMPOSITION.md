@@ -22,8 +22,7 @@ production source debt remains to be removed.
 
 | Gate | Unfinished work | Acceptance gate |
 | --- | --- | --- |
-| G2 | Split recipe parsing, validation, clamping, fields, sections, geometry, and legacy interchange | Recipe tests and full size checks pass |
-| G3 | Split desktop presenter, Develop state/tools, command controller, and `DevelopPanel.qml` sections | Desktop C++ tests, QML contract/load tests, translation validation, and size checks pass |
+| G3 | Split the remaining command controller registry/dispatch and `DevelopPanel.qml` sections | Desktop C++ tests, QML contract/load tests, translation validation, and size checks pass |
 | G4 | Split legacy XMP, SQLite catalog, and raster adapter implementations by responsibility | Adapter/catalog tests and size checks pass |
 | G5 | Split image operations, RAW pipeline, and capability operations | Engine tests and size checks pass |
 | G6 | Split CLI application, domain types, and catalog service | CLI/service/domain tests and size checks pass |

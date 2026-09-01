@@ -73,4 +73,57 @@ void add_operation(Recipe &recipe, std::string id, std::string instance_id,
                                  std::move(parameters), std::move(mask_id)});
 }
 
+bool bands_near_zero(const std::array<double, kColorEqualizerBandCount> &values) noexcept
+{
+    for (const double value : values)
+    {
+        if (!near(value, 0.0))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void make_studio_color_zones_curves(ColorZonesParams &params)
+{
+    for (auto &curve : params.curves)
+    {
+        curve.points.clear();
+        curve.points.reserve(kColorEqualizerBandCount);
+        for (std::size_t index = 0U; index < kColorEqualizerBandCount; ++index)
+        {
+            curve.points.push_back(
+                {static_cast<double>(index) / static_cast<double>(kColorEqualizerBandCount), 0.5});
+        }
+        curve.interpolation = ColorZonesInterpolation::kMonotoneHermite;
+    }
+}
+
+bool studio_color_zones_curves(const ColorZonesParams &params) noexcept
+{
+    return std::all_of(params.curves.begin(), params.curves.end(), [](const ColorZonesCurve &curve)
+                       { return curve.points.size() == kColorEqualizerBandCount; });
+}
+
+ParameterValue band_array_parameter(
+    const std::array<double, kColorEqualizerBandCount> &values)
+{
+    ParameterValue::Array array;
+    array.reserve(values.size());
+    for (const double value : values)
+    {
+        array.push_back(ParameterValue{value});
+    }
+    return ParameterValue{std::move(array)};
+}
+
+std::array<std::string_view, 7> rgb_levels_preserve_names() noexcept
+{
+    return {kToneCurvePreserveColorsNone, kToneCurvePreserveColorsLuminance,
+            kToneCurvePreserveColorsMax,  kToneCurvePreserveColorsAverage,
+            kToneCurvePreserveColorsSum,  kToneCurvePreserveColorsNorm,
+            kToneCurvePreserveColorsPower};
+}
+
 } // namespace ravo::develop_internal

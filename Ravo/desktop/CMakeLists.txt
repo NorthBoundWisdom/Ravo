@@ -16,14 +16,24 @@ target_sources(ravo_desktop
     src/import_candidate_list_model.cpp
     src/preview_request_owner.cpp
     src/studio_command_controller.cpp
+    src/studio_command_internal.cpp
     src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
     src/studio_live_session_controller.cpp
     src/studio_presenter.cpp
+    src/studio_presenter_export.cpp
+    src/studio_presenter_selection.cpp
     src/studio_import.cpp
     src/studio_recovery.cpp
     src/studio_preview.cpp
     src/studio_develop.cpp
+    src/studio_develop_color_properties.cpp
+    src/studio_develop_commands.cpp
+    src/studio_develop_history.cpp
+    src/studio_develop_internal.cpp
+    src/studio_develop_properties.cpp
+    src/studio_develop_raw_properties.cpp
+    src/studio_develop_work.cpp
     src/export_option_conversion.cpp
     include/ravo/desktop/asset_list_model.h
     include/ravo/desktop/export_option_conversion.h
