@@ -15,6 +15,8 @@ target_sources(ravo_recipe
     src/lut3d.cpp
     src/monochrome.cpp
     src/develop_mask.cpp
+    src/develop_internal.cpp
+    src/develop_legacy.cpp
     src/profile_gamma.cpp
     src/primaries.cpp
     src/operation.cpp
@@ -23,6 +25,11 @@ target_sources(ravo_recipe
     src/recipe.cpp
     src/retouch.cpp
     src/develop.cpp
+    src/develop_channel_mixer.cpp
+    src/develop_color_balance_rgb.cpp
+    src/develop_curves.cpp
+    src/develop_legacy_color_balance.cpp
+    src/develop_temperature.cpp
     src/dehaze.cpp
     src/sharpen.cpp
     src/split_toning.cpp

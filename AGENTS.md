@@ -137,6 +137,15 @@ Until their definition of “Ravo accepted” is reached, do not modify `legacy/
 
 ## Implementation principles
 
+- First-party Ravo `.cpp` and production `.qml` files have a hard 2,000-line
+  limit enforced by `configs/check_translation_unit_size.py` and
+  `configs/check_qml_file_size.py`. Registered debt may shrink but never grow;
+  remove its manifest entry in the same change that brings it within the limit.
+  New split files target at most 1,500 lines. Do not move implementation into
+  headers or `.inc` files to evade the checks.
+- Test splits preserve ordered GoogleTest case identities, enabled state, and
+  target membership through `configs/check_test_split_inventory.py`. Moving a
+  test is not permission to rename, disable, or weaken it.
 - This project has no default obligation to preserve darktable's historic
   plugins, Lua, old formats, or old UI ABI. Do not add empty shells,
   compatibility switches, or migration shims for explicitly removed

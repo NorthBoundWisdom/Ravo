@@ -23,6 +23,7 @@ The following are separate owners and are not folded into `DevDocs/`:
 | [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md) | Paused legacy absorption and retirement execution queue |
 | [TODO_GALLERY_PERFORMANCE.md](TODO_GALLERY_PERFORMANCE.md) | Release measurements and gated Gallery concurrency/cache candidates |
 | [TODO_PRO_WORKFLOW.md](TODO_PRO_WORKFLOW.md) | Ranked Lightroom/Capture One user-outcome gaps; not independently ready |
+| [TODO_SOURCE_DECOMPOSITION.md](TODO_SOURCE_DECOMPOSITION.md) | Active source-size debt removal and split-integrity execution queue |
 | [ProductRoadmap.md](ProductRoadmap.md) | Cross-layer product decisions not ready for a TODO |
 | [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history |
 

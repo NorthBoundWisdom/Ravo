@@ -308,6 +308,25 @@ probe rather than a pass.
 
 ## Test framework and target boundaries
 
+### Source-size and split integrity
+
+First-party Ravo `.cpp` and production `.qml` files have a 2,000-line limit.
+`configs/translation_unit_size_budget.jsonc` and
+`configs/qml_file_size_budget.jsonc` register existing debt: a registered file
+may shrink but cannot grow, a new oversized file is rejected, and a debt entry
+must be removed once its file reaches the limit. New split files target at most
+1,500 lines; QML section components target at most 1,000 lines.
+
+`configs/test_split_inventory.jsonc` freezes the ordered GoogleTest case
+inventory and target membership of test files being decomposed. Splitting may
+move a case between listed source files, but cannot rename, disable, reorder, or
+move it to another target. Run all three repository checks and their self-tests
+through:
+
+```text
+cmake --build --preset mac_clang_debug --target RavoCodeQuality
+```
+
 All Ravo C++ unit, contract, and integration tests use GoogleTest; GoogleMock
 may be used where port interaction requires it. CMocka belongs only to frozen
 `src/tests` and must not link Ravo targets. Test dependencies are discovered

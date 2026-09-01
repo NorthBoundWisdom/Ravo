@@ -1,0 +1,68 @@
+{
+  // Ordered gtest identities and target membership are frozen before G1 moves any case.
+  "schema_version": 1,
+  "groups": [
+    {
+      "sources": [
+        "Ravo/tests/engine_test.cpp",
+        "Ravo/tests/engine_raw_test.cpp",
+        "Ravo/tests/engine_color_test.cpp",
+        "Ravo/tests/engine_dt_ucs_test.cpp",
+        "Ravo/tests/engine_harmony_geometry_test.cpp",
+        "Ravo/tests/engine_color_harmonizer_test.cpp",
+        "Ravo/tests/engine_color_harmonizer_smoothing_test.cpp",
+        "Ravo/tests/engine_harmony_contrast_test.cpp",
+        "Ravo/tests/engine_color_grading_test.cpp",
+        "Ravo/tests/engine_controls_test.cpp",
+        "Ravo/tests/engine_detail_test.cpp",
+        "Ravo/tests/engine_raw_reference_test.cpp"
+      ],
+      "case_count": 125,
+      "case_sha256": "c8590b25d8451716e7d587a018410f932f777af8fab8de2bedd53fe42cbe4b0f"
+    },
+    {
+      "sources": [
+        "Ravo/tests/catalog_test.cpp",
+        "Ravo/tests/catalog_recovery_test.cpp",
+        "Ravo/tests/catalog_library_test.cpp",
+        "Ravo/tests/catalog_recipe_test.cpp",
+        "Ravo/tests/catalog_develop_test.cpp",
+        "Ravo/tests/catalog_capture_test.cpp",
+        "Ravo/tests/catalog_import_test.cpp"
+      ],
+      "case_count": 126,
+      "case_sha256": "cb06643d51c623177fb4c50ce68f43f823ce7d8e7ea4a741c63acfae88ba5157"
+    },
+    {
+      "sources": [
+        "Ravo/tests/cli_test.cpp",
+        "Ravo/tests/cli_recipe_test.cpp",
+        "Ravo/tests/cli_legacy_xmp_test.cpp",
+        "Ravo/tests/cli_catalog_test.cpp",
+        "Ravo/tests/cli_studio_test.cpp",
+        "Ravo/tests/cli_lut_test.cpp"
+      ],
+      "case_count": 62,
+      "case_sha256": "54651136ec1ea3329c3d0303f2648433edcc03b2b34a66c750e831bfe9541fdc"
+    },
+    {
+      "sources": [
+        "Ravo/tests/studio_command_test.cpp",
+        "Ravo/tests/studio_presenter_test.cpp",
+        "Ravo/tests/studio_qml_contract_test.cpp",
+        "Ravo/tests/studio_live_control_test.cpp"
+      ],
+      "case_count": 86,
+      "case_sha256": "189d3cb5aec9034e91b72f70ed18e209b649035ed3261147b12bc496812aa8b1"
+    },
+    {
+      "sources": [
+        "Ravo/tests/recipe_test.cpp",
+        "Ravo/tests/recipe_develop_test.cpp",
+        "Ravo/tests/recipe_style_test.cpp"
+      ],
+      "case_count": 59,
+      "case_sha256": "2d6ec5c510be776e8cdb792338cff9cfba93716eaf08b9375f2814fdfbccd357"
+    }
+  ]
+}

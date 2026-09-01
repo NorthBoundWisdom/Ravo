@@ -10,10 +10,20 @@ function(ravo_add_repository_check name script)
   set_tests_properties(${name} PROPERTIES LABELS "ravo-contract")
 endfunction()
 
+function(ravo_add_root_repository_check name script)
+  add_test(
+    NAME ${name}
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/configs/${script}"
+      --repository-root "${CMAKE_SOURCE_DIR}" ${ARGN})
+  set_tests_properties(${name} PROPERTIES LABELS "ravo-contract")
+endfunction()
+
 add_executable(ravo_unit_tests
   domain_test.cpp
   foundation_test.cpp
-  recipe_test.cpp)
+  recipe_test.cpp
+  recipe_develop_test.cpp
+  recipe_style_test.cpp)
 target_link_libraries(ravo_unit_tests PRIVATE GTest::gtest_main ravo_domain ravo_recipe)
 target_include_directories(ravo_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 ravo_configure_target(ravo_unit_tests)
@@ -39,7 +49,13 @@ ravo_copy_windows_runtime_dlls(ravo_preview_cache_tests)
 gtest_discover_tests(ravo_preview_cache_tests PROPERTIES LABELS "ravo-unit")
 
 add_executable(ravo_contract_tests
+  cli_test_support.cpp
   cli_test.cpp
+  cli_recipe_test.cpp
+  cli_legacy_xmp_test.cpp
+  cli_catalog_test.cpp
+  cli_studio_test.cpp
+  cli_lut_test.cpp
   crs_xmp_test.cpp
   bayer_demosaic_test.cpp
   canvas_frame_test.cpp
@@ -65,6 +81,17 @@ add_executable(ravo_contract_tests
   watermark_test.cpp
   xtrans_demosaic_test.cpp
   engine_test.cpp
+  engine_raw_test.cpp
+  engine_color_test.cpp
+  engine_dt_ucs_test.cpp
+  engine_harmony_geometry_test.cpp
+  engine_color_harmonizer_test.cpp
+  engine_color_harmonizer_smoothing_test.cpp
+  engine_harmony_contrast_test.cpp
+  engine_color_grading_test.cpp
+  engine_controls_test.cpp
+  engine_detail_test.cpp
+  engine_raw_reference_test.cpp
   input_color_test.cpp
   jpeg_cli_test.cpp
   output_color_test.cpp
@@ -90,7 +117,14 @@ gtest_discover_tests(ravo_contract_tests
   PROPERTIES LABELS "ravo-contract")
 
 add_executable(ravo_catalog_tests
+  catalog_test_support.cpp
   catalog_test.cpp
+  catalog_recovery_test.cpp
+  catalog_library_test.cpp
+  catalog_recipe_test.cpp
+  catalog_develop_test.cpp
+  catalog_capture_test.cpp
+  catalog_import_test.cpp
   jpeg_adapter_test.cpp
   runtime_dependency_test.cpp)
 target_link_libraries(ravo_catalog_tests
@@ -322,6 +356,9 @@ gtest_discover_tests(ravo_original_copy_cli_tests
 
 add_executable(ravo_desktop_command_tests
   studio_command_test.cpp
+  studio_presenter_test.cpp
+  studio_qml_contract_test.cpp
+  studio_live_control_test.cpp
   studio_assistant_test.cpp
   export_option_conversion_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
@@ -365,3 +402,48 @@ ravo_add_repository_check(ravo_dependency_boundary check_ravo_dependency_boundar
 ravo_add_repository_check(ravo_vertical_slice_plan check_vertical_slice_plan.py)
 ravo_add_repository_check(ravo_fixture_classification_ledger check_fixture_classification_ledger.py)
 ravo_add_repository_check(ravo_freeze_reference check_freeze_reference.py)
+
+add_test(
+  NAME ravo_repo_check_utils_tests
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/configs/test_repo_check_utils.py" -q)
+add_test(
+  NAME ravo_translation_unit_size_checker_tests
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/configs/test_check_translation_unit_size.py" -q)
+add_test(
+  NAME ravo_qml_file_size_checker_tests
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/configs/test_check_qml_file_size.py" -q)
+add_test(
+  NAME ravo_test_split_inventory_checker_tests
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/configs/test_check_test_split_inventory.py" -q)
+set_tests_properties(
+  ravo_repo_check_utils_tests
+  ravo_translation_unit_size_checker_tests
+  ravo_qml_file_size_checker_tests
+  ravo_test_split_inventory_checker_tests
+  PROPERTIES LABELS "ravo-contract")
+
+ravo_add_root_repository_check(ravo_translation_unit_size check_translation_unit_size.py)
+ravo_add_root_repository_check(ravo_qml_file_size check_qml_file_size.py)
+ravo_add_root_repository_check(ravo_test_split_inventory check_test_split_inventory.py)
+
+add_custom_target(RavoCodeQuality
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/configs/test_repo_check_utils.py" -q
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/configs/test_check_translation_unit_size.py" -q
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/configs/check_translation_unit_size.py"
+    --repository-root "${CMAKE_SOURCE_DIR}"
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/configs/test_check_qml_file_size.py" -q
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/configs/check_qml_file_size.py"
+    --repository-root "${CMAKE_SOURCE_DIR}"
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/configs/test_check_test_split_inventory.py" -q
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/configs/check_test_split_inventory.py"
+    --repository-root "${CMAKE_SOURCE_DIR}"
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  USES_TERMINAL)

@@ -182,6 +182,9 @@ constraint.
 
 ## Validation and delivery
 
+- Run the `RavoCodeQuality` target after adding or splitting C++ translation
+  units or production QML. Keep registered size debt shrinking and preserve the
+  frozen test-case inventory and target membership while splitting tests.
 - On Windows, new project helpers use only Python or PowerShell; do not add an
   old application runner. CMake/MSVC configures and compiles only `Ravo/`
   targets.
