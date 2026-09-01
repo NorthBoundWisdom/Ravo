@@ -1,4 +1,4 @@
-pragma Translator: "DevelopPanel"
+pragma Translator: DevelopPanel
 
 import QtQuick
 import QtQuick.Controls
@@ -81,7 +81,9 @@ ColumnLayout {
                     "field": "colorCheckerTargetB"
                 }
             ]
-            delegate: ColorCheckerNumberField { panel: groupRoot.panel }
+            delegate: ColorCheckerNumberField {
+                panel: groupRoot.panel
+            }
         }
         CustomButton {
             text: qsTr("Disable and reset color look-up table")
@@ -471,7 +473,9 @@ ColumnLayout {
                     "field": "colorContrastBOffset"
                 }
             ]
-            delegate: ColorContrastOffsetField { panel: groupRoot.panel }
+            delegate: ColorContrastOffsetField {
+                panel: groupRoot.panel
+            }
         }
         RowLayout {
             Layout.fillWidth: true

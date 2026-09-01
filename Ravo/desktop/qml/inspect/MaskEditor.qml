@@ -1,4 +1,4 @@
-pragma Translator: "DevelopPanel"
+pragma Translator: DevelopPanel
 
 import QtQuick
 import QtQuick.Controls
@@ -6,8 +6,8 @@ import QtQuick.Layouts
 import GeoControls 1.0
 
 ColumnLayout {
-    required property var panel
     id: maskEditor
+    required property var panel
     required property var mask
     Layout.fillWidth: true
     spacing: Fonts.smallSpacing
@@ -137,8 +137,8 @@ ColumnLayout {
         checked: panel.hasPresenter && panel.presenter.maskPlaceActive && panel.presenter.maskOverlayVisible && panel.presenter.maskOverlayTarget === maskEditor.mask.target
         onToggled: if (panel.hasPresenter && panel.commands) {
             if (checked)
-                panel.presenter.setMaskOverlay(maskEditor.mask.target, true)
-            panel.commands.setMaskPlaceActive(checked)
+                panel.presenter.setMaskOverlay(maskEditor.mask.target, true);
+            panel.commands.setMaskPlaceActive(checked);
         }
     }
     CustomLabel {

@@ -34,8 +34,7 @@ Popup {
             commandList.currentIndex = -1;
             return;
         }
-        commandList.currentIndex = Math.max(0, Math.min(commandList.count - 1,
-                                                        commandList.currentIndex + delta));
+        commandList.currentIndex = Math.max(0, Math.min(commandList.count - 1, commandList.currentIndex + delta));
         commandList.positionViewAtIndex(commandList.currentIndex, ListView.Contain);
     }
 
@@ -61,7 +60,9 @@ Popup {
     onOpened: {
         search.text = "";
         commandList.currentIndex = commandList.count > 0 ? 0 : -1;
-        Qt.callLater(function () { search.forceActiveFocus(); });
+        Qt.callLater(function () {
+            search.forceActiveFocus();
+        });
     }
     onClosed: {
         if (controller && controller.paletteOpen)
@@ -154,7 +155,9 @@ Popup {
             model: root.controller ? root.controller.paletteEntries : []
             currentIndex: count > 0 ? 0 : -1
             highlightMoveDuration: 60
-            highlight: Rectangle { color: Theme.buttonHoveredColor }
+            highlight: Rectangle {
+                color: Theme.buttonHoveredColor
+            }
 
             delegate: Item {
                 id: row

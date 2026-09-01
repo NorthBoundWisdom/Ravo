@@ -1,4 +1,4 @@
-pragma Translator: "DevelopPanel"
+pragma Translator: DevelopPanel
 
 import QtQuick
 import QtQuick.Controls
@@ -95,7 +95,9 @@ DevelopSection {
                     "decimals": 2
                 }
             ]
-            delegate: PrimariesSlider { panel: sectionRoot.panel }
+            delegate: PrimariesSlider {
+                panel: sectionRoot.panel
+            }
         }
     }
 }

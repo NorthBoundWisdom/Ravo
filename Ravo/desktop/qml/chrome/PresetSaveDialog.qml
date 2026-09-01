@@ -135,9 +135,7 @@ DialogShell {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             color: Theme.placeholderTextColor
-            text: root.presetMode ?
-                      qsTr("Choose which modified parameters this preset will apply. Nothing is selected by default.") :
-                      qsTr("Choose which modified parameters to copy. Nothing is selected by default.")
+            text: root.presetMode ? qsTr("Choose which modified parameters this preset will apply. Nothing is selected by default.") : qsTr("Choose which modified parameters to copy. Nothing is selected by default.")
         }
 
         RowLayout {
@@ -174,8 +172,7 @@ DialogShell {
             id: parameterList
             objectName: "presetParameterList"
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(320, Math.max(Fonts.listItemHeight * 3,
-                                                           parameterModel.count * Fonts.listItemHeight))
+            Layout.preferredHeight: Math.min(320, Math.max(Fonts.listItemHeight * 3, parameterModel.count * Fonts.listItemHeight))
             visible: parameterModel.count > 0
             clip: true
             spacing: Fonts.size2

@@ -557,8 +557,8 @@ Rectangle {
                     Layout.fillWidth: true
                     text: qsTr("Collection")
                     onClicked: if (root.commands) {
-                        const name = newSetNameField.text.trim().length > 0 ? newSetNameField.text.trim() : qsTr("Collection")
-                        root.commands.run(root.commands.ids.libraryCreateManualSet, name)
+                        const name = newSetNameField.text.trim().length > 0 ? newSetNameField.text.trim() : qsTr("Collection");
+                        root.commands.run(root.commands.ids.libraryCreateManualSet, name);
                     }
                 }
                 CustomButton {
@@ -566,8 +566,8 @@ Rectangle {
                     Layout.fillWidth: true
                     text: qsTr("Smart")
                     onClicked: if (root.commands) {
-                        const name = newSetNameField.text.trim().length > 0 ? newSetNameField.text.trim() : qsTr("Smart Collection")
-                        root.commands.run(root.commands.ids.libraryCreateSmartSet, name)
+                        const name = newSetNameField.text.trim().length > 0 ? newSetNameField.text.trim() : qsTr("Smart Collection");
+                        root.commands.run(root.commands.ids.libraryCreateSmartSet, name);
                     }
                 }
             }
@@ -630,12 +630,12 @@ Rectangle {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: function (mouse) {
                             if (!root.commands)
-                                return
+                                return;
                             if (mouse.button === Qt.RightButton) {
-                                setMenu.popup()
-                                return
+                                setMenu.popup();
+                                return;
                             }
-                            root.commands.run(root.commands.ids.librarySelectSet, setRow.setId)
+                            root.commands.run(root.commands.ids.librarySelectSet, setRow.setId);
                         }
                     }
 

@@ -70,16 +70,16 @@ Rectangle {
                 model: root.languageManager ? root.languageManager.languageOptions : []
                 currentIndex: {
                     if (!root.languageManager)
-                        return -1
+                        return -1;
                     for (let index = 0; index < model.length; ++index) {
                         if (model[index].code === root.languageManager.language)
-                            return index
+                            return index;
                     }
-                    return -1
+                    return -1;
                 }
                 onActivated: function (index) {
                     if (root.languageManager && index >= 0)
-                        root.languageManager.setLanguage(model[index].code)
+                        root.languageManager.setLanguage(model[index].code);
                 }
             }
         }

@@ -1,4 +1,4 @@
-pragma Translator: "DevelopPanel"
+pragma Translator: DevelopPanel
 
 import QtQuick
 import QtQuick.Controls
@@ -28,13 +28,6 @@ ColumnLayout {
                 root.commands.setDevelopText("lut3dFile", filePath);
         }
     }
-
-
-
-
-
-
-
 
     CustomLabel {
         Layout.leftMargin: Fonts.standardMargin

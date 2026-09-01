@@ -1,4 +1,4 @@
-pragma Translator: "DevelopPanel"
+pragma Translator: DevelopPanel
 
 import QtQuick
 import QtQuick.Controls
@@ -6,8 +6,8 @@ import QtQuick.Layouts
 import GeoControls 1.0
 
 CustomSlider {
-    required property var panel
     id: mixer
+    required property var panel
     required property string inputChannel
     property string fieldName
     property double currentValue: 0

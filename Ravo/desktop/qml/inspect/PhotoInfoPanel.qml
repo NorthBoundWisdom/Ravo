@@ -28,101 +28,101 @@ ColumnLayout {
         enabled: root.hasSelection
     }
 
-            CustomLabel {
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.topMargin: Fonts.size12
-                text: qsTr("Photo")
-                font.bold: true
-            }
+    CustomLabel {
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.topMargin: Fonts.size12
+        text: qsTr("Photo")
+        font.bold: true
+    }
 
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                wrapMode: Text.WrapAnywhere
-                elide: Text.ElideMiddle
-                text: root.presenter && root.presenter.selectedDisplayName.length ? root.presenter.selectedDisplayName : qsTr("No photo selected")
-            }
+    CustomLabel {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.rightMargin: Fonts.standardMargin
+        wrapMode: Text.WrapAnywhere
+        elide: Text.ElideMiddle
+        text: root.presenter && root.presenter.selectedDisplayName.length ? root.presenter.selectedDisplayName : qsTr("No photo selected")
+    }
 
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                wrapMode: Text.WrapAnywhere
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("Folder"), root.presenter ? root.presenter.selectedFolderPath : "")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("Type"), root.presenter ? root.presenter.selectedMediaType : "")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("Size"), root.presenter ? root.presenter.selectedDimensions : "")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("File"), root.presenter ? root.presenter.selectedFileSize : "")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                color: Theme.placeholderTextColor
-                text: root.presenter && root.presenter.selectedHasEdits ? qsTr("Edited") : qsTr("No edits")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                wrapMode: Text.WrapAnywhere
-                color: Theme.placeholderTextColor
-                font.pixelSize: Fonts.size10
-                text: root.presenter ? root.presenter.selectedUri : ""
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                wrapMode: Text.Wrap
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("Capture"), root.presenter ? root.presenter.selectedCaptureSummary : "")
-            }
+    CustomLabel {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.rightMargin: Fonts.standardMargin
+        wrapMode: Text.WrapAnywhere
+        color: Theme.placeholderTextColor
+        text: root.infoRow(qsTr("Folder"), root.presenter ? root.presenter.selectedFolderPath : "")
+    }
+    CustomLabel {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        color: Theme.placeholderTextColor
+        text: root.infoRow(qsTr("Type"), root.presenter ? root.presenter.selectedMediaType : "")
+    }
+    CustomLabel {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        color: Theme.placeholderTextColor
+        text: root.infoRow(qsTr("Size"), root.presenter ? root.presenter.selectedDimensions : "")
+    }
+    CustomLabel {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        color: Theme.placeholderTextColor
+        text: root.infoRow(qsTr("File"), root.presenter ? root.presenter.selectedFileSize : "")
+    }
+    CustomLabel {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        color: Theme.placeholderTextColor
+        text: root.presenter && root.presenter.selectedHasEdits ? qsTr("Edited") : qsTr("No edits")
+    }
+    CustomLabel {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.rightMargin: Fonts.standardMargin
+        wrapMode: Text.WrapAnywhere
+        color: Theme.placeholderTextColor
+        font.pixelSize: Fonts.size10
+        text: root.presenter ? root.presenter.selectedUri : ""
+    }
+    CustomLabel {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.rightMargin: Fonts.standardMargin
+        wrapMode: Text.Wrap
+        color: Theme.placeholderTextColor
+        text: root.infoRow(qsTr("Capture"), root.presenter ? root.presenter.selectedCaptureSummary : "")
+    }
 
-            CustomLabel {
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.topMargin: Fonts.size8
-                text: qsTr("Tags & Metadata")
-                font.bold: true
-            }
+    CustomLabel {
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.topMargin: Fonts.size8
+        text: qsTr("Tags & Metadata")
+        font.bold: true
+    }
 
-            MetaField {
-                placeholderText: qsTr("tags, comma separated")
-                text: root.hasPresenter ? root.presenter.selectedTags : ""
-                onEditingFinished: if (root.commands)
-                    root.commands.setTags(text)
-            }
-            MetaField {
-                placeholderText: qsTr("Title")
-                text: root.hasPresenter ? root.presenter.selectedTitle : ""
-                onEditingFinished: if (root.commands)
-                    root.commands.setMetadata("title", text)
-            }
-            MetaField {
-                placeholderText: qsTr("Creator")
-                text: root.hasPresenter ? root.presenter.selectedCreator : ""
-                onEditingFinished: if (root.commands)
-                    root.commands.setMetadata("creator", text)
-            }
-            MetaField {
-                placeholderText: qsTr("Copyright")
-                text: root.hasPresenter ? root.presenter.selectedCopyright : ""
-                onEditingFinished: if (root.commands)
-                    root.commands.setMetadata("copyright", text)
-            }
+    MetaField {
+        placeholderText: qsTr("tags, comma separated")
+        text: root.hasPresenter ? root.presenter.selectedTags : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setTags(text)
+    }
+    MetaField {
+        placeholderText: qsTr("Title")
+        text: root.hasPresenter ? root.presenter.selectedTitle : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("title", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Creator")
+        text: root.hasPresenter ? root.presenter.selectedCreator : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("creator", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Copyright")
+        text: root.hasPresenter ? root.presenter.selectedCopyright : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("copyright", text)
+    }
 }

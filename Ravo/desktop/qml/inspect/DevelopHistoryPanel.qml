@@ -19,12 +19,12 @@ ColumnLayout {
         }
         if (root.hasSelection) {
             out.push({
-                         "id": 0,
-                         "seq": 0,
-                         "kind": "history",
-                         "label": "",
-                         "summary": qsTr("Original")
-                     });
+                "id": 0,
+                "seq": 0,
+                "kind": "history",
+                "label": "",
+                "summary": qsTr("Original")
+            });
         }
         return out;
     }
@@ -257,8 +257,7 @@ ColumnLayout {
     ListView {
         id: snapshotList
         Layout.fillWidth: true
-        Layout.preferredHeight: Math.min(root.snapshotEntries.length * Fonts.listItemHeight,
-                                         Fonts.scaledUiSize(180))
+        Layout.preferredHeight: Math.min(root.snapshotEntries.length * Fonts.listItemHeight, Fonts.scaledUiSize(180))
         Layout.maximumHeight: Fonts.scaledUiSize(180)
         Layout.leftMargin: Fonts.size8
         Layout.rightMargin: Fonts.size8
@@ -303,8 +302,7 @@ ColumnLayout {
             Layout.minimumWidth: 0
             objectName: "copyParametersButton"
             text: qsTr("Copy Parameters")
-            enabled: root.hasPresenter && root.presenter.modifiedParameterChoices.length > 0 &&
-                     root.hasSelection && root.commands
+            enabled: root.hasPresenter && root.presenter.modifiedParameterChoices.length > 0 && root.hasSelection && root.commands
             onClicked: if (root.commands)
                 root.commands.copyParameters.trigger()
         }
@@ -314,8 +312,7 @@ ColumnLayout {
             Layout.minimumWidth: 0
             objectName: "pasteParametersButton"
             text: qsTr("Paste Parameters")
-            enabled: root.hasPresenter && root.presenter.hasCopiedParameters && root.hasSelection &&
-                     root.commands
+            enabled: root.hasPresenter && root.presenter.hasCopiedParameters && root.hasSelection && root.commands
             onClicked: if (root.commands)
                 root.commands.pasteParameters.trigger()
         }

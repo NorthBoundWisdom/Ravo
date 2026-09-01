@@ -1,4 +1,4 @@
-pragma Translator: "DevelopPanel"
+pragma Translator: DevelopPanel
 
 import QtQuick
 import QtQuick.Controls
@@ -6,8 +6,8 @@ import QtQuick.Layouts
 import GeoControls 1.0
 
 CustomEditPanel {
-    required property var panel
     id: sectionPanel
+    required property var panel
     showAddButton: false
     showDeleteButton: false
     showApplyButton: false

@@ -65,12 +65,17 @@ Item {
     function setRatingExact(value) {
         if (!root.commands)
             return;
-        const already = root.hasPresenter && root.presenter.ratingFilterMode === "exact" &&
-                        root.presenter.ratingFilterValue === value;
+        const already = root.hasPresenter && root.presenter.ratingFilterMode === "exact" && root.presenter.ratingFilterValue === value;
         if (already)
-            root.commands.run(root.commands.ids.librarySetRatingFilter, {"mode": "any", "value": 0});
+            root.commands.run(root.commands.ids.librarySetRatingFilter, {
+                "mode": "any",
+                "value": 0
+            });
         else
-            root.commands.run(root.commands.ids.librarySetRatingFilter, {"mode": "exact", "value": value});
+            root.commands.run(root.commands.ids.librarySetRatingFilter, {
+                "mode": "exact",
+                "value": value
+            });
     }
 
     function ratingStarActive(star) {
@@ -83,9 +88,7 @@ Item {
         return false;
     }
 
-    readonly property bool ratingUnratedActive: root.hasPresenter &&
-                                                root.presenter.ratingFilterMode === "exact" &&
-                                                root.presenter.ratingFilterValue === 0
+    readonly property bool ratingUnratedActive: root.hasPresenter && root.presenter.ratingFilterMode === "exact" && root.presenter.ratingFilterValue === 0
 
     component FilterCloseButton: CustomButton {
         display: AbstractButton.IconOnly
@@ -222,10 +225,7 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.preferredWidth: 105
                         model: [qsTr("Any type"), qsTr("RAW"), qsTr("JPEG"), qsTr("PNG"), qsTr("TIFF")]
-                        currentIndex: root.hasPresenter && root.presenter.mediaFilter === "raw" ? 1
-                                      : root.hasPresenter && root.presenter.mediaFilter === "jpeg" ? 2
-                                      : root.hasPresenter && root.presenter.mediaFilter === "png" ? 3
-                                      : root.hasPresenter && root.presenter.mediaFilter === "tiff" ? 4 : 0
+                        currentIndex: root.hasPresenter && root.presenter.mediaFilter === "raw" ? 1 : root.hasPresenter && root.presenter.mediaFilter === "jpeg" ? 2 : root.hasPresenter && root.presenter.mediaFilter === "png" ? 3 : root.hasPresenter && root.presenter.mediaFilter === "tiff" ? 4 : 0
                         onActivated: function (index) {
                             if (root.commands)
                                 root.commands.setMediaFilter(["any", "raw", "jpeg", "png", "tiff"][index]);
@@ -244,8 +244,7 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.preferredWidth: 115
                         model: [qsTr("Any edits"), qsTr("Edited"), qsTr("Unedited")]
-                        currentIndex: root.hasPresenter && root.presenter.editFilter === "edited" ? 1
-                                      : root.hasPresenter && root.presenter.editFilter === "unedited" ? 2 : 0
+                        currentIndex: root.hasPresenter && root.presenter.editFilter === "edited" ? 1 : root.hasPresenter && root.presenter.editFilter === "unedited" ? 2 : 0
                         onActivated: function (index) {
                             if (root.commands)
                                 root.commands.setEditFilter(index === 1 ? "edited" : (index === 2 ? "unedited" : "any"));
@@ -291,12 +290,10 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.preferredWidth: 120
                         model: [qsTr("Include"), qsTr("Exclude"), qsTr("Only")]
-                        currentIndex: root.hasPresenter && root.presenter.rejectFilter === "exclude" ? 1
-                                      : root.hasPresenter && root.presenter.rejectFilter === "only" ? 2 : 0
+                        currentIndex: root.hasPresenter && root.presenter.rejectFilter === "exclude" ? 1 : root.hasPresenter && root.presenter.rejectFilter === "only" ? 2 : 0
                         onActivated: function (index) {
                             if (root.commands)
-                                root.commands.run(root.commands.ids.librarySetRejectFilter,
-                                                  index === 1 ? "exclude" : (index === 2 ? "only" : "include"));
+                                root.commands.run(root.commands.ids.librarySetRejectFilter, index === 1 ? "exclude" : (index === 2 ? "only" : "include"));
                         }
                     }
                     FilterCloseButton {
@@ -310,8 +307,7 @@ Item {
                     display: AbstractButton.IconOnly
                     icon.source: "qrc:/GeoControls/icons/Plus.svg"
                     tooltipText: qsTr("Add filter")
-                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") ||
-                             !root.extraOpen("color") || !root.extraOpen("rejected")
+                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected")
                     implicitWidth: Fonts.iconButtonSize
                     implicitHeight: Fonts.iconButtonSize
                     Layout.preferredWidth: implicitWidth
@@ -378,16 +374,15 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             model: [qsTr("Import time"), qsTr("Capture time"), qsTr("Filename"), qsTr("Rating"), qsTr("File size")]
             Layout.preferredWidth: 140
-            currentIndex: root.hasPresenter && root.presenter.sortField === "captured" ? 1
-                          : root.hasPresenter && root.presenter.sortField === "name" ? 2
-                          : root.hasPresenter && root.presenter.sortField === "rating" ? 3
-                          : root.hasPresenter && root.presenter.sortField === "size" ? 4 : 0
+            currentIndex: root.hasPresenter && root.presenter.sortField === "captured" ? 1 : root.hasPresenter && root.presenter.sortField === "name" ? 2 : root.hasPresenter && root.presenter.sortField === "rating" ? 3 : root.hasPresenter && root.presenter.sortField === "size" ? 4 : 0
             onActivated: function (index) {
                 if (!root.commands || !root.hasPresenter)
                     return;
                 const field = ["imported", "captured", "name", "rating", "size"][index];
-                root.commands.run(root.commands.ids.librarySetSort,
-                                  {"field": field, "direction": root.presenter.sortDirection});
+                root.commands.run(root.commands.ids.librarySetSort, {
+                    "field": field,
+                    "direction": root.presenter.sortDirection
+                });
             }
         }
         CustomButton {
@@ -395,9 +390,9 @@ Item {
             text: root.hasPresenter && root.presenter.sortDirection === "asc" ? qsTr("Asc") : qsTr("Desc")
             onClicked: if (root.commands && root.hasPresenter)
                 root.commands.run(root.commands.ids.librarySetSort, {
-                                      "field": root.presenter.sortField,
-                                      "direction": root.presenter.sortDirection === "asc" ? "desc" : "asc"
-                                  })
+                    "field": root.presenter.sortField,
+                    "direction": root.presenter.sortDirection === "asc" ? "desc" : "asc"
+                })
         }
     }
 }

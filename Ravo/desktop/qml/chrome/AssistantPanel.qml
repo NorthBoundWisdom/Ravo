@@ -173,9 +173,7 @@ Rectangle {
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
                 color: Theme.placeholderTextColor
-                text: root.assistant && root.assistant.configured ?
-                          qsTr("Ask about the selected photo or a Develop edit.") :
-                          qsTr("Set the assistant URL, model, and API key in Settings.")
+                text: root.assistant && root.assistant.configured ? qsTr("Ask about the selected photo or a Develop edit.") : qsTr("Set the assistant URL, model, and API key in Settings.")
             }
 
             onCountChanged: Qt.callLater(function () {
