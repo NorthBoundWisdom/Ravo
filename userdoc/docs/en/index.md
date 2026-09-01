@@ -15,9 +15,11 @@ workflows.
 
 ## Three things to know first
 
-- Import is reference-only. Ravo records the original path and reads the
-  source; it does not copy, move, rename, or rewrite the original during
-  import or editing.
+- Import defaults to **Add**, which records and reads the existing source
+  without changing it. The same workspace can explicitly **Copy** or **Move**
+  into an organized tree, apply a bounded rename template, and write a verified
+  second copy. Move is the only mode that removes source files, and only after
+  every requested copy verifies and the primary path is cataloged.
 - The library is a local SQLite file. Rebuildable preview PNGs live outside
   the database, beside it in a `<catalog>.preview/` directory. Catalog-owned
   recovery JSON lives separately under `<catalog>.ravo/sidecars/`.

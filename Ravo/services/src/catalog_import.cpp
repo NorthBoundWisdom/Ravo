@@ -1,6 +1,7 @@
 #include "ravo/services/catalog_service.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
@@ -23,7 +24,10 @@ struct PlannedImport
     ImportCandidate candidate;
     std::string import_path;
     std::optional<std::string> source_sidecar;
+    std::optional<FileIdentity> source_sidecar_identity;
     std::optional<std::string> destination_sidecar;
+    std::optional<std::string> second_copy_path;
+    std::optional<std::string> second_copy_sidecar;
 };
 
 [[nodiscard]] std::string path_text(const std::filesystem::path &path)
@@ -86,12 +90,56 @@ struct PlannedImport
                            std::optional<std::string>{path_text(found.front())};
 }
 
-void remove_owned_file(const std::optional<std::string> &path)
+[[nodiscard]] bool is_safe_relative_path(const std::filesystem::path &path)
 {
-    if (!path)
-        return;
-    std::error_code ignored;
-    static_cast<void>(std::filesystem::remove(utf8_path(*path), ignored));
+    if (path.empty() || path.is_absolute())
+        return false;
+    return std::ranges::none_of(path, [](const auto &component) { return component == u8".."; });
+}
+
+[[nodiscard]] std::string portable_path_key(std::string value)
+{
+    std::ranges::transform(value, value.begin(),
+                           [](const unsigned char character)
+                           {
+                               return character >= 'A' && character <= 'Z' ?
+                                          static_cast<char>(character - 'A' + 'a') :
+                                          static_cast<char>(character);
+                           });
+    return value;
+}
+
+void annotate_cleanup_failure(TaskError &primary, const std::string_view path,
+                              const std::error_code &error)
+{
+    if (!primary.context.contains("cleanup_path"))
+    {
+        primary.context.emplace("cleanup_path", std::string(path));
+        primary.context.emplace("cleanup_detail", error.message());
+    }
+    primary.context.insert_or_assign("cleanup_failed", "true");
+}
+
+void remove_owned_files(std::vector<std::string> &paths, TaskError &primary)
+{
+    for (auto iterator = paths.rbegin(); iterator != paths.rend(); ++iterator)
+    {
+        std::error_code error;
+        const bool removed = std::filesystem::remove(utf8_path(*iterator), error);
+        if (error)
+        {
+            annotate_cleanup_failure(primary, *iterator, error);
+            continue;
+        }
+        if (!removed)
+        {
+            const bool still_exists = std::filesystem::exists(utf8_path(*iterator), error);
+            if (error || still_exists)
+                annotate_cleanup_failure(primary, *iterator,
+                                         error ? error : std::make_error_code(std::errc::io_error));
+        }
+    }
+    paths.clear();
 }
 
 } // namespace
@@ -123,7 +171,7 @@ CatalogService::inspect_import_candidate(const std::string_view path,
         std::error_code relative_error;
         const auto relative = std::filesystem::relative(utf8_path(candidate.source_path),
                                                         utf8_path(source_root), relative_error);
-        if (!relative_error && !relative.empty() && !relative.is_absolute())
+        if (!relative_error && is_safe_relative_path(relative))
             candidate.relative_path = path_text(relative);
     }
     if (candidate.relative_path.empty())
@@ -259,39 +307,127 @@ Result<ImportBatchResult> CatalogService::execute_import(
 {
     if (request.inputs.empty())
         return make_error(ErrorCode::kInvalidArgument, "Import requires at least one input");
-    if (request.mode == ImportTransferMode::kAdd && !request.destination_directory.empty())
+    if (request.mode == ImportTransferMode::kAdd &&
+        (!request.destination_directory.empty() || !request.filename_template.empty() ||
+         !request.second_copy_directory.empty()))
         return make_error(ErrorCode::kInvalidArgument,
-                          "Add import must not specify a destination directory");
+                          "Add import must not specify destinations or a filename template",
+                          {{"reason", "add_import_transfer_options_unsupported"}});
     if (request.mode != ImportTransferMode::kAdd && request.destination_directory.empty())
         return make_error(ErrorCode::kInvalidArgument,
-                          "Copy and move import require a destination directory");
+                          "Copy and move import require a destination directory",
+                          {{"reason", "missing_import_destination"}});
+    if (!request.filename_template.empty())
+    {
+        auto valid_template = expand_import_filename_template(request.filename_template, "sample",
+                                                              "19700101", 1U, ".raw");
+        if (!valid_template)
+            return valid_template.error();
+    }
 
     auto paths = collect_import_paths(request.inputs, request.cancellation, request.recursive);
     if (!paths)
         return paths.error();
     std::filesystem::path destination_root;
+    std::optional<std::filesystem::path> second_copy_root;
+    const auto existing_directory =
+        [](const std::string_view text,
+           const std::string_view reason) -> Result<std::filesystem::path>
+    {
+        auto location = normalize_local_input(text);
+        if (!location)
+            return location.error();
+        const auto path = utf8_path(location.value().path);
+        std::error_code error;
+        if (!std::filesystem::is_directory(path, error) || error)
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Import destination is not an existing directory",
+                              {{"path", location.value().path},
+                               {"reason", std::string(reason)},
+                               {"detail", error.message()}});
+        return path;
+    };
     if (request.mode != ImportTransferMode::kAdd)
     {
-        auto destination = normalize_local_input(request.destination_directory);
+        auto destination =
+            existing_directory(request.destination_directory, "invalid_import_destination");
         if (!destination)
             return destination.error();
-        destination_root = utf8_path(destination.value().path);
-        std::error_code error;
-        if (!std::filesystem::is_directory(destination_root, error) || error)
-            return make_error(
-                ErrorCode::kInvalidArgument, "Import destination is not an existing directory",
-                {{"path", destination.value().path}, {"reason", "invalid_import_destination"}});
+        destination_root = std::move(destination).value();
+        if (!request.second_copy_directory.empty())
+        {
+            auto second = existing_directory(request.second_copy_directory,
+                                             "invalid_import_second_copy_destination");
+            if (!second)
+                return second.error();
+            if (portable_path_key(path_text(destination_root)) ==
+                portable_path_key(path_text(second.value())))
+                return make_error(
+                    ErrorCode::kConflict,
+                    "Primary and second-copy import roots must be different directories",
+                    {{"destination", path_text(destination_root)},
+                     {"second_copy_destination", path_text(second.value())},
+                     {"reason", "import_copy_roots_conflict"}});
+            second_copy_root = std::move(second).value();
+        }
     }
 
     std::string source_root = request.source_root.value_or(request.inputs.front());
+    auto normalized_source_root = normalize_local_input(source_root);
+    if (normalized_source_root)
+        source_root = normalized_source_root.value().path;
     std::error_code root_error;
     if (std::filesystem::is_regular_file(utf8_path(source_root), root_error) && !root_error)
         source_root = path_text(utf8_path(source_root).parent_path());
     std::vector<PlannedImport> plan;
     plan.reserve(paths.value().size());
     std::set<std::string, std::less<>> outputs;
-    for (const auto &source : paths.value())
+    const auto preflight_output = [&](const std::string_view source,
+                                      const std::filesystem::path &output) -> Result<std::string>
     {
+        auto normalized_source = normalize_local_input(source);
+        if (!normalized_source)
+            return normalized_source.error();
+        auto normalized_output = normalize_local_input(path_text(output));
+        if (!normalized_output)
+            return normalized_output.error();
+        const auto output_key = portable_path_key(normalized_output.value().path);
+        if (output_key == portable_path_key(normalized_source.value().path))
+            return make_error(ErrorCode::kConflict, "Import output aliases its source",
+                              {{"source", normalized_source.value().path},
+                               {"output", normalized_output.value().path},
+                               {"reason", "import_output_aliases_source"}});
+        if (!outputs.insert(output_key).second)
+            return make_error(ErrorCode::kConflict,
+                              "Import destinations contain duplicate portable planned paths",
+                              {{"output", normalized_output.value().path},
+                               {"reason", "duplicate_import_output"}});
+
+        std::error_code target_error;
+        const auto status = std::filesystem::symlink_status(
+            utf8_path(normalized_output.value().path), target_error);
+        if (!target_error && status.type() != std::filesystem::file_type::not_found)
+            return make_error(ErrorCode::kConflict, "Import destination already exists",
+                              {{"output", normalized_output.value().path},
+                               {"reason", "import_destination_conflict"}});
+        if (target_error && target_error != std::errc::no_such_file_or_directory)
+            return make_error(ErrorCode::kIo, "Unable to inspect import destination",
+                              {{"output", normalized_output.value().path},
+                               {"detail", target_error.message()},
+                               {"reason", "import_destination_inspect_failed"}});
+        auto existing = repository_->find_asset_by_uri(normalized_output.value().uri);
+        if (!existing)
+            return existing.error();
+        if (existing.value())
+            return make_error(ErrorCode::kConflict,
+                              "Import destination is already present in the catalog",
+                              {{"output", normalized_output.value().path},
+                               {"reason", "import_destination_catalog_conflict"}});
+        return normalized_output.value().path;
+    };
+    for (std::size_t index = 0U; index < paths.value().size(); ++index)
+    {
+        const auto &source = paths.value()[index];
         auto candidate = inspect_import_candidate(source, source_root, request.cancellation);
         if (!candidate)
             return candidate.error();
@@ -304,15 +440,34 @@ Result<ImportBatchResult> CatalogService::execute_import(
             if (!sidecar)
                 return sidecar.error();
             item.source_sidecar = std::move(sidecar).value();
+            if (item.source_sidecar)
+            {
+                auto identity = read_file_identity(*item.source_sidecar);
+                if (!identity)
+                    return identity.error();
+                item.source_sidecar_identity = std::move(identity).value();
+            }
         }
         if (request.mode != ImportTransferMode::kAdd)
         {
+            const auto source_path = utf8_path(item.candidate.source_path);
+            std::string filename = item.candidate.display_name;
+            if (!request.filename_template.empty())
+            {
+                std::string date = date_directory(item.candidate);
+                std::erase(date, '/');
+                auto expanded = expand_import_filename_template(
+                    request.filename_template, path_text(source_path.stem()), date, index + 1U,
+                    path_text(source_path.extension()));
+                if (!expanded)
+                    return expanded.error();
+                filename = std::move(expanded).value();
+            }
             std::filesystem::path relative;
             if (request.organization == ImportOrganization::kSingleFolder)
-                relative = utf8_path(item.candidate.display_name);
+                relative = utf8_path(filename);
             else if (request.organization == ImportOrganization::kCaptureDate)
-                relative = utf8_path(date_directory(item.candidate)) /
-                           utf8_path(item.candidate.display_name);
+                relative = utf8_path(date_directory(item.candidate)) / utf8_path(filename);
             else
             {
                 const auto root_name = utf8_path(source_root).filename();
@@ -320,54 +475,44 @@ Result<ImportBatchResult> CatalogService::execute_import(
                     return make_error(ErrorCode::kValidation,
                                       "Preserved hierarchy requires a named source root",
                                       {{"reason", "import_source_root_unnamed"}});
-                relative = root_name / utf8_path(item.candidate.relative_path);
+                const auto candidate_relative = utf8_path(item.candidate.relative_path);
+                if (!is_safe_relative_path(candidate_relative))
+                    return make_error(ErrorCode::kValidation,
+                                      "Import source relative path is unsafe",
+                                      {{"source", item.candidate.source_path},
+                                       {"reason", "unsafe_import_relative_path"}});
+                relative = root_name / candidate_relative.parent_path() / utf8_path(filename);
             }
-            const auto output = destination_root / relative;
-            item.import_path = path_text(output);
-            if (!outputs.insert(item.import_path).second)
-                return make_error(
-                    ErrorCode::kConflict, "Import destination contains duplicate planned paths",
-                    {{"output", item.import_path}, {"reason", "duplicate_import_output"}});
-            std::error_code target_error;
-            if (std::filesystem::exists(std::filesystem::symlink_status(output, target_error)) &&
-                !target_error)
-                return make_error(
-                    ErrorCode::kConflict, "Import destination already exists",
-                    {{"output", item.import_path}, {"reason", "import_destination_conflict"}});
-            if (target_error && target_error != std::errc::no_such_file_or_directory)
-                return make_error(ErrorCode::kIo, "Unable to inspect import destination",
-                                  {{"output", item.import_path},
-                                   {"detail", target_error.message()},
-                                   {"reason", "import_destination_inspect_failed"}});
-            auto normalized_output = normalize_local_input(item.import_path);
-            if (!normalized_output)
-                return normalized_output.error();
-            auto existing = repository_->find_asset_by_uri(normalized_output.value().uri);
-            if (!existing)
-                return existing.error();
-            if (existing.value())
-                return make_error(ErrorCode::kConflict,
-                                  "Import destination is already present in the catalog",
-                                  {{"output", item.import_path},
-                                   {"reason", "import_destination_catalog_conflict"}});
+            auto primary =
+                preflight_output(item.candidate.source_path, destination_root / relative);
+            if (!primary)
+                return primary.error();
+            item.import_path = std::move(primary).value();
             if (item.source_sidecar)
             {
-                auto sidecar_output = output;
+                auto sidecar_output = utf8_path(item.import_path);
                 sidecar_output.replace_extension(utf8_path(*item.source_sidecar).extension());
-                item.destination_sidecar = path_text(sidecar_output);
-                if (!outputs.insert(*item.destination_sidecar).second)
-                    return make_error(ErrorCode::kConflict,
-                                      "Import sidecar destination is duplicated",
-                                      {{"output", *item.destination_sidecar},
-                                       {"reason", "duplicate_import_output"}});
-                std::error_code sidecar_error;
-                if (std::filesystem::exists(
-                        std::filesystem::symlink_status(sidecar_output, sidecar_error)) &&
-                    !sidecar_error)
-                    return make_error(ErrorCode::kConflict,
-                                      "Import sidecar destination already exists",
-                                      {{"output", *item.destination_sidecar},
-                                       {"reason", "import_destination_conflict"}});
+                auto sidecar = preflight_output(*item.source_sidecar, sidecar_output);
+                if (!sidecar)
+                    return sidecar.error();
+                item.destination_sidecar = std::move(sidecar).value();
+            }
+            if (second_copy_root)
+            {
+                auto second =
+                    preflight_output(item.candidate.source_path, *second_copy_root / relative);
+                if (!second)
+                    return second.error();
+                item.second_copy_path = std::move(second).value();
+                if (item.source_sidecar)
+                {
+                    auto second_sidecar = utf8_path(*item.second_copy_path);
+                    second_sidecar.replace_extension(utf8_path(*item.source_sidecar).extension());
+                    auto sidecar = preflight_output(*item.source_sidecar, second_sidecar);
+                    if (!sidecar)
+                        return sidecar.error();
+                    item.second_copy_sidecar = std::move(sidecar).value();
+                }
             }
         }
         plan.push_back(std::move(item));
@@ -383,46 +528,146 @@ Result<ImportBatchResult> CatalogService::execute_import(
         if (!active)
             break;
         auto &planned = plan[index];
-        if (request.mode != ImportTransferMode::kAdd)
+        std::vector<std::string> owned_outputs;
+        std::optional<TaskError> transfer_error;
+        const auto ensure_parent = [&](const std::string_view output) -> Result<void>
         {
             std::error_code directory_error;
-            std::filesystem::create_directories(utf8_path(planned.import_path).parent_path(),
-                                                directory_error);
+            std::filesystem::create_directories(utf8_path(output).parent_path(), directory_error);
             if (directory_error)
                 return make_error(ErrorCode::kIo, "Unable to create import destination directory",
-                                  {{"output", planned.import_path},
+                                  {{"output", std::string(output)},
                                    {"detail", directory_error.message()},
                                    {"reason", "import_destination_create_failed"}});
-            auto copied = copy_file_atomically(planned.candidate.source_path, planned.import_path,
-                                               request.cancellation);
+            return {};
+        };
+        const auto publish_copy = [&](const std::string_view source,
+                                      const std::string_view output) -> Result<void>
+        {
+            auto parent = ensure_parent(output);
+            if (!parent)
+                return parent.error();
+            auto copied = copy_file_atomically(source, output, request.cancellation);
             if (!copied)
                 return copied.error();
-            if (planned.source_sidecar)
+            owned_outputs.emplace_back(output);
+            return {};
+        };
+        const auto checkpoint = [&](const std::string_view name,
+                                    const std::string_view path) -> Result<void>
+        {
+            if (!testing_import_checkpoint_)
+                return {};
+            auto checked = testing_import_checkpoint_(name, path);
+            if (!checked)
             {
-                auto copied_sidecar = copy_file_atomically(
-                    *planned.source_sidecar, *planned.destination_sidecar, request.cancellation);
+                auto error = std::move(checked).error();
+                error.context.insert_or_assign("checkpoint", std::string(name));
+                error.context.insert_or_assign("path", std::string(path));
+                return error;
+            }
+            return {};
+        };
+        if (request.mode != ImportTransferMode::kAdd)
+        {
+            auto copied = publish_copy(planned.candidate.source_path, planned.import_path);
+            if (!copied)
+                transfer_error = copied.error();
+            if (!transfer_error && planned.source_sidecar)
+            {
+                auto copied_sidecar =
+                    publish_copy(*planned.source_sidecar, *planned.destination_sidecar);
                 if (!copied_sidecar)
+                    transfer_error = copied_sidecar.error();
+            }
+            if (!transfer_error && planned.second_copy_path)
+            {
+                auto copied_second =
+                    publish_copy(planned.candidate.source_path, *planned.second_copy_path);
+                if (!copied_second)
+                    transfer_error = copied_second.error();
+            }
+            if (!transfer_error && planned.second_copy_sidecar)
+            {
+                auto copied_second_sidecar =
+                    publish_copy(*planned.source_sidecar, *planned.second_copy_sidecar);
+                if (!copied_second_sidecar)
+                    transfer_error = copied_second_sidecar.error();
+            }
+            if (!transfer_error && planned.second_copy_path)
+            {
+                auto reached = checkpoint("before_copy_verification", *planned.second_copy_path);
+                if (!reached)
+                    transfer_error = reached.error();
+            }
+            if (!transfer_error && planned.second_copy_path)
+            {
+                for (const auto &pair :
+                     std::array<std::pair<std::string_view, std::string_view>, 2U>{
+                         std::pair<std::string_view, std::string_view>{
+                             planned.candidate.source_path, planned.import_path},
+                         {planned.candidate.source_path, *planned.second_copy_path}})
                 {
-                    remove_owned_file(planned.import_path);
-                    return copied_sidecar.error();
+                    auto verified =
+                        verify_files_identical(pair.first, pair.second, request.cancellation);
+                    if (!verified)
+                    {
+                        transfer_error = verified.error();
+                        break;
+                    }
+                }
+            }
+            if (!transfer_error && planned.second_copy_sidecar)
+            {
+                for (const auto &output : std::array<std::string_view, 2U>{
+                         *planned.destination_sidecar, *planned.second_copy_sidecar})
+                {
+                    auto verified = verify_files_identical(*planned.source_sidecar, output,
+                                                           request.cancellation);
+                    if (!verified)
+                    {
+                        transfer_error = verified.error();
+                        break;
+                    }
                 }
             }
         }
-        auto imported = import_one(planned.import_path, request.cancellation, request.preview,
-                                   request.defer_previews);
-        ImportItemResult result = imported ?
-                                      std::move(imported).value() :
-                                      failed_item(planned.candidate.source_path, imported.error());
+        ImportItemResult result;
+        bool stop_after_result = false;
+        if (transfer_error)
+        {
+            auto error = std::move(*transfer_error);
+            remove_owned_files(owned_outputs, error);
+            result = failed_item(planned.candidate.source_path, std::move(error));
+            stop_after_result = true;
+        }
+        else
+        {
+            auto imported = import_one(planned.import_path, request.cancellation, request.preview,
+                                       request.defer_previews);
+            result = imported ? std::move(imported).value() :
+                                failed_item(planned.candidate.source_path, imported.error());
+        }
         result.input_path = planned.candidate.source_path;
         if (request.mode != ImportTransferMode::kAdd)
         {
             result.destination_path = planned.import_path;
             result.sidecar_destination_path = planned.destination_sidecar;
+            result.second_copy_destination_path = planned.second_copy_path;
+            result.second_copy_sidecar_destination_path = planned.second_copy_sidecar;
+            result.copies_verified = planned.second_copy_path && !transfer_error;
             if (result.status == ImportItemStatus::kFailed ||
                 result.status == ImportItemStatus::kUnsupported)
             {
-                remove_owned_file(planned.destination_sidecar);
-                remove_owned_file(planned.import_path);
+                if (!owned_outputs.empty())
+                {
+                    if (!result.error)
+                        result.error =
+                            make_error(ErrorCode::kIo, "Import failed before catalog publication",
+                                       {{"reason", "import_prepublication_failed"}});
+                    remove_owned_files(owned_outputs, *result.error);
+                }
+                result.copies_verified = false;
             }
             else if (result.status == ImportItemStatus::kDuplicate)
             {
@@ -432,18 +677,32 @@ Result<ImportBatchResult> CatalogService::execute_import(
                                {{"output", planned.import_path},
                                 {"reason", "import_destination_catalog_race"}});
             }
+            else
+            {
+                owned_outputs.clear();
+            }
         }
         if (request.mode == ImportTransferMode::kMove &&
             result.status == ImportItemStatus::kImported)
         {
             std::error_code remove_error;
             auto current_identity = read_file_identity(planned.candidate.source_path);
+            Result<FileIdentity> current_sidecar_identity =
+                planned.source_sidecar ? read_file_identity(*planned.source_sidecar) :
+                                         Result<FileIdentity>{FileIdentity{}};
             if (!current_identity ||
                 current_identity.value().size_bytes != planned.candidate.size_bytes ||
-                current_identity.value().mtime_unix_ms != planned.candidate.mtime_unix_ms)
+                current_identity.value().mtime_unix_ms != planned.candidate.mtime_unix_ms ||
+                !current_sidecar_identity ||
+                (planned.source_sidecar_identity &&
+                 (current_sidecar_identity.value().size_bytes !=
+                      planned.source_sidecar_identity->size_bytes ||
+                  current_sidecar_identity.value().mtime_unix_ms !=
+                      planned.source_sidecar_identity->mtime_unix_ms)))
                 result.source_cleanup_error =
                     make_error(ErrorCode::kConflict,
-                               "Imported destination but source changed before move cleanup",
+                               "Imported destination but source media or XMP changed before move "
+                               "cleanup",
                                {{"source", planned.candidate.source_path},
                                 {"destination", planned.import_path},
                                 {"reason", "import_source_changed_before_cleanup"}});
@@ -485,10 +744,12 @@ Result<ImportBatchResult> CatalogService::execute_import(
         }
         if (result.source_cleanup_error)
             ++batch.source_cleanup_failed;
+        if (result.copies_verified && result.status == ImportItemStatus::kImported)
+            ++batch.verified_second_copies;
         batch.items.push_back(std::move(result));
         if (progress)
             progress(index + 1U, plan.size(), &batch.items.back());
-        if (batch.items.back().source_cleanup_error)
+        if (batch.items.back().source_cleanup_error || stop_after_result)
             break;
     }
     return batch;

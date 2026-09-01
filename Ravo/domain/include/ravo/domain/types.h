@@ -75,6 +75,8 @@ inline constexpr std::size_t kLibrarySetMaximumCount = 1'000U;
 inline constexpr std::string_view kLibrarySetKindManual = "manual";
 inline constexpr std::string_view kLibrarySetKindSmart = "smart";
 inline constexpr std::size_t kImportBatchMaximumAssets = 100'000U;
+inline constexpr std::size_t kImportFilenameTemplateMaxBytes = 512U;
+inline constexpr std::size_t kImportFilenameMaxBytes = 240U;
 inline constexpr std::int64_t kBackupScheduleIntervalMinutesMin = 15;
 inline constexpr std::int64_t kBackupScheduleIntervalMinutesMax = 365 * 24 * 60;
 inline constexpr int kBackupRetentionCountMin = 1;
@@ -715,7 +717,10 @@ struct ImportItemResult
     std::optional<TaskError> error;
     std::optional<std::string> destination_path;
     std::optional<std::string> sidecar_destination_path;
+    std::optional<std::string> second_copy_destination_path;
+    std::optional<std::string> second_copy_sidecar_destination_path;
     std::optional<TaskError> source_cleanup_error;
+    bool copies_verified = false;
     bool preview_pending = false;
 };
 
@@ -726,6 +731,8 @@ struct ImportRequest
     ImportOrganization organization = ImportOrganization::kSingleFolder;
     ImportPreviewPolicy preview = ImportPreviewPolicy::kStandard;
     std::string destination_directory;
+    std::string filename_template;
+    std::string second_copy_directory;
     std::optional<std::string> source_root;
     bool recursive = true;
     bool include_xmp_sidecars = true;
@@ -743,6 +750,7 @@ struct ImportBatchResult
     std::size_t unsupported = 0U;
     std::size_t failed = 0U;
     std::size_t source_cleanup_failed = 0U;
+    std::size_t verified_second_copies = 0U;
 };
 
 struct ImportCandidate
@@ -907,6 +915,10 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] Result<std::string>
 expand_export_filename_template(std::string_view filename_template, std::string_view source_stem,
                                 std::string_view asset_id, std::size_t sequence,
+                                std::string_view extension);
+[[nodiscard]] Result<std::string>
+expand_import_filename_template(std::string_view filename_template, std::string_view source_stem,
+                                std::string_view capture_date, std::size_t sequence,
                                 std::string_view extension);
 [[nodiscard]] std::string_view jpeg_subsampling_name(JpegSubsampling subsampling) noexcept;
 [[nodiscard]] Result<JpegSubsampling> parse_jpeg_subsampling(std::string_view name);

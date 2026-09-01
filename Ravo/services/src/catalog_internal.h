@@ -104,5 +104,8 @@ void disable_raw_preprocess(Recipe &recipe);
 copy_file_atomically(std::string_view source_utf8, std::string_view dest_utf8,
                      const CancellationToken &cancellation,
                      OriginalCopyCheckpointHook checkpoint_hook);
+[[nodiscard]] Result<std::uint64_t> verify_files_identical(std::string_view source_utf8,
+                                                           std::string_view copy_utf8,
+                                                           const CancellationToken &cancellation);
 
 } // namespace ravo

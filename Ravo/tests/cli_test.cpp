@@ -19,6 +19,7 @@
 
 #include <QByteArray>
 #include <QColor>
+#include <QColorSpace>
 #include <QCoreApplication>
 #include <QImage>
 #include <QProcess>
@@ -30,6 +31,7 @@
 #include "ravo/adapters/text_file.h"
 #include "ravo/cli/application.h"
 #include "ravo/domain/types.h"
+#include "ravo/domain/uri.h"
 #include "ravo/foundation/json.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/color_checker.h"
@@ -3575,6 +3577,70 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     ASSERT_NE(code, nullptr);
     ASSERT_NE(code->string_if(), nullptr);
     EXPECT_EQ(*code->string_if(), "conflict");
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, CatalogImportProjectsRenameAndVerifiedSecondCopyJson)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-ingest-" + generate_catalog_id());
+    const auto source_dir = root / "source";
+    const auto destination = root / "primary";
+    const auto second_copy = root / "second";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second_copy);
+    const auto source = source_dir / "photo.png";
+    QImage image(40, 30, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(30, 120, 210));
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    const auto source_snapshot = source_file_snapshot(source.string());
+    ASSERT_TRUE(source_snapshot);
+    const auto catalog = (root / "library.sqlite").string();
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", source.string(), "--mode",
+                  "copy", "--destination", destination.string(), "--rename-template",
+                  "job-{sequence}-{stem}{ext}", "--second-copy", second_copy.string(), "--json"}),
+              0)
+        << stdout_stream.str();
+    auto response = parse_json(stdout_stream.str());
+    ASSERT_TRUE(response) << response.error().message;
+    const auto *data = response.value().find("data");
+    ASSERT_NE(data, nullptr);
+    ASSERT_NE(data->find("verified_second_copies"), nullptr);
+    ASSERT_NE(data->find("verified_second_copies")->number_if(), nullptr);
+    EXPECT_EQ(data->find("verified_second_copies")->number_if()->text, "1");
+    ASSERT_NE(data->find("rename_template"), nullptr);
+    EXPECT_EQ(*data->find("rename_template")->string_if(), "job-{sequence}-{stem}{ext}");
+    ASSERT_NE(data->find("items"), nullptr);
+    ASSERT_NE(data->find("items")->array_if(), nullptr);
+    ASSERT_EQ(data->find("items")->array_if()->size(), 1U);
+    const auto &item = data->find("items")->array_if()->front();
+    ASSERT_NE(item.find("copies_verified"), nullptr);
+    ASSERT_NE(item.find("copies_verified")->boolean_if(), nullptr);
+    EXPECT_TRUE(*item.find("copies_verified")->boolean_if());
+    ASSERT_NE(item.find("second_copy_destination"), nullptr);
+    const auto expected_second =
+        normalize_local_input((second_copy / "job-0001-photo.png").string());
+    ASSERT_TRUE(expected_second) << expected_second.error().message;
+    EXPECT_EQ(*item.find("second_copy_destination")->string_if(), expected_second.value().path);
+    EXPECT_TRUE(std::filesystem::exists(destination / "job-0001-photo.png"));
+    EXPECT_TRUE(std::filesystem::exists(second_copy / "job-0001-photo.png"));
+    EXPECT_EQ(source_file_snapshot(source.string()), source_snapshot);
 
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

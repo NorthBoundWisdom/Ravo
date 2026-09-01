@@ -5,7 +5,7 @@
 Use `ravo` for inspection, catalog automation, recipe validation, preview
 diagnostics, recovery/backup, and local export with machine-readable results.
 
-**Last reviewed:** 2026-08-31 against the current `ravo-cli/v1` implementation
+**Last reviewed:** 2026-09-01 against the current `ravo-cli/v1` implementation
 and committed CLI contract tests.
 
 ## Applies to
@@ -335,8 +335,26 @@ ravo catalog import --catalog "/work/Ravo Library.sqlite" \
 ```
 
 The `--input` option can be repeated. Each item is reported as `imported`,
-`duplicate`, `unsupported`, or `failed`. The command stores references and
-rebuildable previews; it does not copy the source files into the catalog.
+`duplicate`, `unsupported`, or `failed`. Add is the default and stores
+references plus rebuildable previews.
+
+Mounted-card Copy/Move uses the same service contract:
+
+```text
+ravo catalog import --catalog "/work/Ravo Library.sqlite" \
+  --input "/Volumes/CARD/DCIM" --mode copy \
+  --destination "/photos/client-job" --organize date \
+  --rename-template "job-{date}-{sequence}-{stem}{ext}" \
+  --second-copy "/backup/client-job" --preview standard --json
+```
+
+The rename grammar accepts only `{date}`, `{stem}`, `{sequence}`, and `{ext}`;
+omitting `{ext}` appends the source extension. Primary and second-copy roots
+must already exist and be distinct. Every planned media/XMP collision rejects
+before publication, and each item reports its primary/second paths plus
+`copies_verified`. `--no-recursive` limits a directory input to its direct
+children. Move deletes a reverified source only after requested copies verify
+and the primary asset is cataloged.
 
 ## Generate a preview
 

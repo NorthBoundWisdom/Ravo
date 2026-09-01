@@ -557,6 +557,148 @@ Result<std::string> expand_export_filename_template(const std::string_view filen
     return filename;
 }
 
+Result<std::string> expand_import_filename_template(const std::string_view filename_template,
+                                                    const std::string_view source_stem,
+                                                    const std::string_view capture_date,
+                                                    const std::size_t sequence,
+                                                    const std::string_view extension)
+{
+    if (filename_template.empty() || filename_template.size() > kImportFilenameTemplateMaxBytes ||
+        !is_valid_utf8(filename_template))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Import filename template must be bounded UTF-8 text",
+                          {{"reason", "invalid_import_filename_template"},
+                           {"max_bytes", std::to_string(kImportFilenameTemplateMaxBytes)}});
+    }
+    if (source_stem.empty() || source_stem.size() > kImportFilenameMaxBytes ||
+        !is_valid_utf8(source_stem) || capture_date.size() != 8U ||
+        !std::ranges::all_of(capture_date,
+                             [](const unsigned char character) { return std::isdigit(character); }))
+    {
+        return make_error(ErrorCode::kValidation, "Import filename inputs are invalid",
+                          {{"reason", "invalid_import_filename_input"}});
+    }
+    if (sequence == 0U || sequence > kImportBatchMaximumAssets)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Import sequence is out of range",
+            {{"reason", "invalid_import_sequence"}, {"sequence", std::to_string(sequence)}});
+    }
+    if (extension.size() > kImportFilenameMaxBytes ||
+        (!extension.empty() &&
+         (extension.front() != '.' || extension.find_first_of("/\\{}") != std::string_view::npos ||
+          !is_valid_utf8(extension))))
+    {
+        return make_error(
+            ErrorCode::kValidation, "Import extension is invalid",
+            {{"reason", "invalid_import_extension"}, {"extension", std::string(extension)}});
+    }
+
+    std::string sequence_text = std::to_string(sequence);
+    if (sequence_text.size() < 4U)
+        sequence_text.insert(sequence_text.begin(), 4U - sequence_text.size(), '0');
+    std::string filename;
+    filename.reserve(std::min<std::size_t>(kImportFilenameMaxBytes,
+                                           filename_template.size() + source_stem.size() +
+                                               capture_date.size() + extension.size() + 8U));
+    bool has_extension_token = false;
+    for (std::size_t offset = 0U; offset < filename_template.size();)
+    {
+        if (filename_template[offset] == '}')
+        {
+            return make_error(ErrorCode::kValidation, "Import filename template has stray brace",
+                              {{"reason", "invalid_import_filename_template"},
+                               {"offset", std::to_string(offset)}});
+        }
+        if (filename_template[offset] != '{')
+        {
+            filename.push_back(filename_template[offset++]);
+            if (filename.size() > kImportFilenameMaxBytes)
+            {
+                return make_error(ErrorCode::kValidation, "Expanded import filename is too large",
+                                  {{"reason", "invalid_expanded_import_filename"},
+                                   {"max_bytes", std::to_string(kImportFilenameMaxBytes)}});
+            }
+            continue;
+        }
+        const auto close = filename_template.find('}', offset + 1U);
+        if (close == std::string_view::npos)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Import filename template has an unterminated token",
+                              {{"reason", "invalid_import_filename_template"},
+                               {"offset", std::to_string(offset)}});
+        }
+        const auto token = filename_template.substr(offset + 1U, close - offset - 1U);
+        if (token == "date")
+            filename.append(capture_date);
+        else if (token == "stem")
+            filename.append(source_stem);
+        else if (token == "sequence")
+            filename.append(sequence_text);
+        else if (token == "ext")
+        {
+            filename.append(extension);
+            has_extension_token = true;
+        }
+        else
+        {
+            return make_error(
+                ErrorCode::kValidation, "Unknown import filename template token",
+                {{"reason", "unknown_import_filename_token"}, {"token", std::string(token)}});
+        }
+        if (filename.size() > kImportFilenameMaxBytes)
+        {
+            return make_error(ErrorCode::kValidation, "Expanded import filename is too large",
+                              {{"reason", "invalid_expanded_import_filename"},
+                               {"max_bytes", std::to_string(kImportFilenameMaxBytes)}});
+        }
+        offset = close + 1U;
+    }
+    if (!has_extension_token)
+    {
+        filename.append(extension);
+    }
+
+    if (filename.empty() || filename.size() > kImportFilenameMaxBytes || !is_valid_utf8(filename) ||
+        filename == "." || filename == ".." || filename.back() == '.' || filename.back() == ' ')
+    {
+        return make_error(ErrorCode::kValidation, "Expanded import filename is invalid",
+                          {{"reason", "invalid_expanded_import_filename"},
+                           {"filename", filename},
+                           {"max_bytes", std::to_string(kImportFilenameMaxBytes)}});
+    }
+    for (const char raw_character : filename)
+    {
+        const auto character = static_cast<unsigned char>(raw_character);
+        if (character < 0x20U || character == 0x7fU || character == '/' || character == '\\' ||
+            character == ':' || character == '*' || character == '?' || character == '"' ||
+            character == '<' || character == '>' || character == '|')
+        {
+            return make_error(ErrorCode::kValidation, "Expanded import filename is not portable",
+                              {{"reason", "nonportable_import_filename"}, {"filename", filename}});
+        }
+    }
+    std::string device_name = filename.substr(0U, filename.find('.'));
+    std::transform(device_name.begin(), device_name.end(), device_name.begin(),
+                   [](const unsigned char character)
+                   {
+                       return character >= 'a' && character <= 'z' ?
+                                  static_cast<char>(character - 'a' + 'A') :
+                                  static_cast<char>(character);
+                   });
+    static const std::set<std::string, std::less<>> reserved{
+        "CON",  "PRN",  "AUX",  "NUL",  "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+        "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"};
+    if (reserved.contains(device_name))
+    {
+        return make_error(ErrorCode::kValidation, "Expanded import filename is reserved",
+                          {{"reason", "reserved_import_filename"}, {"filename", filename}});
+    }
+    return filename;
+}
+
 std::string_view jpeg_subsampling_name(const JpegSubsampling subsampling) noexcept
 {
     switch (subsampling)

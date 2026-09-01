@@ -275,6 +275,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(int importPreviewWorkTotal READ importPreviewWorkTotal NOTIFY libraryWorkChanged)
     Q_PROPERTY(QString importSourceRoot READ importSourceRoot NOTIFY importPageChanged)
     Q_PROPERTY(QString importDestination READ importDestination NOTIFY importPageChanged)
+    Q_PROPERTY(QString importSecondCopyDestination READ importSecondCopyDestination NOTIFY
+                   importPageChanged)
+    Q_PROPERTY(QString importFilenameTemplate READ importFilenameTemplate NOTIFY importPageChanged)
     Q_PROPERTY(QString importMode READ importMode NOTIFY importPageChanged)
     Q_PROPERTY(QString importOrganization READ importOrganization NOTIFY importPageChanged)
     Q_PROPERTY(QString importPreviewPolicy READ importPreviewPolicy NOTIFY importPageChanged)
@@ -313,6 +316,8 @@ public:
     [[nodiscard]] int importPreviewWorkTotal() const noexcept;
     [[nodiscard]] QString importSourceRoot() const;
     [[nodiscard]] QString importDestination() const;
+    [[nodiscard]] QString importSecondCopyDestination() const;
+    [[nodiscard]] QString importFilenameTemplate() const;
     [[nodiscard]] QString importMode() const;
     [[nodiscard]] QString importOrganization() const;
     [[nodiscard]] QString importPreviewPolicy() const;
@@ -533,6 +538,8 @@ public:
     Q_INVOKABLE void closeImportPage();
     Q_INVOKABLE void setImportSourceRoot(const QString &path);
     Q_INVOKABLE void setImportDestination(const QString &path);
+    Q_INVOKABLE void setImportSecondCopyDestination(const QString &path);
+    Q_INVOKABLE void setImportFilenameTemplate(const QString &filename_template);
     Q_INVOKABLE void setImportMode(const QString &mode);
     Q_INVOKABLE void setImportOrganization(const QString &organization);
     Q_INVOKABLE void setImportPreviewPolicy(const QString &policy);
@@ -840,6 +847,8 @@ private:
     int import_preview_work_total_ = 0;
     QString import_source_root_;
     QString import_destination_;
+    QString import_second_copy_destination_;
+    QString import_filename_template_;
     QString import_mode_{QStringLiteral("add")};
     QString import_organization_{QStringLiteral("single")};
     QString import_preview_policy_{QStringLiteral("standard")};

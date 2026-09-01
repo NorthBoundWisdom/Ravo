@@ -100,6 +100,24 @@ using atomic_publication_internal::write_descriptor;
     return make_error(code, std::move(message), std::move(context));
 }
 
+[[nodiscard]] TaskError copy_verification_error(const ErrorCode code, std::string message,
+                                                const std::string_view reason,
+                                                const std::string_view source,
+                                                const std::string_view copy,
+                                                const std::error_code &error = {})
+{
+    std::map<std::string, std::string, std::less<>> context{
+        {"copy", std::string(copy)},
+        {"reason", std::string(reason)},
+        {"source", std::string(source)},
+    };
+    if (error)
+    {
+        context.emplace("detail", error.message());
+    }
+    return make_error(code, std::move(message), std::move(context));
+}
+
 [[nodiscard]] Result<void> check_original_copy_cancellation(const CancellationToken &cancellation,
                                                             const std::string_view source,
                                                             const std::string_view output)
@@ -533,6 +551,154 @@ copy_file_atomically(const std::string_view source_utf8, const std::string_view 
     }
     owned_temporary.release();
     return bytes_copied;
+}
+
+Result<std::uint64_t> verify_files_identical(const std::string_view source_utf8,
+                                             const std::string_view copy_utf8,
+                                             const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        auto error = std::move(active).error();
+        error.context.insert_or_assign("source", std::string(source_utf8));
+        error.context.insert_or_assign("copy", std::string(copy_utf8));
+        return error;
+    }
+
+    const auto source = utf8_path(source_utf8);
+    const auto copy = utf8_path(copy_utf8);
+    std::error_code error;
+    const auto source_status = std::filesystem::symlink_status(source, error);
+    if (error || !std::filesystem::is_regular_file(source_status))
+    {
+        return copy_verification_error(
+            ErrorCode::kIo, "Unable to verify the import source as a regular file",
+            "import_copy_verify_source_invalid", source_utf8, copy_utf8, error);
+    }
+    const auto copy_status = std::filesystem::symlink_status(copy, error);
+    if (error || !std::filesystem::is_regular_file(copy_status))
+    {
+        return copy_verification_error(
+            ErrorCode::kIo, "Unable to verify the import copy as a regular file",
+            "import_copy_verify_output_invalid", source_utf8, copy_utf8, error);
+    }
+
+    const auto source_size = std::filesystem::file_size(source, error);
+    if (error)
+    {
+        return copy_verification_error(ErrorCode::kIo, "Unable to inspect the import source",
+                                       "import_copy_verify_inspect_failed", source_utf8, copy_utf8,
+                                       error);
+    }
+    const auto copy_size = std::filesystem::file_size(copy, error);
+    if (error)
+    {
+        return copy_verification_error(ErrorCode::kIo, "Unable to inspect the import copy",
+                                       "import_copy_verify_inspect_failed", source_utf8, copy_utf8,
+                                       error);
+    }
+    if (source_size != copy_size)
+    {
+        return copy_verification_error(ErrorCode::kValidation,
+                                       "Import copy size does not match its source",
+                                       "import_copy_verify_mismatch", source_utf8, copy_utf8);
+    }
+    const auto source_mtime = std::filesystem::last_write_time(source, error);
+    if (error)
+    {
+        return copy_verification_error(ErrorCode::kIo, "Unable to inspect the import source",
+                                       "import_copy_verify_inspect_failed", source_utf8, copy_utf8,
+                                       error);
+    }
+    const auto copy_mtime = std::filesystem::last_write_time(copy, error);
+    if (error)
+    {
+        return copy_verification_error(ErrorCode::kIo, "Unable to inspect the import copy",
+                                       "import_copy_verify_inspect_failed", source_utf8, copy_utf8,
+                                       error);
+    }
+
+    FileDescriptor source_file(open_source_descriptor(source));
+    if (source_file.get() < 0)
+    {
+        return copy_verification_error(ErrorCode::kIo,
+                                       "Unable to open the import source for verification",
+                                       "import_copy_verify_open_failed", source_utf8, copy_utf8,
+                                       std::error_code(errno, std::generic_category()));
+    }
+    FileDescriptor copy_file(open_source_descriptor(copy));
+    if (copy_file.get() < 0)
+    {
+        return copy_verification_error(ErrorCode::kIo,
+                                       "Unable to open the import copy for verification",
+                                       "import_copy_verify_open_failed", source_utf8, copy_utf8,
+                                       std::error_code(errno, std::generic_category()));
+    }
+
+    std::array<std::uint8_t, kOriginalCopyChunkBytes> source_buffer{};
+    std::array<std::uint8_t, kOriginalCopyChunkBytes> copy_buffer{};
+    std::uint64_t bytes_verified = 0U;
+    for (;;)
+    {
+        active = cancellation.check();
+        if (!active)
+        {
+            auto cancelled = std::move(active).error();
+            cancelled.context.insert_or_assign("source", std::string(source_utf8));
+            cancelled.context.insert_or_assign("copy", std::string(copy_utf8));
+            return cancelled;
+        }
+        const auto source_count =
+            read_descriptor(source_file.get(), source_buffer.data(), source_buffer.size());
+        if (source_count < 0)
+        {
+            return copy_verification_error(ErrorCode::kIo,
+                                           "Unable to read the import source during verification",
+                                           "import_copy_verify_read_failed", source_utf8, copy_utf8,
+                                           std::error_code(errno, std::generic_category()));
+        }
+        const auto copy_count =
+            read_descriptor(copy_file.get(), copy_buffer.data(), copy_buffer.size());
+        if (copy_count < 0)
+        {
+            return copy_verification_error(ErrorCode::kIo,
+                                           "Unable to read the import copy during verification",
+                                           "import_copy_verify_read_failed", source_utf8, copy_utf8,
+                                           std::error_code(errno, std::generic_category()));
+        }
+        if (source_count != copy_count ||
+            !std::equal(source_buffer.begin(), source_buffer.begin() + source_count,
+                        copy_buffer.begin()))
+        {
+            return copy_verification_error(ErrorCode::kValidation,
+                                           "Import copy bytes do not match their source",
+                                           "import_copy_verify_mismatch", source_utf8, copy_utf8);
+        }
+        if (source_count == 0)
+        {
+            break;
+        }
+        bytes_verified += static_cast<std::uint64_t>(source_count);
+    }
+
+    const auto final_source_size = std::filesystem::file_size(source, error);
+    if (error || final_source_size != source_size ||
+        std::filesystem::last_write_time(source, error) != source_mtime || error)
+    {
+        return copy_verification_error(
+            ErrorCode::kConflict, "Import source changed during copy verification",
+            "import_copy_verify_source_changed", source_utf8, copy_utf8, error);
+    }
+    const auto final_copy_size = std::filesystem::file_size(copy, error);
+    if (error || final_copy_size != copy_size ||
+        std::filesystem::last_write_time(copy, error) != copy_mtime || error)
+    {
+        return copy_verification_error(
+            ErrorCode::kConflict, "Import copy changed during verification",
+            "import_copy_verify_output_changed", source_utf8, copy_utf8, error);
+    }
+    return bytes_verified;
 }
 
 } // namespace ravo

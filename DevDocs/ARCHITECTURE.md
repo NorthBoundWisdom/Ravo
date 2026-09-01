@@ -401,6 +401,19 @@ remain valid. Missing, directory, unrecognized, unpack-failed, oversized,
 malformed or mandatory-unsupported DNG opcode, and unsupported CFA
 full-decode inputs fail with stable `reason` context.
 
+ADR-0102 extends that baseline with one planned local-source workspace for Add,
+Copy, and Move. ADR-0104 further gives Copy/Move an optional bounded filename
+template (`date`, source stem, stable sequence, and extension) and one distinct
+second-copy root. Services derive one relative organization/name, preflight the
+complete primary/second media and XMP path set with conservative ASCII-case
+collision keys, and catalog only the primary URI. Every requested output uses
+the existing atomic no-replace stream; when a second copy is present, source,
+primary, second copy, and sidecars are independently reopened and compared byte
+for byte under cancellation before catalog publication. A pre-catalog failure
+removes only files published by that item. Move cleanup begins only after that
+verification and the ordinary catalog commit. No import option creates schema,
+preference, detached task, or second catalog authority.
+
 Studio first enumerates a deterministic bounded input list, then dispatches one
 normal-priority `import_one` task at a time. It queues the next item only after
 observing the current result. Foreground Develop uses the existing priority
@@ -1266,9 +1279,11 @@ Ravo Studio owns:
 
 - creating/opening catalogs and one session-owned import workspace for local
   source browsing, selection, Add/Copy/Move planning, destination organization,
-  and initial preview policy. Services own enumeration, inspection, complete
-  preflight, atomic transfer, catalog publication, XMP companions, and source
-  cleanup; QML only presents state and forwards intents (ADR-0102);
+  bounded rename templates, optional verified second-copy root, and initial
+  preview policy. Services own enumeration, inspection, complete two-tree
+  preflight, atomic transfer, byte verification, catalog publication, XMP
+  companions, and source cleanup; QML only presents state and forwards intents
+  (ADR-0102/0104);
 - a session-only Last Imported Photos source group. The desktop presenter owns
   its successful-batch time bounds and selection lifecycle; import suppresses
   per-item model insertion and catalog polling, then performs one bounded page

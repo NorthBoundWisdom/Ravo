@@ -15,6 +15,9 @@ public:
                                               std::function<void()> callback);
     static void set_before_preview_cache_publication(CatalogService &service,
                                                      std::function<void()> callback);
+    static void set_import_checkpoint(
+        CatalogService &service,
+        std::function<Result<void>(std::string_view checkpoint, std::string_view path)> callback);
     static void set_backup_checkpoint(
         CatalogService &service,
         std::function<Result<void>(std::string_view checkpoint, std::string_view path)> callback);

@@ -1579,8 +1579,10 @@ TEST_F(CatalogServiceTest, ManagedMoveDeletesVerifiedSourcesAndPreflightConflict
     ASSERT_TRUE(open_service(true));
     const auto source_dir = root / "move-source";
     const auto destination = root / "move-destination";
+    const auto second_copy = root / "move-second-copy";
     std::filesystem::create_directories(source_dir);
     std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second_copy);
     const auto source = source_dir / "move.png";
     QImage image(40, 24, QImage::Format_RGB888);
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
@@ -1593,12 +1595,16 @@ TEST_F(CatalogServiceTest, ManagedMoveDeletesVerifiedSourcesAndPreflightConflict
     move.source_root = source_dir.string();
     move.mode = ImportTransferMode::kMove;
     move.destination_directory = destination.string();
+    move.second_copy_directory = second_copy.string();
     move.preview = ImportPreviewPolicy::kMinimal;
     auto moved = service->execute_import(move);
     ASSERT_TRUE(moved) << moved.error().message;
     ASSERT_EQ(moved.value().imported, 1U);
+    EXPECT_EQ(moved.value().verified_second_copies, 1U);
+    ASSERT_TRUE(moved.value().items[0].copies_verified);
     EXPECT_FALSE(std::filesystem::exists(source));
     EXPECT_EQ(file_sha256((destination / "move.png").string()), source_hash);
+    EXPECT_EQ(file_sha256((second_copy / "move.png").string()), source_hash);
 
     const auto conflict_source = source_dir / "conflict.png";
     ASSERT_TRUE(image.save(QString::fromStdString(conflict_source.string()), "PNG"));
@@ -1615,6 +1621,342 @@ TEST_F(CatalogServiceTest, ManagedMoveDeletesVerifiedSourcesAndPreflightConflict
     auto listed = service->list_assets();
     ASSERT_TRUE(listed);
     EXPECT_EQ(listed.value().size(), 1U);
+}
+
+TEST_F(CatalogServiceTest, ManagedCopyRenamesAndVerifiesPrimarySecondCopyAndXmp)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "shoot-source";
+    const auto destination = root / "shoot-primary";
+    const auto second_copy = root / "shoot-second-copy";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second_copy);
+    QImage image(64, 40, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(24, 80, 160));
+    const auto first_source = source_dir / "a.png";
+    const auto second_source = source_dir / "b.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(first_source.string()), "PNG"));
+    image.fill(QColor(160, 80, 24));
+    ASSERT_TRUE(image.save(QString::fromStdString(second_source.string()), "PNG"));
+    const auto sidecar = source_dir / "a.xmp";
+    {
+        std::ofstream output(sidecar, std::ios::binary);
+        output << "<x:xmpmeta>verified companion</x:xmpmeta>";
+    }
+    const auto first_hash = file_sha256(first_source.string());
+    const auto second_hash = file_sha256(second_source.string());
+    const auto sidecar_hash = file_sha256(sidecar.string());
+    const auto first_mtime = std::filesystem::last_write_time(first_source);
+    const auto second_mtime = std::filesystem::last_write_time(second_source);
+
+    ImportRequest request;
+    request.inputs = {source_dir.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kCopy;
+    request.organization = ImportOrganization::kSingleFolder;
+    request.destination_directory = destination.string();
+    request.filename_template = "shoot-{sequence}-{stem}{ext}";
+    request.second_copy_directory = second_copy.string();
+    request.preview = ImportPreviewPolicy::kMinimal;
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    EXPECT_EQ(imported.value().imported, 2U);
+    EXPECT_EQ(imported.value().verified_second_copies, 2U);
+    ASSERT_EQ(imported.value().items.size(), 2U);
+    EXPECT_TRUE(imported.value().items[0].copies_verified);
+    EXPECT_TRUE(imported.value().items[1].copies_verified);
+
+    const auto primary_a = destination / "shoot-0001-a.png";
+    const auto primary_b = destination / "shoot-0002-b.png";
+    const auto primary_xmp = destination / "shoot-0001-a.xmp";
+    const auto second_a = second_copy / "shoot-0001-a.png";
+    const auto second_b = second_copy / "shoot-0002-b.png";
+    const auto second_xmp = second_copy / "shoot-0001-a.xmp";
+    EXPECT_EQ(file_sha256(primary_a.string()), first_hash);
+    EXPECT_EQ(file_sha256(primary_b.string()), second_hash);
+    EXPECT_EQ(file_sha256(primary_xmp.string()), sidecar_hash);
+    EXPECT_EQ(file_sha256(second_a.string()), first_hash);
+    EXPECT_EQ(file_sha256(second_b.string()), second_hash);
+    EXPECT_EQ(file_sha256(second_xmp.string()), sidecar_hash);
+    EXPECT_EQ(file_sha256(first_source.string()), first_hash);
+    EXPECT_EQ(file_sha256(second_source.string()), second_hash);
+    EXPECT_EQ(file_sha256(sidecar.string()), sidecar_hash);
+    EXPECT_EQ(std::filesystem::last_write_time(first_source), first_mtime);
+    EXPECT_EQ(std::filesystem::last_write_time(second_source), second_mtime);
+
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 2U);
+    std::set<std::string> catalog_uris;
+    for (const auto &asset : listed.value())
+        catalog_uris.insert(asset.normalized_uri);
+    EXPECT_TRUE(catalog_uris.contains(normalize_local_input(primary_a.string()).value().uri));
+    EXPECT_TRUE(catalog_uris.contains(normalize_local_input(primary_b.string()).value().uri));
+    EXPECT_FALSE(catalog_uris.contains(normalize_local_input(second_a.string()).value().uri));
+    EXPECT_FALSE(catalog_uris.contains(normalize_local_input(second_b.string()).value().uri));
+}
+
+TEST_F(CatalogServiceTest, SecondCopyConflictRejectsTheCompletePlanBeforePrimaryPublication)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "conflict-source";
+    const auto destination = root / "conflict-primary";
+    const auto second_copy = root / "conflict-second-copy";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second_copy);
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(90, 40, 130));
+    const auto source = source_dir / "photo.png";
+    const auto conflict = second_copy / "job-0001.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    ASSERT_TRUE(image.save(QString::fromStdString(conflict.string()), "PNG"));
+    const auto conflict_hash = file_sha256(conflict.string());
+
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.filename_template = "job-{sequence}{ext}";
+    request.second_copy_directory = second_copy.string();
+    auto imported = service->execute_import(request);
+    ASSERT_FALSE(imported);
+    EXPECT_EQ(imported.error().context.at("reason"), "import_destination_conflict");
+    EXPECT_FALSE(std::filesystem::exists(destination / "job-0001.png"));
+    EXPECT_EQ(file_sha256(conflict.string()), conflict_hash);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    EXPECT_TRUE(listed.value().empty());
+}
+
+TEST_F(CatalogServiceTest, RenamePlanRejectsAsciiCaseCollisionsBeforePublication)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "case-source";
+    const auto destination = root / "case-primary";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    QImage image(24, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(70, 100, 130));
+    const auto upper = source_dir / "a.PNG";
+    const auto lower = source_dir / "b.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(upper.string()), "PNG"));
+    ASSERT_TRUE(image.save(QString::fromStdString(lower.string()), "PNG"));
+
+    ImportRequest request;
+    request.inputs = {source_dir.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.filename_template = "same{ext}";
+    auto imported = service->execute_import(request);
+    ASSERT_FALSE(imported);
+    EXPECT_EQ(imported.error().context.at("reason"), "duplicate_import_output");
+    EXPECT_TRUE(std::filesystem::is_empty(destination));
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    EXPECT_TRUE(listed.value().empty());
+}
+
+TEST_F(CatalogServiceTest, CaptureDateOrganizationAndRenameUseOneDeterministicDate)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "date-source";
+    const auto destination = root / "date-primary";
+    const auto second_copy = root / "date-second-copy";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second_copy);
+    QImage image(36, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(100, 120, 140));
+    const auto source = source_dir / "photo.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    using namespace std::chrono;
+    const auto desired = sys_days{year{2024} / month{5} / day{6}} + hours{12};
+    const auto file_time =
+        std::filesystem::file_time_type::clock::now() + (desired - system_clock::now());
+    std::filesystem::last_write_time(source, file_time);
+
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kCopy;
+    request.organization = ImportOrganization::kCaptureDate;
+    request.destination_directory = destination.string();
+    request.filename_template = "job-{date}-{sequence}{ext}";
+    request.second_copy_directory = second_copy.string();
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().imported, 1U);
+    const auto relative = std::filesystem::path("2024") / "05" / "06" / "job-20240506-0001.png";
+    EXPECT_TRUE(std::filesystem::exists(destination / relative));
+    EXPECT_TRUE(std::filesystem::exists(second_copy / relative));
+    EXPECT_TRUE(imported.value().items[0].copies_verified);
+}
+
+TEST_F(CatalogServiceTest, VerificationMismatchRemovesOnlyOwnedCopiesAndPublishesNoAsset)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "verify-source";
+    const auto destination = root / "verify-primary";
+    const auto second_copy = root / "verify-second-copy";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second_copy);
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(12, 100, 200));
+    const auto source = source_dir / "photo.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    const auto source_hash = file_sha256(source.string());
+
+    testing::CatalogServiceTestControl::set_import_checkpoint(
+        *service,
+        [](const std::string_view checkpoint, const std::string_view path) -> Result<void>
+        {
+            if (checkpoint != "before_copy_verification")
+                return {};
+            std::fstream output(std::string(path), std::ios::in | std::ios::out | std::ios::binary);
+            if (!output)
+                return make_error(ErrorCode::kIo, "Unable to inject copy corruption");
+            char byte = 0;
+            output.read(&byte, 1);
+            byte ^= static_cast<char>(0x5a);
+            output.seekp(0);
+            output.write(&byte, 1);
+            output.flush();
+            if (!output)
+                return make_error(ErrorCode::kIo, "Unable to inject copy corruption");
+            return {};
+        });
+
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kMove;
+    request.destination_directory = destination.string();
+    request.filename_template = "job{ext}";
+    request.second_copy_directory = second_copy.string();
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    EXPECT_EQ(imported.value().failed, 1U);
+    EXPECT_EQ(imported.value().imported, 0U);
+    EXPECT_EQ(imported.value().verified_second_copies, 0U);
+    ASSERT_EQ(imported.value().items.size(), 1U);
+    ASSERT_TRUE(imported.value().items[0].error);
+    EXPECT_EQ(imported.value().items[0].error->context.at("reason"), "import_copy_verify_mismatch");
+    EXPECT_FALSE(imported.value().items[0].copies_verified);
+    EXPECT_FALSE(std::filesystem::exists(destination / "job.png"));
+    EXPECT_FALSE(std::filesystem::exists(second_copy / "job.png"));
+    EXPECT_TRUE(std::filesystem::exists(source));
+    EXPECT_EQ(file_sha256(source.string()), source_hash);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    EXPECT_TRUE(listed.value().empty());
+    testing::CatalogServiceTestControl::set_import_checkpoint(*service, {});
+}
+
+TEST_F(CatalogServiceTest, CancellationBeforeSecondCopyVerificationCleansBothTrees)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "cancel-source";
+    const auto destination = root / "cancel-primary";
+    const auto second_copy = root / "cancel-second-copy";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second_copy);
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 160, 90));
+    const auto source = source_dir / "photo.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    const auto source_hash = file_sha256(source.string());
+    CancellationSource cancellation;
+    testing::CatalogServiceTestControl::set_import_checkpoint(
+        *service,
+        [&cancellation](const std::string_view checkpoint, const std::string_view) -> Result<void>
+        {
+            if (checkpoint == "before_copy_verification")
+                static_cast<void>(cancellation.cancel("verify-cancel-test"));
+            return {};
+        });
+
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.filename_template = "job{ext}";
+    request.second_copy_directory = second_copy.string();
+    request.cancellation = cancellation.token();
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().items.size(), 1U);
+    ASSERT_TRUE(imported.value().items[0].error);
+    EXPECT_EQ(imported.value().items[0].error->code, ErrorCode::kCancelled);
+    EXPECT_FALSE(std::filesystem::exists(destination / "job.png"));
+    EXPECT_FALSE(std::filesystem::exists(second_copy / "job.png"));
+    EXPECT_EQ(file_sha256(source.string()), source_hash);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    EXPECT_TRUE(listed.value().empty());
+    testing::CatalogServiceTestControl::set_import_checkpoint(*service, {});
+}
+
+TEST_F(CatalogServiceTest, MoveRetainsSourceSetWhenXmpChangesAfterCopyVerification)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "move-change-source";
+    const auto destination = root / "move-change-primary";
+    const auto second_copy = root / "move-change-second-copy";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second_copy);
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(140, 80, 30));
+    const auto source = source_dir / "photo.png";
+    const auto sidecar = source_dir / "photo.xmp";
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    {
+        std::ofstream output(sidecar, std::ios::binary);
+        output << "original-xmp";
+    }
+    const auto source_hash = file_sha256(source.string());
+    const auto original_sidecar_hash = file_sha256(sidecar.string());
+    testing::CatalogServiceTestControl::set_before_import_publication(
+        *service,
+        [&sidecar]
+        {
+            std::ofstream output(sidecar, std::ios::binary | std::ios::app);
+            output << "-changed";
+        });
+
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kMove;
+    request.destination_directory = destination.string();
+    request.second_copy_directory = second_copy.string();
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().imported, 1U);
+    EXPECT_EQ(imported.value().source_cleanup_failed, 1U);
+    ASSERT_TRUE(imported.value().items[0].source_cleanup_error);
+    EXPECT_EQ(imported.value().items[0].source_cleanup_error->context.at("reason"),
+              "import_source_changed_before_cleanup");
+    EXPECT_TRUE(std::filesystem::exists(source));
+    EXPECT_TRUE(std::filesystem::exists(sidecar));
+    EXPECT_EQ(file_sha256(source.string()), source_hash);
+    EXPECT_NE(file_sha256(sidecar.string()), original_sidecar_hash);
+    EXPECT_EQ(file_sha256((destination / "photo.xmp").string()), original_sidecar_hash);
+    EXPECT_EQ(file_sha256((second_copy / "photo.xmp").string()), original_sidecar_hash);
 }
 
 TEST(QtRasterDecoderTest, DecodeMemoryAppliesClockwiseQuarterTurnsWithoutExif)

@@ -41,6 +41,8 @@ sorted insertion also made Gallery unstable during a batch.
 
 Managed import changes ADR-0007's original reference-only product scope without
 changing the catalog schema: assets still store only final normalized URIs.
-PTP/MTP, DNG conversion, renaming, second-copy backup, metadata presets, and
-Smart Previews remain out of scope. Add and Copy never alter originals; Move is
-the only explicit source-deleting import mode.
+PTP/MTP, DNG conversion, metadata presets, and Smart Previews remain out of
+scope. [ADR-0104](0104-bounded-rename-and-verified-second-copy-ingest.md)
+subsequently accepts bounded renaming and a byte-verified second-copy tree for
+Copy/Move. Add and Copy never alter originals; Move is the only explicit
+source-deleting import mode.

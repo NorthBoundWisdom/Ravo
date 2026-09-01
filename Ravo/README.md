@@ -53,10 +53,14 @@ Current implementation status:
 - Studio import opens one full-page source browser. New photos start selected
   and can be added by reference, copied, or moved to an explicit destination
   using one folder, preserved hierarchy, or `YYYY/MM/DD` organization.
-  Copy/Move preserve names and same-stem XMP, preflight all conflicts, and use
-  atomic no-replace copies. Move removes a reverified source only after the
-  destination is cataloged. Minimal 320, Standard 1600, and 1:1 previews run in
-  a cancellable background queue after Last Imported Photos opens (ADR-0102).
+  Copy/Move optionally expand a bounded `{date}`/`{stem}`/`{sequence}`/`{ext}`
+  rename template and can mirror the exact organized media plus same-stem XMP
+  into a distinct second-copy root. Both trees are completely preflighted,
+  written with atomic no-replace copies, and independently compared byte for
+  byte before the primary path enters the catalog. Move removes a reverified
+  source only after every requested copy verifies and the destination is
+  cataloged. Minimal 320, Standard 1600, and 1:1 previews run in a cancellable
+  background queue after Last Imported Photos opens (ADR-0102/0104).
 - Browse & Review includes ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
   images like the grid, shows number/rating/flags in its letterbox, and maps
@@ -586,9 +590,10 @@ The implemented product now has only private-corpus and non-macOS release
 evidence remaining in
 [TODO_PHOTO_MANAGEMENT.md](../DevDocs/TODO_PHOTO_MANAGEMENT.md). Ranked
 Lightroom/Capture One user-outcome gaps are in
-[TODO_PRO_WORKFLOW.md](../DevDocs/TODO_PRO_WORKFLOW.md) and are not
-independently ready. Legacy absorption and retirement remains paused in the
-separate `MR*` queue in
+[TODO_PRO_WORKFLOW.md](../DevDocs/TODO_PRO_WORKFLOW.md); ADR-0104 accepts its
+bounded filesystem-ingest tranche while the table retains the remaining rank
+readiness. Legacy
+absorption and retirement remains paused in the separate `MR*` queue in
 [TODO_LEGACY_MIGRATION.md](../DevDocs/TODO_LEGACY_MIGRATION.md); changes of
 direction are recorded in dated ADRs, beginning with
 [ADR-0007](../DevDocs/adr/0007-first-usable-catalog-viewer.md).
@@ -740,7 +745,12 @@ ravo recipe style-apply <style.rstyle.json> --asset-id <id> --input <input-uri> 
 ravo recipe style-apply <style.rstyle.json> --target-recipe <current-recipe> --output <recipe> --json
 ravo render <input> --recipe <recipe> --output <png> --backend cpu [--width N] [--height N] --json
 ravo catalog create --path <library.sqlite> --json
-ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json
+ravo catalog import --catalog <library.sqlite> --input <file-or-folder> \
+  [--mode add|copy|move] [--destination <directory>] \
+  [--organize single|hierarchy|date] \
+  [--rename-template '{date}-{sequence}-{stem}{ext}'] \
+  [--second-copy <directory>] [--preview minimal|standard|one-to-one] \
+  [--no-recursive] --json
 ravo catalog list --catalog <library.sqlite> --json
 ravo catalog folders --catalog <library.sqlite> --json
 ravo catalog folder-relink --catalog <library.sqlite> --folder-id <id> --replacement <directory> --json

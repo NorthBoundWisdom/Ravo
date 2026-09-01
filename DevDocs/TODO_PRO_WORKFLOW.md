@@ -1,6 +1,6 @@
 # Professional Workflow Gap TODO
 
-> **Status: ranked; PW0 accepted; remaining ranks not independently ready**
+> **Status: PW0 and ADR-0104 filesystem ingest tranche accepted; remaining ranks not independently ready**
 >
 > **Updated: 2026-09-01**
 
@@ -63,7 +63,7 @@ Develop.”
 | Rank | User outcome | Why it is obvious versus Lightroom/Capture One | Contract owner | Readiness |
 | --- | --- | --- | --- | --- |
 | **PW1 — versions, stacks, and N-up cull** | Virtual copies/variants, RAW+JPEG or burst stacks, and compare/survey of several photos | Culling is half of a professional day. Ravo rates/rejects one grid and compares Before/After of the *same* photo | ProductRoadmap stacking/versions; schema is one recipe per asset | Blocked |
-| **PW2 — shoot ingest** | Card/camera ingest, rename templates, second-copy backup, HEIC/HEIF | First hour of a shoot. ADR-0102 explicitly left PTP/MTP, rename, second copy, DNG conversion, and Smart Previews out; HEIC/video have no product contract | ProductRoadmap ingest/format expansion | Blocked |
+| **PW2 — shoot ingest** | Card/camera ingest, rename templates, second-copy backup, HEIC/HEIF | First hour of a shoot. ADR-0104 accepts the filesystem rename/verified-second-copy tranche; PTP/MTP, DNG conversion, Smart Previews, HEIC, and video remain undecided | ProductRoadmap ingest/format expansion | Blocked after accepted ADR-0104 tranche |
 | **PW3 — metadata depth** | Hierarchical keywords, IPTC/location write, camera/lens/date facets | Client delivery and stock workflows. Ravo writes three catalog fields and flat tags; capture Exif is read-only; GPS writeback is unsupported | ProductRoadmap metadata; ADR-0064/S9 | Blocked |
 | **PW4 — apply Develop to many** | Sync/copy current edits onto an explicit multi-selection with a field chooser | After culling, one grade is applied to tens of frames. Current copy/paste is a session clipboard onto destinations one command at a time, not a selection-wide sync | ADR-0078/0098 plus a new multi-asset mutation contract | Blocked |
 | **PW5 — local grading on the stack** | Masked Light/Color/Curves instances, picker-assisted authoring, named extra blend modes | Capture One layers and Lightroom masking are how local color is done. Ravo’s mask graph exists but everyday grading tools are still mostly global; multi-instance legacy state still rejects | ProductRoadmap “Local adjustment expansion”; MR2 | Blocked |
@@ -107,8 +107,12 @@ burst without duplicating files on disk.
 **Current fact.** ADR-0102 accepted Add, Copy, and Move from a local scanned
 root, with name-preserving copy, same-stem XMP carriage, and no overwrite.
 
-**Still out of scope (ADR-0102).** PTP/MTP, DNG conversion, renaming templates,
-second-copy backup during ingest, metadata presets, and Smart Previews.
+**Accepted extension.** ADR-0104 owns bounded rename templates plus an
+independently byte-verified second-copy tree for Copy/Move from a mounted local
+source. It adds no catalog schema or remembered preference.
+
+**Still out of scope.** PTP/MTP, DNG conversion, metadata presets, and Smart
+Previews.
 
 **Unrecorded format contract.** HEIC/HEIF (phone libraries) and video are not
 accepted inputs. Architecture currently leaves Exiv2 video off.
@@ -272,7 +276,7 @@ python3 Ravo/tools/check_capability_inventory.py
 python3 Ravo/tools/check_freeze_reference.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
 cmake --preset mac_clang_debug -DBUILD_TESTING=ON
-cmake --build --preset mac_clang_debug --target ravo_catalog_tests ravo_desktop_command_tests ravo_cli_tests
+cmake --build --preset mac_clang_debug --target ravo_catalog_tests ravo_desktop_command_tests ravo_contract_tests
 ctest --test-dir build/mac_clang_debug --output-on-failure -R 'CatalogServiceTest|StudioPresenterTest|StudioQmlContract'
 ```
 
@@ -281,9 +285,10 @@ remain untested until those hosts run. Do not describe a skip as a pass.
 
 ## 6. Do not do
 
-- Do not start PW1–PW9 while `TODO_PHOTO_MANAGEMENT.md` release evidence is
-  the active repository-wide gate, unless that gate names the owner as a hard
-  dependency.
+- Do not start another PW1–PW9 tranche while `TODO_PHOTO_MANAGEMENT.md` release
+  evidence is the active repository-wide gate, unless a dated ADR proves the
+  owner is independent. ADR-0104 is the bounded filesystem-ingest exception;
+  it changes no release-evidence definition or catalog schema.
 - Do not add empty Collections/Map/Print/Tether panes.
 - Do not infer a monitor profile in QML, treat browse JPEG as Develop, or
   reuse RapidRAW/Adobe/Capture One code as a silent engine.

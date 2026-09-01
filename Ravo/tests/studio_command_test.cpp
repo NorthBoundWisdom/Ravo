@@ -4004,8 +4004,10 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
     ASSERT_TRUE(directory.isValid());
     const QString source_dir = QDir(directory.path()).filePath(QStringLiteral("source"));
     const QString destination = QDir(directory.path()).filePath(QStringLiteral("destination"));
+    const QString second_copy = QDir(directory.path()).filePath(QStringLiteral("second-copy"));
     ASSERT_TRUE(QDir().mkpath(source_dir));
     ASSERT_TRUE(QDir().mkpath(destination));
+    ASSERT_TRUE(QDir().mkpath(second_copy));
     const QString photo = QDir(source_dir).filePath(QStringLiteral("workspace.png"));
     QImage image(80, 60, QImage::Format_RGB888);
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
@@ -4031,6 +4033,8 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
     EXPECT_EQ(presenter.importCandidates()->selectedCount(), 1);
     presenter.setImportMode(QStringLiteral("copy"));
     presenter.setImportDestination(destination);
+    presenter.setImportFilenameTemplate(QStringLiteral("shoot-{sequence}{ext}"));
+    presenter.setImportSecondCopyDestination(second_copy);
     presenter.setImportPreviewPolicy(QStringLiteral("standard"));
     presenter.startPlannedImport();
     ASSERT_TRUE(wait_until(
@@ -4038,11 +4042,18 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.lastImportSelected());
     EXPECT_EQ(presenter.lastImportCount(), 1);
-    const QString copied = QDir(destination).filePath(QStringLiteral("workspace.png"));
+    EXPECT_EQ(presenter.importFilenameTemplate(), QStringLiteral("shoot-{sequence}{ext}"));
+    EXPECT_EQ(presenter.importSecondCopyDestination(), second_copy);
+    const QString copied = QDir(destination).filePath(QStringLiteral("shoot-0001.png"));
+    const QString copied_second = QDir(second_copy).filePath(QStringLiteral("shoot-0001.png"));
     ASSERT_TRUE(QFileInfo::exists(copied));
     QFile copied_file(copied);
     ASSERT_TRUE(copied_file.open(QIODevice::ReadOnly));
     EXPECT_EQ(QCryptographicHash::hash(copied_file.readAll(), QCryptographicHash::Sha256),
+              source_hash);
+    QFile second_file(copied_second);
+    ASSERT_TRUE(second_file.open(QIODevice::ReadOnly));
+    EXPECT_EQ(QCryptographicHash::hash(second_file.readAll(), QCryptographicHash::Sha256),
               source_hash);
     QFile source_file(photo);
     ASSERT_TRUE(source_file.open(QIODevice::ReadOnly));
@@ -4388,6 +4399,11 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.setAllSelected")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportOrganization")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportPreviewPolicy")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setImportFilenameTemplate")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setImportSecondCopyDestination")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importFilenameTemplate\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importChooseSecondCopy\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("{date}, {stem}, {sequence}, {ext}")));
     EXPECT_TRUE(source.contains(QStringLiteral("Minimal (320)")));
     EXPECT_TRUE(source.contains(QStringLiteral("Standard (1600)")));
     EXPECT_TRUE(source.contains(QStringLiteral("startPlannedImport")));
@@ -4397,6 +4413,7 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     const auto main_source = QString::fromUtf8(main.readAll());
     EXPECT_TRUE(main_source.contains(QStringLiteral("ImportPage")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("studio.openImportPage()")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("importSecondCopyDialog")));
     EXPECT_FALSE(main_source.contains(QStringLiteral("id: importDialog")));
     EXPECT_FALSE(main_source.contains(QStringLiteral("id: importFolderDialog")));
 }

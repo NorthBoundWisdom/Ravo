@@ -9,6 +9,7 @@ Rectangle {
     property int selectionAnchor: -1
     signal chooseSourceRequested
     signal chooseDestinationRequested
+    signal chooseSecondCopyRequested
     signal closeRequested
 
     color: Theme.windowColor
@@ -276,9 +277,61 @@ Rectangle {
                         }
                     }
                     CustomLabel {
+                        text: qsTr("Rename template")
+                        visible: root.presenter.importMode !== "add"
+                    }
+                    CustomTextField {
+                        objectName: "importFilenameTemplate"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        visible: root.presenter.importMode !== "add"
+                        alignRightWhenFocused: false
+                        showClipIndicator: false
+                        showEmptyIndicator: false
+                        text: root.presenter.importFilenameTemplate
+                        placeholderText: qsTr("Keep original names")
+                        Accessible.name: qsTr("Import filename template")
+                        onEditingFinished: root.presenter.setImportFilenameTemplate(text)
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        visible: root.presenter.importMode !== "add"
+                        text: qsTr("Tokens: {date}, {stem}, {sequence}, {ext}")
+                        wrapMode: Text.WordWrap
+                        color: Theme.placeholderTextColor
+                    }
+                    CustomLabel {
+                        text: qsTr("Second copy")
+                        font.bold: true
+                        visible: root.presenter.importMode !== "add"
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: root.presenter.importMode !== "add"
+                        CustomButton {
+                            objectName: "importChooseSecondCopy"
+                            Layout.fillWidth: true
+                            text: qsTr("Choose Second Copy…")
+                            onClicked: root.chooseSecondCopyRequested()
+                        }
+                        CustomButton {
+                            objectName: "importClearSecondCopy"
+                            visible: root.presenter.importSecondCopyDestination.length > 0
+                            text: qsTr("Clear")
+                            onClicked: root.presenter.setImportSecondCopyDestination("")
+                        }
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        visible: root.presenter.importMode !== "add"
+                        text: root.presenter.importSecondCopyDestination.length ? root.presenter.importSecondCopyDestination : qsTr("No second copy selected")
+                        wrapMode: Text.WrapAnywhere
+                        color: Theme.placeholderTextColor
+                    }
+                    CustomLabel {
                         Layout.fillWidth: true
                         visible: root.presenter.importMode === "move"
-                        text: qsTr("Move copies and verifies each photo before removing its source.")
+                        text: qsTr("Move verifies every requested copy before removing its source.")
                         wrapMode: Text.WordWrap
                         color: Theme.warningColor
                     }

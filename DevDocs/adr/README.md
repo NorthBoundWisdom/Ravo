@@ -111,3 +111,4 @@ supersession relationship when direction changes.
 | [0101](0101-verified-backup-scheduling-and-stable-folder-relink.md) | Accepted | Schema v8 schedules verified retention without deleting unknown paths; schema v9 gives direct containing folders stable IDs and an identity-checked transactional relink. |
 | [0102](0102-planned-managed-import-workspace.md) | Accepted | One import workspace plans Add/Copy/Move, no-replace destinations, XMP companions, and background preview policies. |
 | [0103](0103-named-library-sets.md) | Accepted | Schema v10 persists manual membership collections and smart `LibraryQuery` sets with revision-checked mutations and paged listing. |
+| [0104](0104-bounded-rename-and-verified-second-copy-ingest.md) | Accepted | Copy/Move ingest adds a bounded portable rename grammar and an independently byte-verified second-copy tree before catalog publication. |

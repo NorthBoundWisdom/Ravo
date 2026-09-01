@@ -73,6 +73,16 @@ QString StudioPresenter::importDestination() const
     return import_destination_;
 }
 
+QString StudioPresenter::importSecondCopyDestination() const
+{
+    return import_second_copy_destination_;
+}
+
+QString StudioPresenter::importFilenameTemplate() const
+{
+    return import_filename_template_;
+}
+
 QString StudioPresenter::importMode() const
 {
     return import_mode_;
@@ -137,6 +147,23 @@ void StudioPresenter::setImportDestination(const QString &path)
     if (next == import_destination_)
         return;
     import_destination_ = next;
+    emit importPageChanged();
+}
+
+void StudioPresenter::setImportSecondCopyDestination(const QString &path)
+{
+    const QString next = path.trimmed();
+    if (next == import_second_copy_destination_)
+        return;
+    import_second_copy_destination_ = next;
+    emit importPageChanged();
+}
+
+void StudioPresenter::setImportFilenameTemplate(const QString &filename_template)
+{
+    if (filename_template == import_filename_template_)
+        return;
+    import_filename_template_ = filename_template;
     emit importPageChanged();
 }
 
@@ -306,7 +333,12 @@ void StudioPresenter::startPlannedImport()
                                ImportOrganization::kCaptureDate :
                                ImportOrganization::kSingleFolder;
     request.preview = preview_policy(import_preview_policy_);
-    request.destination_directory = utf8_from_qstring(import_destination_);
+    if (request.mode != ImportTransferMode::kAdd)
+    {
+        request.destination_directory = utf8_from_qstring(import_destination_);
+        request.filename_template = utf8_from_qstring(import_filename_template_);
+        request.second_copy_directory = utf8_from_qstring(import_second_copy_destination_);
+    }
     request.recursive = false;
     request.defer_previews = true;
     import_operation_ = CancellationSource{};

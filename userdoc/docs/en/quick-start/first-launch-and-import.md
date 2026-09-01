@@ -2,10 +2,10 @@
 
 ## Goal
 
-Create or open a local library, import photos by reference, and confirm that
-the first previews appear in Gallery.
+Create or open a local library, add or copy photos through the import workspace,
+and confirm that the first previews appear in Gallery.
 
-**Last reviewed:** 2026-08-31 against the current Studio and catalog service
+**Last reviewed:** 2026-09-01 against the current Studio and catalog service
 contracts.
 
 ## Applies to
@@ -50,8 +50,17 @@ used when a valid supported file has an uncommon suffix.
    items are reported separately.
 
 Directory import is recursive, ignores hidden filenames, sorts paths
-deterministically, and removes duplicate paths from one batch. It does not
-copy the files into the catalog.
+deterministically, and removes duplicate paths from one batch. **Add** records
+the existing paths. **Copy** and **Move** require an existing destination and
+can organize files into one folder, preserve the selected root hierarchy, or
+use `YYYY/MM/DD` directories.
+
+For a shoot ingest, Copy/Move can also use a rename template with only
+`{date}`, `{stem}`, `{sequence}`, and `{ext}`, and can select a distinct second
+copy directory. Ravo preflights the complete primary/second path set and never
+overwrites or invents a unique suffix. When a second copy is selected, media
+and same-stem XMP companions are compared byte for byte before the primary path
+is cataloged.
 
 ## Current input boundary
 
@@ -83,7 +92,9 @@ or an unsupported RAW sensor returns a structured unsupported or failed result.
 - Durable catalog changes also produce a catalog-owned recovery generation
   under `<catalog>.ravo/sidecars/`. This is not an adjacent XMP file and is
   never read as an edit authority.
-- The original file is not moved, copied, renamed, or rewritten.
+- Add and Copy do not alter the source. Move removes the source media and XMP
+  only after every requested copy verifies and the primary asset is cataloged;
+  a cleanup failure keeps the safe source bytes and is reported.
 
 ## Progress and results
 

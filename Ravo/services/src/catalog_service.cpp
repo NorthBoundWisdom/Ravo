@@ -31,6 +31,13 @@ void testing::CatalogServiceTestControl::set_before_preview_cache_publication(
     service.testing_before_preview_cache_publication_ = std::move(callback);
 }
 
+void testing::CatalogServiceTestControl::set_import_checkpoint(
+    CatalogService &service,
+    std::function<Result<void>(std::string_view checkpoint, std::string_view path)> callback)
+{
+    service.testing_import_checkpoint_ = std::move(callback);
+}
+
 void testing::CatalogServiceTestControl::set_backup_checkpoint(
     CatalogService &service,
     std::function<Result<void>(std::string_view checkpoint, std::string_view path)> callback)

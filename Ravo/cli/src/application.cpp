@@ -224,6 +224,8 @@ struct CatalogCliArguments
     std::string_view import_destination;
     std::string_view import_organization;
     std::string_view import_preview;
+    std::string_view import_filename_template;
+    std::string_view import_second_copy;
     bool import_recursive = true;
     std::string_view asset_id;
     std::vector<std::string_view> asset_ids;
@@ -545,6 +547,20 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "Import preview policy was specified twice");
             result.import_preview = value;
+        }
+        else if (option == "--rename-template")
+        {
+            if (!result.import_filename_template.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Import rename template was specified twice");
+            result.import_filename_template = value;
+        }
+        else if (option == "--second-copy")
+        {
+            if (!result.import_second_copy.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Import second-copy destination was specified twice");
+            result.import_second_copy = value;
         }
         else if (option == "--asset-id")
         {
@@ -2566,7 +2582,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool has_import_options =
         !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
-        !flags.value().import_recursive;
+        !flags.value().import_filename_template.empty() ||
+        !flags.value().import_second_copy.empty() || !flags.value().import_recursive;
     if (has_import_options && subcommand != "import")
         return make_error(ErrorCode::kInvalidArgument,
                           "Import options are only valid for catalog import");
@@ -2968,6 +2985,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return make_error(ErrorCode::kInvalidArgument, "Unknown import preview policy",
                               {{"preview", std::string(preview)}});
         request.destination_directory = std::string(flags.value().import_destination);
+        request.filename_template = std::string(flags.value().import_filename_template);
+        request.second_copy_directory = std::string(flags.value().import_second_copy);
         request.source_root = request.inputs.front();
         request.recursive = flags.value().import_recursive;
         request.cancellation = CancellationToken{};
@@ -2998,6 +3017,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                 row.emplace("destination", *item.destination_path);
             if (item.sidecar_destination_path)
                 row.emplace("sidecar_destination", *item.sidecar_destination_path);
+            if (item.second_copy_destination_path)
+                row.emplace("second_copy_destination", *item.second_copy_destination_path);
+            if (item.second_copy_sidecar_destination_path)
+                row.emplace("second_copy_sidecar_destination",
+                            *item.second_copy_sidecar_destination_path);
+            row.emplace("copies_verified", item.copies_verified);
             if (item.source_cleanup_error)
                 row.emplace("source_cleanup_error", error_object(*item.source_cleanup_error));
             items.emplace_back(std::move(row));
@@ -3005,12 +3030,16 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return JsonValue{JsonValue::Object{
             {"mode", std::string(mode)},
             {"preview", std::string(preview)},
+            {"rename_template", std::string(flags.value().import_filename_template)},
+            {"second_copy_destination", std::string(flags.value().import_second_copy)},
             {"imported", JsonValue::number(std::to_string(imported.value().imported))},
             {"duplicates", JsonValue::number(std::to_string(imported.value().duplicates))},
             {"unsupported", JsonValue::number(std::to_string(imported.value().unsupported))},
             {"failed", JsonValue::number(std::to_string(imported.value().failed))},
             {"source_cleanup_failed",
              JsonValue::number(std::to_string(imported.value().source_cleanup_failed))},
+            {"verified_second_copies",
+             JsonValue::number(std::to_string(imported.value().verified_second_copies))},
             {"items", std::move(items)},
         }};
     }

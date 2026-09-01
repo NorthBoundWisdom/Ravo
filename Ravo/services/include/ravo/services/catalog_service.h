@@ -280,6 +280,7 @@ private:
     std::optional<CachedLinearWorking> browse_linear_working_;
     std::function<void()> testing_before_import_publication_;
     std::function<void()> testing_before_preview_cache_publication_;
+    std::function<Result<void>(std::string_view, std::string_view)> testing_import_checkpoint_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_backup_checkpoint_;
 
     friend class testing::CatalogServiceTestControl;

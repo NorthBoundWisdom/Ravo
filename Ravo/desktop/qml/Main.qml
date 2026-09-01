@@ -1383,6 +1383,10 @@ ApplicationWindow {
             importDestinationDialog.currentFolder = studio.defaultCatalogFolder;
             importDestinationDialog.openDialog();
         }
+        onChooseSecondCopyRequested: {
+            importSecondCopyDialog.currentFolder = studio.defaultCatalogFolder;
+            importSecondCopyDialog.openDialog();
+        }
     }
 
     AssistantPanel {
@@ -1514,6 +1518,14 @@ ApplicationWindow {
         dialogTitle: qsTr("Choose Import Destination")
         onFolderAccepted: function (folderPath) {
             studio.setImportDestination(folderPath);
+        }
+    }
+
+    FolderDialogPage {
+        id: importSecondCopyDialog
+        dialogTitle: qsTr("Choose Import Second Copy")
+        onFolderAccepted: function (folderPath) {
+            studio.setImportSecondCopyDestination(folderPath);
         }
     }
 

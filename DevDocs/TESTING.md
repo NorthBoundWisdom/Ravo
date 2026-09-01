@@ -59,8 +59,11 @@ stable Gallery model throughout an active batch, one final switch to the
 successful Last Imported Photos range, partial-cancellation membership, folder
 exit, command/QML wiring, and catalog-lifecycle reset. Managed-import tests
 add exact Copy/Move bytes, same-stem XMP, three destination organizations,
-zero-publication conflicts, source-change and cleanup failures, CLI JSON,
-workspace selection, and cancellable background preview policies. LibraryQuery tests cover every
+bounded deterministic rename expansion, primary/second-tree portable conflict
+preflight, independent byte verification, verification mismatch and
+cancellation cleanup, source-change and Move cleanup failures, CLI JSON,
+workspace selection, and cancellable background preview policies (ADR-0102/
+0104). LibraryQuery tests cover every
 supported predicate, missing capture values, inclusive numeric/time endpoints,
 ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
 text/range state, deterministic capture/file-size sorting, Catalog validation

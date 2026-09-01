@@ -172,6 +172,41 @@ TEST(ExportFormatTest, ExpandsOnlyBoundedPortableFilenameTemplateTokens)
     EXPECT_EQ(too_large.error().context.at("reason"), "invalid_expanded_export_filename");
 }
 
+TEST(ImportFilenameTemplateTest, ExpandsOnlyStableBoundedPortableTokens)
+{
+    auto expanded = expand_import_filename_template("job-{date}-{sequence}-{stem}{ext}", "portrait",
+                                                    "20260901", 7U, ".CR3");
+    ASSERT_TRUE(expanded) << expanded.error().message;
+    EXPECT_EQ(expanded.value(), "job-20260901-0007-portrait.CR3");
+    auto appended =
+        expand_import_filename_template("job-{sequence}", "portrait", "20260901", 42U, ".jpg");
+    ASSERT_TRUE(appended) << appended.error().message;
+    EXPECT_EQ(appended.value(), "job-0042.jpg");
+
+    auto unknown =
+        expand_import_filename_template("{camera}{ext}", "portrait", "20260901", 1U, ".png");
+    ASSERT_FALSE(unknown);
+    EXPECT_EQ(unknown.error().context.at("reason"), "unknown_import_filename_token");
+    auto traversal =
+        expand_import_filename_template("../{stem}{ext}", "portrait", "20260901", 1U, ".png");
+    ASSERT_FALSE(traversal);
+    EXPECT_EQ(traversal.error().context.at("reason"), "nonportable_import_filename");
+    auto reserved = expand_import_filename_template("CON{ext}", "portrait", "20260901", 1U, ".png");
+    ASSERT_FALSE(reserved);
+    EXPECT_EQ(reserved.error().context.at("reason"), "reserved_import_filename");
+    EXPECT_FALSE(expand_import_filename_template("{stem", "portrait", "20260901", 1U, ".png"));
+    EXPECT_FALSE(
+        expand_import_filename_template("{stem}{ext}", "bad/name", "20260901", 1U, ".png"));
+    EXPECT_FALSE(
+        expand_import_filename_template("{stem}{ext}", "portrait", "2026/0901", 1U, ".png"));
+    EXPECT_FALSE(
+        expand_import_filename_template("{stem}{ext}", "portrait", "20260901", 0U, ".png"));
+    auto too_large = expand_import_filename_template("{stem}{stem}{ext}", std::string(200, 'a'),
+                                                     "20260901", 1U, ".png");
+    ASSERT_FALSE(too_large);
+    EXPECT_EQ(too_large.error().context.at("reason"), "invalid_expanded_import_filename");
+}
+
 TEST(ExportFormatTest, OwnsTypedJpegOptionsAndRejectsInvalidValues)
 {
     const JpegExportOptions defaults;

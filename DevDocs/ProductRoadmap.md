@@ -34,13 +34,12 @@ exists.
 
 ## Originals, catalogs, and interchange
 
-Add/Copy/Move from a local scanned root is accepted (ADR-0102). Still undecided
-ingest expansions, each needing collision, cancellation, and original-safety
-rules before schema or UI work:
+Add/Copy/Move from a local scanned root is accepted (ADR-0102). Bounded rename
+templates and a byte-verified second-copy tree are accepted by ADR-0104 without
+catalog schema changes. Still undecided ingest expansions, each needing
+collision, cancellation, and original-safety rules before schema or UI work:
 
 - PTP/MTP camera-card ingest;
-- bounded rename templates;
-- second-copy backup during ingest;
 - DNG conversion and Smart Previews;
 - HEIC/HEIF still photography, and whether video is ever in scope.
 
