@@ -47,6 +47,7 @@
 #include "ravo/services/catalog_service.h"
 
 #include "ravo/desktop/preview_request_owner.h"
+#include "ravo/desktop/folder_list_model.h"
 #include "ravo/desktop/library_set_list_model.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_live_session_controller.h"
@@ -1673,6 +1674,127 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesGalleryPlaceholdersWhenImportS
     EXPECT_EQ(presenter.lastImportCount(), 3);
     EXPECT_EQ(presenter.visibleCount(), 3);
     EXPECT_FALSE(presenter.selectedAssetId().isEmpty());
+}
+
+TEST(StudioPresenterTest, FolderListModelDoesNotResetWhenStructureIsUnchanged)
+{
+    ensure_qt_core();
+    FolderListModel model;
+    int resets = 0;
+    int changes = 0;
+    QObject::connect(&model, &QAbstractItemModel::modelReset, [&] { ++resets; });
+    QObject::connect(&model, &QAbstractItemModel::dataChanged, [&] { ++changes; });
+
+    std::vector<FolderRecord> folders(2);
+    folders[0].display_name = "All Photographs";
+    folders[0].asset_count = 2;
+    folders[1].id = "fld_a";
+    folders[1].uri = "file:///tmp/pictures";
+    folders[1].display_name = "pictures";
+    folders[1].depth = 1;
+    folders[1].asset_count = 2;
+    model.setFolders(folders);
+    ASSERT_EQ(model.rowCount(), 2);
+    ASSERT_EQ(resets, 1);
+
+    model.setFolders(folders);
+    EXPECT_EQ(resets, 1);
+    EXPECT_EQ(changes, 0);
+
+    folders[1].asset_count = 3;
+    model.setFolders(folders);
+    EXPECT_EQ(resets, 1);
+    ASSERT_GE(changes, 1);
+    EXPECT_EQ(model.data(model.index(1, 0), FolderListModel::AssetCountRole).toInt(), 3);
+
+    FolderRecord extra;
+    extra.id = "fld_b";
+    extra.uri = "file:///tmp/pictures/trip";
+    extra.display_name = "trip";
+    extra.depth = 2;
+    extra.asset_count = 1;
+    folders.push_back(extra);
+    model.setFolders(folders);
+    EXPECT_EQ(resets, 2);
+    EXPECT_EQ(model.rowCount(), 3);
+}
+
+TEST(StudioPresenterTest, SelectingFolderDoesNotResetFolderTree)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString pictures = QDir(directory.path()).filePath(QStringLiteral("Pictures"));
+    const QString trip = QDir(pictures).filePath(QStringLiteral("trip"));
+    ASSERT_TRUE(QDir().mkpath(trip));
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 90, 130));
+    ASSERT_TRUE(image.save(QDir(pictures).filePath(QStringLiteral("a.png")), "PNG"));
+    image.fill(QColor(130, 90, 40));
+    ASSERT_TRUE(image.save(QDir(trip).filePath(QStringLiteral("b.png")), "PNG"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({QDir(pictures).filePath(QStringLiteral("a.png")),
+                               QDir(trip).filePath(QStringLiteral("b.png"))});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 2 && !presenter.importWorkActive() &&
+                   !presenter.busy() && presenter.folders()->rowCount() >= 3;
+        },
+        30000))
+        << presenter.errorText().toStdString();
+
+    QString pictures_uri;
+    QString trip_uri;
+    for (int row = 0; row < presenter.folders()->rowCount(); ++row)
+    {
+        const auto index = presenter.folders()->index(row, 0);
+        const auto name =
+            presenter.folders()->data(index, FolderListModel::DisplayNameRole).toString();
+        const auto uri =
+            presenter.folders()->data(index, FolderListModel::FolderUriRole).toString();
+        if (name == QStringLiteral("Pictures"))
+            pictures_uri = uri;
+        else if (name == QStringLiteral("trip"))
+            trip_uri = uri;
+    }
+    ASSERT_FALSE(pictures_uri.isEmpty());
+    ASSERT_FALSE(trip_uri.isEmpty());
+
+    int tree_resets = 0;
+    QObject::connect(presenter.folders(), &QAbstractItemModel::modelReset, [&] { ++tree_resets; });
+    const int tree_rows = presenter.folders()->rowCount();
+    presenter.selectFolder(trip_uri);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.selectedFolderUri() == trip_uri && presenter.visibleCount() == 1 &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(tree_resets, 0);
+    EXPECT_EQ(presenter.folders()->rowCount(), tree_rows);
+
+    presenter.selectFolder(QString());
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.selectedFolderUri().isEmpty() && presenter.visibleCount() == 2 &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(tree_resets, 0);
+    EXPECT_EQ(presenter.folders()->rowCount(), tree_rows);
+
+    presenter.folders()->toggleCollapsed(pictures_uri);
+    EXPECT_GE(tree_resets, 1);
+    EXPECT_LT(presenter.folders()->rowCount(), tree_rows);
 }
 
 } // namespace

@@ -6,6 +6,7 @@ MenuItem {
     id: root
 
     property string displayText: ""
+    property bool reserveCheckColumn: checkable
     readonly property string resolvedText: displayText.length > 0 ? displayText : text
 
     implicitHeight: Math.max(Fonts.listItemHeight, Fonts.size24)
@@ -21,14 +22,15 @@ MenuItem {
     }
 
     contentItem: Item {
-        implicitWidth: checkmark.width + Fonts.size8 + label.implicitWidth + (arrow.visible ? Fonts.size16 : 0)
+        implicitWidth: checkmark.width + (root.reserveCheckColumn ? Fonts.size8 : 0) + label.implicitWidth + (arrow.visible ? Fonts.size16 : 0)
         implicitHeight: Math.max(label.implicitHeight, Fonts.size16)
 
         Text {
             id: checkmark
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            width: Fonts.size20
+            width: root.reserveCheckColumn ? Fonts.size20 : 0
+            visible: root.reserveCheckColumn
             text: root.checkable && root.checked ? "\u2713" : ""
             font: Fonts.makeBoldFont(Fonts.standardFont)
             color: root.enabled ? Theme.textColor : Theme.disabledTextColor
@@ -41,7 +43,7 @@ MenuItem {
             anchors.left: checkmark.right
             anchors.right: arrow.visible ? arrow.left : parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: Fonts.size8
+            anchors.leftMargin: root.reserveCheckColumn ? Fonts.size8 : 0
             anchors.rightMargin: arrow.visible ? Fonts.size8 : 0
             text: root.resolvedText
             font: Fonts.standardFont

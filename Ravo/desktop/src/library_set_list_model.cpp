@@ -1,5 +1,7 @@
 #include "ravo/desktop/library_set_list_model.h"
 
+#include <algorithm>
+
 #include "studio_qt.h"
 
 namespace ravo
@@ -50,6 +52,33 @@ QHash<int, QByteArray> LibrarySetListModel::roleNames() const
 
 void LibrarySetListModel::setSets(std::vector<LibrarySetRecord> sets, std::string selected_id)
 {
+    const bool same_identity =
+        sets_.size() == sets.size() &&
+        std::equal(sets_.begin(), sets_.end(), sets.begin(),
+                   [](const LibrarySetRecord &left, const LibrarySetRecord &right)
+                   { return left.id == right.id && left.kind == right.kind; });
+    const bool same_payload =
+        same_identity &&
+        std::equal(sets_.begin(), sets_.end(), sets.begin(),
+                   [](const LibrarySetRecord &left, const LibrarySetRecord &right)
+                   {
+                       return left.name == right.name && left.asset_count == right.asset_count &&
+                              left.query == right.query;
+                   });
+    if (same_payload && selected_id_ == selected_id)
+        return;
+    if (same_identity)
+    {
+        sets_ = std::move(sets);
+        selected_id_ = std::move(selected_id);
+        if (!sets_.empty())
+        {
+            emit dataChanged(index(0, 0), index(rowCount() - 1, 0),
+                             same_payload ? QList<int>{SelectedRole} :
+                                            QList<int>{NameRole, AssetCountRole, SelectedRole});
+        }
+        return;
+    }
     beginResetModel();
     sets_ = std::move(sets);
     selected_id_ = std::move(selected_id);

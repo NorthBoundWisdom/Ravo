@@ -442,9 +442,20 @@ TEST(StudioQmlContract, DevelopReviewToolbarOffersSynchronizedBeforeAfterCompari
     EXPECT_TRUE(review_source.contains(QStringLiteral("text: qsTr(\"Y|Y\")")));
     EXPECT_TRUE(review_source.contains(QStringLiteral("tooltipText: action ? action.text : \"\"")));
     EXPECT_TRUE(review_source.contains(QStringLiteral("id: leadingTools")));
-    EXPECT_TRUE(review_source.contains(QStringLiteral("Flickable")));
-    EXPECT_TRUE(review_source.contains(QStringLiteral("ScrollBar.horizontal")));
-    EXPECT_TRUE(review_source.contains(QStringLiteral("Layout.fillWidth: true")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("id: reviewTools")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("id: overflowButton")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("id: overflowMenu")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("fitToContent: true")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("qsTr(\"More\")")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("collapseState")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("compactReview")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("id: compactRatingButton")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("id: compactColorButton")));
+    EXPECT_FALSE(review_source.contains(QStringLiteral("Flickable")));
+    const auto review_tools = review_source.indexOf(QStringLiteral("id: reviewTools"));
+    ASSERT_GE(review_tools, 0);
+    EXPECT_GT(review_source.indexOf(QStringLiteral("RatingControl"), review_tools), review_tools);
+    EXPECT_GT(review_source.indexOf(QStringLiteral("qsTr(\"Keep\")"), review_tools), review_tools);
 
     QFile main_qml(QStringLiteral(RAVO_STUDIO_MAIN_QML));
     ASSERT_TRUE(main_qml.open(QIODevice::ReadOnly | QIODevice::Text))

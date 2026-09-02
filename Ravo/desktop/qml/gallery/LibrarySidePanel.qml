@@ -299,13 +299,26 @@ Rectangle {
             Layout.leftMargin: Fonts.size8
             Layout.rightMargin: Fonts.size8
             Layout.bottomMargin: Fonts.size8
-            Layout.preferredHeight: {
-                const iw = Math.max(1, navImage.implicitWidth);
-                const ih = Math.max(1, navImage.implicitHeight);
-                const maxH = Fonts.scaledUiSize(200);
-                return Math.max(Fonts.scaledUiSize(88), Math.min(maxH, width * ih / iw));
-            }
+            Layout.preferredHeight: Fonts.scaledUiSize(200)
+            Layout.minimumHeight: Fonts.scaledUiSize(200)
+            Layout.maximumHeight: Fonts.scaledUiSize(200)
             clip: true
+
+            readonly property bool hasSelectedPhoto: root.presenter && root.presenter.selectedAssetId.length > 0
+            readonly property url liveSource: {
+                if (!root.presenter)
+                    return "";
+                if (root.presenter.previewUrl.toString().length)
+                    return root.presenter.previewUrl;
+                return root.presenter.selectedThumbnailUrl;
+            }
+            property url heldSource: ""
+            readonly property Item shownImage: navImage.status === Image.Ready ? navImage : navHeldImage
+
+            onHasSelectedPhotoChanged: {
+                if (!hasSelectedPhoto)
+                    heldSource = "";
+            }
 
             Rectangle {
                 anchors.fill: parent
@@ -316,25 +329,34 @@ Rectangle {
             }
 
             Image {
+                id: navHeldImage
+                anchors.fill: parent
+                anchors.margins: 1
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                cache: false
+                source: navigator.heldSource
+                visible: navigator.heldSource.toString().length > 0 && navImage.status !== Image.Ready
+            }
+
+            Image {
                 id: navImage
                 anchors.fill: parent
                 anchors.margins: 1
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 cache: false
-                source: {
-                    if (!root.presenter)
-                        return "";
-                    if (root.presenter.previewUrl.toString().length)
-                        return root.presenter.previewUrl;
-                    return root.presenter.selectedThumbnailUrl;
+                source: navigator.liveSource
+                visible: status === Image.Ready
+                onStatusChanged: {
+                    if (status === Image.Ready)
+                        navigator.heldSource = source;
                 }
-                visible: source.toString().length > 0
             }
 
             CustomLabel {
                 anchors.centerIn: parent
-                visible: navImage.status !== Image.Ready
+                visible: !navigator.hasSelectedPhoto
                 text: qsTr("No photo")
                 color: Theme.placeholderTextColor
                 font.pixelSize: Fonts.size10
@@ -342,13 +364,13 @@ Rectangle {
 
             Rectangle {
                 id: viewBox
-                readonly property real imgX: (navImage.width - navImage.paintedWidth) / 2
-                readonly property real imgY: (navImage.height - navImage.paintedHeight) / 2
-                visible: navImage.status === Image.Ready && navImage.paintedWidth > 1 && navImage.paintedHeight > 1
-                x: viewBox.imgX + root.viewRectX * navImage.paintedWidth
-                y: viewBox.imgY + root.viewRectY * navImage.paintedHeight
-                width: Math.max(6, root.viewRectW * navImage.paintedWidth)
-                height: Math.max(6, root.viewRectH * navImage.paintedHeight)
+                readonly property real imgX: (navigator.shownImage.width - navigator.shownImage.paintedWidth) / 2
+                readonly property real imgY: (navigator.shownImage.height - navigator.shownImage.paintedHeight) / 2
+                visible: navigator.shownImage.status === Image.Ready && navigator.shownImage.paintedWidth > 1 && navigator.shownImage.paintedHeight > 1
+                x: viewBox.imgX + root.viewRectX * navigator.shownImage.paintedWidth
+                y: viewBox.imgY + root.viewRectY * navigator.shownImage.paintedHeight
+                width: Math.max(6, root.viewRectW * navigator.shownImage.paintedWidth)
+                height: Math.max(6, root.viewRectH * navigator.shownImage.paintedHeight)
                 color: "transparent"
                 border.width: 1
                 border.color: "#f4f4f4"
@@ -357,13 +379,14 @@ Rectangle {
 
             MouseArea {
                 anchors.fill: parent
-                enabled: navImage.status === Image.Ready && root.presenter && root.presenter.browseMode !== "grid"
+                enabled: navigator.shownImage.status === Image.Ready && root.presenter && root.presenter.browseMode !== "grid"
                 cursorShape: enabled ? Qt.OpenHandCursor : Qt.ArrowCursor
                 function seekTo(px, py) {
-                    const imgX = (navImage.width - navImage.paintedWidth) / 2;
-                    const imgY = (navImage.height - navImage.paintedHeight) / 2;
-                    const fx = navImage.paintedWidth > 0 ? (px - imgX) / navImage.paintedWidth : 0;
-                    const fy = navImage.paintedHeight > 0 ? (py - imgY) / navImage.paintedHeight : 0;
+                    const img = navigator.shownImage;
+                    const imgX = (img.width - img.paintedWidth) / 2;
+                    const imgY = (img.height - img.paintedHeight) / 2;
+                    const fx = img.paintedWidth > 0 ? (px - imgX) / img.paintedWidth : 0;
+                    const fy = img.paintedHeight > 0 ? (py - imgY) / img.paintedHeight : 0;
                     root.viewportSeeked(fx - root.viewRectW / 2, fy - root.viewRectH / 2);
                 }
                 onPressed: function (mouse) {

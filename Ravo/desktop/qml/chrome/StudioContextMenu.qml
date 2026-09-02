@@ -6,6 +6,7 @@ Menu {
     id: root
 
     property int menuWidth: 240
+    property bool fitToContent: false
 
     modal: true
     dim: false
@@ -25,7 +26,7 @@ Menu {
     palette.mid: Theme.dividerColor
 
     background: Rectangle {
-        implicitWidth: root.menuWidth
+        implicitWidth: root.fitToContent ? Math.max(Fonts.scaledUiSize(120), root.implicitContentWidth) : root.menuWidth
         color: Theme.popupSurfaceColor
         border.color: Theme.dividerColor
         border.width: 1

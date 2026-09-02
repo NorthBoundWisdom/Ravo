@@ -150,7 +150,11 @@ photo; export uses one active photo or the current multi-selection.
 
 ## Rate, label, and reject photos
 
-Use the bottom review bar, the **Photo** menu, or the photo context menu:
+Use the bottom review bar, the **Photo** menu, or the photo context menu.
+If the window is too narrow, Survey, Virtual Copy, Stack, Size, and
+Previous/Next collapse into **More**. Rating and color labels shrink to a
+compact star count and a single swatch that open a small picker. Keep/Reject
+stays on the bar.
 
 - Set a rating from `0` to `5` stars.
 - Apply **No Color**, **Red**, **Yellow**, **Green**, **Blue**, or **Purple**.

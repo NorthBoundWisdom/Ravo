@@ -44,7 +44,8 @@ Loupe displays the active photo on the center image surface. Use **View →
 Loupe**, double-click a thumbnail, press `Cmd/Ctrl+2`, or press `E` to enter
 it. A single selected photo is required.
 
-The left navigator shows the whole preview and the current viewport rectangle.
+The left navigator is a fixed-height box that letterboxes the whole preview
+and the current viewport rectangle. Switching folders does not resize it.
 At a zoom that is larger than the available surface, drag the image or drag the
 navigator rectangle to pan.
 

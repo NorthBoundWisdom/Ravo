@@ -53,8 +53,8 @@
         "Ravo/tests/studio_qml_contract_test.cpp",
         "Ravo/tests/studio_live_control_test.cpp"
       ],
-      "case_count": 97,
-      "case_sha256": "b4007544d14e40ccde2ec6cb1c7791fff15bf4a904f7e31f8fa7e92c7fb5bf8b"
+      "case_count": 99,
+      "case_sha256": "ee434a4f354eef0fcccd437ac242400b560dcc6fbf928d33c976276999c6b0be"
     },
     {
       "sources": [

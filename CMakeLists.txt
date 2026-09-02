@@ -12,7 +12,7 @@ endif()
 
 # Ravo is the only buildable product. Darktable 0.9 is a historical
 # reference and is not part of this graph.
-project(Ravo VERSION 0.9.1 LANGUAGES CXX)
+project(Ravo VERSION 0.9.2 LANGUAGES CXX)
 unset(PROJECT_VERSION CACHE)
 
 option(BUILD_TESTING "Build Ravo unit and contract tests" OFF)

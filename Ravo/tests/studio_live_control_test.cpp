@@ -455,6 +455,12 @@ TEST(StudioQmlContract, LibrarySidePanelExposesNamedLibrarySets)
     EXPECT_TRUE(source.contains(QStringLiteral("ids.libraryAddSelectionToSet")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.libraryDeleteSet")));
     EXPECT_FALSE(source.contains(QStringLiteral("library_set_member")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: navigator")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Layout.preferredHeight: Fonts.scaledUiSize(200)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Layout.minimumHeight: Fonts.scaledUiSize(200)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Layout.maximumHeight: Fonts.scaledUiSize(200)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: navHeldImage")));
+    EXPECT_FALSE(source.contains(QStringLiteral("navImage.implicitWidth")));
 }
 
 TEST(StudioPresenterTest, NamedLibrarySetsSurviveReloadAndFilterListing)
@@ -522,7 +528,10 @@ TEST(StudioQmlContract, SurveyAndVersionBadgesStayInPresenterOwnedQml)
     EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.photoCreateVersion")));
     EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.photoStackSelection")));
     EXPECT_TRUE(bar_source.contains(QStringLiteral("id: leadingTools")));
-    EXPECT_TRUE(bar_source.contains(QStringLiteral("ScrollBar.AsNeeded")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("id: reviewTools")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("id: overflowButton")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("id: overflowMenu")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("qsTr(\"More\")")));
 }
 
 TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
@@ -800,6 +809,7 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
         << shared_item.errorString().toStdString();
     const auto shared_source = QString::fromUtf8(shared_item.readAll());
     EXPECT_TRUE(shared_source.contains(QStringLiteral("id: checkmark")));
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("reserveCheckColumn: checkable")));
     EXPECT_TRUE(shared_source.contains(QStringLiteral("root.checkable && root.checked")));
     EXPECT_TRUE(shared_source.contains(QStringLiteral("indicator: Item")));
 
