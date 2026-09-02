@@ -499,6 +499,12 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "Folder ID was specified twice");
             result.folder_id = value;
         }
+        else if (option == "--folder-uri")
+        {
+            if (!result.folder_uri.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Folder URI was specified twice");
+            result.folder_uri = value;
+        }
         else if (option == "--replacement")
         {
             if (!result.replacement_directory.empty())

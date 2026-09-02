@@ -164,4 +164,47 @@ CatalogService::relink_folder(const std::string_view folder_id,
     return result;
 }
 
+Result<FolderRemoveResult>
+CatalogService::remove_folder_from_catalog(const std::string_view folder_uri,
+                                           const CancellationToken &cancellation)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    if (folder_uri.empty())
+        return make_error(ErrorCode::kInvalidArgument,
+                          "All Photographs cannot be removed from the catalog",
+                          {{"reason", "all_photographs_not_removable"}});
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    LibraryQuery query;
+    query.folder_uri = std::string(folder_uri);
+    auto listed = list_assets(query, false);
+    if (!listed)
+        return listed.error();
+    if (listed.value().empty())
+        return make_error(ErrorCode::kNotFound, "Folder has no cataloged photos",
+                          {{"reason", "folder_empty"}, {"folder_uri", std::string(folder_uri)}});
+    FolderRemoveResult result;
+    result.folder_uri = std::string(folder_uri);
+    for (const auto &asset : listed.value())
+    {
+        active = cancellation.check();
+        if (!active)
+            return active.error();
+        auto removed = remove_from_catalog(asset.id);
+        if (!removed)
+        {
+            if (removed.error().code == ErrorCode::kNotFound)
+                continue;
+            return removed.error();
+        }
+        ++result.asset_count;
+    }
+    if (result.asset_count == 0U)
+        return make_error(ErrorCode::kNotFound, "Folder has no cataloged photos",
+                          {{"reason", "folder_empty"}, {"folder_uri", std::string(folder_uri)}});
+    return result;
+}
+
 } // namespace ravo

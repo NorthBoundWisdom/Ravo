@@ -411,7 +411,7 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     std::uint32_t demosaic_width = width;
     std::uint32_t demosaic_height = height;
     apply_display_rotation_to_size(demosaic_width, demosaic_height, turns);
-    const bool defer_white_balance = raw.dng_opcodes && !raw.dng_opcodes->list3_operations.empty();
+    const bool defer_white_balance = dng_list3_requires_deferred_white_balance(raw.dng_opcodes);
     Result<WorkingImage> image =
         make_error(ErrorCode::kUnsupported, "RAW demosaic mode does not match the sensor",
                    {{"reason", "demosaic_sensor_mismatch"}});

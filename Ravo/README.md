@@ -18,7 +18,8 @@ Current implementation status:
   optional opcode IDs.
 - `ravo render` executes the canonical bounded RAW/raster recipe, including
   crop, black/white normalization, camera WB, profile-aware camera-to-working
-  conversion, bounded DNG GainMap/WarpRectilinear/FixVignetteRadial correction,
+  conversion, bounded DNG GainMap/FixVignetteRadial correction, parsed but
+  unapplied WarpRectilinear,
   tiled RCD Bayer demosaic by default or explicit PPG, and Markesteijn 3-pass
   X-Trans demosaic by default or explicit 1/3-pass, exposure,
   declared output-profile conversion,
@@ -40,8 +41,9 @@ Current implementation status:
   RCD or Markesteijn 3-pass according to CFA; PPG and Markesteijn 1/3-pass are
   explicit recipe/CLI/Studio choices.
   GainMap executes after linear-reference normalization;
-  supported List3 corrections execute after demosaic and before white balance
-  and input colour. Missing, corrupt, unrecognized, oversized, malformed or
+  List3 GainMap and vignette execute after demosaic and before white balance
+  and input colour. WarpRectilinear remains inspect-visible and is not applied
+  on the default colour path. Missing, corrupt, unrecognized, oversized, malformed or
   mandatory-unsupported DNG opcodes, unsupported/non-RGB CFA, sensor/mode
   mismatch, and cancelled inputs fail structurally; optional skips remain
   visible in inspect state and no lower-quality demosaic fallback is selected.
@@ -115,8 +117,8 @@ Current implementation status:
   photos as exact browse previews on the serial owner and does not start N
   Develop pipelines. Disk deletion is allowed only on a primary.
   `ravo catalog version-create|stack|unstack|stack-pick|list --stack-expanded`
-  share CatalogService (ADR-0105). Automatic RAW+JPEG pairing on import remains
-  out of scope.
+  share CatalogService (ADR-0105). Same-stem RAW+JPEG import catalogs the RAW
+  as one photo and keeps the JPEG as a browse/Copy companion.
 - Studio built-in commands are projected by one C++ registry into menus,
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
@@ -762,6 +764,7 @@ ravo catalog import --catalog <library.sqlite> --input <file-or-folder> \
 ravo catalog list --catalog <library.sqlite> --json
 ravo catalog folders --catalog <library.sqlite> --json
 ravo catalog folder-relink --catalog <library.sqlite> --folder-id <id> --replacement <directory> --json
+ravo catalog folder-remove --catalog <library.sqlite> --folder-uri <uri> --json
 ravo catalog sets --catalog <library.sqlite> --json
 ravo catalog set-create --catalog <library.sqlite> --name <name> [--kind manual|smart] [--query <json>] [--asset-id <id>]... [--revision N] --json
 ravo catalog list --catalog <library.sqlite> [--set-id <id>] --json

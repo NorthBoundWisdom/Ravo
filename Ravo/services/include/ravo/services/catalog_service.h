@@ -170,6 +170,9 @@ public:
     [[nodiscard]] Result<FolderRelinkResult>
     relink_folder(std::string_view folder_id, std::string_view replacement_directory,
                   const CancellationToken &cancellation = {});
+    [[nodiscard]] Result<FolderRemoveResult>
+    remove_folder_from_catalog(std::string_view folder_uri,
+                               const CancellationToken &cancellation = {});
     [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const;
     [[nodiscard]] Result<std::vector<PreviewRecord>>
     list_previews_for_assets(const std::vector<std::string> &asset_ids) const;
@@ -315,6 +318,10 @@ private:
     [[nodiscard]] Result<PreviewResult>
     persist_embedded_browse_preview(const AssetRecord &asset, const EmbeddedPreview &embedded,
                                     std::uint32_t max_edge, const CancellationToken &cancellation);
+    [[nodiscard]] Result<PreviewResult>
+    persist_companion_jpeg_browse_preview(const AssetRecord &asset, std::string_view jpeg_path,
+                                          std::uint32_t max_edge,
+                                          const CancellationToken &cancellation);
     [[nodiscard]] Result<RasterBuffer>
     decode_preview_source(const AssetRecord &asset, std::string_view path, std::uint32_t max_edge,
                           const CancellationToken &cancellation, PreviewLane lane);

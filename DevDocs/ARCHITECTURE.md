@@ -116,9 +116,14 @@ failure is reported and leaves active state unchanged. Source TS catalogs and
 locale-specific translation memories are repository assets; CMake derives its
 complete catalog set from the same manifest, validates it, and compiles it to
 build-local QM files, which are the only files deployed with
-Studio. This is the only persistent Studio preference: view controls remain
-session state, and catalog, service, recipe, export, task, and engine values
-stay in typed owning contracts. No old configuration key is read (ADR-0066).
+Studio. Typed desktop settings are the UI language, assistant
+endpoint/model/key, and window size/position/maximized state. Corrupt stored
+values are removed synchronously; a settings-write failure is reported and
+leaves prior durable state unchanged except that a live resized window stays
+where the user put it. View controls such as zoom, pan, browse mode, and
+library filters remain session state, and catalog, service, recipe, export,
+task, and engine values stay in typed owning contracts. No old configuration
+key is read (ADR-0066/0081/0115).
 
 Gallery grid schedules only `kThumbnailMaxEdge` browse thumbnails, never a
 1600px processed preview merely for a selected grid item; all scopes are
@@ -140,12 +145,19 @@ and the accepted exact result replaces it. The loading layer never changes
 balance interaction, recipe state, cache identity, or export input. Missing or
 failed originals do not use the layer. The Library panel separately shows
 import and demanded-preview progress. After system file/folder selection,
-scanning and import run on workers and each successful photo immediately
-appears in the grid with a browse thumbnail.
+Studio enumerates the source on a worker, publishes named placeholder cells
+immediately, then inspects and fills bounded 320-pixel workspace thumbnails as
+the grid demands them. Catalog import still runs on workers. Clicking Import publishes named Gallery
+placeholders immediately; each cataloged photo then fills that cell, and
+viewport demand loads a browse thumbnail so the user can inspect while later
+items and selected previews continue.
 
-Grid cells fit available width in the 120–320 range and have a vertical scroll
-bar. `positionViewAtIndex` runs only when the selected item leaves the
-viewport. C++ passes `--catalog <library.sqlite>` to the presenter; QML opens
+Gallery and import-workspace grid cells fit available width in the 120–320
+range and have a vertical scroll bar. `positionViewAtIndex` runs only when the
+selected Gallery item leaves the viewport. Import cells use a separate highlight
+from the import checkbox: Command/Control extends the highlight, Shift selects a
+range, Command/Control+A highlights all, and the checkbox applies its new state
+to every highlighted eligible cell. C++ passes `--catalog <library.sqlite>` to the presenter; QML opens
 it at session start rather than a default library.
 
 Library filtering is a value boundary, not UI-built SQL. `LibraryQuery` owns
@@ -397,11 +409,15 @@ each input; partial success must not lose failure detail.
 
 First-version import only registers sources: it never copies, moves, renames,
 rewrites metadata, or deletes them. Codec probing confirms a format; extensions
-are only candidate filters. One LibRaw open reads RAW capture metadata and
-embedded JPEG, then persists a `kThumbnailMaxEdge` browse thumbnail. A RAW
-suffix or TIFF RAW container with no embedded JPEG must first-frame-decode
-before `commit_imported_asset`. Import does not perform a 1600px full decode
-when a browse JPEG exists. It validates trusted metadata before transactionally
+are only candidate filters. Enumeration drops a JPEG that shares a parent
+directory and case-insensitive stem with a RAW in the same input set; the RAW
+is the catalog original and the JPEG is a non-cataloged companion. Ambiguous
+`.jpg`/`.jpeg` pairs for one stem fail closed. One LibRaw open reads RAW
+capture metadata and embedded JPEG, then persists a `kThumbnailMaxEdge` browse
+thumbnail, preferring the companion JPEG when present. A RAW suffix or TIFF RAW
+container with no browse JPEG must first-frame-decode before
+`commit_imported_asset`. Import does not perform a 1600px full decode when a
+browse JPEG exists. It validates trusted metadata before transactionally
 publishing an asset. Cancellation stops undispatched work; committed results
 remain valid. Missing, directory, unrecognized, unpack-failed, oversized,
 malformed or mandatory-unsupported DNG opcode, and unsupported CFA
@@ -411,11 +427,12 @@ ADR-0102 extends that baseline with one planned local-source workspace for Add,
 Copy, and Move. ADR-0104 further gives Copy/Move an optional bounded filename
 template (`date`, source stem, stable sequence, and extension) and one distinct
 second-copy root. Services derive one relative organization/name, preflight the
-complete primary/second media and XMP path set with conservative ASCII-case
-collision keys, and catalog only the primary URI. Every requested output uses
-the existing atomic no-replace stream; when a second copy is present, source,
-primary, second copy, and sidecars are independently reopened and compared byte
-for byte under cancellation before catalog publication. A pre-catalog failure
+complete primary/second media, XMP, and JPEG companion path set with
+conservative ASCII-case collision keys, and catalog only the primary URI. Every
+requested output uses the existing atomic no-replace stream; when a second copy
+is present, source, primary, second copy, and companions are independently
+reopened and compared byte for byte under cancellation before catalog
+publication. A pre-catalog failure
 removes only files published by that item. Move cleanup begins only after that
 verification and the ordinary catalog commit. No import option creates schema,
 preference, detached task, or second catalog authority.
@@ -437,7 +454,11 @@ structured failure.
 RAW uses the Ravo CPU engine, while JPEG/PNG/TIFF use the raster adapter. Both
 share orientation, colour, alpha, scaling, finite-value, and error contracts.
 Catalog import fully decodes JPEG/PNG/TIFF before publication and reuses that
-RGB8 thumbnail. A recognized raster error never becomes a RAW inspect except
+RGB8 thumbnail. Deferred Standard/1:1 import still persists a
+`kThumbnailMaxEdge` browse thumbnail immediately so Gallery can show photos
+while later processed previews drain. Untagged raster browse encodes
+file-native 8-bit RGB as sRGB presentation pixels; Develop and export still
+fail closed when the source has no declared colour profile. A recognized raster error never becomes a RAW inspect except
 `unsupported_tiff_raw_container`. First-frame RAW decode accepts validated
 16-bit RGB Bayer 2×2 and X-Trans 6×6 CFA state.
 `.dng` uses the same LibRaw path, but copies OpcodeList2/3 bytes into bounded
@@ -461,11 +482,18 @@ disk entries remain available to reopen (ADR-0067, ADR-0087).
 
 Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
-`embedded-jpeg` key digest. It is not editable scene-linear data. Loupe,
-Develop, scopes, export, and `request_preview` with
+`companion-jpeg` digest when a same-stem JPEG exists, otherwise
+`embedded-jpeg`. It is not editable scene-linear data. Gallery grid cells keep
+that browse thumbnail; Standard/1:1 import drain does not replace it with
+processed RAW. Loupe, Develop, scopes, export, and `request_preview` with
 `prefer_embedded_preview=false` use preview contract v10: full CPU
-decode/render followed by the `ravo.display.sigmoid` baseline at the end of
-the scene-linear buffer and the recipe-owned output profile. The cache types
+decode/render of the RAW. Import writes a colour-calibration baseline for RAW:
+as-shot white balance from LibRaw `cam_mul`, the camera input matrix
+(`enhanced_matrix` via input profile `source`), and `ravo.display.sigmoid`.
+Later Develop edits stack on that baseline. This is Ravo's analogue of a
+Lightroom camera profile; Adobe DCP / Adobe Color / Adobe Standard are not
+shipped (ADR-0085/0088). As-shot white balance prefers `cam_mul` even when
+`as_shot_wb_applied` is set. The cache types
 must not share a digest. Without
 embedded JPEG, browse fails open to full decode and never writes an empty image.
 Cached built-in sRGB PNGs contain one standard `sRGB` chunk; other RGB outputs
@@ -769,15 +797,18 @@ sites. A separate output plane makes cancellation atomic; full-plane wavelet
 scratch participates in the preflight memory budget.
 
 DNG OpcodeList2 GainMap runs after black/white linear-reference normalization
-and before CFA interpolation. Supported OpcodeList3 GainMap,
-WarpRectilinear, and FixVignetteRadial run in declared order after demosaic
-while the buffer is still camera RGB, then white balance and Input Color run.
-The private adapter owns all parsed values, applies DNG's `[0, 1]` clip after
-each List2/List3 opcode, and preserves repeated operations. Known malformed or
+and before CFA interpolation. Supported OpcodeList3 GainMap and
+FixVignetteRadial run in declared order after demosaic while the buffer is
+still camera RGB, then white balance and Input Color run. WarpRectilinear is
+parsed and inspect-visible so the file's lens geometry is not hidden, but the
+default colour decode does not apply it. darktable keeps DNG warp for the lens
+module (off by default); RapidRAW uses optional lensfun. Ravo import uses
+as-shot white balance, the camera matrix, and Sigmoid. The private adapter
+owns all parsed values, applies DNG's `[0, 1]` clip after each executed
+List2/List3 opcode, and preserves repeated operations. Known malformed or
 unknown mandatory operations fail before publication; unknown optional
-operations are retained as inspect-visible skip records. Warp uses bounded
-cubic sampling and rejects unsupported out-of-frame geometry. Opcode maps and
-the warp destination buffer participate in RAW memory estimation.
+operations are retained as inspect-visible skip records. Opcode maps
+participate in RAW memory estimation.
 
 `ravo.color.temperature` v1 fixes `camera_cfa_or_linear_rgb` and
 `channel_scale_v4`. It normally parses four-channel coefficients from LibRaw
@@ -1294,16 +1325,20 @@ Ravo Studio owns:
 - creating/opening catalogs and one session-owned import workspace for local
   source browsing, selection, Add/Copy/Move planning, destination organization,
   bounded rename templates, optional verified second-copy root, and initial
-  preview policy. Services own enumeration, inspection, complete two-tree
-  preflight, atomic transfer, byte verification, catalog publication, XMP
-  companions, and source cleanup; QML only presents state and forwards intents
-  (ADR-0102/0104);
+  preview policy. Enumeration publishes named placeholders before codec work;
+  C++ fills workspace thumbnails asynchronously from viewport demand. Services
+  own enumeration, inspection, complete two-tree preflight, atomic transfer,
+  byte verification, catalog publication, XMP and JPEG companions, and source
+  cleanup;
+  QML only presents state and forwards intents (ADR-0102/0104);
 - a session-only Last Imported Photos source group. The desktop presenter owns
-  its successful-batch time bounds and selection lifecycle; import suppresses
-  per-item model insertion and catalog polling, then performs one bounded page
-  query and source switch after completion. Cancellation publishes only
-  completed items, folder selection leaves the group, and catalog replacement
-  destroys it. No schema row or QML-owned asset list is introduced;
+  its successful-batch time bounds and selection lifecycle. Clicking Import
+  closes the workspace immediately and publishes named Gallery placeholders
+  for the selected files; catalog polling stays suppressed while items fill
+  those cells. After the batch, Studio performs one bounded page query for the
+  successful Last Imported Photos range. Cancellation publishes only completed
+  items, folder selection leaves the group, and catalog replacement destroys
+  it. No schema row or QML-owned asset list is introduced;
 - Gallery list states: loading, ready, missing, unsupported, and failed;
 - selection, Gallery grid/loupe and Edit panes, fit, 100%, and pan. Grid and
   filmstrip use whole-image containment with letterbox number, rating,

@@ -5,7 +5,7 @@
 Use the local library to organize referenced photos, review them quickly, and
 keep catalog state separate from original files.
 
-**Last reviewed:** 2026-08-31 against the current catalog schema and Studio
+**Last reviewed:** 2026-09-02 against the current catalog schema and Studio
 review workflow.
 
 ## Applies to
@@ -72,8 +72,12 @@ The left **Library** panel contains:
 - **Import…** and **Export…** entry points.
 
 Click a folder to limit the center view. Click its disclosure marker to collapse
-or expand child folders. Folder selection works together with rating, color,
-reject, and tag filters.
+or expand child folders. Right-click a folder for **Import Photos from This
+Folder**, **Show in Finder/Explorer**, **Update Folder Location** when the
+folder is missing, **Expand/Collapse**, and **Remove from Catalog**. Removing a
+folder removes its photos from the library and does not delete original files.
+**All Photographs** cannot be removed. Folder selection works together with
+rating, color, reject, and tag filters.
 
 Create a **Collection** from the current selection, or a **Smart** collection
 from the current filters. Selecting a collection is session state and is
@@ -83,8 +87,9 @@ collection does not delete photos. The CLI exposes the same sets through
 
 Create a **virtual copy** of the selected photo to keep a second grade of the
 same original. The copy is another catalog asset with its own recipe and
-history; it does not duplicate the file. Stack two or more selected photos to
-group a burst or a RAW+JPEG pair; collapsed Library view shows the pick.
+history; it does not duplicate the file. A same-stem RAW+JPEG pair imports as
+one RAW photo, not two rows. Stack two or more selected photos to group a
+burst; collapsed Library view shows the pick.
 **Survey** shows two or four selected photos as exact previews for culling.
 Deleting a virtual copy removes only that catalog row. Deleting the original
 from disk is allowed only on the primary asset and removes every version of
@@ -127,6 +132,10 @@ already matches camera make/model.
 ## Select photos
 
 - Click a thumbnail to make it the active photo and clear the other selection.
+- Press **Cmd+A** on macOS or **Ctrl+A** on Windows/Linux to select every photo
+  currently loaded in Gallery and the filmstrip. The active photo stays the
+  same. The shortcut is available in Gallery and while the filmstrip is visible
+  in Loupe or Edit, and it yields to text fields.
 - Hold **Cmd** on macOS or **Ctrl** on Windows/Linux while clicking to add or
   remove a photo from the selection.
 - Hold **Shift** while clicking to select the range between the selection anchor

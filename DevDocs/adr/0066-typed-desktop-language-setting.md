@@ -1,7 +1,8 @@
 # ADR-0066: Product settings are typed and consumer-owned
 
 - Status: Accepted; assistant endpoint settings added by
-  [ADR-0081](0081-studio-assistant-endpoint-panel.md)
+  [ADR-0081](0081-studio-assistant-endpoint-panel.md); window geometry added by
+  [ADR-0115](0115-typed-studio-window-geometry.md)
 - Date: 2026-08-29
 - Extends: [ADR-0007](0007-first-usable-catalog-viewer.md)
 

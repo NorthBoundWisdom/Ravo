@@ -601,9 +601,9 @@ parse_fix_vignette_radial(const std::span<const std::uint8_t> payload,
     return static_cast<float>(weight_sum != 0.0 ? value / weight_sum : value);
 }
 
-[[nodiscard]] Result<WorkingImage> apply_warp(WorkingImage input,
-                                              const DngWarpRectilinear &warp,
-                                              const CancellationToken &cancellation)
+[[nodiscard]] [[maybe_unused]] Result<WorkingImage>
+apply_warp(WorkingImage input, const DngWarpRectilinear &warp,
+           const CancellationToken &cancellation)
 try
 {
     WorkingImage output;
@@ -911,16 +911,14 @@ Result<WorkingImage> apply_dng_opcode_list3(WorkingImage input,
     }
     for (const auto &operation : metadata.list3_operations)
     {
-        if (const auto *warp = std::get_if<DngWarpRectilinear>(&operation))
+        if (std::holds_alternative<DngWarpRectilinear>(operation))
         {
-            auto corrected = apply_warp(std::move(input), *warp, cancellation);
-            if (!corrected)
-            {
-                return corrected.error();
-            }
-            input = std::move(corrected).value();
+            // Default colour decode does not apply DNG lens geometry. Inspect still
+            // reports WarpRectilinear. darktable keeps this opcode for the lens
+            // module (off by default); RapidRAW uses optional lensfun instead.
+            continue;
         }
-        else if (const auto *vignette = std::get_if<DngFixVignetteRadial>(&operation))
+        if (const auto *vignette = std::get_if<DngFixVignetteRadial>(&operation))
         {
             auto corrected = apply_vignette(input, *vignette, cancellation);
             if (!corrected)

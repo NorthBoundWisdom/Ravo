@@ -37,6 +37,7 @@ enum class Condition
     kAlways,
     kCatalogOpen,
     kCatalogReady,
+    kLoadedPhotos,
     kSelection,
     kReadySelection,
     kNonGrid,
@@ -874,6 +875,26 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             presenter_.relinkFolder(values.value(QStringLiteral("folderId")).toString(),
                                     values.value(QStringLiteral("directory")).toString());
         });
+    add(command::kLibraryRevealFolder, Condition::kCatalogOpen, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.revealFolderInFileManager(argument.toString()); });
+    add(command::kLibraryRequestRemoveFolder, Condition::kCatalogReady, non_empty_string,
+        [request_preset_confirmation](const QVariant &argument, const QString &)
+        {
+            request_preset_confirmation(
+                command::kLibraryRequestRemoveFolder, command::kLibraryRemoveFolder,
+                QVariantMap{{QStringLiteral("path"), argument.toString()}});
+        });
+    add(
+        command::kLibraryRemoveFolder, Condition::kCatalogReady,
+        [preset_confirmation_validator](const QVariant &argument)
+        { return preset_confirmation_validator(command::kLibraryRemoveFolder, argument); },
+        [this, clear_confirmation](const QVariant &argument, const QString &)
+        {
+            clear_confirmation();
+            presenter_.removeFolderFromCatalog(
+                argument.toMap().value(QStringLiteral("path")).toString());
+        });
 
     add(
         command::kPhotoSelect, Condition::kCatalogOpen,
@@ -921,6 +942,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else
                 presenter_.selectAsset(asset_id);
         });
+    add(command::kPhotoSelectAll, Condition::kLoadedPhotos, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.selectAllVisible(); });
     add(
         command::kPhotoSetRating, Condition::kSelection,
         [](const QVariant &argument)
@@ -1545,6 +1568,12 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
             return {false, tr_command(QStringLiteral("Open a library first."))};
         return ready ? State{} :
                        State{false, tr_command(QStringLiteral("Wait for library work to finish."))};
+    case Condition::kLoadedPhotos:
+        if (!catalog_open)
+            return {false, tr_command(QStringLiteral("Open a library first."))};
+        return presenter.visibleCount() > 0 ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("No photos to select."))};
     case Condition::kSelection:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};

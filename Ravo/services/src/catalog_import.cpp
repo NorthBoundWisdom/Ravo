@@ -26,8 +26,12 @@ struct PlannedImport
     std::optional<std::string> source_sidecar;
     std::optional<FileIdentity> source_sidecar_identity;
     std::optional<std::string> destination_sidecar;
+    std::optional<std::string> source_jpeg;
+    std::optional<FileIdentity> source_jpeg_identity;
+    std::optional<std::string> destination_jpeg;
     std::optional<std::string> second_copy_path;
     std::optional<std::string> second_copy_sidecar;
+    std::optional<std::string> second_copy_jpeg;
 };
 
 [[nodiscard]] std::string path_text(const std::filesystem::path &path)
@@ -197,6 +201,13 @@ CatalogService::inspect_import_candidate(const std::string_view path,
         candidate.width = inspected.value().inspection.width;
         candidate.height = inspected.value().inspection.height;
         candidate.captured_unix_s = inspected.value().inspection.captured_unix_s;
+        auto companion = adjacent_jpeg(candidate.source_path);
+        if (!companion)
+        {
+            candidate.supported = false;
+            candidate.error = companion.error();
+            return candidate;
+        }
         return candidate;
     }
     auto raster = raster_->probe(candidate.source_path);
@@ -229,12 +240,8 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
     auto location = normalize_local_input(path);
     if (!location)
         return location.error();
-    if (!is_raw_extension(utf8_path(location.value().path)))
+    const auto raster_from_decoded = [](DecodedRaster value) -> RasterBuffer
     {
-        auto decoded = raster_->decode(location.value().path, kThumbnailMaxEdge, cancellation);
-        if (!decoded)
-            return decoded.error();
-        auto value = std::move(decoded).value();
         RasterBuffer result;
         result.width = value.width;
         result.height = value.height;
@@ -243,6 +250,22 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
         result.srgb = std::move(value.rgb);
         result.color_profile = std::move(value.color_profile);
         return result;
+    };
+    if (!is_raw_extension(utf8_path(location.value().path)))
+    {
+        auto decoded = raster_->decode(location.value().path, kThumbnailMaxEdge, cancellation);
+        if (!decoded)
+            return decoded.error();
+        return raster_from_decoded(std::move(decoded).value());
+    }
+    auto companion = adjacent_jpeg(location.value().path);
+    if (!companion)
+        return companion.error();
+    if (companion.value())
+    {
+        auto decoded = raster_->decode(*companion.value(), kThumbnailMaxEdge, cancellation);
+        if (decoded)
+            return raster_from_decoded(std::move(decoded).value());
     }
     auto inspected = engine_->inspect_with_embedded_preview(location.value().path,
                                                             kThumbnailMaxEdge, cancellation);
@@ -290,15 +313,7 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
                                cancellation, inspected.value().embedded_preview->rotate_quarters);
     if (!decoded)
         return decoded.error();
-    auto value = std::move(decoded).value();
-    RasterBuffer result;
-    result.width = value.width;
-    result.height = value.height;
-    result.source_width = value.source_width;
-    result.source_height = value.source_height;
-    result.srgb = std::move(value.rgb);
-    result.color_profile = std::move(value.color_profile);
-    return result;
+    return raster_from_decoded(std::move(decoded).value());
 }
 
 Result<ImportBatchResult> CatalogService::execute_import(
@@ -448,6 +463,20 @@ Result<ImportBatchResult> CatalogService::execute_import(
                 item.source_sidecar_identity = std::move(identity).value();
             }
         }
+        if (is_raw_extension(utf8_path(item.candidate.source_path)))
+        {
+            auto jpeg = adjacent_jpeg(item.candidate.source_path);
+            if (!jpeg)
+                return jpeg.error();
+            item.source_jpeg = std::move(jpeg).value();
+            if (item.source_jpeg)
+            {
+                auto identity = read_file_identity(*item.source_jpeg);
+                if (!identity)
+                    return identity.error();
+                item.source_jpeg_identity = std::move(identity).value();
+            }
+        }
         if (request.mode != ImportTransferMode::kAdd)
         {
             const auto source_path = utf8_path(item.candidate.source_path);
@@ -497,6 +526,15 @@ Result<ImportBatchResult> CatalogService::execute_import(
                     return sidecar.error();
                 item.destination_sidecar = std::move(sidecar).value();
             }
+            if (item.source_jpeg)
+            {
+                auto jpeg_output = utf8_path(item.import_path);
+                jpeg_output.replace_extension(utf8_path(*item.source_jpeg).extension());
+                auto jpeg = preflight_output(*item.source_jpeg, jpeg_output);
+                if (!jpeg)
+                    return jpeg.error();
+                item.destination_jpeg = std::move(jpeg).value();
+            }
             if (second_copy_root)
             {
                 auto second =
@@ -512,6 +550,15 @@ Result<ImportBatchResult> CatalogService::execute_import(
                     if (!sidecar)
                         return sidecar.error();
                     item.second_copy_sidecar = std::move(sidecar).value();
+                }
+                if (item.source_jpeg)
+                {
+                    auto second_jpeg = utf8_path(*item.second_copy_path);
+                    second_jpeg.replace_extension(utf8_path(*item.source_jpeg).extension());
+                    auto jpeg = preflight_output(*item.source_jpeg, second_jpeg);
+                    if (!jpeg)
+                        return jpeg.error();
+                    item.second_copy_jpeg = std::move(jpeg).value();
                 }
             }
         }
@@ -580,6 +627,12 @@ Result<ImportBatchResult> CatalogService::execute_import(
                 if (!copied_sidecar)
                     transfer_error = copied_sidecar.error();
             }
+            if (!transfer_error && planned.source_jpeg)
+            {
+                auto copied_jpeg = publish_copy(*planned.source_jpeg, *planned.destination_jpeg);
+                if (!copied_jpeg)
+                    transfer_error = copied_jpeg.error();
+            }
             if (!transfer_error && planned.second_copy_path)
             {
                 auto copied_second =
@@ -593,6 +646,13 @@ Result<ImportBatchResult> CatalogService::execute_import(
                     publish_copy(*planned.source_sidecar, *planned.second_copy_sidecar);
                 if (!copied_second_sidecar)
                     transfer_error = copied_second_sidecar.error();
+            }
+            if (!transfer_error && planned.second_copy_jpeg)
+            {
+                auto copied_second_jpeg =
+                    publish_copy(*planned.source_jpeg, *planned.second_copy_jpeg);
+                if (!copied_second_jpeg)
+                    transfer_error = copied_second_jpeg.error();
             }
             if (!transfer_error && planned.second_copy_path)
             {
@@ -631,6 +691,20 @@ Result<ImportBatchResult> CatalogService::execute_import(
                     }
                 }
             }
+            if (!transfer_error && planned.second_copy_jpeg)
+            {
+                for (const auto &output : std::array<std::string_view, 2U>{
+                         *planned.destination_jpeg, *planned.second_copy_jpeg})
+                {
+                    auto verified =
+                        verify_files_identical(*planned.source_jpeg, output, request.cancellation);
+                    if (!verified)
+                    {
+                        transfer_error = verified.error();
+                        break;
+                    }
+                }
+            }
         }
         ImportItemResult result;
         bool stop_after_result = false;
@@ -653,8 +727,10 @@ Result<ImportBatchResult> CatalogService::execute_import(
         {
             result.destination_path = planned.import_path;
             result.sidecar_destination_path = planned.destination_sidecar;
+            result.jpeg_companion_destination_path = planned.destination_jpeg;
             result.second_copy_destination_path = planned.second_copy_path;
             result.second_copy_sidecar_destination_path = planned.second_copy_sidecar;
+            result.second_copy_jpeg_companion_destination_path = planned.second_copy_jpeg;
             result.copies_verified = planned.second_copy_path && !transfer_error;
             if (result.status == ImportItemStatus::kFailed ||
                 result.status == ImportItemStatus::kUnsupported)
@@ -690,6 +766,9 @@ Result<ImportBatchResult> CatalogService::execute_import(
             Result<FileIdentity> current_sidecar_identity =
                 planned.source_sidecar ? read_file_identity(*planned.source_sidecar) :
                                          Result<FileIdentity>{FileIdentity{}};
+            Result<FileIdentity> current_jpeg_identity =
+                planned.source_jpeg ? read_file_identity(*planned.source_jpeg) :
+                                      Result<FileIdentity>{FileIdentity{}};
             if (!current_identity ||
                 current_identity.value().size_bytes != planned.candidate.size_bytes ||
                 current_identity.value().mtime_unix_ms != planned.candidate.mtime_unix_ms ||
@@ -698,11 +777,17 @@ Result<ImportBatchResult> CatalogService::execute_import(
                  (current_sidecar_identity.value().size_bytes !=
                       planned.source_sidecar_identity->size_bytes ||
                   current_sidecar_identity.value().mtime_unix_ms !=
-                      planned.source_sidecar_identity->mtime_unix_ms)))
+                      planned.source_sidecar_identity->mtime_unix_ms)) ||
+                !current_jpeg_identity ||
+                (planned.source_jpeg_identity &&
+                 (current_jpeg_identity.value().size_bytes !=
+                      planned.source_jpeg_identity->size_bytes ||
+                  current_jpeg_identity.value().mtime_unix_ms !=
+                      planned.source_jpeg_identity->mtime_unix_ms)))
                 result.source_cleanup_error =
                     make_error(ErrorCode::kConflict,
-                               "Imported destination but source media or XMP changed before move "
-                               "cleanup",
+                               "Imported destination but source media or companion changed before "
+                               "move cleanup",
                                {{"source", planned.candidate.source_path},
                                 {"destination", planned.import_path},
                                 {"reason", "import_source_changed_before_cleanup"}});
@@ -723,6 +808,18 @@ Result<ImportBatchResult> CatalogService::execute_import(
                         ErrorCode::kIo, "Imported destination but could not remove source sidecar",
                         {{"source", *planned.source_sidecar},
                          {"destination", *planned.destination_sidecar},
+                         {"reason", "import_source_cleanup_failed"},
+                         {"detail", remove_error.message()}});
+            }
+            if (!result.source_cleanup_error && planned.source_jpeg)
+            {
+                if (!std::filesystem::remove(utf8_path(*planned.source_jpeg), remove_error) ||
+                    remove_error)
+                    result.source_cleanup_error = make_error(
+                        ErrorCode::kIo,
+                        "Imported destination but could not remove source JPEG companion",
+                        {{"source", *planned.source_jpeg},
+                         {"destination", *planned.destination_jpeg},
                          {"reason", "import_source_cleanup_failed"},
                          {"detail", remove_error.message()}});
             }

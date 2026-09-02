@@ -24,6 +24,16 @@ Rectangle {
         return new Date(unixMs).toLocaleString(Qt.locale(), Locale.ShortFormat);
     }
 
+    function showFolderMenu(row) {
+        folderMenu.folderUri = row.folderUri;
+        folderMenu.folderId = row.folderId;
+        folderMenu.displayName = row.displayName;
+        folderMenu.missing = row.missing;
+        folderMenu.hasChildren = row.hasChildren;
+        folderMenu.collapsed = row.collapsed;
+        folderMenu.popup();
+    }
+
     function backupBytes(bytes) {
         if (!bytes || bytes <= 0)
             return qsTr("0 B");
@@ -846,12 +856,18 @@ Rectangle {
                     id: folderMouse
                     anchors.fill: parent
                     hoverEnabled: true
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: if (root.commands) {
-                        if (folderRow.missing && folderRow.folderId.length > 0)
+                    onClicked: function (mouse) {
+                        if (!root.commands)
+                            return;
+                        if (folderRow.missing && folderRow.folderId.length > 0 && mouse.button === Qt.LeftButton) {
                             root.commands.run(root.commands.ids.libraryFolderRelink, folderRow.folderId);
-                        else
-                            root.commands.run(root.commands.ids.librarySelectFolder, folderRow.folderUri);
+                            return;
+                        }
+                        root.commands.run(root.commands.ids.librarySelectFolder, folderRow.folderUri);
+                        if (mouse.button === Qt.RightButton)
+                            root.showFolderMenu(folderRow);
                     }
                 }
             }
@@ -905,5 +921,11 @@ Rectangle {
             presenter: root.presenter
             commands: root.commands
         }
+    }
+
+    FolderContextMenu {
+        id: folderMenu
+        commands: root.commands
+        presenter: root.presenter
     }
 }

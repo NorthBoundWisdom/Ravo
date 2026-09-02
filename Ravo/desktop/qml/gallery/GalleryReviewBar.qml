@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
@@ -18,6 +19,7 @@ Rectangle {
 
     color: Theme.toolbarSurfaceColor
     implicitHeight: Math.max(Fonts.toolbarHeight, Fonts.inputFieldHeight + Fonts.size12)
+    clip: true
 
     Rectangle {
         anchors.left: parent.left
@@ -25,6 +27,7 @@ Rectangle {
         anchors.top: parent.top
         height: 1
         color: Theme.dividerColor
+        z: 2
     }
 
     RowLayout {
@@ -33,83 +36,124 @@ Rectangle {
         anchors.rightMargin: Fonts.standardMargin
         spacing: Fonts.smallSpacing
 
-        CustomButton {
-            id: comparisonButton
-            objectName: "beforeAfterComparisonButton"
-            Layout.alignment: Qt.AlignVCenter
-            visible: root.developOpen
-            action: root.commands ? root.commands.comparison : null
-            text: qsTr("Y|Y")
-            tooltipText: action ? action.text : ""
-            Accessible.name: tooltipText
-        }
-
-        CustomButton {
-            Layout.alignment: Qt.AlignVCenter
-            visible: root.gridOpen || (root.hasPresenter && root.presenter.browseMode === "survey")
-            text: qsTr("Survey")
-            enabled: root.hasPresenter && root.presenter.selectedCount >= 2
-            onClicked: if (root.commands)
-                root.commands.run(root.commands.ids.viewSurvey)
-        }
-        CustomButton {
-            Layout.alignment: Qt.AlignVCenter
-            visible: root.gridOpen
-            text: qsTr("Virtual Copy")
-            enabled: root.hasSelection
-            onClicked: if (root.commands)
-                root.commands.run(root.commands.ids.photoCreateVersion)
-        }
-        CustomButton {
-            Layout.alignment: Qt.AlignVCenter
-            visible: root.gridOpen
-            text: qsTr("Stack")
-            enabled: root.hasPresenter && root.presenter.selectedCount >= 2
-            onClicked: if (root.commands)
-                root.commands.run(root.commands.ids.photoStackSelection)
-        }
-
-        RowLayout {
-            visible: root.gridOpen
-            spacing: Fonts.smallSpacing
-            Layout.alignment: Qt.AlignVCenter
-
-            CustomLabel {
-                Layout.alignment: Qt.AlignVCenter
-                text: qsTr("Size")
+        Flickable {
+            id: leadingTools
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumWidth: 0
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.HorizontalFlick
+            contentWidth: Math.max(width, leadingRow.implicitWidth)
+            contentHeight: height
+            interactive: contentWidth > width + 1
+            ScrollBar.horizontal: ScrollBar {
+                policy: leadingTools.contentWidth > leadingTools.width + 1 ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                implicitHeight: 8
             }
-            Item {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.preferredWidth: 160
-                Layout.minimumWidth: 96
-                Layout.preferredHeight: Fonts.inputFieldHeight
-                implicitWidth: 160
-                implicitHeight: Fonts.inputFieldHeight
-                clip: true
-                CustomSlider {
-                    anchors.fill: parent
-                    from: 120
-                    to: 320
-                    stepSize: 10
-                    value: root.hasPresenter ? root.presenter.thumbnailSize : 180
-                    showTitle: false
-                    showStepButton: false
-                    showValueLabel: false
-                    delayedCommit: false
-                    onValueEdited: function (v) {
-                        if (root.commands)
-                            root.commands.run(root.commands.ids.viewSetThumbnailSize, Math.round(v));
+
+            WheelHandler {
+                target: leadingTools
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: function (event) {
+                    const horizontal = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x;
+                    const vertical = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+                    const delta = horizontal !== 0 ? horizontal : vertical;
+                    if (delta === 0) {
+                        event.accepted = false;
+                        return;
                     }
-                    onValueCommitted: function (v) {
-                        if (root.commands)
-                            root.commands.run(root.commands.ids.viewSetThumbnailSize, Math.round(v));
+                    const maximum = Math.max(0, leadingTools.contentWidth - leadingTools.width);
+                    const next = Math.max(0, Math.min(maximum, leadingTools.contentX - delta));
+                    if (next === leadingTools.contentX) {
+                        event.accepted = false;
+                        return;
+                    }
+                    leadingTools.contentX = next;
+                    event.accepted = true;
+                }
+            }
+
+            RowLayout {
+                id: leadingRow
+                height: leadingTools.height
+                spacing: Fonts.smallSpacing
+
+                CustomButton {
+                    id: comparisonButton
+                    objectName: "beforeAfterComparisonButton"
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: root.developOpen
+                    action: root.commands ? root.commands.comparison : null
+                    text: qsTr("Y|Y")
+                    tooltipText: action ? action.text : ""
+                    Accessible.name: tooltipText
+                }
+
+                CustomButton {
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: root.gridOpen || (root.hasPresenter && root.presenter.browseMode === "survey")
+                    text: qsTr("Survey")
+                    enabled: root.hasPresenter && root.presenter.selectedCount >= 2
+                    onClicked: if (root.commands)
+                        root.commands.run(root.commands.ids.viewSurvey)
+                }
+                CustomButton {
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: root.gridOpen
+                    text: qsTr("Virtual Copy")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.run(root.commands.ids.photoCreateVersion)
+                }
+                CustomButton {
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: root.gridOpen
+                    text: qsTr("Stack")
+                    enabled: root.hasPresenter && root.presenter.selectedCount >= 2
+                    onClicked: if (root.commands)
+                        root.commands.run(root.commands.ids.photoStackSelection)
+                }
+
+                RowLayout {
+                    visible: root.gridOpen
+                    spacing: Fonts.smallSpacing
+                    Layout.alignment: Qt.AlignVCenter
+
+                    CustomLabel {
+                        Layout.alignment: Qt.AlignVCenter
+                        text: qsTr("Size")
+                    }
+                    Item {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 160
+                        Layout.minimumWidth: 96
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        implicitWidth: 160
+                        implicitHeight: Fonts.inputFieldHeight
+                        clip: true
+                        CustomSlider {
+                            anchors.fill: parent
+                            from: 120
+                            to: 320
+                            stepSize: 10
+                            value: root.hasPresenter ? root.presenter.thumbnailSize : 180
+                            showTitle: false
+                            showStepButton: false
+                            showValueLabel: false
+                            delayedCommit: false
+                            onValueEdited: function (v) {
+                                if (root.commands)
+                                    root.commands.run(root.commands.ids.viewSetThumbnailSize, Math.round(v));
+                            }
+                            onValueCommitted: function (v) {
+                                if (root.commands)
+                                    root.commands.run(root.commands.ids.viewSetThumbnailSize, Math.round(v));
+                            }
+                        }
                     }
                 }
             }
-        }
-
-        Item {
-            Layout.fillWidth: true
         }
 
         RatingControl {

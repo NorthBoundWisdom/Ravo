@@ -66,6 +66,96 @@ namespace ravo
     return raw.contains(extension_lower(path));
 }
 
+[[nodiscard]] bool is_jpeg_extension(const std::filesystem::path &path)
+{
+    const auto extension = extension_lower(path);
+    return extension == ".jpg" || extension == ".jpeg";
+}
+
+[[nodiscard]] std::string path_utf8(const std::filesystem::path &path)
+{
+    const auto value = path.generic_u8string();
+    return {reinterpret_cast<const char *>(value.data()), value.size()};
+}
+
+[[nodiscard]] Result<std::optional<std::string>> adjacent_jpeg(const std::string_view source)
+{
+    const auto path = utf8_path(source);
+    std::vector<std::filesystem::path> found;
+    for (const auto &extension : {u8".jpg", u8".jpeg", u8".JPG", u8".JPEG"})
+    {
+        auto candidate = path;
+        candidate.replace_extension(extension);
+        std::error_code error;
+        if (std::filesystem::is_regular_file(candidate, error) && !error)
+        {
+            if (std::none_of(found.begin(), found.end(),
+                             [&](const auto &existing)
+                             {
+                                 std::error_code equivalent_error;
+                                 return std::filesystem::equivalent(existing, candidate,
+                                                                    equivalent_error) &&
+                                        !equivalent_error;
+                             }))
+                found.push_back(std::move(candidate));
+        }
+        else if (error && error != std::errc::no_such_file_or_directory)
+        {
+            return make_error(ErrorCode::kIo, "Unable to inspect RAW JPEG companion",
+                              {{"path", path_utf8(candidate)},
+                               {"reason", "import_jpeg_companion_inspect_failed"},
+                               {"detail", error.message()}});
+        }
+    }
+    if (found.size() > 1U)
+        return make_error(ErrorCode::kConflict, "Multiple JPEG companions match one RAW file",
+                          {{"source", std::string(source)},
+                           {"reason", "import_jpeg_companion_ambiguous"}});
+    return found.empty() ? std::optional<std::string>{} :
+                           std::optional<std::string>{path_utf8(found.front())};
+}
+
+void drop_raw_companion_jpegs(std::vector<std::string> &files)
+{
+    struct Stem
+    {
+        bool has_raw = false;
+        std::vector<std::size_t> jpeg_indexes;
+    };
+    std::map<std::string, Stem> stems;
+    for (std::size_t index = 0; index < files.size(); ++index)
+    {
+        const auto path = utf8_path(files[index]);
+        auto key = path_utf8(path.parent_path()) + '\n' + lower_ascii(path_utf8(path.stem()));
+        if (is_raw_extension(path))
+            stems[key].has_raw = true;
+        else if (is_jpeg_extension(path))
+            stems[key].jpeg_indexes.push_back(index);
+    }
+    std::vector<char> drop(files.size(), 0);
+    std::size_t dropped = 0;
+    for (const auto &[ignored, stem] : stems)
+    {
+        static_cast<void>(ignored);
+        if (!stem.has_raw)
+            continue;
+        for (const auto jpeg_index : stem.jpeg_indexes)
+        {
+            drop[jpeg_index] = 1;
+            ++dropped;
+        }
+    }
+    if (dropped == 0)
+        return;
+    std::vector<std::string> kept;
+    kept.reserve(files.size() - dropped);
+    for (std::size_t index = 0; index < files.size(); ++index)
+        if (drop[index] == 0)
+            kept.push_back(std::move(files[index]));
+    files.swap(kept);
+    LOG_INFO(ravo::logger(), "import enumeration omitted {} RAW JPEG companions", dropped);
+}
+
 [[nodiscard]] bool is_import_candidate(const std::filesystem::path &path)
 {
     static const std::set<std::string> raster{".png",  ".jpg", ".jpeg", ".tif",
@@ -159,6 +249,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     }
     std::sort(files.begin(), files.end());
     files.erase(std::unique(files.begin(), files.end()), files.end());
+    drop_raw_companion_jpegs(files);
     LOG_INFO(ravo::logger(), "import enumeration collected {} files from {} inputs", files.size(),
              inputs.size());
     return files;
@@ -196,14 +287,39 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 [[nodiscard]] DevelopParams baseline_develop_for(const AssetRecord &asset)
 {
     DevelopParams params;
+    // RAW import colour calibration: as-shot WB (default temperature), the
+    // file's camera matrix via input profile `source`, and Sigmoid. Later
+    // Develop edits stack on this baseline. Adobe DCP is not used.
     params.sigmoid_enabled = is_raw_media_type(asset.media_type);
     return params;
 }
 
 [[nodiscard]] Result<Recipe> baseline_recipe_for(const AssetRecord &asset, const std::string &path)
 {
-    return recipe_from_develop({asset.id, path, asset.content_fingerprint},
-                               baseline_develop_for(asset));
+    auto recipe = recipe_from_develop({asset.id, path, asset.content_fingerprint},
+                                      baseline_develop_for(asset));
+    if (!recipe)
+        return recipe.error();
+    if (!is_raw_media_type(asset.media_type))
+        return recipe;
+    auto &operations = recipe.value().operations;
+    const bool has_temperature =
+        std::any_of(operations.begin(), operations.end(),
+                    [](const OperationInstance &operation)
+                    { return operation.id == "ravo.color.temperature"; });
+    if (has_temperature)
+        return recipe;
+    OperationInstance temperature{"ravo.color.temperature",
+                                  1,
+                                  "temperature-1",
+                                  true,
+                                  temperature_to_parameters(TemperatureParams{}),
+                                  std::nullopt};
+    const auto input = std::find_if(operations.begin(), operations.end(),
+                                    [](const OperationInstance &operation)
+                                    { return operation.id == "ravo.color.input"; });
+    operations.insert(input, std::move(temperature));
+    return recipe;
 }
 
 [[nodiscard]] bool matches_develop_baseline(const AssetRecord &asset, DevelopParams params)

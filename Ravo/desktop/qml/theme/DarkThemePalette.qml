@@ -45,8 +45,8 @@ QtObject {
     readonly property color toolbarSurfaceColor: "#2b2b2b"
     readonly property color viewerToolbarColor: "#2a2a2a"
     readonly property color imageSurroundColor: photographicMiddleGray
-    readonly property color selectedBorderColor: "#dcdcdc"
-    readonly property color selectedSecondaryBorderColor: "#9a9a9a"
+    readonly property color selectedBorderColor: "#f2f2f2"
+    readonly property color selectedSecondaryBorderColor: "#d4d4d4"
 
     property font appFont: Qt.application.font
     property font monoFont: Qt.application.font

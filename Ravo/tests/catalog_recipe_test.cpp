@@ -566,7 +566,11 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto baseline = service->load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_EQ(baseline.value().operations.size(), 3U);
+    ASSERT_EQ(baseline.value().operations.size(), 4U);
+    EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == "ravo.color.temperature"; }),
+              baseline.value().operations.end());
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == "ravo.color.input"; }),

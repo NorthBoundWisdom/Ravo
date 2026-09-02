@@ -799,12 +799,14 @@ TEST(DngOpcodeTest, WarpFailureAndCancellationPublishNothing)
     const auto list3 = opcode_list({{1U, 0U, warp_payload({2.0, 0.0, 0.0, 0.0, 0.0, 0.0})}});
     auto parsed = parse_dng_opcode_metadata({}, {true, list3}, 8U, 8U);
     ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_EQ(parsed.value()->list3_operations.size(), 1U);
+    EXPECT_TRUE(
+        std::holds_alternative<DngWarpRectilinear>(parsed.value()->list3_operations.front()));
     const WorkingImage source = test_image(8U, 8U);
     const auto source_pixels = source.rgb;
     auto corrected = apply_dng_opcode_list3(source, *parsed.value(), CancellationToken{});
-    ASSERT_FALSE(corrected);
-    EXPECT_EQ(corrected.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(corrected.error().context.at("reason"), "dng_warp_out_of_bounds");
+    ASSERT_TRUE(corrected) << corrected.error().message;
+    EXPECT_EQ(corrected.value().rgb, source_pixels);
     EXPECT_EQ(source.rgb, source_pixels);
 
     CancellationSource cancellation;

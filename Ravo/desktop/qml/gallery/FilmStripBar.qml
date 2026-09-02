@@ -26,6 +26,8 @@ Rectangle {
         anchors.margins: Fonts.size4
         anchors.topMargin: Fonts.size4 + 1
         orientation: ListView.Horizontal
+        flickableDirection: Flickable.HorizontalFlick
+        boundsBehavior: Flickable.StopAtBounds
         clip: true
         spacing: Fonts.size4
         model: root.presenter ? root.presenter.assets : null
@@ -34,27 +36,6 @@ Rectangle {
         onCurrentIndexChanged: {
             if (currentIndex >= 0)
                 positionViewAtIndex(currentIndex, ListView.Contain);
-        }
-
-        WheelHandler {
-            target: null
-            onWheel: function (event) {
-                const pixel = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.pixelDelta.y;
-                const angle = event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y;
-                const delta = pixel !== 0 ? pixel : angle;
-                if (delta === 0) {
-                    event.accepted = false;
-                    return;
-                }
-                const maximum = Math.max(0, strip.contentWidth - strip.width);
-                const next = Math.max(0, Math.min(maximum, strip.contentX - delta));
-                if (next === strip.contentX) {
-                    event.accepted = false;
-                    return;
-                }
-                strip.contentX = next;
-                event.accepted = true;
-            }
         }
 
         delegate: Item {
@@ -109,6 +90,30 @@ Rectangle {
                 onDoubleClicked: if (root.commands)
                     root.commands.handlePhotoDoubleClick(stripDelegate.assetId)
             }
+        }
+    }
+
+    WheelHandler {
+        target: strip
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        blocking: true
+        onWheel: function (event) {
+            const horizontal = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x;
+            const vertical = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+            const delta = horizontal + vertical;
+            if (delta === 0) {
+                event.accepted = false;
+                return;
+            }
+            const maximum = Math.max(0, strip.contentWidth - strip.width);
+            const next = Math.max(0, Math.min(maximum, strip.contentX - delta));
+            if (next === strip.contentX) {
+                event.accepted = false;
+                return;
+            }
+            strip.cancelFlick();
+            strip.contentX = next;
+            event.accepted = true;
         }
     }
 }

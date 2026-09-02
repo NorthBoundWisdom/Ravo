@@ -366,6 +366,7 @@ add_executable(ravo_desktop_command_tests
   studio_qml_contract_test.cpp
   studio_live_control_test.cpp
   studio_assistant_test.cpp
+  studio_window_geometry_test.cpp
   export_option_conversion_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)

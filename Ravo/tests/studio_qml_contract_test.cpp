@@ -441,6 +441,10 @@ TEST(StudioQmlContract, DevelopReviewToolbarOffersSynchronizedBeforeAfterCompari
         QStringLiteral("action: root.commands ? root.commands.comparison : null")));
     EXPECT_TRUE(review_source.contains(QStringLiteral("text: qsTr(\"Y|Y\")")));
     EXPECT_TRUE(review_source.contains(QStringLiteral("tooltipText: action ? action.text : \"\"")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("id: leadingTools")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("Flickable")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("ScrollBar.horizontal")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("Layout.fillWidth: true")));
 
     QFile main_qml(QStringLiteral(RAVO_STUDIO_MAIN_QML));
     ASSERT_TRUE(main_qml.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -703,6 +707,97 @@ TEST(StudioCommands, CropToolShortcutIsRAndDoesNotRequireEditMode)
     EXPECT_FALSE(spec.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(spec.value(QStringLiteral("disabledReason")).toString(),
               QCoreApplication::translate("StudioCommands", "Open a library first."));
+}
+
+TEST(StudioCommands, SelectAllShortcutSelectsLoadedPhotosAndYieldsToTextInput)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    const auto action_id = controller.ids().value(QStringLiteral("photoSelectAll")).toString();
+    ASSERT_EQ(action_id, QStringLiteral("studio.photo.select_all"));
+
+    const auto closed = controller.action(action_id);
+    EXPECT_FALSE(closed.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(closed.value(QStringLiteral("disabledReason")).toString(),
+              QCoreApplication::translate("StudioCommands", "Open a library first."));
+    EXPECT_EQ(closed.value(QStringLiteral("shortcutText")).toString(),
+              QKeySequence::fromString(QStringLiteral("Ctrl+A"), QKeySequence::PortableText)
+                  .toString(QKeySequence::NativeText));
+
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    const auto empty = controller.action(action_id);
+    EXPECT_FALSE(empty.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(empty.value(QStringLiteral("disabledReason")).toString(),
+              QCoreApplication::translate("StudioCommands", "No photos to select."));
+
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 80, 120));
+    const QString first_photo = directory.filePath(QStringLiteral("one.png"));
+    const QString second_photo = directory.filePath(QStringLiteral("two.png"));
+    const QString third_photo = directory.filePath(QStringLiteral("three.png"));
+    ASSERT_TRUE(image.save(first_photo, "PNG"));
+    image.fill(QColor(120, 80, 40));
+    ASSERT_TRUE(image.save(second_photo, "PNG"));
+    image.fill(QColor(80, 120, 40));
+    ASSERT_TRUE(image.save(third_photo, "PNG"));
+    presenter.importFilePaths({first_photo, second_photo, third_photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 3 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+
+    const QString first_id = presenter.assets()->assetIdAt(0);
+    const QString second_id = presenter.assets()->assetIdAt(1);
+    const QString third_id = presenter.assets()->assetIdAt(2);
+    ASSERT_FALSE(first_id.isEmpty());
+    ASSERT_FALSE(second_id.isEmpty());
+    ASSERT_FALSE(third_id.isEmpty());
+    presenter.selectAsset(second_id);
+    ASSERT_EQ(presenter.selectedCount(), 1);
+    ASSERT_EQ(presenter.selectedAssetId(), second_id);
+
+    bool found_shortcut = false;
+    for (const auto &entry_value : controller.shortcutEntries())
+    {
+        const auto entry = entry_value.toMap();
+        if (entry.value(QStringLiteral("actionId")).toString() != action_id)
+            continue;
+        found_shortcut = true;
+        EXPECT_EQ(entry.value(QStringLiteral("sequence")).toString(), QStringLiteral("Ctrl+A"));
+        EXPECT_TRUE(entry.value(QStringLiteral("enabled")).toBool());
+    }
+    ASSERT_TRUE(found_shortcut);
+
+    const auto selected = controller.executeAction(action_id, QStringLiteral("keyboard"));
+    EXPECT_TRUE(selected.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(presenter.selectedCount(), 3);
+    EXPECT_EQ(presenter.selectedAssetId(), second_id);
+    EXPECT_TRUE(presenter.isAssetSelected(first_id));
+    EXPECT_TRUE(presenter.isAssetSelected(second_id));
+    EXPECT_TRUE(presenter.isAssetSelected(third_id));
+
+    presenter.setBrowseMode(QStringLiteral("loupe"));
+    const auto from_loupe = controller.executeAction(action_id, QStringLiteral("keyboard"));
+    EXPECT_TRUE(from_loupe.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(presenter.selectedCount(), 3);
+
+    controller.setTextInputActive(true);
+    for (const auto &entry_value : controller.shortcutEntries())
+    {
+        const auto entry = entry_value.toMap();
+        if (entry.value(QStringLiteral("actionId")).toString() == action_id)
+            EXPECT_FALSE(entry.value(QStringLiteral("enabled")).toBool());
+    }
 }
 
 TEST(StudioCommands, PhotoInformationShortcutTogglesSessionOwnedOverlay)

@@ -5,7 +5,7 @@
 Create or open a local library, add or copy photos through the import workspace,
 and confirm that the first previews appear in Gallery.
 
-**Last reviewed:** 2026-09-01 against the current Studio and catalog service
+**Last reviewed:** 2026-09-02 against the current Studio and catalog service
 contracts.
 
 ## Applies to
@@ -45,22 +45,31 @@ used when a valid supported file has an uncommon suffix.
 
 1. Choose **File → Import Folder**, or choose **Import…** in the left Library
    panel and select a directory.
-2. Wait while Ravo recursively scans the directory.
-3. Review the completion summary: imported, duplicate, unsupported, and failed
-   items are reported separately.
+2. The import workspace lists every candidate by filename as soon as the folder
+   scan finishes. The grid fills the available width. Preview thumbnails fill
+   in afterward; you can select photos before every preview is ready. Click a
+   cell to highlight it, Command/Control-click to add to the highlight,
+   Shift-click for a range, and Command/Control+A to highlight all. The
+   checkbox applies its new state to every highlighted eligible photo.
+3. Choose Add, Copy, or Move, then **Import**. Gallery lists the selected
+   filenames immediately and fills previews as each photo is cataloged. Review
+   the completion summary: imported, duplicate, unsupported, and failed items
+   are reported separately.
 
 Directory import is recursive, ignores hidden filenames, sorts paths
-deterministically, and removes duplicate paths from one batch. **Add** records
-the existing paths. **Copy** and **Move** require an existing destination and
-can organize files into one folder, preserve the selected root hierarchy, or
-use `YYYY/MM/DD` directories.
+deterministically, and removes duplicate paths from one batch. A JPEG that
+shares a folder and filename stem with a RAW in the same scan is not a second
+photo: Ravo catalogs the RAW and uses the JPEG as the Gallery thumbnail.
+JPEG-only files still import as their own photos. **Add** records the existing
+paths. **Copy** and **Move** require an existing destination and can organize
+files into one folder, preserve the selected root hierarchy, or use
+`YYYY/MM/DD` directories.
 
 For a shoot ingest, Copy/Move can also use a rename template with only
 `{date}`, `{stem}`, `{sequence}`, and `{ext}`, and can select a distinct second
 copy directory. Ravo preflights the complete primary/second path set and never
-overwrites or invents a unique suffix. When a second copy is selected, media
-and same-stem XMP companions are compared byte for byte before the primary path
-is cataloged.
+overwrites or invents a unique suffix. When a second copy is selected, media, same-stem XMP companions, and same-stem
+JPEG companions are compared byte for byte before the primary path is cataloged.
 
 ## Current input boundary
 
@@ -84,17 +93,22 @@ or an unsupported RAW sensor returns a structured unsupported or failed result.
 - The catalog stores the normalized original path, media type, dimensions when
   available, capture metadata when readable, and a content fingerprint.
 - Review state starts at rating `0`, no color label, and Keep/not rejected.
-- A baseline recipe is synthesized for the asset. RAW assets use the default
-  Sigmoid Standard SDR display path; a default raster asset has no visible edit.
+- A baseline recipe is synthesized for the asset. RAW assets receive a colour
+  calibration that later edits stack on: as-shot white balance, the camera
+  input matrix from the file, and Sigmoid Standard SDR. That is Ravo's default
+  camera profile analogue; Lightroom's Adobe Color / `.dcp` files are not
+  included. DNG lens warp is not applied. A default raster asset has no visible
+  edit.
 - A rebuildable preview is written outside the SQLite file. RAW Gallery
-  thumbnails may use a readable embedded JPEG; Loupe, Develop, scopes, and
-  export use the processed CPU path.
+  thumbnails prefer a same-stem JPEG companion, then a readable embedded JPEG.
+  Loupe, Develop, and export render the RAW through that import colour
+  calibration.
 - Durable catalog changes also produce a catalog-owned recovery generation
   under `<catalog>.ravo/sidecars/`. This is not an adjacent XMP file and is
   never read as an edit authority.
-- Add and Copy do not alter the source. Move removes the source media and XMP
-  only after every requested copy verifies and the primary asset is cataloged;
-  a cleanup failure keeps the safe source bytes and is reported.
+- Add and Copy do not alter the source. Move removes the source media, XMP, and
+  JPEG companion only after every requested copy verifies and the primary asset
+  is cataloged; a cleanup failure keeps the safe source bytes and is reported.
 
 ## Progress and results
 

@@ -309,6 +309,121 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     return result;
 }
 
+Result<PreviewResult> CatalogService::persist_companion_jpeg_browse_preview(
+    const AssetRecord &asset, const std::string_view jpeg_path, const std::uint32_t max_edge,
+    const CancellationToken &cancellation)
+{
+    if (engine_ == nullptr || raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    fit_within_max_edge(asset.width.value_or(0), asset.height.value_or(0), max_edge, width, height);
+    const auto fingerprint = asset.content_fingerprint.value_or("none");
+    const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
+                                                  kCompanionJpegBrowsePreviewDigest);
+    PreviewResult result;
+    result.asset_id = asset.id;
+    result.cache_key = cache_key;
+    auto existing = cache_->existing_png(cache_key);
+    if (!existing)
+    {
+        return existing.error();
+    }
+    if (existing.value())
+    {
+        result.cache_path = *existing.value();
+        result.width = width;
+        result.height = height;
+        PreviewRecord record;
+        record.asset_id = asset.id;
+        record.cache_key = cache_key;
+        record.width = width;
+        record.height = height;
+        record.state = std::string(kPreviewStateReady);
+        record.cache_relpath = cache_->relative_png_path(cache_key);
+        record.last_success_unix_ms = now_unix_ms();
+        static_cast<void>(repository_->upsert_preview(record));
+        return result;
+    }
+
+    auto decoded = raster_->decode(jpeg_path, max_edge, cancellation);
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    RasterBuffer source;
+    source.width = decoded.value().width;
+    source.height = decoded.value().height;
+    source.source_width = decoded.value().source_width;
+    source.source_height = decoded.value().source_height;
+    source.srgb = std::move(decoded.value().rgb);
+    source.color_profile = std::move(decoded.value().color_profile);
+    if (source.color_profile.kind == ColorProfileKind::kMissing)
+    {
+        source.color_profile.kind = ColorProfileKind::kBuiltin;
+        source.color_profile.model = ColorModel::kRgb;
+        source.color_profile.identifier = "srgb";
+    }
+    DevelopParams develop;
+    auto recipe = recipe_from_develop(
+        {asset.id, asset.normalized_uri, asset.content_fingerprint}, develop);
+    if (!recipe)
+    {
+        return recipe.error();
+    }
+    RenderRequest render;
+    render.asset = recipe.value().asset;
+    render.recipe = recipe.value();
+    render.cancellation = cancellation;
+    render.correlation_id = asset.id;
+    auto rendered = engine_->render_to_image(render, &source);
+    if (!rendered)
+    {
+        return rendered.error();
+    }
+    auto encoded = engine_->encode_preview_png(rendered.value());
+    if (!encoded)
+    {
+        return encoded.error();
+    }
+    if (testing_before_preview_cache_publication_)
+        testing_before_preview_cache_publication_();
+    cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
+    if (!committed)
+    {
+        return committed.error();
+    }
+    result.cache_path = committed.value();
+    result.width = rendered.value().width;
+    result.height = rendered.value().height;
+    PreviewRecord record;
+    record.asset_id = asset.id;
+    record.cache_key = cache_key;
+    record.width = result.width;
+    record.height = result.height;
+    record.state = std::string(kPreviewStateReady);
+    record.cache_relpath = cache_->relative_png_path(cache_key);
+    record.last_success_unix_ms = now_unix_ms();
+    const auto stored = repository_->upsert_preview(record);
+    if (!stored)
+    {
+        return stored.error();
+    }
+    return result;
+}
+
 Result<PreviewResult>
 CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest &request,
                                  const std::optional<DevelopParams> &live_develop)
@@ -371,6 +486,24 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         !request.ignore_straighten && !working.has_edits;
     if (embedded_browse && original_exists)
     {
+        auto companion = adjacent_jpeg(location.value().path);
+        if (!companion)
+        {
+            return companion.error();
+        }
+        if (companion.value())
+        {
+            auto persisted = persist_companion_jpeg_browse_preview(
+                working, *companion.value(), request.max_edge, request.cancellation);
+            if (persisted)
+            {
+                persisted.value().request_revision = request.request_revision;
+                persisted.value().original_missing = false;
+                return persisted;
+            }
+            LOG_INFO(ravo::logger(), "companion JPEG browse preview persist failed asset={} error={}",
+                     asset.id, persisted.error().message);
+        }
         const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
                                                       kEmbeddedBrowsePreviewDigest);
         auto existing = cache_->existing_png(cache_key);
@@ -852,10 +985,21 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
     const auto fingerprint = asset.content_fingerprint.value_or("none");
     auto &cache_entry = lane == PreviewLane::kBackgroundBrowse ? browse_decoded_preview_source_ :
                                                                  decoded_preview_source_;
+    const auto tag_untagged_raster_browse = [&](RasterBuffer raster) -> RasterBuffer
+    {
+        if (lane == PreviewLane::kBackgroundBrowse &&
+            raster.color_profile.kind == ColorProfileKind::kMissing)
+        {
+            raster.color_profile.kind = ColorProfileKind::kBuiltin;
+            raster.color_profile.model = ColorModel::kRgb;
+            raster.color_profile.identifier = "srgb";
+        }
+        return raster;
+    };
     if (cache_entry.has_value() && cache_entry->asset_id == asset.id &&
         cache_entry->fingerprint == fingerprint && cache_entry->max_edge == max_edge)
     {
-        return cache_entry->raster;
+        return tag_untagged_raster_browse(cache_entry->raster);
     }
 
     RasterBuffer raster;
@@ -875,6 +1019,34 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
     }
     else if (is_raw_media_type(asset.media_type))
     {
+        if (lane == PreviewLane::kBackgroundBrowse)
+        {
+            auto companion = adjacent_jpeg(path);
+            if (!companion)
+            {
+                return companion.error();
+            }
+            if (companion.value())
+            {
+                auto decoded = raster_->decode(*companion.value(), max_edge, cancellation);
+                if (decoded)
+                {
+                    raster.width = decoded.value().width;
+                    raster.height = decoded.value().height;
+                    raster.source_width = decoded.value().source_width;
+                    raster.source_height = decoded.value().source_height;
+                    raster.srgb = std::move(decoded.value().rgb);
+                    raster.color_profile = std::move(decoded.value().color_profile);
+                    raster = tag_untagged_raster_browse(std::move(raster));
+                    cache_entry = DecodedPreviewSource{std::string(asset.id), fingerprint, max_edge,
+                                                       std::move(raster)};
+                    return cache_entry->raster;
+                }
+                LOG_INFO(ravo::logger(),
+                         "companion JPEG browse decode failed asset={} error={}", asset.id,
+                         decoded.error().message);
+            }
+        }
         auto embedded = engine_->extract_embedded_preview(path, max_edge, cancellation);
         if (embedded)
         {
@@ -901,9 +1073,14 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
             std::uint32_t height = 0;
             fit_within_max_edge(asset.width.value_or(0), asset.height.value_or(0), max_edge, width,
                                 height);
+            auto recipe = baseline_recipe_for(asset, std::string(path));
+            if (!recipe)
+            {
+                return recipe.error();
+            }
             RenderRequest render;
             render.asset = {asset.id, std::string(path), asset.content_fingerprint};
-            render.recipe = identity_recipe_for(asset, std::string(path));
+            render.recipe = std::move(recipe).value();
             render.output_width = width;
             render.output_height = height;
             render.cancellation = cancellation;
@@ -925,6 +1102,7 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
                           {{"media_type", asset.media_type}, {"asset_id", asset.id}});
     }
 
+    raster = tag_untagged_raster_browse(std::move(raster));
     cache_entry =
         DecodedPreviewSource{std::string(asset.id), fingerprint, max_edge, std::move(raster)};
     return cache_entry->raster;

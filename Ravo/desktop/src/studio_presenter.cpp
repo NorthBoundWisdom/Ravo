@@ -1839,13 +1839,16 @@ void StudioPresenter::startNextImportItem()
     }
     const auto path = pending_import_paths_[import_next_index_];
     const auto cancellation = import_operation_.token();
+    const auto policy =
+        import_defer_previews_ ? pending_import_preview_policy_ : ImportPreviewPolicy::kMinimal;
+    const bool defer = import_defer_previews_;
     executor_.post(
-        [this, path, cancellation]
+        [this, path, cancellation, policy, defer]
         {
             Result<ImportItemResult> imported =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                imported = service_->import_one(path, cancellation);
+                imported = service_->import_one(path, cancellation, policy, defer);
             QMetaObject::invokeMethod(
                 this,
                 [this, path, imported = std::move(imported)]() mutable
@@ -1861,6 +1864,7 @@ void StudioPresenter::startNextImportItem()
                         item.input_path = path;
                         item.error = imported.error();
                     }
+                    const auto row = static_cast<int>(import_next_index_);
                     import_results_.push_back(item);
                     ++import_next_index_;
                     setImportWork(static_cast<int>(import_next_index_),
@@ -1868,6 +1872,7 @@ void StudioPresenter::startNextImportItem()
                     setStatus(QCoreApplication::translate("StudioPresenter", "Importing %1 / %2…")
                                   .arg(import_next_index_)
                                   .arg(pending_import_paths_.size()));
+                    publishImportItem(item, row);
                     startNextImportItem();
                 },
                 Qt::QueuedConnection);
@@ -1878,6 +1883,8 @@ void StudioPresenter::finishImportBatch()
 {
     if (!import_work_active_)
         return;
+    import_gallery_placeholders_ = false;
+    import_defer_previews_ = false;
     const bool cancelled = import_operation_.token().is_cancellation_requested();
     const auto completed = import_results_.size();
     const auto total = pending_import_paths_.size();

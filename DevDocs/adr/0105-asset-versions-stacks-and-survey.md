@@ -11,8 +11,9 @@
 
 One catalog asset currently owns one original URI and one canonical recipe.
 Photographers need a second grade of the same RAW without copying the file, a
-way to group a burst or RAW+JPEG pair, and an N-up view for culling. ADR-0059
-left legacy group IDs unsupported; this decision is a new Ravo contract, not a
+way to group a burst of distinct catalog assets, and an N-up view for culling.
+Same-stem RAW+JPEG import is one catalog asset, not a stack. ADR-0059 left
+legacy group IDs unsupported; this decision is a new Ravo contract, not a
 darktable grouping port.
 
 ## Decision
@@ -47,6 +48,13 @@ state.
 CLI and Studio share CatalogService. QML displays badges, collapse, and survey
 layout; it does not own version ordinals, stack membership, or preview work.
 
+Import treats a same-directory, case-insensitive same-stem RAW plus one JPEG
+(`.jpg` / `.jpeg`) as a single photo. The RAW is the catalog original. The JPEG
+is a non-cataloged companion used for Gallery browse and copied or moved with
+the RAW. Ambiguous companions (distinct `.jpg` and `.jpeg` for one stem) fail
+closed. JPEG-only stems remain ordinary assets. Stacks still group already
+cataloged assets; they are not the RAW+JPEG pairing model.
+
 ## Consequences
 
 - Gallery row count can exceed the number of original files.
@@ -54,7 +62,9 @@ layout; it does not own version ordinals, stack membership, or preview work.
   folder, so they move together.
 - Named collections may contain versions and stack members as ordinary asset
   IDs.
-- Automatic RAW+JPEG pairing on import remains out of scope.
+- Same-stem RAW+JPEG import publishes one RAW asset. Gallery browse prefers the
+  companion JPEG, then an embedded JPEG, then processed RAW with the Sigmoid
+  baseline. Develop, loupe, scopes, and export stay on the RAW.
 
 ## Rejected alternatives
 

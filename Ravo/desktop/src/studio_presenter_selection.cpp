@@ -33,6 +33,7 @@
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
+#include "studio_file_manager.h"
 #include "studio_qt.h"
 
 namespace ravo
@@ -158,6 +159,33 @@ void StudioPresenter::toggleAssetSelected(const QString &asset_id)
     selected_ids_.insert(id);
     selection_anchor_id_ = asset_id;
     activate_primary(asset_id, true);
+}
+
+void StudioPresenter::selectAllVisible()
+{
+    std::unordered_set<std::string> ids;
+    QString first_id;
+    for (int row = 0; row < assets_.rowCount(); ++row)
+    {
+        const auto id = assets_.assetIdAt(row);
+        if (id.isEmpty())
+            continue;
+        if (first_id.isEmpty())
+            first_id = id;
+        ids.insert(utf8_from_qstring(id));
+    }
+    if (ids.empty())
+        return;
+    const bool keep_primary =
+        !selected_asset_id_.isEmpty() && ids.contains(utf8_from_qstring(selected_asset_id_));
+    if (ids == selected_ids_ && keep_primary)
+        return;
+    selected_ids_ = std::move(ids);
+    const auto primary = keep_primary ? selected_asset_id_ : first_id;
+    if (selection_anchor_id_.isEmpty() ||
+        !selected_ids_.contains(utf8_from_qstring(selection_anchor_id_)))
+        selection_anchor_id_ = first_id;
+    activate_primary(primary, false);
 }
 
 void StudioPresenter::selectNext()
@@ -981,6 +1009,134 @@ void StudioPresenter::clearFilters()
     }
     emit filterChanged();
     reloadVisibleAssets();
+}
+
+QString StudioPresenter::folderLocalPath(const QString &folder_uri) const
+{
+    const auto path = local_file_path_from_asset_uri(folder_uri);
+    return path ? path.value() : QString{};
+}
+
+void StudioPresenter::revealFolderInFileManager(const QString &folder_uri)
+{
+    if (folder_uri.trimmed().isEmpty())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Select a folder first."));
+        return;
+    }
+    const auto path = local_file_path_from_asset_uri(folder_uri);
+    if (!path)
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "The selected folder has no local path."));
+        return;
+    }
+    const auto launch = file_manager_open_directory_launch(path.value());
+    if (!launch)
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "The folder is missing and cannot be shown in the file manager."));
+        return;
+    }
+    if (!start_file_manager_reveal(launch.value()))
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "The file manager could not be opened."));
+        return;
+    }
+    setError({});
+    setStatus(QCoreApplication::translate("StudioPresenter", "Showing the folder."));
+}
+
+void StudioPresenter::removeFolderFromCatalog(const QString &folder_uri)
+{
+    const auto uri = folder_uri.trimmed();
+    if (uri.isEmpty() || busy_ || catalog_operation_active_ || catalog_path_.isEmpty())
+        return;
+    catalog_operation_ = CancellationSource{};
+    const auto cancellation = catalog_operation_.token();
+    const auto folder = utf8_from_qstring(uri);
+    setBusy(true);
+    setError({});
+    setCatalogOperation(QCoreApplication::translate("StudioPresenter", "Removing folder…"), 0, 0,
+                        true);
+    executor_.post(
+        [this, cancellation, folder]
+        {
+            Result<FolderRemoveResult> removed =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<AssetRecord>> listed =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            Result<std::vector<LibrarySetRecord>> sets = std::vector<LibrarySetRecord>{};
+            if (service_ != nullptr)
+            {
+                removed = service_->remove_folder_from_catalog(folder, cancellation);
+                if (removed)
+                {
+                    listed = service_->list_assets(current_query());
+                    folders = service_->list_folders();
+                    sets = service_->list_library_sets();
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, folder, removed = std::move(removed), listed = std::move(listed),
+                 folders = std::move(folders), sets = std::move(sets)]() mutable
+                {
+                    setBusy(false);
+                    setCatalogOperation({}, 0, 0, false);
+                    if (!removed)
+                    {
+                        setError(qstring_from_utf8(removed.error().message));
+                        setStatus(QCoreApplication::translate("StudioPresenter",
+                                                              "Folder removal failed."));
+                        return;
+                    }
+                    if (!listed)
+                    {
+                        setError(qstring_from_utf8(listed.error().message));
+                        return;
+                    }
+                    if (!folders)
+                    {
+                        setError(qstring_from_utf8(folders.error().message));
+                        return;
+                    }
+                    if (!sets)
+                    {
+                        setError(qstring_from_utf8(sets.error().message));
+                        return;
+                    }
+                    if (query_.folder_uri == folder)
+                        query_.folder_uri.clear();
+                    applyFolders(std::move(folders).value());
+                    applyLibrarySets(std::move(sets).value());
+                    const auto total = listed.value().size();
+                    applyAssets(std::move(listed).value(), false, {}, {}, total, false);
+                    if (assets_.rowCount() == 0)
+                    {
+                        selected_asset_id_.clear();
+                        selection_anchor_id_.clear();
+                        selected_ids_.clear();
+                        assets_.setSelectedIds({});
+                        clear_displayed_preview();
+                        preview_loading_ = false;
+                        emit selectionChanged();
+                        emit previewChanged();
+                    }
+                    else if (selected_asset_id_.isEmpty() ||
+                             assets_.indexOf(selected_asset_id_) < 0)
+                    {
+                        selectAsset(assets_.assetIdAt(0));
+                    }
+                    setStatus(QCoreApplication::translate(
+                                  "StudioPresenter",
+                                  "Removed %1 photos from catalog. Original files were not deleted.")
+                                  .arg(removed.value().asset_count));
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::remove_selected_from_catalog()

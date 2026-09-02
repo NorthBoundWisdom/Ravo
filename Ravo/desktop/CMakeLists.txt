@@ -23,6 +23,7 @@ target_sources(ravo_desktop
     src/studio_file_manager.h
     src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
+    src/studio_window_geometry.cpp
     src/studio_live_session_controller.cpp
     src/studio_presenter.cpp
     src/studio_presenter_export.cpp
@@ -49,6 +50,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/studio_command_controller.h
     include/ravo/desktop/studio_live_session_controller.h
     include/ravo/desktop/studio_presenter.h
+    include/ravo/desktop/studio_window_geometry.h
     src/studio_language_manager.h)
 
 target_include_directories(ravo_desktop
@@ -202,7 +204,8 @@ qt_add_qml_module(ravo_studio
     qml/chrome/StudioContextSubMenu.qml
     qml/chrome/PresetRenameDialog.qml
     qml/chrome/PresetSaveDialog.qml
-    qml/chrome/PhotoContextMenu.qml)
+    qml/chrome/PhotoContextMenu.qml
+    qml/chrome/FolderContextMenu.qml)
 
 qt_add_resources(ravo_studio "studio_app_icon"
   PREFIX "/ravo/studio"

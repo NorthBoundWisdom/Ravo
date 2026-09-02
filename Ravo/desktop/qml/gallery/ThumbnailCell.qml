@@ -60,20 +60,29 @@ Item {
         id: frame
         anchors.fill: parent
         anchors.margins: root.compact ? 0 : Fonts.size2
-        color: Theme.imageSurroundColor
-        border.width: root.current || root.selected ? 2 : 1
+        color: root.selected ? Qt.lighter(Theme.imageSurroundColor, 1.5) : Theme.imageSurroundColor
+        border.width: root.current ? 3 : (root.selected ? 2 : 1)
         border.color: root.current ? Theme.selectedBorderColor : (root.selected ? Theme.selectedSecondaryBorderColor : Theme.dividerColor)
         clip: true
 
         Image {
             id: photo
             anchors.fill: parent
-            anchors.margins: 2
+            anchors.margins: 4
             fillMode: Image.PreserveAspectFit
             asynchronous: true
             cache: true
             source: root.thumbnailUrl
             visible: root.thumbnailUrl.toString().length > 0
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: frame.border.width
+            visible: root.current
+            color: "transparent"
+            border.width: 1
+            border.color: "#80000000"
         }
 
         CustomLabel {
@@ -88,6 +97,25 @@ Item {
             }
             color: root.chromeTextColor
             font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
+        }
+
+        Rectangle {
+            objectName: "placeholderName"
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: root.compact ? 18 : 26
+            visible: root.displayName.length > 0 && !photo.visible && !root.showInformationOverlay
+            color: "#aa000000"
+            CustomLabel {
+                anchors.centerIn: parent
+                width: parent.width - 8
+                text: root.displayName
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideMiddle
+                font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
+                color: root.chromeTextColor
+            }
         }
 
         PhotoInformationOverlay {
@@ -296,6 +324,9 @@ Item {
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             preventStealing: false
             property int pressModifiers: Qt.NoModifier
+            onWheel: function (wheel) {
+                wheel.accepted = false;
+            }
 
             onPressed: function (mouse) {
                 pressModifiers = mouse.modifiers;

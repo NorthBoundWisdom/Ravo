@@ -1243,6 +1243,177 @@ TEST_F(CatalogServiceTest, TexturePersistsAndReproducesPreviewAndExportAfterReop
     EXPECT_EQ(file_sha256(source_path), source_hash);
 }
 
+TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "pair-source";
+    const auto destination = root / "pair-destination";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    const auto raw_path = source_dir / "DSC0001.cr2";
+    std::filesystem::copy_file(raw_fixture_path(), raw_path);
+    const auto jpeg_path = source_dir / "DSC0001.jpg";
+    QImage jpeg(48, 32, QImage::Format_RGB888);
+    jpeg.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    jpeg.fill(QColor(20, 180, 40));
+    ASSERT_TRUE(jpeg.save(QString::fromStdString(jpeg_path.string()), "JPEG", 95));
+    const auto standalone_path = source_dir / "extra.jpg";
+    ASSERT_TRUE(jpeg.save(QString::fromStdString(standalone_path.string()), "JPEG", 95));
+    const auto jpeg_hash = file_sha256(jpeg_path.string());
+    const auto raw_hash = file_sha256(raw_path.string());
+
+    auto enumerated = service->enumerate_import_inputs({source_dir.string()}, CancellationToken{});
+    ASSERT_TRUE(enumerated) << enumerated.error().message;
+    ASSERT_EQ(enumerated.value().size(), 2U);
+    std::vector<std::string> names;
+    names.reserve(enumerated.value().size());
+    for (const auto &path : enumerated.value())
+        names.push_back(std::filesystem::path(path).filename().string());
+    std::sort(names.begin(), names.end());
+    EXPECT_EQ(names, (std::vector<std::string>{"DSC0001.cr2", "extra.jpg"}));
+
+    ImportRequest request;
+    request.inputs = {source_dir.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kCopy;
+    request.organization = ImportOrganization::kSingleFolder;
+    request.destination_directory = destination.string();
+    request.preview = ImportPreviewPolicy::kMinimal;
+    request.defer_previews = true;
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().imported, 2U);
+    ASSERT_EQ(imported.value().items.size(), 2U);
+
+    EXPECT_TRUE(std::filesystem::exists(destination / "DSC0001.cr2"));
+    EXPECT_TRUE(std::filesystem::exists(destination / "DSC0001.jpg"));
+    EXPECT_TRUE(std::filesystem::exists(destination / "extra.jpg"));
+    EXPECT_EQ(file_sha256((destination / "DSC0001.cr2").string()), raw_hash);
+    EXPECT_EQ(file_sha256((destination / "DSC0001.jpg").string()), jpeg_hash);
+    EXPECT_EQ(file_sha256(raw_path.string()), raw_hash);
+    EXPECT_EQ(file_sha256(jpeg_path.string()), jpeg_hash);
+
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets) << assets.error().message;
+    ASSERT_EQ(assets.value().size(), 2U);
+    std::size_t raw_count = 0;
+    std::size_t jpeg_count = 0;
+    std::string raw_id;
+    for (const auto &asset : assets.value())
+    {
+        if (is_raw_media_type(asset.media_type))
+        {
+            ++raw_count;
+            raw_id = asset.id;
+        }
+        else
+        {
+            ++jpeg_count;
+            EXPECT_TRUE(is_raster_media_type(asset.media_type));
+        }
+    }
+    EXPECT_EQ(raw_count, 1U);
+    EXPECT_EQ(jpeg_count, 1U);
+
+    const ImportItemResult *raw_item = nullptr;
+    for (const auto &item : imported.value().items)
+    {
+        if (item.asset && is_raw_media_type(item.asset->media_type))
+            raw_item = &item;
+    }
+    ASSERT_NE(raw_item, nullptr);
+    ASSERT_TRUE(raw_item->jpeg_companion_destination_path);
+    EXPECT_TRUE(std::filesystem::equivalent(*raw_item->jpeg_companion_destination_path,
+                                           destination / "DSC0001.jpg"));
+
+    auto recipe = service->load_recipe(raw_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto develop = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    EXPECT_TRUE(develop.value().sigmoid_enabled);
+
+    PreviewRequest browse;
+    browse.asset_id = raw_id;
+    browse.max_edge = kThumbnailMaxEdge;
+    browse.purpose = PreviewPurpose::kBrowse;
+    browse.prefer_embedded_preview = true;
+    auto thumb = service->request_preview(browse);
+    ASSERT_TRUE(thumb) << thumb.error().message;
+    EXPECT_NE(thumb.value().cache_key.find(std::string(kCompanionJpegBrowsePreviewDigest)),
+              std::string::npos);
+    EXPECT_TRUE(std::filesystem::exists(thumb.value().cache_path));
+
+    PreviewRequest loupe;
+    loupe.asset_id = raw_id;
+    loupe.max_edge = kDefaultPreviewMaxEdge;
+    loupe.purpose = PreviewPurpose::kBrowse;
+    loupe.prefer_embedded_preview = true;
+    auto camera_look = service->request_preview(loupe);
+    ASSERT_TRUE(camera_look) << camera_look.error().message;
+    EXPECT_NE(camera_look.value().cache_key.find(std::string(kCompanionJpegBrowsePreviewDigest)),
+              std::string::npos);
+}
+
+TEST_F(CatalogServiceTest, AmbiguousRawJpegCompanionsRejectImport)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "ambiguous-pair";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::copy_file(raw_fixture_path(), source_dir / "DSC0001.cr2");
+    QImage jpeg(32, 24, QImage::Format_RGB888);
+    jpeg.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    jpeg.fill(QColor(10, 20, 30));
+    ASSERT_TRUE(jpeg.save(QString::fromStdString((source_dir / "DSC0001.jpg").string()), "JPEG", 95));
+    ASSERT_TRUE(
+        jpeg.save(QString::fromStdString((source_dir / "DSC0001.jpeg").string()), "JPEG", 95));
+
+    auto enumerated = service->enumerate_import_inputs({source_dir.string()}, CancellationToken{});
+    ASSERT_TRUE(enumerated) << enumerated.error().message;
+    ASSERT_EQ(enumerated.value().size(), 1U);
+
+    ImportRequest request;
+    request.inputs = {source_dir.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kAdd;
+    auto imported = service->execute_import(request);
+    ASSERT_FALSE(imported);
+    EXPECT_EQ(imported.error().context.at("reason"), "import_jpeg_companion_ambiguous");
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets) << assets.error().message;
+    EXPECT_TRUE(assets.value().empty());
+}
+
+TEST_F(CatalogServiceTest, DeferredImportOfUntaggedJpegPublishesBrowseThumbnail)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto jpeg_path = (root / "untagged.jpg").string();
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.fill(QColor(40, 80, 120));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 95));
+    QtRasterDecoder decoder;
+    auto decoded = decoder.decode(jpeg_path, 0, CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    ASSERT_EQ(decoded.value().color_profile.kind, ColorProfileKind::kMissing);
+
+    auto imported = service->import_one(jpeg_path, CancellationToken{},
+                                        ImportPreviewPolicy::kStandard, true);
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().status, ImportItemStatus::kImported);
+    ASSERT_TRUE(imported.value().asset);
+    EXPECT_TRUE(imported.value().preview_pending);
+    ASSERT_TRUE(imported.value().preview_cache_path);
+    EXPECT_TRUE(std::filesystem::exists(*imported.value().preview_cache_path));
+
+    PreviewRequest browse;
+    browse.asset_id = imported.value().asset->id;
+    browse.max_edge = kThumbnailMaxEdge;
+    browse.purpose = PreviewPurpose::kBrowse;
+    browse.prefer_embedded_preview = true;
+    auto thumb = service->request_preview(browse);
+    ASSERT_TRUE(thumb) << thumb.error().message;
+    EXPECT_TRUE(std::filesystem::exists(thumb.value().cache_path));
+}
+
 } // namespace
 } // namespace ravo
 

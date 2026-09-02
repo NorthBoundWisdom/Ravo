@@ -76,6 +76,7 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "Open a library first."),
     QT_TRANSLATE_NOOP("StudioCommands", "Wait for library work to finish."),
     QT_TRANSLATE_NOOP("StudioCommands", "Select a photo first."),
+    QT_TRANSLATE_NOOP("StudioCommands", "No photos to select."),
     QT_TRANSLATE_NOOP("StudioCommands", "Open a photo first."),
     QT_TRANSLATE_NOOP("StudioCommands", "Open Edit first."),
     QT_TRANSLATE_NOOP("StudioCommands", "Nothing to undo."),
@@ -163,7 +164,11 @@ QStringList command_ids()
             QLatin1String(command::kLibraryToggleStackCollapse),
             QLatin1String(command::kLibraryFolderRelink),
             QLatin1String(command::kLibraryFolderRelinkPath),
+            QLatin1String(command::kLibraryRevealFolder),
+            QLatin1String(command::kLibraryRequestRemoveFolder),
+            QLatin1String(command::kLibraryRemoveFolder),
             QLatin1String(command::kPhotoSelect),
+            QLatin1String(command::kPhotoSelectAll),
             QLatin1String(command::kPhotoSetRating),
             QLatin1String(command::kPhotoSetColor),
             QLatin1String(command::kPhotoSetTags),
@@ -444,6 +449,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Next Photo")), photo,
         {QStringLiteral("navigate")}, QStringLiteral("photo.navigate"), 20, true,
         {key(QStringLiteral("Right"), true)});
+    add(command::kPhotoSelectAll, command::kPhotoSelectAll,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Select All")), photo,
+        {QStringLiteral("all"), QStringLiteral("selection")}, QStringLiteral("photo.navigate"), 30,
+        true, {key(primary_key(QStringLiteral("A")), true)});
     add(action_id::kPreviousRange, command::kPhotoPrevious,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Extend Selection to Previous")),
         photo, {QStringLiteral("range"), QStringLiteral("selection")}, {}, 0, false,
@@ -564,6 +573,23 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Clear Library Filters")),
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
         {QStringLiteral("search"), QStringLiteral("show all")}, {}, 0, true);
+    add(command::kLibraryRevealFolder, command::kLibraryRevealFolder,
+#if defined(Q_OS_MACOS)
+        QString::fromUtf8("Show in Finder"),
+#elif defined(Q_OS_WIN)
+        QString::fromUtf8("Show in Explorer"),
+#else
+        QString::fromUtf8("Show in File Manager"),
+#endif
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
+        {QStringLiteral("finder"), QStringLiteral("explorer"), QStringLiteral("folder"),
+         QStringLiteral("reveal")},
+        {}, 0, true);
+    add(command::kLibraryRequestRemoveFolder, command::kLibraryRequestRemoveFolder,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Remove Folder from Catalog...")),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
+        {QStringLiteral("folder"), QStringLiteral("delete"), QStringLiteral("remove")}, {}, 0,
+        true);
     add(command::kWindowAbout, command::kWindowAbout,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "About Ravo Studio")),
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Help")), {QStringLiteral("version")},

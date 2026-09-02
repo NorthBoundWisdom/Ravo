@@ -64,6 +64,7 @@ public:
                  std::unordered_map<std::string, QString> thumbnail_states,
                  std::size_t total_count);
     void insertAsset(int row, AssetRecord asset);
+    void replaceAssetAt(int row, AssetRecord asset);
     void setThumbnail(const std::string &asset_id, const QUrl &url, const QString &state);
     [[nodiscard]] std::vector<AssetRecord> records() const;
     [[nodiscard]] QString thumbnailState(const std::string &asset_id) const;

@@ -40,6 +40,8 @@ QVariant ImportCandidateListModel::data(const QModelIndex &index, const int role
         return static_cast<qulonglong>(row.candidate.size_bytes);
     case SelectedRole:
         return row.selected;
+    case HighlightedRole:
+        return row.highlighted;
     case EligibleRole:
         return row.candidate.supported && !row.candidate.duplicate;
     case DuplicateRole:
@@ -51,6 +53,8 @@ QVariant ImportCandidateListModel::data(const QModelIndex &index, const int role
                                                  .arg(row.thumbnail_revision));
     case ErrorRole:
         return row.candidate.error ? qstring_from_utf8(row.candidate.error->message) : QString{};
+    case InspectedRole:
+        return row.inspected;
     default:
         return {};
     }
@@ -61,9 +65,10 @@ QHash<int, QByteArray> ImportCandidateListModel::roleNames() const
     return {{SourcePathRole, "sourcePath"}, {DisplayNameRole, "displayName"},
             {MediaTypeRole, "mediaType"},   {WidthRole, "pixelWidth"},
             {HeightRole, "pixelHeight"},    {SizeBytesRole, "sizeBytes"},
-            {SelectedRole, "selected"},     {EligibleRole, "eligible"},
-            {DuplicateRole, "duplicate"},   {ThumbnailUrlRole, "thumbnailUrl"},
-            {ErrorRole, "errorText"}};
+            {SelectedRole, "selected"},     {HighlightedRole, "highlighted"},
+            {EligibleRole, "eligible"},     {DuplicateRole, "duplicate"},
+            {ThumbnailUrlRole, "thumbnailUrl"}, {ErrorRole, "errorText"},
+            {InspectedRole, "inspected"}};
 }
 
 int ImportCandidateListModel::selectedCount() const noexcept
@@ -78,11 +83,34 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
     rows_.clear();
     rows_.reserve(candidates.size());
     for (auto &candidate : candidates)
-        rows_.push_back({std::move(candidate), {}, false, 0U});
+        rows_.push_back({std::move(candidate), {}, false, false, false, 0U});
     for (auto &row : rows_)
         row.selected = row.candidate.supported && !row.candidate.duplicate;
     endResetModel();
     emit selectionChanged();
+}
+
+void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate candidate)
+{
+    if (row < 0 || row >= rowCount())
+        return;
+    auto &entry = rows_[static_cast<std::size_t>(row)];
+    if (entry.candidate.source_path != candidate.source_path)
+        return;
+    const bool was_selected = entry.selected;
+    if (candidate.display_name.empty())
+        candidate.display_name = entry.candidate.display_name;
+    if (candidate.relative_path.empty())
+        candidate.relative_path = entry.candidate.relative_path;
+    entry.candidate = std::move(candidate);
+    entry.inspected = true;
+    if (!entry.candidate.supported || entry.candidate.duplicate)
+        entry.selected = false;
+    emit dataChanged(index(row, 0), index(row, 0),
+                     {MediaTypeRole, WidthRole, HeightRole, SizeBytesRole, SelectedRole,
+                      EligibleRole, DuplicateRole, ErrorRole, InspectedRole, DisplayNameRole});
+    if (was_selected != entry.selected)
+        emit selectionChanged();
 }
 
 void ImportCandidateListModel::setThumbnail(const int row, QImage image)
@@ -105,6 +133,11 @@ QString ImportCandidateListModel::sourcePath(const int row) const
     return row < 0 || row >= rowCount() ?
                QString{} :
                qstring_from_utf8(rows_[static_cast<std::size_t>(row)].candidate.source_path);
+}
+
+bool ImportCandidateListModel::inspected(const int row) const
+{
+    return row >= 0 && row < rowCount() && rows_[static_cast<std::size_t>(row)].inspected;
 }
 
 QStringList ImportCandidateListModel::selectedPaths() const
@@ -157,6 +190,77 @@ void ImportCandidateListModel::selectRange(int first, int last, const bool addit
     }
     emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
     emit selectionChanged();
+}
+
+void ImportCandidateListModel::highlightExclusive(const int row)
+{
+    if (row < 0 || row >= rowCount())
+        return;
+    for (int current = 0; current < rowCount(); ++current)
+        rows_[static_cast<std::size_t>(current)].highlighted = current == row;
+    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
+}
+
+void ImportCandidateListModel::highlightToggle(const int row)
+{
+    if (row < 0 || row >= rowCount())
+        return;
+    auto &entry = rows_[static_cast<std::size_t>(row)];
+    entry.highlighted = !entry.highlighted;
+    emit dataChanged(index(row, 0), index(row, 0), {HighlightedRole});
+}
+
+void ImportCandidateListModel::highlightRange(int first, int last, const bool additive)
+{
+    if (rows_.empty())
+        return;
+    first = std::clamp(first, 0, rowCount() - 1);
+    last = std::clamp(last, 0, rowCount() - 1);
+    if (first > last)
+        std::swap(first, last);
+    if (!additive)
+        for (auto &row : rows_)
+            row.highlighted = false;
+    for (int row = first; row <= last; ++row)
+        rows_[static_cast<std::size_t>(row)].highlighted = true;
+    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
+}
+
+void ImportCandidateListModel::highlightAll()
+{
+    if (rows_.empty())
+        return;
+    for (auto &row : rows_)
+        row.highlighted = true;
+    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
+}
+
+void ImportCandidateListModel::applyCheck(const int row)
+{
+    if (row < 0 || row >= rowCount())
+        return;
+    auto &clicked = rows_[static_cast<std::size_t>(row)];
+    if (!clicked.candidate.supported || clicked.candidate.duplicate)
+        return;
+    const bool next = !clicked.selected;
+    if (clicked.highlighted)
+    {
+        for (auto &entry : rows_)
+            if (entry.highlighted && entry.candidate.supported && !entry.candidate.duplicate)
+                entry.selected = next;
+        emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
+    }
+    else
+    {
+        clicked.selected = next;
+        emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
+    }
+    emit selectionChanged();
+}
+
+bool ImportCandidateListModel::highlighted(const int row) const
+{
+    return row >= 0 && row < rowCount() && rows_[static_cast<std::size_t>(row)].highlighted;
 }
 
 } // namespace ravo

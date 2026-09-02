@@ -84,11 +84,11 @@ live here, while the migration TODO retains no completed research checklist.
 
 The first tranche follows Adobe DNG 1.7.1. Opcode lists are parsed as bounded
 big-endian envelopes and retain file order. List2 GainMap runs after black/
-white linear-reference normalization; List3 GainMap, WarpRectilinear and
-FixVignetteRadial run after demosaic while pixels remain camera RGB. Each
-List2/List3 operation clips to DNG's logical `[0, 1]` range. Warp sampling is
-cubic and uses last-pixel image coordinates; unsupported geometry fails rather
-than publishing black wedges.
+white linear-reference normalization; List3 GainMap and FixVignetteRadial run
+after demosaic while pixels remain camera RGB. WarpRectilinear is parsed and
+reported on inspect, then skipped in the default colour decode so import and
+Develop are not blocked by out-of-frame lens geometry. Each executed
+List2/List3 operation clips to DNG's logical `[0, 1]` range.
 
 LibRaw 0.21 retains selected-IFD opcode payloads without reliably propagating
 the corresponding `parsedfields` bits. The adapter therefore treats a non-empty

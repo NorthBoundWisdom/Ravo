@@ -27,22 +27,23 @@ paging changes.
   oversized expansions, and names that differ only by ASCII case reject.
 - The second-copy root must be an existing directory distinct from the primary
   destination. It receives the same organization, renamed basename, and
-  same-stem XMP companion as the primary tree. Only the primary media path is
-  cataloged.
-- Planning covers every selected primary and second-copy media/XMP path before
-  the first file is published. Existing files or symlinks, duplicate portable
-  path keys, source/output aliasing, catalog URI conflicts, and ambiguous XMP
-  inputs reject with zero media or catalog publication. Ravo never chooses a
-  suffix or overwrites a target.
+  same-stem XMP and JPEG companions as the primary tree. Only the primary
+  media path is cataloged.
+- Planning covers every selected primary and second-copy media/XMP/JPEG path
+  before the first file is published. Existing files or symlinks, duplicate
+  portable path keys, source/output aliasing, catalog URI conflicts, and
+  ambiguous XMP or JPEG companions reject with zero media or catalog
+  publication. Ravo never chooses a suffix or overwrites a target.
 - Each output uses the existing bounded atomic no-replace copy. When a second
   copy is requested, the source, primary, and second copy are reopened and
-  compared byte for byte under cancellation after publication. XMP companions
-  are verified the same way. The primary path enters the catalog only after
-  all requested copies verify. A pre-catalog failure removes only files owned
-  by that item; completed earlier items remain explicit partial delivery.
-- Move removes the reverified source media and XMP only after both copies
-  verify and the primary path is cataloged. Cleanup failure retains safe source
-  bytes and remains a structured result as in ADR-0102.
+  compared byte for byte under cancellation after publication. XMP and JPEG
+  companions are verified the same way. The primary path enters the catalog
+  only after all requested copies verify. A pre-catalog failure removes only
+  files owned by that item; completed earlier items remain explicit partial
+  delivery.
+- Move removes the reverified source media, XMP, and JPEG companion only after
+  both copies verify and the primary path is cataloged. Cleanup failure retains
+  safe source bytes and remains a structured result as in ADR-0102.
 - CLI executes the complete service operation synchronously. Studio keeps the
   template and second-copy selection as import-workspace session state and uses
   its existing serial import and cancellable preview owners. No new thread,

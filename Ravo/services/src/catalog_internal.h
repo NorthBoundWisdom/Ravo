@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -75,6 +76,8 @@ struct EncodedPublicationCheckpointHook
 [[nodiscard]] std::string lower_ascii(std::string value);
 [[nodiscard]] std::string extension_lower(const std::filesystem::path &path);
 [[nodiscard]] bool is_raw_extension(const std::filesystem::path &path);
+[[nodiscard]] bool is_jpeg_extension(const std::filesystem::path &path);
+[[nodiscard]] Result<std::optional<std::string>> adjacent_jpeg(std::string_view source);
 [[nodiscard]] bool is_import_candidate(const std::filesystem::path &path);
 [[nodiscard]] Result<std::vector<std::string>>
 collect_import_paths(const std::vector<std::string> &inputs, const CancellationToken &cancellation,

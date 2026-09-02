@@ -26,10 +26,12 @@ public:
         HeightRole,
         SizeBytesRole,
         SelectedRole,
+        HighlightedRole,
         EligibleRole,
         DuplicateRole,
         ThumbnailUrlRole,
         ErrorRole,
+        InspectedRole,
     };
 
     explicit ImportCandidateListModel(QObject *parent = nullptr);
@@ -38,13 +40,21 @@ public:
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
     [[nodiscard]] int selectedCount() const noexcept;
     void setCandidates(std::vector<ImportCandidate> candidates);
+    void updateCandidate(int row, ImportCandidate candidate);
     void setThumbnail(int row, QImage image);
     [[nodiscard]] QImage thumbnail(int row) const;
     [[nodiscard]] QString sourcePath(int row) const;
+    [[nodiscard]] bool inspected(int row) const;
     [[nodiscard]] QStringList selectedPaths() const;
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectRange(int first, int last, bool additive);
     Q_INVOKABLE void setAllSelected(bool selected);
+    Q_INVOKABLE void highlightExclusive(int row);
+    Q_INVOKABLE void highlightToggle(int row);
+    Q_INVOKABLE void highlightRange(int first, int last, bool additive);
+    Q_INVOKABLE void highlightAll();
+    Q_INVOKABLE void applyCheck(int row);
+    [[nodiscard]] bool highlighted(int row) const;
 
 signals:
     void selectionChanged();
@@ -55,6 +65,8 @@ private:
         ImportCandidate candidate;
         QImage thumbnail;
         bool selected = true;
+        bool highlighted = false;
+        bool inspected = false;
         std::uint64_t thumbnail_revision = 0U;
     };
     std::vector<Row> rows_;

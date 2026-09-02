@@ -72,6 +72,30 @@ Result<FileManagerRevealLaunch> file_manager_reveal_launch(const QString &local_
     return launch;
 }
 
+Result<FileManagerRevealLaunch> file_manager_open_directory_launch(const QString &local_path)
+{
+    const QFileInfo info(local_path);
+    if (!info.exists() || !info.isDir())
+    {
+        return make_error(ErrorCode::kNotFound,
+                          "The folder is missing and cannot be shown in the file manager.");
+    }
+
+    FileManagerRevealLaunch launch;
+    launch.local_path = info.absoluteFilePath();
+#if defined(Q_OS_MACOS)
+    launch.program = QStringLiteral("open");
+    launch.arguments = {launch.local_path};
+#elif defined(Q_OS_WIN)
+    launch.program = QStringLiteral("explorer");
+    launch.arguments = {QDir::toNativeSeparators(launch.local_path)};
+#else
+    launch.program = QStringLiteral("xdg-open");
+    launch.arguments = {launch.local_path};
+#endif
+    return launch;
+}
+
 bool start_file_manager_reveal(const FileManagerRevealLaunch &launch)
 {
     if (launch.program.isEmpty())

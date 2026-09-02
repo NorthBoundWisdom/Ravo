@@ -5,7 +5,7 @@
 Find Studio actions quickly from the keyboard and understand when a command is
 disabled.
 
-**Last reviewed:** 2026-09-01 against the current Studio command registry.
+**Last reviewed:** 2026-09-02 against the current Studio command registry.
 
 ## Command palette
 
@@ -37,6 +37,7 @@ modifier.
 | Close Window | `Cmd/Ctrl+W` |
 | Settings | `Cmd/Ctrl+,` |
 | Assistant | `Cmd/Ctrl+Shift+A` (also the top-toolbar Assistant button) |
+| Select All | `Cmd/Ctrl+A` |
 | Quit Ravo Studio | `Cmd/Ctrl+Q` |
 | Undo | `Cmd/Ctrl+Z` |
 | Redo | `Cmd/Ctrl+Shift+Z` |
@@ -65,6 +66,7 @@ where the cross-platform command definition uses Ctrl.
 
 ## Selection shortcuts
 
+- `Cmd/Ctrl+A` selects every photo currently loaded in Gallery and the filmstrip.
 - `Cmd`/`Ctrl`-click adds or removes a photo from the selection.
 - `Shift`-click selects a range from the selection anchor.
 - `Shift+Left` and `Shift+Right` extend the selection to the previous or next

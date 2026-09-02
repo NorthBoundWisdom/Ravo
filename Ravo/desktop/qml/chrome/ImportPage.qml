@@ -14,8 +14,22 @@ Rectangle {
 
     color: Theme.windowColor
     focus: visible
+    readonly property int gridMinCell: 120
+    readonly property int gridMaxCell: 320
+    readonly property int gridScrollGutter: 14
+    function fittedGridCell(availableWidth, preferred) {
+        const inner = Math.max(gridMinCell, availableWidth - gridScrollGutter);
+        const target = Math.min(gridMaxCell, Math.max(gridMinCell, preferred));
+        const cols = Math.max(1, Math.floor(inner / target));
+        return inner / cols;
+    }
     Keys.onEscapePressed: if (!presenter.importWorkActive)
         root.closeRequested()
+    Shortcut {
+        sequence: StandardKey.SelectAll
+        enabled: root.visible && candidateGrid.activeFocus && !root.presenter.importWorkActive
+        onActivated: root.presenter.importCandidates.highlightAll()
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -123,12 +137,12 @@ Rectangle {
                 color: Theme.windowColor
                 BusyIndicator {
                     anchors.centerIn: parent
-                    running: root.presenter.importScanActive
+                    running: root.presenter.importScanActive && candidateGrid.count === 0
                     visible: running
                 }
                 CustomLabel {
                     anchors.centerIn: parent
-                    visible: !root.presenter.importScanActive && root.presenter.importCandidates.rowCount() === 0
+                    visible: !root.presenter.importScanActive && candidateGrid.count === 0
                     text: root.presenter.importSourceRoot.length ? qsTr("No supported photos found") : qsTr("Choose a source folder")
                     color: Theme.placeholderTextColor
                 }
@@ -136,37 +150,69 @@ Rectangle {
                     id: candidateGrid
                     anchors.fill: parent
                     anchors.margins: Fonts.size8
-                    visible: !root.presenter.importScanActive
+                    visible: count > 0
                     clip: true
-                    cellWidth: 180
-                    cellHeight: 150
+                    boundsBehavior: Flickable.StopAtBounds
+                    flickableDirection: Flickable.VerticalFlick
+                    pixelAligned: true
+                    keyNavigationEnabled: false
+                    highlightFollowsCurrentItem: false
+                    cellWidth: root.fittedGridCell(width, 180)
+                    cellHeight: cellWidth
+                    cacheBuffer: cellHeight
                     model: root.presenter.importCandidates
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AlwaysOn
+                        implicitWidth: 10
+                    }
+                    onVisibleChanged: if (visible)
+                        forceActiveFocus()
+                    Keys.onPressed: function (event) {
+                        if (root.presenter.importWorkActive)
+                            return;
+                        if (event.key === Qt.Key_Space && root.selectionAnchor >= 0) {
+                            root.presenter.importCandidates.applyCheck(root.selectionAnchor);
+                            event.accepted = true;
+                        }
+                    }
                     delegate: Item {
+                        id: candidateDelegate
                         required property int index
                         required property string displayName
                         required property string mediaType
                         required property int pixelWidth
                         required property int pixelHeight
                         required property bool selected
+                        required property bool highlighted
                         required property bool eligible
                         required property bool duplicate
                         required property url thumbnailUrl
                         required property string errorText
+                        required property bool inspected
                         width: candidateGrid.cellWidth
                         height: candidateGrid.cellHeight
                         Component.onCompleted: root.presenter.ensureImportThumbnail(index)
+                        onIndexChanged: root.presenter.ensureImportThumbnail(index)
                         Rectangle {
                             anchors.fill: parent
                             anchors.margins: Fonts.size3
                             color: Theme.imageSurroundColor
-                            border.width: selected ? ControlState.borderFocus : ControlState.borderThin
-                            border.color: selected ? Theme.highlightColor : Theme.dividerColor
+                            border.width: highlighted ? ControlState.borderFocus : ControlState.borderThin
+                            border.color: highlighted ? Theme.highlightColor : Theme.dividerColor
                             Image {
                                 anchors.fill: parent
                                 anchors.margins: 3
                                 source: thumbnailUrl
                                 fillMode: Image.PreserveAspectFit
                                 asynchronous: true
+                                visible: thumbnailUrl.toString().length > 0
+                            }
+                            BusyIndicator {
+                                anchors.centerIn: parent
+                                width: 28
+                                height: 28
+                                running: !candidateDelegate.inspected && candidateDelegate.eligible
+                                visible: running
                             }
                             Rectangle {
                                 anchors.left: parent.left
@@ -188,7 +234,7 @@ Rectangle {
                                 anchors.margins: 4
                                 checked: selected
                                 enabled: eligible
-                                onClicked: root.presenter.importCandidates.toggleSelected(index)
+                                onClicked: root.presenter.importCandidates.applyCheck(index)
                             }
                             CustomLabel {
                                 anchors.right: parent.right
@@ -201,14 +247,21 @@ Rectangle {
                             MouseArea {
                                 anchors.fill: parent
                                 z: -1
-                                enabled: eligible
+                                onPressed: function (mouse) {
+                                    preventStealing = (mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier | Qt.MetaModifier)) !== 0;
+                                }
+                                onReleased: preventStealing = false
+                                onCanceled: preventStealing = false
                                 onClicked: function (mouse) {
                                     const additive = (mouse.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) !== 0;
                                     if ((mouse.modifiers & Qt.ShiftModifier) !== 0 && root.selectionAnchor >= 0)
-                                        root.presenter.importCandidates.selectRange(root.selectionAnchor, index, additive);
+                                        root.presenter.importCandidates.highlightRange(root.selectionAnchor, index, additive);
+                                    else if (additive)
+                                        root.presenter.importCandidates.highlightToggle(index);
                                     else
-                                        root.presenter.importCandidates.toggleSelected(index);
+                                        root.presenter.importCandidates.highlightExclusive(index);
                                     root.selectionAnchor = index;
+                                    candidateGrid.forceActiveFocus();
                                 }
                             }
                         }

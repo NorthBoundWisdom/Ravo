@@ -69,8 +69,9 @@ struct DngOpcodeMetadata
     bool list3_present = false;
     std::uint32_t source_width = 0U;
     std::uint32_t source_height = 0U;
-    // Both lists preserve file order. List2 currently accepts GainMap only;
-    // List3 accepts GainMap and the evidenced geometric corrections.
+    // Both lists preserve file order. List2 currently accepts GainMap only.
+    // List3 accepts GainMap, WarpRectilinear, and FixVignetteRadial. Default
+    // colour decode executes GainMap and vignette and skips WarpRectilinear.
     std::vector<DngGainMap> list2_gain_maps;
     std::vector<DngOpcodeList3Operation> list3_operations;
     std::vector<DngSkippedOptionalOpcode> skipped_optional;
@@ -102,11 +103,32 @@ parse_dng_opcode_metadata(DngOpcodeListView list2, DngOpcodeListView list3,
 [[nodiscard]] std::size_t dng_gain_map_count(const DngOpcodeMetadata &metadata) noexcept;
 
 // OpcodeList3 is applied after demosaic while samples are still camera RGB.
-// The source is passed by value so every failure/cancellation path discards
-// partial local work and publishes nothing.
+// WarpRectilinear is parsed and inspect-visible but not applied: default
+// decode is colour (GainMap, vignette, as-shot WB, camera matrix, Sigmoid),
+// not lens geometry. The source is passed by value so every
+// failure/cancellation path discards partial local work and publishes nothing.
 [[nodiscard]] Result<WorkingImage>
 apply_dng_opcode_list3(WorkingImage input, const DngOpcodeMetadata &metadata,
                        const CancellationToken &cancellation);
+
+[[nodiscard]] inline bool
+dng_list3_requires_deferred_white_balance(const DngOpcodeMetadata *metadata) noexcept
+{
+    if (metadata == nullptr)
+        return false;
+    for (const auto &operation : metadata->list3_operations)
+    {
+        if (!std::holds_alternative<DngWarpRectilinear>(operation))
+            return true;
+    }
+    return false;
+}
+
+[[nodiscard]] inline bool dng_list3_requires_deferred_white_balance(
+    const std::shared_ptr<const DngOpcodeMetadata> &metadata) noexcept
+{
+    return dng_list3_requires_deferred_white_balance(metadata.get());
+}
 
 [[nodiscard]] std::uint64_t
 estimate_dng_opcode_memory(const DngOpcodeMetadata &metadata) noexcept;

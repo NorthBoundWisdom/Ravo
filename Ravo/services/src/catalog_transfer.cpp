@@ -196,6 +196,17 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         }
     }
 
+    std::optional<std::string> jpeg_companion;
+    if (is_raw_media_type(asset.media_type))
+    {
+        auto companion = adjacent_jpeg(location.value().path);
+        if (!companion)
+        {
+            return failed_item(location.value().path, companion.error());
+        }
+        jpeg_companion = std::move(companion).value();
+    }
+
     if (media_type_has_embedded_capture(asset.media_type))
     {
         auto extracted =
@@ -228,7 +239,7 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         return failed_item(location.value().path, published.error());
     }
 
-    if (validated_raster && preview_policy == ImportPreviewPolicy::kMinimal)
+    if (validated_raster)
     {
         RasterBuffer raster;
         raster.width = validated_raster->width;
@@ -243,23 +254,39 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     }
 
     Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Preview was not generated");
+    const auto persist_browse_thumbnail = [&]() -> Result<PreviewResult>
+    {
+        PreviewRequest browse;
+        browse.max_edge = kThumbnailMaxEdge;
+        browse.purpose = PreviewPurpose::kBrowse;
+        browse.prefer_embedded_preview = true;
+        browse.cancellation = cancellation;
+        Result<PreviewResult> result = make_error(ErrorCode::kIo, "Preview was not generated");
+        if (jpeg_companion)
+            result = persist_companion_jpeg_browse_preview(asset, *jpeg_companion, kThumbnailMaxEdge,
+                                                          cancellation);
+        if (!result && embedded_preview)
+            result = persist_embedded_browse_preview(asset, *embedded_preview, kThumbnailMaxEdge,
+                                                     cancellation);
+        if (!result)
+            result = generate_preview(asset, browse, {});
+        return result;
+    };
     if (!defer_preview)
     {
-        const std::uint32_t preview_edge =
-            preview_policy == ImportPreviewPolicy::kMinimal  ? kThumbnailMaxEdge :
-            preview_policy == ImportPreviewPolicy::kStandard ? kDefaultPreviewMaxEdge :
-                                                               0U;
-        PreviewRequest imported_preview;
-        imported_preview.max_edge = preview_edge;
-        imported_preview.purpose = PreviewPurpose::kBrowse;
-        imported_preview.prefer_embedded_preview =
-            preview_policy == ImportPreviewPolicy::kMinimal && is_raw_media_type(asset.media_type);
-        imported_preview.cancellation = cancellation;
-        if (embedded_preview && preview_policy == ImportPreviewPolicy::kMinimal)
-            preview = persist_embedded_browse_preview(asset, *embedded_preview, preview_edge,
-                                                      cancellation);
-        if (!preview)
+        if (preview_policy == ImportPreviewPolicy::kMinimal)
+            preview = persist_browse_thumbnail();
+        else
+        {
+            const std::uint32_t preview_edge =
+                preview_policy == ImportPreviewPolicy::kStandard ? kDefaultPreviewMaxEdge : 0U;
+            PreviewRequest imported_preview;
+            imported_preview.max_edge = preview_edge;
+            imported_preview.purpose = PreviewPurpose::kBrowse;
+            imported_preview.prefer_embedded_preview = false;
+            imported_preview.cancellation = cancellation;
             preview = generate_preview(asset, imported_preview, {});
+        }
         if (!preview)
         {
             LOG_ERROR(ravo::logger(), "preview failed asset={} path={} error={}", asset.id,
@@ -277,6 +304,16 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
             LOG_INFO(ravo::logger(), "preview ready asset={} cache={}", asset.id,
                      preview.value().cache_path);
         }
+    }
+    else
+    {
+        preview = persist_browse_thumbnail();
+        if (preview)
+            LOG_INFO(ravo::logger(), "browse preview ready asset={} cache={}", asset.id,
+                     preview.value().cache_path);
+        else
+            LOG_ERROR(ravo::logger(), "browse preview failed asset={} path={} error={}", asset.id,
+                      location.value().path, preview.error().message);
     }
 
     ImportItemResult result;

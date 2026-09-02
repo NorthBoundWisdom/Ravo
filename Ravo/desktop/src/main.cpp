@@ -27,6 +27,7 @@
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_live_session_controller.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_window_geometry.h"
 #include "ravo/foundation/log.h"
 #include "studio_image_providers.h"
 #include "studio_language_manager.h"
@@ -359,6 +360,14 @@ int main(int argc, char *argv[])
         ravo::shutdown_logging();
         return 1;
     }
+    ravo::StudioWindowGeometry window_geometry;
+    if (!window_geometry.initialize())
+    {
+        LOG_ERROR(ravo::logger(), "window geometry failed to initialize: {}",
+                  window_geometry.lastError().toStdString());
+        ravo::shutdown_logging();
+        return 1;
+    }
     auto live_session = ravo::StudioLiveSessionController::create(presenter, command_controller);
     if (!live_session)
     {
@@ -391,6 +400,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("studioLanguage"), &language_manager);
     engine.rootContext()->setContextProperty(QStringLiteral("studioAssistant"),
                                              &assistant_controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioWindow"), &window_geometry);
     engine.rootContext()->setContextProperty(QStringLiteral("studioSmoke"), smoke);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

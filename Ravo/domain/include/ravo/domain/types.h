@@ -52,6 +52,7 @@ inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 960;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
 inline constexpr std::string_view kEmbeddedBrowsePreviewDigest = "embedded-jpeg-orient";
+inline constexpr std::string_view kCompanionJpegBrowsePreviewDigest = "companion-jpeg";
 inline constexpr int kDefaultJpegQuality = 95;
 inline constexpr int kJpegQualityMin = 5;
 inline constexpr int kJpegQualityMax = 100;
@@ -531,6 +532,12 @@ struct FolderRelinkResult
     std::size_t recovery_pending = 0U;
 };
 
+struct FolderRemoveResult
+{
+    std::string folder_uri;
+    std::size_t asset_count = 0U;
+};
+
 struct CatalogSnapshot
 {
     std::string catalog_id;
@@ -752,8 +759,10 @@ struct ImportItemResult
     std::optional<TaskError> error;
     std::optional<std::string> destination_path;
     std::optional<std::string> sidecar_destination_path;
+    std::optional<std::string> jpeg_companion_destination_path;
     std::optional<std::string> second_copy_destination_path;
     std::optional<std::string> second_copy_sidecar_destination_path;
+    std::optional<std::string> second_copy_jpeg_companion_destination_path;
     std::optional<TaskError> source_cleanup_error;
     bool copies_verified = false;
     bool preview_pending = false;

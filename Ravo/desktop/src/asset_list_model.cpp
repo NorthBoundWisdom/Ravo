@@ -115,8 +115,11 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         const auto state = thumbnail_states_.find(asset.id);
         if (state != thumbnail_states_.end())
             return state->second;
-        return asset.import_state == kImportStateMissing ? QStringLiteral("missing") :
-                                                           QStringLiteral("pending");
+        if (asset.import_state == kImportStateMissing)
+            return QStringLiteral("missing");
+        if (asset.import_state == kImportStateFailed)
+            return QStringLiteral("failed");
+        return QStringLiteral("pending");
     }
     case WidthRole:
         return asset.width.value_or(0);
@@ -293,6 +296,14 @@ void AssetListModel::insertAsset(const int row, AssetRecord asset)
     ++total_count_;
     endInsertRows();
     trimPages();
+}
+
+void AssetListModel::replaceAssetAt(const int row, AssetRecord asset)
+{
+    if (row < 0 || row >= total_count_)
+        return;
+    assets_.insert_or_assign(row, std::move(asset));
+    emit dataChanged(index(row, 0), index(row, 0));
 }
 
 void AssetListModel::setThumbnail(const std::string &asset_id, const QUrl &url,

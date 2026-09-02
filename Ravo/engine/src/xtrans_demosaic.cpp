@@ -124,7 +124,7 @@ try
     prepared.samples.resize(static_cast<std::size_t>(width) * height);
     const float denominator = static_cast<float>(
         std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
-    const bool defer_white_balance = raw.dng_opcodes && !raw.dng_opcodes->list3_operations.empty();
+    const bool defer_white_balance = dng_list3_requires_deferred_white_balance(raw.dng_opcodes);
     std::atomic_bool invalid_sample{false};
     const auto rows = detail::for_each_row(
         height, cancellation,

@@ -584,6 +584,9 @@ public:
     Q_INVOKABLE void runScheduledBackupNow();
     Q_INVOKABLE void disableBackupSchedule();
     Q_INVOKABLE void relinkFolder(const QString &folder_id, const QString &replacement_directory);
+    Q_INVOKABLE void revealFolderInFileManager(const QString &folder_uri);
+    Q_INVOKABLE void removeFolderFromCatalog(const QString &folder_uri);
+    Q_INVOKABLE QString folderLocalPath(const QString &folder_uri) const;
     void checkScheduledBackup();
     Q_INVOKABLE void exportSelectedToPath(const QString &path, const QString &format,
                                           const QVariantMap &options);
@@ -601,6 +604,7 @@ public:
     Q_INVOKABLE void selectAsset(const QString &asset_id);
     Q_INVOKABLE void selectAssetRange(const QString &asset_id);
     Q_INVOKABLE void toggleAssetSelected(const QString &asset_id);
+    Q_INVOKABLE void selectAllVisible();
     Q_INVOKABLE void selectNext();
     Q_INVOKABLE void selectPrevious();
     Q_INVOKABLE void setBrowseMode(const QString &mode);
@@ -761,6 +765,8 @@ private:
     void kickThumbnailDemand();
     void startThumbnailRequest(std::string asset_id);
     void setImportWork(int completed, int total, bool active);
+    void beginImportGalleryPlaceholders(const std::vector<std::string> &paths);
+    void publishImportItem(const ImportItemResult &item, int row);
     void startNextImportItem();
     void finishImportBatch();
     void setCatalogOperation(QString stage, int completed, int total, bool active);
@@ -768,6 +774,8 @@ private:
     void startScheduledBackup(bool force);
     void finishThumbnailRequest(bool success);
     void rescanImportSource();
+    void kickImportCandidateWork();
+    void startImportCandidateWork(int row);
     void startNextImportPreview();
     void load_develop_for_selection();
     void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
@@ -881,6 +889,8 @@ private:
     std::vector<std::string> pending_import_paths_;
     std::vector<ImportItemResult> import_results_;
     std::size_t import_next_index_ = 0U;
+    bool import_gallery_placeholders_ = false;
+    bool import_defer_previews_ = false;
     LibraryQuery import_query_snapshot_;
     bool import_page_open_ = false;
     bool import_scan_active_ = false;
@@ -896,7 +906,8 @@ private:
     QString import_preview_policy_{QStringLiteral("standard")};
     bool import_recursive_ = true;
     std::uint64_t import_scan_generation_ = 0U;
-    std::unordered_set<int> import_thumbnail_requests_;
+    std::deque<int> pending_import_thumbnail_rows_;
+    bool import_candidate_work_in_flight_ = false;
     std::deque<std::string> pending_import_preview_ids_;
     ImportPreviewPolicy pending_import_preview_policy_ = ImportPreviewPolicy::kStandard;
     std::optional<std::int64_t> last_import_after_unix_ms_;

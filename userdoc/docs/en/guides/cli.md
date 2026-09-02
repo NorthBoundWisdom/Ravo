@@ -310,6 +310,8 @@ List stable direct folders and explicitly relink a missing one:
 ravo catalog folders --catalog "/work/Ravo Library.sqlite" --json
 ravo catalog folder-relink --catalog "/work/Ravo Library.sqlite" \
   --folder-id <folder-id> --replacement "/new/photo/folder" --json
+ravo catalog folder-remove --catalog "/work/Ravo Library.sqlite" \
+  --folder-uri <folder-uri> --json
 ```
 
 Relink is identity-checked and transactional; it does not search by a similar

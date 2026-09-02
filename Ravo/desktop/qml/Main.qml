@@ -6,9 +6,9 @@ import GeoControls.AppShell 1.0
 
 ApplicationWindow {
     id: window
-    width: 1440
-    height: 900
-    visible: !studioSmoke
+    width: studioWindow.startupWidth
+    height: studioWindow.startupHeight
+    visible: false
     color: Theme.windowColor
     title: studio.catalogOpen ? qsTr("Ravo Studio — %1").arg(studio.catalogPath) : qsTr("Ravo Studio")
     palette.window: Theme.windowColor
@@ -44,6 +44,8 @@ ApplicationWindow {
     property int pendingBackupIntervalMinutes: 1440
     property int pendingBackupRetentionCount: 7
     property string pendingRelinkFolderId: ""
+    property string removeFolderConfirmationToken: ""
+    property string removeFolderPath: ""
     property string viewportAssetId: ""
     property var inspectViewportFocus: null
     property var inspectViewportRestore: null
@@ -557,6 +559,16 @@ ApplicationWindow {
         photoMenu.popup();
     }
 
+    function askRemoveFolder() {
+        if (!window.removeFolderPath.length)
+            return;
+        const name = window.removeFolderPath.split("/").filter(function (part) {
+            return part.length > 0;
+        }).pop() || window.removeFolderPath;
+        removeFolderDialog.messageText = qsTr("Remove “%1” and its photos from the library? Original files on disk will not be deleted.").arg(name);
+        removeFolderDialog.openWithButtons();
+    }
+
     function askRemovePhoto() {
         if (!studio.selectedAssetId.length)
             return;
@@ -630,7 +642,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: studio.importPageOpen || removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible
+        value: studio.importPageOpen || removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible
     }
 
     StudioCommandShortcuts {
@@ -688,7 +700,11 @@ ApplicationWindow {
                 Qt.quit();
             else if (id === ids.windowAbout)
                 openAboutDialog();
-            else if (id === ids.photoRemove) {
+            else if (id === ids.libraryRemoveFolder) {
+                window.removeFolderConfirmationToken = String(argument.token || "");
+                window.removeFolderPath = String(argument.path || "");
+                askRemoveFolder();
+            } else if (id === ids.photoRemove) {
                 window.removeConfirmationToken = String(argument);
                 askRemovePhoto();
             } else if (id === ids.photoRemoveFromDisk) {
@@ -701,6 +717,10 @@ ApplicationWindow {
 
     Component.onCompleted: {
         applyAppearance();
+        if (!studioSmoke) {
+            studioWindow.restore(window);
+            visible = true;
+        }
         Qt.callLater(startLibrarySession);
     }
 
@@ -1468,6 +1488,25 @@ ApplicationWindow {
         controller: studioCommands
         windowHost: window
         z: 100
+    }
+
+    MessageDialog {
+        id: removeFolderDialog
+        parentItem: window.contentItem
+        titleText: qsTr("Remove Folder from Catalog")
+        messageText: qsTr("Remove this folder and its photos from the library? Original files on disk will not be deleted.")
+        buttons: [qsTr("Cancel"), qsTr("Remove")]
+        defaultButtonText: qsTr("Remove")
+        onFinished: function (buttonText) {
+            if (buttonText === qsTr("Remove") && window.removeFolderConfirmationToken.length > 0)
+                studioActions.run(studioActions.ids.libraryRemoveFolderConfirmed, {
+                    "token": window.removeFolderConfirmationToken,
+                    "path": window.removeFolderPath
+                });
+            studioCommands.cancelPendingConfirmation(window.removeFolderConfirmationToken);
+            window.removeFolderConfirmationToken = "";
+            window.removeFolderPath = "";
+        }
     }
 
     MessageDialog {

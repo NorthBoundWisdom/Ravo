@@ -807,6 +807,51 @@ TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
     EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
 }
 
+TEST_F(CatalogServiceTest, RemoveFolderFromCatalogKeepsOriginalsAndRejectsAllPhotographs)
+{
+    ASSERT_TRUE(open_service(true));
+    QImage image(24, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 80, 120));
+    const auto folder = root / "folder-remove-root";
+    ASSERT_TRUE(std::filesystem::create_directory(folder));
+    const auto first = folder / "one.png";
+    const auto second = folder / "two.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(first.string()), "PNG"));
+    image.fill(QColor(120, 80, 40));
+    ASSERT_TRUE(image.save(QString::fromStdString(second.string()), "PNG"));
+    auto imported = service->import_inputs({folder.string()}, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().size(), 2U);
+
+    auto folders = service->list_folders();
+    ASSERT_TRUE(folders) << folders.error().message;
+    const auto found = std::find_if(folders.value().begin(), folders.value().end(),
+                                    [](const FolderRecord &item)
+                                    { return item.display_name == "folder-remove-root"; });
+    ASSERT_NE(found, folders.value().end());
+    ASSERT_FALSE(found->uri.empty());
+
+    auto rejected = service->remove_folder_from_catalog({});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kInvalidArgument);
+
+    auto removed = service->remove_folder_from_catalog(found->uri);
+    ASSERT_TRUE(removed) << removed.error().message;
+    EXPECT_EQ(removed.value().asset_count, 2U);
+    EXPECT_EQ(removed.value().folder_uri, found->uri);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    EXPECT_TRUE(listed.value().empty());
+    EXPECT_TRUE(std::filesystem::exists(first));
+    EXPECT_TRUE(std::filesystem::exists(second));
+    auto after_folders = service->list_folders();
+    ASSERT_TRUE(after_folders) << after_folders.error().message;
+    EXPECT_TRUE(std::none_of(after_folders.value().begin(), after_folders.value().end(),
+                             [](const FolderRecord &item)
+                             { return item.display_name == "folder-remove-root"; }));
+}
+
 TEST_F(CatalogServiceTest, RemoveOriginalAndCatalogDeletesTheFile)
 {
     auto created = open_service(true);

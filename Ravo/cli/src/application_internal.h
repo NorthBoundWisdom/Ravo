@@ -76,6 +76,7 @@ struct CatalogCliArguments
     std::string_view schedule_retention_count;
     std::string_view schedule_enabled;
     std::string_view folder_id;
+    std::string_view folder_uri;
     std::string_view replacement_directory;
     std::string_view set_id;
     std::string_view set_name;

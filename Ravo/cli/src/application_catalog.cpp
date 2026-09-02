@@ -88,7 +88,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "fields|rate|"
             "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
-            "backup-run|preview-rebuild|folders|folder-relink|sets|set-create|set-rename|"
+            "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
             "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -133,6 +133,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (has_folder_relink_options && subcommand != "folder-relink")
         return make_error(ErrorCode::kInvalidArgument,
                           "Folder relink options are only valid for catalog folder-relink");
+    if (!flags.value().folder_uri.empty() && subcommand != "folder-remove")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--folder-uri is only valid for catalog folder-remove");
     const bool has_set_options = !flags.value().set_id.empty() || !flags.value().set_name.empty() ||
                                  !flags.value().set_kind.empty() ||
                                  !flags.value().query_json.empty();
@@ -435,6 +438,20 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return relinked.error();
         return folder_relink_to_json(relinked.value());
     }
+    if (subcommand == "folder-remove")
+    {
+        if (flags.value().folder_uri.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog folder-remove requires --folder-uri <uri>");
+        auto removed = service.remove_folder_from_catalog(flags.value().folder_uri,
+                                                          CancellationToken{});
+        if (!removed)
+            return removed.error();
+        return JsonValue{JsonValue::Object{
+            {"asset_count", JsonValue::number(std::to_string(removed.value().asset_count))},
+            {"folder_uri", removed.value().folder_uri},
+        }};
+    }
     if (subcommand == "sets")
     {
         auto sets = service.list_library_sets();
@@ -658,11 +675,16 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                 row.emplace("destination", *item.destination_path);
             if (item.sidecar_destination_path)
                 row.emplace("sidecar_destination", *item.sidecar_destination_path);
+            if (item.jpeg_companion_destination_path)
+                row.emplace("jpeg_companion_destination", *item.jpeg_companion_destination_path);
             if (item.second_copy_destination_path)
                 row.emplace("second_copy_destination", *item.second_copy_destination_path);
             if (item.second_copy_sidecar_destination_path)
                 row.emplace("second_copy_sidecar_destination",
                             *item.second_copy_sidecar_destination_path);
+            if (item.second_copy_jpeg_companion_destination_path)
+                row.emplace("second_copy_jpeg_companion_destination",
+                            *item.second_copy_jpeg_companion_destination_path);
             row.emplace("copies_verified", item.copies_verified);
             if (item.source_cleanup_error)
                 row.emplace("source_cleanup_error", error_object(*item.source_cleanup_error));

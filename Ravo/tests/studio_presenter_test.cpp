@@ -50,6 +50,8 @@
 #include "ravo/desktop/library_set_list_model.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_live_session_controller.h"
+#include "ravo/desktop/asset_list_model.h"
+#include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop_mask.h"
@@ -198,6 +200,54 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
         }))
         << presenter.errorText().toStdString();
     EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
+}
+
+TEST(StudioPresenterTest, SelectAllVisibleSelectsLoadedPhotosAndKeepsPrimary)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(30, 60, 90));
+    const QString first_photo = directory.filePath(QStringLiteral("a.png"));
+    const QString second_photo = directory.filePath(QStringLiteral("b.png"));
+    ASSERT_TRUE(image.save(first_photo, "PNG"));
+    image.fill(QColor(90, 60, 30));
+    ASSERT_TRUE(image.save(second_photo, "PNG"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.selectAllVisible();
+    EXPECT_EQ(presenter.selectedCount(), 0);
+
+    presenter.importFilePaths({first_photo, second_photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 2 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    const QString first_id = presenter.assets()->assetIdAt(0);
+    const QString second_id = presenter.assets()->assetIdAt(1);
+    ASSERT_FALSE(first_id.isEmpty());
+    ASSERT_FALSE(second_id.isEmpty());
+    presenter.selectAsset(second_id);
+    ASSERT_EQ(presenter.selectedCount(), 1);
+
+    presenter.selectAllVisible();
+    EXPECT_EQ(presenter.selectedCount(), 2);
+    EXPECT_EQ(presenter.selectedAssetId(), second_id);
+    EXPECT_TRUE(presenter.isAssetSelected(first_id));
+    EXPECT_TRUE(presenter.isAssetSelected(second_id));
+
+    presenter.selectAllVisible();
+    EXPECT_EQ(presenter.selectedCount(), 2);
+    EXPECT_EQ(presenter.selectedAssetId(), second_id);
 }
 
 TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSessionUndo)
@@ -1447,6 +1497,182 @@ TEST(StudioQmlContract, RawSectionExposesSensorAwareDemosaicAndWaveletDenoise)
     EXPECT_GT(source.indexOf(QStringLiteral("previewDevelopNumber(\"rawDenoiseThreshold\""), raw),
               raw);
     EXPECT_GT(source.indexOf(QStringLiteral("selectedMediaType === \"image/x-raw\""), raw), raw);
+}
+
+TEST(StudioPresenterTest, ImportCandidateModelKeepsNamesWhenUpdatingInspection)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    ImportCandidate first;
+    first.source_path = "/tmp/one.png";
+    first.display_name = "one.png";
+    ImportCandidate second;
+    second.source_path = "/tmp/two.png";
+    second.display_name = "two.png";
+    model.setCandidates({first, second});
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.selectedCount(), 2);
+    EXPECT_FALSE(model.inspected(0));
+    ImportCandidate inspected = first;
+    inspected.duplicate = true;
+    inspected.media_type = "image/png";
+    model.updateCandidate(0, inspected);
+    EXPECT_TRUE(model.inspected(0));
+    EXPECT_FALSE(model.inspected(1));
+    EXPECT_EQ(model.selectedCount(), 1);
+    EXPECT_EQ(model.data(model.index(0, 0), ImportCandidateListModel::DisplayNameRole).toString(),
+              QStringLiteral("one.png"));
+    EXPECT_TRUE(model.data(model.index(0, 0), ImportCandidateListModel::DuplicateRole).toBool());
+    QImage image(8, 8, QImage::Format_RGB888);
+    image.fill(Qt::red);
+    model.setThumbnail(1, image);
+    EXPECT_FALSE(model.thumbnail(1).isNull());
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+}
+
+TEST(StudioPresenterTest, ImportCandidateModelHighlightsAndAppliesCheckToSelection)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    ImportCandidate first;
+    first.source_path = "/tmp/one.png";
+    first.display_name = "one.png";
+    ImportCandidate second;
+    second.source_path = "/tmp/two.png";
+    second.display_name = "two.png";
+    ImportCandidate third;
+    third.source_path = "/tmp/three.png";
+    third.display_name = "three.png";
+    model.setCandidates({first, second, third});
+    EXPECT_EQ(model.selectedCount(), 3);
+    EXPECT_FALSE(model.highlighted(0));
+    model.highlightExclusive(0);
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_FALSE(model.highlighted(1));
+    model.highlightToggle(2);
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_TRUE(model.highlighted(2));
+    model.applyCheck(0);
+    EXPECT_EQ(model.selectedCount(), 1);
+    EXPECT_FALSE(model.data(model.index(0, 0), ImportCandidateListModel::SelectedRole).toBool());
+    EXPECT_TRUE(model.data(model.index(1, 0), ImportCandidateListModel::SelectedRole).toBool());
+    EXPECT_FALSE(model.data(model.index(2, 0), ImportCandidateListModel::SelectedRole).toBool());
+    model.applyCheck(1);
+    EXPECT_EQ(model.selectedCount(), 0);
+    EXPECT_FALSE(model.data(model.index(1, 0), ImportCandidateListModel::SelectedRole).toBool());
+    model.applyCheck(1);
+    EXPECT_EQ(model.selectedCount(), 1);
+    EXPECT_TRUE(model.data(model.index(1, 0), ImportCandidateListModel::SelectedRole).toBool());
+    model.highlightRange(0, 1, false);
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_TRUE(model.highlighted(1));
+    EXPECT_FALSE(model.highlighted(2));
+    model.highlightAll();
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_TRUE(model.highlighted(1));
+    EXPECT_TRUE(model.highlighted(2));
+    model.setAllSelected(true);
+    model.applyCheck(0);
+    EXPECT_EQ(model.selectedCount(), 0);
+}
+
+TEST(StudioPresenterTest, ImportWorkspacePublishesNamedPlaceholdersBeforeThumbnails)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString source_dir = QDir(directory.path()).filePath(QStringLiteral("source"));
+    ASSERT_TRUE(QDir().mkpath(source_dir));
+    const QStringList names{QStringLiteral("alpha.png"), QStringLiteral("beta.png"),
+                            QStringLiteral("gamma.png")};
+    for (const auto &name : names)
+    {
+        QImage image(48, 32, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(40, 80, 120));
+        ASSERT_TRUE(image.save(QDir(source_dir).filePath(name), "PNG"));
+    }
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.openImportPage();
+    presenter.setImportSourceRoot(source_dir);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 3; },
+        30000))
+        << presenter.errorText().toStdString();
+    auto *candidates = presenter.importCandidates();
+    EXPECT_EQ(candidates->selectedCount(), 3);
+    for (int row = 0; row < 3; ++row)
+    {
+        EXPECT_EQ(candidates->data(candidates->index(row, 0),
+                                   ImportCandidateListModel::DisplayNameRole)
+                      .toString(),
+                  names.at(row));
+        EXPECT_FALSE(candidates->inspected(row));
+        EXPECT_TRUE(candidates->thumbnail(row).isNull());
+    }
+    presenter.ensureImportThumbnail(0);
+    ASSERT_TRUE(wait_until(
+        [&] { return candidates->inspected(0) && !candidates->thumbnail(0).isNull(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(
+        candidates->data(candidates->index(0, 0), ImportCandidateListModel::EligibleRole).toBool());
+    EXPECT_EQ(candidates->data(candidates->index(0, 0), ImportCandidateListModel::DisplayNameRole)
+                  .toString(),
+              QStringLiteral("alpha.png"));
+}
+
+TEST(StudioPresenterTest, ImportWorkspacePublishesGalleryPlaceholdersWhenImportStarts)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString source_dir = QDir(directory.path()).filePath(QStringLiteral("source"));
+    ASSERT_TRUE(QDir().mkpath(source_dir));
+    const QStringList names{QStringLiteral("alpha.png"), QStringLiteral("beta.png"),
+                            QStringLiteral("gamma.png")};
+    for (const auto &name : names)
+    {
+        QImage image(48, 32, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(40, 80, 120));
+        ASSERT_TRUE(image.save(QDir(source_dir).filePath(name), "PNG"));
+    }
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.openImportPage();
+    presenter.setImportSourceRoot(source_dir);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 3; },
+        30000))
+        << presenter.errorText().toStdString();
+    presenter.startPlannedImport();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importPageOpen() && presenter.visibleCount() == 3; }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.lastImportSelected());
+    for (int row = 0; row < 3; ++row)
+    {
+        EXPECT_EQ(presenter.assets()
+                      ->data(presenter.assets()->index(row, 0), AssetListModel::DisplayNameRole)
+                      .toString(),
+                  names.at(row));
+    }
+    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(presenter.lastImportCount(), 3);
+    EXPECT_EQ(presenter.visibleCount(), 3);
+    EXPECT_FALSE(presenter.selectedAssetId().isEmpty());
 }
 
 } // namespace

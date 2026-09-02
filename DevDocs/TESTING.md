@@ -60,7 +60,9 @@ add exact Copy/Move bytes, same-stem XMP, three destination organizations,
 bounded deterministic rename expansion, primary/second-tree portable conflict
 preflight, independent byte verification, verification mismatch and
 cancellation cleanup, source-change and Move cleanup failures, CLI JSON,
-workspace selection, and cancellable background preview policies (ADR-0102/
+workspace selection, highlight versus import-check, named placeholder publication before thumbnail decode,
+named Gallery placeholders as soon as Import starts, and cancellable
+background preview policies (ADR-0102/
 0104). LibraryQuery tests cover every
 supported predicate, missing capture values, inclusive numeric/time endpoints,
 ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
@@ -78,7 +80,9 @@ state, validate every replacement file identity, reject conflict/mismatch/
 cancellation without mutation, inject failure after folder/asset/revision
 updates, and prove transaction/revision/recovery rollback. CLI and Studio
 tests use explicit folder IDs and verify that source hashes remain unchanged
-(ADR-0101).
+(ADR-0101). Studio folder-tree tests cover right-click import, reveal, missing
+relink, expand/collapse, and catalog-only folder removal that keeps originals;
+`catalog folder-remove --folder-uri` shares that service contract.
 Schema v10 tests create manual membership and smart `LibraryQuery` sets,
 reject stale catalog revisions and invalid/unknown IDs, keep empty sets, page
 listing without materializing the catalog, reopen and restore the rows through
@@ -167,7 +171,7 @@ Windows gtest discovery can see Qt on runner `Path`.
 Unit/contract coverage includes foundation/recipe/executor, CLI JSON/exit
 codes, bounded strict XMP mappings, and real `mire1.cr2` inspect/render. Catalog tests
 cover schema create/reopen/newer-version reject, idempotent PNG/JPEG/RAW/DNG
-import, directory sidecar skipping, unchanged source hashes, preview cache
+import, same-stem RAW+JPEG pairing, directory sidecar skipping, unchanged source hashes, preview cache
 including corrupt-PNG miss, missing/unsupported/cancelled input, and
 recipe/review independence. They do not replace
 local manual Studio Fit/100%/Develop acceptance. Each successful link of
@@ -391,7 +395,7 @@ structured LibRaw reasons, `.dng` suffix import of the Bayer fixture, X-Trans
 RAW import cancellation, corrupt PNG cache miss, and close/reopen preview.
 `DngOpcodeTest` freezes the big-endian OpcodeList2/3 envelope, checked bounds,
 four-parity and partial GainMaps, declared operation order, repeated List3
-operations, cubic WarpRectilinear, radial vignette correction, logical-range
+operations, parsed WarpRectilinear that default decode skips, radial vignette correction, logical-range
 clipping, unknown mandatory/optional policy, cancellation, memory ownership,
 and a libtiff-written CFA DNG that crosses the LibRaw inspect/decode boundary
 without changing its source. A Pixel 6 public reference identified by SHA-256
@@ -1148,7 +1152,10 @@ gated (ADR-0096).
 - Studio settings tests isolate QSettings storage and prove corrupt persisted
   language removal, English fallback, alias normalization, synchronous
   persistence, unsupported-language rejection, and preservation of the prior
-  durable value. Translation package smoke separately proves every manifest
+  durable value. Window-geometry tests prove default 1440×900, windowed
+  persist/reload, maximized keeping the last windowed rectangle, invalid-size
+  rejection without writes, and incomplete/malformed key repair (ADR-0066/0115).
+  Translation package smoke separately proves every manifest
   catalog compiles with no active unfinished strings (ADR-0066/0093).
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend

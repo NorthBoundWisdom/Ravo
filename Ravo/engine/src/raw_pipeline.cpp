@@ -565,15 +565,15 @@ Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::stri
     }
     std::array<float, 4> as_shot{};
     std::array<float, 4> camera_reference{};
-    if (raw.color.as_shot_wb_applied)
-    {
-        result.has_as_shot_white_balance = true;
-        result.as_shot_white_balance = {1.0, 1.0, 1.0, 1.0};
-    }
-    else if (normalize_white_balance(raw.color.cam_mul, raw.idata.colors, as_shot))
+    if (normalize_white_balance(raw.color.cam_mul, raw.idata.colors, as_shot))
     {
         result.has_as_shot_white_balance = true;
         result.as_shot_white_balance = {as_shot[0], as_shot[1], as_shot[2], as_shot[3]};
+    }
+    else if (raw.color.as_shot_wb_applied)
+    {
+        result.has_as_shot_white_balance = true;
+        result.as_shot_white_balance = {1.0, 1.0, 1.0, 1.0};
     }
     if (normalize_white_balance(raw.color.pre_mul, raw.idata.colors, camera_reference))
     {
@@ -878,15 +878,14 @@ try
     }
     result.exposure_metadata = read_legacy_exposure_metadata(local_path(input_uri));
 
-    if (raw.color.as_shot_wb_applied)
+    if (normalize_white_balance(raw.color.cam_mul, raw.idata.colors, result.as_shot_white_balance))
+    {
+        result.has_as_shot_white_balance = true;
+    }
+    else if (raw.color.as_shot_wb_applied)
     {
         result.as_shot_white_balance = {1.0F, 1.0F, 1.0F, 1.0F};
         result.has_as_shot_white_balance = true;
-    }
-    else
-    {
-        result.has_as_shot_white_balance = normalize_white_balance(
-            raw.color.cam_mul, raw.idata.colors, result.as_shot_white_balance);
     }
     result.has_camera_reference_white_balance = normalize_white_balance(
         raw.color.pre_mul, raw.idata.colors, result.camera_reference_white_balance);
@@ -1078,14 +1077,6 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
     if (raw.dng_opcodes)
     {
         add_working_bytes(estimate_dng_opcode_memory(*raw.dng_opcodes));
-        const bool has_warp = std::any_of(
-            raw.dng_opcodes->list3_operations.begin(), raw.dng_opcodes->list3_operations.end(),
-            [](const DngOpcodeList3Operation &operation)
-            { return std::holds_alternative<DngWarpRectilinear>(operation); });
-        if (has_warp)
-        {
-            add_working_bytes(float_rgb_bytes);
-        }
     }
     bool owns_raw_copy = false;
     for (const auto &operation : recipe.operations)

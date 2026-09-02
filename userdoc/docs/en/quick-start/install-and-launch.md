@@ -5,7 +5,7 @@
 Build the current Ravo source tree, launch Ravo Studio, and reach the library
 home page.
 
-**Last verified:** 2026-08-27 against the current repository source and macOS
+**Last verified:** 2026-09-02 against the current repository source and macOS
 Debug build layout.
 
 ## Applies to
@@ -121,6 +121,11 @@ The in-app path is **File → Settings → Language**. The selection is persiste
 for the next launch. If a build does not contain the selected Qt translation
 package, selecting that language reports the missing package instead of
 silently showing a partial translation.
+
+Studio also restores the last window size, position, and maximized state.
+If that rectangle no longer intersects a connected display, the window is
+fitted onto the current screen. The first launch uses a 1440×900 window and
+lets the operating system place it.
 
 ## Result
 

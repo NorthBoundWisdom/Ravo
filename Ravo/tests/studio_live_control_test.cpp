@@ -51,6 +51,7 @@
 #include "ravo/desktop/library_set_list_model.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_live_session_controller.h"
+#include "ravo/desktop/asset_list_model.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop_mask.h"
@@ -107,8 +108,14 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
     presenter.setImportSecondCopyDestination(second_copy);
     presenter.setImportPreviewPolicy(QStringLiteral("standard"));
     presenter.startPlannedImport();
-    ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importWorkActive() && !presenter.importPageOpen(); }, 30000))
+    ASSERT_TRUE(wait_until([&] { return !presenter.importPageOpen(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_GE(presenter.visibleCount(), 1);
+    EXPECT_FALSE(presenter.assets()
+                     ->data(presenter.assets()->index(0, 0), AssetListModel::DisplayNameRole)
+                     .toString()
+                     .isEmpty());
+    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.lastImportSelected());
     EXPECT_EQ(presenter.lastImportCount(), 1);
@@ -275,10 +282,16 @@ TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLo
         << filmstrip.errorString().toStdString();
     const auto filmstrip_source = QString::fromUtf8(filmstrip.readAll());
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("WheelHandler")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("target: strip")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("blocking: true")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("flickableDirection: Flickable.HorizontalFlick")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.pixelDelta.x")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.pixelDelta.y")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.angleDelta.y")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("const delta = horizontal + vertical")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("strip.contentX - delta")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("strip.contentWidth - strip.width")));
+    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("strip.cancelFlick()")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.accepted = true")));
 
     QFile overlay(QStringLiteral(RAVO_REPOSITORY_ROOT
@@ -312,6 +325,10 @@ TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLo
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("property bool showInformationOverlay")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("compact: true")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("captureSummary: root.captureSummary")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"placeholderName\"")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("Qt.lighter(Theme.imageSurroundColor, 1.5)")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("root.current ? 3 : (root.selected ? 2 : 1)")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("Theme.selectedSecondaryBorderColor")));
 }
 
 TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)
@@ -336,6 +353,21 @@ TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)
     EXPECT_FALSE(source.contains(QStringLiteral("JPEG (*.jpg *.jpeg)\", \"PNG (*.png)\"")));
 }
 
+TEST(StudioQmlContract, MainRestoresTypedWindowGeometryAndLeavesSmokeHidden)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("width: studioWindow.startupWidth")));
+    EXPECT_TRUE(source.contains(QStringLiteral("height: studioWindow.startupHeight")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studioWindow.restore(window)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("visible = true")));
+    EXPECT_TRUE(source.contains(QStringLiteral("if (!studioSmoke)")));
+    EXPECT_FALSE(source.contains(QStringLiteral("Qt.labs.settings")));
+    EXPECT_FALSE(source.contains(QStringLiteral("visible: !studioSmoke")));
+}
+
 TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancellation)
 {
     QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
@@ -354,6 +386,8 @@ TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancell
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupSchedulePath")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: folderRelinkDialog")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryFolderRelinkPath")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: removeFolderDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryRemoveFolderConfirmed")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("\"backup\": backup")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("\"catalog\": filePath")));
 
@@ -369,6 +403,20 @@ TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancell
     EXPECT_TRUE(library_source.contains(QStringLiteral("Last verified: %1 · %2")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("libraryFolderRelink")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("missing — click to locate")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("acceptedButtons: Qt.LeftButton | Qt.RightButton")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("root.showFolderMenu(folderRow)")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("FolderContextMenu")));
+
+    QFile folder_menu(QStringLiteral(RAVO_REPOSITORY_ROOT
+                                     "/Ravo/desktop/qml/chrome/FolderContextMenu.qml"));
+    ASSERT_TRUE(folder_menu.open(QIODevice::ReadOnly | QIODevice::Text))
+        << folder_menu.errorString().toStdString();
+    const auto folder_menu_source = QString::fromUtf8(folder_menu.readAll());
+    EXPECT_TRUE(folder_menu_source.contains(QStringLiteral("ids.libraryRevealFolder")));
+    EXPECT_TRUE(folder_menu_source.contains(QStringLiteral("ids.libraryRemoveFolder")));
+    EXPECT_TRUE(folder_menu_source.contains(QStringLiteral("ids.libraryImportFolderPath")));
+    EXPECT_TRUE(folder_menu_source.contains(QStringLiteral("ids.libraryFolderRelink")));
+    EXPECT_TRUE(folder_menu_source.contains(QStringLiteral("qsTr(\"Remove from Catalog...\")")));
 
     QFile schedule(QStringLiteral(RAVO_STUDIO_BACKUP_SCHEDULE_QML));
     ASSERT_TRUE(schedule.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -473,6 +521,8 @@ TEST(StudioQmlContract, SurveyAndVersionBadgesStayInPresenterOwnedQml)
     EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.viewSurvey")));
     EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.photoCreateVersion")));
     EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.photoStackSelection")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("id: leadingTools")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("ScrollBar.AsNeeded")));
 }
 
 TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
@@ -564,8 +614,19 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Add\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Move\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.toggleSelected")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.applyCheck")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.setAllSelected")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightExclusive")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightToggle")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightRange")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightAll")));
+    EXPECT_TRUE(source.contains(QStringLiteral("StandardKey.SelectAll")));
+    EXPECT_TRUE(source.contains(QStringLiteral("fittedGridCell")));
+    EXPECT_TRUE(source.contains(QStringLiteral("required property bool highlighted")));
+    EXPECT_TRUE(source.contains(QStringLiteral("visible: count > 0")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("onIndexChanged: root.presenter.ensureImportThumbnail(index)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("required property bool inspected")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportOrganization")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportPreviewPolicy")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportFilenameTemplate")));
