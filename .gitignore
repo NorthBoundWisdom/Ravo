@@ -23,3 +23,8 @@ cmake-build-debug/
 install
 Downloads
 userdoc/site/
+
+# Local agent/helpers and host test scratch (never share)
+_fix_lock.py
+_qt.py
+darktable-tests/
