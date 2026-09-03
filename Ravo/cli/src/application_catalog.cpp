@@ -52,15 +52,15 @@ parse_develop_apply_fields(const std::string_view text)
     while (begin <= text.size())
     {
         const auto comma = text.find(',', begin);
-        const auto token = text.substr(begin, comma == std::string_view::npos ? std::string_view::npos :
-                                                                               comma - begin);
+        const auto token = text.substr(
+            begin, comma == std::string_view::npos ? std::string_view::npos : comma - begin);
         const auto first = token.find_first_not_of(" \t");
         if (first == std::string_view::npos)
         {
-            return make_error(ErrorCode::kInvalidArgument,
-                              "catalog develop-apply --fields requires comma-separated names",
-                              {{"value", std::string(text)},
-                               {"reason", "empty_develop_apply_field_token"}});
+            return make_error(
+                ErrorCode::kInvalidArgument,
+                "catalog develop-apply --fields requires comma-separated names",
+                {{"value", std::string(text)}, {"reason", "empty_develop_apply_field_token"}});
         }
         const auto last = token.find_last_not_of(" \t");
         fields.emplace_back(token.substr(first, last - first + 1));
@@ -86,7 +86,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             ErrorCode::kInvalidArgument,
             "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|develop-apply|"
             "fields|rate|"
-            "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore|"
+            "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
             "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick> "
@@ -443,8 +443,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().folder_uri.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog folder-remove requires --folder-uri <uri>");
-        auto removed = service.remove_folder_from_catalog(flags.value().folder_uri,
-                                                          CancellationToken{});
+        auto removed =
+            service.remove_folder_from_catalog(flags.value().folder_uri, CancellationToken{});
         if (!removed)
             return removed.error();
         return JsonValue{JsonValue::Object{
@@ -1057,8 +1057,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         items.reserve(applied.value().items.size());
         for (const auto &item : applied.value().items)
         {
-            JsonValue::Object row{{"asset_id", item.asset_id},
-                                  {"status", std::string(develop_apply_item_status_name(item.status))}};
+            JsonValue::Object row{
+                {"asset_id", item.asset_id},
+                {"status", std::string(develop_apply_item_status_name(item.status))}};
             if (item.history_id)
                 row.emplace("history_id", JsonValue::number(std::to_string(*item.history_id)));
             if (item.error)
@@ -1107,6 +1108,137 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return refreshed.error();
         }
         return asset_to_json(refreshed.value());
+    }
+    if (subcommand == "export-preset-save")
+    {
+        if (flags.value().output.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export-preset-save requires --output");
+        }
+        auto options = resolved_export_options(flags.value());
+        if (!options)
+            return options.error();
+        ExportPreset preset;
+        preset.schema_version = kExportPresetSchemaVersion;
+        preset.options = std::move(options).value();
+        auto serialized = serialize_export_preset(preset);
+        if (!serialized)
+            return serialized.error();
+        auto written = write_utf8_text_file_atomically(flags.value().output, serialized.value());
+        if (!written)
+            return written.error();
+        return JsonValue{JsonValue::Object{
+            {"format", std::string(export_format_name(preset.options.format))},
+            {"output", std::string(flags.value().output)},
+            {"schema", std::string(kExportPresetSchema)},
+            {"schema_version", JsonValue::number(std::to_string(preset.schema_version))},
+        }};
+    }
+    if (subcommand == "export-job-create")
+    {
+        if (flags.value().asset_ids.empty() || flags.value().output_directory.empty() ||
+            flags.value().export_job.empty() || flags.value().job_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export-job-create requires --asset-id, --output-dir, "
+                              "--export-job, and --job-id");
+        }
+        auto options = resolved_export_options(flags.value());
+        if (!options)
+            return options.error();
+        ExportBatchRequest request;
+        request.asset_ids.reserve(flags.value().asset_ids.size());
+        for (const auto asset_id : flags.value().asset_ids)
+            request.asset_ids.emplace_back(asset_id);
+        request.output_directory = std::string(flags.value().output_directory);
+        if (!flags.value().filename_template.empty())
+            request.filename_template = std::string(flags.value().filename_template);
+        request.options = std::move(options).value();
+        auto job = service.create_export_job(request, std::string(flags.value().job_id));
+        if (!job)
+            return job.error();
+        auto serialized = serialize_export_job(job.value());
+        if (!serialized)
+            return serialized.error();
+        auto written =
+            write_utf8_text_file_atomically(flags.value().export_job, serialized.value());
+        if (!written)
+            return written.error();
+        return JsonValue{JsonValue::Object{
+            {"job_id", job.value().job_id},
+            {"items", JsonValue::number(std::to_string(job.value().items.size()))},
+            {"output", std::string(flags.value().export_job)},
+            {"schema", std::string(kExportJobSchema)},
+        }};
+    }
+    if (subcommand == "export-job-resume")
+    {
+        if (flags.value().export_job.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export-job-resume requires --export-job");
+        }
+        auto text_body = read_utf8_text_file(flags.value().export_job, kExportJobFileMaxBytes);
+        if (!text_body)
+            return text_body.error();
+        auto parsed = parse_export_job_json(text_body.value());
+        if (!parsed)
+            return parsed.error();
+        auto resumed = service.resume_export_job(std::move(parsed).value());
+        if (!resumed)
+            return resumed.error();
+        auto serialized = serialize_export_job(resumed.value());
+        if (!serialized)
+            return serialized.error();
+        auto written =
+            write_utf8_text_file_atomically(flags.value().export_job, serialized.value());
+        if (!written)
+            return written.error();
+        std::size_t delivered = 0;
+        std::size_t pending = 0;
+        std::size_t failed = 0;
+        std::optional<std::string> failed_asset;
+        std::optional<std::string> failed_reason;
+        std::optional<std::string> failed_message;
+        for (const auto &item : resumed.value().items)
+        {
+            switch (item.status)
+            {
+            case ExportJobItemStatus::kDelivered:
+                ++delivered;
+                break;
+            case ExportJobItemStatus::kPending:
+                ++pending;
+                break;
+            case ExportJobItemStatus::kFailed:
+                ++failed;
+                if (!failed_asset)
+                {
+                    failed_asset = item.asset_id;
+                    failed_reason = item.error_reason;
+                    failed_message = item.error_message;
+                }
+                break;
+            }
+        }
+        if (failed > 0)
+        {
+            return make_error(ErrorCode::kIo, failed_message.value_or("Export job item failed"),
+                              {{"job_id", resumed.value().job_id},
+                               {"asset_id", failed_asset.value_or("")},
+                               {"completed_count", std::to_string(delivered)},
+                               {"total_count", std::to_string(resumed.value().items.size())},
+                               {"partial_batch", delivered > 0 ? "true" : "false"},
+                               {"reason", failed_reason.value_or("export_job_item_failed")}});
+        }
+        return JsonValue{JsonValue::Object{
+            {"delivered", JsonValue::number(std::to_string(delivered))},
+            {"failed", JsonValue::number(std::to_string(failed))},
+            {"job_id", resumed.value().job_id},
+            {"output", std::string(flags.value().export_job)},
+            {"pending", JsonValue::number(std::to_string(pending))},
+        }};
     }
     if (subcommand == "export-batch")
     {

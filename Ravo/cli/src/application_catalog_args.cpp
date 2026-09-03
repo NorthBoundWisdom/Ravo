@@ -1,6 +1,7 @@
 #include "ravo/cli/application.h"
 #include "application_internal.h"
 
+#include <fstream>
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -114,11 +115,10 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     CatalogCliArguments result;
     const bool batch_export = positional.size() > 1U && positional[1] == "export-batch";
     const bool multi_asset =
-        batch_export ||
-        (positional.size() > 1U &&
-         (positional[1] == "preview-rebuild" || positional[1] == "set-create" ||
-          positional[1] == "set-add" || positional[1] == "set-remove" || positional[1] == "stack" ||
-          positional[1] == "develop-apply"));
+        batch_export || (positional.size() > 1U &&
+                         (positional[1] == "preview-rebuild" || positional[1] == "set-create" ||
+                          positional[1] == "set-add" || positional[1] == "set-remove" ||
+                          positional[1] == "stack" || positional[1] == "develop-apply"));
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -341,6 +341,54 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.max_edge = dimension.value();
         }
+        else if (option == "--max-width")
+        {
+            auto dimension = parse_dimension(value, option);
+            if (!dimension)
+                return dimension.error();
+            result.max_width = dimension.value();
+        }
+        else if (option == "--max-height")
+        {
+            auto dimension = parse_dimension(value, option);
+            if (!dimension)
+                return dimension.error();
+            result.max_height = dimension.value();
+        }
+        else if (option == "--sharpen-amount")
+        {
+            result.output_sharpen = true;
+            result.sharpen_amount = value;
+        }
+        else if (option == "--sharpen-radius")
+        {
+            result.output_sharpen = true;
+            result.sharpen_radius = value;
+        }
+        else if (option == "--sharpen-threshold")
+        {
+            result.output_sharpen = true;
+            result.sharpen_threshold = value;
+        }
+        else if (option == "--export-preset")
+        {
+            if (!result.export_preset.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--export-preset was specified twice");
+            result.export_preset = value;
+        }
+        else if (option == "--export-job")
+        {
+            if (!result.export_job.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--export-job was specified twice");
+            result.export_job = value;
+        }
+        else if (option == "--job-id")
+        {
+            if (!result.job_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--job-id was specified twice");
+            result.job_id = value;
+        }
         else if (option == "--output")
         {
             if (batch_export)
@@ -555,7 +603,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         else if (option == "--from-asset")
         {
             if (!result.from_asset.empty())
-                return make_error(ErrorCode::kInvalidArgument, "Source asset ID was specified twice");
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Source asset ID was specified twice");
             result.from_asset = value;
         }
         else if (option == "--fields")
@@ -770,9 +819,93 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     }
     if (flags.max_edge)
         request.max_edge = *flags.max_edge;
+    if (flags.max_width)
+        request.max_width = *flags.max_width;
+    if (flags.max_height)
+        request.max_height = *flags.max_height;
+    if (flags.output_sharpen || !flags.sharpen_amount.empty() || !flags.sharpen_radius.empty() ||
+        !flags.sharpen_threshold.empty())
+    {
+        request.output_sharpen.enabled = true;
+        auto parse_double = [](const std::string_view text,
+                               const std::string_view option) -> Result<double>
+        {
+            if (text.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Missing export sharpen value",
+                                  {{"option", std::string(option)}});
+            char *end = nullptr;
+            const std::string owned(text);
+            const double value = std::strtod(owned.c_str(), &end);
+            if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Invalid export sharpen value",
+                                  {{"option", std::string(option)}, {"value", owned}});
+            }
+            return value;
+        };
+        if (!flags.sharpen_amount.empty())
+        {
+            auto amount = parse_double(flags.sharpen_amount, "--sharpen-amount");
+            if (!amount)
+                return amount.error();
+            request.output_sharpen.amount = amount.value();
+        }
+        if (!flags.sharpen_radius.empty())
+        {
+            auto radius = parse_double(flags.sharpen_radius, "--sharpen-radius");
+            if (!radius)
+                return radius.error();
+            request.output_sharpen.radius = radius.value();
+        }
+        if (!flags.sharpen_threshold.empty())
+        {
+            auto threshold = parse_double(flags.sharpen_threshold, "--sharpen-threshold");
+            if (!threshold)
+                return threshold.error();
+            request.output_sharpen.threshold = threshold.value();
+        }
+    }
+    if (!flags.export_preset.empty())
+    {
+        auto text_body = read_utf8_text_file(flags.export_preset, kExportPresetFileMaxBytes);
+        if (!text_body)
+            return text_body.error();
+        auto preset = parse_export_preset_json(text_body.value());
+        if (!preset)
+            return preset.error();
+        auto applied = apply_export_preset(preset.value());
+        if (!applied)
+            return applied.error();
+        // Explicit CLI flags override preset snapshot fields that were set.
+        ExportOptions merged = std::move(applied).value();
+        if (!flags.format.empty())
+            merged.format = request.format;
+        if (!flags.metadata_mode.empty())
+            merged.metadata_mode = request.metadata_mode;
+        if (!flags.quality.empty() || !flags.jpeg_subsampling.empty())
+            merged.jpeg_options = request.jpeg_options;
+        if (!flags.png_bit_depth.empty() || !flags.png_compression.empty())
+            merged.png_options = request.png_options;
+        if (has_explicit_tiff_options(flags))
+            merged.tiff_options = request.tiff_options;
+        if (flags.max_edge)
+            merged.max_edge = request.max_edge;
+        if (flags.max_width)
+            merged.max_width = request.max_width;
+        if (flags.max_height)
+            merged.max_height = request.max_height;
+        if (flags.output_sharpen || !flags.sharpen_amount.empty() ||
+            !flags.sharpen_radius.empty() || !flags.sharpen_threshold.empty())
+            merged.output_sharpen = request.output_sharpen;
+        request = ExportRequest{};
+        static_cast<ExportOptions &>(request) = std::move(merged);
+    }
     auto valid = validate_cli_export_options(request, flags);
     if (!valid)
         return valid.error();
+    auto domain_valid = validate_export_options(static_cast<const ExportOptions &>(request));
+    if (!domain_valid)
+        return domain_valid.error();
     return static_cast<ExportOptions>(request);
 }
 

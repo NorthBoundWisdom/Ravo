@@ -1138,5 +1138,77 @@ TEST(CaptureMetadataTest, EqualityIncludesNewFieldsAndRejectsPartialStateOnExpor
     EXPECT_FALSE(validate_export_metadata(snapshot));
 }
 
+TEST(DomainExportFitTest, BoxFitNeverEnlargesAndPreservesAspect)
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    fit_within_box(100, 50, 1600, 1200, width, height);
+    EXPECT_EQ(width, 100U);
+    EXPECT_EQ(height, 50U);
+
+    fit_within_box(4000, 2000, 800, 600, width, height);
+    EXPECT_EQ(width, 800U);
+    EXPECT_EQ(height, 400U);
+
+    fit_within_box(2000, 4000, 800, 600, width, height);
+    EXPECT_EQ(width, 300U);
+    EXPECT_EQ(height, 600U);
+}
+
+TEST(DomainExportFitTest, TighterOfLongEdgeAndBoxWins)
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    fit_export_output_size(4000, 2000, 1000, 800, 600, width, height);
+    EXPECT_EQ(width, 800U);
+    EXPECT_EQ(height, 400U);
+
+    fit_export_output_size(4000, 2000, 600, 800, 600, width, height);
+    EXPECT_EQ(width, 600U);
+    EXPECT_EQ(height, 300U);
+}
+
+TEST(DomainExportPresetTest, RoundTripAndFailClosed)
+{
+    ExportPreset preset;
+    preset.options.format = ExportFormat::kJpeg;
+    preset.options.max_edge = 1600;
+    preset.options.max_width = 1200;
+    preset.options.max_height = 800;
+    preset.options.output_sharpen.enabled = true;
+    preset.options.output_sharpen.amount = 0.75;
+    preset.options.output_sharpen.radius = 0.8;
+    preset.options.output_sharpen.threshold = 2.0;
+    preset.options.jpeg_options.quality = 90;
+    auto serialized = serialize_export_preset(preset);
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_export_preset_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    auto applied = apply_export_preset(parsed.value());
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(applied.value(), preset.options);
+
+    EXPECT_FALSE(parse_export_preset_json("{"));
+    EXPECT_FALSE(parse_export_preset_json(R"({"schema":"other","schema_version":1,"options":{}})"));
+    EXPECT_FALSE(parse_export_preset_json(
+        R"({"schema":"ravo.export_preset","schema_version":99,"options":{}})"));
+}
+
+TEST(DomainExportOptionsTest, OriginalCopyRejectsResizeAndSharpen)
+{
+    ExportOptions options;
+    options.format = ExportFormat::kOriginalCopy;
+    options.max_edge = 100;
+    auto valid = validate_export_options(options);
+    ASSERT_FALSE(valid);
+    EXPECT_EQ(valid.error().context.at("reason"), "original_copy_resize_not_applicable");
+
+    options.max_edge = 0;
+    options.output_sharpen.enabled = true;
+    valid = validate_export_options(options);
+    ASSERT_FALSE(valid);
+    EXPECT_EQ(valid.error().context.at("reason"), "original_copy_resize_not_applicable");
+}
+
 } // namespace
 } // namespace ravo

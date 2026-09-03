@@ -228,6 +228,118 @@ void fit_within_max_edge(const std::uint32_t source_width, const std::uint32_t s
     }
 }
 
+void fit_within_box(const std::uint32_t source_width, const std::uint32_t source_height,
+                    const std::uint32_t max_width, const std::uint32_t max_height,
+                    std::uint32_t &output_width, std::uint32_t &output_height) noexcept
+{
+    if (source_width == 0 || source_height == 0)
+    {
+        output_width = 0;
+        output_height = 0;
+        return;
+    }
+    output_width = source_width;
+    output_height = source_height;
+    if (max_width == 0 && max_height == 0)
+        return;
+    const bool width_ok = max_width == 0 || source_width <= max_width;
+    const bool height_ok = max_height == 0 || source_height <= max_height;
+    if (width_ok && height_ok)
+        return;
+
+    // Integer letterbox: scale = min(max_w/sw, max_h/sh, 1), never enlarge.
+    std::uint64_t best_w = source_width;
+    std::uint64_t best_h = source_height;
+    bool have_candidate = false;
+    const auto consider = [&](const std::uint64_t candidate_w, const std::uint64_t candidate_h)
+    {
+        if (candidate_w == 0 || candidate_h == 0)
+            return;
+        if (max_width > 0 && candidate_w > max_width)
+            return;
+        if (max_height > 0 && candidate_h > max_height)
+            return;
+        if (!have_candidate || candidate_w * candidate_h < best_w * best_h ||
+            (candidate_w * candidate_h == best_w * best_h &&
+             std::max(candidate_w, candidate_h) < std::max(best_w, best_h)))
+        {
+            best_w = candidate_w;
+            best_h = candidate_h;
+            have_candidate = true;
+        }
+    };
+    if (max_width > 0)
+    {
+        const std::uint64_t w = std::min<std::uint64_t>(source_width, max_width);
+        const std::uint64_t h = std::max<std::uint64_t>(
+            1U, (static_cast<std::uint64_t>(source_height) * w) / source_width);
+        consider(w, h);
+    }
+    if (max_height > 0)
+    {
+        const std::uint64_t h = std::min<std::uint64_t>(source_height, max_height);
+        const std::uint64_t w = std::max<std::uint64_t>(
+            1U, (static_cast<std::uint64_t>(source_width) * h) / source_height);
+        consider(w, h);
+    }
+    output_width = static_cast<std::uint32_t>(best_w);
+    output_height = static_cast<std::uint32_t>(best_h);
+}
+
+void fit_export_output_size(const std::uint32_t source_width, const std::uint32_t source_height,
+                            const std::uint32_t max_edge, const std::uint32_t max_width,
+                            const std::uint32_t max_height, std::uint32_t &output_width,
+                            std::uint32_t &output_height) noexcept
+{
+    std::uint32_t edge_w = source_width;
+    std::uint32_t edge_h = source_height;
+    fit_within_max_edge(source_width, source_height, max_edge, edge_w, edge_h);
+    std::uint32_t box_w = source_width;
+    std::uint32_t box_h = source_height;
+    fit_within_box(source_width, source_height, max_width, max_height, box_w, box_h);
+    if (max_edge == 0 && max_width == 0 && max_height == 0)
+    {
+        output_width = source_width;
+        output_height = source_height;
+        return;
+    }
+    if (max_edge == 0)
+    {
+        output_width = box_w;
+        output_height = box_h;
+        return;
+    }
+    if (max_width == 0 && max_height == 0)
+    {
+        output_width = edge_w;
+        output_height = edge_h;
+        return;
+    }
+    const std::uint64_t edge_area = static_cast<std::uint64_t>(edge_w) * edge_h;
+    const std::uint64_t box_area = static_cast<std::uint64_t>(box_w) * box_h;
+    if (box_area < edge_area ||
+        (box_area == edge_area && std::max(box_w, box_h) < std::max(edge_w, edge_h)))
+    {
+        output_width = box_w;
+        output_height = box_h;
+    }
+    else
+    {
+        output_width = edge_w;
+        output_height = edge_h;
+    }
+}
+
+bool export_options_request_resize(const ExportOptions &options) noexcept
+{
+    return options.max_edge > 0 || options.max_width > 0 || options.max_height > 0;
+}
+
+bool export_options_request_output_sharpen(const ExportOptions &options) noexcept
+{
+    return options.output_sharpen.enabled;
+}
+
 std::string_view catalog_restore_stage_name(const CatalogRestoreStage stage) noexcept
 {
     switch (stage)

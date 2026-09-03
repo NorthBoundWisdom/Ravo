@@ -1,5 +1,6 @@
 #include "ravo/services/catalog_service.h"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <optional>
@@ -372,8 +373,8 @@ Result<PreviewResult> CatalogService::persist_companion_jpeg_browse_preview(
         source.color_profile.identifier = "srgb";
     }
     DevelopParams develop;
-    auto recipe = recipe_from_develop(
-        {asset.id, asset.normalized_uri, asset.content_fingerprint}, develop);
+    auto recipe =
+        recipe_from_develop({asset.id, asset.normalized_uri, asset.content_fingerprint}, develop);
     if (!recipe)
     {
         return recipe.error();
@@ -501,8 +502,9 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                 persisted.value().original_missing = false;
                 return persisted;
             }
-            LOG_INFO(ravo::logger(), "companion JPEG browse preview persist failed asset={} error={}",
-                     asset.id, persisted.error().message);
+            LOG_INFO(ravo::logger(),
+                     "companion JPEG browse preview persist failed asset={} error={}", asset.id,
+                     persisted.error().message);
         }
         const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
                                                       kEmbeddedBrowsePreviewDigest);
@@ -810,7 +812,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
 Result<RenderedExportImage> CatalogService::render_for_export(const AssetRecord &asset,
                                                               const std::string_view path,
                                                               const Recipe &recipe,
-                                                              const std::uint32_t max_edge,
+                                                              const ExportOptions &options,
                                                               const CancellationToken &cancellation,
                                                               const RenderSampleKind sample_kind)
 {
@@ -819,18 +821,22 @@ Result<RenderedExportImage> CatalogService::render_for_export(const AssetRecord 
     render.recipe = recipe;
     render.cancellation = cancellation;
     render.correlation_id = asset.id;
-    if (max_edge > 0)
+    const std::uint32_t source_width = asset.width.value_or(0);
+    const std::uint32_t source_height = asset.height.value_or(0);
+    std::uint32_t width = source_width;
+    std::uint32_t height = source_height;
+    fit_export_output_size(source_width, source_height, options.max_edge, options.max_width,
+                           options.max_height, width, height);
+    std::uint32_t decode_edge = 0;
+    if (width != source_width || height != source_height)
     {
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
-        fit_within_max_edge(asset.width.value_or(0), asset.height.value_or(0), max_edge, width,
-                            height);
         render.output_width = width;
         render.output_height = height;
+        decode_edge = std::max(width, height);
     }
     if (is_raster_media_type(asset.media_type))
     {
-        auto source = decode_preview_source(asset, path, max_edge, cancellation,
+        auto source = decode_preview_source(asset, path, decode_edge, cancellation,
                                             PreviewLane::kForegroundDevelop);
         if (!source)
         {
@@ -1042,9 +1048,8 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
                                                        std::move(raster)};
                     return cache_entry->raster;
                 }
-                LOG_INFO(ravo::logger(),
-                         "companion JPEG browse decode failed asset={} error={}", asset.id,
-                         decoded.error().message);
+                LOG_INFO(ravo::logger(), "companion JPEG browse decode failed asset={} error={}",
+                         asset.id, decoded.error().message);
             }
         }
         auto embedded = engine_->extract_embedded_preview(path, max_edge, cancellation);

@@ -25,6 +25,12 @@ DialogShell {
     property bool tiffGrayscaleIfNeutral: false
     property double tiffResolutionDpi: 0
     property double maxEdge: 0
+    property double maxWidth: 0
+    property double maxHeight: 0
+    property bool outputSharpenEnabled: false
+    property double outputSharpenAmount: 0.5
+    property double outputSharpenRadius: 0.5
+    property double outputSharpenThreshold: 0.0
 
     property var formatChoices: presenter.exportFormatChoices()
     property var jpegSubsamplingChoices: presenter.jpegSubsamplingChoices()
@@ -71,6 +77,12 @@ DialogShell {
         tiffResolutionDpi = defaults.tiffResolutionDpi;
         metadataModeId = defaults.metadataMode;
         maxEdge = defaults.maxEdge !== undefined ? defaults.maxEdge : 0;
+        maxWidth = defaults.maxWidth !== undefined ? defaults.maxWidth : 0;
+        maxHeight = defaults.maxHeight !== undefined ? defaults.maxHeight : 0;
+        outputSharpenEnabled = defaults.outputSharpenEnabled === true;
+        outputSharpenAmount = defaults.outputSharpenAmount !== undefined ? defaults.outputSharpenAmount : 0.5;
+        outputSharpenRadius = defaults.outputSharpenRadius !== undefined ? defaults.outputSharpenRadius : 0.5;
+        outputSharpenThreshold = defaults.outputSharpenThreshold !== undefined ? defaults.outputSharpenThreshold : 0.0;
         filenameTemplate = "{stem}-{sequence}{ext}";
     }
 
@@ -80,14 +92,26 @@ DialogShell {
                 "quality": jpegQualitySpin.realValue,
                 "jpegSubsampling": jpegSubsamplingId,
                 "metadataMode": metadataModeId,
-                "maxEdge": maxEdgeSpin.realValue
+                "maxEdge": maxEdgeSpin.realValue,
+                "maxWidth": maxWidthSpin.realValue,
+                "maxHeight": maxHeightSpin.realValue,
+                "outputSharpenEnabled": outputSharpenEnabled,
+                "outputSharpenAmount": outputSharpenAmountSpin.realValue,
+                "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
+                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue
             };
         if (formatId === "png")
             return {
                 "pngBitDepth": pngBitDepthId,
                 "pngCompression": pngCompressionSpin.realValue,
                 "metadataMode": metadataModeId,
-                "maxEdge": maxEdgeSpin.realValue
+                "maxEdge": maxEdgeSpin.realValue,
+                "maxWidth": maxWidthSpin.realValue,
+                "maxHeight": maxHeightSpin.realValue,
+                "outputSharpenEnabled": outputSharpenEnabled,
+                "outputSharpenAmount": outputSharpenAmountSpin.realValue,
+                "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
+                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue
             };
         if (formatId === "tiff")
             return {
@@ -97,7 +121,13 @@ DialogShell {
                 "tiffGrayscaleIfNeutral": tiffGrayscaleIfNeutral,
                 "tiffResolutionDpi": tiffResolutionSpin.realValue,
                 "metadataMode": metadataModeId,
-                "maxEdge": maxEdgeSpin.realValue
+                "maxEdge": maxEdgeSpin.realValue,
+                "maxWidth": maxWidthSpin.realValue,
+                "maxHeight": maxHeightSpin.realValue,
+                "outputSharpenEnabled": outputSharpenEnabled,
+                "outputSharpenAmount": outputSharpenAmountSpin.realValue,
+                "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
+                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue
             };
         return {};
     }
@@ -223,6 +253,139 @@ DialogShell {
                 Accessible.name: qsTr("Maximum long edge (0 keeps the rendered size)")
                 onEditingCommitted: function (value) {
                     root.maxEdge = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original"
+
+            CustomLabel {
+                text: qsTr("Max width")
+                Accessible.name: qsTr("Maximum export width")
+            }
+            CustomSpinBox {
+                id: maxWidthSpin
+                objectName: "exportMaxWidth"
+                Layout.fillWidth: true
+                decimals: 0
+                realFrom: root.optionBounds.maxWidthMin
+                realTo: root.optionBounds.maxWidthMax
+                realValue: root.maxWidth
+                Accessible.name: qsTr("Maximum width (0 unconstrained)")
+                onEditingCommitted: function (value) {
+                    root.maxWidth = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original"
+
+            CustomLabel {
+                text: qsTr("Max height")
+                Accessible.name: qsTr("Maximum export height")
+            }
+            CustomSpinBox {
+                id: maxHeightSpin
+                objectName: "exportMaxHeight"
+                Layout.fillWidth: true
+                decimals: 0
+                realFrom: root.optionBounds.maxHeightMin
+                realTo: root.optionBounds.maxHeightMax
+                realValue: root.maxHeight
+                Accessible.name: qsTr("Maximum height (0 unconstrained)")
+                onEditingCommitted: function (value) {
+                    root.maxHeight = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original"
+
+            CustomLabel {
+                text: qsTr("Output sharpen")
+                Accessible.name: qsTr("Enable export output sharpen")
+            }
+            CustomCheckBox {
+                id: outputSharpenCheck
+                objectName: "exportOutputSharpenEnabled"
+                checked: root.outputSharpenEnabled
+                text: qsTr("After resize")
+                Accessible.name: qsTr("Enable output sharpen after resize")
+                onToggled: root.outputSharpenEnabled = checked
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.outputSharpenEnabled
+
+            CustomLabel {
+                text: qsTr("Sharpen amount")
+            }
+            CustomSpinBox {
+                id: outputSharpenAmountSpin
+                objectName: "exportOutputSharpenAmount"
+                Layout.fillWidth: true
+                decimals: 2
+                realFrom: root.optionBounds.outputSharpenAmountMin
+                realTo: root.optionBounds.outputSharpenAmountMax
+                realValue: root.outputSharpenAmount
+                onEditingCommitted: function (value) {
+                    root.outputSharpenAmount = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.outputSharpenEnabled
+
+            CustomLabel {
+                text: qsTr("Sharpen radius")
+            }
+            CustomSpinBox {
+                id: outputSharpenRadiusSpin
+                objectName: "exportOutputSharpenRadius"
+                Layout.fillWidth: true
+                decimals: 2
+                realFrom: root.optionBounds.outputSharpenRadiusMin
+                realTo: root.optionBounds.outputSharpenRadiusMax
+                realValue: root.outputSharpenRadius
+                onEditingCommitted: function (value) {
+                    root.outputSharpenRadius = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.outputSharpenEnabled
+
+            CustomLabel {
+                text: qsTr("Sharpen threshold")
+            }
+            CustomSpinBox {
+                id: outputSharpenThresholdSpin
+                objectName: "exportOutputSharpenThreshold"
+                Layout.fillWidth: true
+                decimals: 2
+                realFrom: root.optionBounds.outputSharpenThresholdMin
+                realTo: root.optionBounds.outputSharpenThresholdMax
+                realValue: root.outputSharpenThreshold
+                onEditingCommitted: function (value) {
+                    root.outputSharpenThreshold = value;
                 }
             }
         }

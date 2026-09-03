@@ -67,6 +67,20 @@ inline constexpr int kTiffResolutionDpiMin = 72;
 inline constexpr int kTiffResolutionDpiMax = 9600;
 inline constexpr std::uint32_t kExportMaxEdgeMin = 0;
 inline constexpr std::uint32_t kExportMaxEdgeMax = 65535;
+inline constexpr std::uint32_t kExportBoxLimitMin = 0;
+inline constexpr std::uint32_t kExportBoxLimitMax = 65535;
+inline constexpr double kExportOutputSharpenAmountMin = 0.0;
+inline constexpr double kExportOutputSharpenAmountMax = 2.0;
+inline constexpr double kExportOutputSharpenRadiusMin = 0.0;
+inline constexpr double kExportOutputSharpenRadiusMax = 5.0;
+inline constexpr double kExportOutputSharpenThresholdMin = 0.0;
+inline constexpr double kExportOutputSharpenThresholdMax = 100.0;
+inline constexpr std::int64_t kExportPresetSchemaVersion = 1;
+inline constexpr std::string_view kExportPresetSchema = "ravo.export_preset";
+inline constexpr std::size_t kExportPresetFileMaxBytes = 256U * 1024U;
+inline constexpr std::int64_t kExportJobSchemaVersion = 1;
+inline constexpr std::string_view kExportJobSchema = "ravo.export_job";
+inline constexpr std::size_t kExportJobFileMaxBytes = 16U * 1024U * 1024U;
 inline constexpr std::size_t kExportBatchMaxAssets = 10'000U;
 inline constexpr std::size_t kExportFilenameTemplateMaxBytes = 512U;
 inline constexpr std::size_t kExportFilenameMaxBytes = 240U;
@@ -871,14 +885,62 @@ struct PreviewRebuildResult
     std::vector<PreviewRebuildItemResult> items;
 };
 
+struct ExportOutputSharpenOptions
+{
+    bool enabled = false;
+    double amount = 0.5;
+    double radius = 0.5;
+    double threshold = 0.0;
+
+    [[nodiscard]] bool operator==(const ExportOutputSharpenOptions &) const noexcept = default;
+};
+
 struct ExportOptions
 {
     ExportFormat format = ExportFormat::kPng;
     JpegExportOptions jpeg_options;
     std::uint32_t max_edge = 0;
+    std::uint32_t max_width = 0;
+    std::uint32_t max_height = 0;
+    ExportOutputSharpenOptions output_sharpen;
     PngExportOptions png_options;
     TiffExportOptions tiff_options;
     ExportMetadataMode metadata_mode = ExportMetadataMode::kFull;
+
+    [[nodiscard]] bool operator==(const ExportOptions &) const noexcept = default;
+};
+
+struct ExportPreset
+{
+    std::int64_t schema_version = kExportPresetSchemaVersion;
+    ExportOptions options;
+};
+
+enum class ExportJobItemStatus : std::uint8_t
+{
+    kPending = 0,
+    kDelivered = 1,
+    kFailed = 2,
+};
+
+struct ExportJobItem
+{
+    std::string asset_id;
+    ExportJobItemStatus status = ExportJobItemStatus::kPending;
+    std::string output_path;
+    std::optional<std::string> error_reason;
+    std::optional<std::string> error_message;
+};
+
+struct ExportJob
+{
+    std::int64_t schema_version = kExportJobSchemaVersion;
+    std::string job_id;
+    std::vector<std::string> asset_ids;
+    ExportOptions options;
+    std::string output_directory;
+    std::string filename_template{"{stem}-{sequence}{ext}"};
+    std::vector<ExportJobItem> items;
 };
 
 struct ExportRequest : ExportOptions
@@ -949,6 +1011,25 @@ struct FileIdentity
 void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height,
                          std::uint32_t max_edge, std::uint32_t &output_width,
                          std::uint32_t &output_height) noexcept;
+void fit_within_box(std::uint32_t source_width, std::uint32_t source_height,
+                    std::uint32_t max_width, std::uint32_t max_height, std::uint32_t &output_width,
+                    std::uint32_t &output_height) noexcept;
+void fit_export_output_size(std::uint32_t source_width, std::uint32_t source_height,
+                            std::uint32_t max_edge, std::uint32_t max_width,
+                            std::uint32_t max_height, std::uint32_t &output_width,
+                            std::uint32_t &output_height) noexcept;
+[[nodiscard]] bool export_options_request_resize(const ExportOptions &options) noexcept;
+[[nodiscard]] bool export_options_request_output_sharpen(const ExportOptions &options) noexcept;
+[[nodiscard]] Result<void>
+validate_export_output_sharpen_options(const ExportOutputSharpenOptions &options);
+[[nodiscard]] Result<void> validate_export_options(const ExportOptions &options);
+[[nodiscard]] Result<ExportPreset> parse_export_preset_json(std::string_view text);
+[[nodiscard]] Result<std::string> serialize_export_preset(const ExportPreset &preset);
+[[nodiscard]] Result<ExportOptions> apply_export_preset(const ExportPreset &preset);
+[[nodiscard]] Result<ExportJob> parse_export_job_json(std::string_view text);
+[[nodiscard]] Result<std::string> serialize_export_job(const ExportJob &job);
+[[nodiscard]] std::string_view export_job_item_status_name(ExportJobItemStatus status) noexcept;
+[[nodiscard]] Result<ExportJobItemStatus> parse_export_job_item_status(std::string_view name);
 [[nodiscard]] Result<void> validate_rating(int rating);
 [[nodiscard]] Result<void> validate_catalog_backup_policy(const CatalogBackupPolicy &policy);
 [[nodiscard]] std::string_view color_label_name(ColorLabel label) noexcept;

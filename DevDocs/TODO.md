@@ -185,23 +185,16 @@ identity/default behavior.
 
 ## PRO-EXPORT — Repeatable delivery jobs
 
-**Status:** P1 / Ready — ADR-0117 accepted (box fit, post-resize output sharpen,
-reusable ExportOptions presets, restartable batch jobs). Long-edge remains
-ADR-0113. Watermark and colour-conversion frame stay undecided.
+**Status:** P1 / Partial — ADR-0117 box fit, post-resize output sharpen,
+reusable ExportOptions presets, and restartable batch jobs are implemented.
+Long-edge remains ADR-0113. Watermark and colour-conversion frame stay
+undecided.
 
 **Outcome:** box resize, output sharpening, reusable export presets, and
 restartable background batch delivery.
 
 **Remaining unfinished work:**
-- Implement `ExportOptions` box limits and tighter-of-long-edge/box fit in
-  CatalogService; reject on original copy.
-- Implement optional post-resize output sharpen before encode; keep Develop
-  Sharpen recipe fields untouched.
-- Implement versioned export-preset load/save/apply for the typed options
-  snapshot (no paths/assets/templates).
-- Implement durable restartable batch job records that resume unfinished items
-  under ADR-0068 no-replace semantics.
-- Add CLI/Studio controls and focused tests for each tranche above.
+- Watermark and colour-conversion/frame overlays remain undecided.
 
 **Risks:** resizing in QML, a second encoder/job owner, overwrite/skip guessing,
 recipe mutation, and ambiguous partial delivery after restart.

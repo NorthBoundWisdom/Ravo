@@ -3,6 +3,7 @@ add_library(ravo_domain STATIC)
 target_sources(ravo_domain
   PRIVATE
     src/capture.cpp
+    src/export_preset_job.cpp
     src/library_types.cpp
     src/types.cpp
     src/uri.cpp)

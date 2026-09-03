@@ -268,6 +268,14 @@ public:
     [[nodiscard]] Result<std::vector<ExportResult>> export_assets(
         const ExportBatchRequest &request,
         const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress = {});
+    [[nodiscard]] Result<ExportJob> create_export_job(const ExportBatchRequest &request,
+                                                      std::string job_id);
+    [[nodiscard]] Result<ExportJob> run_export_job(
+        ExportJob job,
+        const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress = {});
+    [[nodiscard]] Result<ExportJob> resume_export_job(
+        ExportJob job,
+        const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress = {});
     Result<void> close();
 
 private:
@@ -335,7 +343,7 @@ private:
                           const CancellationToken &cancellation, PreviewLane lane);
     [[nodiscard]] Result<RenderedExportImage>
     render_for_export(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
-                      std::uint32_t max_edge, const CancellationToken &cancellation,
+                      const ExportOptions &options, const CancellationToken &cancellation,
                       RenderSampleKind sample_kind);
 
     const EngineFacade *engine_ = nullptr;

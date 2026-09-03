@@ -129,6 +129,7 @@ add_executable(ravo_catalog_tests
   catalog_develop_batch_test.cpp
   catalog_capture_test.cpp
   catalog_import_test.cpp
+  export_pro_export_test.cpp
   jpeg_adapter_test.cpp
   runtime_dependency_test.cpp)
 target_link_libraries(ravo_catalog_tests

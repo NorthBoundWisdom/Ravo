@@ -10,6 +10,8 @@ target_sources(ravo_services
     src/catalog_internal.cpp
     src/catalog_import.cpp
     src/encoded_publication.cpp
+    src/export_jobs.cpp
+    src/export_output_sharpen.cpp
     src/original_copy.cpp
     src/catalog_service.cpp
     src/catalog_develop_batch.cpp

@@ -119,6 +119,38 @@ namespace
     }
 }
 
+[[nodiscard]] Result<double> exact_double(const QVariant &value, const std::string_view key,
+                                          const std::string_view format,
+                                          const std::string_view reason)
+{
+    const auto fail = [&](const char *detail)
+    {
+        return Result<double>{conversion_error(detail, {{"field", std::string(key)},
+                                                        {"format", std::string(format)},
+                                                        {"reason", std::string(reason)}})};
+    };
+    switch (value.metaType().id())
+    {
+    case QMetaType::Bool:
+        return fail(QT_TRANSLATE_NOOP("StudioExport", "Export option must be a number"));
+    case QMetaType::Int:
+    case QMetaType::UInt:
+    case QMetaType::LongLong:
+    case QMetaType::ULongLong:
+    case QMetaType::Double:
+    case QMetaType::Float:
+    {
+        const double number = value.toDouble();
+        if (!std::isfinite(number))
+            return fail(QT_TRANSLATE_NOOP("StudioExport", "Export option must be a finite number"));
+        return number;
+    }
+    default:
+        return fail(
+            QT_TRANSLATE_NOOP("StudioExport", "Export option has an unsupported value type"));
+    }
+}
+
 [[nodiscard]] Result<bool> exact_bool(const QVariant &value, const std::string_view key)
 {
     if (value.metaType().id() != QMetaType::Bool)
@@ -297,6 +329,28 @@ QVariantMap studio_export_default_options()
     options.insert(QString::fromUtf8(kStudioExportOptionMaxEdge.data(),
                                      static_cast<qsizetype>(kStudioExportOptionMaxEdge.size())),
                    0);
+    options.insert(QString::fromUtf8(kStudioExportOptionMaxWidth.data(),
+                                     static_cast<qsizetype>(kStudioExportOptionMaxWidth.size())),
+                   0);
+    options.insert(QString::fromUtf8(kStudioExportOptionMaxHeight.data(),
+                                     static_cast<qsizetype>(kStudioExportOptionMaxHeight.size())),
+                   0);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionOutputSharpenEnabled.data(),
+                          static_cast<qsizetype>(kStudioExportOptionOutputSharpenEnabled.size())),
+        false);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionOutputSharpenAmount.data(),
+                          static_cast<qsizetype>(kStudioExportOptionOutputSharpenAmount.size())),
+        0.5);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionOutputSharpenRadius.data(),
+                          static_cast<qsizetype>(kStudioExportOptionOutputSharpenRadius.size())),
+        0.5);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionOutputSharpenThreshold.data(),
+                          static_cast<qsizetype>(kStudioExportOptionOutputSharpenThreshold.size())),
+        0.0);
     return options;
 }
 
@@ -313,6 +367,16 @@ QVariantMap studio_export_option_bounds()
     bounds.insert(QStringLiteral("tiffResolutionDpiMax"), kTiffResolutionDpiMax);
     bounds.insert(QStringLiteral("maxEdgeMin"), static_cast<int>(kExportMaxEdgeMin));
     bounds.insert(QStringLiteral("maxEdgeMax"), static_cast<int>(kExportMaxEdgeMax));
+    bounds.insert(QStringLiteral("maxWidthMin"), static_cast<int>(kExportBoxLimitMin));
+    bounds.insert(QStringLiteral("maxWidthMax"), static_cast<int>(kExportBoxLimitMax));
+    bounds.insert(QStringLiteral("maxHeightMin"), static_cast<int>(kExportBoxLimitMin));
+    bounds.insert(QStringLiteral("maxHeightMax"), static_cast<int>(kExportBoxLimitMax));
+    bounds.insert(QStringLiteral("outputSharpenAmountMin"), kExportOutputSharpenAmountMin);
+    bounds.insert(QStringLiteral("outputSharpenAmountMax"), kExportOutputSharpenAmountMax);
+    bounds.insert(QStringLiteral("outputSharpenRadiusMin"), kExportOutputSharpenRadiusMin);
+    bounds.insert(QStringLiteral("outputSharpenRadiusMax"), kExportOutputSharpenRadiusMax);
+    bounds.insert(QStringLiteral("outputSharpenThresholdMin"), kExportOutputSharpenThresholdMin);
+    bounds.insert(QStringLiteral("outputSharpenThresholdMax"), kExportOutputSharpenThresholdMax);
     return bounds;
 }
 
@@ -351,10 +415,14 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     {
     case ExportFormat::kJpeg:
     {
-        auto keys = require_keys(input,
-                                 {kStudioExportOptionQuality, kStudioExportOptionJpegSubsampling,
-                                  kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge},
-                                 "jpeg");
+        auto keys = require_keys(
+            input,
+            {kStudioExportOptionQuality, kStudioExportOptionJpegSubsampling,
+             kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge,
+             kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
+             kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
+             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold},
+            "jpeg");
         if (!keys)
         {
             return keys.error();
@@ -388,10 +456,14 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     }
     case ExportFormat::kPng:
     {
-        auto keys = require_keys(input,
-                                 {kStudioExportOptionPngBitDepth, kStudioExportOptionPngCompression,
-                                  kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge},
-                                 "png");
+        auto keys = require_keys(
+            input,
+            {kStudioExportOptionPngBitDepth, kStudioExportOptionPngCompression,
+             kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge,
+             kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
+             kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
+             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold},
+            "png");
         if (!keys)
         {
             return keys.error();
@@ -430,7 +502,9 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
             {kStudioExportOptionTiffSampleType, kStudioExportOptionTiffCompression,
              kStudioExportOptionTiffCompressionLevel, kStudioExportOptionTiffGrayscaleIfNeutral,
              kStudioExportOptionTiffResolutionDpi, kStudioExportOptionMetadataMode,
-             kStudioExportOptionMaxEdge},
+             kStudioExportOptionMaxEdge, kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
+             kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
+             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold},
             "tiff");
         if (!keys)
         {
@@ -511,9 +585,9 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
         if (!parsed)
             return parsed.error();
         selection.metadata_mode = parsed.value();
-        auto max_edge =
-            exact_integer(input.value(QStringLiteral("maxEdge")), kStudioExportOptionMaxEdge,
-                          export_format_name(selection.format), "studio_export_invalid_option_type");
+        auto max_edge = exact_integer(
+            input.value(QStringLiteral("maxEdge")), kStudioExportOptionMaxEdge,
+            export_format_name(selection.format), "studio_export_invalid_option_type");
         if (!max_edge)
             return max_edge.error();
         if (max_edge.value() < static_cast<int>(kExportMaxEdgeMin) ||
@@ -526,6 +600,67 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
                  {"reason", "studio_export_invalid_max_edge"}});
         }
         selection.max_edge = static_cast<std::uint32_t>(max_edge.value());
+        auto max_width = exact_integer(
+            input.value(QStringLiteral("maxWidth")), kStudioExportOptionMaxWidth,
+            export_format_name(selection.format), "studio_export_invalid_option_type");
+        if (!max_width)
+            return max_width.error();
+        if (max_width.value() < static_cast<int>(kExportBoxLimitMin) ||
+            max_width.value() > static_cast<int>(kExportBoxLimitMax))
+        {
+            return conversion_error(
+                QT_TRANSLATE_NOOP("StudioExport", "Max width must be between 0 and 65535"),
+                {{"field", std::string(kStudioExportOptionMaxWidth)},
+                 {"format", std::string(export_format_name(selection.format))},
+                 {"reason", "studio_export_invalid_max_width"}});
+        }
+        selection.max_width = static_cast<std::uint32_t>(max_width.value());
+        auto max_height = exact_integer(
+            input.value(QStringLiteral("maxHeight")), kStudioExportOptionMaxHeight,
+            export_format_name(selection.format), "studio_export_invalid_option_type");
+        if (!max_height)
+            return max_height.error();
+        if (max_height.value() < static_cast<int>(kExportBoxLimitMin) ||
+            max_height.value() > static_cast<int>(kExportBoxLimitMax))
+        {
+            return conversion_error(
+                QT_TRANSLATE_NOOP("StudioExport", "Max height must be between 0 and 65535"),
+                {{"field", std::string(kStudioExportOptionMaxHeight)},
+                 {"format", std::string(export_format_name(selection.format))},
+                 {"reason", "studio_export_invalid_max_height"}});
+        }
+        selection.max_height = static_cast<std::uint32_t>(max_height.value());
+
+        const QVariant enabled_value = input.value(QStringLiteral("outputSharpenEnabled"));
+        if (!enabled_value.isValid() || enabled_value.userType() != QMetaType::Bool)
+        {
+            return conversion_error(
+                QT_TRANSLATE_NOOP("StudioExport", "Output sharpen enabled must be a boolean"),
+                {{"field", std::string(kStudioExportOptionOutputSharpenEnabled)},
+                 {"format", std::string(export_format_name(selection.format))},
+                 {"reason", "studio_export_invalid_option_type"}});
+        }
+        selection.output_sharpen.enabled = enabled_value.toBool();
+        auto amount =
+            exact_double(input.value(QStringLiteral("outputSharpenAmount")),
+                         kStudioExportOptionOutputSharpenAmount,
+                         export_format_name(selection.format), "studio_export_invalid_option_type");
+        auto radius =
+            exact_double(input.value(QStringLiteral("outputSharpenRadius")),
+                         kStudioExportOptionOutputSharpenRadius,
+                         export_format_name(selection.format), "studio_export_invalid_option_type");
+        auto threshold =
+            exact_double(input.value(QStringLiteral("outputSharpenThreshold")),
+                         kStudioExportOptionOutputSharpenThreshold,
+                         export_format_name(selection.format), "studio_export_invalid_option_type");
+        if (!amount || !radius || !threshold)
+            return !amount ? amount.error() : !radius ? radius.error() : threshold.error();
+        selection.output_sharpen.amount = amount.value();
+        selection.output_sharpen.radius = radius.value();
+        selection.output_sharpen.threshold = threshold.value();
+        auto sharpen_valid = validate_export_output_sharpen_options(selection.output_sharpen);
+        if (!sharpen_valid)
+            return sharpen_valid.error();
     }
     if (input != options)
     {
@@ -625,6 +760,9 @@ Result<ExportOptions> make_studio_export_options(const QString &format_name,
     result.tiff_options = selection.value().tiff_options;
     result.metadata_mode = selection.value().metadata_mode;
     result.max_edge = selection.value().max_edge;
+    result.max_width = selection.value().max_width;
+    result.max_height = selection.value().max_height;
+    result.output_sharpen = selection.value().output_sharpen;
     return result;
 }
 

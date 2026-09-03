@@ -41,6 +41,15 @@ struct CatalogCliArguments
     std::optional<double> saturation;
     std::optional<double> contrast;
     std::optional<std::uint32_t> max_edge;
+    std::optional<std::uint32_t> max_width;
+    std::optional<std::uint32_t> max_height;
+    bool output_sharpen = false;
+    std::string_view sharpen_amount;
+    std::string_view sharpen_radius;
+    std::string_view sharpen_threshold;
+    std::string_view export_preset;
+    std::string_view export_job;
+    std::string_view job_id;
     std::vector<std::pair<std::string, double>> develop_sets;
     std::vector<std::pair<std::string, std::string>> develop_text_sets;
     std::optional<std::pair<double, double>> pick_white;

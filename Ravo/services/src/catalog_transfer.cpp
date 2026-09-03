@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "catalog_internal.h"
+#include "export_output_sharpen.h"
 #include "catalog_service_internal.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
@@ -263,8 +264,8 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         browse.cancellation = cancellation;
         Result<PreviewResult> result = make_error(ErrorCode::kIo, "Preview was not generated");
         if (jpeg_companion)
-            result = persist_companion_jpeg_browse_preview(asset, *jpeg_companion, kThumbnailMaxEdge,
-                                                          cancellation);
+            result = persist_companion_jpeg_browse_preview(asset, *jpeg_companion,
+                                                           kThumbnailMaxEdge, cancellation);
         if (!result && embedded_preview)
             result = persist_embedded_browse_preview(asset, *embedded_preview, kThumbnailMaxEdge,
                                                      cancellation);
@@ -446,27 +447,7 @@ Result<std::vector<ExportResult>> CatalogService::export_assets(
     {
         return make_error(ErrorCode::kInvalidArgument, "Export batch requires an output directory");
     }
-    Result<void> valid_options;
-    switch (request.options.format)
-    {
-    case ExportFormat::kJpeg:
-        valid_options = validate_jpeg_export_options(request.options.jpeg_options);
-        break;
-    case ExportFormat::kPng:
-        valid_options = validate_png_export_options(request.options.png_options);
-        break;
-    case ExportFormat::kTiff:
-        valid_options = validate_tiff_export_options(request.options.tiff_options);
-        break;
-    case ExportFormat::kOriginalCopy:
-        if (request.options.metadata_mode != ExportMetadataMode::kFull)
-        {
-            return make_error(ErrorCode::kValidation,
-                              "Metadata privacy mode does not apply to original copy",
-                              {{"format", "original"}, {"reason", "metadata_mode_not_applicable"}});
-        }
-        break;
-    }
+    auto valid_options = validate_export_options(request.options);
     if (!valid_options)
         return valid_options.error();
 
@@ -646,36 +627,12 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     {
         return make_error(ErrorCode::kInvalidArgument, "Export requires an output path");
     }
-    if (request.format == ExportFormat::kJpeg)
     {
-        auto options = validate_jpeg_export_options(request.jpeg_options);
+        auto options = validate_export_options(static_cast<const ExportOptions &>(request));
         if (!options)
         {
             return options.error();
         }
-    }
-    if (request.format == ExportFormat::kPng)
-    {
-        auto options = validate_png_export_options(request.png_options);
-        if (!options)
-        {
-            return options.error();
-        }
-    }
-    if (request.format == ExportFormat::kTiff)
-    {
-        auto options = validate_tiff_export_options(request.tiff_options);
-        if (!options)
-        {
-            return options.error();
-        }
-    }
-    if (request.format == ExportFormat::kOriginalCopy &&
-        request.metadata_mode != ExportMetadataMode::kFull)
-    {
-        return make_error(ErrorCode::kValidation,
-                          "Metadata privacy mode does not apply to original copy",
-                          {{"format", "original"}, {"reason", "metadata_mode_not_applicable"}});
     }
     auto output = normalize_local_input(request.output_path);
     if (!output)
@@ -812,10 +769,19 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         return RenderSampleKind::kRgb8;
     }();
     auto rendered = render_for_export(*asset.value(), location.value().path, edit_recipe,
-                                      request.max_edge, request.cancellation, sample_kind);
+                                      static_cast<const ExportOptions &>(request),
+                                      request.cancellation, sample_kind);
     if (!rendered)
     {
         return rendered.error();
+    }
+    if (export_options_request_output_sharpen(request))
+    {
+        auto sharpened = apply_export_output_sharpen(std::move(rendered).value(),
+                                                     request.output_sharpen, request.cancellation);
+        if (!sharpened)
+            return sharpened.error();
+        rendered = std::move(sharpened);
     }
     ExportPixelBuffer pixels;
     pixels.width = rendered.value().width;

@@ -22,6 +22,12 @@ namespace
     options.insert(QStringLiteral("jpegSubsampling"), subsampling);
     options.insert(QStringLiteral("metadataMode"), metadata);
     options.insert(QStringLiteral("maxEdge"), max_edge);
+    options.insert(QStringLiteral("maxWidth"), 0);
+    options.insert(QStringLiteral("maxHeight"), 0);
+    options.insert(QStringLiteral("outputSharpenEnabled"), false);
+    options.insert(QStringLiteral("outputSharpenAmount"), 0.5);
+    options.insert(QStringLiteral("outputSharpenRadius"), 0.5);
+    options.insert(QStringLiteral("outputSharpenThreshold"), 0.0);
     return options;
 }
 
@@ -34,6 +40,12 @@ namespace
     options.insert(QStringLiteral("pngCompression"), compression);
     options.insert(QStringLiteral("metadataMode"), metadata);
     options.insert(QStringLiteral("maxEdge"), max_edge);
+    options.insert(QStringLiteral("maxWidth"), 0);
+    options.insert(QStringLiteral("maxHeight"), 0);
+    options.insert(QStringLiteral("outputSharpenEnabled"), false);
+    options.insert(QStringLiteral("outputSharpenAmount"), 0.5);
+    options.insert(QStringLiteral("outputSharpenRadius"), 0.5);
+    options.insert(QStringLiteral("outputSharpenThreshold"), 0.0);
     return options;
 }
 
@@ -50,6 +62,12 @@ namespace
     options.insert(QStringLiteral("tiffResolutionDpi"), dpi);
     options.insert(QStringLiteral("metadataMode"), metadata);
     options.insert(QStringLiteral("maxEdge"), max_edge);
+    options.insert(QStringLiteral("maxWidth"), 0);
+    options.insert(QStringLiteral("maxHeight"), 0);
+    options.insert(QStringLiteral("outputSharpenEnabled"), false);
+    options.insert(QStringLiteral("outputSharpenAmount"), 0.5);
+    options.insert(QStringLiteral("outputSharpenRadius"), 0.5);
+    options.insert(QStringLiteral("outputSharpenThreshold"), 0.0);
     return options;
 }
 
@@ -75,6 +93,12 @@ TEST(ExportOptionConversion, DefaultsMatchDomainDefaults)
     EXPECT_EQ(jpeg.value().metadata_mode, ExportMetadataMode::kFull);
     EXPECT_EQ(jpeg.value().max_edge, 0U);
     EXPECT_EQ(defaults.value(QStringLiteral("maxEdge")).toInt(), 0);
+    EXPECT_EQ(defaults.value(QStringLiteral("maxWidth")).toInt(), 0);
+    EXPECT_EQ(defaults.value(QStringLiteral("maxHeight")).toInt(), 0);
+    EXPECT_FALSE(defaults.value(QStringLiteral("outputSharpenEnabled")).toBool());
+    EXPECT_EQ(jpeg.value().max_width, 0U);
+    EXPECT_EQ(jpeg.value().max_height, 0U);
+    EXPECT_FALSE(jpeg.value().output_sharpen.enabled);
 
     auto png = studio_export_options_from_presentation(
         QStringLiteral("png"),
@@ -375,7 +399,8 @@ TEST(ExportOptionConversion, RequestHelperCopiesTypedSnapshot)
     EXPECT_EQ(batch_options.value().max_edge, 0U);
 
     auto sized = make_studio_export_options(
-        QStringLiteral("jpeg"), jpeg_options(90, QStringLiteral("auto"), QStringLiteral("full"), 2048));
+        QStringLiteral("jpeg"),
+        jpeg_options(90, QStringLiteral("auto"), QStringLiteral("full"), 2048));
     ASSERT_TRUE(sized) << sized.error().message;
     EXPECT_EQ(sized.value().max_edge, 2048U);
 
@@ -388,6 +413,25 @@ TEST(ExportOptionConversion, RequestHelperCopiesTypedSnapshot)
         QStringLiteral("original"), QVariantMap{{QStringLiteral("maxEdge"), 1024}});
     ASSERT_FALSE(original_resize);
     expect_reason(original_resize.error(), "studio_export_unknown_option");
+}
+
+TEST(ExportOptionConversion, AcceptsBoxAndOutputSharpen)
+{
+    auto options = jpeg_options(90, QStringLiteral("auto"));
+    options.insert(QStringLiteral("maxWidth"), 1280);
+    options.insert(QStringLiteral("maxHeight"), 720);
+    options.insert(QStringLiteral("outputSharpenEnabled"), true);
+    options.insert(QStringLiteral("outputSharpenAmount"), 0.8);
+    options.insert(QStringLiteral("outputSharpenRadius"), 0.7);
+    options.insert(QStringLiteral("outputSharpenThreshold"), 1.5);
+    auto parsed = studio_export_options_from_presentation(QStringLiteral("jpeg"), options);
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_EQ(parsed.value().max_width, 1280U);
+    EXPECT_EQ(parsed.value().max_height, 720U);
+    EXPECT_TRUE(parsed.value().output_sharpen.enabled);
+    EXPECT_DOUBLE_EQ(parsed.value().output_sharpen.amount, 0.8);
+    EXPECT_DOUBLE_EQ(parsed.value().output_sharpen.radius, 0.7);
+    EXPECT_DOUBLE_EQ(parsed.value().output_sharpen.threshold, 1.5);
 }
 
 TEST(ExportOptionConversion, PresentationCatalogExposesCanonicalIds)
@@ -405,8 +449,10 @@ TEST(ExportOptionConversion, PresentationCatalogExposesCanonicalIds)
     EXPECT_EQ(bounds.value(QStringLiteral("jpegQualityMax")).toInt(), kJpegQualityMax);
     EXPECT_EQ(bounds.value(QStringLiteral("tiffResolutionDpiMin")).toInt(), kTiffResolutionDpiMin);
     EXPECT_EQ(bounds.value(QStringLiteral("tiffResolutionDpiMax")).toInt(), kTiffResolutionDpiMax);
-    EXPECT_EQ(bounds.value(QStringLiteral("maxEdgeMin")).toInt(), static_cast<int>(kExportMaxEdgeMin));
-    EXPECT_EQ(bounds.value(QStringLiteral("maxEdgeMax")).toInt(), static_cast<int>(kExportMaxEdgeMax));
+    EXPECT_EQ(bounds.value(QStringLiteral("maxEdgeMin")).toInt(),
+              static_cast<int>(kExportMaxEdgeMin));
+    EXPECT_EQ(bounds.value(QStringLiteral("maxEdgeMax")).toInt(),
+              static_cast<int>(kExportMaxEdgeMax));
 }
 
 } // namespace

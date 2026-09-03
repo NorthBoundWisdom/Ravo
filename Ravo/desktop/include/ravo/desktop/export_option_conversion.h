@@ -25,6 +25,13 @@ inline constexpr std::string_view kStudioExportOptionTiffGrayscaleIfNeutral =
 inline constexpr std::string_view kStudioExportOptionTiffResolutionDpi = "tiffResolutionDpi";
 inline constexpr std::string_view kStudioExportOptionMetadataMode = "metadataMode";
 inline constexpr std::string_view kStudioExportOptionMaxEdge = "maxEdge";
+inline constexpr std::string_view kStudioExportOptionMaxWidth = "maxWidth";
+inline constexpr std::string_view kStudioExportOptionMaxHeight = "maxHeight";
+inline constexpr std::string_view kStudioExportOptionOutputSharpenEnabled = "outputSharpenEnabled";
+inline constexpr std::string_view kStudioExportOptionOutputSharpenAmount = "outputSharpenAmount";
+inline constexpr std::string_view kStudioExportOptionOutputSharpenRadius = "outputSharpenRadius";
+inline constexpr std::string_view kStudioExportOptionOutputSharpenThreshold =
+    "outputSharpenThreshold";
 
 struct StudioExportSelection
 {
@@ -34,6 +41,9 @@ struct StudioExportSelection
     TiffExportOptions tiff_options;
     ExportMetadataMode metadata_mode = ExportMetadataMode::kFull;
     std::uint32_t max_edge = 0;
+    std::uint32_t max_width = 0;
+    std::uint32_t max_height = 0;
+    ExportOutputSharpenOptions output_sharpen;
 };
 
 [[nodiscard]] Result<StudioExportSelection>
