@@ -348,6 +348,73 @@ TEST_F(CatalogServiceTest, LibraryQueryFiltersMediaTextAndEditStateThroughServic
     EXPECT_EQ(listed.value().front().id, jpeg.value().asset->id);
 }
 
+TEST_F(CatalogServiceTest, CaptureFacetsEnumerateAndFilterThroughService)
+{
+    auto repository = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    for (int index = 0; index < 6; ++index)
+    {
+        AssetRecord asset;
+        asset.id = "ast_facet_" + std::to_string(index);
+        asset.normalized_uri = "file:///library/facet/photo-" + std::to_string(index) + ".jpg";
+        asset.media_type = std::string(kMediaTypeJpeg);
+        asset.size_bytes = 1000U + static_cast<std::uint64_t>(index);
+        asset.mtime_unix_ms = 10'000 + index;
+        asset.width = 100;
+        asset.height = 80;
+        asset.created_unix_ms = 20'000 + index;
+        if (index < 4)
+        {
+            asset.capture.camera_make = index < 2 ? "RavoCam" : "OtherCam";
+            asset.capture.camera_model = index % 2 == 0 ? "Alpha" : "Beta";
+            asset.capture.focal_length_mm = index < 2 ? 35.0 : 85.0;
+            CaptureDateTime when;
+            when.local_exif = (index < 3 ? "2024:05:01" : "2024:05:02") + std::string(" 12:00:00");
+            asset.capture.captured_datetime = when;
+            asset.capture.captured_unix_s = 1'700'000'000 + index;
+        }
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+    }
+    repository.value().reset();
+
+    auto service_opened = open_service(false);
+    ASSERT_TRUE(service_opened) << service_opened.error().message;
+
+    auto facets = service->list_capture_facets();
+    ASSERT_TRUE(facets) << facets.error().message;
+    EXPECT_FALSE(facets.value().truncated);
+    ASSERT_EQ(facets.value().cameras.size(), 4U);
+    EXPECT_EQ(facets.value().cameras[0].camera_make, "OtherCam");
+    EXPECT_EQ(facets.value().lenses.size(), 2U);
+    ASSERT_EQ(facets.value().capture_dates.size(), 2U);
+    EXPECT_EQ(facets.value().capture_dates.front().captured_local_date, "2024:05:02");
+
+    LibraryQuery query;
+    query.camera_make_equals = "RavoCam";
+    query.camera_model_equals = "Alpha";
+    auto listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().capture.camera_model, "Alpha");
+
+    query = {};
+    query.focal_length_mm_equals = 85.0;
+    listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 2U);
+
+    query = {};
+    query.captured_local_date = "2024:05:01";
+    listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 3U);
+
+    query.camera_make_equals = "RavoCam";
+    auto invalid = service->list_assets(query);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_library_camera_facet");
+}
+
 TEST_F(CatalogServiceTest, PagedLibraryQueryMatchesDomainAndBoundsMaterialization)
 {
     auto repository = SqliteCatalogRepository::create(database_path);

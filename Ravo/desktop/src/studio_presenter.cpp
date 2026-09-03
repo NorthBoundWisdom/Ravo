@@ -556,6 +556,50 @@ QString StudioPresenter::editFilter() const
     return QStringLiteral("any");
 }
 
+QString StudioPresenter::cameraFilter() const
+{
+    if (!query_.camera_make_equals && !query_.camera_model_equals)
+        return {};
+    QString label;
+    if (query_.camera_make_equals && !query_.camera_make_equals->empty())
+        label = qstring_from_utf8(*query_.camera_make_equals);
+    if (query_.camera_model_equals && !query_.camera_model_equals->empty())
+    {
+        if (!label.isEmpty())
+            label.append(QLatin1Char(' '));
+        label.append(qstring_from_utf8(*query_.camera_model_equals));
+    }
+    return label;
+}
+
+QString StudioPresenter::cameraMakeFilter() const
+{
+    if (!query_.camera_make_equals)
+        return {};
+    return qstring_from_utf8(*query_.camera_make_equals);
+}
+
+QString StudioPresenter::cameraModelFilter() const
+{
+    if (!query_.camera_model_equals)
+        return {};
+    return qstring_from_utf8(*query_.camera_model_equals);
+}
+
+QString StudioPresenter::lensFilter() const
+{
+    if (!query_.focal_length_mm_equals)
+        return {};
+    return QString::number(*query_.focal_length_mm_equals, 'g', 15);
+}
+
+QString StudioPresenter::captureDateFilter() const
+{
+    if (!query_.captured_local_date)
+        return {};
+    return qstring_from_utf8(*query_.captured_local_date);
+}
+
 QString StudioPresenter::sortField() const
 {
     return sort_field_name(query_.sort_field);
@@ -577,7 +621,9 @@ bool StudioPresenter::filtersActive() const noexcept
     return query_.rating_mode != RatingFilterMode::kAny || !query_.color_labels.empty() ||
            query_.reject_filter != RejectFilter::kInclude || !query_.tag.empty() ||
            !query_.text.empty() || !query_.media_types.empty() ||
-           query_.edit_filter != EditFilter::kAny || !query_.camera.empty() || query_.iso.minimum ||
+           query_.edit_filter != EditFilter::kAny || !query_.camera.empty() ||
+           query_.camera_make_equals || query_.camera_model_equals ||
+           query_.focal_length_mm_equals || query_.captured_local_date || query_.iso.minimum ||
            query_.iso.maximum || query_.aperture.minimum || query_.aperture.maximum ||
            query_.focal_length_mm.minimum || query_.focal_length_mm.maximum ||
            query_.shutter_s.minimum || query_.shutter_s.maximum || query_.aspect_ratio.minimum ||

@@ -159,6 +159,29 @@ void append_library_query_predicates(const LibraryQuery &query, QStringList &pre
                            "m.camera_model LIKE ? ESCAPE '\\' COLLATE NOCASE)"),
             {pattern, pattern});
     }
+    if (query.camera_make_equals || query.camera_model_equals)
+    {
+        const auto make = query.camera_make_equals.value_or(std::string{});
+        const auto model = query.camera_model_equals.value_or(std::string{});
+        if (make.empty())
+            predicates.push_back(QStringLiteral("(m.camera_make IS NULL OR m.camera_make = '')"));
+        else
+            add(QStringLiteral("m.camera_make = ?"), {qstring_from_utf8(make)});
+        if (model.empty())
+            predicates.push_back(QStringLiteral("(m.camera_model IS NULL OR m.camera_model = '')"));
+        else
+            add(QStringLiteral("m.camera_model = ?"), {qstring_from_utf8(model)});
+    }
+    if (query.focal_length_mm_equals)
+    {
+        predicates.push_back(QStringLiteral("m.focal_length_mm = ?"));
+        bindings.push_back(*query.focal_length_mm_equals);
+    }
+    if (query.captured_local_date)
+    {
+        add(QStringLiteral("substr(m.captured_local_exif, 1, 10) = ?"),
+            {qstring_from_utf8(*query.captured_local_date)});
+    }
     const auto add_range =
         [&predicates, &bindings](const QString &column, const LibraryNumericRange &range)
     {

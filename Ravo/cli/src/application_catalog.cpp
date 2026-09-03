@@ -84,7 +84,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(
             ErrorCode::kInvalidArgument,
-            "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|develop-apply|"
+            "Usage: ravo catalog <create|import|list|facets|preview|probe|recipe|develop|develop-apply|"
             "fields|rate|"
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
@@ -210,6 +210,15 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (flags.value().stack_expanded && subcommand != "list")
         return make_error(ErrorCode::kInvalidArgument,
                           "--stack-expanded is only valid for catalog list");
+    const bool has_facet_list_options =
+        !flags.value().camera.empty() || !flags.value().camera_make.empty() ||
+        !flags.value().camera_model.empty() || !flags.value().focal_length_mm.empty() ||
+        !flags.value().captured_local_date.empty() ||
+        !flags.value().captured_after_unix_s.empty() ||
+        !flags.value().captured_before_unix_s.empty();
+    if (has_facet_list_options && subcommand != "list")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Capture facet filters are only valid for catalog list");
     const bool has_import_options =
         !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
@@ -753,6 +762,46 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"items", std::move(items)},
         }};
     }
+    if (subcommand == "facets")
+    {
+        auto listed = service.list_capture_facets();
+        if (!listed)
+            return listed.error();
+        const auto entry_json = [](const LibraryFacetEntry &entry) -> JsonValue
+        {
+            JsonValue::Object row{{"key", entry.key},
+                                  {"label", entry.label},
+                                  {"count", JsonValue::number(std::to_string(entry.count))}};
+            if (entry.camera_make)
+                row.emplace("camera_make", *entry.camera_make);
+            if (entry.camera_model)
+                row.emplace("camera_model", *entry.camera_model);
+            if (entry.focal_length_mm)
+                row.emplace("focal_length_mm",
+                            JsonValue::number(std::to_string(*entry.focal_length_mm)));
+            if (entry.captured_local_date)
+                row.emplace("captured_local_date", *entry.captured_local_date);
+            return JsonValue{std::move(row)};
+        };
+        JsonValue::Array cameras;
+        cameras.reserve(listed.value().cameras.size());
+        for (const auto &entry : listed.value().cameras)
+            cameras.push_back(entry_json(entry));
+        JsonValue::Array lenses;
+        lenses.reserve(listed.value().lenses.size());
+        for (const auto &entry : listed.value().lenses)
+            lenses.push_back(entry_json(entry));
+        JsonValue::Array dates;
+        dates.reserve(listed.value().capture_dates.size());
+        for (const auto &entry : listed.value().capture_dates)
+            dates.push_back(entry_json(entry));
+        return JsonValue{JsonValue::Object{
+            {"cameras", std::move(cameras)},
+            {"lenses", std::move(lenses)},
+            {"capture_dates", std::move(dates)},
+            {"truncated", listed.value().truncated},
+        }};
+    }
     if (subcommand == "list")
     {
         auto snapshot = service.snapshot();
@@ -772,6 +821,36 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }
         if (!flags.value().set_id.empty())
             query.collection_id = std::string(flags.value().set_id);
+        if (!flags.value().camera.empty())
+            query.camera = std::string(flags.value().camera);
+        if (!flags.value().camera_make.empty() || !flags.value().camera_model.empty())
+        {
+            query.camera_make_equals = std::string(flags.value().camera_make);
+            query.camera_model_equals = std::string(flags.value().camera_model);
+        }
+        if (!flags.value().focal_length_mm.empty())
+        {
+            auto parsed = parse_double_flag(flags.value().focal_length_mm, "--focal-length-mm");
+            if (!parsed)
+                return parsed.error();
+            query.focal_length_mm_equals = parsed.value();
+        }
+        if (!flags.value().captured_local_date.empty())
+            query.captured_local_date = std::string(flags.value().captured_local_date);
+        if (!flags.value().captured_after_unix_s.empty())
+        {
+            auto parsed = parse_int_flag(flags.value().captured_after_unix_s, "--captured-after");
+            if (!parsed)
+                return parsed.error();
+            query.captured_after_unix_s = parsed.value();
+        }
+        if (!flags.value().captured_before_unix_s.empty())
+        {
+            auto parsed = parse_int_flag(flags.value().captured_before_unix_s, "--captured-before");
+            if (!parsed)
+                return parsed.error();
+            query.captured_before_unix_s = parsed.value();
+        }
         auto listed = service.list_assets(query, !flags.value().stack_expanded);
         if (!listed)
         {

@@ -90,6 +90,11 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString filterText READ filterText NOTIFY filterChanged)
     Q_PROPERTY(QString mediaFilter READ mediaFilter NOTIFY filterChanged)
     Q_PROPERTY(QString editFilter READ editFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString cameraFilter READ cameraFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString cameraMakeFilter READ cameraMakeFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString cameraModelFilter READ cameraModelFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString lensFilter READ lensFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString captureDateFilter READ captureDateFilter NOTIFY filterChanged)
     Q_PROPERTY(QString sortField READ sortField NOTIFY filterChanged)
     Q_PROPERTY(QString sortDirection READ sortDirection NOTIFY filterChanged)
     Q_PROPERTY(int visibleCount READ visibleCount NOTIFY filterChanged)
@@ -396,6 +401,11 @@ public:
     [[nodiscard]] QString filterText() const;
     [[nodiscard]] QString mediaFilter() const;
     [[nodiscard]] QString editFilter() const;
+    [[nodiscard]] QString cameraFilter() const;
+    [[nodiscard]] QString cameraMakeFilter() const;
+    [[nodiscard]] QString cameraModelFilter() const;
+    [[nodiscard]] QString lensFilter() const;
+    [[nodiscard]] QString captureDateFilter() const;
     [[nodiscard]] QString sortField() const;
     [[nodiscard]] QString sortDirection() const;
     [[nodiscard]] int visibleCount() const;
@@ -722,6 +732,9 @@ public:
     Q_INVOKABLE void setFilterText(const QString &text);
     Q_INVOKABLE void setMediaFilter(const QString &mode);
     Q_INVOKABLE void setEditFilter(const QString &mode);
+    Q_INVOKABLE void setCameraFacetFilter(const QString &make, const QString &model);
+    Q_INVOKABLE void setLensFacetFilter(const QString &focal_mm);
+    Q_INVOKABLE void setCaptureDateFacetFilter(const QString &local_date);
     Q_INVOKABLE void setSort(const QString &field, const QString &direction);
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);

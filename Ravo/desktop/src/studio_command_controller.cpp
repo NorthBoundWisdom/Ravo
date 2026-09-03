@@ -773,6 +773,47 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &argument, const QString &)
         { presenter_.setEditFilter(argument.toString()); });
     add(
+        command::kLibrarySetCameraFilter, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            const auto error =
+                required_fields(argument, {QStringLiteral("make"), QStringLiteral("model")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap();
+            return fields.value(QStringLiteral("make")).metaType().id() == QMetaType::QString &&
+                           fields.value(QStringLiteral("model")).metaType().id() ==
+                               QMetaType::QString ?
+                       QString{} :
+                       QStringLiteral("Camera facet make and model must be strings.");
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.setCameraFacetFilter(fields.value(QStringLiteral("make")).toString(),
+                                            fields.value(QStringLiteral("model")).toString());
+        });
+    add(
+        command::kLibrarySetLensFilter, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            return argument.metaType().id() == QMetaType::QString ?
+                       QString{} :
+                       QStringLiteral("Lens facet must be a string focal length.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setLensFacetFilter(argument.toString()); });
+    add(
+        command::kLibrarySetCaptureDateFilter, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            return argument.metaType().id() == QMetaType::QString ?
+                       QString{} :
+                       QStringLiteral("Capture-date facet must be a YYYY:MM:DD string.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setCaptureDateFacetFilter(argument.toString()); });
+    add(
         command::kLibrarySetSort, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {

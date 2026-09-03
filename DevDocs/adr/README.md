@@ -135,3 +135,4 @@ supersession relationship when direction changes.
 | [0125](0125-ptp-mtp-ingest-transport.md) | Accepted | Ingest transport URI + disconnect/cancel; filesystem-card first adapter (PTP USB residual) |
 | [0126](0126-catalog-owned-location-fields.md) | Accepted | Catalog-owned IPTC location quartet (country/province_state/city/sublocation), schema v13, export no-location strips GPS+labels |
 | [0127](0127-export-delivery-text-watermark.md) | Accepted | Export delivery text watermark reuses ADR-0071 via ExportOptions; no recipe mutation; colour-frame residual |
+| [0128](0128-capture-metadata-library-facets.md) | Accepted | Camera/lens(focal)/capture-date facets over existing capture metadata; exact LibraryQuery selectors; bounded enumeration |

@@ -232,6 +232,7 @@ public:
     set_tags_selection(const std::vector<std::string> &asset_ids,
                        const std::vector<std::string> &tags,
                        std::optional<std::int64_t> expected_revision = std::nullopt);
+    [[nodiscard]] Result<LibraryCaptureFacets> list_capture_facets() const;
     [[nodiscard]] Result<std::vector<KeywordRecord>> list_keywords() const;
     [[nodiscard]] Result<KeywordMutation>
     create_keyword(std::string_view name, std::optional<std::string_view> parent_id = std::nullopt,

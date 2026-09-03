@@ -110,6 +110,7 @@ public:
                   std::optional<std::int64_t> coalesce_history_id) override;
     [[nodiscard]] Result<void> replace_asset_tags(std::string_view asset_id,
                                                   const std::vector<std::string> &tags) override;
+    [[nodiscard]] Result<LibraryCaptureFacets> list_capture_facets() const override;
     [[nodiscard]] Result<std::vector<KeywordRecord>> list_keywords() const override;
     [[nodiscard]] Result<std::optional<KeywordRecord>>
     find_keyword_by_id(std::string_view keyword_id) const override;

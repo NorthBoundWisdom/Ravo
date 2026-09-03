@@ -84,6 +84,18 @@ Item {
     function setEditFilter(value) {
         root.run(root.ids.librarySetEditFilter, value);
     }
+    function setCameraFacetFilter(make, model) {
+        root.run(root.ids.librarySetCameraFilter, {
+            "make": make === undefined ? "" : make,
+            "model": model === undefined ? "" : model
+        });
+    }
+    function setLensFacetFilter(value) {
+        root.run(root.ids.librarySetLensFilter, value === undefined ? "" : value);
+    }
+    function setCaptureDateFacetFilter(value) {
+        root.run(root.ids.librarySetCaptureDateFilter, value === undefined ? "" : value);
+    }
     function previewDevelopNumber(name, value) {
         root.run(root.ids.editSetNumber, {
             "name": name,

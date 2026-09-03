@@ -35,6 +35,15 @@ CatalogService::set_tags_selection(const std::vector<std::string> &asset_ids,
     return mutated;
 }
 
+Result<LibraryCaptureFacets> CatalogService::list_capture_facets() const
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    return repository_->list_capture_facets();
+}
+
 Result<std::vector<KeywordRecord>> CatalogService::list_keywords() const
 {
     if (repository_ == nullptr)

@@ -81,6 +81,13 @@ struct CatalogCliArguments
     std::string_view png_bit_depth;
     std::string_view png_compression;
     std::string_view tag;
+    std::string_view camera;
+    std::string_view camera_make;
+    std::string_view camera_model;
+    std::string_view focal_length_mm;
+    std::string_view captured_local_date;
+    std::string_view captured_after_unix_s;
+    std::string_view captured_before_unix_s;
     std::string_view add;
     std::string_view remove;
     std::string_view title;

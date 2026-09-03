@@ -100,7 +100,9 @@ inline constexpr std::size_t kExportFilenameTemplateMaxBytes = 512U;
 inline constexpr std::size_t kExportFilenameMaxBytes = 240U;
 inline constexpr std::size_t kLibraryPageDefaultSize = 200U;
 inline constexpr std::size_t kLibraryPageMaximumSize = 512U;
-inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 1;
+inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 2;
+inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersionMin = 1;
+inline constexpr std::size_t kLibraryFacetMaximumValues = 2048U;
 inline constexpr std::size_t kLibrarySetNameMaxLength = 128;
 inline constexpr std::size_t kLibrarySetMaximumCount = 1'000U;
 inline constexpr std::string_view kLibrarySetKindManual = "manual";
@@ -380,9 +382,37 @@ struct LibraryQuery
     std::optional<std::int64_t> imported_before_unix_ms;
     std::optional<std::int64_t> captured_after_unix_s;
     std::optional<std::int64_t> captured_before_unix_s;
+    // ADR-0128 exact facet selectors (empty string = absent capture field).
+    std::optional<std::string> camera_make_equals;
+    std::optional<std::string> camera_model_equals;
+    std::optional<double> focal_length_mm_equals;
+    std::optional<std::string> captured_local_date; // YYYY:MM:DD from captured_local_exif
     std::string collection_id;
 
     [[nodiscard]] bool operator==(const LibraryQuery &) const noexcept = default;
+};
+
+struct LibraryFacetEntry
+{
+    std::string key;
+    std::string label;
+    std::size_t count = 0U;
+    std::optional<std::string> camera_make;
+    std::optional<std::string> camera_model;
+    std::optional<double> focal_length_mm;
+    std::optional<std::string> captured_local_date;
+
+    [[nodiscard]] bool operator==(const LibraryFacetEntry &) const noexcept = default;
+};
+
+struct LibraryCaptureFacets
+{
+    std::vector<LibraryFacetEntry> cameras;
+    std::vector<LibraryFacetEntry> lenses;
+    std::vector<LibraryFacetEntry> capture_dates;
+    bool truncated = false;
+
+    [[nodiscard]] bool operator==(const LibraryCaptureFacets &) const noexcept = default;
 };
 
 struct LibraryPageRequest

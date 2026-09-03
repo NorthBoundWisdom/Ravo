@@ -137,6 +137,60 @@ Result<void> validate_library_query(const LibraryQuery &query)
         if (!valid)
             return valid.error();
     }
+    for (const auto &[value, field] :
+         std::array<std::pair<const std::optional<std::string> *, std::string_view>, 3>{
+             std::pair{&query.camera_make_equals, std::string_view{"camera_make_equals"}},
+             std::pair{&query.camera_model_equals, std::string_view{"camera_model_equals"}},
+             std::pair{&query.captured_local_date, std::string_view{"captured_local_date"}}})
+    {
+        if (!*value)
+            continue;
+        auto valid = validate_text(**value, field);
+        if (!valid)
+            return valid.error();
+    }
+    if (query.captured_local_date)
+    {
+        const auto &day = *query.captured_local_date;
+        const auto is_digit = [](char c) { return c >= '0' && c <= '9'; };
+        if (day.size() != 10U || !is_digit(day[0]) || !is_digit(day[1]) || !is_digit(day[2]) ||
+            !is_digit(day[3]) || day[4] != ':' || !is_digit(day[5]) || !is_digit(day[6]) ||
+            day[7] != ':' || !is_digit(day[8]) || !is_digit(day[9]))
+        {
+            return make_error(ErrorCode::kValidation, "Library capture-date facet is invalid",
+                              {{"field", "captured_local_date"},
+                               {"reason", "invalid_library_capture_date_facet"}});
+        }
+    }
+    if ((query.camera_make_equals.has_value() != query.camera_model_equals.has_value()))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Library camera facet requires both make and model equality selectors",
+                          {{"reason", "invalid_library_camera_facet"}});
+    }
+    if (query.focal_length_mm_equals)
+    {
+        if (!std::isfinite(*query.focal_length_mm_equals) || *query.focal_length_mm_equals <= 0.0)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Library lens facet focal length is invalid",
+                {{"field", "focal_length_mm_equals"}, {"reason", "invalid_library_lens_facet"}});
+        }
+        if (query.focal_length_mm.minimum &&
+            *query.focal_length_mm.minimum > *query.focal_length_mm_equals + 1.0e-9)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Library lens facet contradicts focal length range",
+                {{"field", "focal_length_mm_equals"}, {"reason", "invalid_library_lens_facet"}});
+        }
+        if (query.focal_length_mm.maximum &&
+            *query.focal_length_mm.maximum < *query.focal_length_mm_equals - 1.0e-9)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Library lens facet contradicts focal length range",
+                {{"field", "focal_length_mm_equals"}, {"reason", "invalid_library_lens_facet"}});
+        }
+    }
     if (!query.tag.empty())
     {
         auto normalized = normalize_tag_name(query.tag);
@@ -320,6 +374,32 @@ bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
         const bool model =
             asset.capture.camera_model && folded_contains(*asset.capture.camera_model, needle);
         if (!make && !model)
+            return false;
+    }
+    if (query.camera_make_equals || query.camera_model_equals)
+    {
+        const auto equals_absent =
+            [](const std::optional<std::string> &field, const std::string &expected)
+        { return field.value_or(std::string{}) == expected; };
+        if (query.camera_make_equals &&
+            !equals_absent(asset.capture.camera_make, *query.camera_make_equals))
+            return false;
+        if (query.camera_model_equals &&
+            !equals_absent(asset.capture.camera_model, *query.camera_model_equals))
+            return false;
+    }
+    if (query.focal_length_mm_equals)
+    {
+        if (!asset.capture.focal_length_mm ||
+            std::abs(*asset.capture.focal_length_mm - *query.focal_length_mm_equals) > 1.0e-9)
+            return false;
+    }
+    if (query.captured_local_date)
+    {
+        if (!asset.capture.captured_datetime ||
+            asset.capture.captured_datetime->local_exif.size() < 10U ||
+            asset.capture.captured_datetime->local_exif.compare(0, 10,
+                                                                *query.captured_local_date) != 0)
             return false;
     }
     if (!numeric_range_matches(asset.capture.iso, query.iso) ||
@@ -1142,6 +1222,16 @@ Result<std::string> serialize_library_query_document(const LibraryQuery &query)
         {"imported_before_unix_ms", optional_time(query.imported_before_unix_ms)},
         {"captured_after_unix_s", optional_time(query.captured_after_unix_s)},
         {"captured_before_unix_s", optional_time(query.captured_before_unix_s)},
+        {"camera_make_equals",
+         query.camera_make_equals ? JsonValue{*query.camera_make_equals} : JsonValue{nullptr}},
+        {"camera_model_equals",
+         query.camera_model_equals ? JsonValue{*query.camera_model_equals} : JsonValue{nullptr}},
+        {"focal_length_mm_equals",
+         query.focal_length_mm_equals ?
+             JsonValue::number(std::to_string(*query.focal_length_mm_equals)) :
+             JsonValue{nullptr}},
+        {"captured_local_date",
+         query.captured_local_date ? JsonValue{*query.captured_local_date} : JsonValue{nullptr}},
     }};
     return serialize_json(document);
 }
@@ -1157,7 +1247,7 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
         return make_error(ErrorCode::kValidation, "Library query document must be an object",
                           {{"reason", "invalid_library_query"}});
     }
-    static constexpr std::array<std::string_view, 22> kKeys{"schema_version",
+    static constexpr std::array<std::string_view, 26> kKeys{"schema_version",
                                                             "rating_mode",
                                                             "rating_value",
                                                             "color_labels",
@@ -1178,7 +1268,11 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
                                                             "imported_after_unix_ms",
                                                             "imported_before_unix_ms",
                                                             "captured_after_unix_s",
-                                                            "captured_before_unix_s"};
+                                                            "captured_before_unix_s",
+                                                            "camera_make_equals",
+                                                            "camera_model_equals",
+                                                            "focal_length_mm_equals",
+                                                            "captured_local_date"};
     for (const auto &[key, value] : *object)
     {
         static_cast<void>(value);
@@ -1200,11 +1294,14 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
                               json_optional_int64(*schema, "schema_version");
     if (!schema_version)
         return schema_version.error();
-    if (!schema_version.value() || *schema_version.value() != kLibraryQueryDocumentSchemaVersion)
+    if (!schema_version.value() ||
+        *schema_version.value() < kLibraryQueryDocumentSchemaVersionMin ||
+        *schema_version.value() > kLibraryQueryDocumentSchemaVersion)
     {
         return make_error(ErrorCode::kValidation, "Library query schema version is unsupported",
                           {{"reason", "unsupported_library_query_schema"}});
     }
+    const bool schema_v2 = *schema_version.value() >= 2;
     LibraryQuery query;
     auto rating_mode = required_string(parsed.value(), "rating_mode");
     if (!rating_mode)
@@ -1358,6 +1455,52 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
     if (!captured_before)
         return captured_before.error();
     query.captured_before_unix_s = captured_before.value();
+    const auto parse_optional_string =
+        [&](const std::string_view field) -> Result<std::optional<std::string>>
+    {
+        const auto *value = parsed.value().find(field);
+        if (value == nullptr)
+        {
+            if (!schema_v2)
+                return std::optional<std::string>{};
+            return make_error(ErrorCode::kValidation, "Library query field is missing",
+                              {{"field", std::string(field)}, {"reason", "invalid_library_query"}});
+        }
+        if (value->is_null())
+            return std::optional<std::string>{};
+        if (value->string_if() == nullptr)
+            return make_error(ErrorCode::kValidation,
+                              "Library query field must be a string or null",
+                              {{"field", std::string(field)}, {"reason", "invalid_library_query"}});
+        return std::optional<std::string>{*value->string_if()};
+    };
+    auto camera_make_equals = parse_optional_string("camera_make_equals");
+    if (!camera_make_equals)
+        return camera_make_equals.error();
+    query.camera_make_equals = camera_make_equals.value();
+    auto camera_model_equals = parse_optional_string("camera_model_equals");
+    if (!camera_model_equals)
+        return camera_model_equals.error();
+    query.camera_model_equals = camera_model_equals.value();
+    const auto *focal_equals = parsed.value().find("focal_length_mm_equals");
+    if (focal_equals == nullptr)
+    {
+        if (schema_v2)
+            return make_error(
+                ErrorCode::kValidation, "Library query field is missing",
+                {{"field", "focal_length_mm_equals"}, {"reason", "invalid_library_query"}});
+    }
+    else if (!focal_equals->is_null())
+    {
+        auto number = json_optional_double(*focal_equals, "focal_length_mm_equals");
+        if (!number)
+            return number.error();
+        query.focal_length_mm_equals = number.value();
+    }
+    auto captured_local_date = parse_optional_string("captured_local_date");
+    if (!captured_local_date)
+        return captured_local_date.error();
+    query.captured_local_date = captured_local_date.value();
     auto valid = validate_library_query(query);
     if (!valid)
         return valid.error();

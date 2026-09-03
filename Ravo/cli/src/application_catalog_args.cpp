@@ -535,6 +535,34 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         {
             result.tag = value;
         }
+        else if (option == "--camera")
+        {
+            result.camera = value;
+        }
+        else if (option == "--camera-make")
+        {
+            result.camera_make = value;
+        }
+        else if (option == "--camera-model")
+        {
+            result.camera_model = value;
+        }
+        else if (option == "--focal-length-mm")
+        {
+            result.focal_length_mm = value;
+        }
+        else if (option == "--captured-local-date")
+        {
+            result.captured_local_date = value;
+        }
+        else if (option == "--captured-after")
+        {
+            result.captured_after_unix_s = value;
+        }
+        else if (option == "--captured-before")
+        {
+            result.captured_before_unix_s = value;
+        }
         else if (option == "--add")
         {
             result.add = value;

@@ -1021,6 +1021,88 @@ void StudioPresenter::setEditFilter(const QString &mode)
     reloadVisibleAssets();
 }
 
+void StudioPresenter::setCameraFacetFilter(const QString &make, const QString &model)
+{
+    LibraryQuery next = query_;
+    const auto make_utf8 = utf8_from_qstring(make.trimmed());
+    const auto model_utf8 = utf8_from_qstring(model.trimmed());
+    if (make_utf8.empty() && model_utf8.empty())
+    {
+        next.camera_make_equals.reset();
+        next.camera_model_equals.reset();
+    }
+    else
+    {
+        next.camera_make_equals = make_utf8;
+        next.camera_model_equals = model_utf8;
+    }
+    auto valid = validate_library_query(next);
+    if (!valid)
+    {
+        setError(qstring_from_utf8(valid.error().message));
+        return;
+    }
+    if (next == query_)
+        return;
+    query_ = std::move(next);
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
+void StudioPresenter::setLensFacetFilter(const QString &focal_mm)
+{
+    LibraryQuery next = query_;
+    const auto trimmed = focal_mm.trimmed();
+    if (trimmed.isEmpty())
+    {
+        next.focal_length_mm_equals.reset();
+    }
+    else
+    {
+        bool ok = false;
+        const double value = trimmed.toDouble(&ok);
+        if (!ok)
+        {
+            setError(QCoreApplication::translate(
+                "StudioPresenter", "Lens facet must be a focal length in millimeters."));
+            return;
+        }
+        next.focal_length_mm_equals = value;
+    }
+    auto valid = validate_library_query(next);
+    if (!valid)
+    {
+        setError(qstring_from_utf8(valid.error().message));
+        return;
+    }
+    if (next == query_)
+        return;
+    query_ = std::move(next);
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
+void StudioPresenter::setCaptureDateFacetFilter(const QString &local_date)
+{
+    LibraryQuery next = query_;
+    const auto utf8 = utf8_from_qstring(local_date.trimmed());
+    if (utf8.empty())
+        next.captured_local_date.reset();
+    else
+        next.captured_local_date = utf8;
+    auto valid = validate_library_query(next);
+    if (!valid)
+    {
+        setError(qstring_from_utf8(valid.error().message));
+        return;
+    }
+    if (next == query_)
+        return;
+    query_ = std::move(next);
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
 void StudioPresenter::setSort(const QString &field, const QString &direction)
 {
     AssetSortField next_field = AssetSortField::kImportTime;
@@ -1067,6 +1149,10 @@ void StudioPresenter::clearFilters()
     query_.media_types.clear();
     query_.edit_filter = EditFilter::kAny;
     query_.camera.clear();
+    query_.camera_make_equals.reset();
+    query_.camera_model_equals.reset();
+    query_.focal_length_mm_equals.reset();
+    query_.captured_local_date.reset();
     query_.iso = {};
     query_.aperture = {};
     query_.focal_length_mm = {};

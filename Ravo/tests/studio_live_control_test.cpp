@@ -709,6 +709,15 @@ TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetTextFilter")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetMediaFilter")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetEditFilter")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetCameraFilter")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetLensFilter")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetCaptureDateFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Camera\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Lens\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Capture date\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setCameraFacetFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setLensFacetFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setCaptureDateFacetFilter")));
 }
 
 TEST(StudioQmlContract, RecipeStyleUsesExplicitSaveAndApplyFileCommands)

@@ -1018,4 +1018,135 @@ Result<std::int64_t> SqliteCatalogRepository::bump_revision()
     return impl_->snapshot.revision;
 }
 
+Result<LibraryCaptureFacets> SqliteCatalogRepository::list_capture_facets() const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+
+    LibraryCaptureFacets facets;
+    const auto limit = static_cast<qlonglong>(kLibraryFacetMaximumValues);
+
+    {
+        QSqlQuery query(impl_->database);
+        query.prepare(QStringLiteral(
+            "SELECT camera_make, camera_model, COUNT(*) AS asset_count "
+            "FROM asset_metadata "
+            "WHERE (camera_make IS NOT NULL AND camera_make != '') "
+            "   OR (camera_model IS NOT NULL AND camera_model != '') "
+            "GROUP BY camera_make, camera_model "
+            "ORDER BY "
+            "  lower(trim(coalesce(camera_make, '') || ' ' || coalesce(camera_model, ''))) ASC, "
+            "  camera_make ASC, camera_model ASC "
+            "LIMIT ?"));
+        query.addBindValue(limit + 1);
+        if (!query.exec())
+            return map_sql_error(query, "list_capture_facets_cameras");
+        while (query.next())
+        {
+            if (facets.cameras.size() >= kLibraryFacetMaximumValues)
+            {
+                facets.truncated = true;
+                break;
+            }
+            LibraryFacetEntry entry;
+            entry.camera_make = string_column(query, 0);
+            entry.camera_model = string_column(query, 1);
+            if (entry.camera_make && entry.camera_make->empty())
+                entry.camera_make.reset();
+            if (entry.camera_model && entry.camera_model->empty())
+                entry.camera_model.reset();
+            std::string label;
+            if (entry.camera_make)
+                label = *entry.camera_make;
+            if (entry.camera_model)
+            {
+                if (!label.empty())
+                    label.push_back(' ');
+                label.append(*entry.camera_model);
+            }
+            entry.label = label;
+            entry.key = (entry.camera_make ? *entry.camera_make : std::string{}) + "\x1f" +
+                        (entry.camera_model ? *entry.camera_model : std::string{});
+            entry.count = static_cast<std::size_t>(query.value(2).toULongLong());
+            facets.cameras.push_back(std::move(entry));
+        }
+        if (!facets.truncated && query.next())
+            facets.truncated = true;
+    }
+
+    {
+        QSqlQuery query(impl_->database);
+        query.prepare(QStringLiteral("SELECT focal_length_mm, COUNT(*) AS asset_count "
+                                     "FROM asset_metadata "
+                                     "WHERE focal_length_mm IS NOT NULL "
+                                     "GROUP BY focal_length_mm "
+                                     "ORDER BY focal_length_mm ASC "
+                                     "LIMIT ?"));
+        query.addBindValue(limit + 1);
+        if (!query.exec())
+            return map_sql_error(query, "list_capture_facets_lenses");
+        while (query.next())
+        {
+            if (facets.lenses.size() >= kLibraryFacetMaximumValues)
+            {
+                facets.truncated = true;
+                break;
+            }
+            LibraryFacetEntry entry;
+            entry.focal_length_mm = query.value(0).toDouble();
+            entry.label = std::to_string(*entry.focal_length_mm);
+            // Trim trailing zeros for label readability without locale.
+            while (entry.label.size() > 1 && entry.label.find('.') != std::string::npos &&
+                   (entry.label.back() == '0' || entry.label.back() == '.'))
+            {
+                const bool drop_dot = entry.label.back() == '.';
+                entry.label.pop_back();
+                if (drop_dot)
+                    break;
+            }
+            entry.label.append(" mm");
+            entry.key = std::to_string(*entry.focal_length_mm);
+            entry.count = static_cast<std::size_t>(query.value(1).toULongLong());
+            facets.lenses.push_back(std::move(entry));
+        }
+        if (query.next())
+            facets.truncated = true;
+    }
+
+    {
+        QSqlQuery query(impl_->database);
+        query.prepare(QStringLiteral(
+            "SELECT substr(captured_local_exif, 1, 10) AS capture_day, COUNT(*) AS asset_count "
+            "FROM asset_metadata "
+            "WHERE captured_local_exif IS NOT NULL AND length(captured_local_exif) >= 10 "
+            "GROUP BY capture_day "
+            "ORDER BY capture_day DESC "
+            "LIMIT ?"));
+        query.addBindValue(limit + 1);
+        if (!query.exec())
+            return map_sql_error(query, "list_capture_facets_dates");
+        while (query.next())
+        {
+            if (facets.capture_dates.size() >= kLibraryFacetMaximumValues)
+            {
+                facets.truncated = true;
+                break;
+            }
+            auto day = string_column(query, 0);
+            if (!day || day->size() != 10U)
+                continue;
+            LibraryFacetEntry entry;
+            entry.captured_local_date = *day;
+            entry.key = *day;
+            entry.label = *day;
+            entry.count = static_cast<std::size_t>(query.value(1).toULongLong());
+            facets.capture_dates.push_back(std::move(entry));
+        }
+        if (query.next())
+            facets.truncated = true;
+    }
+
+    return facets;
+}
+
 } // namespace ravo

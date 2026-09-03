@@ -32,6 +32,12 @@ Item {
             return root.presenter.colorFilters.length > 0;
         if (id === "rejected")
             return root.presenter.rejectFilter !== "include";
+        if (id === "camera")
+            return root.presenter.cameraFilter.length > 0;
+        if (id === "lens")
+            return root.presenter.lensFilter.length > 0;
+        if (id === "captureDate")
+            return root.presenter.captureDateFilter.length > 0;
         return false;
     }
 
@@ -55,6 +61,12 @@ Item {
             root.commands.setEditFilter("any");
         else if (id === "rejected")
             root.commands.run(root.commands.ids.librarySetRejectFilter, "include");
+        else if (id === "camera")
+            root.commands.setCameraFacetFilter("", "");
+        else if (id === "lens")
+            root.commands.setLensFacetFilter("");
+        else if (id === "captureDate")
+            root.commands.setCaptureDateFacetFilter("");
         else if (id === "color" && root.hasPresenter) {
             const colors = root.presenter.colorFilters.slice();
             for (let i = 0; i < colors.length; ++i)
@@ -301,13 +313,90 @@ Item {
                     }
                 }
 
+                RowLayout {
+                    visible: root.extraOpen("camera")
+                    spacing: Fonts.size2
+                    Layout.alignment: Qt.AlignVCenter
+                    CustomTextField {
+                        id: cameraMakeField
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 110
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("Camera make")
+                        text: root.hasPresenter ? root.presenter.cameraMakeFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setCameraFacetFilter(text, cameraModelField.text)
+                    }
+                    CustomTextField {
+                        id: cameraModelField
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 130
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("Camera model")
+                        text: root.hasPresenter ? root.presenter.cameraModelFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setCameraFacetFilter(cameraMakeField.text, text)
+                    }
+                    FilterCloseButton {
+                        onClicked: root.removeExtra("camera")
+                    }
+                }
+
+                RowLayout {
+                    visible: root.extraOpen("lens")
+                    spacing: Fonts.size2
+                    Layout.alignment: Qt.AlignVCenter
+                    CustomTextField {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 100
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("Focal mm")
+                        text: root.hasPresenter ? root.presenter.lensFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setLensFacetFilter(text)
+                    }
+                    FilterCloseButton {
+                        onClicked: root.removeExtra("lens")
+                    }
+                }
+
+                RowLayout {
+                    visible: root.extraOpen("captureDate")
+                    spacing: Fonts.size2
+                    Layout.alignment: Qt.AlignVCenter
+                    CustomTextField {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 130
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("YYYY:MM:DD")
+                        text: root.hasPresenter ? root.presenter.captureDateFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setCaptureDateFacetFilter(text)
+                    }
+                    FilterCloseButton {
+                        onClicked: root.removeExtra("captureDate")
+                    }
+                }
+
                 CustomButton {
                     id: addFilterButton
                     Layout.alignment: Qt.AlignVCenter
                     display: AbstractButton.IconOnly
                     icon.source: "qrc:/GeoControls/icons/Plus.svg"
                     tooltipText: qsTr("Add filter")
-                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected")
+                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected") || !root.extraOpen("camera") || !root.extraOpen("lens") || !root.extraOpen("captureDate")
                     implicitWidth: Fonts.iconButtonSize
                     implicitHeight: Fonts.iconButtonSize
                     Layout.preferredWidth: implicitWidth
@@ -358,6 +447,21 @@ Item {
                             text: qsTr("Rejected")
                             visible: !root.extraOpen("rejected")
                             onTriggered: root.addExtra("rejected")
+                        }
+                        FilterMenuItem {
+                            text: qsTr("Camera")
+                            visible: !root.extraOpen("camera")
+                            onTriggered: root.addExtra("camera")
+                        }
+                        FilterMenuItem {
+                            text: qsTr("Lens")
+                            visible: !root.extraOpen("lens")
+                            onTriggered: root.addExtra("lens")
+                        }
+                        FilterMenuItem {
+                            text: qsTr("Capture date")
+                            visible: !root.extraOpen("captureDate")
+                            onTriggered: root.addExtra("captureDate")
                         }
                     }
                 }

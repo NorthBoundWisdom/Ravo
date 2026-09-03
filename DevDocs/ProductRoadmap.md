@@ -167,7 +167,7 @@ conversion/frame remain undecided.
 ### Extended library workflows
 
 Define hierarchical keyword semantics, IPTC/location fields, duplicate and
-near-duplicate identity, face/privacy policy, camera/lens/date facets, removable
+near-duplicate identity, face/privacy policy, camera/lens/date facets (ADR-0128 first tranche; LensMake residual), removable
 or network storage, and any shared-catalog conflict model. Do not add placeholder
 schema tables or empty Studio surfaces before those contracts exist.
 

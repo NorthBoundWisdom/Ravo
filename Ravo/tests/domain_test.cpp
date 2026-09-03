@@ -548,6 +548,23 @@ TEST(LibraryQueryTest, MatchesProductTextMediaEditCaptureAndNumericFields)
     missing.capture.iso.reset();
     query.iso = {1.0, 1000.0};
     EXPECT_FALSE(asset_matches_query(missing, query));
+
+    query = {};
+    query.camera_make_equals = "Canon";
+    query.camera_model_equals = "EOS R5";
+    query.focal_length_mm_equals = 35.0;
+    query.captured_local_date = "2023:11:14";
+    ASSERT_TRUE(validate_library_query(query));
+    EXPECT_FALSE(asset_matches_query(photo, query));
+    photo.capture.captured_datetime =
+        CaptureDateTime{"2023:11:14 10:00:00", std::nullopt, std::nullopt};
+    EXPECT_TRUE(asset_matches_query(photo, query));
+    query.camera_model_equals = "EOS R6";
+    EXPECT_FALSE(asset_matches_query(photo, query));
+    query.camera_model_equals.reset();
+    auto half = validate_library_query(query);
+    ASSERT_FALSE(half);
+    EXPECT_EQ(half.error().context.at("reason"), "invalid_library_camera_facet");
 }
 
 TEST(LibraryQueryTest, SerializesNamedSetDocumentsWithoutCollectionIdentity)
