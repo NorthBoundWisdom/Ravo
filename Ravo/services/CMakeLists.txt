@@ -17,6 +17,7 @@ target_sources(ravo_services
     src/encoded_publication.cpp
     src/export_jobs.cpp
     src/export_output_sharpen.cpp
+    src/export_delivery_watermark.cpp
     src/original_copy.cpp
     src/catalog_service.cpp
     src/catalog_develop_batch.cpp

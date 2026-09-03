@@ -52,9 +52,9 @@ or system-font path would reopen ADR-0071’s portability and failure rules.
 
 ### Implementation tranche
 
-- This ADR accepts the product contract. Shipping ExportOptions fields, preset
-  JSON, Studio/CLI controls, and equality tests is the next Ready slice; until
-  that lands, PRO-EXPORT watermark stays **accepted / unimplemented**.
+- ExportOptions `watermark` fields, preset/job JSON, CatalogService apply after
+  resize/output-sharpen, Studio/CLI controls, and equality tests shipped on
+  `main`. Colour-conversion/frame remains residual.
 
 ## Consequences
 

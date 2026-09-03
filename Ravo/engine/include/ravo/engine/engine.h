@@ -19,6 +19,7 @@
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/perspective.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/recipe/watermark.h"
 
 namespace ravo
 {
@@ -514,8 +515,7 @@ public:
     [[nodiscard]] Result<Lut3dInspection>
     inspect_lut3d(std::string_view path, const CancellationToken &cancellation) const;
     [[nodiscard]] Result<std::string>
-    lut3d_cache_fingerprint(const Recipe &recipe,
-                            const CancellationToken &cancellation = {}) const;
+    lut3d_cache_fingerprint(const Recipe &recipe, const CancellationToken &cancellation = {}) const;
 
     // The sink is borrowed only for the duration of this synchronous call.
     [[nodiscard]] Result<RenderResult> render(const RenderRequest &request,
@@ -581,5 +581,12 @@ private:
 
     OperationRegistry registry_;
 };
+
+// ADR-0127: reuse ADR-0071 watermark mathematics on packed export pixels after
+// resize/output-sharpen. CatalogService owns when to call this; QML does not.
+[[nodiscard]] Result<RenderedExportImage>
+apply_watermark_to_export_image(RenderedExportImage image, const WatermarkParams &params,
+                                const AssetDescriptor &asset,
+                                const CancellationToken &cancellation);
 
 } // namespace ravo

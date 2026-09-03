@@ -47,6 +47,11 @@ struct CatalogCliArguments
     std::string_view sharpen_amount;
     std::string_view sharpen_radius;
     std::string_view sharpen_threshold;
+    bool delivery_watermark = false;
+    std::string_view delivery_watermark_text;
+    std::string_view delivery_watermark_opacity;
+    std::string_view delivery_watermark_scale;
+    std::string_view delivery_watermark_alignment;
     std::string_view export_preset;
     std::string_view export_job;
     std::string_view job_id;

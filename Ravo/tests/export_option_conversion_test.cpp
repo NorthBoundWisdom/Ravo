@@ -28,6 +28,11 @@ namespace
     options.insert(QStringLiteral("outputSharpenAmount"), 0.5);
     options.insert(QStringLiteral("outputSharpenRadius"), 0.5);
     options.insert(QStringLiteral("outputSharpenThreshold"), 0.0);
+    options.insert(QStringLiteral("watermarkEnabled"), false);
+    options.insert(QStringLiteral("watermarkText"), QStringLiteral("RAVO"));
+    options.insert(QStringLiteral("watermarkOpacity"), 0.5);
+    options.insert(QStringLiteral("watermarkScale"), 8.0);
+    options.insert(QStringLiteral("watermarkAlignment"), QStringLiteral("bottom_right"));
     return options;
 }
 
@@ -46,6 +51,11 @@ namespace
     options.insert(QStringLiteral("outputSharpenAmount"), 0.5);
     options.insert(QStringLiteral("outputSharpenRadius"), 0.5);
     options.insert(QStringLiteral("outputSharpenThreshold"), 0.0);
+    options.insert(QStringLiteral("watermarkEnabled"), false);
+    options.insert(QStringLiteral("watermarkText"), QStringLiteral("RAVO"));
+    options.insert(QStringLiteral("watermarkOpacity"), 0.5);
+    options.insert(QStringLiteral("watermarkScale"), 8.0);
+    options.insert(QStringLiteral("watermarkAlignment"), QStringLiteral("bottom_right"));
     return options;
 }
 
@@ -68,6 +78,11 @@ namespace
     options.insert(QStringLiteral("outputSharpenAmount"), 0.5);
     options.insert(QStringLiteral("outputSharpenRadius"), 0.5);
     options.insert(QStringLiteral("outputSharpenThreshold"), 0.0);
+    options.insert(QStringLiteral("watermarkEnabled"), false);
+    options.insert(QStringLiteral("watermarkText"), QStringLiteral("RAVO"));
+    options.insert(QStringLiteral("watermarkOpacity"), 0.5);
+    options.insert(QStringLiteral("watermarkScale"), 8.0);
+    options.insert(QStringLiteral("watermarkAlignment"), QStringLiteral("bottom_right"));
     return options;
 }
 
@@ -96,6 +111,9 @@ TEST(ExportOptionConversion, DefaultsMatchDomainDefaults)
     EXPECT_EQ(defaults.value(QStringLiteral("maxWidth")).toInt(), 0);
     EXPECT_EQ(defaults.value(QStringLiteral("maxHeight")).toInt(), 0);
     EXPECT_FALSE(defaults.value(QStringLiteral("outputSharpenEnabled")).toBool());
+    EXPECT_FALSE(defaults.value(QStringLiteral("watermarkEnabled")).toBool());
+    EXPECT_EQ(defaults.value(QStringLiteral("watermarkText")).toString(), QStringLiteral("RAVO"));
+    EXPECT_FALSE(jpeg.value().watermark.enabled);
     EXPECT_EQ(jpeg.value().max_width, 0U);
     EXPECT_EQ(jpeg.value().max_height, 0U);
     EXPECT_FALSE(jpeg.value().output_sharpen.enabled);
@@ -432,6 +450,23 @@ TEST(ExportOptionConversion, AcceptsBoxAndOutputSharpen)
     EXPECT_DOUBLE_EQ(parsed.value().output_sharpen.amount, 0.8);
     EXPECT_DOUBLE_EQ(parsed.value().output_sharpen.radius, 0.7);
     EXPECT_DOUBLE_EQ(parsed.value().output_sharpen.threshold, 1.5);
+}
+
+TEST(ExportOptionConversion, AcceptsDeliveryWatermark)
+{
+    auto options = jpeg_options(90, QStringLiteral("auto"));
+    options.insert(QStringLiteral("watermarkEnabled"), true);
+    options.insert(QStringLiteral("watermarkText"), QStringLiteral("HELLO"));
+    options.insert(QStringLiteral("watermarkOpacity"), 0.75);
+    options.insert(QStringLiteral("watermarkScale"), 12.0);
+    options.insert(QStringLiteral("watermarkAlignment"), QStringLiteral("top_left"));
+    auto parsed = studio_export_options_from_presentation(QStringLiteral("jpeg"), options);
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_TRUE(parsed.value().watermark.enabled);
+    EXPECT_EQ(parsed.value().watermark.text, "HELLO");
+    EXPECT_DOUBLE_EQ(parsed.value().watermark.opacity, 0.75);
+    EXPECT_DOUBLE_EQ(parsed.value().watermark.scale_percent, 12.0);
+    EXPECT_EQ(parsed.value().watermark.alignment, "top_left");
 }
 
 TEST(ExportOptionConversion, PresentationCatalogExposesCanonicalIds)

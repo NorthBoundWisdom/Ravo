@@ -31,6 +31,11 @@ DialogShell {
     property double outputSharpenAmount: 0.5
     property double outputSharpenRadius: 0.5
     property double outputSharpenThreshold: 0.0
+    property bool watermarkEnabled: false
+    property string watermarkText: "RAVO"
+    property double watermarkOpacity: 0.5
+    property double watermarkScale: 8.0
+    property string watermarkAlignmentId: "bottom_right"
 
     property var formatChoices: presenter.exportFormatChoices()
     property var jpegSubsamplingChoices: presenter.jpegSubsamplingChoices()
@@ -38,6 +43,7 @@ DialogShell {
     property var tiffSampleTypeChoices: presenter.tiffSampleTypeChoices()
     property var tiffCompressionChoices: presenter.tiffCompressionChoices()
     property var metadataModeChoices: presenter.exportMetadataModeChoices()
+    property var watermarkAlignmentChoices: presenter.exportWatermarkAlignmentChoices()
     readonly property var optionBounds: presenter.exportOptionBounds()
     readonly property bool tiffLevelEnabled: formatId === "tiff" && tiffCompressionId !== "none"
     readonly property bool canContinue: formatId.length > 0 && (!batchMode || filenameTemplate.trim().length > 0) && (formatId === "original" || metadataModeId.length > 0) && (formatId !== "jpeg" || jpegSubsamplingId.length > 0) && (formatId !== "png" || pngBitDepthId.length > 0) && (formatId !== "tiff" || (tiffSampleTypeId.length > 0 && tiffCompressionId.length > 0))
@@ -65,6 +71,7 @@ DialogShell {
         tiffSampleTypeChoices = presenter.tiffSampleTypeChoices();
         tiffCompressionChoices = presenter.tiffCompressionChoices();
         metadataModeChoices = presenter.exportMetadataModeChoices();
+        watermarkAlignmentChoices = presenter.exportWatermarkAlignmentChoices();
         formatId = defaults.format;
         jpegQuality = defaults.quality;
         jpegSubsamplingId = defaults.jpegSubsampling;
@@ -83,6 +90,11 @@ DialogShell {
         outputSharpenAmount = defaults.outputSharpenAmount !== undefined ? defaults.outputSharpenAmount : 0.5;
         outputSharpenRadius = defaults.outputSharpenRadius !== undefined ? defaults.outputSharpenRadius : 0.5;
         outputSharpenThreshold = defaults.outputSharpenThreshold !== undefined ? defaults.outputSharpenThreshold : 0.0;
+        watermarkEnabled = defaults.watermarkEnabled === true;
+        watermarkText = defaults.watermarkText !== undefined ? defaults.watermarkText : "RAVO";
+        watermarkOpacity = defaults.watermarkOpacity !== undefined ? defaults.watermarkOpacity : 0.5;
+        watermarkScale = defaults.watermarkScale !== undefined ? defaults.watermarkScale : 8.0;
+        watermarkAlignmentId = defaults.watermarkAlignment !== undefined ? defaults.watermarkAlignment : "bottom_right";
         filenameTemplate = "{stem}-{sequence}{ext}";
     }
 
@@ -98,7 +110,12 @@ DialogShell {
                 "outputSharpenEnabled": outputSharpenEnabled,
                 "outputSharpenAmount": outputSharpenAmountSpin.realValue,
                 "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
-                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue
+                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue,
+                "watermarkEnabled": watermarkEnabled,
+                "watermarkText": watermarkTextField.text,
+                "watermarkOpacity": watermarkOpacitySpin.realValue,
+                "watermarkScale": watermarkScaleSpin.realValue,
+                "watermarkAlignment": watermarkAlignmentId
             };
         if (formatId === "png")
             return {
@@ -111,7 +128,12 @@ DialogShell {
                 "outputSharpenEnabled": outputSharpenEnabled,
                 "outputSharpenAmount": outputSharpenAmountSpin.realValue,
                 "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
-                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue
+                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue,
+                "watermarkEnabled": watermarkEnabled,
+                "watermarkText": watermarkTextField.text,
+                "watermarkOpacity": watermarkOpacitySpin.realValue,
+                "watermarkScale": watermarkScaleSpin.realValue,
+                "watermarkAlignment": watermarkAlignmentId
             };
         if (formatId === "tiff")
             return {
@@ -127,7 +149,12 @@ DialogShell {
                 "outputSharpenEnabled": outputSharpenEnabled,
                 "outputSharpenAmount": outputSharpenAmountSpin.realValue,
                 "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
-                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue
+                "outputSharpenThreshold": outputSharpenThresholdSpin.realValue,
+                "watermarkEnabled": watermarkEnabled,
+                "watermarkText": watermarkTextField.text,
+                "watermarkOpacity": watermarkOpacitySpin.realValue,
+                "watermarkScale": watermarkScaleSpin.realValue,
+                "watermarkAlignment": watermarkAlignmentId
             };
         return {};
     }
@@ -386,6 +413,110 @@ DialogShell {
                 realValue: root.outputSharpenThreshold
                 onEditingCommitted: function (value) {
                     root.outputSharpenThreshold = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original"
+
+            CustomLabel {
+                text: qsTr("Delivery watermark")
+                Accessible.name: qsTr("Enable export delivery watermark")
+            }
+            CustomCheckBox {
+                id: watermarkEnabledCheck
+                objectName: "exportWatermarkEnabled"
+                checked: root.watermarkEnabled
+                text: qsTr("After sharpen")
+                Accessible.name: qsTr("Enable delivery watermark after sharpen")
+                onToggled: root.watermarkEnabled = checked
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.watermarkEnabled
+
+            CustomLabel {
+                text: qsTr("Watermark text")
+            }
+            CustomTextField {
+                id: watermarkTextField
+                objectName: "exportWatermarkText"
+                Layout.fillWidth: true
+                text: root.watermarkText
+                Accessible.name: qsTr("Delivery watermark text")
+                onEditingFinished: root.watermarkText = text
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.watermarkEnabled
+
+            CustomLabel {
+                text: qsTr("Watermark opacity")
+            }
+            CustomSpinBox {
+                id: watermarkOpacitySpin
+                objectName: "exportWatermarkOpacity"
+                Layout.fillWidth: true
+                decimals: 2
+                realFrom: root.optionBounds.watermarkOpacityMin
+                realTo: root.optionBounds.watermarkOpacityMax
+                realValue: root.watermarkOpacity
+                onEditingCommitted: function (value) {
+                    root.watermarkOpacity = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.watermarkEnabled
+
+            CustomLabel {
+                text: qsTr("Watermark scale")
+            }
+            CustomSpinBox {
+                id: watermarkScaleSpin
+                objectName: "exportWatermarkScale"
+                Layout.fillWidth: true
+                decimals: 1
+                realFrom: root.optionBounds.watermarkScaleMin
+                realTo: root.optionBounds.watermarkScaleMax
+                realValue: root.watermarkScale
+                onEditingCommitted: function (value) {
+                    root.watermarkScale = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.watermarkEnabled
+
+            CustomLabel {
+                text: qsTr("Watermark alignment")
+            }
+            CustomComboBox {
+                id: watermarkAlignmentCombo
+                objectName: "exportWatermarkAlignment"
+                Layout.fillWidth: true
+                textRole: "label"
+                valueRole: "id"
+                model: root.watermarkAlignmentChoices
+                currentIndex: root.choiceIndex(root.watermarkAlignmentChoices, root.watermarkAlignmentId)
+                Accessible.name: qsTr("Delivery watermark alignment")
+                onActivated: function (index) {
+                    root.watermarkAlignmentId = root.watermarkAlignmentChoices[index].id;
                 }
             }
         }

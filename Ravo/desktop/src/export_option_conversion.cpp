@@ -284,6 +284,32 @@ QVariantList studio_export_metadata_mode_choices()
                    QCoreApplication::translate("ExportOptionsDialog", "No public metadata"))};
 }
 
+QVariantList studio_export_watermark_alignment_choices()
+{
+    const auto choice = [](const QString &id, const QString &label)
+    { return QVariantMap{{QStringLiteral("id"), id}, {QStringLiteral("label"), label}}; };
+    return {
+        choice(QStringLiteral("top_left"),
+               QCoreApplication::translate("ExportOptionsDialog", "Top left")),
+        choice(QStringLiteral("top_center"),
+               QCoreApplication::translate("ExportOptionsDialog", "Top center")),
+        choice(QStringLiteral("top_right"),
+               QCoreApplication::translate("ExportOptionsDialog", "Top right")),
+        choice(QStringLiteral("center_left"),
+               QCoreApplication::translate("ExportOptionsDialog", "Center left")),
+        choice(QStringLiteral("center"),
+               QCoreApplication::translate("ExportOptionsDialog", "Center")),
+        choice(QStringLiteral("center_right"),
+               QCoreApplication::translate("ExportOptionsDialog", "Center right")),
+        choice(QStringLiteral("bottom_left"),
+               QCoreApplication::translate("ExportOptionsDialog", "Bottom left")),
+        choice(QStringLiteral("bottom_center"),
+               QCoreApplication::translate("ExportOptionsDialog", "Bottom center")),
+        choice(QStringLiteral("bottom_right"),
+               QCoreApplication::translate("ExportOptionsDialog", "Bottom right")),
+    };
+}
+
 QVariantMap studio_export_default_options()
 {
     QVariantMap options;
@@ -351,6 +377,26 @@ QVariantMap studio_export_default_options()
         QString::fromUtf8(kStudioExportOptionOutputSharpenThreshold.data(),
                           static_cast<qsizetype>(kStudioExportOptionOutputSharpenThreshold.size())),
         0.0);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionWatermarkEnabled.data(),
+                          static_cast<qsizetype>(kStudioExportOptionWatermarkEnabled.size())),
+        false);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionWatermarkText.data(),
+                          static_cast<qsizetype>(kStudioExportOptionWatermarkText.size())),
+        QStringLiteral("RAVO"));
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionWatermarkOpacity.data(),
+                          static_cast<qsizetype>(kStudioExportOptionWatermarkOpacity.size())),
+        0.5);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionWatermarkScale.data(),
+                          static_cast<qsizetype>(kStudioExportOptionWatermarkScale.size())),
+        8.0);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionWatermarkAlignment.data(),
+                          static_cast<qsizetype>(kStudioExportOptionWatermarkAlignment.size())),
+        QStringLiteral("bottom_right"));
     return options;
 }
 
@@ -377,6 +423,10 @@ QVariantMap studio_export_option_bounds()
     bounds.insert(QStringLiteral("outputSharpenRadiusMax"), kExportOutputSharpenRadiusMax);
     bounds.insert(QStringLiteral("outputSharpenThresholdMin"), kExportOutputSharpenThresholdMin);
     bounds.insert(QStringLiteral("outputSharpenThresholdMax"), kExportOutputSharpenThresholdMax);
+    bounds.insert(QStringLiteral("watermarkOpacityMin"), kExportWatermarkOpacityMin);
+    bounds.insert(QStringLiteral("watermarkOpacityMax"), kExportWatermarkOpacityMax);
+    bounds.insert(QStringLiteral("watermarkScaleMin"), kExportWatermarkScaleMin);
+    bounds.insert(QStringLiteral("watermarkScaleMax"), kExportWatermarkScaleMax);
     return bounds;
 }
 
@@ -421,7 +471,10 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
              kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge,
              kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
              kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
-             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold},
+             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold,
+             kStudioExportOptionWatermarkEnabled, kStudioExportOptionWatermarkText,
+             kStudioExportOptionWatermarkOpacity, kStudioExportOptionWatermarkScale,
+             kStudioExportOptionWatermarkAlignment},
             "jpeg");
         if (!keys)
         {
@@ -462,7 +515,10 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
              kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge,
              kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
              kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
-             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold},
+             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold,
+             kStudioExportOptionWatermarkEnabled, kStudioExportOptionWatermarkText,
+             kStudioExportOptionWatermarkOpacity, kStudioExportOptionWatermarkScale,
+             kStudioExportOptionWatermarkAlignment},
             "png");
         if (!keys)
         {
@@ -504,7 +560,10 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
              kStudioExportOptionTiffResolutionDpi, kStudioExportOptionMetadataMode,
              kStudioExportOptionMaxEdge, kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
              kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
-             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold},
+             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold,
+             kStudioExportOptionWatermarkEnabled, kStudioExportOptionWatermarkText,
+             kStudioExportOptionWatermarkOpacity, kStudioExportOptionWatermarkScale,
+             kStudioExportOptionWatermarkAlignment},
             "tiff");
         if (!keys)
         {
@@ -661,6 +720,45 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
         auto sharpen_valid = validate_export_output_sharpen_options(selection.output_sharpen);
         if (!sharpen_valid)
             return sharpen_valid.error();
+
+        const QVariant watermark_enabled_value = input.value(QStringLiteral("watermarkEnabled"));
+        if (!watermark_enabled_value.isValid() ||
+            watermark_enabled_value.userType() != QMetaType::Bool)
+        {
+            return conversion_error(
+                QT_TRANSLATE_NOOP("StudioExport", "Watermark enabled must be a boolean"),
+                {{"field", std::string(kStudioExportOptionWatermarkEnabled)},
+                 {"format", std::string(export_format_name(selection.format))},
+                 {"reason", "studio_export_invalid_option_type"}});
+        }
+        selection.watermark.enabled = watermark_enabled_value.toBool();
+        auto watermark_text =
+            exact_string(input.value(QStringLiteral("watermarkText")),
+                         kStudioExportOptionWatermarkText, export_format_name(selection.format));
+        if (!watermark_text)
+            return watermark_text.error();
+        selection.watermark.text = watermark_text.value();
+        auto watermark_opacity = exact_double(
+            input.value(QStringLiteral("watermarkOpacity")), kStudioExportOptionWatermarkOpacity,
+            export_format_name(selection.format), "studio_export_invalid_option_type");
+        if (!watermark_opacity)
+            return watermark_opacity.error();
+        selection.watermark.opacity = watermark_opacity.value();
+        auto watermark_scale = exact_double(
+            input.value(QStringLiteral("watermarkScale")), kStudioExportOptionWatermarkScale,
+            export_format_name(selection.format), "studio_export_invalid_option_type");
+        if (!watermark_scale)
+            return watermark_scale.error();
+        selection.watermark.scale_percent = watermark_scale.value();
+        auto watermark_alignment = exact_string(input.value(QStringLiteral("watermarkAlignment")),
+                                                kStudioExportOptionWatermarkAlignment,
+                                                export_format_name(selection.format));
+        if (!watermark_alignment)
+            return watermark_alignment.error();
+        selection.watermark.alignment = watermark_alignment.value();
+        auto watermark_valid = validate_export_watermark_options(selection.watermark);
+        if (!watermark_valid)
+            return watermark_valid.error();
     }
     if (input != options)
     {
@@ -763,6 +861,7 @@ Result<ExportOptions> make_studio_export_options(const QString &format_name,
     result.max_width = selection.value().max_width;
     result.max_height = selection.value().max_height;
     result.output_sharpen = selection.value().output_sharpen;
+    result.watermark = selection.value().watermark;
     return result;
 }
 

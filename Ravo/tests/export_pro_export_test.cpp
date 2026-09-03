@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,7 @@
 
 #include "catalog_test_support.h"
 #include "ravo/domain/types.h"
+#include "ravo/recipe/recipe.h"
 
 namespace ravo
 {
@@ -95,6 +97,106 @@ TEST_F(CatalogServiceTest, BoxFitExportAndRestartableJobRetainDelivered)
     ASSERT_TRUE(again) << again.error().message;
     EXPECT_EQ(again.value().items[0].status, ExportJobItemStatus::kDelivered);
     EXPECT_EQ(again.value().items[1].status, ExportJobItemStatus::kDelivered);
+}
+
+TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
+{
+    ASSERT_TRUE(open_service(true));
+
+    const auto path = (root / "wm-src.jpg").string();
+    QImage image(96, 64, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 80, 120));
+    ASSERT_TRUE(image.save(QString::fromStdString(path), "JPEG", 95));
+    auto imported = service->import_one(path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset.has_value());
+    const auto asset_id = imported.value().asset->id;
+
+    auto before_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(before_recipe) << before_recipe.error().message;
+    const auto before_json = serialize_recipe(before_recipe.value());
+    ASSERT_TRUE(before_json) << before_json.error().message;
+
+    ExportRequest off;
+    off.asset_id = asset_id;
+    off.output_path = (root / "wm-off.png").string();
+    off.format = ExportFormat::kPng;
+    off.metadata_mode = ExportMetadataMode::kNoLocation;
+    auto off_result = service->export_asset(off);
+    ASSERT_TRUE(off_result) << off_result.error().message;
+
+    ExportRequest on = off;
+    on.output_path = (root / "wm-on.png").string();
+    on.watermark.enabled = true;
+    on.watermark.text = "RAVO";
+    on.watermark.opacity = 1.0;
+    on.watermark.scale_percent = 20.0;
+    on.watermark.alignment = "bottom_right";
+    auto on_result = service->export_asset(on);
+    ASSERT_TRUE(on_result) << on_result.error().message;
+    EXPECT_EQ(on_result.value().width, off_result.value().width);
+    EXPECT_EQ(on_result.value().height, off_result.value().height);
+
+    QImage off_image(QString::fromStdString(off.output_path));
+    QImage on_image(QString::fromStdString(on.output_path));
+    ASSERT_FALSE(off_image.isNull());
+    ASSERT_FALSE(on_image.isNull());
+    ASSERT_EQ(off_image.size(), on_image.size());
+    bool differ = false;
+    for (int y = 0; y < off_image.height() && !differ; ++y)
+    {
+        for (int x = 0; x < off_image.width(); ++x)
+        {
+            if (off_image.pixel(x, y) != on_image.pixel(x, y))
+            {
+                differ = true;
+                break;
+            }
+        }
+    }
+    EXPECT_TRUE(differ);
+
+    ExportRequest again = on;
+    again.output_path = (root / "wm-on-again.png").string();
+    auto again_result = service->export_asset(again);
+    ASSERT_TRUE(again_result) << again_result.error().message;
+    QImage again_image(QString::fromStdString(again.output_path));
+    ASSERT_FALSE(again_image.isNull());
+    ASSERT_EQ(on_image.size(), again_image.size());
+    for (int y = 0; y < on_image.height(); ++y)
+    {
+        for (int x = 0; x < on_image.width(); ++x)
+            EXPECT_EQ(on_image.pixel(x, y), again_image.pixel(x, y)) << x << "," << y;
+    }
+
+    auto after_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(after_recipe) << after_recipe.error().message;
+    const auto after_json = serialize_recipe(after_recipe.value());
+    ASSERT_TRUE(after_json) << after_json.error().message;
+    EXPECT_EQ(before_json.value(), after_json.value());
+
+    ExportRequest none_meta = on;
+    none_meta.output_path = (root / "wm-none-meta.png").string();
+    none_meta.metadata_mode = ExportMetadataMode::kNone;
+    auto none_result = service->export_asset(none_meta);
+    ASSERT_TRUE(none_result) << none_result.error().message;
+    QImage none_image(QString::fromStdString(none_meta.output_path));
+    ASSERT_FALSE(none_image.isNull());
+    for (int y = 0; y < on_image.height(); ++y)
+    {
+        for (int x = 0; x < on_image.width(); ++x)
+            EXPECT_EQ(on_image.pixel(x, y), none_image.pixel(x, y)) << x << "," << y;
+    }
+
+    ExportRequest original;
+    original.asset_id = asset_id;
+    original.output_path = (root / "wm-original.jpg").string();
+    original.format = ExportFormat::kOriginalCopy;
+    original.watermark.enabled = true;
+    auto rejected = service->export_asset(original);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "original_copy_resize_not_applicable");
 }
 
 } // namespace

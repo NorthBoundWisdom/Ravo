@@ -68,6 +68,11 @@ QVariantList StudioPresenter::exportMetadataModeChoices() const
     return studio_export_metadata_mode_choices();
 }
 
+QVariantList StudioPresenter::exportWatermarkAlignmentChoices() const
+{
+    return studio_export_watermark_alignment_choices();
+}
+
 QVariantMap StudioPresenter::exportDefaultOptions() const
 {
     return studio_export_default_options();
@@ -190,6 +195,5 @@ void StudioPresenter::exportSelectedToDirectory(const QString &directory,
                 Qt::QueuedConnection);
         });
 }
-
 
 } // namespace ravo

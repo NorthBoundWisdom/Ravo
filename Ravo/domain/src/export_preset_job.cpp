@@ -178,6 +178,99 @@ namespace
     return JsonValue{std::move(object)};
 }
 
+[[nodiscard]] Result<ExportWatermarkOptions> parse_watermark(const JsonValue &object)
+{
+    ExportWatermarkOptions watermark;
+    auto enabled = require_bool(object, "enabled");
+    if (!enabled)
+        return enabled.error();
+    watermark.enabled = enabled.value();
+    auto text = require_string(object, "text");
+    if (!text)
+        return text.error();
+    watermark.text = text.value();
+    const auto *root = object.object_if();
+    if (root == nullptr)
+        return preset_error("Export watermark must be an object", "invalid_export_json_object",
+                            "watermark");
+    const auto color_found = root->find("color");
+    if (color_found == root->end())
+        return preset_error("Export watermark requires color", "missing_export_json_field",
+                            "color");
+    const auto *color = color_found->second.array_if();
+    if (color == nullptr || color->size() != 3U)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Export watermark color must contain three channels",
+                          {{"reason", "invalid_export_watermark_color"}, {"parameter", "color"}});
+    }
+    for (std::size_t index = 0U; index < 3U; ++index)
+    {
+        const auto *number = (*color)[index].number_if();
+        if (number == nullptr)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Export watermark color channel must be numeric",
+                {{"reason", "invalid_export_watermark_color"}, {"parameter", "color"}});
+        }
+        char *end = nullptr;
+        const std::string owned(number->text);
+        const double value = std::strtod(owned.c_str(), &end);
+        if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+        {
+            return make_error(
+                ErrorCode::kValidation, "Export watermark color channel is invalid",
+                {{"reason", "invalid_export_watermark_color"}, {"parameter", "color"}});
+        }
+        watermark.color[index] = value;
+    }
+    auto opacity = require_double(object, "opacity");
+    auto scale = require_double(object, "scale_percent");
+    auto x = require_double(object, "x_offset");
+    auto y = require_double(object, "y_offset");
+    auto alignment = require_string(object, "alignment");
+    auto rotation = require_double(object, "rotation_degrees");
+    if (!opacity || !scale || !x || !y || !alignment || !rotation)
+        return !opacity   ? opacity.error() :
+               !scale     ? scale.error() :
+               !x         ? x.error() :
+               !y         ? y.error() :
+               !alignment ? alignment.error() :
+                            rotation.error();
+    watermark.opacity = opacity.value();
+    watermark.scale_percent = scale.value();
+    watermark.x_offset = x.value();
+    watermark.y_offset = y.value();
+    watermark.alignment = alignment.value();
+    watermark.rotation_degrees = rotation.value();
+    auto valid = validate_export_watermark_options(watermark);
+    if (!valid)
+        return valid.error();
+    return watermark;
+}
+
+[[nodiscard]] Result<JsonValue> serialize_watermark(const ExportWatermarkOptions &watermark)
+{
+    auto valid = validate_export_watermark_options(watermark);
+    if (!valid)
+        return valid.error();
+    JsonValue::Array color;
+    color.reserve(3U);
+    for (const double channel : watermark.color)
+        color.emplace_back(number_f(channel));
+    JsonValue::Object object;
+    object.emplace("enabled", watermark.enabled);
+    object.emplace("text", watermark.text);
+    object.emplace("color", JsonValue{std::move(color)});
+    object.emplace("opacity", number_f(watermark.opacity));
+    object.emplace("scale_percent", number_f(watermark.scale_percent));
+    object.emplace("x_offset", number_f(watermark.x_offset));
+    object.emplace("y_offset", number_f(watermark.y_offset));
+    object.emplace("alignment", watermark.alignment);
+    object.emplace("rotation_degrees", number_f(watermark.rotation_degrees));
+    return JsonValue{std::move(object)};
+}
+
 [[nodiscard]] Result<ExportOptions> parse_export_options_object(const JsonValue &value)
 {
     const auto *object = value.object_if();
@@ -218,6 +311,15 @@ namespace
     if (!sharpen)
         return sharpen.error();
     options.output_sharpen = sharpen.value();
+
+    const auto watermark_found = object->find("watermark");
+    if (watermark_found == object->end())
+        return preset_error("Export options require watermark", "missing_export_json_field",
+                            "watermark");
+    auto watermark = parse_watermark(watermark_found->second);
+    if (!watermark)
+        return watermark.error();
+    options.watermark = watermark.value();
 
     const auto jpeg_found = object->find("jpeg");
     const auto png_found = object->find("png");
@@ -275,9 +377,9 @@ namespace
     }
 
     // Reject unknown keys fail-closed.
-    static constexpr std::string_view kAllowed[] = {"format",    "metadata_mode", "max_edge",
-                                                    "max_width", "max_height",    "output_sharpen",
-                                                    "jpeg",      "png",           "tiff"};
+    static constexpr std::string_view kAllowed[] = {
+        "format",         "metadata_mode", "max_edge", "max_width", "max_height",
+        "output_sharpen", "watermark",     "jpeg",     "png",       "tiff"};
     for (const auto &[key, _] : *object)
     {
         bool allowed = false;
@@ -320,6 +422,9 @@ namespace
     auto sharpen = serialize_output_sharpen(options.output_sharpen);
     if (!sharpen)
         return sharpen.error();
+    auto watermark = serialize_watermark(options.watermark);
+    if (!watermark)
+        return watermark.error();
     JsonValue::Object object;
     object.emplace("format", std::string(export_format_name(options.format)));
     object.emplace("metadata_mode", std::string(export_metadata_mode_name(options.metadata_mode)));
@@ -327,6 +432,7 @@ namespace
     object.emplace("max_width", number_u32(options.max_width));
     object.emplace("max_height", number_u32(options.max_height));
     object.emplace("output_sharpen", std::move(sharpen).value());
+    object.emplace("watermark", std::move(watermark).value());
     object.emplace("jpeg", JsonValue{std::move(jpeg)});
     object.emplace("png", JsonValue{std::move(png)});
     object.emplace("tiff", JsonValue{std::move(tiff)});
@@ -358,6 +464,158 @@ Result<void> validate_export_output_sharpen_options(const ExportOutputSharpenOpt
     return {};
 }
 
+namespace
+{
+
+[[nodiscard]] bool export_watermark_character_ok(const char character) noexcept
+{
+    if (character == ' ' || (character >= '0' && character <= '9') ||
+        (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z'))
+        return true;
+    constexpr std::string_view punctuation = ".,:;!?-_/+()[]#@&%'";
+    return punctuation.find(character) != std::string_view::npos;
+}
+
+[[nodiscard]] Result<void> validate_export_watermark_text(const std::string_view value)
+{
+    if (value.empty() || value.size() > kExportWatermarkTextMaxBytes)
+    {
+        return make_error(ErrorCode::kValidation, "Export watermark text length is unsupported",
+                          {{"reason", "invalid_export_watermark_text"}, {"parameter", "text"}});
+    }
+    std::size_t lines = 1U;
+    std::size_t characters = 0U;
+    for (std::size_t index = 0U; index < value.size();)
+    {
+        if (value[index] == '\n')
+        {
+            if (characters == 0U || ++lines > 8U)
+            {
+                return make_error(
+                    ErrorCode::kValidation, "Export watermark text line layout is unsupported",
+                    {{"reason", "invalid_export_watermark_text"}, {"parameter", "text"}});
+            }
+            characters = 0U;
+            ++index;
+            continue;
+        }
+        if (value[index] == '{')
+        {
+            const std::string_view remaining = value.substr(index);
+            const std::string_view token = remaining.starts_with("{stem}")     ? "{stem}" :
+                                           remaining.starts_with("{asset_id}") ? "{asset_id}" :
+                                                                                 std::string_view{};
+            if (token.empty())
+            {
+                return make_error(
+                    ErrorCode::kValidation, "Export watermark text contains an unknown token",
+                    {{"reason", "invalid_export_watermark_text"}, {"parameter", "text"}});
+            }
+            index += token.size();
+            if (++characters > 64U)
+            {
+                return make_error(
+                    ErrorCode::kValidation, "Export watermark text line is too long",
+                    {{"reason", "invalid_export_watermark_text"}, {"parameter", "text"}});
+            }
+            continue;
+        }
+        if (value[index] == '}' || !export_watermark_character_ok(value[index]))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Export watermark text contains an unsupported character",
+                              {{"byte_index", std::to_string(index)},
+                               {"reason", "unsupported_watermark_character"}});
+        }
+        ++index;
+        if (++characters > 64U)
+        {
+            return make_error(ErrorCode::kValidation, "Export watermark text line is too long",
+                              {{"reason", "invalid_export_watermark_text"}, {"parameter", "text"}});
+        }
+    }
+    if (characters == 0U)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Export watermark text cannot end with an empty line",
+                          {{"reason", "invalid_export_watermark_text"}, {"parameter", "text"}});
+    }
+    return {};
+}
+
+} // namespace
+
+Result<void> validate_export_watermark_alignment(const std::string_view alignment)
+{
+    static constexpr std::string_view kNames[] = {"top_left",    "top_center",    "top_right",
+                                                  "center_left", "center",        "center_right",
+                                                  "bottom_left", "bottom_center", "bottom_right"};
+    for (const auto name : kNames)
+    {
+        if (alignment == name)
+            return {};
+    }
+    return make_error(
+        ErrorCode::kValidation, "Export watermark alignment is unsupported",
+        {{"alignment", std::string(alignment)}, {"reason", "invalid_export_watermark_alignment"}});
+}
+
+Result<void> validate_export_watermark_options(const ExportWatermarkOptions &options)
+{
+    auto text = validate_export_watermark_text(options.text);
+    if (!text)
+        return text.error();
+    for (const double channel : options.color)
+    {
+        if (!std::isfinite(channel) || channel < 0.0 || channel > 1.0)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Export watermark color channel is outside [0,1]",
+                {{"reason", "invalid_export_watermark_color"}, {"parameter", "color"}});
+        }
+    }
+    if (!std::isfinite(options.opacity) || options.opacity < kExportWatermarkOpacityMin ||
+        options.opacity > kExportWatermarkOpacityMax)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export watermark opacity is out of range",
+            {{"reason", "invalid_export_watermark_opacity"}, {"parameter", "opacity"}});
+    }
+    if (!std::isfinite(options.scale_percent) || options.scale_percent < kExportWatermarkScaleMin ||
+        options.scale_percent > kExportWatermarkScaleMax)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export watermark scale is out of range",
+            {{"reason", "invalid_export_watermark_scale"}, {"parameter", "scale_percent"}});
+    }
+    if (!std::isfinite(options.x_offset) || options.x_offset < kExportWatermarkOffsetMin ||
+        options.x_offset > kExportWatermarkOffsetMax)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export watermark x offset is out of range",
+            {{"reason", "invalid_export_watermark_offset"}, {"parameter", "x_offset"}});
+    }
+    if (!std::isfinite(options.y_offset) || options.y_offset < kExportWatermarkOffsetMin ||
+        options.y_offset > kExportWatermarkOffsetMax)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export watermark y offset is out of range",
+            {{"reason", "invalid_export_watermark_offset"}, {"parameter", "y_offset"}});
+    }
+    auto alignment = validate_export_watermark_alignment(options.alignment);
+    if (!alignment)
+        return alignment.error();
+    if (!std::isfinite(options.rotation_degrees) ||
+        options.rotation_degrees < kExportWatermarkRotationMin ||
+        options.rotation_degrees > kExportWatermarkRotationMax)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export watermark rotation is out of range",
+            {{"reason", "invalid_export_watermark_rotation"}, {"parameter", "rotation_degrees"}});
+    }
+    return {};
+}
+
 Result<void> validate_export_options(const ExportOptions &options)
 {
     if (options.max_edge > kExportMaxEdgeMax)
@@ -375,6 +633,9 @@ Result<void> validate_export_options(const ExportOptions &options)
     auto sharpen = validate_export_output_sharpen_options(options.output_sharpen);
     if (!sharpen)
         return sharpen.error();
+    auto watermark = validate_export_watermark_options(options.watermark);
+    if (!watermark)
+        return watermark.error();
 
     Result<void> format_valid;
     switch (options.format)
@@ -396,10 +657,12 @@ Result<void> validate_export_options(const ExportOptions &options)
                               {{"format", "original"}, {"reason", "metadata_mode_not_applicable"}});
         }
         if (export_options_request_resize(options) ||
-            export_options_request_output_sharpen(options))
+            export_options_request_output_sharpen(options) ||
+            export_options_request_watermark(options))
         {
             return make_error(
-                ErrorCode::kValidation, "Original copy rejects resize and output sharpen fields",
+                ErrorCode::kValidation,
+                "Original copy rejects resize, output sharpen, and watermark fields",
                 {{"format", "original"}, {"reason", "original_copy_resize_not_applicable"}});
         }
         return {};

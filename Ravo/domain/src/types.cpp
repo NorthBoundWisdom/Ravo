@@ -350,6 +350,11 @@ bool export_options_request_output_sharpen(const ExportOptions &options) noexcep
     return options.output_sharpen.enabled;
 }
 
+bool export_options_request_watermark(const ExportOptions &options) noexcept
+{
+    return options.watermark.enabled;
+}
+
 std::string_view catalog_restore_stage_name(const CatalogRestoreStage stage) noexcept
 {
     switch (stage)

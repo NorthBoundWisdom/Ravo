@@ -10,6 +10,7 @@
 
 #include "catalog_internal.h"
 #include "export_output_sharpen.h"
+#include "export_delivery_watermark.h"
 #include "catalog_service_internal.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
@@ -786,6 +787,16 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         if (!sharpened)
             return sharpened.error();
         rendered = std::move(sharpened);
+    }
+    if (export_options_request_watermark(request))
+    {
+        AssetDescriptor descriptor{asset.value()->id, location.value().path,
+                                   asset.value()->content_fingerprint};
+        auto watermarked = apply_export_delivery_watermark(
+            std::move(rendered).value(), request.watermark, descriptor, request.cancellation);
+        if (!watermarked)
+            return watermarked.error();
+        rendered = std::move(watermarked);
     }
     ExportPixelBuffer pixels;
     pixels.width = rendered.value().width;

@@ -80,6 +80,15 @@ inline constexpr double kExportOutputSharpenRadiusMin = 0.0;
 inline constexpr double kExportOutputSharpenRadiusMax = 5.0;
 inline constexpr double kExportOutputSharpenThresholdMin = 0.0;
 inline constexpr double kExportOutputSharpenThresholdMax = 100.0;
+inline constexpr double kExportWatermarkOpacityMin = 0.0;
+inline constexpr double kExportWatermarkOpacityMax = 1.0;
+inline constexpr double kExportWatermarkScaleMin = 0.5;
+inline constexpr double kExportWatermarkScaleMax = 50.0;
+inline constexpr double kExportWatermarkOffsetMin = -1.0;
+inline constexpr double kExportWatermarkOffsetMax = 1.0;
+inline constexpr double kExportWatermarkRotationMin = -180.0;
+inline constexpr double kExportWatermarkRotationMax = 180.0;
+inline constexpr std::size_t kExportWatermarkTextMaxBytes = 256U;
 inline constexpr std::int64_t kExportPresetSchemaVersion = 1;
 inline constexpr std::string_view kExportPresetSchema = "ravo.export_preset";
 inline constexpr std::size_t kExportPresetFileMaxBytes = 256U * 1024U;
@@ -968,6 +977,21 @@ struct ExportOutputSharpenOptions
     [[nodiscard]] bool operator==(const ExportOutputSharpenOptions &) const noexcept = default;
 };
 
+struct ExportWatermarkOptions
+{
+    bool enabled = false;
+    std::string text = "RAVO";
+    std::array<double, 3> color{1.0, 1.0, 1.0};
+    double opacity = 0.5;
+    double scale_percent = 8.0;
+    double x_offset = 0.0;
+    double y_offset = 0.0;
+    std::string alignment = "bottom_right";
+    double rotation_degrees = 0.0;
+
+    [[nodiscard]] bool operator==(const ExportWatermarkOptions &) const noexcept = default;
+};
+
 struct ExportOptions
 {
     ExportFormat format = ExportFormat::kPng;
@@ -976,6 +1000,7 @@ struct ExportOptions
     std::uint32_t max_width = 0;
     std::uint32_t max_height = 0;
     ExportOutputSharpenOptions output_sharpen;
+    ExportWatermarkOptions watermark;
     PngExportOptions png_options;
     TiffExportOptions tiff_options;
     ExportMetadataMode metadata_mode = ExportMetadataMode::kFull;
@@ -1099,8 +1124,11 @@ void fit_export_output_size(std::uint32_t source_width, std::uint32_t source_hei
                             std::uint32_t &output_height) noexcept;
 [[nodiscard]] bool export_options_request_resize(const ExportOptions &options) noexcept;
 [[nodiscard]] bool export_options_request_output_sharpen(const ExportOptions &options) noexcept;
+[[nodiscard]] bool export_options_request_watermark(const ExportOptions &options) noexcept;
+[[nodiscard]] Result<void> validate_export_watermark_alignment(std::string_view alignment);
 [[nodiscard]] Result<void>
 validate_export_output_sharpen_options(const ExportOutputSharpenOptions &options);
+[[nodiscard]] Result<void> validate_export_watermark_options(const ExportWatermarkOptions &options);
 [[nodiscard]] Result<void> validate_export_options(const ExportOptions &options);
 [[nodiscard]] Result<ExportPreset> parse_export_preset_json(std::string_view text);
 [[nodiscard]] Result<std::string> serialize_export_preset(const ExportPreset &preset);

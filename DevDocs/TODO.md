@@ -245,16 +245,15 @@ identity/default behavior.
 
 **Status:** P1 / Partial — ADR-0117 box fit, post-resize output sharpen,
 reusable ExportOptions presets, and restartable batch jobs are implemented.
-Long-edge remains ADR-0113. ADR-0127 accepts export **delivery** text watermark
-(reuse ADR-0071 via ExportOptions; no recipe mutation) — implementation still
-residual. Colour-conversion/frame overlays remain undecided.
+Long-edge remains ADR-0113. ADR-0127 delivery text watermark is shipped
+(ExportOptions/CLI/Studio; ADR-0071 engine stage after resize/sharpen; no
+Develop recipe mutation; privacy modes unchanged). Colour-conversion/frame
+overlays remain undecided.
 
-**Outcome:** box resize, output sharpening, reusable export presets, and
-restartable background batch delivery.
+**Outcome:** box resize, output sharpening, reusable export presets,
+restartable background batch delivery, and optional delivery text watermark.
 
 **Remaining unfinished work:**
-- ADR-0127 ExportOptions/CLI/Studio delivery watermark fields + equality tests
-  (contract accepted; ship residual).
 - Colour-conversion/frame overlays remain undecided.
 
 **Risks:** resizing in QML, a second encoder/job owner, overwrite/skip guessing,

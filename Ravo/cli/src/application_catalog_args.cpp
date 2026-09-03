@@ -142,6 +142,11 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.tiff_grayscale_if_neutral = true;
             continue;
         }
+        if (option == "--delivery-watermark")
+        {
+            result.delivery_watermark = true;
+            continue;
+        }
         if (option == "--no-recursive")
         {
             if (!result.import_recursive)
@@ -411,6 +416,26 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         {
             result.output_sharpen = true;
             result.sharpen_threshold = value;
+        }
+        else if (option == "--delivery-watermark-text")
+        {
+            result.delivery_watermark = true;
+            result.delivery_watermark_text = value;
+        }
+        else if (option == "--delivery-watermark-opacity")
+        {
+            result.delivery_watermark = true;
+            result.delivery_watermark_opacity = value;
+        }
+        else if (option == "--delivery-watermark-scale")
+        {
+            result.delivery_watermark = true;
+            result.delivery_watermark_scale = value;
+        }
+        else if (option == "--delivery-watermark-alignment")
+        {
+            result.delivery_watermark = true;
+            result.delivery_watermark_alignment = value;
         }
         else if (option == "--export-preset")
         {
@@ -967,6 +992,54 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             request.output_sharpen.threshold = threshold.value();
         }
     }
+    if (flags.delivery_watermark || !flags.delivery_watermark_text.empty() ||
+        !flags.delivery_watermark_opacity.empty() || !flags.delivery_watermark_scale.empty() ||
+        !flags.delivery_watermark_alignment.empty())
+    {
+        request.watermark.enabled = true;
+        if (!flags.delivery_watermark_text.empty())
+            request.watermark.text = std::string(flags.delivery_watermark_text);
+        auto parse_wm_double = [](const std::string_view text,
+                                  const std::string_view option) -> Result<double>
+        {
+            if (text.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Missing delivery watermark value",
+                                  {{"option", std::string(option)}});
+            char *end = nullptr;
+            const std::string owned(text);
+            const double value = std::strtod(owned.c_str(), &end);
+            if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Invalid delivery watermark value",
+                                  {{"option", std::string(option)}, {"value", owned}});
+            }
+            return value;
+        };
+        if (!flags.delivery_watermark_opacity.empty())
+        {
+            auto opacity =
+                parse_wm_double(flags.delivery_watermark_opacity, "--delivery-watermark-opacity");
+            if (!opacity)
+                return opacity.error();
+            request.watermark.opacity = opacity.value();
+        }
+        if (!flags.delivery_watermark_scale.empty())
+        {
+            auto scale =
+                parse_wm_double(flags.delivery_watermark_scale, "--delivery-watermark-scale");
+            if (!scale)
+                return scale.error();
+            request.watermark.scale_percent = scale.value();
+        }
+        if (!flags.delivery_watermark_alignment.empty())
+        {
+            auto alignment =
+                validate_export_watermark_alignment(flags.delivery_watermark_alignment);
+            if (!alignment)
+                return alignment.error();
+            request.watermark.alignment = std::string(flags.delivery_watermark_alignment);
+        }
+    }
     if (!flags.export_preset.empty())
     {
         auto text_body = read_utf8_text_file(flags.export_preset, kExportPresetFileMaxBytes);
@@ -999,6 +1072,10 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         if (flags.output_sharpen || !flags.sharpen_amount.empty() ||
             !flags.sharpen_radius.empty() || !flags.sharpen_threshold.empty())
             merged.output_sharpen = request.output_sharpen;
+        if (flags.delivery_watermark || !flags.delivery_watermark_text.empty() ||
+            !flags.delivery_watermark_opacity.empty() || !flags.delivery_watermark_scale.empty() ||
+            !flags.delivery_watermark_alignment.empty())
+            merged.watermark = request.watermark;
         request = ExportRequest{};
         static_cast<ExportOptions &>(request) = std::move(merged);
     }
@@ -1071,6 +1148,15 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         return make_error(
             ErrorCode::kInvalidArgument, "Metadata privacy mode requires catalog export",
             {{"reason", "metadata_mode_requires_export"}, {"subcommand", std::string(subcommand)}});
+    }
+    if (flags.delivery_watermark || !flags.delivery_watermark_text.empty() ||
+        !flags.delivery_watermark_opacity.empty() || !flags.delivery_watermark_scale.empty() ||
+        !flags.delivery_watermark_alignment.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Delivery watermark options require catalog export",
+                          {{"reason", "delivery_watermark_requires_export"},
+                           {"subcommand", std::string(subcommand)}});
     }
     return {};
 }

@@ -615,6 +615,7 @@ public:
     Q_INVOKABLE QVariantList tiffSampleTypeChoices() const;
     Q_INVOKABLE QVariantList tiffCompressionChoices() const;
     Q_INVOKABLE QVariantList exportMetadataModeChoices() const;
+    Q_INVOKABLE QVariantList exportWatermarkAlignmentChoices() const;
     Q_INVOKABLE QVariantMap exportDefaultOptions() const;
     Q_INVOKABLE QVariantMap exportOptionBounds() const;
     Q_INVOKABLE void selectAsset(const QString &asset_id);
