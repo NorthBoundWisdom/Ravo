@@ -782,6 +782,9 @@ ravo catalog fields --json
 ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--set-text <field>=<text>]... [--max-edge N] [--output <file.png>] --json
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog refresh-metadata --catalog <library.sqlite> --asset-id <id> --json
+ravo catalog xmp-status --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] --json
+ravo catalog xmp-import --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] [--resolve abort|sidecar|catalog] --json
+ravo catalog xmp-export --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] [--resolve abort|catalog|sidecar] --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--from-xmp <preset.xmp>] [--set <field>=<number>]... [--set-text <field>=<text>]... [--exposure-ev N] [--watermark-text <text>] --json
 ravo catalog develop-apply --catalog <library.sqlite> --from-asset <id> --asset-id <id> [--asset-id <id>]... --fields exposure,temperature [--revision N] --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json

@@ -19,6 +19,7 @@
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/services/xmp_interchange.h"
 
 namespace ravo
 {
@@ -294,6 +295,16 @@ public:
     [[nodiscard]] Result<ExportJob> resume_export_job(
         ExportJob job,
         const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress = {});
+
+    [[nodiscard]] Result<XmpInterchangeStatus>
+    xmp_interchange_status(std::string_view asset_id,
+                           std::optional<std::string_view> sidecar_path = std::nullopt) const;
+    [[nodiscard]] Result<XmpInterchangeImportResult>
+    xmp_interchange_import(std::string_view asset_id, XmpInterchangeResolve resolve,
+                           std::optional<std::string_view> sidecar_path = std::nullopt);
+    [[nodiscard]] Result<XmpInterchangeExportResult>
+    xmp_interchange_export(std::string_view asset_id, XmpInterchangeResolve resolve,
+                           std::optional<std::string_view> sidecar_path = std::nullopt);
     Result<void> close();
 
 private:

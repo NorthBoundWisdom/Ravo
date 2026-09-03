@@ -340,6 +340,18 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.from_xmp = value;
         }
+        else if (option == "--xmp")
+        {
+            if (!result.xmp_path.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--xmp was specified twice");
+            result.xmp_path = value;
+        }
+        else if (option == "--resolve")
+        {
+            if (!result.xmp_resolve.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--resolve was specified twice");
+            result.xmp_resolve = value;
+        }
         else if (option == "--max-edge")
         {
             auto dimension = parse_dimension(value, option);

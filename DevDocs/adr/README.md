@@ -127,3 +127,5 @@ supersession relationship when direction changes.
 | [0117](0117-export-box-sharpen-presets-and-restartable-jobs.md) | Accepted | Export box fit, post-resize output sharpen, reusable ExportOptions presets, and restartable batch jobs on CatalogService. |
 | [0118](0118-heic-heif-fail-closed-ingest.md) | Accepted | HEIC/HEIF containers are recognized by ftyp brands and fail closed until an owned decoder ships; never pretend-JPEG or incidental ImageIO decode. |
 | [0119](0119-hierarchical-keywords.md) | Proposed | Hierarchical keyword authority, identity, membership, and export privacy decision stub for PRO-METADATA (no schema dump yet). |
+| [0120](0120-xmp-interchange-conflict-matrix.md) | Accepted | Adjacent XMP conflict matrix; explicit CRS import/export |
+| [0121](0121-ai-architecture-privacy-provenance.md) | Accepted | AI architecture, privacy, provenance, licence boundary |

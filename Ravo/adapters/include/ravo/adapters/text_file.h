@@ -18,8 +18,15 @@ namespace ravo
 [[nodiscard]] Result<void> write_utf8_text_file_atomically(std::string_view path_utf8,
                                                            std::string_view content_utf8);
 
+// Atomic create-or-replace of one complete UTF-8 document.
+[[nodiscard]] Result<void> write_utf8_text_file_replace_atomically(std::string_view path_utf8,
+                                                                   std::string_view content_utf8);
+
 // Writes one complete byte sequence or leaves the prior target untouched.
 [[nodiscard]] Result<void> write_file_bytes_atomically(std::string_view path_utf8,
                                                        std::span<const std::uint8_t> bytes);
+
+[[nodiscard]] std::string sha256_utf8_hex(std::string_view text);
+[[nodiscard]] Result<std::string> sha256_file_hex(std::string_view path_utf8);
 
 } // namespace ravo

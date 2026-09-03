@@ -8,6 +8,7 @@ target_sources(ravo_services
     src/catalog_backup_schedule.cpp
     src/catalog_folder.cpp
     src/catalog_keywords.cpp
+    src/catalog_xmp_interchange.cpp
     src/catalog_internal.cpp
     src/catalog_import.cpp
     src/encoded_publication.cpp
@@ -26,6 +27,6 @@ target_include_directories(ravo_services
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-target_link_libraries(ravo_services PUBLIC ravo_domain ravo_engine)
+target_link_libraries(ravo_services PUBLIC ravo_domain ravo_engine ravo_adapters)
 
 ravo_configure_target(ravo_services)

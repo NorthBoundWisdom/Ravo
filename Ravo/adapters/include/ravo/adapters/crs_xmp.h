@@ -12,8 +12,7 @@
 namespace ravo
 {
 
-inline constexpr std::string_view kCrsNamespaceUri =
-    "http://ns.adobe.com/camera-raw-settings/1.0/";
+inline constexpr std::string_view kCrsNamespaceUri = "http://ns.adobe.com/camera-raw-settings/1.0/";
 
 struct CrsOmission
 {
@@ -60,6 +59,23 @@ struct CrsImportResult
 
 [[nodiscard]] bool is_crs_xmp_document(std::string_view xmp_utf8) noexcept;
 [[nodiscard]] Result<std::string> crs_xmp_preset_name(std::string_view xmp_utf8);
+
+struct CrsExportRequest
+{
+    DevelopParams look;
+    std::string_view preset_name = "Ravo";
+};
+
+struct CrsExportResult
+{
+    std::string xmp_utf8;
+    std::vector<std::string> omitted_catalog_fields;
+};
+
+// Serializes the CRS-mapped Develop look subset to a deterministic PV2012 XMP
+// packet. Unmapped catalog features are listed in omitted_catalog_fields; the
+// catalog remains the live authority for those fields.
+[[nodiscard]] Result<CrsExportResult> export_crs_xmp(const CrsExportRequest &request);
 
 // Parses Adobe CRS XMP (Lightroom/ACR presets and sidecars) onto DevelopParams.
 // Unknown crs keys, Kelvin/tint, custom DCP, and non-identity unsupported looks

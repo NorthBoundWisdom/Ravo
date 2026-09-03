@@ -4,6 +4,7 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <iomanip>
 #include <cstdint>
 #include <limits>
 #include <locale>
@@ -336,7 +337,8 @@ map_crs_curve(const std::vector<std::string> &items, const std::string_view key)
             return !x ? x.error() : y.error();
         if (x.value() < 0.0 || x.value() > kCrsCurveMax || y.value() < 0.0 ||
             y.value() > kCrsCurveMax)
-            return crs_error("CRS tone curve node is outside 0–255", "invalid_crs_curve", key, item);
+            return crs_error("CRS tone curve node is outside 0–255", "invalid_crs_curve", key,
+                             item);
         points.push_back({x.value() / kCrsCurveMax, y.value() / kCrsCurveMax});
         if (points.size() > 1U && !(points.back().x > points[points.size() - 2U].x))
             return crs_error("CRS tone curve nodes must be strictly increasing",
@@ -381,8 +383,8 @@ compose_crs_display_curves(const std::vector<ToneCurvePoint> &master,
     return result;
 }
 
-constexpr std::array<std::string_view, 8> kHslBands = {
-    "Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta"};
+constexpr std::array<std::string_view, 8> kHslBands = {"Red",  "Orange", "Yellow", "Green",
+                                                       "Aqua", "Blue",   "Purple", "Magenta"};
 
 constexpr std::array<std::string_view, 28> kMetadataKeys = {
     "PresetType",
@@ -484,7 +486,8 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
                                                        std::vector<CrsOmission> &omitted)
 {
     static constexpr std::array<std::string_view, 12> kAllowedProcess = {
-        "6.7", "8.0", "9.0", "10.0", "11.0", "15.0", "15.1", "15.2", "15.3", "15.4", "16.0", "17.0"};
+        "6.7",  "8.0",  "9.0",  "10.0", "11.0", "15.0",
+        "15.1", "15.2", "15.3", "15.4", "16.0", "17.0"};
     static constexpr std::array<std::string_view, 5> kDefaultProfiles = {
         "Adobe Standard", "Adobe Color", "Embedded", "Camera Settings", "Default"};
     static constexpr std::array<std::string_view, 1> kDefaultLooks = {"Adobe Color"};
@@ -651,11 +654,11 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
     return mapped;
 }
 
-[[nodiscard]] Result<void> assign_hsl(DevelopParams &look, CrsLookMask &mask,
-                                      const ParsedCrs &parsed, const std::string_view prefix,
-                                      std::array<double, kColorEqualizerBandCount> DevelopParams::*
-                                          member,
-                                      bool CrsLookMask::*flag, const double scale)
+[[nodiscard]] Result<void>
+assign_hsl(DevelopParams &look, CrsLookMask &mask, const ParsedCrs &parsed,
+           const std::string_view prefix,
+           std::array<double, kColorEqualizerBandCount> DevelopParams::*member,
+           bool CrsLookMask::*flag, const double scale)
 {
     bool any = false;
     std::array<double, kColorEqualizerBandCount> bands{};
@@ -692,8 +695,7 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
     }
 
     const auto assign_slider = [&](const std::string_view key, double DevelopParams::*field,
-                                   bool CrsLookMask::*flag,
-                                   const double scale) -> Result<void>
+                                   bool CrsLookMask::*flag, const double scale) -> Result<void>
     {
         auto value = optional_number(parsed, key);
         if (!value)
@@ -708,8 +710,8 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
         return {};
     };
 
-    if (auto status = assign_slider("Exposure2012", &DevelopParams::exposure_ev, &CrsLookMask::exposure,
-                                    1.0);
+    if (auto status =
+            assign_slider("Exposure2012", &DevelopParams::exposure_ev, &CrsLookMask::exposure, 1.0);
         !status)
         return status.error();
     if (auto contrast = optional_number(parsed, "Contrast2012"); !contrast)
@@ -747,16 +749,16 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
                                     1.0 / kCrsSlider);
         !status)
         return status.error();
-    if (auto status = assign_slider("Saturation", &DevelopParams::saturation, &CrsLookMask::saturation,
-                                    1.0 / kCrsSlider);
+    if (auto status = assign_slider("Saturation", &DevelopParams::saturation,
+                                    &CrsLookMask::saturation, 1.0 / kCrsSlider);
         !status)
         return status.error();
     if (auto status = assign_slider("Clarity2012", &DevelopParams::clarity, &CrsLookMask::clarity,
                                     1.0 / kCrsSlider);
         !status)
         return status.error();
-    if (auto status = assign_slider("Dehaze", &DevelopParams::dehaze, &CrsLookMask::dehaze,
-                                    1.0 / kCrsSlider);
+    if (auto status =
+            assign_slider("Dehaze", &DevelopParams::dehaze, &CrsLookMask::dehaze, 1.0 / kCrsSlider);
         !status)
         return status.error();
     if (auto status = assign_slider("GrainAmount", &DevelopParams::grain, &CrsLookMask::grain,
@@ -768,14 +770,14 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
                                  &CrsLookMask::color_eq_hue, 0.5 / kCrsSlider);
         !status)
         return status.error();
-    if (auto status = assign_hsl(look, mask, parsed, "SaturationAdjustment",
-                                 &DevelopParams::color_eq_sat, &CrsLookMask::color_eq_sat,
-                                 1.0 / kCrsSlider);
+    if (auto status =
+            assign_hsl(look, mask, parsed, "SaturationAdjustment", &DevelopParams::color_eq_sat,
+                       &CrsLookMask::color_eq_sat, 1.0 / kCrsSlider);
         !status)
         return status.error();
-    if (auto status = assign_hsl(look, mask, parsed, "LuminanceAdjustment",
-                                 &DevelopParams::color_eq_light, &CrsLookMask::color_eq_light,
-                                 1.0 / kCrsSlider);
+    if (auto status =
+            assign_hsl(look, mask, parsed, "LuminanceAdjustment", &DevelopParams::color_eq_light,
+                       &CrsLookMask::color_eq_light, 1.0 / kCrsSlider);
         !status)
         return status.error();
 
@@ -798,7 +800,7 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
             auto highlight_hue = optional_number(parsed, "SplitToningHighlightHue");
             auto balance = optional_number(parsed, "SplitToningBalance");
             if (!shadow_hue || !highlight_hue || !balance)
-                return !shadow_hue ? shadow_hue.error() :
+                return !shadow_hue    ? shadow_hue.error() :
                        !highlight_hue ? highlight_hue.error() :
                                         balance.error();
             look.split_toning_present = true;
@@ -818,10 +820,10 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
     auto parametric_lights = optional_number(parsed, "ParametricLights");
     auto parametric_highlights = optional_number(parsed, "ParametricHighlights");
     if (!parametric_shadows || !parametric_darks || !parametric_lights || !parametric_highlights)
-        return !parametric_shadows     ? parametric_shadows.error() :
-               !parametric_darks       ? parametric_darks.error() :
-               !parametric_lights      ? parametric_lights.error() :
-                                         parametric_highlights.error();
+        return !parametric_shadows ? parametric_shadows.error() :
+               !parametric_darks   ? parametric_darks.error() :
+               !parametric_lights  ? parametric_lights.error() :
+                                     parametric_highlights.error();
     const bool parametric_active =
         (parametric_shadows.value() && !near(*parametric_shadows.value(), 0.0)) ||
         (parametric_darks.value() && !near(*parametric_darks.value(), 0.0)) ||
@@ -833,7 +835,10 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
     auto green = map_crs_curve(parsed.green_curve, "ToneCurvePV2012Green");
     auto blue = map_crs_curve(parsed.blue_curve, "ToneCurvePV2012Blue");
     if (!master || !red || !green || !blue)
-        return !master ? master.error() : !red ? red.error() : !green ? green.error() : blue.error();
+        return !master ? master.error() :
+               !red    ? red.error() :
+               !green  ? green.error() :
+                         blue.error();
     const bool rgb_custom = !curve_is_linear(red.value()) || !curve_is_linear(green.value()) ||
                             !curve_is_linear(blue.value());
     const bool master_custom = !curve_is_linear(master.value());
@@ -882,13 +887,12 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
         mask.rgb_curve = true;
     }
 
-    const bool has_cal = find_attr(parsed, "RedHue") != nullptr ||
-                         find_attr(parsed, "RedSaturation") != nullptr ||
-                         find_attr(parsed, "GreenHue") != nullptr ||
-                         find_attr(parsed, "GreenSaturation") != nullptr ||
-                         find_attr(parsed, "BlueHue") != nullptr ||
-                         find_attr(parsed, "BlueSaturation") != nullptr ||
-                         find_attr(parsed, "ShadowTint") != nullptr;
+    const bool has_cal =
+        find_attr(parsed, "RedHue") != nullptr || find_attr(parsed, "RedSaturation") != nullptr ||
+        find_attr(parsed, "GreenHue") != nullptr ||
+        find_attr(parsed, "GreenSaturation") != nullptr ||
+        find_attr(parsed, "BlueHue") != nullptr || find_attr(parsed, "BlueSaturation") != nullptr ||
+        find_attr(parsed, "ShadowTint") != nullptr;
     if (has_cal)
     {
         const auto hue = [&](const std::string_view key) -> Result<double>
@@ -912,10 +916,10 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
         auto green_purity = purity("GreenSaturation");
         auto blue_purity = purity("BlueSaturation");
         if (!red_hue || !green_hue || !blue_hue || !red_purity || !green_purity || !blue_purity)
-            return !red_hue     ? red_hue.error() :
-                   !green_hue   ? green_hue.error() :
-                   !blue_hue    ? blue_hue.error() :
-                   !red_purity  ? red_purity.error() :
+            return !red_hue      ? red_hue.error() :
+                   !green_hue    ? green_hue.error() :
+                   !blue_hue     ? blue_hue.error() :
+                   !red_purity   ? red_purity.error() :
                    !green_purity ? green_purity.error() :
                                    blue_purity.error();
         look.primaries.red_hue = red_hue.value();
@@ -929,8 +933,8 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
             return tint.error();
         if (tint.value() && !near(*tint.value(), 0.0))
         {
-            look.primaries.achromatic_tint_purity =
-                std::min(kPrimariesAchromaticTintPurityMax, std::abs(*tint.value()) / kCrsSlider * 0.5);
+            look.primaries.achromatic_tint_purity = std::min(
+                kPrimariesAchromaticTintPurityMax, std::abs(*tint.value()) / kCrsSlider * 0.5);
             look.primaries.achromatic_tint_hue =
                 *tint.value() < 0.0 ? kCrsShadowTintGreenHue : kCrsShadowTintMagentaHue;
         }
@@ -984,8 +988,7 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
         if (roundness.value())
             look.vignette_shape = std::clamp(1.0 + *roundness.value() / kCrsSlider, 0.5, 5.0);
         if (const auto *style = find_attr(parsed, "PostCropVignetteStyle"); style != nullptr)
-            omitted.push_back(
-                {"PostCropVignetteStyle", *style, "crs_vignette_style_approximated"});
+            omitted.push_back({"PostCropVignetteStyle", *style, "crs_vignette_style_approximated"});
         mask.vignette = true;
     }
 
@@ -1159,11 +1162,146 @@ Result<CrsImportResult> import_crs_xmp(const LegacyXmpImportRequest &request)
     clamp_develop(result.look);
     DevelopParams clamped = result.look;
     if (clamped != result.look)
-        return crs_error("CRS values map outside Ravo Develop bounds", "crs_value_outside_ravo_range");
+        return crs_error("CRS values map outside Ravo Develop bounds",
+                         "crs_value_outside_ravo_range");
     auto recipe = recipe_from_develop(request.asset, result.look);
     if (!recipe)
         return recipe.error();
     result.recipe = std::move(recipe).value();
+    return result;
+}
+
+namespace
+{
+
+[[nodiscard]] std::string format_crs_number(const double value)
+{
+    std::ostringstream stream;
+    stream.imbue(std::locale::classic());
+    stream << std::setprecision(12) << value;
+    return stream.str();
+}
+
+[[nodiscard]] std::string xml_attr_escape(const std::string_view value)
+{
+    std::string out;
+    out.reserve(value.size());
+    for (const char character : value)
+    {
+        switch (character)
+        {
+        case '&':
+            out += "&amp;";
+            break;
+        case '<':
+            out += "&lt;";
+            break;
+        case '>':
+            out += "&gt;";
+            break;
+        case '"':
+            out += "&quot;";
+            break;
+        case '\'':
+            out += "&apos;";
+            break;
+        default:
+            out.push_back(static_cast<char>(character));
+            break;
+        }
+    }
+    return out;
+}
+
+} // namespace
+
+Result<CrsExportResult> export_crs_xmp(const CrsExportRequest &request)
+{
+    CrsExportResult result;
+    const DevelopParams &look = request.look;
+    auto omit = [&](const std::string_view field)
+    {
+        if (std::find(result.omitted_catalog_fields.begin(), result.omitted_catalog_fields.end(),
+                      field) == result.omitted_catalog_fields.end())
+            result.omitted_catalog_fields.emplace_back(field);
+    };
+
+    if (!look.masks.empty())
+        omit("masks");
+    if (look.crop_x != 0.0 || look.crop_y != 0.0 || look.crop_width != 1.0 ||
+        look.crop_height != 1.0)
+        omit("crop");
+    if (look.rotate_quarters != 0 || look.flip_horizontal != 0 || look.flip_vertical != 0 ||
+        std::abs(look.straighten_degrees) > 1.0e-12)
+        omit("geometry");
+    if (look.canvas_present || look.canvas_enabled)
+        omit("canvas");
+    if (!look.retouch.is_identity())
+        omit("retouch");
+    if (!look.rgb_curve.is_identity() || !tone_curve_is_identity(look.tone_curve) ||
+        !tone_curve_is_identity(look.tone_curve_a) || !tone_curve_is_identity(look.tone_curve_b))
+        omit("curves");
+    if (look.color_eq_effect_enabled)
+        omit("color_eq");
+    if (look.split_toning_present || look.split_toning_enabled)
+        omit("split_toning");
+    if (look.monochrome_present || look.monochrome_enabled)
+        omit("monochrome");
+    if (look.profile_gamma_enabled)
+        omit("profile_gamma");
+    if (std::abs(look.sharpen) > 1.0e-12 || std::abs(look.denoise) > 1.0e-12)
+        omit("detail");
+    if (std::abs(look.vignette) > 1.0e-12)
+        omit("vignette");
+    if (std::abs(look.grain) > 1.0e-12)
+        omit("grain");
+
+    const double contrast_slider = look.sigmoid_enabled ?
+                                       [&]()
+    {
+        // Inverse of import: sigmoid_contrast =
+        //   kSigmoidContrastDefault * pow(kCrsPositiveContrastSigmoid / kSigmoidContrastDefault, mapped)
+        // where mapped = Contrast2012 / 100.
+        if (look.sigmoid_contrast <= 0.0 || !std::isfinite(look.sigmoid_contrast))
+            return 0.0;
+        const double ratio = look.sigmoid_contrast / kSigmoidContrastDefault;
+        const double base = kCrsPositiveContrastSigmoid / kSigmoidContrastDefault;
+        if (base <= 0.0 || ratio <= 0.0)
+            return 0.0;
+        return std::log(ratio) / std::log(base) * kCrsSlider;
+    }() :
+                                       look.contrast * kCrsSlider;
+
+    const std::string name =
+        request.preset_name.empty() ? "Ravo" : std::string(request.preset_name);
+    std::ostringstream xml;
+    xml.imbue(std::locale::classic());
+    xml << "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
+        << "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
+        << " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
+        << "  <rdf:Description rdf:about=\"\"\n"
+        << "    xmlns:crs=\"" << kCrsNamespaceUri << "\"\n"
+        << "   crs:Version=\"15.4\"\n"
+        << "   crs:ProcessVersion=\"11.0\"\n"
+        << "   crs:HasSettings=\"True\"\n"
+        << "   crs:WhiteBalance=\"As Shot\"\n"
+        << "   crs:Exposure2012=\"" << format_crs_number(look.exposure_ev) << "\"\n"
+        << "   crs:Contrast2012=\"" << format_crs_number(contrast_slider) << "\"\n"
+        << "   crs:Highlights2012=\"" << format_crs_number(look.highlights * kCrsSlider) << "\"\n"
+        << "   crs:Shadows2012=\"" << format_crs_number(look.shadows * kCrsSlider) << "\"\n"
+        << "   crs:Whites2012=\"" << format_crs_number(look.whites * kCrsSlider) << "\"\n"
+        << "   crs:Blacks2012=\"" << format_crs_number(look.blacks * kCrsSlider) << "\"\n"
+        << "   crs:Vibrance=\"" << format_crs_number(look.vibrance * kCrsSlider) << "\"\n"
+        << "   crs:Saturation=\"" << format_crs_number(look.saturation * kCrsSlider) << "\"\n"
+        << "   crs:Clarity2012=\"" << format_crs_number(look.clarity * kCrsSlider) << "\"\n"
+        << "   crs:Dehaze=\"" << format_crs_number(look.dehaze * kCrsSlider) << "\"\n"
+        << "   crs:ConvertToGrayscale=\"False\">\n"
+        << "   <crs:Name>" << xml_attr_escape(name) << "</crs:Name>\n"
+        << "  </rdf:Description>\n"
+        << " </rdf:RDF>\n"
+        << "</x:xmpmeta>\n"
+        << "<?xpacket end=\"w\"?>\n";
+    result.xmp_utf8 = xml.str();
     return result;
 }
 

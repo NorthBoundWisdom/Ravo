@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick> "
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
     const auto subcommand = positional[1];
@@ -156,6 +156,15 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool stack_command =
         subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
     const bool develop_apply_command = subcommand == "develop-apply";
+    const bool xmp_command =
+        subcommand == "xmp-status" || subcommand == "xmp-import" || subcommand == "xmp-export";
+    if (!flags.value().xmp_path.empty() && !xmp_command)
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--xmp is only valid for catalog xmp-status, xmp-import, or xmp-export");
+    if (!flags.value().xmp_resolve.empty() && subcommand != "xmp-import" &&
+        subcommand != "xmp-export")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--resolve is only valid for catalog xmp-import or xmp-export");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
         !develop_apply_command && !keyword_command)
         return make_error(ErrorCode::kInvalidArgument,
@@ -1489,6 +1498,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return asset_to_json(restored.value());
     }
 
+    if (xmp_command)
+        return run_catalog_xmp_command(service, subcommand, flags.value());
     if (subcommand == "keywords")
     {
         auto listed = service.list_keywords();

@@ -3,6 +3,7 @@
 #include <limits>
 #include <span>
 
+#include <QtCore/QCryptographicHash>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QIODevice>
@@ -127,9 +128,77 @@ Result<void> write_utf8_text_file_atomically(const std::string_view path_utf8,
                                              const std::string_view content_utf8)
 {
     return write_file_bytes_atomically(
-        path_utf8, std::span<const std::uint8_t>(
-                       reinterpret_cast<const std::uint8_t *>(content_utf8.data()),
-                       content_utf8.size()));
+        path_utf8,
+        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>(content_utf8.data()),
+                                      content_utf8.size()));
+}
+
+Result<void> write_utf8_text_file_replace_atomically(const std::string_view path_utf8,
+                                                     const std::string_view content_utf8)
+{
+    auto path = to_qt_path(path_utf8);
+    if (!path)
+        return path.error();
+    if (content_utf8.size() > static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
+        return make_error(ErrorCode::kInvalidArgument, "Output content is too large");
+
+    QSaveFile output(path.value());
+    if (!output.open(QIODevice::WriteOnly))
+    {
+        return make_error(ErrorCode::kIo, "Unable to open atomic output file",
+                          {{"path", std::string(path_utf8)},
+                           {"qt_error", output.errorString().toUtf8().toStdString()}});
+    }
+    const auto data =
+        QByteArray::fromRawData(content_utf8.data(), static_cast<qsizetype>(content_utf8.size()));
+    if (output.write(data) != data.size())
+    {
+        return make_error(ErrorCode::kIo, "Unable to write complete atomic output",
+                          {{"path", std::string(path_utf8)},
+                           {"qt_error", output.errorString().toUtf8().toStdString()}});
+    }
+    if (!output.commit())
+    {
+        return make_error(ErrorCode::kIo, "Unable to commit atomic output file",
+                          {{"path", std::string(path_utf8)},
+                           {"qt_error", output.errorString().toUtf8().toStdString()}});
+    }
+    return {};
+}
+
+std::string sha256_utf8_hex(const std::string_view text)
+{
+    const QByteArray bytes = QByteArray::fromRawData(text.data(), static_cast<int>(text.size()));
+    return QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex().toStdString();
+}
+
+Result<std::string> sha256_file_hex(const std::string_view path_utf8)
+{
+    auto path = to_qt_path(path_utf8);
+    if (!path)
+        return path.error();
+    QFile file(path.value());
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        return make_error(ErrorCode::kIo, "Unable to hash file",
+                          {{"path", std::string(path_utf8)},
+                           {"reason", "file_hash_open_failed"},
+                           {"qt_error", file.errorString().toUtf8().toStdString()}});
+    }
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    while (!file.atEnd())
+    {
+        const QByteArray chunk = file.read(1 << 20);
+        if (chunk.isEmpty() && file.error() != QFileDevice::NoError)
+        {
+            return make_error(ErrorCode::kIo, "Unable to hash file",
+                              {{"path", std::string(path_utf8)},
+                               {"reason", "file_hash_read_failed"},
+                               {"qt_error", file.errorString().toUtf8().toStdString()}});
+        }
+        hash.addData(chunk);
+    }
+    return hash.result().toHex().toStdString();
 }
 
 } // namespace ravo

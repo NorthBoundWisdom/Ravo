@@ -235,23 +235,30 @@ rewrite, and exact preset apply after reopen.
 
 ## PRO-INTERCHANGE — Explicit XMP, catalog conversion, and external editors
 
-**Status:** P2 / Decision required — ADR-0120 is a Proposed stub for the
-adjacent-XMP conflict matrix first slice. External-editor derived assets and
-foreign-catalog conversion remain undecided.
+**Status:** P1 / Ready — ADR-0120 accepted. First Ready slice landed:
+`catalog xmp-status|xmp-import|xmp-export` with CRS recipe-field conflict
+preflight, catalog-owned exchange baseline, fail-closed unsupported CRS, and
+original-byte preservation. Remaining work stays P2 until its own ADR.
+
+**Done (this slice):** conflict classes
+`missing|identical|catalog-newer|sidecar-newer|both-changed`; explicit
+`--resolve abort|catalog|sidecar`; structured JSON errors; CLI + service tests.
+
+**Still open (P2 / Decision required):**
+- external-editor derived assets/versions (deferred — needs a later ADR;
+  too large for ADR-0120)
+- foreign Lightroom/Capture One catalog conversion (no in-place open)
+- keyword/IPTC/location adjacent merge matrix (ADR-0119 stays catalog-owned)
+- supported source-version matrix beyond CRS PV2012 recipe fields
 
 **Outcome:** user-initiated interchange without adjacent XMP becoming a second
 live authority, plus external-editor output as a new derived asset/version.
 
-**Dependencies:** accept ADR-0120 (conflict tuples, fingerprints, command
-owners); supported source-version matrix; read-only conversion artifact;
-derived-asset lifecycle; external process timeout/cancel policy.
-
 **Risks:** in-place foreign-catalog migration, hidden external renderer, original
 RAW mutation, watcher races, and unsupported fields silently dropped.
 
-**Acceptance gate:** catalog-newer/sidecar-newer/both-changed conflicts are
-explicit; unsupported state fails closed; conversions are read-only; external
-results enter as new assets/versions; original bytes remain unchanged.
+**Acceptance gate (remaining):** external results enter as new assets/versions;
+foreign conversion is read-only; keyword merge matrix is explicit.
 
 ## PRO-PRESENT — Tether, print, map, slideshow, and publishing
 
@@ -264,13 +271,19 @@ coverage.
 
 # P2 — AI-assisted photo work
 
-No AI image item is Ready until `AI-00` is accepted. The existing Studio chat
-assistant does not authorize model inference, image upload, automatic catalog
-mutation, or generated-pixel publication.
+ADR-0121 accepts AI architecture/privacy/provenance. AI-01 may become Ready
+against the proposal contract; AI-02…AI-05 remain blocked on their stated
+dependencies. The existing Studio chat assistant still does not authorize
+model inference, image upload, automatic catalog mutation, or generated-pixel
+publication until a provider package is recorded.
 
 ## AI-00 — AI architecture, privacy, provenance, and licence ADR
 
-**Decision work:**
+**Status:** Accepted — ADR-0121. Residual before shipping a provider: record the
+concrete runtime/weight package, notices, and evaluation corpus in Packaging /
+Dependency Workflow. AI-01 may proceed against the proposal contract.
+
+**Decision work (completed in ADR-0121; residual packaging below):**
 
 - define conversational assistant, inference provider, proposal, apply, and
   derived-asset owners without moving business rules into QML;
@@ -299,7 +312,7 @@ requires originals to be writable.
 
 ## AI-01 — Reviewable global edit proposals
 
-**Status:** blocked by `AI-00`.
+**Status:** P1 / Ready after ADR-0121 (proposal contract).
 
 **Outcome:** propose white balance, exposure, tone, colour, crop/straighten, and
 reference-grade adjustments as ordinary validated recipe fields. Show the exact
