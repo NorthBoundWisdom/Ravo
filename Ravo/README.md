@@ -2,7 +2,7 @@
 
 Ravo is the only buildable photo software in this repository. Its current
 product goal is to deliver a cross-platform first version quickly: create or
-open a local SQLite catalog, import JPEG/PNG/TIFF/RAW by reference, and browse
+open a local SQLite catalog, import JPEG/PNG/TIFF/RAW by reference (HEIC/HEIF is recognized and fails closed per ADR-0118), and browse
 images in Ravo Studio. The existing C++20 Engine and `ravo` CLI are the
 software's foundation and headless client; desktop does not implement a second
 set of business logic or algorithms.

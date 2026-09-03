@@ -125,3 +125,4 @@ supersession relationship when direction changes.
 | [0115](0115-typed-studio-window-geometry.md) | Accepted | Typed Studio window size, position, and maximized state restore across launches; corrupt records repair and off-screen rectangles are fitted. |
 | [0116](0116-histogram-assisted-parametric-mask.md) | Accepted | C++-owned histogram-assisted parametric thresholds from a Develop photo pick for authorized everyday consumers; Canvas/Perspective reject. |
 | [0117](0117-export-box-sharpen-presets-and-restartable-jobs.md) | Accepted | Export box fit, post-resize output sharpen, reusable ExportOptions presets, and restartable batch jobs on CatalogService. |
+| [0118](0118-heic-heif-fail-closed-ingest.md) | Accepted | HEIC/HEIF containers are recognized by ftyp brands and fail closed until an owned decoder ships; never pretend-JPEG or incidental ImageIO decode. |

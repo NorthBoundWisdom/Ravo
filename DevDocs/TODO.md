@@ -126,12 +126,24 @@ implementation tranche to **P1 / Ready** and add its exact tests.
 
 ## PRO-INGEST — Camera/card and modern-format ingest
 
+**Status:** P1 / Partial — ADR-0118 accepts HEIC/HEIF fail-closed recognition
+(ftyp brands, structured `unsupported_heic_input`, no pretend-JPEG / incidental
+ImageIO decode, enumeration of `.heic`/`.heif`/`.heics`/`.heifs`/`.hif`). Owned
+HEIC decode, PTP/MTP, DNG conversion, and Smart Previews remain unfinished.
+
 **Outcome:** ingest from supported card/camera sources with explicit destination,
 rename, verified second copy, and resumable failure handling; define HEIC/HEIF,
 DNG conversion, and Smart Preview scope.
 
 **Dependencies:** existing Add/Copy/Move planner and ADR-0104 publication rules;
-a new PTP/MTP and format ADR; decoder/licence/package review.
+ADR-0118 for HEIC/HEIF recognition; a later PTP/MTP and owned-decoder /
+licence/package ADR for remaining format work.
+
+**Remaining unfinished work:**
+- Owned HEIC/HEIF decode (pixels, colour, orientation, multi-image selection)
+  after dependency/licence/package gates.
+- PTP/MTP transport and device lifecycle.
+- DNG conversion and Smart Preview policy.
 
 **Risks:** destination collisions, device disappearance, source mutation,
 pretending HEIC is JPEG, background DNG replacement of originals, and partially
@@ -140,6 +152,8 @@ cataloged batches.
 **Acceptance gate:** preflight every primary/second-copy path, publish no catalog
 row on unresolved conflict, preserve source bytes, report partial completion by
 item, and leave the next ingest reusable after cancel, disconnect, or error.
+HEIC/HEIF recognition fails closed with zero publication until an owned decoder
+ships.
 
 ## PRO-METADATA — Hierarchical keywords and delivery metadata
 
