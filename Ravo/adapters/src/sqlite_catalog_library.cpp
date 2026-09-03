@@ -1018,26 +1018,55 @@ Result<std::int64_t> SqliteCatalogRepository::bump_revision()
     return impl_->snapshot.revision;
 }
 
-Result<LibraryCaptureFacets> SqliteCatalogRepository::list_capture_facets() const
+namespace
+{
+
+// Facet listings share the LibraryQuery predicate builder so a scoped count can
+// never drift from what `list_assets` selects. An empty scope keeps the
+// whole-catalog behavior.
+[[nodiscard]] QString facet_from_clause(const QStringList &predicates)
+{
+    QString sql = QStringLiteral("FROM asset a LEFT JOIN asset_metadata m ON m.asset_id = a.id");
+    if (!predicates.empty())
+        sql += QStringLiteral(" WHERE ") + predicates.join(QStringLiteral(" AND "));
+    return sql;
+}
+
+} // namespace
+
+Result<LibraryCaptureFacets>
+SqliteCatalogRepository::list_capture_facets(const LibraryQuery &scope) const
 {
     if (impl_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
 
+    QStringList scope_predicates;
+    QVariantList scope_bindings;
+    sqlite_internal::append_library_query_predicates(scope, scope_predicates, scope_bindings);
+    const bool scoped = !scope_predicates.empty();
+
     LibraryCaptureFacets facets;
+    facets.scoped = scoped;
     const auto limit = static_cast<qlonglong>(kLibraryFacetMaximumValues);
 
     {
+        QStringList predicates = scope_predicates;
+        predicates.push_back(
+            QStringLiteral("((m.camera_make IS NOT NULL AND m.camera_make != '') "
+                           "OR (m.camera_model IS NOT NULL AND m.camera_model != ''))"));
         QSqlQuery query(impl_->database);
-        query.prepare(QStringLiteral(
-            "SELECT camera_make, camera_model, COUNT(*) AS asset_count "
-            "FROM asset_metadata "
-            "WHERE (camera_make IS NOT NULL AND camera_make != '') "
-            "   OR (camera_model IS NOT NULL AND camera_model != '') "
-            "GROUP BY camera_make, camera_model "
-            "ORDER BY "
-            "  lower(trim(coalesce(camera_make, '') || ' ' || coalesce(camera_model, ''))) ASC, "
-            "  camera_make ASC, camera_model ASC "
-            "LIMIT ?"));
+        query.prepare(
+            QStringLiteral("SELECT m.camera_make, m.camera_model, COUNT(*) AS asset_count ") +
+            facet_from_clause(predicates) +
+            QStringLiteral(
+                " GROUP BY m.camera_make, m.camera_model "
+                "ORDER BY "
+                "  lower(trim(coalesce(m.camera_make, '') || ' ' || coalesce(m.camera_model, ''))) "
+                "ASC, "
+                "  m.camera_make ASC, m.camera_model ASC "
+                "LIMIT ?"));
+        for (const auto &binding : scope_bindings)
+            query.addBindValue(binding);
         query.addBindValue(limit + 1);
         if (!query.exec())
             return map_sql_error(query, "list_capture_facets_cameras");
@@ -1075,13 +1104,16 @@ Result<LibraryCaptureFacets> SqliteCatalogRepository::list_capture_facets() cons
     }
 
     {
+        QStringList predicates = scope_predicates;
+        predicates.push_back(QStringLiteral("m.focal_length_mm IS NOT NULL"));
         QSqlQuery query(impl_->database);
-        query.prepare(QStringLiteral("SELECT focal_length_mm, COUNT(*) AS asset_count "
-                                     "FROM asset_metadata "
-                                     "WHERE focal_length_mm IS NOT NULL "
-                                     "GROUP BY focal_length_mm "
-                                     "ORDER BY focal_length_mm ASC "
+        query.prepare(QStringLiteral("SELECT m.focal_length_mm, COUNT(*) AS asset_count ") +
+                      facet_from_clause(predicates) +
+                      QStringLiteral(" GROUP BY m.focal_length_mm "
+                                     "ORDER BY m.focal_length_mm ASC "
                                      "LIMIT ?"));
+        for (const auto &binding : scope_bindings)
+            query.addBindValue(binding);
         query.addBindValue(limit + 1);
         if (!query.exec())
             return map_sql_error(query, "list_capture_facets_lenses");
@@ -1114,14 +1146,18 @@ Result<LibraryCaptureFacets> SqliteCatalogRepository::list_capture_facets() cons
     }
 
     {
+        QStringList predicates = scope_predicates;
+        predicates.push_back(QStringLiteral(
+            "m.captured_local_exif IS NOT NULL AND length(m.captured_local_exif) >= 10"));
         QSqlQuery query(impl_->database);
-        query.prepare(QStringLiteral(
-            "SELECT substr(captured_local_exif, 1, 10) AS capture_day, COUNT(*) AS asset_count "
-            "FROM asset_metadata "
-            "WHERE captured_local_exif IS NOT NULL AND length(captured_local_exif) >= 10 "
-            "GROUP BY capture_day "
-            "ORDER BY capture_day DESC "
-            "LIMIT ?"));
+        query.prepare(QStringLiteral("SELECT substr(m.captured_local_exif, 1, 10) AS capture_day, "
+                                     "COUNT(*) AS asset_count ") +
+                      facet_from_clause(predicates) +
+                      QStringLiteral(" GROUP BY capture_day "
+                                     "ORDER BY capture_day DESC "
+                                     "LIMIT ?"));
+        for (const auto &binding : scope_bindings)
+            query.addBindValue(binding);
         query.addBindValue(limit + 1);
         if (!query.exec())
             return map_sql_error(query, "list_capture_facets_dates");
@@ -1149,27 +1185,38 @@ Result<LibraryCaptureFacets> SqliteCatalogRepository::list_capture_facets() cons
     return facets;
 }
 
-Result<LibraryLocationFacets> SqliteCatalogRepository::list_location_facets() const
+Result<LibraryCaptureFacets> SqliteCatalogRepository::list_capture_facets() const
+{
+    return list_capture_facets(LibraryQuery{});
+}
+
+Result<LibraryLocationFacets>
+SqliteCatalogRepository::list_location_facets(const LibraryQuery &scope) const
 {
     if (impl_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
 
+    QStringList scope_predicates;
+    QVariantList scope_bindings;
+    sqlite_internal::append_library_query_predicates(scope, scope_predicates, scope_bindings);
+
     LibraryLocationFacets facets;
+    facets.scoped = !scope_predicates.empty();
     const auto limit = static_cast<qlonglong>(kLibraryFacetMaximumValues);
     const auto load_kind = [&](const QString &column, std::vector<LibraryFacetEntry> &out,
                                const char *action) -> Result<void>
     {
+        QStringList predicates = scope_predicates;
+        predicates.push_back(QStringLiteral("m.%1 IS NOT NULL AND trim(m.%1) != ''").arg(column));
         QSqlQuery query(impl_->database);
-        const QString sql = QStringLiteral("SELECT %1 AS location_value, COUNT(*) AS asset_count "
-                                           "FROM asset_metadata "
-                                           "WHERE %1 IS NOT NULL AND trim(%1) != '' "
-                                           "GROUP BY location_value "
-                                           "ORDER BY lower(location_value) ASC, location_value ASC "
-                                           "LIMIT ?")
-                                .arg(column)
-                                .arg(column)
-                                .arg(column);
-        query.prepare(sql);
+        query.prepare(
+            QStringLiteral("SELECT m.%1 AS location_value, COUNT(*) AS asset_count ").arg(column) +
+            facet_from_clause(predicates) +
+            QStringLiteral(" GROUP BY location_value "
+                           "ORDER BY lower(location_value) ASC, location_value ASC "
+                           "LIMIT ?"));
+        for (const auto &binding : scope_bindings)
+            query.addBindValue(binding);
         query.addBindValue(limit + 1);
         if (!query.exec())
             return map_sql_error(query, action);
@@ -1211,6 +1258,11 @@ Result<LibraryLocationFacets> SqliteCatalogRepository::list_location_facets() co
         !loaded)
         return loaded.error();
     return facets;
+}
+
+Result<LibraryLocationFacets> SqliteCatalogRepository::list_location_facets() const
+{
+    return list_location_facets(LibraryQuery{});
 }
 
 } // namespace ravo

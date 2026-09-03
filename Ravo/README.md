@@ -769,6 +769,10 @@ ravo catalog folder-remove --catalog <library.sqlite> --folder-uri <uri> --json
 ravo catalog sets --catalog <library.sqlite> --json
 ravo catalog set-create --catalog <library.sqlite> --name <name> [--kind manual|smart] [--query <json>] [--asset-id <id>]... [--revision N] --json
 ravo catalog list --catalog <library.sqlite> [--set-id <id>] --json
+ravo catalog facets --catalog <library.sqlite> \
+  [--tag <keyword>] [--set-id <id>] [--camera <text>] [--camera-make <make>] [--camera-model <model>] \
+  [--focal-length-mm N] [--captured-local-date YYYY:MM:DD] [--captured-after N] [--captured-before N] \
+  [--country <text>] [--province-state <text>] [--city <text>] [--sublocation <text>] [--query <json>] --json
 ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog preview-rebuild --catalog <library.sqlite> [--asset-id <id>]... --json
 ravo catalog sidecar-status --catalog <library.sqlite> [--asset-id <id>] --json
@@ -812,6 +816,16 @@ ravo studio preview [--session-id <id>] [--asset-id <id>] \
   [--expect-session-revision N] [--expect-selection-revision N] \
   --output <file.png> [--max-edge N] --json
 ```
+
+`ravo catalog facets` reports capture and location facet values with their
+asset counts. Without filters it counts the whole catalog and reports
+`"scoped": false`. Passing any library filter (the same shorthand flags
+`catalog list` accepts, or a full `--query` library-query document) restricts
+every count to the assets that selection would list, reports `"scoped": true`,
+and echoes the applied filters under `scope`. Scoped counts reuse the library
+query predicates, so a scope the library refuses to list is refused here with
+the same reason (for example `invalid_library_capture_date_facet`), and the
+bounded value limit plus `truncated` reporting stay unchanged.
 
 `ravo catalog convert-foreign` is the read-only foreign-catalog conversion
 entry point (ADR-0131). It reads a `ravo.foreign-catalog.fixture/v1` document,

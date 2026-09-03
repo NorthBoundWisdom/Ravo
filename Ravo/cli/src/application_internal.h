@@ -185,6 +185,9 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] Result<JsonValue> run_catalog_editor_command(CatalogService &service,
                                                            std::string_view subcommand,
                                                            const CatalogCliArguments &flags);
+[[nodiscard]] Result<LibraryQuery> build_library_query(const CatalogCliArguments &flags);
+[[nodiscard]] Result<JsonValue> run_catalog_facets_command(CatalogService &service,
+                                                           const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue> run_catalog_convert_command(CatalogService &service,
                                                             std::string_view subcommand,
                                                             const CatalogCliArguments &flags);

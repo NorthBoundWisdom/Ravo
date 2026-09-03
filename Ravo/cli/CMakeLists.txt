@@ -9,6 +9,7 @@ target_sources(ravo_cli
     src/application_catalog_xmp.cpp
     src/application_catalog_editor.cpp
     src/application_catalog_convert.cpp
+    src/application_catalog_facets.cpp
     src/application_studio.cpp)
 
 target_include_directories(ravo_cli

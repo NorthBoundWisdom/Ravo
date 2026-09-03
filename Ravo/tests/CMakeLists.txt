@@ -58,6 +58,7 @@ add_executable(ravo_contract_tests
   cli_legacy_xmp_test.cpp
   cli_catalog_test.cpp
   cli_foreign_catalog_test.cpp
+  cli_facet_scope_test.cpp
   cli_studio_test.cpp
   cli_lut_test.cpp
   crs_xmp_test.cpp
@@ -135,6 +136,7 @@ add_executable(ravo_catalog_tests
   catalog_xmp_interchange_test.cpp
   catalog_external_editor_test.cpp
   catalog_foreign_catalog_test.cpp
+  catalog_facet_scope_test.cpp
   export_pro_export_test.cpp
   jpeg_adapter_test.cpp
   runtime_dependency_test.cpp)

@@ -53,6 +53,36 @@ Result<LibraryLocationFacets> CatalogService::list_location_facets() const
     return repository_->list_location_facets();
 }
 
+Result<LibraryCaptureFacets> CatalogService::list_capture_facets(const LibraryQuery &scope) const
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    // A scoped count must reject exactly what `list_assets` rejects, otherwise a
+    // facet panel could show totals for a selection the library cannot list.
+    auto valid_scope = validate_library_query(scope);
+    if (!valid_scope)
+    {
+        return valid_scope.error();
+    }
+    return repository_->list_capture_facets(scope);
+}
+
+Result<LibraryLocationFacets> CatalogService::list_location_facets(const LibraryQuery &scope) const
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto valid_scope = validate_library_query(scope);
+    if (!valid_scope)
+    {
+        return valid_scope.error();
+    }
+    return repository_->list_location_facets(scope);
+}
+
 Result<std::vector<KeywordRecord>> CatalogService::list_keywords() const
 {
     if (repository_ == nullptr)

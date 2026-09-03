@@ -130,6 +130,12 @@ public:
                                                           const std::vector<std::string> &tags) = 0;
     [[nodiscard]] virtual Result<LibraryCaptureFacets> list_capture_facets() const = 0;
     [[nodiscard]] virtual Result<LibraryLocationFacets> list_location_facets() const = 0;
+    // Facet counts restricted to the assets the query selects. The bounded value
+    // limit and truncation reporting stay identical to the unscoped listing.
+    [[nodiscard]] virtual Result<LibraryCaptureFacets>
+    list_capture_facets(const LibraryQuery &scope) const = 0;
+    [[nodiscard]] virtual Result<LibraryLocationFacets>
+    list_location_facets(const LibraryQuery &scope) const = 0;
     [[nodiscard]] virtual Result<std::vector<KeywordRecord>> list_keywords() const = 0;
     [[nodiscard]] virtual Result<std::optional<KeywordRecord>>
     find_keyword_by_id(std::string_view keyword_id) const = 0;

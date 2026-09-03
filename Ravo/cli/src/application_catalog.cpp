@@ -143,16 +143,16 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool set_command = subcommand == "sets" || subcommand == "set-create" ||
                              subcommand == "set-rename" || subcommand == "set-delete" ||
                              subcommand == "set-add" || subcommand == "set-remove" ||
-                             subcommand == "list";
+                             subcommand == "list" || subcommand == "facets";
     const bool keyword_command = subcommand == "keywords" || subcommand == "keyword-create" ||
                                  subcommand == "keyword-rename" || subcommand == "keyword-move" ||
                                  subcommand == "keyword-delete" || subcommand == "tag";
     if (has_set_options && !set_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "Library set options are only valid for catalog set commands or list");
-    if (!flags.value().query_json.empty() && subcommand != "set-create")
+    if (!flags.value().query_json.empty() && subcommand != "set-create" && subcommand != "facets")
         return make_error(ErrorCode::kInvalidArgument,
-                          "--query is only valid for catalog set-create");
+                          "--query is only valid for catalog set-create or facets");
     const bool version_command = subcommand == "version-create";
     const bool stack_command =
         subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
@@ -222,15 +222,16 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         !flags.value().captured_local_date.empty() ||
         !flags.value().captured_after_unix_s.empty() ||
         !flags.value().captured_before_unix_s.empty();
-    if (has_facet_list_options && subcommand != "list")
+    if (has_facet_list_options && subcommand != "list" && subcommand != "facets")
         return make_error(ErrorCode::kInvalidArgument,
-                          "Capture facet filters are only valid for catalog list");
+                          "Capture facet filters are only valid for catalog list or facets");
     const bool has_location_list_options =
         !flags.value().country.empty() || !flags.value().province_state.empty() ||
         !flags.value().city.empty() || !flags.value().sublocation.empty();
-    if (has_location_list_options && subcommand != "list" && subcommand != "metadata")
+    if (has_location_list_options && subcommand != "list" && subcommand != "metadata" &&
+        subcommand != "facets")
         return make_error(ErrorCode::kInvalidArgument,
-                          "Location fields are only valid for catalog list or metadata");
+                          "Location fields are only valid for catalog list, metadata, or facets");
     const bool has_import_options =
         !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
@@ -776,66 +777,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     }
     if (subcommand == "facets")
     {
-        auto listed = service.list_capture_facets();
-        if (!listed)
-            return listed.error();
-        auto locations = service.list_location_facets();
-        if (!locations)
-            return locations.error();
-        const auto entry_json = [](const LibraryFacetEntry &entry) -> JsonValue
-        {
-            JsonValue::Object row{{"key", entry.key},
-                                  {"label", entry.label},
-                                  {"count", JsonValue::number(std::to_string(entry.count))}};
-            if (entry.camera_make)
-                row.emplace("camera_make", *entry.camera_make);
-            if (entry.camera_model)
-                row.emplace("camera_model", *entry.camera_model);
-            if (entry.focal_length_mm)
-                row.emplace("focal_length_mm",
-                            JsonValue::number(std::to_string(*entry.focal_length_mm)));
-            if (entry.captured_local_date)
-                row.emplace("captured_local_date", *entry.captured_local_date);
-            return JsonValue{std::move(row)};
-        };
-        JsonValue::Array cameras;
-        cameras.reserve(listed.value().cameras.size());
-        for (const auto &entry : listed.value().cameras)
-            cameras.push_back(entry_json(entry));
-        JsonValue::Array lenses;
-        lenses.reserve(listed.value().lenses.size());
-        for (const auto &entry : listed.value().lenses)
-            lenses.push_back(entry_json(entry));
-        JsonValue::Array dates;
-        dates.reserve(listed.value().capture_dates.size());
-        for (const auto &entry : listed.value().capture_dates)
-            dates.push_back(entry_json(entry));
-        JsonValue::Array countries;
-        countries.reserve(locations.value().countries.size());
-        for (const auto &entry : locations.value().countries)
-            countries.push_back(entry_json(entry));
-        JsonValue::Array province_states;
-        province_states.reserve(locations.value().province_states.size());
-        for (const auto &entry : locations.value().province_states)
-            province_states.push_back(entry_json(entry));
-        JsonValue::Array cities;
-        cities.reserve(locations.value().cities.size());
-        for (const auto &entry : locations.value().cities)
-            cities.push_back(entry_json(entry));
-        JsonValue::Array sublocations;
-        sublocations.reserve(locations.value().sublocations.size());
-        for (const auto &entry : locations.value().sublocations)
-            sublocations.push_back(entry_json(entry));
-        return JsonValue{JsonValue::Object{
-            {"cameras", std::move(cameras)},
-            {"lenses", std::move(lenses)},
-            {"capture_dates", std::move(dates)},
-            {"countries", std::move(countries)},
-            {"province_states", std::move(province_states)},
-            {"cities", std::move(cities)},
-            {"sublocations", std::move(sublocations)},
-            {"truncated", listed.value().truncated || locations.value().truncated},
-        }};
+        return run_catalog_facets_command(service, flags.value());
     }
     if (subcommand == "list")
     {
@@ -844,57 +786,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return snapshot.error();
         }
-        LibraryQuery query;
-        if (!flags.value().tag.empty())
+        auto query = build_library_query(flags.value());
+        if (!query)
         {
-            auto tag = normalize_tag_name(flags.value().tag);
-            if (!tag)
-            {
-                return tag.error();
-            }
-            query.tag = tag.value();
+            return query.error();
         }
-        if (!flags.value().set_id.empty())
-            query.collection_id = std::string(flags.value().set_id);
-        if (!flags.value().camera.empty())
-            query.camera = std::string(flags.value().camera);
-        if (!flags.value().camera_make.empty() || !flags.value().camera_model.empty())
-        {
-            query.camera_make_equals = std::string(flags.value().camera_make);
-            query.camera_model_equals = std::string(flags.value().camera_model);
-        }
-        if (!flags.value().focal_length_mm.empty())
-        {
-            auto parsed = parse_double_flag(flags.value().focal_length_mm, "--focal-length-mm");
-            if (!parsed)
-                return parsed.error();
-            query.focal_length_mm_equals = parsed.value();
-        }
-        if (!flags.value().captured_local_date.empty())
-            query.captured_local_date = std::string(flags.value().captured_local_date);
-        if (!flags.value().country.empty())
-            query.country_equals = std::string(flags.value().country);
-        if (!flags.value().province_state.empty())
-            query.province_state_equals = std::string(flags.value().province_state);
-        if (!flags.value().city.empty())
-            query.city_equals = std::string(flags.value().city);
-        if (!flags.value().sublocation.empty())
-            query.sublocation_equals = std::string(flags.value().sublocation);
-        if (!flags.value().captured_after_unix_s.empty())
-        {
-            auto parsed = parse_int_flag(flags.value().captured_after_unix_s, "--captured-after");
-            if (!parsed)
-                return parsed.error();
-            query.captured_after_unix_s = parsed.value();
-        }
-        if (!flags.value().captured_before_unix_s.empty())
-        {
-            auto parsed = parse_int_flag(flags.value().captured_before_unix_s, "--captured-before");
-            if (!parsed)
-                return parsed.error();
-            query.captured_before_unix_s = parsed.value();
-        }
-        auto listed = service.list_assets(query, !flags.value().stack_expanded);
+        auto listed = service.list_assets(query.value(), !flags.value().stack_expanded);
         if (!listed)
         {
             return listed.error();

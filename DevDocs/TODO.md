@@ -212,10 +212,20 @@ and camera/lens/date facets with transactional multi-selection editing.
   LibraryQuery (document schema v3); bounded `list_location_facets`; CLI
   `catalog list` location flags + `catalog facets` location groups; Studio
   Location filter chips (no GPS, no facet history).
+- scoped facet counts: `list_capture_facets(scope)` /
+  `list_location_facets(scope)` on the repository port, service, and SQLite
+  adapter count only the assets a LibraryQuery selects by reusing the same
+  `append_library_query_predicates` builder `list_assets` uses (no facet tables,
+  no schema change, bounded value limit and `truncated` unchanged); the service
+  validates a scope exactly like listing, the facet payloads carry a `scoped`
+  flag, and CLI `catalog facets` accepts the `catalog list` filter flags plus a
+  raw `--query` document and echoes the applied `scope`. Unscoped calls keep the
+  previous whole-catalog answers.
 
 **Remaining unfinished work:**
-- Exif LensMake/LensModel persistence as a true lens-name facet; scoped facet
-  counts;
+- Exif LensMake/LensModel persistence as a true lens-name facet;
+- Studio Filter chips still request unscoped facet counts (the scoped port is
+  wired through CLI only);
 - IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126;
 - adjacent XMP/source keyword/IPTC/location merge matrix (PRO-INTERCHANGE).
 

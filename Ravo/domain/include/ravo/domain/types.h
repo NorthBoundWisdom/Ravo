@@ -416,6 +416,9 @@ struct LibraryCaptureFacets
     std::vector<LibraryFacetEntry> lenses;
     std::vector<LibraryFacetEntry> capture_dates;
     bool truncated = false;
+    // True when counts were computed inside an explicit LibraryQuery scope
+    // instead of the whole catalog.
+    bool scoped = false;
 
     [[nodiscard]] bool operator==(const LibraryCaptureFacets &) const noexcept = default;
 };
@@ -427,6 +430,7 @@ struct LibraryLocationFacets
     std::vector<LibraryFacetEntry> cities;
     std::vector<LibraryFacetEntry> sublocations;
     bool truncated = false;
+    bool scoped = false;
 
     [[nodiscard]] bool operator==(const LibraryLocationFacets &) const noexcept = default;
 };
