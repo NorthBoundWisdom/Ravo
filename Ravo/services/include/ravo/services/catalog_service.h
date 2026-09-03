@@ -397,12 +397,27 @@ private:
         InteractivePreviewRenderCache interactive_render_cache;
     };
 
+    struct CachedRoiLinearWorking
+    {
+        std::string asset_id;
+        std::string fingerprint;
+        std::string preprocess_key;
+        std::uint32_t origin_x = 0;
+        std::uint32_t origin_y = 0;
+        std::uint32_t width = 0;
+        std::uint32_t height = 0;
+        LinearWorkingBuffer buffer;
+        InteractivePreviewRenderCache interactive_render_cache;
+        std::uint64_t generation = 0;
+    };
+
     [[nodiscard]] Result<PreviewResult>
     generate_preview(const AssetRecord &asset, const PreviewRequest &request,
                      const std::optional<DevelopParams> &live_develop);
-    [[nodiscard]] Result<PreviewResult>
-    generate_roi_preview(const AssetRecord &asset, const PreviewRequest &request,
-                         const Recipe &recipe, std::string_view path);
+    [[nodiscard]] Result<PreviewResult> generate_roi_preview(const AssetRecord &asset,
+                                                             const PreviewRequest &request,
+                                                             const Recipe &recipe,
+                                                             std::string_view path);
     [[nodiscard]] Result<PreviewResult>
     persist_embedded_browse_preview(const AssetRecord &asset, const EmbeddedPreview &embedded,
                                     std::uint32_t max_edge, const CancellationToken &cancellation);
@@ -421,6 +436,10 @@ private:
     cached_linear_working(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                           std::uint32_t width, std::uint32_t height, std::uint32_t max_edge,
                           const CancellationToken &cancellation, PreviewLane lane);
+    [[nodiscard]] Result<CachedRoiLinearWorking *>
+    cached_roi_linear_working(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
+                              std::uint32_t origin_x, std::uint32_t origin_y, std::uint32_t width,
+                              std::uint32_t height, const CancellationToken &cancellation);
     [[nodiscard]] Result<RenderedExportImage>
     render_for_export(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                       const ExportOptions &options, const CancellationToken &cancellation,
@@ -440,8 +459,10 @@ private:
     // 1600px settled frame. Keep one bounded slot for each size class so the
     // live request cannot evict the already-prepared settled working buffer.
     // Interactive-class requests may box-filter the settled slot instead of a
-    // second CFA demosaic; settled and larger sizes stay native.
+    // second CFA demosaic; settled and larger sizes stay native. Viewport 1:1
+    // owns one additional CFA-window slot so RGB sliders do not remosaic.
     std::array<std::optional<CachedLinearWorking>, 2> linear_working_;
+    std::optional<CachedRoiLinearWorking> roi_linear_working_;
     std::optional<DecodedPreviewSource> browse_decoded_preview_source_;
     std::optional<CachedRawFrame> browse_decoded_raw_;
     std::optional<CachedLinearWorking> browse_linear_working_;

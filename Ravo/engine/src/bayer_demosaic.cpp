@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "dng_opcodes.h"
+#include "gpu_adapter.h"
 #include "parallel_rows.h"
 
 namespace ravo
@@ -41,7 +42,10 @@ struct PreparedBayer
 class FloatBuffer
 {
 public:
-    FloatBuffer(const std::size_t size, const float value) : values_(size, value) {}
+    FloatBuffer(const std::size_t size, const float value)
+        : values_(size, value)
+    {
+    }
 
     [[nodiscard]] float &operator[](const int index) noexcept
     {
@@ -53,44 +57,53 @@ public:
         return values_[static_cast<std::size_t>(index)];
     }
 
-    [[nodiscard]] float &operator[](const std::size_t index) noexcept { return values_[index]; }
+    [[nodiscard]] float &operator[](const std::size_t index) noexcept
+    {
+        return values_[index];
+    }
     [[nodiscard]] const float &operator[](const std::size_t index) const noexcept
     {
         return values_[index];
     }
-    [[nodiscard]] auto begin() noexcept { return values_.begin(); }
-    [[nodiscard]] auto end() noexcept { return values_.end(); }
-    [[nodiscard]] std::size_t size() const noexcept { return values_.size(); }
+    [[nodiscard]] auto begin() noexcept
+    {
+        return values_.begin();
+    }
+    [[nodiscard]] auto end() noexcept
+    {
+        return values_.end();
+    }
+    [[nodiscard]] std::size_t size() const noexcept
+    {
+        return values_.size();
+    }
 
 private:
     std::vector<float> values_;
 };
 
-[[nodiscard]] constexpr std::size_t pixel_index(const std::uint32_t width,
-                                                const std::uint32_t x,
+[[nodiscard]] constexpr std::size_t pixel_index(const std::uint32_t width, const std::uint32_t x,
                                                 const std::uint32_t y) noexcept
 {
     return static_cast<std::size_t>(y) * width + x;
 }
 
-[[nodiscard]] constexpr std::uint8_t cfa_at(const std::array<std::uint8_t, 4> &cfa,
-                                            const int y, const int x) noexcept
+[[nodiscard]] constexpr std::uint8_t cfa_at(const std::array<std::uint8_t, 4> &cfa, const int y,
+                                            const int x) noexcept
 {
-    return cfa[(static_cast<unsigned>(y) & 1U) * 2U +
-               (static_cast<unsigned>(x) & 1U)];
+    return cfa[(static_cast<unsigned>(y) & 1U) * 2U + (static_cast<unsigned>(x) & 1U)];
 }
 
 [[nodiscard]] constexpr std::uint8_t cfa_at(const std::array<std::uint8_t, 4> &cfa,
-                                            const std::uint32_t y,
-                                            const std::uint32_t x) noexcept
+                                            const std::uint32_t y, const std::uint32_t x) noexcept
 {
     return cfa[(y & 1U) * 2U + (x & 1U)];
 }
 
 [[nodiscard]] Result<void> validate_bayer(const DecodedRaw &raw)
 {
-    if (raw.width == 0U || raw.height == 0U || raw.cfa_width != 2U ||
-        raw.cfa_height != 2U || raw.cfa_channels.size() != 4U ||
+    if (raw.width == 0U || raw.height == 0U || raw.cfa_width != 2U || raw.cfa_height != 2U ||
+        raw.cfa_channels.size() != 4U ||
         raw.width > std::numeric_limits<std::size_t>::max() / raw.height ||
         raw.pixels.size() != static_cast<std::size_t>(raw.width) * raw.height)
     {
@@ -103,8 +116,7 @@ private:
     {
         if (channel > 2U)
         {
-            return make_error(ErrorCode::kUnsupported,
-                              "Bayer demosaic requires RGB CFA channels",
+            return make_error(ErrorCode::kUnsupported, "Bayer demosaic requires RGB CFA channels",
                               {{"reason", "unsupported_bayer_cfa"}});
         }
         ++counts[channel];
@@ -118,10 +130,10 @@ private:
     return {};
 }
 
-[[nodiscard]] Result<PreparedBayer>
-prepare_bayer(const DecodedRaw &raw, const std::uint32_t width, const std::uint32_t height,
-              const std::array<float, 4> &white_balance,
-              const CancellationToken &cancellation)
+[[nodiscard]] Result<PreparedBayer> prepare_bayer(const DecodedRaw &raw, const std::uint32_t width,
+                                                  const std::uint32_t height,
+                                                  const std::array<float, 4> &white_balance,
+                                                  const CancellationToken &cancellation)
 try
 {
     auto valid = validate_bayer(raw);
@@ -129,8 +141,7 @@ try
     {
         return valid.error();
     }
-    if (width == 0U || height == 0U ||
-        width > std::numeric_limits<std::size_t>::max() / height)
+    if (width == 0U || height == 0U || width > std::numeric_limits<std::size_t>::max() / height)
     {
         return make_error(ErrorCode::kInvalidArgument,
                           "Bayer demosaic dimensions must be non-zero and bounded",
@@ -212,9 +223,9 @@ try
                     static_cast<std::uint64_t>(output_y) * raw.height / height);
                 const std::uint32_t source_bottom = std::max(
                     source_top + 1U,
-                    static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_y + 1U) *
-                                                raw.height + height - 1U) /
-                                               height));
+                    static_cast<std::uint32_t>(
+                        (static_cast<std::uint64_t>(output_y + 1U) * raw.height + height - 1U) /
+                        height));
                 for (std::uint32_t output_x = 0U; output_x < width; ++output_x)
                 {
                     const std::uint8_t wanted = cfa_at(prepared.cfa, output_y, output_x);
@@ -222,9 +233,9 @@ try
                         static_cast<std::uint64_t>(output_x) * raw.width / width);
                     const std::uint32_t source_right = std::max(
                         source_left + 1U,
-                        static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_x + 1U) *
-                                                    raw.width + width - 1U) /
-                                                   width));
+                        static_cast<std::uint32_t>(
+                            (static_cast<std::uint64_t>(output_x + 1U) * raw.width + width - 1U) /
+                            width));
                     double sum = 0.0;
                     std::uint32_t count = 0U;
                     for (std::uint32_t source_y = source_top;
@@ -252,14 +263,12 @@ try
                     {
                         std::uint32_t source_x = std::min(
                             raw.width - 1U,
-                            static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_x) *
-                                                        raw.width) /
-                                                       width));
+                            static_cast<std::uint32_t>(
+                                (static_cast<std::uint64_t>(output_x) * raw.width) / width));
                         std::uint32_t source_y = std::min(
                             raw.height - 1U,
-                            static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_y) *
-                                                        raw.height) /
-                                                       height));
+                            static_cast<std::uint32_t>(
+                                (static_cast<std::uint64_t>(output_y) * raw.height) / height));
                         bool found = false;
                         for (int radius = 0; radius <= 2 && !found; ++radius)
                         {
@@ -267,12 +276,12 @@ try
                             {
                                 for (int offset_x = -radius; offset_x <= radius; ++offset_x)
                                 {
-                                    const auto candidate_x = static_cast<std::uint32_t>(std::clamp(
-                                        static_cast<int>(source_x) + offset_x, 0,
-                                        static_cast<int>(raw.width) - 1));
-                                    const auto candidate_y = static_cast<std::uint32_t>(std::clamp(
-                                        static_cast<int>(source_y) + offset_y, 0,
-                                        static_cast<int>(raw.height) - 1));
+                                    const auto candidate_x = static_cast<std::uint32_t>(
+                                        std::clamp(static_cast<int>(source_x) + offset_x, 0,
+                                                   static_cast<int>(raw.width) - 1));
+                                    const auto candidate_y = static_cast<std::uint32_t>(
+                                        std::clamp(static_cast<int>(source_y) + offset_y, 0,
+                                                   static_cast<int>(raw.height) - 1));
                                     if (cfa_at(prepared.cfa, candidate_y, candidate_x) != wanted)
                                     {
                                         continue;
@@ -304,8 +313,7 @@ try
     }
     if (invalid_sample.load(std::memory_order_relaxed))
     {
-        return make_error(ErrorCode::kValidation,
-                          "Bayer preparation produced a non-finite sample",
+        return make_error(ErrorCode::kValidation, "Bayer preparation produced a non-finite sample",
                           {{"reason", "non_finite_bayer_sample"}});
     }
     return prepared;
@@ -328,13 +336,11 @@ void seed_known_samples(const PreparedBayer &input, WorkingImage &output)
     }
 }
 
-[[nodiscard]] Result<void> border_interpolate(const PreparedBayer &input,
-                                               WorkingImage &output,
-                                               const std::uint32_t requested_border,
-                                               const CancellationToken &cancellation)
+[[nodiscard]] Result<void> border_interpolate(const PreparedBayer &input, WorkingImage &output,
+                                              const std::uint32_t requested_border,
+                                              const CancellationToken &cancellation)
 {
-    const std::uint32_t border =
-        std::min({requested_border, input.width, input.height});
+    const std::uint32_t border = std::min({requested_border, input.width, input.height});
     for (std::uint32_t y = 0U; y < input.height; ++y)
     {
         auto active = cancellation.check();
@@ -344,8 +350,7 @@ void seed_known_samples(const PreparedBayer &input, WorkingImage &output)
         }
         for (std::uint32_t x = 0U; x < input.width; ++x)
         {
-            if (y >= border && y < input.height - border && x >= border &&
-                x < input.width - border)
+            if (y >= border && y < input.height - border && x >= border && x < input.width - border)
             {
                 continue;
             }
@@ -366,9 +371,9 @@ void seed_known_samples(const PreparedBayer &input, WorkingImage &output)
                         continue;
                     }
                     const std::uint8_t channel = cfa_at(input.cfa, sample_y, sample_x);
-                    sum[channel] += input.samples[pixel_index(
-                        input.width, static_cast<std::uint32_t>(sample_x),
-                        static_cast<std::uint32_t>(sample_y))];
+                    sum[channel] +=
+                        input.samples[pixel_index(input.width, static_cast<std::uint32_t>(sample_x),
+                                                  static_cast<std::uint32_t>(sample_y))];
                     ++count[channel];
                 }
             }
@@ -382,8 +387,7 @@ void seed_known_samples(const PreparedBayer &input, WorkingImage &output)
                 }
                 else if (count[channel] != 0U)
                 {
-                    output.rgb[base + channel] =
-                        sum[channel] / static_cast<float>(count[channel]);
+                    output.rgb[base + channel] = sum[channel] / static_cast<float>(count[channel]);
                 }
             }
         }
@@ -453,11 +457,10 @@ try
                 std::fill(p_high.begin(), p_high.end(), 0.0F);
                 std::fill(q_high.begin(), q_high.end(), 0.0F);
                 const int row_start = tile_row * tile_step;
-                const int row_end = std::min(row_start + tile_size,
-                                             static_cast<int>(input.height));
+                const int row_end = std::min(row_start + tile_size, static_cast<int>(input.height));
                 const int column_start = tile_column * tile_step;
-                const int column_end = std::min(column_start + tile_size,
-                                                static_cast<int>(input.width));
+                const int column_end =
+                    std::min(column_start + tile_size, static_cast<int>(input.width));
                 if (row_start + tile_border >= row_end - tile_border ||
                     column_start + tile_border >= column_end - tile_border)
                 {
@@ -474,8 +477,7 @@ try
                     }
                     const int c0 = cfa_at(input.cfa, row, column_start);
                     const int c1 = cfa_at(input.cfa, row, column_start + 1);
-                    for (int column = column_start,
-                             index = (row - row_start) * tile_size;
+                    for (int column = column_start, index = (row - row_start) * tile_size;
                          column < column_end; ++column, ++index)
                     {
                         const float value = input.samples[pixel_index(
@@ -490,13 +492,13 @@ try
                 std::array<std::array<float, tile_size - 8>, 3> vertical_buffer{};
                 for (int row = 3; row < std::min(rows - 3, 5); ++row)
                 {
-                    for (int column = 4, index = row * tile_size + column;
-                         column < columns - 4; ++column, ++index)
+                    for (int column = 4, index = row * tile_size + column; column < columns - 4;
+                         ++column, ++index)
                     {
-                        const float high =
-                            (cfa[index - w3] - cfa[index - w1] - cfa[index + w1] +
-                             cfa[index + w3]) -
-                            3.0F * (cfa[index - w2] + cfa[index + w2]) + 6.0F * cfa[index];
+                        const float high = (cfa[index - w3] - cfa[index - w1] - cfa[index + w1] +
+                                            cfa[index + w3]) -
+                                           3.0F * (cfa[index - w2] + cfa[index + w2]) +
+                                           6.0F * cfa[index];
                         vertical_buffer[static_cast<std::size_t>(row - 3)]
                                        [static_cast<std::size_t>(column - 4)] = high * high;
                     }
@@ -507,35 +509,34 @@ try
                 float *vertical2 = vertical_buffer[2].data();
                 for (int row = 4; row < rows - 4; ++row)
                 {
-                    for (int column = 3, index = row * tile_size + column;
-                         column < columns - 3; ++column, ++index)
+                    for (int column = 3, index = row * tile_size + column; column < columns - 3;
+                         ++column, ++index)
                     {
                         const float high =
-                            (cfa[index - 3] - cfa[index - 1] - cfa[index + 1] +
-                             cfa[index + 3]) -
+                            (cfa[index - 3] - cfa[index - 1] - cfa[index + 1] + cfa[index + 3]) -
                             3.0F * (cfa[index - 2] + cfa[index + 2]) + 6.0F * cfa[index];
                         horizontal_buffer[static_cast<std::size_t>(column - 3)] = high * high;
                     }
                     for (int column = 4, index = (row + 1) * tile_size + column;
                          column < columns - 4; ++column, ++index)
                     {
-                        const float high =
-                            (cfa[index - w3] - cfa[index - w1] - cfa[index + w1] +
-                             cfa[index + w3]) -
-                            3.0F * (cfa[index - w2] + cfa[index + w2]) + 6.0F * cfa[index];
+                        const float high = (cfa[index - w3] - cfa[index - w1] - cfa[index + w1] +
+                                            cfa[index + w3]) -
+                                           3.0F * (cfa[index - w2] + cfa[index + w2]) +
+                                           6.0F * cfa[index];
                         vertical2[column - 4] = high * high;
                     }
-                    for (int column = 4, index = row * tile_size + column;
-                         column < columns - 4; ++column, ++index)
+                    for (int column = 4, index = row * tile_size + column; column < columns - 4;
+                         ++column, ++index)
                     {
-                        const float vertical = std::max(
-                            epsilon_squared, vertical0[column - 4] + vertical1[column - 4] +
-                                                 vertical2[column - 4]);
-                        const float horizontal = std::max(
-                            epsilon_squared,
-                            horizontal_buffer[static_cast<std::size_t>(column - 4)] +
-                                horizontal_buffer[static_cast<std::size_t>(column - 3)] +
-                                horizontal_buffer[static_cast<std::size_t>(column - 2)]);
+                        const float vertical = std::max(epsilon_squared, vertical0[column - 4] +
+                                                                             vertical1[column - 4] +
+                                                                             vertical2[column - 4]);
+                        const float horizontal =
+                            std::max(epsilon_squared,
+                                     horizontal_buffer[static_cast<std::size_t>(column - 4)] +
+                                         horizontal_buffer[static_cast<std::size_t>(column - 3)] +
+                                         horizontal_buffer[static_cast<std::size_t>(column - 2)]);
                         vh[index] = vertical / (vertical + horizontal);
                     }
                     std::swap(vertical0, vertical2);
@@ -548,12 +549,11 @@ try
                              index = row * tile_size + column, low_index = index / 2;
                          column < columns - 2; column += 2, index += 2, ++low_index)
                     {
-                        pq[low_index] =
-                            cfa[index] +
-                            0.5F * (cfa[index - w1] + cfa[index + w1] + cfa[index - 1] +
-                                    cfa[index + 1]) +
-                            0.25F * (cfa[index - w1 - 1] + cfa[index - w1 + 1] +
-                                     cfa[index + w1 - 1] + cfa[index + w1 + 1]);
+                        pq[low_index] = cfa[index] +
+                                        0.5F * (cfa[index - w1] + cfa[index + w1] + cfa[index - 1] +
+                                                cfa[index + 1]) +
+                                        0.25F * (cfa[index - w1 - 1] + cfa[index - w1 + 1] +
+                                                 cfa[index + w1 - 1] + cfa[index + w1 + 1]);
                     }
                 }
                 for (int row = 4; row < rows - 4; ++row)
@@ -563,69 +563,63 @@ try
                          column < columns - 4; column += 2, index += 2, ++low_index)
                     {
                         const float center = cfa[index];
-                        const float north_gradient =
-                            epsilon + std::abs(cfa[index - w1] - cfa[index + w1]) +
-                            std::abs(center - cfa[index - w2]) +
-                            std::abs(cfa[index - w1] - cfa[index - w3]) +
-                            std::abs(cfa[index - w2] - cfa[index - w4]);
-                        const float south_gradient =
-                            epsilon + std::abs(cfa[index - w1] - cfa[index + w1]) +
-                            std::abs(center - cfa[index + w2]) +
-                            std::abs(cfa[index + w1] - cfa[index + w3]) +
-                            std::abs(cfa[index + w2] - cfa[index + w4]);
-                        const float west_gradient =
-                            epsilon + std::abs(cfa[index - 1] - cfa[index + 1]) +
-                            std::abs(center - cfa[index - 2]) +
-                            std::abs(cfa[index - 1] - cfa[index - 3]) +
-                            std::abs(cfa[index - 2] - cfa[index - 4]);
-                        const float east_gradient =
-                            epsilon + std::abs(cfa[index - 1] - cfa[index + 1]) +
-                            std::abs(center - cfa[index + 2]) +
-                            std::abs(cfa[index + 1] - cfa[index + 3]) +
-                            std::abs(cfa[index + 2] - cfa[index + 4]);
+                        const float north_gradient = epsilon +
+                                                     std::abs(cfa[index - w1] - cfa[index + w1]) +
+                                                     std::abs(center - cfa[index - w2]) +
+                                                     std::abs(cfa[index - w1] - cfa[index - w3]) +
+                                                     std::abs(cfa[index - w2] - cfa[index - w4]);
+                        const float south_gradient = epsilon +
+                                                     std::abs(cfa[index - w1] - cfa[index + w1]) +
+                                                     std::abs(center - cfa[index + w2]) +
+                                                     std::abs(cfa[index + w1] - cfa[index + w3]) +
+                                                     std::abs(cfa[index + w2] - cfa[index + w4]);
+                        const float west_gradient = epsilon +
+                                                    std::abs(cfa[index - 1] - cfa[index + 1]) +
+                                                    std::abs(center - cfa[index - 2]) +
+                                                    std::abs(cfa[index - 1] - cfa[index - 3]) +
+                                                    std::abs(cfa[index - 2] - cfa[index - 4]);
+                        const float east_gradient = epsilon +
+                                                    std::abs(cfa[index - 1] - cfa[index + 1]) +
+                                                    std::abs(center - cfa[index + 2]) +
+                                                    std::abs(cfa[index + 1] - cfa[index + 3]) +
+                                                    std::abs(cfa[index + 2] - cfa[index + 4]);
                         const float low = pq[low_index];
-                        const float north = cfa[index - w1] * (low + low) /
-                                            (epsilon + low + pq[low_index - w1]);
-                        const float south = cfa[index + w1] * (low + low) /
-                                            (epsilon + low + pq[low_index + w1]);
-                        const float west = cfa[index - 1] * (low + low) /
-                                           (epsilon + low + pq[low_index - 1]);
-                        const float east = cfa[index + 1] * (low + low) /
-                                           (epsilon + low + pq[low_index + 1]);
-                        const float vertical =
-                            (south_gradient * north + north_gradient * south) /
-                            (north_gradient + south_gradient);
-                        const float horizontal =
-                            (west_gradient * east + east_gradient * west) /
-                            (east_gradient + west_gradient);
+                        const float north =
+                            cfa[index - w1] * (low + low) / (epsilon + low + pq[low_index - w1]);
+                        const float south =
+                            cfa[index + w1] * (low + low) / (epsilon + low + pq[low_index + w1]);
+                        const float west =
+                            cfa[index - 1] * (low + low) / (epsilon + low + pq[low_index - 1]);
+                        const float east =
+                            cfa[index + 1] * (low + low) / (epsilon + low + pq[low_index + 1]);
+                        const float vertical = (south_gradient * north + north_gradient * south) /
+                                               (north_gradient + south_gradient);
+                        const float horizontal = (west_gradient * east + east_gradient * west) /
+                                                 (east_gradient + west_gradient);
                         const float neighborhood =
-                            0.25F * (vh[index - w1 - 1] + vh[index - w1 + 1] +
-                                     vh[index + w1 - 1] + vh[index + w1 + 1]);
-                        const float direction = std::abs(0.5F - vh[index]) <
-                                                        std::abs(0.5F - neighborhood) ?
-                                                    neighborhood :
-                                                    vh[index];
+                            0.25F * (vh[index - w1 - 1] + vh[index - w1 + 1] + vh[index + w1 - 1] +
+                                     vh[index + w1 + 1]);
+                        const float direction =
+                            std::abs(0.5F - vh[index]) < std::abs(0.5F - neighborhood) ?
+                                neighborhood :
+                                vh[index];
                         channel(1, index) = interpolate(direction, horizontal, vertical);
                     }
                 }
 
                 for (int row = 3; row < rows - 3; ++row)
                 {
-                    for (int column = 3, index = row * tile_size + column,
-                             half_index = index / 2;
-                         column < columns - 3;
-                         column += 2, index += 2, ++half_index)
+                    for (int column = 3, index = row * tile_size + column, half_index = index / 2;
+                         column < columns - 3; column += 2, index += 2, ++half_index)
                     {
-                        const float p =
-                            (cfa[index - w3 - 3] - cfa[index - w1 - 1] -
-                             cfa[index + w1 + 1] + cfa[index + w3 + 3]) -
-                            3.0F * (cfa[index - w2 - 2] + cfa[index + w2 + 2]) +
-                            6.0F * cfa[index];
-                        const float q =
-                            (cfa[index - w3 + 3] - cfa[index - w1 + 1] -
-                             cfa[index + w1 - 1] + cfa[index + w3 - 3]) -
-                            3.0F * (cfa[index - w2 + 2] + cfa[index + w2 - 2]) +
-                            6.0F * cfa[index];
+                        const float p = (cfa[index - w3 - 3] - cfa[index - w1 - 1] -
+                                         cfa[index + w1 + 1] + cfa[index + w3 + 3]) -
+                                        3.0F * (cfa[index - w2 - 2] + cfa[index + w2 + 2]) +
+                                        6.0F * cfa[index];
+                        const float q = (cfa[index - w3 + 3] - cfa[index - w1 + 1] -
+                                         cfa[index + w1 - 1] + cfa[index + w3 - 3]) -
+                                        3.0F * (cfa[index - w2 + 2] + cfa[index + w2 - 2]) +
+                                        6.0F * cfa[index];
                         p_high[half_index] = p * p;
                         q_high[half_index] = q * q;
                     }
@@ -634,17 +628,16 @@ try
                 {
                     for (int column = 4 + (cfa_at(input.cfa, row, 0) & 1),
                              index = row * tile_size + column, half = index / 2,
-                             north_west = (index - w1 - 1) / 2,
-                             south_west = (index + w1 - 1) / 2;
+                             north_west = (index - w1 - 1) / 2, south_west = (index + w1 - 1) / 2;
                          column < columns - 4;
                          column += 2, index += 2, ++half, ++north_west, ++south_west)
                     {
-                        const float p = std::max(epsilon_squared,
-                                                 p_high[north_west] + p_high[half] +
-                                                     p_high[south_west + 1]);
-                        const float q = std::max(epsilon_squared,
-                                                 q_high[north_west + 1] + q_high[half] +
-                                                     q_high[south_west]);
+                        const float p =
+                            std::max(epsilon_squared,
+                                     p_high[north_west] + p_high[half] + p_high[south_west + 1]);
+                        const float q =
+                            std::max(epsilon_squared,
+                                     q_high[north_west + 1] + q_high[half] + q_high[south_west]);
                         pq[half] = p / (p + q);
                     }
                 }
@@ -653,18 +646,16 @@ try
                     for (int column = 4 + (cfa_at(input.cfa, row, 0) & 1),
                              index = row * tile_size + column,
                              opposite = 2 - cfa_at(input.cfa, row, column), half = index / 2,
-                             north_west = (index - w1 - 1) / 2,
-                             south_west = (index + w1 - 1) / 2;
+                             north_west = (index - w1 - 1) / 2, south_west = (index + w1 - 1) / 2;
                          column < columns - 4;
                          column += 2, index += 2, ++half, ++north_west, ++south_west)
                     {
-                        const float neighborhood =
-                            0.25F * (pq[north_west] + pq[north_west + 1] + pq[south_west] +
-                                     pq[south_west + 1]);
-                        const float direction = std::abs(0.5F - pq[half]) <
-                                                        std::abs(0.5F - neighborhood) ?
-                                                    neighborhood :
-                                                    pq[half];
+                        const float neighborhood = 0.25F * (pq[north_west] + pq[north_west + 1] +
+                                                            pq[south_west] + pq[south_west + 1]);
+                        const float direction =
+                            std::abs(0.5F - pq[half]) < std::abs(0.5F - neighborhood) ?
+                                neighborhood :
+                                pq[half];
                         const float north_west_gradient =
                             epsilon +
                             std::abs(channel(opposite, index - w1 - 1) -
@@ -694,27 +685,20 @@ try
                                      channel(opposite, index + w3 + 3)) +
                             std::abs(channel(1, index) - channel(1, index + w2 + 2));
                         const float north_west_difference =
-                            channel(opposite, index - w1 - 1) -
-                            channel(1, index - w1 - 1);
+                            channel(opposite, index - w1 - 1) - channel(1, index - w1 - 1);
                         const float north_east_difference =
-                            channel(opposite, index - w1 + 1) -
-                            channel(1, index - w1 + 1);
+                            channel(opposite, index - w1 + 1) - channel(1, index - w1 + 1);
                         const float south_west_difference =
-                            channel(opposite, index + w1 - 1) -
-                            channel(1, index + w1 - 1);
+                            channel(opposite, index + w1 - 1) - channel(1, index + w1 - 1);
                         const float south_east_difference =
-                            channel(opposite, index + w1 + 1) -
-                            channel(1, index + w1 + 1);
-                        const float p =
-                            (north_west_gradient * south_east_difference +
-                             south_east_gradient * north_west_difference) /
-                            (north_west_gradient + south_east_gradient);
-                        const float q =
-                            (north_east_gradient * south_west_difference +
-                             south_west_gradient * north_east_difference) /
-                            (north_east_gradient + south_west_gradient);
-                        channel(opposite, index) =
-                            channel(1, index) + interpolate(direction, q, p);
+                            channel(opposite, index + w1 + 1) - channel(1, index + w1 + 1);
+                        const float p = (north_west_gradient * south_east_difference +
+                                         south_east_gradient * north_west_difference) /
+                                        (north_west_gradient + south_east_gradient);
+                        const float q = (north_east_gradient * south_west_difference +
+                                         south_west_gradient * north_east_difference) /
+                                        (north_east_gradient + south_west_gradient);
+                        channel(opposite, index) = channel(1, index) + interpolate(direction, q, p);
                     }
                 }
                 for (int row = 4; row < rows - 4; ++row)
@@ -724,12 +708,12 @@ try
                          column < columns - 4; column += 2, index += 2)
                     {
                         const float neighborhood =
-                            0.25F * (vh[index - w1 - 1] + vh[index - w1 + 1] +
-                                     vh[index + w1 - 1] + vh[index + w1 + 1]);
-                        const float direction = std::abs(0.5F - vh[index]) <
-                                                        std::abs(0.5F - neighborhood) ?
-                                                    neighborhood :
-                                                    vh[index];
+                            0.25F * (vh[index - w1 - 1] + vh[index - w1 + 1] + vh[index + w1 - 1] +
+                                     vh[index + w1 + 1]);
+                        const float direction =
+                            std::abs(0.5F - vh[index]) < std::abs(0.5F - neighborhood) ?
+                                neighborhood :
+                                vh[index];
                         const float green = channel(1, index);
                         const float north_green = channel(1, index - w1);
                         const float south_green = channel(1, index + w1);
@@ -746,54 +730,43 @@ try
                             const float east_base =
                                 epsilon + std::abs(green - channel(1, index + 2));
                             const float vertical_difference =
-                                std::abs(channel(color, index - w1) -
-                                         channel(color, index + w1));
+                                std::abs(channel(color, index - w1) - channel(color, index + w1));
                             const float horizontal_difference =
-                                std::abs(channel(color, index - 1) -
-                                         channel(color, index + 1));
+                                std::abs(channel(color, index - 1) - channel(color, index + 1));
                             const float north_gradient =
                                 north_base + vertical_difference +
-                                std::abs(channel(color, index - w1) -
-                                         channel(color, index - w3));
+                                std::abs(channel(color, index - w1) - channel(color, index - w3));
                             const float south_gradient =
                                 south_base + vertical_difference +
-                                std::abs(channel(color, index + w1) -
-                                         channel(color, index + w3));
+                                std::abs(channel(color, index + w1) - channel(color, index + w3));
                             const float west_gradient =
                                 west_base + horizontal_difference +
-                                std::abs(channel(color, index - 1) -
-                                         channel(color, index - 3));
+                                std::abs(channel(color, index - 1) - channel(color, index - 3));
                             const float east_gradient =
                                 east_base + horizontal_difference +
-                                std::abs(channel(color, index + 1) -
-                                         channel(color, index + 3));
-                            const float north =
-                                channel(color, index - w1) - north_green;
-                            const float south =
-                                channel(color, index + w1) - south_green;
+                                std::abs(channel(color, index + 1) - channel(color, index + 3));
+                            const float north = channel(color, index - w1) - north_green;
+                            const float south = channel(color, index + w1) - south_green;
                             const float west = channel(color, index - 1) - west_green;
                             const float east = channel(color, index + 1) - east_green;
                             const float vertical =
                                 (north_gradient * south + south_gradient * north) /
                                 (north_gradient + south_gradient);
-                            const float horizontal =
-                                (east_gradient * west + west_gradient * east) /
-                                (east_gradient + west_gradient);
+                            const float horizontal = (east_gradient * west + west_gradient * east) /
+                                                     (east_gradient + west_gradient);
                             channel(color, index) =
                                 green + interpolate(direction, horizontal, vertical);
                         }
                     }
                 }
 
-                const int first_row =
-                    row_start + (tile_row == 0 ? algorithm_border : tile_border);
+                const int first_row = row_start + (tile_row == 0 ? algorithm_border : tile_border);
                 const int last_row =
                     row_end - (tile_row == tile_rows - 1 ? algorithm_border : tile_border);
                 const int first_column =
                     column_start + (tile_column == 0 ? algorithm_border : tile_border);
-                const int last_column = column_end -
-                                        (tile_column == tile_columns - 1 ? algorithm_border :
-                                                                          tile_border);
+                const int last_column =
+                    column_end - (tile_column == tile_columns - 1 ? algorithm_border : tile_border);
                 for (int row = first_row; row < last_row; ++row)
                 {
                     for (int column = first_column; column < last_column; ++column)
@@ -859,8 +832,7 @@ try
     const int direction[5]{1, width, -1, -width, 1};
     const auto value = [&](const int index, const int channel) -> float &
     {
-        return output.rgb[static_cast<std::size_t>(index) * 3U +
-                          static_cast<std::size_t>(channel)];
+        return output.rgb[static_cast<std::size_t>(index) * 3U + static_cast<std::size_t>(channel)];
     };
 
     for (int row = 3; row < height - 3; ++row)
@@ -880,28 +852,23 @@ try
             for (int axis = 0; axis < 2; ++axis)
             {
                 const int distance = direction[axis];
-                guess[axis] =
-                    (value(index - distance, 1) + value(index, color) +
-                     value(index + distance, 1)) *
-                        2.0F -
-                    value(index - 2 * distance, color) -
-                    value(index + 2 * distance, color);
+                guess[axis] = (value(index - distance, 1) + value(index, color) +
+                               value(index + distance, 1)) *
+                                  2.0F -
+                              value(index - 2 * distance, color) -
+                              value(index + 2 * distance, color);
                 difference[axis] =
                     (std::abs(value(index - 2 * distance, color) - value(index, color)) +
                      std::abs(value(index + 2 * distance, color) - value(index, color)) +
-                     std::abs(value(index - distance, 1) -
-                              value(index + distance, 1))) *
+                     std::abs(value(index - distance, 1) - value(index + distance, 1))) *
                         3.0F +
-                    (std::abs(value(index + 3 * distance, 1) -
-                              value(index + distance, 1)) +
-                     std::abs(value(index - 3 * distance, 1) -
-                              value(index - distance, 1))) *
+                    (std::abs(value(index + 3 * distance, 1) - value(index + distance, 1)) +
+                     std::abs(value(index - 3 * distance, 1) - value(index - distance, 1))) *
                         2.0F;
             }
             const int axis = difference[0] > difference[1] ? 1 : 0;
             const int distance = direction[axis];
-            value(index, 1) = median3(guess[axis] * 0.25F,
-                                      value(index + distance, 1),
+            value(index, 1) = median3(guess[axis] * 0.25F, value(index + distance, 1),
                                       value(index - distance, 1));
         }
     }
@@ -921,9 +888,9 @@ try
             {
                 const int distance = direction[axis];
                 value(index, color) = std::max(
-                    0.0F, 0.5F * (value(index - distance, color) +
-                                   value(index + distance, color) + 2.0F * value(index, 1) -
-                                   value(index - distance, 1) - value(index + distance, 1)));
+                    0.0F, 0.5F * (value(index - distance, color) + value(index + distance, color) +
+                                  2.0F * value(index, 1) - value(index - distance, 1) -
+                                  value(index + distance, 1)));
             }
         }
     }
@@ -945,13 +912,12 @@ try
             {
                 const int distance = direction[diagonal] + direction[diagonal + 1];
                 difference[diagonal] =
-                    std::abs(value(index - distance, color) -
-                             value(index + distance, color)) +
+                    std::abs(value(index - distance, color) - value(index + distance, color)) +
                     std::abs(value(index - distance, 1) - value(index, 1)) +
                     std::abs(value(index + distance, 1) - value(index, 1));
-                guess[diagonal] = value(index - distance, color) +
-                                  value(index + distance, color) + 2.0F * value(index, 1) -
-                                  value(index - distance, 1) - value(index + distance, 1);
+                guess[diagonal] = value(index - distance, color) + value(index + distance, color) +
+                                  2.0F * value(index, 1) - value(index - distance, 1) -
+                                  value(index + distance, 1);
             }
             value(index, color) =
                 difference[0] == difference[1] ?
@@ -1028,9 +994,10 @@ try
                 const std::uint32_t source_x = origin_x + output_x;
                 const std::uint8_t channel = cfa_at(source_cfa, source_y, source_x);
                 float sample = std::max(
-                    0.0F, (static_cast<float>(raw.pixels[pixel_index(raw.width, source_x, source_y)]) -
-                           static_cast<float>(raw.black_level)) /
-                              denominator);
+                    0.0F,
+                    (static_cast<float>(raw.pixels[pixel_index(raw.width, source_x, source_y)]) -
+                     static_cast<float>(raw.black_level)) /
+                        denominator);
                 if (raw.dng_opcodes)
                 {
                     sample = apply_dng_opcode_list2_sample(*raw.dng_opcodes, source_x, source_y,
@@ -1077,9 +1044,9 @@ Result<BayerDemosaicMode> parse_bayer_demosaic_mode(const std::string_view mode)
     {
         return BayerDemosaicMode::kPpg;
     }
-    return make_error(ErrorCode::kUnsupported, "Bayer demosaic mode is unsupported",
-                      {{"demosaic_mode", std::string(mode)},
-                       {"reason", "unsupported_demosaic_mode"}});
+    return make_error(
+        ErrorCode::kUnsupported, "Bayer demosaic mode is unsupported",
+        {{"demosaic_mode", std::string(mode)}, {"reason", "unsupported_demosaic_mode"}});
 }
 
 Result<WorkingImage> demosaic_bayer(const DecodedRaw &raw, const std::uint32_t width,
@@ -1108,8 +1075,7 @@ Result<WorkingImage> demosaic_bayer(const DecodedRaw &raw, const std::uint32_t w
     if (std::any_of(output.value().rgb.begin(), output.value().rgb.end(),
                     [](const float sample) { return !std::isfinite(sample); }))
     {
-        return make_error(ErrorCode::kValidation,
-                          "Bayer demosaic produced a non-finite sample",
+        return make_error(ErrorCode::kValidation, "Bayer demosaic produced a non-finite sample",
                           {{"reason", "non_finite_demosaic_output"}});
     }
     return output;
@@ -1120,7 +1086,8 @@ Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uin
                                            const std::uint32_t height,
                                            const std::array<float, 4> &white_balance,
                                            const BayerDemosaicMode mode,
-                                           const CancellationToken &cancellation)
+                                           const CancellationToken &cancellation,
+                                           const GpuAdapter *gpu)
 {
     auto active = cancellation.check();
     if (!active)
@@ -1144,9 +1111,31 @@ Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uin
     {
         return prepared.error();
     }
-    auto expanded = mode == BayerDemosaicMode::kRcd ?
-                        demosaic_rcd(prepared.value(), raw.color_profile, cancellation) :
-                        demosaic_ppg(prepared.value(), raw.color_profile, cancellation);
+    Result<WorkingImage> expanded =
+        make_error(ErrorCode::kInternal, "Bayer window demosaic path was not selected");
+    if (gpu != nullptr && mode == BayerDemosaicMode::kRcd)
+    {
+        WorkingImage gpu_image;
+        gpu_image.width = prepared.value().width;
+        gpu_image.height = prepared.value().height;
+        gpu_image.color_profile = raw.color_profile;
+        gpu_image.rgb.resize(static_cast<std::size_t>(prepared.value().width) *
+                             prepared.value().height * 3U);
+        auto applied =
+            gpu->demosaic_rcd(prepared.value().samples, gpu_image.rgb, prepared.value().width,
+                              prepared.value().height, prepared.value().cfa, cancellation);
+        if (!applied)
+        {
+            return applied.error();
+        }
+        expanded = std::move(gpu_image);
+    }
+    else
+    {
+        expanded = mode == BayerDemosaicMode::kRcd ?
+                       demosaic_rcd(prepared.value(), raw.color_profile, cancellation) :
+                       demosaic_ppg(prepared.value(), raw.color_profile, cancellation);
+    }
     if (!expanded)
     {
         return expanded.error();
@@ -1160,12 +1149,12 @@ Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uin
     output.rgb.resize(static_cast<std::size_t>(width) * height * 3U);
     for (std::uint32_t y = 0U; y < height; ++y)
     {
-        const std::size_t src = (static_cast<std::size_t>(crop_y + y) * expanded.value().width +
-                                 crop_x) *
-                                3U;
+        const std::size_t src =
+            (static_cast<std::size_t>(crop_y + y) * expanded.value().width + crop_x) * 3U;
         const std::size_t dst = static_cast<std::size_t>(y) * width * 3U;
         std::copy_n(expanded.value().rgb.begin() + static_cast<std::ptrdiff_t>(src),
-                    static_cast<std::size_t>(width) * 3U, output.rgb.begin() + static_cast<std::ptrdiff_t>(dst));
+                    static_cast<std::size_t>(width) * 3U,
+                    output.rgb.begin() + static_cast<std::ptrdiff_t>(dst));
     }
     if (std::any_of(output.rgb.begin(), output.rgb.end(),
                     [](const float sample) { return !std::isfinite(sample); }))
@@ -1177,9 +1166,8 @@ Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uin
     return output;
 }
 
-std::uint64_t estimate_bayer_demosaic_memory(const std::uint32_t width,
-                                              const std::uint32_t height,
-                                              const BayerDemosaicMode mode) noexcept
+std::uint64_t estimate_bayer_demosaic_memory(const std::uint32_t width, const std::uint32_t height,
+                                             const BayerDemosaicMode mode) noexcept
 {
     constexpr std::uint64_t maximum = std::numeric_limits<std::uint64_t>::max();
     if (width != 0U && height > maximum / width)
@@ -1196,8 +1184,7 @@ std::uint64_t estimate_bayer_demosaic_memory(const std::uint32_t width,
     if (mode == BayerDemosaicMode::kRcd)
     {
         constexpr std::uint64_t tile_scratch =
-            (194ULL * 194ULL * (1ULL + 3ULL + 1ULL) +
-             3ULL * (194ULL * 194ULL / 2ULL)) *
+            (194ULL * 194ULL * (1ULL + 3ULL + 1ULL) + 3ULL * (194ULL * 194ULL / 2ULL)) *
             sizeof(float);
         bytes = tile_scratch > maximum - bytes ? maximum : bytes + tile_scratch;
     }

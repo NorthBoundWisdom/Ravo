@@ -899,6 +899,7 @@ Result<const DecodedRaw *> CatalogService::cached_raw_frame(const AssetRecord &a
         {
             working.reset();
         }
+        roi_linear_working_.reset();
     }
     return &cache_entry->raw;
 }

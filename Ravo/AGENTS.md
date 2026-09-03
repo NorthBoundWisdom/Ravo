@@ -27,9 +27,10 @@ constraint.
   to the build graph.
 - CPU is the correctness reference. Do not port 0.9 OpenCL. GPU is an Engine
   QRhi adapter (ADR-0133/0134), with no silent CPU fallback
-  (`../DevDocs/MIGRATION.md`). Preview interleaves GPU Exposure/Sigmoid with
-  remaining CPU RGB ops; export and demosaic stay CPU until gold-gated demosaic
-  lands.
+  (`../DevDocs/MIGRATION.md`). Preview keeps unmasked Exposure, light
+  controls, Lab USM, and Sigmoid on one GPU SSBO session; remaining RGB ops
+  stay CPU. Bayer window RCD for ROI 1:1 is GPU when admitted; PPG and export
+  stay CPU.
 - The `ravo` CLI and Ravo Studio are both supported clients. Algorithms belong
   in the engine; catalog/import/preview orchestration belongs in services; CLI
   and UI are limited to input/output, progress, selection, and error

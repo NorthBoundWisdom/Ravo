@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -30,16 +31,38 @@ struct GpuSigmoidRgbParams
     float hue_preservation = 1.0F;
 };
 
+struct GpuLightControlsParams
+{
+    float highlight_ev = 0.0F;
+    float shadow_ev = 0.0F;
+    float white_ev = 0.0F;
+    float black_ev = 0.0F;
+};
+
+struct GpuSharpenRgbParams
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t radius = 0;
+    float amount = 0.5F;
+    float threshold = 0.5F;
+    std::array<float, 25> kernel{};
+};
+
 struct GpuRgbPass
 {
     enum class Kind : std::uint8_t
     {
         kAffine = 0,
         kSigmoid = 1,
+        kLightControls = 2,
+        kSharpen = 3,
     };
     Kind kind = Kind::kAffine;
     GpuAffineRgbParams affine;
     GpuSigmoidRgbParams sigmoid;
+    GpuLightControlsParams light;
+    GpuSharpenRgbParams sharpen;
 };
 
 class GpuAdapter
@@ -55,12 +78,17 @@ public:
     [[nodiscard]] std::string_view backend_id() const noexcept;
     [[nodiscard]] Result<void> copy_rgb(std::span<const float> input, std::span<float> output,
                                         const CancellationToken &cancellation) const;
-    [[nodiscard]] Result<void> apply_affine_rgb(std::span<const float> input, std::span<float> output,
-                                                float scale, float black,
+    [[nodiscard]] Result<void> apply_affine_rgb(std::span<const float> input,
+                                                std::span<float> output, float scale, float black,
                                                 const CancellationToken &cancellation) const;
-    [[nodiscard]] Result<void> apply_rgb_passes(std::span<const float> input, std::span<float> output,
+    [[nodiscard]] Result<void> apply_rgb_passes(std::span<const float> input,
+                                                std::span<float> output,
                                                 std::span<const GpuRgbPass> passes,
                                                 const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<void> demosaic_rcd(std::span<const float> cfa, std::span<float> rgb,
+                                            std::uint32_t width, std::uint32_t height,
+                                            std::array<std::uint8_t, 4> pattern,
+                                            const CancellationToken &cancellation) const;
 
 private:
     struct Impl;

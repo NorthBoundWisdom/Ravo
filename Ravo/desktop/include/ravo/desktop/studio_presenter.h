@@ -1076,6 +1076,7 @@ private:
     double inspect_roi_width_ = 0.0;
     double inspect_roi_height_ = 0.0;
     void clear_inspect_roi();
+    void refresh_inspect_roi();
     PreviewRequestOwner preview_analysis_owner_;
     PreviewRequestOwner perspective_analysis_owner_;
     std::uint64_t thumbnail_revision_ = 0;

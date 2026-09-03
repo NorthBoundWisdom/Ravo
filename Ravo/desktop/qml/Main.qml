@@ -1071,6 +1071,9 @@ ApplicationWindow {
                                 function onZoomChanged() {
                                     inspectRoiDebounce.restart();
                                 }
+                                function onEditChanged() {
+                                    inspectRoiDebounce.restart();
+                                }
                             }
 
                             Item {

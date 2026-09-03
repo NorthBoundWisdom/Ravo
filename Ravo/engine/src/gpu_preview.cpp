@@ -1,5 +1,6 @@
 #include "gpu_preview.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -9,8 +10,10 @@
 #include <vector>
 
 #include "image_ops.h"
+#include "ravo/recipe/color_input.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/sharpen.h"
 #include "image_ops_internal.h"
 
 namespace ravo
@@ -19,10 +22,13 @@ namespace
 {
 
 using image_ops_internal::absorbed_operation;
+using image_ops_internal::light_control_rank;
 using image_ops_internal::make_sigmoid_curve;
 using image_ops_internal::parameter;
 using image_ops_internal::parameter_string;
 using image_ops_internal::prepare_exposure_affine;
+
+constexpr int kGpuSharpenMaxRadius = 12;
 
 enum class PreviewOpClass : std::uint8_t
 {
@@ -61,7 +67,14 @@ enum class PreviewOpClass : std::uint8_t
     return false;
 }
 
-[[nodiscard]] Result<PreviewOpClass> classify_preview_operation(const OperationInstance &operation)
+[[nodiscard]] bool linear_rec709_working(const LinearWorkingBuffer &working) noexcept
+{
+    return working.color_profile.model == ColorModel::kRgb &&
+           working.color_profile.identifier == kInputProfileLinearRec709;
+}
+
+[[nodiscard]] Result<PreviewOpClass> classify_preview_operation(const LinearWorkingBuffer &working,
+                                                               const OperationInstance &operation)
 {
     if (!operation.enabled || absorbed_operation(operation.id) || identity_geometry(operation))
     {
@@ -83,6 +96,22 @@ enum class PreviewOpClass : std::uint8_t
             return PreviewOpClass::Skip;
         }
         return PreviewOpClass::Gpu;
+    }
+    if (light_control_rank(operation.id) >= 0)
+    {
+        if (near(parameter(operation, "amount", 0.0), 0.0))
+        {
+            return PreviewOpClass::Skip;
+        }
+        return PreviewOpClass::Gpu;
+    }
+    if (operation.id == kSharpenOperationId)
+    {
+        if (linear_rec709_working(working))
+        {
+            return PreviewOpClass::Gpu;
+        }
+        return PreviewOpClass::Cpu;
     }
     if (operation.id == "ravo.display.sigmoid")
     {
@@ -133,6 +162,108 @@ enum class PreviewOpClass : std::uint8_t
         pass.affine.black = black;
         return pass;
     }
+    const int light_rank = light_control_rank(operation.id);
+    if (light_rank >= 0)
+    {
+        const double amount = parameter(operation, "amount", 0.0);
+        const float ev = static_cast<float>(amount) *
+                         (light_rank == 0 || light_rank == 2 ?
+                              (amount >= 0.0 ? 0.9F : 1.8F) :
+                              (amount >= 0.0 ? 2.0F : 2.9F));
+        if (!std::isfinite(ev))
+        {
+            return make_error(ErrorCode::kValidation, "GPU light-control amount is not finite",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kLightControls;
+        if (light_rank == 0)
+        {
+            pass.light.highlight_ev = ev;
+        }
+        else if (light_rank == 1)
+        {
+            pass.light.shadow_ev = ev;
+        }
+        else if (light_rank == 2)
+        {
+            pass.light.white_ev = ev;
+        }
+        else
+        {
+            pass.light.black_ev = ev;
+        }
+        return pass;
+    }
+    if (operation.id == kSharpenOperationId)
+    {
+        OperationInstance canonical = operation;
+        auto upgraded = upgrade_sharpen_operation(canonical);
+        if (!upgraded)
+        {
+            return upgraded.error();
+        }
+        auto params = sharpen_from_parameters(canonical.parameters);
+        if (!params)
+        {
+            return params.error();
+        }
+        const float radius = 2.5F * static_cast<float>(params.value().radius);
+        const float amount = static_cast<float>(params.value().amount);
+        const float threshold = static_cast<float>(params.value().threshold);
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kSharpen;
+        pass.sharpen.width = working.width;
+        pass.sharpen.height = working.height;
+        pass.sharpen.amount = amount;
+        pass.sharpen.threshold = threshold;
+        if (radius == 0.0F)
+        {
+            return pass;
+        }
+        if (!working.canonical_roi_scale.valid())
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Sharpen requires a canonical ROI scale for a positive radius",
+                              {{"reason", "invalid_sharpen_roi_scale"}});
+        }
+        const float scaled_radius = radius * working.canonical_roi_scale.value();
+        const int taps = std::min(kGpuSharpenMaxRadius, static_cast<int>(std::ceil(scaled_radius)));
+        if (taps == 0 || working.width < static_cast<std::uint32_t>(2 * taps + 1) ||
+            working.height < static_cast<std::uint32_t>(2 * taps + 1))
+        {
+            return pass;
+        }
+        const float sigma2 = (1.0F / (2.5F * 2.5F)) * scaled_radius * scaled_radius;
+        if (!std::isfinite(sigma2) || sigma2 <= 0.0F)
+        {
+            return make_error(ErrorCode::kValidation, "Sharpen Gaussian sigma is invalid",
+                              {{"reason", "invalid_sharpen_sigma"}});
+        }
+        float weight = 0.0F;
+        for (int offset = -taps; offset <= taps; ++offset)
+        {
+            const float value = std::exp(-static_cast<float>(offset * offset) / (2.0F * sigma2));
+            pass.sharpen.kernel[static_cast<std::size_t>(offset + taps)] = value;
+            weight += value;
+        }
+        if (!std::isfinite(weight) || weight <= 0.0F)
+        {
+            return make_error(ErrorCode::kValidation, "Sharpen Gaussian weight is invalid",
+                              {{"reason", "invalid_sharpen_kernel"}});
+        }
+        for (int index = 0; index < 2 * taps + 1; ++index)
+        {
+            pass.sharpen.kernel[static_cast<std::size_t>(index)] /= weight;
+        }
+        pass.sharpen.radius = static_cast<std::uint32_t>(taps);
+        return pass;
+    }
+    if (operation.id != "ravo.display.sigmoid")
+    {
+        return make_error(ErrorCode::kValidation, "GPU preview pass is not admitted",
+                          {{"operation_id", operation.id}, {"reason", "gpu_pipeline_failed"}});
+    }
     const auto color_processing = parameter_string(operation, "color_processing",
                                                    std::string(kSigmoidColorProcessingPerChannel));
     auto curve = make_sigmoid_curve(operation);
@@ -153,11 +284,12 @@ enum class PreviewOpClass : std::uint8_t
     return pass;
 }
 
-[[nodiscard]] Result<bool> recipe_has_gpu_admissible_rgb(const Recipe &recipe)
+[[nodiscard]] Result<bool> recipe_has_gpu_admissible_rgb(const LinearWorkingBuffer &working,
+                                                         const Recipe &recipe)
 {
     for (const auto &operation : recipe.operations)
     {
-        auto classified = classify_preview_operation(operation);
+        auto classified = classify_preview_operation(working, operation);
         if (!classified)
         {
             return classified.error();
@@ -184,7 +316,7 @@ gpu_preview_rgb_passes(const LinearWorkingBuffer &working, const Recipe &recipe,
         {
             return cancelled.error();
         }
-        auto classified = classify_preview_operation(operation);
+        auto classified = classify_preview_operation(working, operation);
         if (!classified)
         {
             return classified.error();
@@ -263,7 +395,7 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
     {
         return apply_recipe_ops(std::move(working), recipe, cancellation);
     }
-    auto has_gpu = recipe_has_gpu_admissible_rgb(recipe);
+    auto has_gpu = recipe_has_gpu_admissible_rgb(working, recipe);
     if (!has_gpu)
     {
         return has_gpu.error();
@@ -282,7 +414,7 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
         {
             return cancelled.error();
         }
-        auto classified = classify_preview_operation(remaining.operations[index]);
+        auto classified = classify_preview_operation(working, remaining.operations[index]);
         if (!classified)
         {
             return classified.error();
@@ -298,7 +430,8 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
             std::size_t cursor = index;
             while (cursor < remaining.operations.size())
             {
-                auto batch_class = classify_preview_operation(remaining.operations[cursor]);
+                auto batch_class =
+                    classify_preview_operation(working, remaining.operations[cursor]);
                 if (!batch_class)
                 {
                     return batch_class.error();
@@ -338,7 +471,7 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
         std::size_t cursor = index;
         while (cursor < remaining.operations.size())
         {
-            auto cpu_class = classify_preview_operation(remaining.operations[cursor]);
+            auto cpu_class = classify_preview_operation(working, remaining.operations[cursor]);
             if (!cpu_class)
             {
                 return cpu_class.error();

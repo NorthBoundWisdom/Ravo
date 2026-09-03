@@ -1,0 +1,74 @@
+#version 440
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer Values {
+    float values[];
+};
+
+layout(std140, binding = 1) uniform Params {
+    uvec4 header;
+    vec4 amounts;
+};
+
+const float kMiddleGrey = 0.1842;
+const float kHighlightStartEv = -4.5;
+const float kHighlightEndEv = 2.75;
+const float kShadowStartEv = -6.0;
+const float kShadowEndEv = 0.75;
+const float kWhiteStartEv = 0.0;
+const float kWhiteEndEv = 4.0;
+const float kBlackStartEv = -8.0;
+const float kBlackEndEv = 0.0;
+
+float smooth_tone_weight(float start, float end, float value)
+{
+    const float t = clamp((value - start) / (end - start), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+    if (index >= header.x)
+        return;
+    const uint base = index * 3u;
+    const float r = values[base];
+    const float g = values[base + 1u];
+    const float b = values[base + 2u];
+    const float luminance = 0.2225045 * r + 0.7168786 * g + 0.0606169 * b;
+    if (luminance <= 0.0)
+        return;
+    float tone_ev = log2(luminance / kMiddleGrey);
+    float total_delta_ev = 0.0;
+    if (amounts.x != 0.0)
+    {
+        const float delta =
+            amounts.x * smooth_tone_weight(kHighlightStartEv, kHighlightEndEv, tone_ev);
+        tone_ev += delta;
+        total_delta_ev += delta;
+    }
+    if (amounts.y != 0.0)
+    {
+        const float delta =
+            amounts.y * (1.0 - smooth_tone_weight(kShadowStartEv, kShadowEndEv, tone_ev));
+        tone_ev += delta;
+        total_delta_ev += delta;
+    }
+    if (amounts.z != 0.0)
+    {
+        const float delta = amounts.z * smooth_tone_weight(kWhiteStartEv, kWhiteEndEv, tone_ev);
+        tone_ev += delta;
+        total_delta_ev += delta;
+    }
+    if (amounts.w != 0.0)
+    {
+        const float delta =
+            amounts.w * (1.0 - smooth_tone_weight(kBlackStartEv, kBlackEndEv, tone_ev));
+        tone_ev += delta;
+        total_delta_ev += delta;
+    }
+    const float scale = exp2(total_delta_ev);
+    values[base] = r * scale;
+    values[base + 1u] = g * scale;
+    values[base + 2u] = b * scale;
+}

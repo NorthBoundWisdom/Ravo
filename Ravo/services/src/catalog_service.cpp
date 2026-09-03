@@ -71,6 +71,16 @@ testing::CatalogServiceTestControl::browse_linear_working_max_edge(const Catalog
     return service.browse_linear_working_->max_edge;
 }
 
+std::optional<std::uint64_t>
+testing::CatalogServiceTestControl::roi_linear_working_generation(const CatalogService &service)
+{
+    if (!service.roi_linear_working_)
+    {
+        return std::nullopt;
+    }
+    return service.roi_linear_working_->generation;
+}
+
 CatalogService::CatalogService(const EngineFacade &engine,
                                std::unique_ptr<CatalogRepository> repository,
                                std::unique_ptr<RasterDecoder> raster,
@@ -116,6 +126,7 @@ Result<void> CatalogService::close()
     {
         working.reset();
     }
+    roi_linear_working_.reset();
     browse_decoded_preview_source_.reset();
     browse_decoded_raw_.reset();
     browse_linear_working_.reset();

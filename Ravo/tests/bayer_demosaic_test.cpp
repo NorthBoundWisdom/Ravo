@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "bayer_demosaic.h"
+#include "gpu_adapter.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
@@ -46,8 +47,7 @@ namespace
             const std::uint8_t channel = raw.cfa_channels[(y & 1U) * 2U + (x & 1U)];
             const float xf = static_cast<float>(x) / static_cast<float>(width - 1U);
             const float yf = static_cast<float>(y) / static_cast<float>(height - 1U);
-            const std::array<float, 3> rgb{0.08F + 0.72F * xf,
-                                           0.12F + 0.66F * yf,
+            const std::array<float, 3> rgb{0.08F + 0.72F * xf, 0.12F + 0.66F * yf,
                                            0.06F + 0.36F * (xf + yf)};
             raw.pixels[static_cast<std::size_t>(y) * width + x] =
                 static_cast<std::uint16_t>(std::lround(rgb[channel] * 65535.0F));
@@ -56,8 +56,7 @@ namespace
     return raw;
 }
 
-[[nodiscard]] std::array<float, 3> expected_smooth(const std::uint32_t x,
-                                                   const std::uint32_t y,
+[[nodiscard]] std::array<float, 3> expected_smooth(const std::uint32_t x, const std::uint32_t y,
                                                    const std::uint32_t width,
                                                    const std::uint32_t height)
 {
@@ -78,8 +77,8 @@ namespace
             const std::size_t base = (static_cast<std::size_t>(y) * image.width + x) * 3U;
             for (std::size_t channel = 0U; channel < 3U; ++channel)
             {
-                error += std::abs(static_cast<double>(image.rgb[base + channel]) -
-                                  expected[channel]);
+                error +=
+                    std::abs(static_cast<double>(image.rgb[base + channel]) - expected[channel]);
                 ++count;
             }
         }
@@ -111,8 +110,8 @@ namespace
         for (std::uint32_t x = 10U; x + 10U < image.width; ++x)
         {
             const std::size_t base = (static_cast<std::size_t>(y) * image.width + x) * 3U;
-            const auto [minimum, maximum] = std::minmax(
-                {image.rgb[base], image.rgb[base + 1U], image.rgb[base + 2U]});
+            const auto [minimum, maximum] =
+                std::minmax({image.rgb[base], image.rgb[base + 1U], image.rgb[base + 2U]});
             total += static_cast<double>(maximum - minimum);
             ++count;
         }
@@ -125,8 +124,8 @@ namespace
     std::uint64_t hash = 1469598103934665603ULL;
     for (const float sample : image.rgb)
     {
-        const auto quantized = static_cast<std::uint16_t>(
-            std::lround(std::clamp(sample, 0.0F, 1.0F) * 65535.0F));
+        const auto quantized =
+            static_cast<std::uint16_t>(std::lround(std::clamp(sample, 0.0F, 1.0F) * 65535.0F));
         hash ^= static_cast<std::uint8_t>(quantized & 0xffU);
         hash *= 1099511628211ULL;
         hash ^= static_cast<std::uint8_t>(quantized >> 8U);
@@ -155,11 +154,10 @@ TEST(BayerDemosaicTest, RcdAndPpgPreserveCfaSamplesAndSmoothSceneColor)
         for (std::uint32_t x = 0U; x < raw.width; ++x)
         {
             const std::uint8_t channel = raw.cfa_channels[(y & 1U) * 2U + (x & 1U)];
-            const float expected = static_cast<float>(
-                                       raw.pixels[static_cast<std::size_t>(y) * raw.width + x]) /
-                                   65535.0F;
-            const std::size_t index =
-                (static_cast<std::size_t>(y) * raw.width + x) * 3U + channel;
+            const float expected =
+                static_cast<float>(raw.pixels[static_cast<std::size_t>(y) * raw.width + x]) /
+                65535.0F;
+            const std::size_t index = (static_cast<std::size_t>(y) * raw.width + x) * 3U + channel;
             EXPECT_FLOAT_EQ(rcd.value().rgb[index], expected) << x << ',' << y;
             EXPECT_FLOAT_EQ(ppg.value().rgb[index], expected) << x << ',' << y;
         }
@@ -199,10 +197,10 @@ TEST(BayerDemosaicTest, PreviewReductionIsDeterministicFiniteAndSourceOwned)
 {
     const DecodedRaw raw = smooth_bayer(96U, 64U);
     const auto source = raw.pixels;
-    auto first = demosaic_bayer(raw, 48U, 32U, {1.2F, 1.0F, 1.4F, 1.0F},
-                                BayerDemosaicMode::kRcd, CancellationToken{});
-    auto second = demosaic_bayer(raw, 48U, 32U, {1.2F, 1.0F, 1.4F, 1.0F},
-                                 BayerDemosaicMode::kRcd, CancellationToken{});
+    auto first = demosaic_bayer(raw, 48U, 32U, {1.2F, 1.0F, 1.4F, 1.0F}, BayerDemosaicMode::kRcd,
+                                CancellationToken{});
+    auto second = demosaic_bayer(raw, 48U, 32U, {1.2F, 1.0F, 1.4F, 1.0F}, BayerDemosaicMode::kRcd,
+                                 CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_EQ(first.value().rgb, second.value().rgb);
@@ -224,8 +222,8 @@ TEST(BayerDemosaicTest, RcdAndPpgBoundFalseColourOnAHighContrastMonochromeEdge)
     EXPECT_LT(mean_false_colour(ppg.value()), 0.018);
     for (const auto *image : {&rcd.value(), &ppg.value()})
     {
-        EXPECT_TRUE(std::all_of(image->rgb.begin(), image->rgb.end(), [](const float sample)
-                                { return std::isfinite(sample); }));
+        EXPECT_TRUE(std::all_of(image->rgb.begin(), image->rgb.end(),
+                                [](const float sample) { return std::isfinite(sample); }));
         const auto [minimum, maximum] = std::minmax_element(image->rgb.begin(), image->rgb.end());
         EXPECT_GE(*minimum, 0.0F);
         EXPECT_LE(*maximum, 1.25F);
@@ -234,8 +232,8 @@ TEST(BayerDemosaicTest, RcdAndPpgBoundFalseColourOnAHighContrastMonochromeEdge)
 
 TEST(BayerDemosaicTest, RealCanonRawHasFrozenRcdAndPpgGoldens)
 {
-    const auto input = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" /
-                       "images" / "mire1.cr2";
+    const auto input = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
+                       "frozen" / "images" / "mire1.cr2";
     auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
     auto raw = engine.value().decode_raw_frame(input.string(), CancellationToken{});
@@ -287,31 +285,68 @@ TEST(BayerDemosaicTest, RecipeSelectsPpgAndRejectsDuplicateEnabledSelection)
     const DecodedRaw raw = smooth_bayer();
     Recipe rcd_recipe;
     rcd_recipe.asset = {"synthetic", "memory:raw", std::nullopt};
-    rcd_recipe.operations.push_back(
-        {"ravo.color.input", 1, "input", true,
-         input_color_to_parameters(InputColorParams{}), std::nullopt});
+    rcd_recipe.operations.push_back({"ravo.color.input", 1, "input", true,
+                                     input_color_to_parameters(InputColorParams{}), std::nullopt});
     DevelopParams ppg_develop;
     ppg_develop.demosaic_mode = std::string(kDemosaicModePpg);
     auto ppg_recipe_result =
         recipe_from_develop({"synthetic", "memory:raw", std::nullopt}, ppg_develop);
     ASSERT_TRUE(ppg_recipe_result) << ppg_recipe_result.error().message;
     Recipe ppg_recipe = std::move(ppg_recipe_result).value();
-    auto rcd = engine.value().linear_working_from_raw(raw, rcd_recipe, 64U, 64U,
-                                                      CancellationToken{});
-    auto ppg = engine.value().linear_working_from_raw(raw, ppg_recipe, 64U, 64U,
-                                                      CancellationToken{});
+    auto rcd =
+        engine.value().linear_working_from_raw(raw, rcd_recipe, 64U, 64U, CancellationToken{});
+    auto ppg =
+        engine.value().linear_working_from_raw(raw, ppg_recipe, 64U, 64U, CancellationToken{});
     ASSERT_TRUE(rcd) << rcd.error().message;
     ASSERT_TRUE(ppg) << ppg.error().message;
     EXPECT_NE(rcd.value().rgb, ppg.value().rgb);
 
-    ppg_recipe.operations.insert(
-        ppg_recipe.operations.begin(),
-        {std::string(kDemosaicOperationId), 1, "demosaic-rcd", true,
-         {{"mode", ParameterValue{std::string(kDemosaicModeRcd)}}}, std::nullopt});
-    auto duplicate = engine.value().linear_working_from_raw(raw, ppg_recipe, 64U, 64U,
-                                                            CancellationToken{});
+    ppg_recipe.operations.insert(ppg_recipe.operations.begin(),
+                                 {std::string(kDemosaicOperationId),
+                                  1,
+                                  "demosaic-rcd",
+                                  true,
+                                  {{"mode", ParameterValue{std::string(kDemosaicModeRcd)}}},
+                                  std::nullopt});
+    auto duplicate =
+        engine.value().linear_working_from_raw(raw, ppg_recipe, 64U, 64U, CancellationToken{});
     ASSERT_FALSE(duplicate);
     EXPECT_EQ(duplicate.error().context.at("reason"), "duplicate_demosaic_operation");
+}
+
+TEST(BayerDemosaicTest, GpuRcdWindowMatchesCpuGoldWhenAvailable)
+{
+    auto gpu = GpuAdapter::try_create();
+    if (!gpu)
+    {
+        ASSERT_EQ(gpu.error().code, ErrorCode::kUnsupported);
+        EXPECT_EQ(gpu.error().context.at("reason"), "gpu_unavailable");
+        return;
+    }
+    const DecodedRaw raw = smooth_bayer(96U, 64U);
+    constexpr std::uint32_t kX = 16U;
+    constexpr std::uint32_t kY = 12U;
+    constexpr std::uint32_t kW = 32U;
+    constexpr std::uint32_t kH = 24U;
+    const std::array<float, 4> white_balance{1.2F, 1.0F, 1.4F, 1.0F};
+    auto cpu = demosaic_bayer_window(raw, kX, kY, kW, kH, white_balance, BayerDemosaicMode::kRcd,
+                                     CancellationToken{});
+    auto gpu_image =
+        demosaic_bayer_window(raw, kX, kY, kW, kH, white_balance, BayerDemosaicMode::kRcd,
+                              CancellationToken{}, gpu.value().get());
+    ASSERT_TRUE(cpu) << cpu.error().message;
+    if (!gpu_image)
+    {
+        EXPECT_EQ(gpu_image.error().context.at("reason"), "gpu_unavailable");
+        return;
+    }
+    ASSERT_EQ(gpu_image.value().rgb.size(), cpu.value().rgb.size());
+    ASSERT_EQ(gpu_image.value().width, kW);
+    ASSERT_EQ(gpu_image.value().height, kH);
+    for (std::size_t index = 0; index < cpu.value().rgb.size(); ++index)
+    {
+        EXPECT_NEAR(gpu_image.value().rgb[index], cpu.value().rgb[index], 2.0e-3F) << index;
+    }
 }
 
 } // namespace

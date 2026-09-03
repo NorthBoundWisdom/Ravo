@@ -965,8 +965,8 @@ void StudioPresenter::startSurveyPreviewRequest(std::string id)
                     survey_preview_requests_.erase(latest);
                     if (preview)
                     {
-                        survey_preview_urls_[id] = QUrl::fromLocalFile(
-                            qstring_from_utf8(preview.value().cache_path));
+                        survey_preview_urls_[id] =
+                            QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
                         emit surveyChanged();
                         finishSurveyPreviewRequest(true);
                         return;
@@ -1019,6 +1019,16 @@ double StudioPresenter::inspectRoiHeight() const noexcept
     return inspect_roi_height_;
 }
 
+void StudioPresenter::refresh_inspect_roi()
+{
+    if (zoom_mode_ != QLatin1String("actual") || selected_asset_id_.isEmpty() ||
+        inspect_roi_width_ <= 0.0 || inspect_roi_height_ <= 0.0)
+    {
+        return;
+    }
+    requestInspectRoi(inspect_roi_x_, inspect_roi_y_, inspect_roi_width_, inspect_roi_height_);
+}
+
 void StudioPresenter::clear_inspect_roi()
 {
     inspect_roi_owner_.cancel("inspect_roi_cleared");
@@ -1041,7 +1051,8 @@ void StudioPresenter::clear_inspect_roi()
 void StudioPresenter::requestInspectRoi(const double x, const double y, const double width,
                                         const double height)
 {
-    if (zoom_mode_ != QLatin1String("actual") || selected_asset_id_.isEmpty() || service_ == nullptr)
+    if (zoom_mode_ != QLatin1String("actual") || selected_asset_id_.isEmpty() ||
+        service_ == nullptr)
     {
         clear_inspect_roi();
         return;

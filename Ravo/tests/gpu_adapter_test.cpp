@@ -340,7 +340,7 @@ TEST(EngineFacadeTest, GpuPreviewDefaultRawBaselineReportsBackend)
 {
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
-    const auto input = make_preview_working(8, 8);
+    const auto input = make_preview_working(32, 32);
     auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt},
                                       develop_raw_import_baseline());
     ASSERT_TRUE(recipe) << recipe.error().message;
@@ -368,6 +368,126 @@ TEST(EngineFacadeTest, GpuPreviewDefaultRawBaselineReportsBackend)
     else
     {
         EXPECT_TRUE(rendered.value().gpu_backend.empty());
+        EXPECT_TRUE(gpu_backend.empty());
+    }
+}
+
+TEST(EngineFacadeTest, GpuPreviewLightControlsMatchCpuGoldWhenAvailable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    if (!gpu_available(engine.value()))
+    {
+        GTEST_SKIP() << "GPU adapter is unavailable";
+    }
+    const auto input = make_preview_working(8, 8);
+    Recipe recipe;
+    recipe.operations.push_back({"ravo.core.shadows",
+                                 1,
+                                 "shadows-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.214}}},
+                                 std::nullopt});
+    recipe.operations.push_back({"ravo.core.highlights",
+                                 1,
+                                 "highlights-1",
+                                 true,
+                                 {{"amount", ParameterValue{-0.35}}},
+                                 std::nullopt});
+    auto passes = gpu_preview_rgb_passes(input, recipe, CancellationToken{});
+    ASSERT_TRUE(passes) << passes.error().message;
+    ASSERT_TRUE(passes.value().has_value());
+    ASSERT_EQ(passes.value()->size(), 2U);
+    EXPECT_EQ(passes.value()->at(0).kind, GpuRgbPass::Kind::kLightControls);
+    EXPECT_EQ(passes.value()->at(1).kind, GpuRgbPass::Kind::kLightControls);
+    auto gpu = GpuAdapter::try_create();
+    ASSERT_TRUE(gpu) << gpu.error().message;
+    auto gpu_image =
+        apply_gpu_preview_rgb(input, *passes.value(), *gpu.value(), CancellationToken{});
+    ASSERT_TRUE(gpu_image) << gpu_image.error().message;
+    auto cpu_image = apply_recipe_ops(input, recipe, CancellationToken{});
+    ASSERT_TRUE(cpu_image) << cpu_image.error().message;
+    ASSERT_EQ(gpu_image.value().rgb.size(), cpu_image.value().rgb.size());
+    for (std::size_t index = 0; index < cpu_image.value().rgb.size(); ++index)
+    {
+        EXPECT_NEAR(gpu_image.value().rgb[index], cpu_image.value().rgb[index], 2.0e-3) << index;
+    }
+}
+
+TEST(EngineFacadeTest, GpuPreviewSharpenMatchesCpuGoldWhenAvailable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    if (!gpu_available(engine.value()))
+    {
+        GTEST_SKIP() << "GPU adapter is unavailable";
+    }
+    const auto input = make_preview_working(32, 32);
+    auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt},
+                                      develop_raw_import_baseline());
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto passes = gpu_preview_rgb_passes(input, recipe.value(), CancellationToken{});
+    ASSERT_TRUE(passes) << passes.error().message;
+    ASSERT_TRUE(passes.value().has_value());
+    bool has_sharpen = false;
+    bool has_sigmoid = false;
+    for (const auto &pass : *passes.value())
+    {
+        has_sharpen = has_sharpen || pass.kind == GpuRgbPass::Kind::kSharpen;
+        has_sigmoid = has_sigmoid || pass.kind == GpuRgbPass::Kind::kSigmoid;
+    }
+    EXPECT_TRUE(has_sharpen);
+    EXPECT_TRUE(has_sigmoid);
+    auto gpu = GpuAdapter::try_create();
+    ASSERT_TRUE(gpu) << gpu.error().message;
+    auto gpu_image =
+        apply_gpu_preview_rgb(input, *passes.value(), *gpu.value(), CancellationToken{});
+    ASSERT_TRUE(gpu_image) << gpu_image.error().message;
+    auto cpu_image = apply_recipe_ops(input, recipe.value(), CancellationToken{});
+    ASSERT_TRUE(cpu_image) << cpu_image.error().message;
+    ASSERT_EQ(gpu_image.value().rgb.size(), cpu_image.value().rgb.size());
+    for (std::size_t index = 0; index < cpu_image.value().rgb.size(); ++index)
+    {
+        EXPECT_NEAR(gpu_image.value().rgb[index], cpu_image.value().rgb[index], 2.0e-3) << index;
+    }
+}
+
+TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto input = make_preview_working(32, 32);
+    DevelopParams develop = develop_raw_import_baseline();
+    develop.exposure_ev = 0.847;
+    develop.shadows = 0.214;
+    auto recipe =
+        recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto gpu = GpuAdapter::try_create();
+    std::string gpu_backend;
+    const auto mixed = apply_preview_rgb(input, recipe.value(), gpu ? gpu.value().get() : nullptr,
+                                         &gpu_backend, CancellationToken{});
+    ASSERT_TRUE(mixed) << mixed.error().message;
+    const auto cpu = apply_recipe_ops(input, recipe.value(), CancellationToken{});
+    ASSERT_TRUE(cpu) << cpu.error().message;
+    ASSERT_EQ(mixed.value().rgb.size(), cpu.value().rgb.size());
+    for (std::size_t index = 0; index < cpu.value().rgb.size(); ++index)
+    {
+        EXPECT_NEAR(mixed.value().rgb[index], cpu.value().rgb[index], 2.0e-3) << index;
+    }
+    if (gpu_available(engine.value()))
+    {
+        EXPECT_EQ(gpu_backend, engine.value().gpu_backend());
+        auto passes = gpu_preview_rgb_passes(input, recipe.value(), CancellationToken{});
+        ASSERT_TRUE(passes) << passes.error().message;
+        ASSERT_TRUE(passes.value().has_value());
+        ASSERT_GE(passes.value()->size(), 3U);
+        EXPECT_EQ(passes.value()->at(0).kind, GpuRgbPass::Kind::kAffine);
+        EXPECT_EQ(passes.value()->at(1).kind, GpuRgbPass::Kind::kLightControls);
+        EXPECT_EQ(passes.value()->at(2).kind, GpuRgbPass::Kind::kSharpen);
+    }
+    else
+    {
         EXPECT_TRUE(gpu_backend.empty());
     }
 }

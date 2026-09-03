@@ -240,6 +240,8 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(
         source.contains(QStringLiteral("window.viewportAssetId !== studio.selectedAssetId")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onZoomChanged()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function onEditChanged()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("inspectRoiDebounce.restart()")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onBrowseModeChanged()")));
     EXPECT_TRUE(source.contains(QStringLiteral("scroller.contentX = maxX / 2")));
     EXPECT_TRUE(source.contains(QStringLiteral("scroller.contentY = maxY / 2")));

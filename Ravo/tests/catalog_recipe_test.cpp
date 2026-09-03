@@ -1217,6 +1217,49 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReturnsWindowPixelsWithoutCache)
     EXPECT_EQ(rejected_geometry.error().context.at("reason"), "preview_roi_geometry_unsupported");
 }
 
+TEST_F(CatalogServiceTest, RawPreviewRoiReusesLinearWorkingForRgbEdits)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    PreviewRequest request;
+    request.asset_id = imported.value().asset->id;
+    request.persist_preview_record = false;
+    request.prefer_embedded_preview = false;
+    request.roi = PreviewNormRect{0.25, 0.25, 0.2, 0.15};
+    auto stored = service->load_recipe(request.asset_id);
+    ASSERT_TRUE(stored) << stored.error().message;
+    auto live = develop_from_recipe(stored.value());
+    ASSERT_TRUE(live) << live.error().message;
+    auto first = service->request_preview(request, live.value());
+    ASSERT_TRUE(first) << first.error().message;
+    const auto first_generation =
+        testing::CatalogServiceTestControl::roi_linear_working_generation(*service);
+    ASSERT_TRUE(first_generation);
+    EXPECT_EQ(*first_generation, 1U);
+
+    live.value().exposure_ev = 0.75;
+    auto exposed = service->request_preview(request, live.value());
+    ASSERT_TRUE(exposed) << exposed.error().message;
+    EXPECT_EQ(exposed.value().width, first.value().width);
+    EXPECT_EQ(exposed.value().height, first.value().height);
+    EXPECT_NE(exposed.value().rgb, first.value().rgb);
+    const auto exposed_generation =
+        testing::CatalogServiceTestControl::roi_linear_working_generation(*service);
+    ASSERT_TRUE(exposed_generation);
+    EXPECT_EQ(*exposed_generation, *first_generation);
+
+    request.roi = PreviewNormRect{0.45, 0.45, 0.2, 0.15};
+    auto panned = service->request_preview(request, live.value());
+    ASSERT_TRUE(panned) << panned.error().message;
+    const auto panned_generation =
+        testing::CatalogServiceTestControl::roi_linear_working_generation(*service);
+    ASSERT_TRUE(panned_generation);
+    EXPECT_EQ(*panned_generation, *first_generation + 1U);
+}
+
 TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIdenticalPixels)
 {
     auto created = open_service(true);

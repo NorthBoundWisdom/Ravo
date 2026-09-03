@@ -1859,5 +1859,45 @@ TEST(StudioPresenterTest, SelectingFolderDoesNotResetFolderTree)
     EXPECT_LT(presenter.folders()->rowCount(), tree_rows);
 }
 
+TEST(StudioPresenterTest, ActualSizeInspectRoiFollowsLiveDevelopWithoutPan)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo =
+        QDir(QString::fromUtf8(RAVO_REPOSITORY_ROOT))
+            .filePath(QStringLiteral("Ravo/tests/fixtures/frozen/images/mire1.cr2"));
+    ASSERT_TRUE(QFileInfo::exists(photo)) << photo.toStdString();
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        },
+        30000))
+        << presenter.errorText().toStdString();
+    presenter.openDevelop();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }, 30000))
+        << presenter.errorText().toStdString();
+    presenter.setZoomMode(QStringLiteral("actual"));
+    presenter.requestInspectRoi(0.25, 0.25, 0.2, 0.15);
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspectRoiUrl().isEmpty(); }, 30000))
+        << presenter.errorText().toStdString();
+    const QUrl first_roi = presenter.inspectRoiUrl();
+    presenter.previewDevelopNumbers(QVariantMap{{QStringLiteral("exposure"), 0.75}});
+    ASSERT_TRUE(wait_until([&] { return presenter.inspectRoiUrl() != first_roi; }, 30000))
+        << presenter.errorText().toStdString() << " first=" << first_roi.toString().toStdString()
+        << " current=" << presenter.inspectRoiUrl().toString().toStdString();
+    EXPECT_TRUE(presenter.inspectRoiUrl().toString().contains(QStringLiteral("inspectRoi")));
+}
+
 } // namespace
 } // namespace ravo

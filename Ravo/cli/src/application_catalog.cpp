@@ -865,6 +865,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         JsonValue::Object body{
             {"asset_id", previewed.value().asset_id},
             {"cache_path", previewed.value().cache_path},
+            {"gpu_backend",
+             previewed.value().gpu_backend.empty() ? "cpu" : previewed.value().gpu_backend},
             {"height", JsonValue::number(std::to_string(previewed.value().height))},
             {"original_missing", previewed.value().original_missing},
             {"width", JsonValue::number(std::to_string(previewed.value().width))},

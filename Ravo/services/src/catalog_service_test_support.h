@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <string_view>
 
 #include "ravo/services/catalog_service.h"
@@ -25,6 +27,8 @@ public:
     linear_working_max_edges(const CatalogService &service);
     [[nodiscard]] static std::optional<std::uint32_t>
     browse_linear_working_max_edge(const CatalogService &service);
+    [[nodiscard]] static std::optional<std::uint64_t>
+    roi_linear_working_generation(const CatalogService &service);
 };
 
 } // namespace ravo::testing

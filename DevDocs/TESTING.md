@@ -139,16 +139,22 @@ presenter zoom owner, 0.1–8 clamps, wheel step, Actual-size toggle restoring
 the last non-1:1 mode, bounded Flickable/navigator seek, inspect magnifier
 click wiring, active-asset comparison, recenter triggers, crop pan exclusion,
 and QML smoke; same-asset review notifications are required not to reset pan.
+Actual-size inspect ROI follows live Develop parameters without requiring a pan.
+The CFA-window linear working is reused across RGB-only edits and rebuilt on
+pan or preprocess change.
 Catalog tests cover Bayer viewport-ROI 1:1 windows, full-frame ROI rejection,
 and geometry rejection (ADR-0132).
 Engine GPU adapter tests require `create_phase1` to succeed whether or not a
 device exists, honor cancellation before dispatch, and reject size-mismatched
 opt-in copies. When QRhi reports a compute backend, identity copies are
-bit-exact and Exposure affine RGB plus default Sigmoid are RMSE-gated against
-the CPU gold. `render_linear_working` reports `gpu_backend` when Exposure or
-Sigmoid ran on the GPU, including the default RAW baseline that still runs
-sharpen on CPU. Recipes without those ops stay on CPU. Hosts without compute or
-buffer readback return `gpu_unavailable`. Export stays on the CPU path.
+bit-exact and Exposure affine RGB, unmasked light controls, Lab USM Sharpen,
+and default Sigmoid are RMSE-gated against the CPU gold. `render_linear_working`
+reports `gpu_backend` when those GPU RGB passes ran, including the default RAW
+baseline that now keeps Sharpen and Sigmoid on the GPU. Recipes without those
+ops stay on CPU. Hosts without compute or
+buffer readback return `gpu_unavailable`. Bayer window RCD is RMSE-gated
+against the CPU gold when the adapter is present; PPG and hosts without
+compute stay on CPU. Export stays on the CPU path.
 Progressive-preview coverage uses a source larger than both preview classes and
 requires the 960px interactive image to retain the preceding 1600px viewport
 extent until settlement; QML must use that accepted presenter extent instead of

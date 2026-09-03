@@ -189,6 +189,10 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     }
     develop_ = params;
     emit editChanged();
+    if (refresh_preview)
+    {
+        refresh_inspect_roi();
+    }
     const bool crop_guides = crop_tool_active_ && !before_after_;
     const bool overlay = mask_overlay_visible_ && !before_after_;
     const bool needs_first_preview =
@@ -263,6 +267,7 @@ void StudioPresenter::preview_develop(DevelopParams params)
         return;
     }
     develop_ = params;
+    refresh_inspect_roi();
     const bool crop_guides = crop_tool_active_ && !before_after_;
     std::optional<std::uint64_t> request_revision;
     const bool finish_active_frame =
@@ -357,6 +362,7 @@ void StudioPresenter::enqueue_preview()
     const bool crop_guides = crop_tool_active_ && !before_after_;
     const bool progressive_develop = browse_mode_ == QLatin1String("develop") &&
                                      !mask_overlay_visible_ && !crop_guides && !before_after_;
+    refresh_inspect_roi();
     pending_preview_ = PendingDevelopWork{
         .interactive = mask_overlay_visible_ || crop_guides || progressive_develop,
         .params = develop_,

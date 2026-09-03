@@ -79,8 +79,10 @@ pyramid, Hald image, OCIO, and CTL inputs are unsupported.
 
 The supported standalone CLI render backend is `cpu`. Ravo does not expose the
 old OpenCL path, and GPU is not a user-selectable fallback. Develop preview may
-run unmasked Exposure and Sigmoid on the Engine GPU when the host has a compute
-backend; `catalog probe --json` reports `gpu_backend`. Export stays on CPU.
+run unmasked Exposure, light controls, Lab USM Sharpen, and Sigmoid on the
+Engine GPU when the host has a compute backend; viewport 1:1 Bayer RCD also
+uses that GPU. `catalog probe --json` and `catalog preview --json` report
+`gpu_backend`. Export stays on CPU.
 
 ### Original-safe editing
 

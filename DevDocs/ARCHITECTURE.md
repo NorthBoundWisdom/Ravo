@@ -217,12 +217,15 @@ drag, the presenter only forwards in-memory parameters. Services apply the
 complete effect stack to a cached 960px scene-linear working image, return
 memory pixels, and do not write PNG/cache. That 960px buffer is a box-filtered
 copy of the 1600px settled linear working, so entering Develop demosaics once.
-Actual Size 1:1 is a CPU CFA window of the visible crop (ADR-0132); lens,
+Actual Size 1:1 is a Bayer CFA window of the visible crop (ADR-0132) demosaiced
+on GPU RCD when a compute backend exists. Live Develop parameter changes
+re-request that window; they do not wait for a pan. The CFA-window linear
+working is retained across RGB-only edits so sliders do not remosaic. Lens,
 perspective, and full-frame ROIs reject and keep the 1600 preview. GPU is an
 Engine-owned QRhi adapter (ADR-0133/0134): one process-wide device. Unmasked
-Exposure and Sigmoid run on the GPU during preview, interleaved with remaining
-CPU RGB ops so the default RAW look (Lab USM then Sigmoid) still hits the GPU.
-Masked ops, other RGB kernels, demosaic, and export stay on CPU. Failures are
+Exposure, light controls, Lab USM Sharpen, and Sigmoid run on the GPU during
+preview in one SSBO session, interleaved with remaining CPU RGB ops. Masked
+ops, other RGB kernels, and export stay on CPU. Failures are
 fail-closed. Recipe, Catalog, CLI, and QML do not hold device objects.
 `catalog probe --json` reports `gpu_backend`.
 For an ordinary commit whose parameters are not
@@ -1503,9 +1506,10 @@ CLI and Studio project that contract without expanding paths themselves. See
 - Ravo does not implement every historic blend/operation or
   old-catalog migration.
 - GPU is an Engine QRhi adapter (ADR-0133/0134). CPU remains the correctness
-  reference. Preview interleaves GPU Exposure/Sigmoid with remaining CPU RGB
-  ops; export and demosaic stay CPU until gold-gated demosaic lands. Do not
-  reuse 0.9 OpenCL or add a silent CPU fallback.
+  reference. Preview keeps unmasked Exposure, light controls, Lab USM, and
+  Sigmoid on one GPU SSBO session; other RGB ops stay CPU. Bayer window RCD
+  for ROI 1:1 is GPU when a compute backend exists; PPG and export stay CPU.
+  Do not reuse 0.9 OpenCL or add a silent CPU fallback.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
   query language without consumers.
 - Do not modify frozen 0.9 to call Ravo or let Ravo production call the frozen

@@ -30,11 +30,14 @@ second renderer in QML/catalog.
 - Admission is staged:
   1. Device, queue, library, cancellation, and destruction.
   2. GPU apply of post-demosaic RGB on an existing linear working / ROI.
-     Unmasked Exposure and Sigmoid are admitted as GPU passes and interleaved
-     with remaining CPU RGB ops so default RAW (sharpen then sigmoid) still
-     hits the GPU. Other kernels, masks, demosaic, and export stay on CPU.
-     CPU remains the correctness reference (RMSE-gated).
-  3. GPU Bayer window demosaic with CPU-gold RMSE gates.
+     Consecutive unmasked Exposure, light controls (highlights/shadows/whites/
+     blacks), Lab USM Sharpen, and Sigmoid stay on one SSBO session (one
+     upload, in-place passes, one download) so default RAW 1:1 grading does
+     not drop quality or remosaic. Remaining kernels and masks stay CPU and
+     interleave around that GPU batch. CPU remains the correctness reference
+     (RMSE-gated).
+  3. GPU Bayer window RCD with CPU-gold RMSE gates. Viewport ROI 1:1 uses
+     that path when a compute backend exists; PPG stays on CPU.
 - Export stays CPU until stage 3 goldens exist for the same recipe.
 
 ## Consequences

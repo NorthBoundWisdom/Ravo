@@ -78,6 +78,7 @@ CATALOG="/work/Ravo Library.sqlite"
 "$RAVO" catalog preview --catalog "$CATALOG" --asset-id <asset-id> --json
 "$RAVO" catalog preview --catalog "$CATALOG" --asset-id <asset-id> \
   --roi 0.25,0.25,0.2,0.15 --output /tmp/roi.png --json
+# ROI JSON includes gpu_backend (`metal` when GPU RCD ran).
 "$RAVO" catalog export --catalog "$CATALOG" --asset-id <asset-id> \
   --output "/exports/photo.png" --format png --json
 ```

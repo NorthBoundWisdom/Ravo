@@ -546,11 +546,12 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
 }
 
 Result<WorkingImage> working_from_raw_window(const DecodedRaw &raw, const std::uint32_t origin_x,
-                                             const std::uint32_t origin_y, const std::uint32_t width,
-                                             const std::uint32_t height,
+                                             const std::uint32_t origin_y,
+                                             const std::uint32_t width, const std::uint32_t height,
                                              const std::array<float, 4> &white_balance,
                                              const std::string_view demosaic_mode,
-                                             const CancellationToken &cancellation)
+                                             const CancellationToken &cancellation,
+                                             const GpuAdapter *gpu)
 {
     if (width == 0 || height == 0)
     {
@@ -569,7 +570,7 @@ Result<WorkingImage> working_from_raw_window(const DecodedRaw &raw, const std::u
     }
     const bool defer_white_balance = dng_list3_requires_deferred_white_balance(raw.dng_opcodes);
     auto image = demosaic_bayer_window(raw, origin_x, origin_y, width, height, white_balance,
-                                       mode.value(), cancellation);
+                                       mode.value(), cancellation, gpu);
     if (!image)
     {
         return image.error();
@@ -608,9 +609,9 @@ Result<WorkingImage> working_from_raw_window(const DecodedRaw &raw, const std::u
     {
         return oriented.error();
     }
-    oriented.value().canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(
-        oriented.value().width, oriented.value().height, oriented.value().width,
-        oriented.value().height);
+    oriented.value().canonical_roi_scale =
+        CanonicalRoiScale::from_scaled_dimensions(oriented.value().width, oriented.value().height,
+                                                  oriented.value().width, oriented.value().height);
     return oriented;
 }
 
@@ -653,8 +654,7 @@ try
                           "Linear working scale dimensions must be non-zero and bounded",
                           {{"reason", "invalid_linear_working_scale"}});
     }
-    const std::size_t expected =
-        static_cast<std::size_t>(input.width) * input.height * 3U;
+    const std::size_t expected = static_cast<std::size_t>(input.width) * input.height * 3U;
     if (input.width == 0U || input.height == 0U || input.rgb.size() != expected)
     {
         return make_error(ErrorCode::kValidation, "Linear working buffer is empty or undersized",
@@ -676,8 +676,8 @@ try
     output.height = height;
     output.color_profile = input.color_profile;
     output.exposure_analysis = input.exposure_analysis;
-    output.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(
-        width, height, original_width, original_height);
+    output.canonical_roi_scale =
+        CanonicalRoiScale::from_scaled_dimensions(width, height, original_width, original_height);
     if (input.mask_attached_frame.has_value())
     {
         const auto &frame = *input.mask_attached_frame;
@@ -718,9 +718,9 @@ try
                 static_cast<std::uint64_t>(output_y) * input.height / height);
             const std::uint32_t source_bottom = std::max(
                 source_top + 1U,
-                static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_y + 1U) *
-                                            input.height + height - 1U) /
-                                           height));
+                static_cast<std::uint32_t>(
+                    (static_cast<std::uint64_t>(output_y + 1U) * input.height + height - 1U) /
+                    height));
             const std::uint32_t y_end = std::min(source_bottom, input.height);
             for (std::uint32_t output_x = 0U; output_x < width; ++output_x)
             {
@@ -728,9 +728,9 @@ try
                     static_cast<std::uint64_t>(output_x) * input.width / width);
                 const std::uint32_t source_right = std::max(
                     source_left + 1U,
-                    static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_x + 1U) *
-                                                input.width + width - 1U) /
-                                               width));
+                    static_cast<std::uint32_t>(
+                        (static_cast<std::uint64_t>(output_x + 1U) * input.width + width - 1U) /
+                        width));
                 const std::uint32_t x_end = std::min(source_right, input.width);
                 double sum_r = 0.0;
                 double sum_g = 0.0;
@@ -967,12 +967,12 @@ try
     auto balanced = apply_color_balance_rgb(operation_output, unmasked, cancellation);
     if (!balanced)
         return balanced.error();
-    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe, *operation.mask_id,
-                                         cancellation);
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe,
+                                         *operation.mask_id, cancellation);
     if (!alpha)
         return alpha.error();
-    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(),
-                                 cancellation);
+    auto mixed =
+        normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(), cancellation);
     if (!mixed)
         return mixed.error();
     return operation_output;
@@ -1022,12 +1022,12 @@ try
     auto curved = apply_rgb_curve(operation_output, unmasked, cancellation);
     if (!curved)
         return curved.error();
-    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe, *operation.mask_id,
-                                         cancellation);
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe,
+                                         *operation.mask_id, cancellation);
     if (!alpha)
         return alpha.error();
-    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(),
-                                 cancellation);
+    auto mixed =
+        normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(), cancellation);
     if (!mixed)
         return mixed.error();
     return operation_output;
@@ -1050,12 +1050,12 @@ try
     auto curved = apply_tone_curve(operation_output, unmasked, cancellation);
     if (!curved)
         return curved.error();
-    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe, *operation.mask_id,
-                                         cancellation);
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe,
+                                         *operation.mask_id, cancellation);
     if (!alpha)
         return alpha.error();
-    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(),
-                                 cancellation);
+    auto mixed =
+        normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(), cancellation);
     if (!mixed)
         return mixed.error();
     return operation_output;
@@ -1100,12 +1100,12 @@ try
     auto adjusted = apply_light_controls(operation_output, amounts, cancellation);
     if (!adjusted)
         return adjusted.error();
-    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe, *operation.mask_id,
-                                         cancellation);
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe,
+                                         *operation.mask_id, cancellation);
     if (!alpha)
         return alpha.error();
-    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(),
-                                 cancellation);
+    auto mixed =
+        normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(), cancellation);
     if (!mixed)
         return mixed.error();
     return operation_output;

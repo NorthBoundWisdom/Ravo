@@ -779,9 +779,10 @@ Result<LinearWorkingBuffer> EngineFacade::linear_working_from_raw_window(
             return applied.error();
         }
     }
-    auto demosaiced =
-        working_from_raw_window(*source, origin_x, origin_y, width, height,
-                                temperature.value().coefficients, demosaic_mode, cancellation);
+    ensure_gpu_adapter();
+    auto demosaiced = working_from_raw_window(*source, origin_x, origin_y, width, height,
+                                              temperature.value().coefficients, demosaic_mode,
+                                              cancellation, g_gpu_adapter.get());
     if (!demosaiced)
     {
         return demosaiced.error();

@@ -7,19 +7,22 @@
 #include "ravo/recipe/dehaze.h"
 #include "ravo/recipe/perspective.h"
 #include "ravo/recipe/retouch.h"
+#include "ravo/recipe/operation.h"
 #include "ravo/recipe/watermark.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <string>
+#include <variant>
 
 namespace ravo
 {
 namespace
 {
 
-[[nodiscard]] double parameter_number(const OperationInstance &operation, const std::string_view key,
-                                      const double fallback)
+[[nodiscard]] double parameter_number(const OperationInstance &operation,
+                                      const std::string_view key, const double fallback)
 {
     const auto found = operation.parameters.find(std::string(key));
     if (found == operation.parameters.end())
@@ -41,8 +44,7 @@ namespace
 {
     if (!std::isfinite(roi.x) || !std::isfinite(roi.y) || !std::isfinite(roi.width) ||
         !std::isfinite(roi.height) || roi.x < 0.0 || roi.y < 0.0 || roi.width <= 0.0 ||
-        roi.height <= 0.0 || roi.x + roi.width > 1.0 + 1.0e-9 ||
-        roi.y + roi.height > 1.0 + 1.0e-9)
+        roi.height <= 0.0 || roi.x + roi.width > 1.0 + 1.0e-9 || roi.y + roi.height > 1.0 + 1.0e-9)
     {
         return make_error(ErrorCode::kInvalidArgument, "Preview ROI is not a unit rectangle",
                           {{"reason", "invalid_preview_roi"}});
@@ -81,8 +83,7 @@ namespace
         if (operation.id == "ravo.geometry.straighten" &&
             std::abs(parameter_number(operation, "degrees", 0.0)) > 1.0e-9)
         {
-            return make_error(ErrorCode::kUnsupported,
-                              "Preview ROI is unavailable with straighten",
+            return make_error(ErrorCode::kUnsupported, "Preview ROI is unavailable with straighten",
                               {{"reason", "preview_roi_geometry_unsupported"},
                                {"operation_id", std::string(operation.id)}});
         }
@@ -105,6 +106,38 @@ namespace
     return {};
 }
 
+[[nodiscard]] std::string roi_working_preprocess_key(const Recipe &recipe)
+{
+    std::string key = raw_preprocess_key(recipe);
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kDemosaicOperationId)
+        {
+            continue;
+        }
+        key += ":demosaic";
+        for (const auto &[name, value] : operation.parameters)
+        {
+            key.push_back(':');
+            key += name;
+            key.push_back('=');
+            if (const auto *text = std::get_if<std::string>(&value.value))
+            {
+                key += *text;
+            }
+            else if (const auto *number = std::get_if<double>(&value.value))
+            {
+                key += std::to_string(*number);
+            }
+            else if (const auto *integer = std::get_if<std::int64_t>(&value.value))
+            {
+                key += std::to_string(*integer);
+            }
+        }
+    }
+    return key;
+}
+
 void disable_mapped_geometry(Recipe &recipe)
 {
     for (auto &operation : recipe.operations)
@@ -118,6 +151,59 @@ void disable_mapped_geometry(Recipe &recipe)
 }
 
 } // namespace
+
+Result<CatalogService::CachedRoiLinearWorking *> CatalogService::cached_roi_linear_working(
+    const AssetRecord &asset, const std::string_view path, const Recipe &recipe,
+    const std::uint32_t origin_x, const std::uint32_t origin_y, const std::uint32_t width,
+    const std::uint32_t height, const CancellationToken &cancellation)
+{
+    if (engine_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    const auto fingerprint = asset.content_fingerprint.value_or("none");
+    auto color_fingerprint = engine_->input_color_cache_fingerprint(recipe);
+    if (!color_fingerprint)
+    {
+        return color_fingerprint.error();
+    }
+    const std::string preprocess_key =
+        roi_working_preprocess_key(recipe) + ":" + color_fingerprint.value();
+    if (roi_linear_working_.has_value() && roi_linear_working_->asset_id == asset.id &&
+        roi_linear_working_->fingerprint == fingerprint &&
+        roi_linear_working_->preprocess_key == preprocess_key &&
+        roi_linear_working_->origin_x == origin_x && roi_linear_working_->origin_y == origin_y &&
+        roi_linear_working_->width == width && roi_linear_working_->height == height)
+    {
+        return &*roi_linear_working_;
+    }
+    auto raw = cached_raw_frame(asset, path, cancellation, PreviewLane::kForegroundDevelop);
+    if (!raw)
+    {
+        return raw.error();
+    }
+    auto linear = engine_->linear_working_from_raw_window(*raw.value(), recipe, origin_x, origin_y,
+                                                          width, height, cancellation);
+    if (!linear)
+    {
+        return linear.error();
+    }
+    const auto generation =
+        roi_linear_working_.has_value() ? roi_linear_working_->generation + 1U : 1U;
+    roi_linear_working_ = CachedRoiLinearWorking{
+        .asset_id = std::string(asset.id),
+        .fingerprint = fingerprint,
+        .preprocess_key = preprocess_key,
+        .origin_x = origin_x,
+        .origin_y = origin_y,
+        .width = width,
+        .height = height,
+        .buffer = std::move(linear).value(),
+        .interactive_render_cache = {},
+        .generation = generation,
+    };
+    return &*roi_linear_working_;
+}
 
 Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &asset,
                                                            const PreviewRequest &request,
@@ -140,9 +226,9 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     }
     if (!is_raw_media_type(asset.media_type))
     {
-        return make_error(ErrorCode::kUnsupported, "Preview ROI requires a RAW asset",
-                          {{"reason", "preview_roi_media_unsupported"},
-                           {"media_type", asset.media_type}});
+        return make_error(
+            ErrorCode::kUnsupported, "Preview ROI requires a RAW asset",
+            {{"reason", "preview_roi_media_unsupported"}, {"media_type", asset.media_type}});
     }
     auto supported = preview_roi_recipe_supported(recipe);
     if (!supported)
@@ -181,9 +267,9 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     const double display_h = request.roi->height * crop_h;
     auto pixel = [&](const double normalized, const std::uint32_t extent) -> std::uint32_t
     {
-        return static_cast<std::uint32_t>(std::clamp(
-            std::llround(normalized * static_cast<double>(extent)), 0LL,
-            static_cast<long long>(extent > 0U ? extent - 1U : 0U)));
+        return static_cast<std::uint32_t>(
+            std::clamp(std::llround(normalized * static_cast<double>(extent)), 0LL,
+                       static_cast<long long>(extent > 0U ? extent - 1U : 0U)));
     };
     const auto px = pixel(display_x, source_width);
     const auto py = pixel(display_y, source_height);
@@ -219,17 +305,18 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     }
     Recipe window_recipe = recipe;
     disable_mapped_geometry(window_recipe);
-    auto linear = engine_->linear_working_from_raw_window(
-        *raw.value(), window_recipe, cfa.value().x, cfa.value().y, cfa.value().width,
-        cfa.value().height, request.cancellation);
+    auto linear =
+        cached_roi_linear_working(asset, path, window_recipe, cfa.value().x, cfa.value().y,
+                                  cfa.value().width, cfa.value().height, request.cancellation);
     if (!linear)
     {
         return linear.error();
     }
     Recipe rgb_recipe = window_recipe;
     disable_raw_preprocess(rgb_recipe);
-    auto applied = engine_->render_linear_working(linear.value(), rgb_recipe, request.cancellation,
-                                                  request.overlay_mask_id);
+    auto applied = engine_->render_interactive_linear_working(
+        linear.value()->buffer, rgb_recipe, linear.value()->interactive_render_cache,
+        request.cancellation, request.overlay_mask_id);
     if (!applied)
     {
         return applied.error();

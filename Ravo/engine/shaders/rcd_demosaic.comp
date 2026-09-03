@@ -1,0 +1,355 @@
+#version 440
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, binding = 0) buffer Cfa { float cfa[]; };
+layout(std430, binding = 1) buffer Rgb { float rgb[]; };
+layout(std430, binding = 2) buffer Vh { float vh[]; };
+layout(std430, binding = 3) buffer Pq { float pq[]; };
+layout(std430, binding = 4) buffer PHigh { float p_high[]; };
+layout(std430, binding = 5) buffer QHigh { float q_high[]; };
+layout(std430, binding = 6) buffer OutRgb { float out_rgb[]; };
+
+layout(std140, binding = 7) uniform Params {
+    uvec4 header;
+    uvec4 pattern;
+};
+
+const float kEpsilon = 1.0e-5;
+const float kEpsilonSq = 1.0e-10;
+
+uint width() { return header.x; }
+uint height() { return header.y; }
+uint stage() { return header.z; }
+uint pixel_count() { return header.x * header.y; }
+
+uint cfa_channel(uint y, uint x)
+{
+    const uint index = (y & 1u) * 2u + (x & 1u);
+    if (index == 0u)
+        return pattern.x;
+    if (index == 1u)
+        return pattern.y;
+    if (index == 2u)
+        return pattern.z;
+    return pattern.w;
+}
+
+bool inside(int x, int y)
+{
+    return x >= 0 && y >= 0 && x < int(width()) && y < int(height());
+}
+
+float cfa_at(int x, int y)
+{
+    if (!inside(x, y))
+        return 0.0;
+    return cfa[uint(y) * width() + uint(x)];
+}
+
+uint pix(int x, int y)
+{
+    return uint(y) * width() + uint(x);
+}
+
+float rgb_at(uint channel, int x, int y)
+{
+    return rgb[channel * pixel_count() + pix(x, y)];
+}
+
+void rgb_set(uint channel, int x, int y, float value)
+{
+    rgb[channel * pixel_count() + pix(x, y)] = value;
+}
+
+float interpolate(float weight, float first, float second)
+{
+    return weight * (first - second) + second;
+}
+
+float hp_x(int x, int y)
+{
+    return (cfa_at(x - 3, y) - cfa_at(x - 1, y) - cfa_at(x + 1, y) + cfa_at(x + 3, y)) -
+           3.0 * (cfa_at(x - 2, y) + cfa_at(x + 2, y)) + 6.0 * cfa_at(x, y);
+}
+
+float hp_y(int x, int y)
+{
+    return (cfa_at(x, y - 3) - cfa_at(x, y - 1) - cfa_at(x, y + 1) + cfa_at(x, y + 3)) -
+           3.0 * (cfa_at(x, y - 2) + cfa_at(x, y + 2)) + 6.0 * cfa_at(x, y);
+}
+
+float hp_p(int x, int y)
+{
+    return (cfa_at(x - 3, y - 3) - cfa_at(x - 1, y - 1) - cfa_at(x + 1, y + 1) +
+            cfa_at(x + 3, y + 3)) -
+           3.0 * (cfa_at(x - 2, y - 2) + cfa_at(x + 2, y + 2)) + 6.0 * cfa_at(x, y);
+}
+
+float hp_q(int x, int y)
+{
+    return (cfa_at(x + 3, y - 3) - cfa_at(x + 1, y - 1) - cfa_at(x - 1, y + 1) +
+            cfa_at(x - 3, y + 3)) -
+           3.0 * (cfa_at(x + 2, y - 2) + cfa_at(x - 2, y + 2)) + 6.0 * cfa_at(x, y);
+}
+
+void seed_known(int x, int y)
+{
+    const uint i = pix(x, y);
+    const uint channel = cfa_channel(uint(y), uint(x));
+    const uint n = pixel_count();
+    rgb[i] = 0.0;
+    rgb[n + i] = 0.0;
+    rgb[2u * n + i] = 0.0;
+    rgb[channel * n + i] = cfa[i];
+}
+
+void write_vh(int x, int y)
+{
+    const float vertical = max(kEpsilonSq, hp_y(x, y - 1) * hp_y(x, y - 1) +
+                                               hp_y(x, y) * hp_y(x, y) +
+                                               hp_y(x, y + 1) * hp_y(x, y + 1));
+    const float horizontal = max(kEpsilonSq, hp_x(x - 1, y) * hp_x(x - 1, y) +
+                                                 hp_x(x, y) * hp_x(x, y) +
+                                                 hp_x(x + 1, y) * hp_x(x + 1, y));
+    vh[pix(x, y)] = vertical / (vertical + horizontal);
+}
+
+void write_pq_low(int x, int y)
+{
+    pq[pix(x, y)] = cfa_at(x, y) +
+                    0.5 * (cfa_at(x, y - 1) + cfa_at(x, y + 1) + cfa_at(x - 1, y) +
+                           cfa_at(x + 1, y)) +
+                    0.25 * (cfa_at(x - 1, y - 1) + cfa_at(x + 1, y - 1) +
+                            cfa_at(x - 1, y + 1) + cfa_at(x + 1, y + 1));
+}
+
+void write_green(int x, int y)
+{
+    const uint i = pix(x, y);
+    const float center = cfa_at(x, y);
+    const float north_gradient = kEpsilon + abs(cfa_at(x, y - 1) - cfa_at(x, y + 1)) +
+                                 abs(center - cfa_at(x, y - 2)) +
+                                 abs(cfa_at(x, y - 1) - cfa_at(x, y - 3)) +
+                                 abs(cfa_at(x, y - 2) - cfa_at(x, y - 4));
+    const float south_gradient = kEpsilon + abs(cfa_at(x, y - 1) - cfa_at(x, y + 1)) +
+                                 abs(center - cfa_at(x, y + 2)) +
+                                 abs(cfa_at(x, y + 1) - cfa_at(x, y + 3)) +
+                                 abs(cfa_at(x, y + 2) - cfa_at(x, y + 4));
+    const float west_gradient = kEpsilon + abs(cfa_at(x - 1, y) - cfa_at(x + 1, y)) +
+                                abs(center - cfa_at(x - 2, y)) +
+                                abs(cfa_at(x - 1, y) - cfa_at(x - 3, y)) +
+                                abs(cfa_at(x - 2, y) - cfa_at(x - 4, y));
+    const float east_gradient = kEpsilon + abs(cfa_at(x - 1, y) - cfa_at(x + 1, y)) +
+                                abs(center - cfa_at(x + 2, y)) +
+                                abs(cfa_at(x + 1, y) - cfa_at(x + 3, y)) +
+                                abs(cfa_at(x + 2, y) - cfa_at(x + 4, y));
+    const float low = pq[i];
+    const float north = cfa_at(x, y - 1) * (low + low) / (kEpsilon + low + pq[pix(x, y - 2)]);
+    const float south = cfa_at(x, y + 1) * (low + low) / (kEpsilon + low + pq[pix(x, y + 2)]);
+    const float west = cfa_at(x - 1, y) * (low + low) / (kEpsilon + low + pq[pix(x - 2, y)]);
+    const float east = cfa_at(x + 1, y) * (low + low) / (kEpsilon + low + pq[pix(x + 2, y)]);
+    const float vertical =
+        (south_gradient * north + north_gradient * south) / (north_gradient + south_gradient);
+    const float horizontal =
+        (west_gradient * east + east_gradient * west) / (east_gradient + west_gradient);
+    const float neighborhood =
+        0.25 * (vh[pix(x - 1, y - 1)] + vh[pix(x + 1, y - 1)] + vh[pix(x - 1, y + 1)] +
+                vh[pix(x + 1, y + 1)]);
+    const float direction =
+        abs(0.5 - vh[i]) < abs(0.5 - neighborhood) ? neighborhood : vh[i];
+    rgb_set(1u, x, y, interpolate(direction, horizontal, vertical));
+}
+
+void write_pq_high(int x, int y)
+{
+    const uint i = pix(x, y);
+    const float p = hp_p(x, y);
+    const float q = hp_q(x, y);
+    p_high[i] = p * p;
+    q_high[i] = q * q;
+}
+
+void write_pq_dir(int x, int y)
+{
+    const uint i = pix(x, y);
+    const float p = max(kEpsilonSq, p_high[pix(x - 1, y - 1)] + p_high[i] +
+                                        p_high[pix(x + 1, y + 1)]);
+    const float q = max(kEpsilonSq, q_high[pix(x + 1, y - 1)] + q_high[i] +
+                                        q_high[pix(x - 1, y + 1)]);
+    pq[i] = p / (p + q);
+}
+
+void write_opposite(int x, int y)
+{
+    const uint opposite = 2u - cfa_channel(uint(y), uint(x));
+    const uint i = pix(x, y);
+    const float neighborhood =
+        0.25 * (pq[pix(x - 1, y - 1)] + pq[pix(x + 1, y - 1)] + pq[pix(x - 1, y + 1)] +
+                pq[pix(x + 1, y + 1)]);
+    const float direction = abs(0.5 - pq[i]) < abs(0.5 - neighborhood) ? neighborhood : pq[i];
+    const float nw_g = kEpsilon + abs(rgb_at(opposite, x - 1, y - 1) - rgb_at(opposite, x + 1, y + 1)) +
+                       abs(rgb_at(opposite, x - 1, y - 1) - rgb_at(opposite, x - 3, y - 3)) +
+                       abs(rgb_at(1u, x, y) - rgb_at(1u, x - 2, y - 2));
+    const float ne_g = kEpsilon + abs(rgb_at(opposite, x + 1, y - 1) - rgb_at(opposite, x - 1, y + 1)) +
+                       abs(rgb_at(opposite, x + 1, y - 1) - rgb_at(opposite, x + 3, y - 3)) +
+                       abs(rgb_at(1u, x, y) - rgb_at(1u, x + 2, y - 2));
+    const float sw_g = kEpsilon + abs(rgb_at(opposite, x + 1, y - 1) - rgb_at(opposite, x - 1, y + 1)) +
+                       abs(rgb_at(opposite, x - 1, y + 1) - rgb_at(opposite, x - 3, y + 3)) +
+                       abs(rgb_at(1u, x, y) - rgb_at(1u, x - 2, y + 2));
+    const float se_g = kEpsilon + abs(rgb_at(opposite, x - 1, y - 1) - rgb_at(opposite, x + 1, y + 1)) +
+                       abs(rgb_at(opposite, x + 1, y + 1) - rgb_at(opposite, x + 3, y + 3)) +
+                       abs(rgb_at(1u, x, y) - rgb_at(1u, x + 2, y + 2));
+    const float nw_d = rgb_at(opposite, x - 1, y - 1) - rgb_at(1u, x - 1, y - 1);
+    const float ne_d = rgb_at(opposite, x + 1, y - 1) - rgb_at(1u, x + 1, y - 1);
+    const float sw_d = rgb_at(opposite, x - 1, y + 1) - rgb_at(1u, x - 1, y + 1);
+    const float se_d = rgb_at(opposite, x + 1, y + 1) - rgb_at(1u, x + 1, y + 1);
+    const float p = (nw_g * se_d + se_g * nw_d) / (nw_g + se_g);
+    const float q = (ne_g * sw_d + sw_g * ne_d) / (ne_g + sw_g);
+    rgb_set(opposite, x, y, rgb_at(1u, x, y) + interpolate(direction, q, p));
+}
+
+void write_rest(int x, int y)
+{
+    const uint i = pix(x, y);
+    const float neighborhood =
+        0.25 * (vh[pix(x - 1, y - 1)] + vh[pix(x + 1, y - 1)] + vh[pix(x - 1, y + 1)] +
+                vh[pix(x + 1, y + 1)]);
+    const float direction = abs(0.5 - vh[i]) < abs(0.5 - neighborhood) ? neighborhood : vh[i];
+    const float green = rgb_at(1u, x, y);
+    const float north_green = rgb_at(1u, x, y - 1);
+    const float south_green = rgb_at(1u, x, y + 1);
+    const float west_green = rgb_at(1u, x - 1, y);
+    const float east_green = rgb_at(1u, x + 1, y);
+    for (uint color = 0u; color <= 2u; color += 2u)
+    {
+        const float north_base = kEpsilon + abs(green - rgb_at(1u, x, y - 2));
+        const float south_base = kEpsilon + abs(green - rgb_at(1u, x, y + 2));
+        const float west_base = kEpsilon + abs(green - rgb_at(1u, x - 2, y));
+        const float east_base = kEpsilon + abs(green - rgb_at(1u, x + 2, y));
+        const float vertical_difference = abs(rgb_at(color, x, y - 1) - rgb_at(color, x, y + 1));
+        const float horizontal_difference = abs(rgb_at(color, x - 1, y) - rgb_at(color, x + 1, y));
+        const float north_gradient =
+            north_base + vertical_difference + abs(rgb_at(color, x, y - 1) - rgb_at(color, x, y - 3));
+        const float south_gradient =
+            south_base + vertical_difference + abs(rgb_at(color, x, y + 1) - rgb_at(color, x, y + 3));
+        const float west_gradient =
+            west_base + horizontal_difference + abs(rgb_at(color, x - 1, y) - rgb_at(color, x - 3, y));
+        const float east_gradient =
+            east_base + horizontal_difference + abs(rgb_at(color, x + 1, y) - rgb_at(color, x + 3, y));
+        const float north = rgb_at(color, x, y - 1) - north_green;
+        const float south = rgb_at(color, x, y + 1) - south_green;
+        const float west = rgb_at(color, x - 1, y) - west_green;
+        const float east = rgb_at(color, x + 1, y) - east_green;
+        const float vertical =
+            (north_gradient * south + south_gradient * north) / (north_gradient + south_gradient);
+        const float horizontal =
+            (east_gradient * west + west_gradient * east) / (east_gradient + west_gradient);
+        rgb_set(color, x, y, green + interpolate(direction, horizontal, vertical));
+    }
+}
+
+void write_output(int x, int y)
+{
+    const uint i = pix(x, y);
+    const uint n = pixel_count();
+    if (uint(x) >= 9u && uint(y) >= 9u && uint(x) + 9u < width() && uint(y) + 9u < height())
+    {
+        out_rgb[i * 3u] = max(0.0, rgb[i]);
+        out_rgb[i * 3u + 1u] = max(0.0, rgb[n + i]);
+        out_rgb[i * 3u + 2u] = max(0.0, rgb[2u * n + i]);
+        return;
+    }
+    vec3 sum = vec3(0.0);
+    uvec3 count = uvec3(0u);
+    for (int oy = -1; oy <= 1; ++oy)
+    {
+        for (int ox = -1; ox <= 1; ++ox)
+        {
+            const int sx = x + ox;
+            const int sy = y + oy;
+            if (!inside(sx, sy))
+                continue;
+            const int channel = int(cfa_channel(uint(sy), uint(sx)));
+            sum[channel] += cfa_at(sx, sy);
+            count[channel] += 1u;
+        }
+    }
+    const int known = int(cfa_channel(uint(y), uint(x)));
+    for (int channel = 0; channel < 3; ++channel)
+    {
+        if (channel == known)
+            out_rgb[i * 3u + uint(channel)] = cfa_at(x, y);
+        else if (count[channel] != 0u)
+            out_rgb[i * 3u + uint(channel)] = sum[channel] / float(count[channel]);
+        else
+            out_rgb[i * 3u + uint(channel)] = 0.0;
+    }
+}
+
+void main()
+{
+    const int x = int(gl_GlobalInvocationID.x);
+    const int y = int(gl_GlobalInvocationID.y);
+    if (!inside(x, y))
+        return;
+    const uint s = stage();
+    if (s == 0u)
+    {
+        seed_known(x, y);
+        return;
+    }
+    if (s == 1u)
+    {
+        if (x >= 4 && y >= 4 && x + 4 < int(width()) && y + 4 < int(height()))
+            write_vh(x, y);
+        return;
+    }
+    if (s == 2u)
+    {
+        const uint start = 2u + (cfa_channel(uint(y), 0u) & 1u);
+        if (y >= 2 && y + 2 < int(height()) && x >= 2 && x + 2 < int(width()) &&
+            ((uint(x) - start) % 2u) == 0u)
+            write_pq_low(x, y);
+        return;
+    }
+    if (s == 3u)
+    {
+        const uint start = 4u + (cfa_channel(uint(y), 0u) & 1u);
+        if (y >= 4 && y + 4 < int(height()) && x >= 4 && x + 4 < int(width()) &&
+            ((uint(x) - start) % 2u) == 0u)
+            write_green(x, y);
+        return;
+    }
+    if (s == 4u)
+    {
+        if (y >= 3 && y + 3 < int(height()) && x >= 3 && x + 3 < int(width()) &&
+            ((uint(x) - 3u) % 2u) == 0u)
+            write_pq_high(x, y);
+        return;
+    }
+    if (s == 5u)
+    {
+        const uint start = 4u + (cfa_channel(uint(y), 0u) & 1u);
+        if (y >= 4 && y + 4 < int(height()) && x >= 4 && x + 4 < int(width()) &&
+            ((uint(x) - start) % 2u) == 0u)
+            write_pq_dir(x, y);
+        return;
+    }
+    if (s == 6u)
+    {
+        const uint start = 4u + (cfa_channel(uint(y), 0u) & 1u);
+        if (y >= 4 && y + 4 < int(height()) && x >= 4 && x + 4 < int(width()) &&
+            ((uint(x) - start) % 2u) == 0u)
+            write_opposite(x, y);
+        return;
+    }
+    if (s == 7u)
+    {
+        const uint start = 4u + (cfa_channel(uint(y), 1u) & 1u);
+        if (y >= 4 && y + 4 < int(height()) && x >= 4 && x + 4 < int(width()) &&
+            ((uint(x) - start) % 2u) == 0u)
+            write_rest(x, y);
+        return;
+    }
+    write_output(x, y);
+}
