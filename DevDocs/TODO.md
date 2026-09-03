@@ -175,9 +175,10 @@ PTP USB remains residual.
 
 **Status:** P1 / Partial — ADR-0119 hierarchical keywords, ADR-0124 IPTC Core
 subset (title/description/creator/copyright), ADR-0126 catalog-owned IPTC
-location quartet (country/province_state/city/sublocation), and ADR-0128
-camera/lens(focal)/capture-date facets over existing capture metadata accepted
-and implemented (no facet tables; schema unchanged at v13).
+location quartet (country/province_state/city/sublocation), ADR-0128
+camera/lens(focal)/capture-date facets, and ADR-0130 LibraryQuery location
+exact filters + location facets accepted and implemented (no facet tables;
+catalog schema unchanged at v13; LibraryQuery document schema v3).
 
 **Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
 and camera/lens/date facets with transactional multi-selection editing.
@@ -206,10 +207,15 @@ and camera/lens/date facets with transactional multi-selection editing.
   focal-length lens proxy, `YYYY:MM:DD` from `captured_local_exif`); exact
   LibraryQuery selectors; CLI `catalog facets` + list filters; Studio Filter
   chips for camera/lens/capture-date (no facet history, no GPS in payloads).
+- ADR-0130 location browse: exact `country_equals` /
+  `province_state_equals` / `city_equals` / `sublocation_equals` on
+  LibraryQuery (document schema v3); bounded `list_location_facets`; CLI
+  `catalog list` location flags + `catalog facets` location groups; Studio
+  Location filter chips (no GPS, no facet history).
 
 **Remaining unfinished work:**
-- LibraryQuery location filters; Exif LensMake/LensModel persistence as a true
-  lens-name facet; scoped facet counts;
+- Exif LensMake/LensModel persistence as a true lens-name facet; scoped facet
+  counts;
 - IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126;
 - adjacent XMP/source keyword/IPTC/location merge matrix (PRO-INTERCHANGE).
 

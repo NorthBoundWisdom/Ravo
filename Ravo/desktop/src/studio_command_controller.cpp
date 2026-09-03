@@ -814,6 +814,33 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &argument, const QString &)
         { presenter_.setCaptureDateFacetFilter(argument.toString()); });
     add(
+        command::kLibrarySetLocationFilter, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            const auto error = required_fields(
+                argument, {QStringLiteral("country"), QStringLiteral("province_state"),
+                           QStringLiteral("city"), QStringLiteral("sublocation")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap();
+            for (const auto &key : {QStringLiteral("country"), QStringLiteral("province_state"),
+                                    QStringLiteral("city"), QStringLiteral("sublocation")})
+            {
+                if (fields.value(key).metaType().id() != QMetaType::QString)
+                    return QStringLiteral("Location facet fields must be strings.");
+            }
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.setLocationFacetFilter(
+                fields.value(QStringLiteral("country")).toString(),
+                fields.value(QStringLiteral("province_state")).toString(),
+                fields.value(QStringLiteral("city")).toString(),
+                fields.value(QStringLiteral("sublocation")).toString());
+        });
+    add(
         command::kLibrarySetSort, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {

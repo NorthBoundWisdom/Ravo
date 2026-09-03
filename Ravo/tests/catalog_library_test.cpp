@@ -415,6 +415,71 @@ TEST_F(CatalogServiceTest, CaptureFacetsEnumerateAndFilterThroughService)
     EXPECT_EQ(invalid.error().context.at("reason"), "invalid_library_camera_facet");
 }
 
+TEST_F(CatalogServiceTest, LocationFacetsEnumerateAndFilterThroughService)
+{
+    auto repository = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    for (int index = 0; index < 5; ++index)
+    {
+        AssetRecord asset;
+        asset.id = "ast_loc_" + std::to_string(index);
+        asset.normalized_uri = "file:///library/loc/photo-" + std::to_string(index) + ".jpg";
+        asset.media_type = std::string(kMediaTypeJpeg);
+        asset.size_bytes = 1000U + static_cast<std::uint64_t>(index);
+        asset.mtime_unix_ms = 10'000 + index;
+        asset.width = 100;
+        asset.height = 80;
+        asset.created_unix_ms = 20'000 + index;
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+        if (index < 4)
+        {
+            WritableMetadata metadata;
+            metadata.country = index < 2 ? "China" : "Japan";
+            metadata.province_state = index % 2 == 0 ? "Shanghai" : "Tokyo";
+            metadata.city = index < 2 ? "Shanghai" : "Tokyo";
+            if (index == 0)
+                metadata.sublocation = "Bund";
+            ASSERT_TRUE(repository.value()->upsert_writable_metadata(asset.id, metadata));
+        }
+    }
+    repository.value().reset();
+
+    auto service_opened = open_service(false);
+    ASSERT_TRUE(service_opened) << service_opened.error().message;
+
+    auto facets = service->list_location_facets();
+    ASSERT_TRUE(facets) << facets.error().message;
+    EXPECT_FALSE(facets.value().truncated);
+    ASSERT_EQ(facets.value().countries.size(), 2U);
+    EXPECT_EQ(facets.value().countries.front().key, "China");
+    ASSERT_EQ(facets.value().cities.size(), 2U);
+    ASSERT_EQ(facets.value().sublocations.size(), 1U);
+    EXPECT_EQ(facets.value().sublocations.front().label, "Bund");
+
+    LibraryQuery query;
+    query.country_equals = "China";
+    auto listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 2U);
+
+    query.city_equals = "Shanghai";
+    listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 2U);
+
+    query.sublocation_equals = "Bund";
+    listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+
+    query = {};
+    query.country_equals = "Japan";
+    query.city_equals = "Shanghai";
+    listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    EXPECT_TRUE(listed.value().empty());
+}
+
 TEST_F(CatalogServiceTest, PagedLibraryQueryMatchesDomainAndBoundsMaterialization)
 {
     auto repository = SqliteCatalogRepository::create(database_path);

@@ -100,7 +100,7 @@ inline constexpr std::size_t kExportFilenameTemplateMaxBytes = 512U;
 inline constexpr std::size_t kExportFilenameMaxBytes = 240U;
 inline constexpr std::size_t kLibraryPageDefaultSize = 200U;
 inline constexpr std::size_t kLibraryPageMaximumSize = 512U;
-inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 2;
+inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 3;
 inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersionMin = 1;
 inline constexpr std::size_t kLibraryFacetMaximumValues = 2048U;
 inline constexpr std::size_t kLibrarySetNameMaxLength = 128;
@@ -387,6 +387,11 @@ struct LibraryQuery
     std::optional<std::string> camera_model_equals;
     std::optional<double> focal_length_mm_equals;
     std::optional<std::string> captured_local_date; // YYYY:MM:DD from captured_local_exif
+    // ADR-0130 exact location selectors (empty string = absent writable field).
+    std::optional<std::string> country_equals;
+    std::optional<std::string> province_state_equals;
+    std::optional<std::string> city_equals;
+    std::optional<std::string> sublocation_equals;
     std::string collection_id;
 
     [[nodiscard]] bool operator==(const LibraryQuery &) const noexcept = default;
@@ -413,6 +418,17 @@ struct LibraryCaptureFacets
     bool truncated = false;
 
     [[nodiscard]] bool operator==(const LibraryCaptureFacets &) const noexcept = default;
+};
+
+struct LibraryLocationFacets
+{
+    std::vector<LibraryFacetEntry> countries;
+    std::vector<LibraryFacetEntry> province_states;
+    std::vector<LibraryFacetEntry> cities;
+    std::vector<LibraryFacetEntry> sublocations;
+    bool truncated = false;
+
+    [[nodiscard]] bool operator==(const LibraryLocationFacets &) const noexcept = default;
 };
 
 struct LibraryPageRequest

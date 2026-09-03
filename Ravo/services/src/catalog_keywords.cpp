@@ -44,6 +44,15 @@ Result<LibraryCaptureFacets> CatalogService::list_capture_facets() const
     return repository_->list_capture_facets();
 }
 
+Result<LibraryLocationFacets> CatalogService::list_location_facets() const
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    return repository_->list_location_facets();
+}
+
 Result<std::vector<KeywordRecord>> CatalogService::list_keywords() const
 {
     if (repository_ == nullptr)

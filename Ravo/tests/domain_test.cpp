@@ -565,6 +565,27 @@ TEST(LibraryQueryTest, MatchesProductTextMediaEditCaptureAndNumericFields)
     auto half = validate_library_query(query);
     ASSERT_FALSE(half);
     EXPECT_EQ(half.error().context.at("reason"), "invalid_library_camera_facet");
+
+    query = {};
+    query.country_equals = "China";
+    query.city_equals = "Shanghai";
+    ASSERT_TRUE(validate_library_query(query));
+    EXPECT_FALSE(asset_matches_query(photo, query));
+    photo.metadata.country = "China";
+    photo.metadata.province_state = "Shanghai";
+    photo.metadata.city = "Shanghai";
+    photo.metadata.sublocation = "Bund";
+    EXPECT_TRUE(asset_matches_query(photo, query));
+    query.sublocation_equals = "Bund";
+    EXPECT_TRUE(asset_matches_query(photo, query));
+    query.sublocation_equals = "Pudong";
+    EXPECT_FALSE(asset_matches_query(photo, query));
+    auto roundtrip = serialize_library_query_document(query);
+    ASSERT_TRUE(roundtrip) << roundtrip.error().message;
+    auto parsed_location = parse_library_query_document(roundtrip.value());
+    ASSERT_TRUE(parsed_location) << parsed_location.error().message;
+    EXPECT_EQ(parsed_location.value().country_equals, query.country_equals);
+    EXPECT_EQ(parsed_location.value().sublocation_equals, query.sublocation_equals);
 }
 
 TEST(LibraryQueryTest, SerializesNamedSetDocumentsWithoutCollectionIdentity)

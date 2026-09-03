@@ -1149,4 +1149,68 @@ Result<LibraryCaptureFacets> SqliteCatalogRepository::list_capture_facets() cons
     return facets;
 }
 
+Result<LibraryLocationFacets> SqliteCatalogRepository::list_location_facets() const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+
+    LibraryLocationFacets facets;
+    const auto limit = static_cast<qlonglong>(kLibraryFacetMaximumValues);
+    const auto load_kind = [&](const QString &column, std::vector<LibraryFacetEntry> &out,
+                               const char *action) -> Result<void>
+    {
+        QSqlQuery query(impl_->database);
+        const QString sql = QStringLiteral("SELECT %1 AS location_value, COUNT(*) AS asset_count "
+                                           "FROM asset_metadata "
+                                           "WHERE %1 IS NOT NULL AND trim(%1) != '' "
+                                           "GROUP BY location_value "
+                                           "ORDER BY lower(location_value) ASC, location_value ASC "
+                                           "LIMIT ?")
+                                .arg(column)
+                                .arg(column)
+                                .arg(column);
+        query.prepare(sql);
+        query.addBindValue(limit + 1);
+        if (!query.exec())
+            return map_sql_error(query, action);
+        while (query.next())
+        {
+            if (out.size() >= kLibraryFacetMaximumValues)
+            {
+                facets.truncated = true;
+                break;
+            }
+            auto value = string_column(query, 0);
+            if (!value || value->empty())
+                continue;
+            LibraryFacetEntry entry;
+            entry.key = *value;
+            entry.label = *value;
+            entry.count = static_cast<std::size_t>(query.value(1).toULongLong());
+            out.push_back(std::move(entry));
+        }
+        if (query.next())
+            facets.truncated = true;
+        return {};
+    };
+
+    if (auto loaded = load_kind(QStringLiteral("country"), facets.countries,
+                                "list_location_facets_countries");
+        !loaded)
+        return loaded.error();
+    if (auto loaded = load_kind(QStringLiteral("province_state"), facets.province_states,
+                                "list_location_facets_province_states");
+        !loaded)
+        return loaded.error();
+    if (auto loaded =
+            load_kind(QStringLiteral("city"), facets.cities, "list_location_facets_cities");
+        !loaded)
+        return loaded.error();
+    if (auto loaded = load_kind(QStringLiteral("sublocation"), facets.sublocations,
+                                "list_location_facets_sublocations");
+        !loaded)
+        return loaded.error();
+    return facets;
+}
+
 } // namespace ravo

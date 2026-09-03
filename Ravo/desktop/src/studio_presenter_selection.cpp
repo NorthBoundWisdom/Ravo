@@ -1103,6 +1103,35 @@ void StudioPresenter::setCaptureDateFacetFilter(const QString &local_date)
     reloadVisibleAssets();
 }
 
+void StudioPresenter::setLocationFacetFilter(const QString &country, const QString &province_state,
+                                             const QString &city, const QString &sublocation)
+{
+    LibraryQuery next = query_;
+    const auto assign = [](std::optional<std::string> &field, const QString &text)
+    {
+        const auto utf8 = utf8_from_qstring(text.trimmed());
+        if (utf8.empty())
+            field.reset();
+        else
+            field = utf8;
+    };
+    assign(next.country_equals, country);
+    assign(next.province_state_equals, province_state);
+    assign(next.city_equals, city);
+    assign(next.sublocation_equals, sublocation);
+    auto valid = validate_library_query(next);
+    if (!valid)
+    {
+        setError(qstring_from_utf8(valid.error().message));
+        return;
+    }
+    if (next == query_)
+        return;
+    query_ = std::move(next);
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
 void StudioPresenter::setSort(const QString &field, const QString &direction)
 {
     AssetSortField next_field = AssetSortField::kImportTime;
@@ -1153,6 +1182,10 @@ void StudioPresenter::clearFilters()
     query_.camera_model_equals.reset();
     query_.focal_length_mm_equals.reset();
     query_.captured_local_date.reset();
+    query_.country_equals.reset();
+    query_.province_state_equals.reset();
+    query_.city_equals.reset();
+    query_.sublocation_equals.reset();
     query_.iso = {};
     query_.aperture = {};
     query_.focal_length_mm = {};

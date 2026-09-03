@@ -80,6 +80,8 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("librarySetLensFilter"), QLatin1String(command::kLibrarySetLensFilter)},
         {QStringLiteral("librarySetCaptureDateFilter"),
          QLatin1String(command::kLibrarySetCaptureDateFilter)},
+        {QStringLiteral("librarySetLocationFilter"),
+         QLatin1String(command::kLibrarySetLocationFilter)},
         {QStringLiteral("librarySetSort"), QLatin1String(command::kLibrarySetSort)},
         {QStringLiteral("libraryClearFilters"), QLatin1String(command::kLibraryClearFilters)},
         {QStringLiteral("librarySelectFolder"), QLatin1String(command::kLibrarySelectFolder)},

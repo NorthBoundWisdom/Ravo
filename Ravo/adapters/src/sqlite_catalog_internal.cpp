@@ -182,6 +182,20 @@ void append_library_query_predicates(const LibraryQuery &query, QStringList &pre
         add(QStringLiteral("substr(m.captured_local_exif, 1, 10) = ?"),
             {qstring_from_utf8(*query.captured_local_date)});
     }
+    const auto add_location_equals =
+        [&](const QString &column, const std::optional<std::string> &expected)
+    {
+        if (!expected)
+            return;
+        if (expected->empty())
+            predicates.push_back(QStringLiteral("(%1 IS NULL OR %1 = '')").arg(column));
+        else
+            add(column + QStringLiteral(" = ?"), {qstring_from_utf8(*expected)});
+    };
+    add_location_equals(QStringLiteral("m.country"), query.country_equals);
+    add_location_equals(QStringLiteral("m.province_state"), query.province_state_equals);
+    add_location_equals(QStringLiteral("m.city"), query.city_equals);
+    add_location_equals(QStringLiteral("m.sublocation"), query.sublocation_equals);
     const auto add_range =
         [&predicates, &bindings](const QString &column, const LibraryNumericRange &range)
     {

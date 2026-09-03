@@ -95,6 +95,11 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString cameraModelFilter READ cameraModelFilter NOTIFY filterChanged)
     Q_PROPERTY(QString lensFilter READ lensFilter NOTIFY filterChanged)
     Q_PROPERTY(QString captureDateFilter READ captureDateFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString countryFilter READ countryFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString provinceStateFilter READ provinceStateFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString cityFilter READ cityFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString sublocationFilter READ sublocationFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString locationFilter READ locationFilter NOTIFY filterChanged)
     Q_PROPERTY(QString sortField READ sortField NOTIFY filterChanged)
     Q_PROPERTY(QString sortDirection READ sortDirection NOTIFY filterChanged)
     Q_PROPERTY(int visibleCount READ visibleCount NOTIFY filterChanged)
@@ -406,6 +411,11 @@ public:
     [[nodiscard]] QString cameraModelFilter() const;
     [[nodiscard]] QString lensFilter() const;
     [[nodiscard]] QString captureDateFilter() const;
+    [[nodiscard]] QString countryFilter() const;
+    [[nodiscard]] QString provinceStateFilter() const;
+    [[nodiscard]] QString cityFilter() const;
+    [[nodiscard]] QString sublocationFilter() const;
+    [[nodiscard]] QString locationFilter() const;
     [[nodiscard]] QString sortField() const;
     [[nodiscard]] QString sortDirection() const;
     [[nodiscard]] int visibleCount() const;
@@ -737,6 +747,8 @@ public:
     Q_INVOKABLE void setCameraFacetFilter(const QString &make, const QString &model);
     Q_INVOKABLE void setLensFacetFilter(const QString &focal_mm);
     Q_INVOKABLE void setCaptureDateFacetFilter(const QString &local_date);
+    Q_INVOKABLE void setLocationFacetFilter(const QString &country, const QString &province_state,
+                                            const QString &city, const QString &sublocation);
     Q_INVOKABLE void setSort(const QString &field, const QString &direction);
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);

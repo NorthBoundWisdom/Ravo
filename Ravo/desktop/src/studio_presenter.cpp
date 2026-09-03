@@ -600,6 +600,48 @@ QString StudioPresenter::captureDateFilter() const
     return qstring_from_utf8(*query_.captured_local_date);
 }
 
+QString StudioPresenter::countryFilter() const
+{
+    if (!query_.country_equals)
+        return {};
+    return qstring_from_utf8(*query_.country_equals);
+}
+
+QString StudioPresenter::provinceStateFilter() const
+{
+    if (!query_.province_state_equals)
+        return {};
+    return qstring_from_utf8(*query_.province_state_equals);
+}
+
+QString StudioPresenter::cityFilter() const
+{
+    if (!query_.city_equals)
+        return {};
+    return qstring_from_utf8(*query_.city_equals);
+}
+
+QString StudioPresenter::sublocationFilter() const
+{
+    if (!query_.sublocation_equals)
+        return {};
+    return qstring_from_utf8(*query_.sublocation_equals);
+}
+
+QString StudioPresenter::locationFilter() const
+{
+    QStringList parts;
+    if (query_.country_equals && !query_.country_equals->empty())
+        parts.push_back(qstring_from_utf8(*query_.country_equals));
+    if (query_.province_state_equals && !query_.province_state_equals->empty())
+        parts.push_back(qstring_from_utf8(*query_.province_state_equals));
+    if (query_.city_equals && !query_.city_equals->empty())
+        parts.push_back(qstring_from_utf8(*query_.city_equals));
+    if (query_.sublocation_equals && !query_.sublocation_equals->empty())
+        parts.push_back(qstring_from_utf8(*query_.sublocation_equals));
+    return parts.join(QLatin1Char('/'));
+}
+
 QString StudioPresenter::sortField() const
 {
     return sort_field_name(query_.sort_field);
@@ -623,11 +665,12 @@ bool StudioPresenter::filtersActive() const noexcept
            !query_.text.empty() || !query_.media_types.empty() ||
            query_.edit_filter != EditFilter::kAny || !query_.camera.empty() ||
            query_.camera_make_equals || query_.camera_model_equals ||
-           query_.focal_length_mm_equals || query_.captured_local_date || query_.iso.minimum ||
-           query_.iso.maximum || query_.aperture.minimum || query_.aperture.maximum ||
-           query_.focal_length_mm.minimum || query_.focal_length_mm.maximum ||
-           query_.shutter_s.minimum || query_.shutter_s.maximum || query_.aspect_ratio.minimum ||
-           query_.aspect_ratio.maximum ||
+           query_.focal_length_mm_equals || query_.captured_local_date || query_.country_equals ||
+           query_.province_state_equals || query_.city_equals || query_.sublocation_equals ||
+           query_.iso.minimum || query_.iso.maximum || query_.aperture.minimum ||
+           query_.aperture.maximum || query_.focal_length_mm.minimum ||
+           query_.focal_length_mm.maximum || query_.shutter_s.minimum || query_.shutter_s.maximum ||
+           query_.aspect_ratio.minimum || query_.aspect_ratio.maximum ||
            (!last_import_selected_ &&
             (query_.imported_after_unix_ms || query_.imported_before_unix_ms)) ||
            query_.captured_after_unix_s || query_.captured_before_unix_s;

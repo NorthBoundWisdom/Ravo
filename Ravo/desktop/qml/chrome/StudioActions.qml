@@ -96,6 +96,14 @@ Item {
     function setCaptureDateFacetFilter(value) {
         root.run(root.ids.librarySetCaptureDateFilter, value === undefined ? "" : value);
     }
+    function setLocationFacetFilter(country, provinceState, city, sublocation) {
+        root.run(root.ids.librarySetLocationFilter, {
+            "country": country === undefined ? "" : country,
+            "province_state": provinceState === undefined ? "" : provinceState,
+            "city": city === undefined ? "" : city,
+            "sublocation": sublocation === undefined ? "" : sublocation
+        });
+    }
     function previewDevelopNumber(name, value) {
         root.run(root.ids.editSetNumber, {
             "name": name,

@@ -137,3 +137,4 @@ supersession relationship when direction changes.
 | [0127](0127-export-delivery-text-watermark.md) | Accepted | Export delivery text watermark reuses ADR-0071 via ExportOptions; no recipe mutation |
 | [0128](0128-capture-metadata-library-facets.md) | Accepted | Camera/lens(focal)/capture-date facets over existing capture metadata; exact LibraryQuery selectors; bounded enumeration |
 | [0129](0129-export-delivery-colour-and-frame.md) | Accepted | Export delivery colour override + ADR-0070 frame via ExportOptions; order after sharpen, before watermark; no recipe mutation |
+| [0130](0130-catalog-location-library-filters.md) | Accepted | Exact LibraryQuery location selectors + bounded location facets over ADR-0126 writable columns; Studio/CLI chips |

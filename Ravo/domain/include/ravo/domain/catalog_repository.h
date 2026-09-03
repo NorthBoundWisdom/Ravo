@@ -129,6 +129,7 @@ public:
     [[nodiscard]] virtual Result<void> replace_asset_tags(std::string_view asset_id,
                                                           const std::vector<std::string> &tags) = 0;
     [[nodiscard]] virtual Result<LibraryCaptureFacets> list_capture_facets() const = 0;
+    [[nodiscard]] virtual Result<LibraryLocationFacets> list_location_facets() const = 0;
     [[nodiscard]] virtual Result<std::vector<KeywordRecord>> list_keywords() const = 0;
     [[nodiscard]] virtual Result<std::optional<KeywordRecord>>
     find_keyword_by_id(std::string_view keyword_id) const = 0;

@@ -138,10 +138,14 @@ Result<void> validate_library_query(const LibraryQuery &query)
             return valid.error();
     }
     for (const auto &[value, field] :
-         std::array<std::pair<const std::optional<std::string> *, std::string_view>, 3>{
+         std::array<std::pair<const std::optional<std::string> *, std::string_view>, 7>{
              std::pair{&query.camera_make_equals, std::string_view{"camera_make_equals"}},
              std::pair{&query.camera_model_equals, std::string_view{"camera_model_equals"}},
-             std::pair{&query.captured_local_date, std::string_view{"captured_local_date"}}})
+             std::pair{&query.captured_local_date, std::string_view{"captured_local_date"}},
+             std::pair{&query.country_equals, std::string_view{"country_equals"}},
+             std::pair{&query.province_state_equals, std::string_view{"province_state_equals"}},
+             std::pair{&query.city_equals, std::string_view{"city_equals"}},
+             std::pair{&query.sublocation_equals, std::string_view{"sublocation_equals"}}})
     {
         if (!*value)
             continue;
@@ -424,6 +428,18 @@ bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
              *asset.capture.captured_unix_s > *query.captured_before_unix_s))
             return false;
     }
+    const auto location_equals =
+        [](const std::optional<std::string> &field, const std::optional<std::string> &expected)
+    {
+        if (!expected)
+            return true;
+        return field.value_or(std::string{}) == *expected;
+    };
+    if (!location_equals(asset.metadata.country, query.country_equals) ||
+        !location_equals(asset.metadata.province_state, query.province_state_equals) ||
+        !location_equals(asset.metadata.city, query.city_equals) ||
+        !location_equals(asset.metadata.sublocation, query.sublocation_equals))
+        return false;
     return true;
 }
 
@@ -1232,6 +1248,14 @@ Result<std::string> serialize_library_query_document(const LibraryQuery &query)
              JsonValue{nullptr}},
         {"captured_local_date",
          query.captured_local_date ? JsonValue{*query.captured_local_date} : JsonValue{nullptr}},
+        {"country_equals",
+         query.country_equals ? JsonValue{*query.country_equals} : JsonValue{nullptr}},
+        {"province_state_equals", query.province_state_equals ?
+                                      JsonValue{*query.province_state_equals} :
+                                      JsonValue{nullptr}},
+        {"city_equals", query.city_equals ? JsonValue{*query.city_equals} : JsonValue{nullptr}},
+        {"sublocation_equals",
+         query.sublocation_equals ? JsonValue{*query.sublocation_equals} : JsonValue{nullptr}},
     }};
     return serialize_json(document);
 }
@@ -1247,7 +1271,7 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
         return make_error(ErrorCode::kValidation, "Library query document must be an object",
                           {{"reason", "invalid_library_query"}});
     }
-    static constexpr std::array<std::string_view, 26> kKeys{"schema_version",
+    static constexpr std::array<std::string_view, 30> kKeys{"schema_version",
                                                             "rating_mode",
                                                             "rating_value",
                                                             "color_labels",
@@ -1272,7 +1296,11 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
                                                             "camera_make_equals",
                                                             "camera_model_equals",
                                                             "focal_length_mm_equals",
-                                                            "captured_local_date"};
+                                                            "captured_local_date",
+                                                            "country_equals",
+                                                            "province_state_equals",
+                                                            "city_equals",
+                                                            "sublocation_equals"};
     for (const auto &[key, value] : *object)
     {
         static_cast<void>(value);
@@ -1302,6 +1330,7 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
                           {{"reason", "unsupported_library_query_schema"}});
     }
     const bool schema_v2 = *schema_version.value() >= 2;
+    const bool schema_v3 = *schema_version.value() >= 3;
     LibraryQuery query;
     auto rating_mode = required_string(parsed.value(), "rating_mode");
     if (!rating_mode)
@@ -1456,12 +1485,13 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
         return captured_before.error();
     query.captured_before_unix_s = captured_before.value();
     const auto parse_optional_string =
-        [&](const std::string_view field) -> Result<std::optional<std::string>>
+        [&](const std::string_view field,
+            const bool required_when_missing) -> Result<std::optional<std::string>>
     {
         const auto *value = parsed.value().find(field);
         if (value == nullptr)
         {
-            if (!schema_v2)
+            if (!required_when_missing)
                 return std::optional<std::string>{};
             return make_error(ErrorCode::kValidation, "Library query field is missing",
                               {{"field", std::string(field)}, {"reason", "invalid_library_query"}});
@@ -1474,11 +1504,11 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
                               {{"field", std::string(field)}, {"reason", "invalid_library_query"}});
         return std::optional<std::string>{*value->string_if()};
     };
-    auto camera_make_equals = parse_optional_string("camera_make_equals");
+    auto camera_make_equals = parse_optional_string("camera_make_equals", schema_v2);
     if (!camera_make_equals)
         return camera_make_equals.error();
     query.camera_make_equals = camera_make_equals.value();
-    auto camera_model_equals = parse_optional_string("camera_model_equals");
+    auto camera_model_equals = parse_optional_string("camera_model_equals", schema_v2);
     if (!camera_model_equals)
         return camera_model_equals.error();
     query.camera_model_equals = camera_model_equals.value();
@@ -1497,10 +1527,26 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
             return number.error();
         query.focal_length_mm_equals = number.value();
     }
-    auto captured_local_date = parse_optional_string("captured_local_date");
+    auto captured_local_date = parse_optional_string("captured_local_date", schema_v2);
     if (!captured_local_date)
         return captured_local_date.error();
     query.captured_local_date = captured_local_date.value();
+    auto country_equals = parse_optional_string("country_equals", schema_v3);
+    if (!country_equals)
+        return country_equals.error();
+    query.country_equals = country_equals.value();
+    auto province_state_equals = parse_optional_string("province_state_equals", schema_v3);
+    if (!province_state_equals)
+        return province_state_equals.error();
+    query.province_state_equals = province_state_equals.value();
+    auto city_equals = parse_optional_string("city_equals", schema_v3);
+    if (!city_equals)
+        return city_equals.error();
+    query.city_equals = city_equals.value();
+    auto sublocation_equals = parse_optional_string("sublocation_equals", schema_v3);
+    if (!sublocation_equals)
+        return sublocation_equals.error();
+    query.sublocation_equals = sublocation_equals.value();
     auto valid = validate_library_query(query);
     if (!valid)
         return valid.error();

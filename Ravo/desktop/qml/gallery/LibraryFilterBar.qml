@@ -38,6 +38,8 @@ Item {
             return root.presenter.lensFilter.length > 0;
         if (id === "captureDate")
             return root.presenter.captureDateFilter.length > 0;
+        if (id === "location")
+            return root.presenter.locationFilter.length > 0;
         return false;
     }
 
@@ -67,6 +69,8 @@ Item {
             root.commands.setLensFacetFilter("");
         else if (id === "captureDate")
             root.commands.setCaptureDateFacetFilter("");
+        else if (id === "location")
+            root.commands.setLocationFacetFilter("", "", "", "");
         else if (id === "color" && root.hasPresenter) {
             const colors = root.presenter.colorFilters.slice();
             for (let i = 0; i < colors.length; ++i)
@@ -390,13 +394,74 @@ Item {
                     }
                 }
 
+                RowLayout {
+                    visible: root.extraOpen("location")
+                    spacing: Fonts.size2
+                    Layout.alignment: Qt.AlignVCenter
+                    CustomTextField {
+                        id: locationCountryField
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 90
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("Country")
+                        text: root.hasPresenter ? root.presenter.countryFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setLocationFacetFilter(text, locationProvinceField.text, locationCityField.text, locationSublocationField.text)
+                    }
+                    CustomTextField {
+                        id: locationProvinceField
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 90
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("State")
+                        text: root.hasPresenter ? root.presenter.provinceStateFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setLocationFacetFilter(locationCountryField.text, text, locationCityField.text, locationSublocationField.text)
+                    }
+                    CustomTextField {
+                        id: locationCityField
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 90
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("City")
+                        text: root.hasPresenter ? root.presenter.cityFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setLocationFacetFilter(locationCountryField.text, locationProvinceField.text, text, locationSublocationField.text)
+                    }
+                    CustomTextField {
+                        id: locationSublocationField
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 100
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("Sublocation")
+                        text: root.hasPresenter ? root.presenter.sublocationFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setLocationFacetFilter(locationCountryField.text, locationProvinceField.text, locationCityField.text, text)
+                    }
+                    FilterCloseButton {
+                        onClicked: root.removeExtra("location")
+                    }
+                }
+
                 CustomButton {
                     id: addFilterButton
                     Layout.alignment: Qt.AlignVCenter
                     display: AbstractButton.IconOnly
                     icon.source: "qrc:/GeoControls/icons/Plus.svg"
                     tooltipText: qsTr("Add filter")
-                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected") || !root.extraOpen("camera") || !root.extraOpen("lens") || !root.extraOpen("captureDate")
+                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected") || !root.extraOpen("camera") || !root.extraOpen("lens") || !root.extraOpen("captureDate") || !root.extraOpen("location")
                     implicitWidth: Fonts.iconButtonSize
                     implicitHeight: Fonts.iconButtonSize
                     Layout.preferredWidth: implicitWidth
@@ -462,6 +527,11 @@ Item {
                             text: qsTr("Capture date")
                             visible: !root.extraOpen("captureDate")
                             onTriggered: root.addExtra("captureDate")
+                        }
+                        FilterMenuItem {
+                            text: qsTr("Location")
+                            visible: !root.extraOpen("location")
+                            onTriggered: root.addExtra("location")
                         }
                     }
                 }

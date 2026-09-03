@@ -219,6 +219,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (has_facet_list_options && subcommand != "list")
         return make_error(ErrorCode::kInvalidArgument,
                           "Capture facet filters are only valid for catalog list");
+    const bool has_location_list_options =
+        !flags.value().country.empty() || !flags.value().province_state.empty() ||
+        !flags.value().city.empty() || !flags.value().sublocation.empty();
+    if (has_location_list_options && subcommand != "list" && subcommand != "metadata")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Location fields are only valid for catalog list or metadata");
     const bool has_import_options =
         !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
@@ -767,6 +773,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         auto listed = service.list_capture_facets();
         if (!listed)
             return listed.error();
+        auto locations = service.list_location_facets();
+        if (!locations)
+            return locations.error();
         const auto entry_json = [](const LibraryFacetEntry &entry) -> JsonValue
         {
             JsonValue::Object row{{"key", entry.key},
@@ -795,11 +804,31 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         dates.reserve(listed.value().capture_dates.size());
         for (const auto &entry : listed.value().capture_dates)
             dates.push_back(entry_json(entry));
+        JsonValue::Array countries;
+        countries.reserve(locations.value().countries.size());
+        for (const auto &entry : locations.value().countries)
+            countries.push_back(entry_json(entry));
+        JsonValue::Array province_states;
+        province_states.reserve(locations.value().province_states.size());
+        for (const auto &entry : locations.value().province_states)
+            province_states.push_back(entry_json(entry));
+        JsonValue::Array cities;
+        cities.reserve(locations.value().cities.size());
+        for (const auto &entry : locations.value().cities)
+            cities.push_back(entry_json(entry));
+        JsonValue::Array sublocations;
+        sublocations.reserve(locations.value().sublocations.size());
+        for (const auto &entry : locations.value().sublocations)
+            sublocations.push_back(entry_json(entry));
         return JsonValue{JsonValue::Object{
             {"cameras", std::move(cameras)},
             {"lenses", std::move(lenses)},
             {"capture_dates", std::move(dates)},
-            {"truncated", listed.value().truncated},
+            {"countries", std::move(countries)},
+            {"province_states", std::move(province_states)},
+            {"cities", std::move(cities)},
+            {"sublocations", std::move(sublocations)},
+            {"truncated", listed.value().truncated || locations.value().truncated},
         }};
     }
     if (subcommand == "list")
@@ -837,6 +866,14 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }
         if (!flags.value().captured_local_date.empty())
             query.captured_local_date = std::string(flags.value().captured_local_date);
+        if (!flags.value().country.empty())
+            query.country_equals = std::string(flags.value().country);
+        if (!flags.value().province_state.empty())
+            query.province_state_equals = std::string(flags.value().province_state);
+        if (!flags.value().city.empty())
+            query.city_equals = std::string(flags.value().city);
+        if (!flags.value().sublocation.empty())
+            query.sublocation_equals = std::string(flags.value().sublocation);
         if (!flags.value().captured_after_unix_s.empty())
         {
             auto parsed = parse_int_flag(flags.value().captured_after_unix_s, "--captured-after");
