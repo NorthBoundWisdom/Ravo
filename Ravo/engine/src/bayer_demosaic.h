@@ -28,6 +28,14 @@ demosaic_bayer(const DecodedRaw &raw, std::uint32_t width, std::uint32_t height,
                 const std::array<float, 4> &white_balance, BayerDemosaicMode mode,
                 const CancellationToken &cancellation);
 
+// 1:1 CFA window. `origin` is in unrotated sensor pixels. The decoded RAW is
+// borrowed. The result owns camera-RGB pixels of exactly width x height.
+[[nodiscard]] Result<WorkingImage>
+demosaic_bayer_window(const DecodedRaw &raw, std::uint32_t origin_x, std::uint32_t origin_y,
+                      std::uint32_t width, std::uint32_t height,
+                      const std::array<float, 4> &white_balance, BayerDemosaicMode mode,
+                      const CancellationToken &cancellation);
+
 [[nodiscard]] std::uint64_t estimate_bayer_demosaic_memory(std::uint32_t width,
                                                             std::uint32_t height,
                                                             BayerDemosaicMode mode) noexcept;

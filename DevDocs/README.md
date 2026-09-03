@@ -29,7 +29,6 @@ Three-platform package evidence belongs in [Packaging.md](Packaging.md).
 | Document | Scope |
 | --- | --- |
 | [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM source roots, local integration, refresh, and publication order |
-| [GPU_Baseline.md](GPU_Baseline.md) | Ravo-only GPU correctness and performance admission gates |
 | [Packaging.md](Packaging.md) | Release packaging ownership, artifacts, and validation |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Generated third-party attribution and licence notices packaged with Ravo |
 

@@ -76,6 +76,8 @@ CATALOG="/work/Ravo Library.sqlite"
 "$RAVO" catalog import --catalog "$CATALOG" --input "/photos/2026" --json
 "$RAVO" catalog list --catalog "$CATALOG" --json
 "$RAVO" catalog preview --catalog "$CATALOG" --asset-id <asset-id> --json
+"$RAVO" catalog preview --catalog "$CATALOG" --asset-id <asset-id> \
+  --roi 0.25,0.25,0.2,0.15 --output /tmp/roi.png --json
 "$RAVO" catalog export --catalog "$CATALOG" --asset-id <asset-id> \
   --output "/exports/photo.png" --format png --json
 ```

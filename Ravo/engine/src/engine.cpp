@@ -560,9 +560,8 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     {
         demosaic_mode = std::string(kDemosaicModeMarkesteijn3);
     }
-    auto demosaiced = working_from_raw(*source, width, height,
-                                       temperature.value().coefficients, demosaic_mode,
-                                       cancellation);
+    auto demosaiced = working_from_raw(*source, width, height, temperature.value().coefficients,
+                                       demosaic_mode, cancellation);
     if (!demosaiced)
     {
         return demosaiced.error();
@@ -606,6 +605,135 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     }
     profiled.channels = std::move(source_working.rgb);
     profiled.color_profile = std::move(source_working.color_profile);
+    if (profile_gamma.value())
+    {
+        auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);
+        if (!corrected)
+        {
+            return corrected.error();
+        }
+        profiled = std::move(corrected).value();
+    }
+    auto working = apply_input_color(profiled, input_color.value(), cancellation);
+    if (!working)
+    {
+        return working.error();
+    }
+    working.value().exposure_analysis = std::move(exposure_analysis).value();
+    return working;
+}
+
+Result<LinearWorkingBuffer>
+EngineFacade::linear_working_from_raw_window(const DecodedRaw &raw, const Recipe &recipe,
+                                             const std::uint32_t origin_x,
+                                             const std::uint32_t origin_y, const std::uint32_t width,
+                                             const std::uint32_t height,
+                                             const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto valid = validate(recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    auto temperature = resolve_raw_temperature(raw, recipe);
+    if (!temperature)
+    {
+        return temperature.error();
+    }
+    auto exposure_analysis = build_exposure_analysis_context(raw, cancellation);
+    if (!exposure_analysis)
+    {
+        return exposure_analysis.error();
+    }
+    std::string demosaic_mode(kDemosaicModeRcd);
+    bool has_demosaic_mode = false;
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kDemosaicOperationId)
+        {
+            continue;
+        }
+        if (has_demosaic_mode)
+        {
+            return make_error(ErrorCode::kConflict,
+                              "Recipe contains more than one enabled RAW demosaic operation",
+                              {{"reason", "duplicate_demosaic_operation"}});
+        }
+        auto selected = demosaic_mode_from_parameters(operation.parameters);
+        if (!selected)
+        {
+            return selected.error();
+        }
+        demosaic_mode = std::move(selected).value();
+        has_demosaic_mode = true;
+    }
+    const DecodedRaw *source = &raw;
+    DecodedRaw prepared;
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled ||
+            (operation.id != "ravo.raw.hotpixels" && operation.id != "ravo.raw.highlights" &&
+             operation.id != "ravo.raw.cacorrect" && operation.id != "ravo.raw.denoise"))
+        {
+            continue;
+        }
+        if (source == &raw)
+        {
+            prepared = raw;
+            source = &prepared;
+        }
+        Result<void> applied{};
+        if (operation.id == "ravo.raw.hotpixels")
+        {
+            applied = apply_raw_hotpixels(prepared, operation, cancellation);
+        }
+        else if (operation.id == "ravo.raw.highlights")
+        {
+            applied = apply_raw_highlights(prepared, operation, cancellation);
+        }
+        else if (operation.id == "ravo.raw.cacorrect")
+        {
+            applied = apply_raw_cacorrect(prepared, operation, temperature.value().coefficients,
+                                          cancellation);
+        }
+        else
+        {
+            applied = apply_raw_denoise(prepared, operation, cancellation);
+        }
+        if (!applied)
+        {
+            return applied.error();
+        }
+    }
+    auto demosaiced =
+        working_from_raw_window(*source, origin_x, origin_y, width, height,
+                                temperature.value().coefficients, demosaic_mode, cancellation);
+    if (!demosaiced)
+    {
+        return demosaiced.error();
+    }
+    auto input_color = resolve_input_color(recipe);
+    if (!input_color)
+    {
+        return input_color.error();
+    }
+    auto profile_gamma = resolve_profile_gamma(recipe);
+    if (!profile_gamma)
+    {
+        return profile_gamma.error();
+    }
+    ProfiledColorBuffer profiled;
+    profiled.width = demosaiced.value().width;
+    profiled.height = demosaiced.value().height;
+    profiled.channels = std::move(demosaiced.value().rgb);
+    profiled.color_profile = std::move(demosaiced.value().color_profile);
+    profiled.canonical_roi_scale = demosaiced.value().canonical_roi_scale;
+    profiled.mask_attached_frame = demosaiced.value().mask_attached_frame;
     if (profile_gamma.value())
     {
         auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);

@@ -23,6 +23,11 @@ struct ColorBalanceParams;
 working_from_raw(const DecodedRaw &raw, std::uint32_t width, std::uint32_t height,
                  const std::array<float, 4> &white_balance, std::string_view demosaic_mode,
                  const CancellationToken &cancellation);
+[[nodiscard]] Result<WorkingImage>
+working_from_raw_window(const DecodedRaw &raw, std::uint32_t origin_x, std::uint32_t origin_y,
+                        std::uint32_t width, std::uint32_t height,
+                        const std::array<float, 4> &white_balance, std::string_view demosaic_mode,
+                        const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster);
 // Box-filters a larger scene-linear working image onto a strictly smaller
 // display-oriented size. The source is borrowed and never mutated. Upscaling

@@ -217,6 +217,8 @@ drag, the presenter only forwards in-memory parameters. Services apply the
 complete effect stack to a cached 960px scene-linear working image, return
 memory pixels, and do not write PNG/cache. That 960px buffer is a box-filtered
 copy of the 1600px settled linear working, so entering Develop demosaics once.
+Actual Size 1:1 is a CPU CFA window of the visible crop (ADR-0132); lens,
+perspective, and full-frame ROIs reject and keep the 1600 preview.
 For an ordinary commit whose parameters are not
 already displayed, Studio first saves
 atomically, publishes that 960px memory preview, then queues the same

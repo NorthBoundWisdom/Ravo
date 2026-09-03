@@ -166,6 +166,35 @@ TEST(BayerDemosaicTest, RcdAndPpgPreserveCfaSamplesAndSmoothSceneColor)
     }
 }
 
+TEST(BayerDemosaicTest, WindowMatchesInteriorOfFullFrame)
+{
+    const DecodedRaw raw = smooth_bayer(96U, 64U);
+    auto full = demosaic_bayer(raw, raw.width, raw.height, {1.2F, 1.0F, 1.4F, 1.0F},
+                               BayerDemosaicMode::kRcd, CancellationToken{});
+    ASSERT_TRUE(full) << full.error().message;
+    constexpr std::uint32_t kX = 16U;
+    constexpr std::uint32_t kY = 12U;
+    constexpr std::uint32_t kW = 32U;
+    constexpr std::uint32_t kH = 24U;
+    auto window = demosaic_bayer_window(raw, kX, kY, kW, kH, {1.2F, 1.0F, 1.4F, 1.0F},
+                                        BayerDemosaicMode::kRcd, CancellationToken{});
+    ASSERT_TRUE(window) << window.error().message;
+    ASSERT_EQ(window.value().width, kW);
+    ASSERT_EQ(window.value().height, kH);
+    for (std::uint32_t y = 0U; y < kH; ++y)
+    {
+        for (std::uint32_t x = 0U; x < kW; ++x)
+        {
+            const std::size_t src =
+                (static_cast<std::size_t>(kY + y) * full.value().width + (kX + x)) * 3U;
+            const std::size_t dst = (static_cast<std::size_t>(y) * kW + x) * 3U;
+            EXPECT_FLOAT_EQ(window.value().rgb[dst], full.value().rgb[src]) << x << ',' << y;
+            EXPECT_FLOAT_EQ(window.value().rgb[dst + 1U], full.value().rgb[src + 1U]);
+            EXPECT_FLOAT_EQ(window.value().rgb[dst + 2U], full.value().rgb[src + 2U]);
+        }
+    }
+}
+
 TEST(BayerDemosaicTest, PreviewReductionIsDeterministicFiniteAndSourceOwned)
 {
     const DecodedRaw raw = smooth_bayer(96U, 64U);

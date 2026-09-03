@@ -401,6 +401,9 @@ private:
     generate_preview(const AssetRecord &asset, const PreviewRequest &request,
                      const std::optional<DevelopParams> &live_develop);
     [[nodiscard]] Result<PreviewResult>
+    generate_roi_preview(const AssetRecord &asset, const PreviewRequest &request,
+                         const Recipe &recipe, std::string_view path);
+    [[nodiscard]] Result<PreviewResult>
     persist_embedded_browse_preview(const AssetRecord &asset, const EmbeddedPreview &embedded,
                                     std::uint32_t max_edge, const CancellationToken &cancellation);
     [[nodiscard]] Result<PreviewResult>

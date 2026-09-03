@@ -63,6 +63,11 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QUrl previewUrl READ previewUrl NOTIFY previewChanged)
     Q_PROPERTY(int previewViewportWidth READ previewViewportWidth NOTIFY previewChanged)
     Q_PROPERTY(int previewViewportHeight READ previewViewportHeight NOTIFY previewChanged)
+    Q_PROPERTY(QUrl inspectRoiUrl READ inspectRoiUrl NOTIFY inspectRoiChanged)
+    Q_PROPERTY(double inspectRoiX READ inspectRoiX NOTIFY inspectRoiChanged)
+    Q_PROPERTY(double inspectRoiY READ inspectRoiY NOTIFY inspectRoiChanged)
+    Q_PROPERTY(double inspectRoiWidth READ inspectRoiWidth NOTIFY inspectRoiChanged)
+    Q_PROPERTY(double inspectRoiHeight READ inspectRoiHeight NOTIFY inspectRoiChanged)
     Q_PROPERTY(QUrl comparisonBeforeUrl READ comparisonBeforeUrl NOTIFY previewChanged)
     Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
     Q_PROPERTY(QString scopeMode READ scopeMode WRITE setScopeMode NOTIFY scopesChanged)
@@ -381,6 +386,12 @@ public:
     [[nodiscard]] QUrl previewUrl() const;
     [[nodiscard]] int previewViewportWidth() const noexcept;
     [[nodiscard]] int previewViewportHeight() const noexcept;
+    [[nodiscard]] QUrl inspectRoiUrl() const;
+    [[nodiscard]] QImage inspectRoiImage() const;
+    [[nodiscard]] double inspectRoiX() const noexcept;
+    [[nodiscard]] double inspectRoiY() const noexcept;
+    [[nodiscard]] double inspectRoiWidth() const noexcept;
+    [[nodiscard]] double inspectRoiHeight() const noexcept;
     [[nodiscard]] QImage previewImage() const;
     [[nodiscard]] QUrl comparisonBeforeUrl() const;
     [[nodiscard]] QImage comparisonBeforeImage() const;
@@ -728,6 +739,7 @@ public:
     Q_INVOKABLE void setZoomFactor(double factor);
     Q_INVOKABLE void adjustZoom(int wheel_delta);
     Q_INVOKABLE void toggleActualSize();
+    Q_INVOKABLE void requestInspectRoi(double x, double y, double width, double height);
     Q_INVOKABLE void setThumbnailSize(int size);
     Q_INVOKABLE void setAssetTags(const QString &text);
     Q_INVOKABLE void setMetadataField(const QString &name, const QString &value);
@@ -787,6 +799,7 @@ signals:
     void errorChanged();
     void selectionChanged();
     void previewChanged();
+    void inspectRoiChanged();
     void previewIdentityChanged();
     void interactivePreviewPublished(qulonglong revision, qlonglong intentToImageMicroseconds);
     void scopesChanged();
@@ -1055,6 +1068,14 @@ private:
     bool busy_ = false;
     bool preview_loading_ = false;
     PreviewRequestOwner develop_preview_owner_;
+    PreviewRequestOwner inspect_roi_owner_;
+    QUrl inspect_roi_url_;
+    QImage inspect_roi_image_;
+    double inspect_roi_x_ = 0.0;
+    double inspect_roi_y_ = 0.0;
+    double inspect_roi_width_ = 0.0;
+    double inspect_roi_height_ = 0.0;
+    void clear_inspect_roi();
     PreviewRequestOwner preview_analysis_owner_;
     PreviewRequestOwner perspective_analysis_owner_;
     std::uint64_t thumbnail_revision_ = 0;

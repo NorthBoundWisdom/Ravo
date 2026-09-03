@@ -988,4 +988,132 @@ void StudioPresenter::finishSurveyPreviewRequest(const bool success)
     startSurveyPreviewRequest(std::move(next));
 }
 
+QUrl StudioPresenter::inspectRoiUrl() const
+{
+    return inspect_roi_url_;
+}
+
+QImage StudioPresenter::inspectRoiImage() const
+{
+    const QMutexLocker lock(&preview_image_mutex_);
+    return inspect_roi_image_;
+}
+
+double StudioPresenter::inspectRoiX() const noexcept
+{
+    return inspect_roi_x_;
+}
+
+double StudioPresenter::inspectRoiY() const noexcept
+{
+    return inspect_roi_y_;
+}
+
+double StudioPresenter::inspectRoiWidth() const noexcept
+{
+    return inspect_roi_width_;
+}
+
+double StudioPresenter::inspectRoiHeight() const noexcept
+{
+    return inspect_roi_height_;
+}
+
+void StudioPresenter::clear_inspect_roi()
+{
+    inspect_roi_owner_.cancel("inspect_roi_cleared");
+    {
+        const QMutexLocker lock(&preview_image_mutex_);
+        inspect_roi_image_ = {};
+    }
+    if (inspect_roi_url_.isEmpty() && inspect_roi_width_ == 0.0 && inspect_roi_height_ == 0.0)
+    {
+        return;
+    }
+    inspect_roi_url_.clear();
+    inspect_roi_x_ = 0.0;
+    inspect_roi_y_ = 0.0;
+    inspect_roi_width_ = 0.0;
+    inspect_roi_height_ = 0.0;
+    emit inspectRoiChanged();
+}
+
+void StudioPresenter::requestInspectRoi(const double x, const double y, const double width,
+                                        const double height)
+{
+    if (zoom_mode_ != QLatin1String("actual") || selected_asset_id_.isEmpty() || service_ == nullptr)
+    {
+        clear_inspect_roi();
+        return;
+    }
+    PreviewNormRect roi{x, y, width, height};
+    const auto revision = inspect_roi_owner_.supersede("inspect_roi_requested");
+    const auto cancellation = inspect_roi_owner_.begin();
+    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    const auto params = develop_;
+    static_cast<void>(executor_.post(
+        [this, roi, revision, cancellation, asset_id, params]()
+        {
+            PreviewRequest request;
+            request.asset_id = asset_id;
+            request.roi = roi;
+            request.persist_preview_record = false;
+            request.prefer_embedded_preview = false;
+            request.request_revision = revision;
+            request.cancellation = cancellation;
+            Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                preview = service_->request_preview(request, params);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, roi, revision, asset_id, preview = std::move(preview)]() mutable
+                {
+                    if (!inspect_roi_owner_.accepts(revision, asset_id,
+                                                    utf8_from_qstring(selected_asset_id_)) ||
+                        zoom_mode_ != QLatin1String("actual"))
+                    {
+                        return;
+                    }
+                    if (!preview)
+                    {
+                        const auto reason = preview.error().context.find("reason");
+                        if (reason != preview.error().context.end() &&
+                            (reason->second == "preview_roi_geometry_unsupported" ||
+                             reason->second == "preview_roi_covers_full_frame" ||
+                             reason->second == "preview_roi_media_unsupported" ||
+                             reason->second == "preview_roi_sensor_unsupported"))
+                        {
+                            clear_inspect_roi();
+                            return;
+                        }
+                        if (preview.error().code != ErrorCode::kCancelled)
+                        {
+                            setError(qstring_from_utf8(preview.error().message));
+                        }
+                        return;
+                    }
+                    auto prepared = preview_result_image(preview.value());
+                    if (!prepared)
+                    {
+                        setError(qstring_from_utf8(prepared.error().message));
+                        return;
+                    }
+                    {
+                        const QMutexLocker lock(&preview_image_mutex_);
+                        inspect_roi_image_ = std::move(prepared).value();
+                    }
+                    inspect_roi_x_ = roi.x;
+                    inspect_roi_y_ = roi.y;
+                    inspect_roi_width_ = roi.width;
+                    inspect_roi_height_ = roi.height;
+                    inspect_roi_url_ =
+                        QUrl(QStringLiteral("image://studioPreview/inspectRoi?r=%1").arg(revision));
+                    emit inspectRoiChanged();
+                },
+                Qt::QueuedConnection);
+        }));
+}
+
 } // namespace ravo

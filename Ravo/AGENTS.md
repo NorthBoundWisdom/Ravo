@@ -25,9 +25,9 @@ constraint.
 
 - All first-party new code uses C++20, CMake, and FreeCM; do not add Rust/Cargo
   to the build graph.
-- CPU is the correctness reference and reliable fallback. GPU may be added as
-  an adapter only after the CPU/golden/performance gates in
-  `../DevDocs/MIGRATION.md` and `../DevDocs/GPU_Baseline.md` are met.
+- CPU is the correctness reference. Do not port 0.9 OpenCL. A future GPU path
+  is an Engine adapter only, with no silent CPU fallback; it needs a dated ADR
+  (`../DevDocs/MIGRATION.md`).
 - The `ravo` CLI and Ravo Studio are both supported clients. Algorithms belong
   in the engine; catalog/import/preview orchestration belongs in services; CLI
   and UI are limited to input/output, progress, selection, and error
@@ -161,8 +161,8 @@ and `ProductRoadmap.md`.
 Accepted Ravo operations keep their current contracts. Frozen fixtures live
 in `tests/fixtures/frozen`.
 
-Do not port leftover OpenCL. Ravo GPU may only be implemented as an
-independent adapter after its own CPU path is accepted.
+Do not port leftover OpenCL. A future GPU path is an Engine adapter only, with
+no silent CPU fallback, and needs a dated ADR (`../DevDocs/MIGRATION.md`).
 
 ## Validation and delivery
 

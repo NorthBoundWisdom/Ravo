@@ -1182,6 +1182,41 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     EXPECT_EQ(highlighted.value().height, first.value().height);
 }
 
+TEST_F(CatalogServiceTest, RawPreviewRoiReturnsWindowPixelsWithoutCache)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    PreviewRequest request;
+    request.asset_id = imported.value().asset->id;
+    request.persist_preview_record = false;
+    request.prefer_embedded_preview = false;
+    request.roi = PreviewNormRect{0.25, 0.25, 0.2, 0.15};
+    auto preview = service->request_preview(request);
+    ASSERT_TRUE(preview) << preview.error().message;
+    EXPECT_TRUE(preview.value().cache_path.empty());
+    EXPECT_FALSE(preview.value().rgb.empty());
+    EXPECT_GT(preview.value().width, 0U);
+    EXPECT_GT(preview.value().height, 0U);
+    EXPECT_LT(std::max(preview.value().width, preview.value().height),
+              std::max(imported.value().asset->width.value_or(0),
+                       imported.value().asset->height.value_or(0)));
+
+    request.roi = PreviewNormRect{0.0, 0.0, 0.9, 0.9};
+    auto rejected_full = service->request_preview(request);
+    ASSERT_FALSE(rejected_full);
+    EXPECT_EQ(rejected_full.error().context.at("reason"), "preview_roi_covers_full_frame");
+
+    DevelopParams live;
+    live.straighten_degrees = 5.0;
+    request.roi = PreviewNormRect{0.25, 0.25, 0.2, 0.15};
+    auto rejected_geometry = service->request_preview(request, live);
+    ASSERT_FALSE(rejected_geometry);
+    EXPECT_EQ(rejected_geometry.error().context.at("reason"), "preview_roi_geometry_unsupported");
+}
+
 TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIdenticalPixels)
 {
     auto created = open_service(true);

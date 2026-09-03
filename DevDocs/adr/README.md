@@ -139,3 +139,4 @@ supersession relationship when direction changes.
 | [0129](0129-export-delivery-colour-and-frame.md) | Accepted | Export delivery colour override + ADR-0070 frame via ExportOptions; order after sharpen, before watermark; no recipe mutation |
 | [0130](0130-catalog-location-library-filters.md) | Accepted | Exact LibraryQuery location selectors + bounded location facets over ADR-0126 writable columns; Studio/CLI chips |
 | [0131](0131-foreign-catalog-conversion.md) | Accepted | Read-only Lightroom/Capture One → new Ravo catalog conversion; no in-place open; fixture-first Ready tranche residual |
+| [0132](0132-viewport-roi-full-resolution-inspect.md) | Accepted | Actual Size 1:1 is a CPU CFA window of the visible crop; lens/perspective and full-frame ROIs reject; GPU display stays deferred. |

@@ -138,6 +138,8 @@ presenter zoom owner, 0.1–8 clamps, wheel step, Actual-size toggle restoring
 the last non-1:1 mode, bounded Flickable/navigator seek, inspect magnifier
 click wiring, active-asset comparison, recenter triggers, crop pan exclusion,
 and QML smoke; same-asset review notifications are required not to reset pan.
+Catalog tests cover Bayer viewport-ROI 1:1 windows, full-frame ROI rejection,
+and geometry rejection (ADR-0132).
 Progressive-preview coverage uses a source larger than both preview classes and
 requires the 960px interactive image to retain the preceding 1600px viewport
 extent until settlement; QML must use that accepted presenter extent instead of

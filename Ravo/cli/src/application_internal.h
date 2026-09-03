@@ -61,6 +61,7 @@ struct CatalogCliArguments
     std::string_view export_preset;
     std::string_view export_job;
     std::string_view job_id;
+    std::optional<PreviewNormRect> roi;
     std::vector<std::pair<std::string, double>> develop_sets;
     std::vector<std::pair<std::string, std::string>> develop_text_sets;
     std::optional<std::pair<double, double>> pick_white;

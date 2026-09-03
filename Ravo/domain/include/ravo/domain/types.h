@@ -967,6 +967,15 @@ enum class PreviewPurpose
     kBrowse,
 };
 
+// Normalized rectangle in the current cropped, display-oriented photo.
+struct PreviewNormRect
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 0.0;
+    double height = 0.0;
+};
+
 struct PreviewRequest
 {
     std::string asset_id;
@@ -977,6 +986,7 @@ struct PreviewRequest
     bool ignore_crop = false;
     bool ignore_straighten = false;
     bool persist_preview_record = true;
+    std::optional<PreviewNormRect> roi;
     // Browse requests may use a RAW embedded JPEG. Develop, loupe, scopes, export and
     // interactive preview must leave this false so processed pixels stay on the CPU
     // RAW + Sigmoid contract. Purpose independently owns cache/scheduling isolation.

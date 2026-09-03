@@ -494,6 +494,47 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "--job-id was specified twice");
             result.job_id = value;
         }
+        else if (option == "--roi")
+        {
+            if (result.roi.has_value())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "--roi was specified more than once");
+            }
+            PreviewNormRect roi;
+            const char *begin = value.data();
+            const char *const end = value.data() + value.size();
+            double *fields[4] = {&roi.x, &roi.y, &roi.width, &roi.height};
+            for (std::size_t field = 0; field < 4U; ++field)
+            {
+                auto parsed = std::from_chars(begin, end, *fields[field]);
+                if (parsed.ec != std::errc{} || parsed.ptr == begin)
+                {
+                    return make_error(ErrorCode::kInvalidArgument,
+                                      "--roi requires x,y,width,height in 0-1",
+                                      {{"value", std::string(value)},
+                                       {"reason", "invalid_preview_roi"}});
+                }
+                begin = parsed.ptr;
+                if (field + 1U < 4U)
+                {
+                    if (begin == end || *begin != ',')
+                    {
+                        return make_error(ErrorCode::kInvalidArgument,
+                                          "--roi requires x,y,width,height in 0-1",
+                                          {{"value", std::string(value)},
+                                           {"reason", "invalid_preview_roi"}});
+                    }
+                    ++begin;
+                }
+            }
+            if (begin != end)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--roi requires x,y,width,height in 0-1",
+                                  {{"value", std::string(value)}, {"reason", "invalid_preview_roi"}});
+            }
+            result.roi = roi;
+        }
         else if (option == "--output")
         {
             if (batch_export)

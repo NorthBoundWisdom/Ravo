@@ -126,10 +126,8 @@ uses the Sigmoid Standard SDR display transform. Masks form a typed graph —
 gradient, circle, ellipse, parametric, path, brush, and ordered groups — with a
 live Studio overlay.
 
-The engine is **CPU-only today**; GPU acceleration is planned as an independent
-adapter behind the correctness and performance gates in
-[`DevDocs/GPU_Baseline.md`](DevDocs/GPU_Baseline.md), and the old OpenCL path is
-not ported.
+The engine is **CPU-only today**. A future GPU path is an independent Engine
+adapter only (`DevDocs/MIGRATION.md`); the old OpenCL path is not ported.
 
 ## Documentation
 

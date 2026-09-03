@@ -106,7 +106,9 @@ capability is final only when all of these are true:
 3. Do not resume leftover-faithful IOP, pixelpipe, GTK, or OpenCL ports.
 4. Apply data-safety, cache/resource, accessibility, and three-platform gates
    continuously. Leftover catalog import and adjacent-XMP interoperability
-   still need dated product decisions. Optional GPU remains behind CPU goldens.
+   still need dated product decisions. A future GPU path is an Engine adapter
+   only; 0.9 OpenCL is leftover. Display GPU needs a dated ADR after CPU
+   viewport-ROI 1:1 inspect (ADR-0132).
 
 ## Explicit leftovers
 
@@ -201,7 +203,7 @@ unsupported presentation adapters.
 | RGB curve | `iop/rgbcurve.c` | `ravo.color.rgbcurve` + Curves section | Ravo accepted | Linked/independent working-RGB, preserve-colors, middle-grey uncompensate, 2–20 nodes, leftover interpolators, Studio parametric regions, and one owned canonical mask (ADR-0110). Dedicated editor is accepted (ADR-0052/0053/0084) |
 | Default display transform | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | Old implementation removed | default per-channel generalized log-logistic + hue preservation; `rgb_ratio` is the C second mode. Linear sRGB, Standard SDR target. `filmicrgb`/`agx` remain leftovers |
 | CLI | `src/cli` | cli + control | In progress | engine/recipe/catalog/develop/export JSON use supported services/engine; `ravo-studio-control/v1` adds owner-only discovery, revisioned selection/current+saved recipe inspection, strict command-controller Develop mutation, and exact no-replace preview artifacts without UI automation (ADR-0090) |
-| GPU | OpenCL/pixelpipe | engine adapter | Deferred | Start only after the applicable CPU TODO and GPU baseline goldens plus end-to-end benefit proof |
+| GPU | OpenCL/pixelpipe | engine adapter | Deferred | 0.9 OpenCL is leftover and is not reused. CPU remains the correctness reference. A future GPU path is an Engine adapter only (not Recipe, QML, catalog, or a second renderer). Failures do not silently fall back to CPU. Display GPU needs its own dated ADR after CPU viewport-ROI inspect (ADR-0132). The retired `GPU_Baseline.md` four-workload checklist is not an admission gate. |
 
 Use only these statuses: “Not started / Baseline frozen / In progress / Ravo
 accepted / Old implementation removed / Deferred / Unsupported.” The leftover

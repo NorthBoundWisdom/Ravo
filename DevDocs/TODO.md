@@ -115,8 +115,8 @@ improves without foreground-Develop latency, deterministic publication,
 cancellation, memory, source-safety, colour/profile, HDD-seek, or package
 regression. Item-count-only memory limits are insufficient. Browse placeholders
 and embedded JPEGs remain presentation resources, never RAW correctness
-references or silent Develop fallbacks. GPU work remains under
-[GPU_Baseline.md](GPU_Baseline.md).
+references or silent Develop fallbacks. GPU remains deferred per
+[MIGRATION.md](MIGRATION.md).
 
 # P1/P2 — Professional photographer workflows
 

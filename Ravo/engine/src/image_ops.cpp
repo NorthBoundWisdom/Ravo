@@ -497,6 +497,75 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     return oriented;
 }
 
+Result<WorkingImage> working_from_raw_window(const DecodedRaw &raw, const std::uint32_t origin_x,
+                                             const std::uint32_t origin_y, const std::uint32_t width,
+                                             const std::uint32_t height,
+                                             const std::array<float, 4> &white_balance,
+                                             const std::string_view demosaic_mode,
+                                             const CancellationToken &cancellation)
+{
+    if (width == 0 || height == 0)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "RAW window dimensions must be non-zero");
+    }
+    const bool bayer = raw.cfa_width == 2U && raw.cfa_height == 2U;
+    if (!bayer)
+    {
+        return make_error(ErrorCode::kUnsupported, "Preview ROI demosaic requires a Bayer CFA",
+                          {{"reason", "preview_roi_sensor_unsupported"}});
+    }
+    auto mode = parse_bayer_demosaic_mode(demosaic_mode);
+    if (!mode)
+    {
+        return mode.error();
+    }
+    const bool defer_white_balance = dng_list3_requires_deferred_white_balance(raw.dng_opcodes);
+    auto image = demosaic_bayer_window(raw, origin_x, origin_y, width, height, white_balance,
+                                       mode.value(), cancellation);
+    if (!image)
+    {
+        return image.error();
+    }
+    auto corrected = raw.dng_opcodes ? apply_dng_opcode_list3(std::move(image).value(),
+                                                              *raw.dng_opcodes, cancellation) :
+                                       Result<WorkingImage>(std::move(image).value());
+    if (!corrected)
+    {
+        return corrected.error();
+    }
+    if (defer_white_balance)
+    {
+        auto rows = for_each_row(
+            corrected.value().height, cancellation,
+            [&](const std::uint32_t y)
+            {
+                for (std::uint32_t x = 0U; x < corrected.value().width; ++x)
+                {
+                    const std::size_t base =
+                        (static_cast<std::size_t>(y) * corrected.value().width + x) * 3U;
+                    corrected.value().rgb[base] *= white_balance[0];
+                    corrected.value().rgb[base + 1U] *= white_balance[1];
+                    corrected.value().rgb[base + 2U] *= white_balance[2];
+                }
+            });
+        if (!rows)
+        {
+            return rows.error();
+        }
+    }
+    const int turns = normalized_rotate_quarters(raw.rotate_quarters);
+    auto oriented = turns == 0 ? Result<WorkingImage>(std::move(corrected).value()) :
+                                 rotate_working(std::move(corrected).value(), turns);
+    if (!oriented)
+    {
+        return oriented.error();
+    }
+    oriented.value().canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(
+        oriented.value().width, oriented.value().height, oriented.value().width,
+        oriented.value().height);
+    return oriented;
+}
+
 Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster)
 {
     if (raster.width == 0 || raster.height == 0 ||

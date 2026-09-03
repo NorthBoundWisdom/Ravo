@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import GeoControls 1.0
 import GeoControls.AppShell 1.0
 
@@ -180,11 +181,15 @@ ApplicationWindow {
     }
 
     function inspectSourceWidth() {
+        if (studio.zoomMode === "actual" && studio.selectedWorkingWidth > 0)
+            return Math.max(1, Math.round(studio.selectedWorkingWidth / Screen.devicePixelRatio));
         const width = Math.max(studio.previewViewportWidth, 1);
         return window.comparisonReady ? width * 2 : width;
     }
 
     function inspectSourceHeight() {
+        if (studio.zoomMode === "actual" && studio.selectedWorkingHeight > 0)
+            return Math.max(1, Math.round(studio.selectedWorkingHeight / Screen.devicePixelRatio));
         return Math.max(studio.previewViewportHeight, 1);
     }
 
@@ -1037,6 +1042,36 @@ ApplicationWindow {
                             contentWidth: previewStage.width
                             contentHeight: previewStage.height
                             boundsBehavior: Flickable.StopAtBounds
+                            onContentXChanged: inspectRoiDebounce.restart()
+                            onContentYChanged: inspectRoiDebounce.restart()
+                            onWidthChanged: inspectRoiDebounce.restart()
+                            onHeightChanged: inspectRoiDebounce.restart()
+
+                            function requestVisibleInspectRoi() {
+                                if (studio.zoomMode !== "actual")
+                                    return;
+                                const stageW = Math.max(1, previewStage.width);
+                                const stageH = Math.max(1, previewStage.height);
+                                const nx = Math.max(0, Math.min(1, scroller.contentX / stageW));
+                                const ny = Math.max(0, Math.min(1, scroller.contentY / stageH));
+                                const nw = Math.max(0.02, Math.min(1 - nx, scroller.width / stageW));
+                                const nh = Math.max(0.02, Math.min(1 - ny, scroller.height / stageH));
+                                studio.requestInspectRoi(nx, ny, nw, nh);
+                            }
+
+                            Timer {
+                                id: inspectRoiDebounce
+                                interval: 50
+                                repeat: false
+                                onTriggered: scroller.requestVisibleInspectRoi()
+                            }
+
+                            Connections {
+                                target: studio
+                                function onZoomChanged() {
+                                    inspectRoiDebounce.restart();
+                                }
+                            }
 
                             Item {
                                 id: previewStage
@@ -1112,6 +1147,21 @@ ApplicationWindow {
                                         fillMode: Image.Stretch
                                         smooth: true
                                         antialiasing: true
+                                    }
+
+                                    Image {
+                                        id: inspectRoiImage
+                                        x: studio.inspectRoiX * parent.width
+                                        y: studio.inspectRoiY * parent.height
+                                        width: Math.max(1, studio.inspectRoiWidth * parent.width)
+                                        height: Math.max(1, studio.inspectRoiHeight * parent.height)
+                                        visible: studio.zoomMode === "actual" && studio.inspectRoiUrl.toString().length > 0 && !window.comparisonReady
+                                        asynchronous: false
+                                        cache: false
+                                        source: studio.inspectRoiUrl
+                                        fillMode: Image.Stretch
+                                        smooth: false
+                                        antialiasing: false
                                     }
 
                                     Rectangle {

@@ -23,6 +23,8 @@ public:
     {
         const QImage image = id.startsWith(QLatin1String("before")) ?
                                  studio_->comparisonBeforeImage() :
+                             id.startsWith(QLatin1String("inspectRoi")) ?
+                                 studio_->inspectRoiImage() :
                                  studio_->previewImage();
         if (size != nullptr)
         {

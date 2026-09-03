@@ -55,6 +55,7 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
         return;
     }
     clear_displayed_preview();
+    clear_inspect_roi();
     if (const auto asset = assets_.assetById(asset_id); asset && asset->width && asset->height)
     {
         std::uint32_t width = 0;
@@ -484,6 +485,7 @@ void StudioPresenter::setZoomMode(const QString &mode)
     {
         last_non_actual_zoom_mode_ = zoom_mode_;
         last_non_actual_zoom_factor_ = zoom_factor_;
+        clear_inspect_roi();
     }
     emit zoomChanged();
 }

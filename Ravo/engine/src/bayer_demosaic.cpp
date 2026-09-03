@@ -967,6 +967,104 @@ catch (const std::bad_alloc &)
                       {{"reason", "allocation_failed"}});
 }
 
+[[nodiscard]] Result<PreparedBayer>
+prepare_bayer_window(const DecodedRaw &raw, const std::uint32_t origin_x,
+                     const std::uint32_t origin_y, const std::uint32_t width,
+                     const std::uint32_t height, const std::array<float, 4> &white_balance,
+                     const CancellationToken &cancellation)
+try
+{
+    auto valid = validate_bayer(raw);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    if (width == 0U || height == 0U || origin_x >= raw.width || origin_y >= raw.height ||
+        width > raw.width - origin_x || height > raw.height - origin_y)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Bayer window is outside the CFA frame",
+                          {{"reason", "invalid_bayer_window"},
+                           {"origin_x", std::to_string(origin_x)},
+                           {"origin_y", std::to_string(origin_y)},
+                           {"width", std::to_string(width)},
+                           {"height", std::to_string(height)}});
+    }
+    for (std::size_t channel = 0U; channel < white_balance.size(); ++channel)
+    {
+        if (!std::isfinite(white_balance[channel]) || white_balance[channel] <= 0.0F ||
+            white_balance[channel] > 8.0F)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "RAW temperature coefficient is outside (0, 8]",
+                              {{"channel", std::to_string(channel)}});
+        }
+    }
+
+    PreparedBayer prepared;
+    prepared.width = width;
+    prepared.height = height;
+    std::array<std::uint8_t, 4> source_cfa{};
+    std::copy_n(raw.cfa_channels.begin(), 4U, source_cfa.begin());
+    prepared.cfa[0] = cfa_at(source_cfa, origin_y, origin_x);
+    prepared.cfa[1] = cfa_at(source_cfa, origin_y, origin_x + 1U);
+    prepared.cfa[2] = cfa_at(source_cfa, origin_y + 1U, origin_x);
+    prepared.cfa[3] = cfa_at(source_cfa, origin_y + 1U, origin_x + 1U);
+    prepared.samples.resize(static_cast<std::size_t>(width) * height);
+    const float denominator = static_cast<float>(
+        std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
+    const bool defer_white_balance = dng_list3_requires_deferred_white_balance(raw.dng_opcodes);
+    std::atomic_bool invalid_sample{false};
+    const auto rows = detail::for_each_row(
+        height, cancellation,
+        [&](const std::uint32_t output_y)
+        {
+            if (invalid_sample.load(std::memory_order_relaxed))
+            {
+                return;
+            }
+            const std::uint32_t source_y = origin_y + output_y;
+            for (std::uint32_t output_x = 0U; output_x < width; ++output_x)
+            {
+                const std::uint32_t source_x = origin_x + output_x;
+                const std::uint8_t channel = cfa_at(source_cfa, source_y, source_x);
+                float sample = std::max(
+                    0.0F, (static_cast<float>(raw.pixels[pixel_index(raw.width, source_x, source_y)]) -
+                           static_cast<float>(raw.black_level)) /
+                              denominator);
+                if (raw.dng_opcodes)
+                {
+                    sample = apply_dng_opcode_list2_sample(*raw.dng_opcodes, source_x, source_y,
+                                                           raw.width, raw.height, sample);
+                }
+                if (!defer_white_balance)
+                {
+                    sample *= white_balance[channel];
+                }
+                if (!std::isfinite(sample))
+                {
+                    invalid_sample.store(true, std::memory_order_relaxed);
+                    return;
+                }
+                prepared.samples[pixel_index(width, output_x, output_y)] = sample;
+            }
+        });
+    if (!rows)
+    {
+        return rows.error();
+    }
+    if (invalid_sample.load(std::memory_order_relaxed))
+    {
+        return make_error(ErrorCode::kValidation, "Bayer window produced a non-finite sample",
+                          {{"reason", "non_finite_bayer_sample"}});
+    }
+    return prepared;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Bayer window allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
 } // namespace
 
 Result<BayerDemosaicMode> parse_bayer_demosaic_mode(const std::string_view mode)
@@ -1012,6 +1110,68 @@ Result<WorkingImage> demosaic_bayer(const DecodedRaw &raw, const std::uint32_t w
     {
         return make_error(ErrorCode::kValidation,
                           "Bayer demosaic produced a non-finite sample",
+                          {{"reason", "non_finite_demosaic_output"}});
+    }
+    return output;
+}
+
+Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uint32_t origin_x,
+                                           const std::uint32_t origin_y, const std::uint32_t width,
+                                           const std::uint32_t height,
+                                           const std::array<float, 4> &white_balance,
+                                           const BayerDemosaicMode mode,
+                                           const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    if (width == 0U || height == 0U || origin_x >= raw.width || origin_y >= raw.height ||
+        width > raw.width - origin_x || height > raw.height - origin_y)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Bayer window is outside the CFA frame",
+                          {{"reason", "invalid_bayer_window"}});
+    }
+    constexpr std::uint32_t kBorder = 12U;
+    const std::uint32_t x0 = origin_x > kBorder ? origin_x - kBorder : 0U;
+    const std::uint32_t y0 = origin_y > kBorder ? origin_y - kBorder : 0U;
+    const std::uint32_t x1 = std::min(raw.width, origin_x + width + kBorder);
+    const std::uint32_t y1 = std::min(raw.height, origin_y + height + kBorder);
+    auto prepared =
+        prepare_bayer_window(raw, x0, y0, x1 - x0, y1 - y0, white_balance, cancellation);
+    if (!prepared)
+    {
+        return prepared.error();
+    }
+    auto expanded = mode == BayerDemosaicMode::kRcd ?
+                        demosaic_rcd(prepared.value(), raw.color_profile, cancellation) :
+                        demosaic_ppg(prepared.value(), raw.color_profile, cancellation);
+    if (!expanded)
+    {
+        return expanded.error();
+    }
+    const std::uint32_t crop_x = origin_x - x0;
+    const std::uint32_t crop_y = origin_y - y0;
+    WorkingImage output;
+    output.width = width;
+    output.height = height;
+    output.color_profile = expanded.value().color_profile;
+    output.rgb.resize(static_cast<std::size_t>(width) * height * 3U);
+    for (std::uint32_t y = 0U; y < height; ++y)
+    {
+        const std::size_t src = (static_cast<std::size_t>(crop_y + y) * expanded.value().width +
+                                 crop_x) *
+                                3U;
+        const std::size_t dst = static_cast<std::size_t>(y) * width * 3U;
+        std::copy_n(expanded.value().rgb.begin() + static_cast<std::ptrdiff_t>(src),
+                    static_cast<std::size_t>(width) * 3U, output.rgb.begin() + static_cast<std::ptrdiff_t>(dst));
+    }
+    if (std::any_of(output.rgb.begin(), output.rgb.end(),
+                    [](const float sample) { return !std::isfinite(sample); }))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Bayer window demosaic produced a non-finite sample",
                           {{"reason", "non_finite_demosaic_output"}});
     }
     return output;

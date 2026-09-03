@@ -357,6 +357,18 @@ struct DecodedRaw
     std::vector<std::uint16_t> pixels;
 };
 
+struct SensorPixelRect
+{
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+};
+
+[[nodiscard]] Result<SensorPixelRect>
+map_display_rect_to_cfa(const DecodedRaw &raw, std::uint32_t display_x, std::uint32_t display_y,
+                        std::uint32_t display_width, std::uint32_t display_height);
+
 struct WhiteBalancePickRequest
 {
     double preview_x = 0.5;
@@ -535,6 +547,11 @@ public:
     [[nodiscard]] Result<LinearWorkingBuffer>
     linear_working_from_raw(const DecodedRaw &raw, const Recipe &recipe, std::uint32_t width,
                             std::uint32_t height, const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<LinearWorkingBuffer>
+    linear_working_from_raw_window(const DecodedRaw &raw, const Recipe &recipe,
+                                   std::uint32_t origin_x, std::uint32_t origin_y,
+                                   std::uint32_t width, std::uint32_t height,
+                                   const CancellationToken &cancellation) const;
     [[nodiscard]] Result<LinearWorkingBuffer>
     linear_working_from_raster(const RasterBuffer &raster, const Recipe &recipe,
                                const CancellationToken &cancellation) const;

@@ -60,6 +60,8 @@ target_sources(ravo_engine
     src/parallel_rows.h
     src/perspective_transform.cpp
     src/perspective_transform.h
+    src/preview_roi.cpp
+    src/preview_roi.h
     src/profile_gamma.cpp
     src/profile_gamma.h
     src/primaries.cpp

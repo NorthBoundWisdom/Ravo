@@ -69,8 +69,9 @@ inherit.
 - Wholesale ART/RawTherapee engine or UI architecture, vkdt's Vulkan/GLSL
   graph, ART's OCIO/CTL/external-CLUT subprocess stack, vkdt OpenDRT/OIDN/
   spectral-film resources, and duplicate replacements for accepted Ravo
-  dehaze/lensfun/denoise/sharpen are outside this program. GPU work remains
-  behind `DevDocs/GPU_Baseline.md` CPU-golden and measured-benefit gates.
+  dehaze/lensfun/denoise/sharpen are outside this program. GPU remains an
+  Engine-only future adapter under `DevDocs/MIGRATION.md`; 0.9 OpenCL is not
+  reused.
 
 ## Consequences
 

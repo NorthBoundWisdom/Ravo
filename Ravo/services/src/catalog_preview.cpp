@@ -667,6 +667,10 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             }
         }
     }
+    if (request.roi.has_value())
+    {
+        return generate_roi_preview(asset, request, edit_recipe, location.value().path);
+    }
     const bool interactive = !request.persist_preview_record || request.overlay_mask_id.has_value();
     const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
                                                   interactive ? "interactive" : edit_digest);

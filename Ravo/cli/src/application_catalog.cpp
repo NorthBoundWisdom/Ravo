@@ -104,11 +104,17 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return develop_fields_json();
     }
     if (!flags.value().output.empty() && subcommand != "export" && subcommand != "probe" &&
-        subcommand != "backup-restore")
+        subcommand != "backup-restore" && subcommand != "preview")
     {
         return make_error(ErrorCode::kInvalidArgument,
-                          "--output is only valid for catalog export, probe, or backup-restore",
+                          "--output is only valid for catalog export, probe, preview, or backup-restore",
                           {{"subcommand", std::string(subcommand)}});
+    }
+    if (subcommand == "preview" && !flags.value().output.empty() && !flags.value().roi.has_value())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "catalog preview --output requires --roi",
+                          {{"reason", "preview_output_requires_roi"}});
     }
     if (flags.value().baseline && subcommand != "probe")
     {
@@ -816,18 +822,63 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         PreviewRequest request;
         request.asset_id = std::string(flags.value().asset_id);
         request.max_edge = flags.value().max_edge.value_or(kDefaultPreviewMaxEdge);
+        if (flags.value().roi.has_value())
+        {
+            request.roi = flags.value().roi;
+            request.persist_preview_record = false;
+        }
         auto previewed = service.request_preview(request);
         if (!previewed)
         {
             return previewed.error();
         }
-        return JsonValue{JsonValue::Object{
+        if (flags.value().roi.has_value() && !flags.value().output.empty())
+        {
+            if (!ends_with_png(flags.value().output))
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "catalog preview --output must be a .png path",
+                                  {{"path", std::string(flags.value().output)}});
+            }
+            if (std::filesystem::exists(std::filesystem::path(std::string(flags.value().output))))
+            {
+                return make_error(ErrorCode::kConflict, "Output path already exists",
+                                  {{"path", std::string(flags.value().output)}});
+            }
+            RenderedImage rendered;
+            rendered.width = previewed.value().width;
+            rendered.height = previewed.value().height;
+            rendered.rgb = previewed.value().rgb;
+            rendered.color_profile = previewed.value().color_profile;
+            auto encoded = engine.encode_png(rendered);
+            if (!encoded)
+            {
+                return encoded.error();
+            }
+            auto written = write_file_bytes_atomically(flags.value().output, encoded.value());
+            if (!written)
+            {
+                return written.error();
+            }
+            previewed.value().cache_path = std::string(flags.value().output);
+        }
+        JsonValue::Object body{
             {"asset_id", previewed.value().asset_id},
             {"cache_path", previewed.value().cache_path},
             {"height", JsonValue::number(std::to_string(previewed.value().height))},
             {"original_missing", previewed.value().original_missing},
             {"width", JsonValue::number(std::to_string(previewed.value().width))},
-        }};
+        };
+        if (flags.value().roi.has_value())
+        {
+            body.emplace("roi", JsonValue{JsonValue::Array{
+                                    JsonValue::number(std::to_string(flags.value().roi->x)),
+                                    JsonValue::number(std::to_string(flags.value().roi->y)),
+                                    JsonValue::number(std::to_string(flags.value().roi->width)),
+                                    JsonValue::number(std::to_string(flags.value().roi->height)),
+                                }});
+        }
+        return JsonValue{std::move(body)};
     }
     if (subcommand == "probe")
     {

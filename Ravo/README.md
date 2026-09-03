@@ -776,7 +776,7 @@ ravo catalog facets --catalog <library.sqlite> \
   [--tag <keyword>] [--set-id <id>] [--camera <text>] [--camera-make <make>] [--camera-model <model>] \
   [--focal-length-mm N] [--captured-local-date YYYY:MM:DD] [--captured-after N] [--captured-before N] \
   [--country <text>] [--province-state <text>] [--city <text>] [--sublocation <text>] [--query <json>] --json
-ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
+ravo catalog preview --catalog <library.sqlite> --asset-id <id> [--roi x,y,w,h] [--output <file.png>] --json
 ravo catalog preview-rebuild --catalog <library.sqlite> [--asset-id <id>]... --json
 ravo catalog sidecar-status --catalog <library.sqlite> [--asset-id <id>] --json
 ravo catalog sidecar-sync --catalog <library.sqlite> [--asset-id <id>] --json

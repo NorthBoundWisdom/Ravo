@@ -88,7 +88,8 @@ More-specific implementation and validation rules for this boundary live in
    current product execution, then read [`DevDocs/TODO.md`](DevDocs/TODO.md).
    Three-platform package evidence is [`DevDocs/Packaging.md`](DevDocs/Packaging.md)
    and does not block other product work. Leftover algorithm ports are closed
-   by ADR-0106. Read `DevDocs/GPU_Baseline.md` for GPU work.
+   by ADR-0106. GPU remains deferred; policy lives in
+   [`DevDocs/MIGRATION.md`](DevDocs/MIGRATION.md). Do not port OpenCL.
 4. Before cross-layer changes, make ownership, lifecycle, thread boundaries,
    and the minimum validation set explicit.
 
@@ -138,9 +139,9 @@ define unfinished execution work.
 - When Ravo decides not to support an old capability, record it as a leftover
   or dated product decision in `DevDocs/MIGRATION.md`. Do not add empty shells
   or leftover-faithful ports to inflate coverage.
-- Do not replace 0.9 OpenCL with Metal inside the old application. Implement
-  Ravo GPU independently against the CPU/GPU gates in `DevDocs/MIGRATION.md` and
-  `DevDocs/GPU_Baseline.md`; do not reuse the OpenCL API.
+- Do not replace 0.9 OpenCL with Metal inside the old application. A future
+  Ravo GPU path is an Engine adapter only (`DevDocs/MIGRATION.md`); do not reuse
+  the OpenCL API and do not add a silent CPU fallback.
 - Follow the style of adjacent C/C++/CMake files and format only touched code.
   Do not bulk-format unrelated sources as part of another task.
 - Record the rationale and validation method in the same change for new
@@ -283,8 +284,9 @@ Use validation proportional to risk:
   transaction failure, duplicate import, corrupt/missing files, cancellation,
   atomic preview cache, late-result rejection, and resource destruction after
   window close. A manual UI result does not replace a service contract.
-- For GPU/image algorithms, follow CPU gold and performance gates in
-  `DevDocs/GPU_Baseline.md` in addition to Ravo unit/fixture validation.
+- For GPU work, follow `DevDocs/MIGRATION.md`: Engine adapter only, no OpenCL
+  reuse, no silent CPU fallback, and a dated ADR before production code. Image
+  algorithms still need Ravo unit/fixture validation.
 
 When dependencies or test data are missing, perform all available static or
 local checks first and accurately report what was not run and why; never call
