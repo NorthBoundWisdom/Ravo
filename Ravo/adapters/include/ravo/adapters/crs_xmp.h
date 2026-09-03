@@ -6,6 +6,7 @@
 
 #include "ravo/adapters/legacy_xmp.h"
 #include "ravo/foundation/error.h"
+#include "ravo/recipe/crs_types.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 
@@ -13,13 +14,6 @@ namespace ravo
 {
 
 inline constexpr std::string_view kCrsNamespaceUri = "http://ns.adobe.com/camera-raw-settings/1.0/";
-
-struct CrsOmission
-{
-    std::string key;
-    std::string value;
-    std::string reason;
-};
 
 struct CrsLookMask
 {

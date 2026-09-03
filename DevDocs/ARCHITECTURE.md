@@ -40,7 +40,7 @@ global state.
 | `ravo_recipe` | recipes, operation schema, version upgrades | foundation, QtCore where needed | codec, database, UI |
 | `ravo_engine` | inspect, operation registry, CPU render/preview, offline numeric fitting | foundation resource types, recipe, engine ports, QtCore where needed | catalog, services, CLI, UI, old `src` |
 | `ravo_domain` | Asset/Catalog, Import/Preview state, repository ports | foundation | SQLite, codec, engine-private types, UI |
-| `ravo_services` | create/open/import/list/preview use cases and task orchestration | domain, engine facade | SQL, QML/presentation types, third-party codec types |
+| `ravo_services` | create/open/import/list/preview use cases and task orchestration | domain, engine facade; adapters for filesystem text/hash and CRS interchange helpers (implementation .cpp only — public headers must not include `ravo/adapters`) | SQL, QML/presentation types, third-party codec types; adapters types in public headers |
 | `ravo_adapters` | SQLite, filesystem, RAW/raster codecs, preview cache | matching ports, Qt Core/Gui/Sql, pinned third-party dependencies | QML/UI state, old core |
 | `ravo_control` | transport-neutral live-session protocol plus bounded same-user local discovery/transport | foundation, Qt Core/Network | catalog, recipe, engine, services, UI state |
 | `ravo_cli` | arguments, versioned JSON, exit codes, catalog composition, local-control client | services, engine facade, adapters, control | algorithms, SQL, QML/UI state |

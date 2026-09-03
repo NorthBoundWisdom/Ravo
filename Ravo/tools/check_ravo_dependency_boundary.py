@@ -50,7 +50,7 @@ ALLOWED_FIRST_PARTY_LINKS = {
     "ravo_engine": frozenset({"ravo_foundation", "ravo_recipe"}),
     "ravo_domain": frozenset({"ravo_foundation"}),
     "ravo_adapters": frozenset({"ravo_foundation", "ravo_recipe", "ravo_domain"}),
-    "ravo_services": frozenset({"ravo_domain", "ravo_engine"}),
+    "ravo_services": frozenset({"ravo_domain", "ravo_engine", "ravo_adapters"}),
     "ravo_control": frozenset({"ravo_foundation"}),
     "ravo_cli": frozenset(
         {"ravo_adapters", "ravo_engine", "ravo_services", "ravo_control"}
