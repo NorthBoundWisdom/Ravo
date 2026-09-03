@@ -1,0 +1,6 @@
+{
+  "schema": "ravo.foreign-catalog.fixture/v1",
+  "schema_version": 2,
+  "source_kind": "lightroom-classic",
+  "items": []
+}

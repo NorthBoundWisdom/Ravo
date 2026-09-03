@@ -24,6 +24,7 @@
 #include "ravo/services/ai_proposal.h"
 #include "ravo/services/xmp_interchange.h"
 #include "ravo/services/external_editor.h"
+#include "ravo/services/foreign_catalog.h"
 #include "ravo/services/ingest_transport.h"
 
 namespace ravo
@@ -329,6 +330,12 @@ public:
     register_external_editor_output(const ExternalEditorRegisterRequest &request);
     [[nodiscard]] Result<ExternalEditorProvenance>
     external_editor_provenance(std::string_view derived_asset_id) const;
+
+    // ADR-0131: read-only foreign catalog conversion into this NEW/empty Ravo
+    // catalog. Never opens or migrates the source in place; originals stay
+    // byte-identical; unsupported schema/version fails closed.
+    [[nodiscard]] Result<ForeignCatalogConversionReport>
+    convert_foreign_catalog(const ForeignCatalogConversionRequest &request);
 
     // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
     // applied; reject/cancel never mutate recipe/history.

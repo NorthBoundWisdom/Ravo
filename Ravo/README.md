@@ -785,6 +785,8 @@ ravo catalog refresh-metadata --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog xmp-status --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] --json
 ravo catalog xmp-import --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] [--resolve abort|sidecar|catalog] --json
 ravo catalog xmp-export --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] [--resolve abort|catalog|sidecar] --json
+ravo catalog convert-foreign --catalog <new-empty-library.sqlite> \
+  --foreign-source <fixture-catalog.json> [--source-kind lightroom-classic|capture-one] --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--from-xmp <preset.xmp>] [--set <field>=<number>]... [--set-text <field>=<text>]... [--exposure-ev N] [--watermark-text <text>] --json
 ravo catalog develop-apply --catalog <library.sqlite> --from-asset <id> --asset-id <id> [--asset-id <id>]... --fields exposure,temperature [--revision N] --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
@@ -810,6 +812,22 @@ ravo studio preview [--session-id <id>] [--asset-id <id>] \
   [--expect-session-revision N] [--expect-selection-revision N] \
   --output <file.png> [--max-edge N] --json
 ```
+
+`ravo catalog convert-foreign` is the read-only foreign-catalog conversion
+entry point (ADR-0131). It reads a `ravo.foreign-catalog.fixture/v1` document,
+never opens or migrates a vendor catalog in place, and writes only into a
+`--catalog` the user already created and left empty; a non-empty destination
+returns `destination_catalog_not_empty`. Originals are imported in Add mode and
+verified byte-identical (SHA-256, size, mtime) after the run; `Move` is
+rejected. Vendor `.lrcat` / SQLite binaries and Capture One session directories
+fail closed with `unsupported_source_schema`, and an unknown schema version
+fails with `unsupported_source_version`, because no Adobe/Phase One runtime
+ships in the default package. Every run returns a structured report counting
+`imported`, `skipped`, `unsupported`, and `failed` items with per-item
+`mapped_fields`, `unsupported_fields`, and reasons; mapped fields cover the
+original plus rating, colour label, reject flag, IPTC Core/location text,
+keyword paths, and ADR-0086 CRS recipe fields, and unsupported foreign adjusts
+are counted rather than silently dropped.
 
 An existing output path returns structured `conflict`; it is never overwritten
 implicitly. Catalog commands call the same services as Studio and serve as the

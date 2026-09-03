@@ -1,0 +1,31 @@
+{
+  "schema": "ravo.foreign-catalog.fixture/v1",
+  "schema_version": 1,
+  "source_kind": "lightroom-classic",
+  "source_product_version": "13.5",
+  "catalog_id": "fixture-lr-classic-v1",
+  "items": [
+    {
+      "foreign_id": "lr-mapped-1",
+      "original_path": "../frozen/0000-nop/expected.png",
+      "rating": 4,
+      "color_label": "red",
+      "rejected": false,
+      "title": "Mapped sunset",
+      "description": "IPTC description from Lightroom",
+      "creator": "Ravo Tests",
+      "copyright": "2026 Ravo",
+      "country": "Japan",
+      "province_state": "Kyoto",
+      "city": "Kyoto",
+      "sublocation": "Fushimi",
+      "keywords": ["Travel|Japan", "Fixture"],
+      "crs_xmp_path": "../crs_pv2012_heishijiao.xmp"
+    },
+    {
+      "foreign_id": "lr-missing-1",
+      "original_path": "missing-original.jpg",
+      "title": "Skipped missing original"
+    }
+  ]
+}

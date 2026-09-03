@@ -289,9 +289,8 @@ rewrite, and exact preset apply after reopen.
 
 **Status:** P1 / Partial — ADR-0120 (XMP conflict matrix), ADR-0122
 (external-editor derived assets), and ADR-0131 (read-only foreign catalog
-conversion contract) accepted. First Ready slices landed for XMP and
-external-editor; foreign conversion importer remains the next Ready code
-residual.
+conversion contract) accepted. First Ready slices landed for XMP,
+external-editor, and the fixture-backed foreign-catalog conversion importer.
 
 **Done (XMP slice):** `catalog xmp-status|xmp-import|xmp-export` with CRS
 recipe-field conflict preflight, catalog-owned exchange baseline, fail-closed
@@ -306,14 +305,29 @@ imports a new catalog asset, writes provenance
 verifies source original SHA-256/size/mtime unchanged, never launches an
 editor/renderer, fail-closed on conflict/cancel/stale revision.
 
+**Done (foreign conversion first tranche):** ADR-0131. `catalog convert-foreign
+--foreign-source <doc> [--source-kind lightroom-classic|capture-one]` converts a
+read-only `ravo.foreign-catalog.fixture/v1` document into a user-created **empty**
+destination catalog (`destination_catalog_not_empty` otherwise), never opens or
+migrates a vendor catalog in place, imports originals in Add mode only (`Move`
+rejected) and re-verifies SHA-256/size/mtime after the run, maps rating/colour
+label/reject, ADR-0124 IPTC Core, ADR-0126 location, ADR-0119 keyword paths and
+ADR-0086 CRS recipe fields, and returns a structured
+imported/skipped/unsupported/failed report with per-item `mapped_fields`,
+`unsupported_fields`, and reasons. Vendor `.lrcat`/SQLite binaries and Capture One
+session directories fail closed (`unsupported_source_schema`), unknown versions
+fail closed (`unsupported_source_version`), and cancellation publishes nothing.
+
 **Still open:**
 - launching/scripting external editors; Gallery auto-stack UX for derived pairs
   (P2 / Decision required)
 - backup/restore packaging of `{catalog}.ravo/derived/` byte trees (P2 /
   Decision required)
-- **Foreign catalog conversion (ADR-0131 accepted):** first Ready code tranche
-  residual — fixture-backed read-only Lightroom/C1 → new Ravo catalog importer
-  + structured report/CLI; no in-place open; no vendor runtime in default package
+- **Foreign conversion residuals:** real `.lrcat` SQLite and Capture One
+  session/catalog readers (needs a dependency/licence/package decision — no
+  vendor runtime in the default package today); Copy-mode conversion into a
+  managed destination tree; Studio conversion surface; partial-progress
+  resume/report persistence
 - keyword/IPTC/location adjacent merge matrix (ADR-0119 stays catalog-owned; P2)
 - supported source-version matrix beyond CRS PV2012 recipe fields (P2)
 
@@ -323,8 +337,11 @@ live authority, plus external-editor output as a new derived asset/version.
 **Risks:** in-place foreign-catalog migration, hidden external renderer, original
 RAW mutation, watcher races, and unsupported fields silently dropped.
 
-**Acceptance gate (remaining):** foreign conversion is read-only; keyword merge
-matrix is explicit; derived-tree backup policy is dated.
+**Acceptance gate (remaining):** the fixture-backed conversion tranche satisfies
+the read-only / new-catalog / structured-report / fail-closed gates
+(`CatalogServiceTest.ForeignCatalog*`, `CliTest.CatalogConvertForeign*`); a
+vendor-format reader still needs its packaging/licence evidence before it may
+ship; keyword merge matrix is explicit; derived-tree backup policy is dated.
 
 ## PRO-PRESENT — Tether, print, map, slideshow, and publishing
 

@@ -389,6 +389,19 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                                   "--editor-version was specified twice");
             result.editor_version = value;
         }
+        else if (option == "--foreign-source")
+        {
+            if (!result.foreign_source.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--foreign-source was specified twice");
+            result.foreign_source = value;
+        }
+        else if (option == "--source-kind")
+        {
+            if (!result.foreign_source_kind.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--source-kind was specified twice");
+            result.foreign_source_kind = value;
+        }
         else if (option == "--max-edge")
         {
             auto dimension = parse_dimension(value, option);

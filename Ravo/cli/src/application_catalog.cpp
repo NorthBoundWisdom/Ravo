@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|"
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|convert-foreign|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -164,6 +164,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool xmp_command =
         subcommand == "xmp-status" || subcommand == "xmp-import" || subcommand == "xmp-export";
     const bool editor_command = subcommand == "editor-register" || subcommand == "editor-show";
+    const bool convert_command = subcommand == "convert-foreign";
+    if ((!flags.value().foreign_source.empty() || !flags.value().foreign_source_kind.empty()) &&
+        !convert_command)
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "--foreign-source/--source-kind are only valid for catalog convert-foreign");
     if (!flags.value().xmp_path.empty() && !xmp_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--xmp is only valid for catalog xmp-status, xmp-import, or xmp-export");
@@ -1655,6 +1661,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return run_catalog_xmp_command(service, subcommand, flags.value());
     if (editor_command)
         return run_catalog_editor_command(service, subcommand, flags.value());
+    if (convert_command)
+        return run_catalog_convert_command(service, subcommand, flags.value());
     if (subcommand == "keywords")
     {
         auto listed = service.list_keywords();

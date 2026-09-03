@@ -1,0 +1,28 @@
+{
+  "schema": "ravo.foreign-catalog.fixture/v1",
+  "schema_version": 1,
+  "source_kind": "capture-one",
+  "source_product_version": "16.3",
+  "catalog_id": "fixture-c1-v1",
+  "items": [
+    {
+      "foreign_id": "c1-mapped-1",
+      "original_path": "../frozen/0000-nop/expected.png",
+      "rating": 3,
+      "color_label": "blue",
+      "title": "C1 mapped title",
+      "creator": "Phase One Session",
+      "country": "Denmark",
+      "city": "Copenhagen"
+    },
+    {
+      "foreign_id": "c1-unsupported-look-1",
+      "original_path": "../frozen/0001-exposure/expected.png",
+      "title": "C1 film grain residual",
+      "unsupported_adjusts": [
+        "c1.filmgrain",
+        "c1.styles"
+      ]
+    }
+  ]
+}
