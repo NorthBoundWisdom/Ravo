@@ -132,4 +132,6 @@ supersession relationship when direction changes.
 | [0122](0122-external-editor-derived-assets.md) | Accepted | External-editor output as derived asset with provenance |
 | [0123](0123-heic-owned-decode-packaging-gate.md) | Accepted | HEIC owned-decode blocked on licence/package evidence |
 | [0124](0124-iptc-core-catalog-subset.md) | Accepted | Catalog-owned IPTC Core quartet (title/description/creator/copyright), refresh isolation, export privacy, multi-select patches |
-| [0125](0125-ptp-mtp-ingest-transport.md) | Proposed | PTP/MTP ingest transport decision stub: planner-fed, fail-closed lifecycle, read-only source |
+| [0125](0125-ptp-mtp-ingest-transport.md) | Accepted | Ingest transport URI + disconnect/cancel; filesystem-card first adapter (PTP USB residual) |
+| [0126](0126-catalog-owned-location-fields.md) | Accepted | Catalog-owned IPTC location quartet (country/province_state/city/sublocation), schema v13, export no-location strips GPS+labels |
+| [0127](0127-export-delivery-text-watermark.md) | Accepted | Export delivery text watermark reuses ADR-0071 via ExportOptions; no recipe mutation; colour-frame residual |

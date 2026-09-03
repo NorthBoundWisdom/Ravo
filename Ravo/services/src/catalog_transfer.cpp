@@ -667,6 +667,10 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
             if (request.metadata_mode == ExportMetadataMode::kNoLocation)
             {
                 export_metadata.capture.location.reset();
+                export_metadata.writable.country.reset();
+                export_metadata.writable.province_state.reset();
+                export_metadata.writable.city.reset();
+                export_metadata.writable.sublocation.reset();
             }
             auto tags = canonicalize_export_tags(asset.value()->tags, request.cancellation);
             if (!tags)

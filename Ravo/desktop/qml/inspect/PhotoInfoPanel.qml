@@ -125,4 +125,28 @@ ColumnLayout {
         onEditingFinished: if (root.commands)
             root.commands.setMetadata("copyright", text)
     }
+    MetaField {
+        placeholderText: qsTr("Country")
+        text: root.hasPresenter ? root.presenter.selectedCountry : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("country", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Province / State")
+        text: root.hasPresenter ? root.presenter.selectedProvinceState : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("province_state", text)
+    }
+    MetaField {
+        placeholderText: qsTr("City")
+        text: root.hasPresenter ? root.presenter.selectedCity : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("city", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Sublocation")
+        text: root.hasPresenter ? root.presenter.selectedSublocation : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("sublocation", text)
+    }
 }

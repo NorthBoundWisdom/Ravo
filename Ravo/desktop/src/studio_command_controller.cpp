@@ -979,9 +979,11 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                 required_fields(argument, {QStringLiteral("name"), QStringLiteral("value")});
             if (!error.isEmpty())
                 return error;
-            static const QSet<QString> names{QStringLiteral("title"), QStringLiteral("description"),
-                                             QStringLiteral("creator"),
-                                             QStringLiteral("copyright")};
+            static const QSet<QString> names{
+                QStringLiteral("title"),   QStringLiteral("description"),
+                QStringLiteral("creator"), QStringLiteral("copyright"),
+                QStringLiteral("country"), QStringLiteral("province_state"),
+                QStringLiteral("city"),    QStringLiteral("sublocation")};
             return names.contains(argument.toMap().value(QStringLiteral("name")).toString()) ?
                        QString{} :
                        QStringLiteral("Unknown writable metadata field.");

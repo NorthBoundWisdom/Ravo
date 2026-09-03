@@ -1231,7 +1231,9 @@ bool export_color_space_is_srgb(const ColorProfileState &profile) noexcept
 bool export_iptc_should_omit(const ExportMetadataSnapshot &metadata) noexcept
 {
     return !metadata.writable.title && !metadata.writable.description &&
-           !metadata.writable.creator && !metadata.writable.copyright && metadata.tags.empty();
+           !metadata.writable.creator && !metadata.writable.copyright &&
+           !metadata.writable.country && !metadata.writable.province_state &&
+           !metadata.writable.city && !metadata.writable.sublocation && metadata.tags.empty();
 }
 
 std::string export_rational_xmp_text(const ExportUnsignedRational value)
@@ -1493,6 +1495,10 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
     add_xmp_text(metadata.writable.description, 144U);
     add_xmp_text(metadata.writable.creator, 112U);
     add_xmp_text(metadata.writable.copyright, 128U);
+    add_xmp_text(metadata.writable.country, 96U);
+    add_xmp_text(metadata.writable.province_state, 96U);
+    add_xmp_text(metadata.writable.city, 80U);
+    add_xmp_text(metadata.writable.sublocation, 112U);
     add_xmp_text(metadata.capture.camera_make, 64U);
     add_xmp_text(metadata.capture.camera_model, 64U);
     if (metadata.capture.captured_datetime)
@@ -1540,6 +1546,10 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
         add_iptc(metadata.writable.creator);
         add_iptc(metadata.writable.copyright);
         add_iptc(metadata.writable.description);
+        add_iptc(metadata.writable.city);
+        add_iptc(metadata.writable.sublocation);
+        add_iptc(metadata.writable.province_state);
+        add_iptc(metadata.writable.country);
         for (const auto &tag : metadata.tags)
         {
             bounded_add(sizes.iptc_iim_bytes, 5U, kExportIptcIimMaxBytes);
@@ -1595,11 +1605,15 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
 
     const auto writable_reason = "invalid_export_metadata";
     for (const auto &[name, value] :
-         std::array<std::pair<std::string_view, const std::optional<std::string> *>, 4U>{{
+         std::array<std::pair<std::string_view, const std::optional<std::string> *>, 8U>{{
              {"title", &metadata.writable.title},
              {"description", &metadata.writable.description},
              {"creator", &metadata.writable.creator},
              {"copyright", &metadata.writable.copyright},
+             {"country", &metadata.writable.country},
+             {"province_state", &metadata.writable.province_state},
+             {"city", &metadata.writable.city},
+             {"sublocation", &metadata.writable.sublocation},
          }})
     {
         if (value->has_value())
@@ -1619,11 +1633,16 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
     }
     for (const auto &[name, value, maximum, allow_line_breaks] : std::array<
              std::tuple<std::string_view, const std::optional<std::string> *, std::size_t, bool>,
-             4U>{{
+             8U>{{
              {"title", &metadata.writable.title, kExportIptcTitleMaxBytes, false},
              {"description", &metadata.writable.description, kExportIptcDescriptionMaxBytes, true},
              {"creator", &metadata.writable.creator, kExportIptcCreatorMaxBytes, false},
              {"copyright", &metadata.writable.copyright, kExportIptcCopyrightMaxBytes, false},
+             {"country", &metadata.writable.country, kExportIptcCountryMaxBytes, false},
+             {"province_state", &metadata.writable.province_state, kExportIptcProvinceStateMaxBytes,
+              false},
+             {"city", &metadata.writable.city, kExportIptcCityMaxBytes, false},
+             {"sublocation", &metadata.writable.sublocation, kExportIptcSublocationMaxBytes, false},
          }})
     {
         auto valid = validate_iptc_text_field(name, *value, maximum, allow_line_breaks);

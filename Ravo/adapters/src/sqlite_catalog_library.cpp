@@ -672,7 +672,8 @@ SqliteCatalogRepository::create_asset_version(const std::string_view source_asse
         "INSERT INTO asset_metadata SELECT ?, title, description, creator, copyright, camera_make, "
         "camera_model, iso, aperture, focal_length_mm, shutter_s, captured_unix_s, "
         "captured_local_exif, captured_subsecond_digits, captured_utc_offset_minutes, "
-        "gps_latitude_e6, gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref "
+        "gps_latitude_e6, gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref, "
+        "country, province_state, city, sublocation "
         "FROM asset_metadata WHERE asset_id = ?"));
     copy_metadata.addBindValue(qstring_from_utf8(version_id));
     copy_metadata.addBindValue(qstring_from_utf8(source_asset_id));

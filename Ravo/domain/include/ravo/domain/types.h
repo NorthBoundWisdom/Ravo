@@ -16,7 +16,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 12;
+inline constexpr std::int64_t kCatalogSchemaVersion = 13;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 1;
@@ -128,6 +128,10 @@ inline constexpr std::size_t kExportIptcDescriptionMaxBytes = 2000U;
 inline constexpr std::size_t kExportIptcCreatorMaxBytes = 32U;
 inline constexpr std::size_t kExportIptcCopyrightMaxBytes = 128U;
 inline constexpr std::size_t kExportIptcKeywordMaxBytes = 64U;
+inline constexpr std::size_t kExportIptcCityMaxBytes = 32U;
+inline constexpr std::size_t kExportIptcSublocationMaxBytes = 32U;
+inline constexpr std::size_t kExportIptcProvinceStateMaxBytes = 32U;
+inline constexpr std::size_t kExportIptcCountryMaxBytes = 64U;
 // Even a one-byte tag needs 24 bytes in the canonical dc:subject item. Reject
 // impossible counts before copying or sorting the snapshot.
 inline constexpr std::size_t kExportTagMaxCount = kExportXmpPacketMaxBytes / 24U;
@@ -459,12 +463,17 @@ struct WritableMetadata
     std::optional<std::string> description;
     std::optional<std::string> creator;
     std::optional<std::string> copyright;
+    // ADR-0126 catalog-owned IPTC location Core quartet (not capture GPS).
+    std::optional<std::string> country;
+    std::optional<std::string> province_state;
+    std::optional<std::string> city;
+    std::optional<std::string> sublocation;
 
     [[nodiscard]] bool operator==(const WritableMetadata &) const noexcept = default;
 };
 
-// Field patch for multi-select IPTC Core edits (ADR-0124). Flags mark which
-// Core fields to write; optional values use absent = clear the field.
+// Field patch for multi-select IPTC Core / location edits (ADR-0124/0126).
+// Flags mark which fields to write; optional values use absent = clear the field.
 struct WritableMetadataPatch
 {
     bool update_title = false;
@@ -475,10 +484,19 @@ struct WritableMetadataPatch
     std::optional<std::string> creator;
     bool update_copyright = false;
     std::optional<std::string> copyright;
+    bool update_country = false;
+    std::optional<std::string> country;
+    bool update_province_state = false;
+    std::optional<std::string> province_state;
+    bool update_city = false;
+    std::optional<std::string> city;
+    bool update_sublocation = false;
+    std::optional<std::string> sublocation;
 
     [[nodiscard]] bool empty() const noexcept
     {
-        return !update_title && !update_description && !update_creator && !update_copyright;
+        return !update_title && !update_description && !update_creator && !update_copyright &&
+               !update_country && !update_province_state && !update_city && !update_sublocation;
     }
 };
 

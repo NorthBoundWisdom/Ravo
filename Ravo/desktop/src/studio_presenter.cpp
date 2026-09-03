@@ -476,7 +476,8 @@ QVariantList StudioPresenter::surveySlots() const
         QVariantMap slot;
         slot.insert(QStringLiteral("assetId"), qstring_from_utf8(id));
         const auto url = survey_preview_urls_.find(id);
-        slot.insert(QStringLiteral("url"), url == survey_preview_urls_.end() ? QUrl{} : url->second);
+        slot.insert(QStringLiteral("url"),
+                    url == survey_preview_urls_.end() ? QUrl{} : url->second);
         slot.insert(QStringLiteral("loading"), url == survey_preview_urls_.end());
         items.push_back(slot);
     }
@@ -632,6 +633,34 @@ QString StudioPresenter::selectedCopyright() const
     const auto asset = assets_.assetById(selected_asset_id_);
     return asset && asset->metadata.copyright ? qstring_from_utf8(*asset->metadata.copyright) :
                                                 QString{};
+}
+
+QString StudioPresenter::selectedCountry() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.country ? qstring_from_utf8(*asset->metadata.country) :
+                                              QString{};
+}
+
+QString StudioPresenter::selectedProvinceState() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.province_state ?
+               qstring_from_utf8(*asset->metadata.province_state) :
+               QString{};
+}
+
+QString StudioPresenter::selectedCity() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.city ? qstring_from_utf8(*asset->metadata.city) : QString{};
+}
+
+QString StudioPresenter::selectedSublocation() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.sublocation ? qstring_from_utf8(*asset->metadata.sublocation) :
+                                                  QString{};
 }
 
 QString StudioPresenter::selectedCaptureSummary() const
@@ -1091,7 +1120,8 @@ void StudioPresenter::createManualLibrarySet(const QString &name)
                     if (last_import_selected_)
                         clearLastImportQuery();
                     query_.collection_id = created.value().set.id;
-                    setStatus(QCoreApplication::translate("StudioPresenter", "Collection created."));
+                    setStatus(
+                        QCoreApplication::translate("StudioPresenter", "Collection created."));
                     emit folderChanged();
                     reloadVisibleAssets();
                 },
@@ -1161,7 +1191,8 @@ void StudioPresenter::renameLibrarySet(const QString &set_id, const QString &nam
                         return;
                     }
                     observed_catalog_revision_ = renamed.value().revision;
-                    setStatus(QCoreApplication::translate("StudioPresenter", "Collection renamed."));
+                    setStatus(
+                        QCoreApplication::translate("StudioPresenter", "Collection renamed."));
                     reloadVisibleAssets();
                 },
                 Qt::QueuedConnection);
@@ -1192,7 +1223,8 @@ void StudioPresenter::deleteLibrarySet(const QString &set_id)
                     observed_catalog_revision_ = deleted.value();
                     if (query_.collection_id == id)
                         query_.collection_id.clear();
-                    setStatus(QCoreApplication::translate("StudioPresenter", "Collection deleted."));
+                    setStatus(
+                        QCoreApplication::translate("StudioPresenter", "Collection deleted."));
                     emit folderChanged();
                     reloadVisibleAssets();
                 },
@@ -1773,7 +1805,6 @@ void StudioPresenter::importFolderFromPath(const QString &path)
 {
     importFolder(url_from_dialog_path(path));
 }
-
 
 void StudioPresenter::importFiles(const QList<QUrl> &files)
 {

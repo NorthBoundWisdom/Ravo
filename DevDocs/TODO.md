@@ -173,9 +173,10 @@ PTP USB remains residual.
 
 ## PRO-METADATA — Hierarchical keywords and delivery metadata
 
-**Status:** P1 / Partial — ADR-0119 hierarchical keywords and ADR-0124 IPTC Core
-subset (title/description/creator/copyright) accepted and implemented. Location
-tables and camera/lens/date facets remain undecided.
+**Status:** P1 / Partial — ADR-0119 hierarchical keywords, ADR-0124 IPTC Core
+subset (title/description/creator/copyright), and ADR-0126 catalog-owned IPTC
+location quartet (country/province_state/city/sublocation) accepted and
+implemented on schema v13. Camera/lens/date facets remain undecided.
 
 **Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
 and camera/lens/date facets with transactional multi-selection editing.
@@ -193,21 +194,27 @@ and camera/lens/date facets with transactional multi-selection editing.
 - CatalogService/CLI get/set plus `set_writable_metadata_selection` field patches
   with revision-checked multi-select; Studio metadata fields use the selection API;
 - export privacy keeps Core writables under `full`/`no-location` and strips them
-  under `none` (ADR-0064/0038).
+  under `none` (ADR-0064/0038);
+- ADR-0126 catalog-owned location text quartet on schema v13 `asset_metadata`
+  columns; capture GPS remains ADR-0040-only (not editable location);
+- capture refresh leaves catalog location labels untouched; multi-select location
+  patches share the ADR-0124 transaction contract;
+- export `no-location` strips GPS **and** country/province_state/city/sublocation;
+  `none` strips all public packets; Studio/CLI expose the location fields.
 
 **Remaining unfinished work:**
-- catalog-owned location tables and camera/lens/date facets;
-- IPTC Extension / additional Core fields beyond the ADR-0124 quartet;
-- adjacent XMP/source keyword/IPTC merge matrix (PRO-INTERCHANGE).
+- camera/lens/date facets and LibraryQuery location filters;
+- IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126;
+- adjacent XMP/source keyword/IPTC/location merge matrix (PRO-INTERCHANGE).
 
 **Risks:** two live metadata authorities if interchange lands without a matrix,
 QML-built SQL, and privacy stripping that does not match export for future
-location/facet fields.
+facet fields.
 
-**Acceptance gate:** hierarchy and Core writable edits survive reopen/backup/
-restore, source refresh preserves catalog-only fields, bulk failure rolls back
-or reports exact partial state according to the accepted contract, queries remain
-bounded, and export privacy is exact.
+**Acceptance gate:** hierarchy, Core, and location writable edits survive
+reopen/backup/restore, source refresh preserves catalog-only fields, bulk failure
+rolls back or reports exact partial state according to the accepted contract,
+queries remain bounded, and export privacy is exact (including location omit).
 
 ## PRO-LOCAL — Everyday masked grading
 
@@ -238,14 +245,17 @@ identity/default behavior.
 
 **Status:** P1 / Partial — ADR-0117 box fit, post-resize output sharpen,
 reusable ExportOptions presets, and restartable batch jobs are implemented.
-Long-edge remains ADR-0113. Watermark and colour-conversion frame stay
-undecided.
+Long-edge remains ADR-0113. ADR-0127 accepts export **delivery** text watermark
+(reuse ADR-0071 via ExportOptions; no recipe mutation) — implementation still
+residual. Colour-conversion/frame overlays remain undecided.
 
 **Outcome:** box resize, output sharpening, reusable export presets, and
 restartable background batch delivery.
 
 **Remaining unfinished work:**
-- Watermark and colour-conversion/frame overlays remain undecided.
+- ADR-0127 ExportOptions/CLI/Studio delivery watermark fields + equality tests
+  (contract accepted; ship residual).
+- Colour-conversion/frame overlays remain undecided.
 
 **Risks:** resizing in QML, a second encoder/job owner, overwrite/skip guessing,
 recipe mutation, and ambiguous partial delivery after restart.

@@ -414,6 +414,8 @@ Result<std::vector<std::uint8_t>> build_export_xmp_packet(const PreparedExportMe
         xml += "    xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n";
         xml += "    xmlns:exif=\"http://ns.adobe.com/exif/1.0/\"\n";
         xml += "    xmlns:tiff=\"http://ns.adobe.com/tiff/1.0/\"\n";
+        xml += "    xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\"\n";
+        xml += "    xmlns:Iptc4xmpCore=\"http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/\"\n";
         xml += "    xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\">\n";
         xml += "   <xmp:CreatorTool>";
         xml += xml_escape_utf8(kExportXmpCreatorTool);
@@ -518,6 +520,23 @@ Result<std::vector<std::uint8_t>> build_export_xmp_packet(const PreparedExportMe
             xml += "</rdf:li>\n    </rdf:Seq>\n   </dc:creator>\n";
         }
         append_lang_alt("dc:rights", prepared.copyright);
+        const auto append_simple =
+            [&](const std::string_view element, const std::optional<std::string> &value)
+        {
+            if (!value)
+                return;
+            xml += "   <";
+            xml += element;
+            xml += ">";
+            xml += xml_escape_utf8(*value);
+            xml += "</";
+            xml += element;
+            xml += ">\n";
+        };
+        append_simple("photoshop:Country", prepared.country);
+        append_simple("photoshop:State", prepared.province_state);
+        append_simple("photoshop:City", prepared.city);
+        append_simple("Iptc4xmpCore:Location", prepared.sublocation);
         if (!prepared.tags.empty())
         {
             xml += "   <dc:subject>\n    <rdf:Bag>\n";
@@ -553,6 +572,7 @@ Result<std::vector<std::uint8_t>> build_export_xmp_packet(const PreparedExportMe
 Result<std::vector<std::uint8_t>> build_export_iptc_iim(const PreparedExportMetadata &prepared)
 {
     if (!prepared.title && !prepared.description && !prepared.creator && !prepared.copyright &&
+        !prepared.country && !prepared.province_state && !prepared.city && !prepared.sublocation &&
         prepared.tags.empty())
     {
         return export_metadata_error(ErrorCode::kInternal,
@@ -586,6 +606,22 @@ Result<std::vector<std::uint8_t>> build_export_iptc_iim(const PreparedExportMeta
         if (prepared.description)
         {
             append_iptc_dataset(iim, 2U, 120U, *prepared.description);
+        }
+        if (prepared.city)
+        {
+            append_iptc_dataset(iim, 2U, 90U, *prepared.city);
+        }
+        if (prepared.sublocation)
+        {
+            append_iptc_dataset(iim, 2U, 92U, *prepared.sublocation);
+        }
+        if (prepared.province_state)
+        {
+            append_iptc_dataset(iim, 2U, 95U, *prepared.province_state);
+        }
+        if (prepared.country)
+        {
+            append_iptc_dataset(iim, 2U, 100U, *prepared.country);
         }
         if (iim.size() > kExportIptcIimMaxBytes)
         {
@@ -715,6 +751,10 @@ Result<PreparedExportMetadata> prepare_export_metadata(const ExportMetadataSnaps
         prepared.description = snapshot.writable.description;
         prepared.creator = snapshot.writable.creator;
         prepared.copyright = snapshot.writable.copyright;
+        prepared.country = snapshot.writable.country;
+        prepared.province_state = snapshot.writable.province_state;
+        prepared.city = snapshot.writable.city;
+        prepared.sublocation = snapshot.writable.sublocation;
         prepared.tags = snapshot.tags;
         if (snapshot.capture.iso)
         {

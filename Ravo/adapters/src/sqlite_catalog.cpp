@@ -115,7 +115,11 @@ const char *kSchemaStatements[] = {
     "  gps_latitude_e6 INTEGER,"
     "  gps_longitude_e6 INTEGER,"
     "  gps_altitude_magnitude_mm INTEGER,"
-    "  gps_altitude_ref INTEGER"
+    "  gps_altitude_ref INTEGER,"
+    "  country TEXT,"
+    "  province_state TEXT,"
+    "  city TEXT,"
+    "  sublocation TEXT"
     ")",
     "CREATE TABLE asset_recipe_history ("
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -976,6 +980,24 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                                           "INNER JOIN keyword k ON k.path = t.name")))
                 return impl->abort_transaction(map_sql_error(link, "migrate_v12_link_keywords"));
             version = 12;
+        }
+
+        if (version == 12)
+        {
+            auto columns = asset_metadata_columns(impl->database);
+            if (!columns)
+                return impl->abort_transaction(columns.error());
+            for (const char *name : {"country", "province_state", "city", "sublocation"})
+            {
+                if (columns.value().contains(name))
+                    continue;
+                const auto sql = QStringLiteral("ALTER TABLE asset_metadata ADD COLUMN %1 TEXT")
+                                     .arg(QString::fromUtf8(name));
+                const auto altered = impl->exec(sql, "migrate_v13_location_columns");
+                if (!altered)
+                    return impl->abort_transaction(altered.error());
+            }
+            version = 13;
         }
 
         if (version != kCatalogSchemaVersion)

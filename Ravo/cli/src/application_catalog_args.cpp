@@ -534,6 +534,22 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         {
             result.copyright = value;
         }
+        else if (option == "--country")
+        {
+            result.country = value;
+        }
+        else if (option == "--province-state")
+        {
+            result.province_state = value;
+        }
+        else if (option == "--city")
+        {
+            result.city = value;
+        }
+        else if (option == "--sublocation")
+        {
+            result.sublocation = value;
+        }
         else if (option == "--label")
         {
             result.label = value;

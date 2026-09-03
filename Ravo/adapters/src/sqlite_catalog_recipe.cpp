@@ -246,16 +246,23 @@ Result<void> SqliteCatalogRepository::upsert_writable_metadata(const std::string
     }
     QSqlQuery query(impl_->database);
     query.prepare(QStringLiteral(
-        "INSERT INTO asset_metadata(asset_id, title, description, creator, copyright) "
-        "VALUES (?, ?, ?, ?, ?) "
+        "INSERT INTO asset_metadata(asset_id, title, description, creator, copyright, country, "
+        "province_state, city, sublocation) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(asset_id) DO UPDATE SET title = excluded.title, "
         "description = excluded.description, creator = excluded.creator, "
-        "copyright = excluded.copyright"));
+        "copyright = excluded.copyright, country = excluded.country, "
+        "province_state = excluded.province_state, city = excluded.city, "
+        "sublocation = excluded.sublocation"));
     query.addBindValue(qstring_from_utf8(asset_id));
     query.addBindValue(optional_string(metadata.title));
     query.addBindValue(optional_string(metadata.description));
     query.addBindValue(optional_string(metadata.creator));
     query.addBindValue(optional_string(metadata.copyright));
+    query.addBindValue(optional_string(metadata.country));
+    query.addBindValue(optional_string(metadata.province_state));
+    query.addBindValue(optional_string(metadata.city));
+    query.addBindValue(optional_string(metadata.sublocation));
     if (!query.exec())
     {
         return map_sql_error(query, "upsert_writable_metadata");
@@ -325,6 +332,16 @@ require_writable_revision(QSqlDatabase &database,
         return creator.error();
     if (auto copyright = check(patch.update_copyright, "copyright", patch.copyright); !copyright)
         return copyright.error();
+    if (auto country = check(patch.update_country, "country", patch.country); !country)
+        return country.error();
+    if (auto province = check(patch.update_province_state, "province_state", patch.province_state);
+        !province)
+        return province.error();
+    if (auto city = check(patch.update_city, "city", patch.city); !city)
+        return city.error();
+    if (auto sublocation = check(patch.update_sublocation, "sublocation", patch.sublocation);
+        !sublocation)
+        return sublocation.error();
     return {};
 }
 
@@ -333,7 +350,8 @@ require_writable_revision(QSqlDatabase &database,
 {
     QSqlQuery query(database);
     query.prepare(QStringLiteral(
-        "SELECT title, description, creator, copyright FROM asset_metadata WHERE asset_id = ?"));
+        "SELECT title, description, creator, copyright, country, province_state, city, "
+        "sublocation FROM asset_metadata WHERE asset_id = ?"));
     query.addBindValue(qstring_from_utf8(asset_id));
     if (!query.exec())
         return map_sql_error(query, "load_writable_metadata");
@@ -344,6 +362,10 @@ require_writable_revision(QSqlDatabase &database,
     metadata.description = string_column(query, 1);
     metadata.creator = string_column(query, 2);
     metadata.copyright = string_column(query, 3);
+    metadata.country = string_column(query, 4);
+    metadata.province_state = string_column(query, 5);
+    metadata.city = string_column(query, 6);
+    metadata.sublocation = string_column(query, 7);
     return metadata;
 }
 

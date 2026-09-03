@@ -545,7 +545,8 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
                        "camera_model, iso, aperture, focal_length_mm, shutter_s, "
                        "captured_unix_s, captured_local_exif, captured_subsecond_digits, "
                        "captured_utc_offset_minutes, gps_latitude_e6, gps_longitude_e6, "
-                       "gps_altitude_magnitude_mm, gps_altitude_ref FROM asset_metadata "
+                       "gps_altitude_magnitude_mm, gps_altitude_ref, country, province_state, "
+                       "city, sublocation FROM asset_metadata "
                        "WHERE asset_id IN (") +
         in_clause + QStringLiteral(")"));
     for (const auto &asset : assets)
@@ -567,6 +568,10 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
         asset.metadata.description = string_column(metadata, 2);
         asset.metadata.creator = string_column(metadata, 3);
         asset.metadata.copyright = string_column(metadata, 4);
+        asset.metadata.country = string_column(metadata, 19);
+        asset.metadata.province_state = string_column(metadata, 20);
+        asset.metadata.city = string_column(metadata, 21);
+        asset.metadata.sublocation = string_column(metadata, 22);
         asset.capture.camera_make = string_column(metadata, 5);
         asset.capture.camera_model = string_column(metadata, 6);
         asset.capture.iso = double_column(metadata, 7);

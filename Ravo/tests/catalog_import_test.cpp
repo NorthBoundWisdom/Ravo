@@ -693,6 +693,10 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
     writable.title = "PrivacyTitle";
     writable.creator = "PrivacyCreator";
     writable.copyright = "PrivacyCopyright";
+    writable.country = "PrivacyCountry";
+    writable.province_state = "PrivacyState";
+    writable.city = "PrivacyCity";
+    writable.sublocation = "PrivacySub";
     ASSERT_TRUE(service->set_writable_metadata(asset_id, writable));
 
     ExportRequest full;
@@ -709,6 +713,9 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
         EXPECT_TRUE(bytes.contains("PrivacyTitle"));
         EXPECT_TRUE(bytes.contains("PrivacyCreator"));
         EXPECT_TRUE(bytes.contains("PrivacyCopyright"));
+        EXPECT_TRUE(bytes.contains("PrivacyCountry"));
+        EXPECT_TRUE(bytes.contains("PrivacyCity"));
+        EXPECT_TRUE(bytes.contains("PrivacySub"));
     }
 
     ExportRequest no_location;
@@ -729,6 +736,10 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
         const QByteArray bytes = file.readAll();
         EXPECT_TRUE(bytes.contains("PrivacyTitle"));
         EXPECT_TRUE(bytes.contains("PrivacyCreator"));
+        EXPECT_FALSE(bytes.contains("PrivacyCountry"));
+        EXPECT_FALSE(bytes.contains("PrivacyState"));
+        EXPECT_FALSE(bytes.contains("PrivacyCity"));
+        EXPECT_FALSE(bytes.contains("PrivacySub"));
     }
 
     const std::array cases{
@@ -752,6 +763,8 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
         EXPECT_FALSE(bytes.contains("PrivacyTitle")) << name;
         EXPECT_FALSE(bytes.contains("PrivacyCreator")) << name;
         EXPECT_FALSE(bytes.contains("PrivacyCopyright")) << name;
+        EXPECT_FALSE(bytes.contains("PrivacyCountry")) << name;
+        EXPECT_FALSE(bytes.contains("PrivacyCity")) << name;
         EXPECT_FALSE(bytes.contains("http://ns.adobe.com/xap/1.0/")) << name;
         EXPECT_FALSE(bytes.contains("XML:com.adobe.xmp")) << name;
         auto capture =

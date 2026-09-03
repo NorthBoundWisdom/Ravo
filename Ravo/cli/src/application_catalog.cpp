@@ -1464,6 +1464,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         assign(flags.value().description, metadata.description);
         assign(flags.value().creator, metadata.creator);
         assign(flags.value().copyright, metadata.copyright);
+        assign(flags.value().country, metadata.country);
+        assign(flags.value().province_state, metadata.province_state);
+        assign(flags.value().city, metadata.city);
+        assign(flags.value().sublocation, metadata.sublocation);
         if (write)
         {
             auto saved = service.set_writable_metadata(flags.value().asset_id, metadata);

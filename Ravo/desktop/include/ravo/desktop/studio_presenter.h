@@ -241,6 +241,10 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedDescription READ selectedDescription NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedCreator READ selectedCreator NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedCopyright READ selectedCopyright NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedCountry READ selectedCountry NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedProvinceState READ selectedProvinceState NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedCity READ selectedCity NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedSublocation READ selectedSublocation NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedCaptureSummary READ selectedCaptureSummary NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList recipeHistory READ recipeHistory NOTIFY editChanged)
     Q_PROPERTY(QVariantList editPresets READ editPresets NOTIFY presetsChanged)
@@ -535,6 +539,10 @@ public:
     [[nodiscard]] QString selectedDescription() const;
     [[nodiscard]] QString selectedCreator() const;
     [[nodiscard]] QString selectedCopyright() const;
+    [[nodiscard]] QString selectedCountry() const;
+    [[nodiscard]] QString selectedProvinceState() const;
+    [[nodiscard]] QString selectedCity() const;
+    [[nodiscard]] QString selectedSublocation() const;
     [[nodiscard]] QString selectedCaptureSummary() const;
     [[nodiscard]] QVariantList recipeHistory() const;
     [[nodiscard]] qlonglong activeHistoryId() const noexcept;

@@ -85,6 +85,9 @@ namespace
         folded_contains(asset.media_type, folded_needle) ||
         optional_matches(asset.metadata.title) || optional_matches(asset.metadata.description) ||
         optional_matches(asset.metadata.creator) || optional_matches(asset.metadata.copyright) ||
+        optional_matches(asset.metadata.country) ||
+        optional_matches(asset.metadata.province_state) || optional_matches(asset.metadata.city) ||
+        optional_matches(asset.metadata.sublocation) ||
         optional_matches(asset.capture.camera_make) || optional_matches(asset.capture.camera_model))
         return true;
     return std::any_of(asset.tags.begin(), asset.tags.end(),
@@ -540,7 +543,8 @@ Result<std::string> join_keyword_path(const std::vector<std::string> &segments)
 
 Result<void> validate_metadata_field(const std::string_view name, const std::string_view value)
 {
-    if (name != "title" && name != "description" && name != "creator" && name != "copyright")
+    if (name != "title" && name != "description" && name != "creator" && name != "copyright" &&
+        name != "country" && name != "province_state" && name != "city" && name != "sublocation")
     {
         return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
                           {{"field", std::string(name)}});
@@ -570,7 +574,9 @@ writable_metadata_patch_for_field(const std::string_view name,
         if (!valid)
             return valid.error();
     }
-    else if (name != "title" && name != "description" && name != "creator" && name != "copyright")
+    else if (name != "title" && name != "description" && name != "creator" && name != "copyright" &&
+             name != "country" && name != "province_state" && name != "city" &&
+             name != "sublocation")
     {
         return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
                           {{"field", std::string(name)}});
@@ -591,10 +597,30 @@ writable_metadata_patch_for_field(const std::string_view name,
         patch.update_creator = true;
         patch.creator = value;
     }
-    else
+    else if (name == "copyright")
     {
         patch.update_copyright = true;
         patch.copyright = value;
+    }
+    else if (name == "country")
+    {
+        patch.update_country = true;
+        patch.country = value;
+    }
+    else if (name == "province_state")
+    {
+        patch.update_province_state = true;
+        patch.province_state = value;
+    }
+    else if (name == "city")
+    {
+        patch.update_city = true;
+        patch.city = value;
+    }
+    else
+    {
+        patch.update_sublocation = true;
+        patch.sublocation = value;
     }
     return patch;
 }
@@ -610,6 +636,14 @@ WritableMetadataPatch writable_metadata_patch_all(const WritableMetadata &metada
     patch.creator = metadata.creator;
     patch.update_copyright = true;
     patch.copyright = metadata.copyright;
+    patch.update_country = true;
+    patch.country = metadata.country;
+    patch.update_province_state = true;
+    patch.province_state = metadata.province_state;
+    patch.update_city = true;
+    patch.city = metadata.city;
+    patch.update_sublocation = true;
+    patch.sublocation = metadata.sublocation;
     return patch;
 }
 
@@ -624,6 +658,14 @@ void apply_writable_metadata_patch(WritableMetadata &metadata,
         metadata.creator = patch.creator;
     if (patch.update_copyright)
         metadata.copyright = patch.copyright;
+    if (patch.update_country)
+        metadata.country = patch.country;
+    if (patch.update_province_state)
+        metadata.province_state = patch.province_state;
+    if (patch.update_city)
+        metadata.city = patch.city;
+    if (patch.update_sublocation)
+        metadata.sublocation = patch.sublocation;
 }
 
 bool asset_in_folder(const AssetRecord &asset, const std::string_view folder_uri) noexcept

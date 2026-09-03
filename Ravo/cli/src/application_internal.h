@@ -82,6 +82,10 @@ struct CatalogCliArguments
     std::string_view description;
     std::string_view creator;
     std::string_view copyright;
+    std::string_view country;
+    std::string_view province_state;
+    std::string_view city;
+    std::string_view sublocation;
     std::string_view label;
     std::string_view backup;
     std::string_view schedule_directory;

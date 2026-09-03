@@ -457,6 +457,10 @@ TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomicall
     writable.title = "KeepMe";
     writable.creator = "CatalogOnly";
     writable.copyright = "© Keep";
+    writable.country = "KeepCountry";
+    writable.province_state = "KeepState";
+    writable.city = "KeepCity";
+    writable.sublocation = "KeepSub";
     auto saved = service->set_writable_metadata(asset_id, writable);
     ASSERT_TRUE(saved) << saved.error().message;
     before = service->snapshot();
@@ -472,6 +476,14 @@ TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomicall
     EXPECT_EQ(*refreshed.value().metadata.creator, "CatalogOnly");
     ASSERT_TRUE(refreshed.value().metadata.copyright);
     EXPECT_EQ(*refreshed.value().metadata.copyright, "© Keep");
+    ASSERT_TRUE(refreshed.value().metadata.country);
+    EXPECT_EQ(*refreshed.value().metadata.country, "KeepCountry");
+    ASSERT_TRUE(refreshed.value().metadata.province_state);
+    EXPECT_EQ(*refreshed.value().metadata.province_state, "KeepState");
+    ASSERT_TRUE(refreshed.value().metadata.city);
+    EXPECT_EQ(*refreshed.value().metadata.city, "KeepCity");
+    ASSERT_TRUE(refreshed.value().metadata.sublocation);
+    EXPECT_EQ(*refreshed.value().metadata.sublocation, "KeepSub");
     auto after = service->snapshot();
     ASSERT_TRUE(after);
     EXPECT_EQ(after.value().revision, before.value().revision + 1);
@@ -488,6 +500,10 @@ TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomicall
     EXPECT_EQ(*listed.value().front().metadata.title, "KeepMe");
     ASSERT_TRUE(listed.value().front().metadata.copyright);
     EXPECT_EQ(*listed.value().front().metadata.copyright, "© Keep");
+    ASSERT_TRUE(listed.value().front().metadata.city);
+    EXPECT_EQ(*listed.value().front().metadata.city, "KeepCity");
+    ASSERT_TRUE(listed.value().front().metadata.country);
+    EXPECT_EQ(*listed.value().front().metadata.country, "KeepCountry");
 }
 
 TEST_F(CatalogServiceTest, RefreshFailurePreservesCaptureAndRevision)

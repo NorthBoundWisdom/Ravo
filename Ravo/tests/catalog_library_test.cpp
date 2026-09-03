@@ -1529,5 +1529,95 @@ TEST_F(CatalogServiceTest, IptcCoreWritablePatchIsTransactionalAndSurvivesReopen
     EXPECT_EQ(matched, 2U);
 }
 
+TEST_F(CatalogServiceTest, CatalogLocationWritablePatchIsTransactionalAndSurvivesReopen)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo_a = root / "loc-a.jpg";
+    const auto photo_b = root / "loc-b.jpg";
+    for (const auto &photo : {photo_a, photo_b})
+    {
+        QImage image(24, 18, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(40, 60, 80));
+        ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    }
+    auto imported_a = service->import_one(photo_a.string(), CancellationToken{});
+    auto imported_b = service->import_one(photo_b.string(), CancellationToken{});
+    ASSERT_TRUE(imported_a) << imported_a.error().message;
+    ASSERT_TRUE(imported_b) << imported_b.error().message;
+    ASSERT_TRUE(imported_a.value().asset);
+    ASSERT_TRUE(imported_b.value().asset);
+    const auto id_a = imported_a.value().asset->id;
+    const auto id_b = imported_b.value().asset->id;
+
+    WritableMetadata only_a;
+    only_a.city = "Shanghai";
+    only_a.country = "China";
+    ASSERT_TRUE(service->set_writable_metadata(id_a, only_a));
+    WritableMetadata only_b;
+    only_b.city = "Tokyo";
+    only_b.country = "Japan";
+    ASSERT_TRUE(service->set_writable_metadata(id_b, only_b));
+
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    auto province_patch = writable_metadata_patch_for_field("province_state", std::string("Metro"));
+    ASSERT_TRUE(province_patch) << province_patch.error().message;
+    auto patched = service->set_writable_metadata_selection({id_a, id_b}, province_patch.value(),
+                                                            snapshot.value().revision);
+    ASSERT_TRUE(patched) << patched.error().message;
+    ASSERT_EQ(patched.value().assets.size(), 2U);
+    for (const auto &asset : patched.value().assets)
+    {
+        ASSERT_TRUE(asset.metadata.province_state);
+        EXPECT_EQ(*asset.metadata.province_state, "Metro");
+        if (asset.id == id_a)
+        {
+            ASSERT_TRUE(asset.metadata.city);
+            EXPECT_EQ(*asset.metadata.city, "Shanghai");
+            ASSERT_TRUE(asset.metadata.country);
+            EXPECT_EQ(*asset.metadata.country, "China");
+        }
+        else if (asset.id == id_b)
+        {
+            ASSERT_TRUE(asset.metadata.city);
+            EXPECT_EQ(*asset.metadata.city, "Tokyo");
+            ASSERT_TRUE(asset.metadata.country);
+            EXPECT_EQ(*asset.metadata.country, "Japan");
+        }
+    }
+
+    auto stale = service->set_writable_metadata_selection(
+        {id_a}, writable_metadata_patch_for_field("sublocation", std::string("Bund")).value(),
+        snapshot.value().revision);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto reopened_assets = service->list_assets();
+    ASSERT_TRUE(reopened_assets);
+    std::size_t matched = 0;
+    for (const auto &asset : reopened_assets.value())
+    {
+        if (asset.id != id_a && asset.id != id_b)
+            continue;
+        ++matched;
+        ASSERT_TRUE(asset.metadata.province_state);
+        EXPECT_EQ(*asset.metadata.province_state, "Metro");
+        if (asset.id == id_a)
+        {
+            ASSERT_TRUE(asset.metadata.city);
+            EXPECT_EQ(*asset.metadata.city, "Shanghai");
+        }
+    }
+    EXPECT_EQ(matched, 2U);
+    auto reopened_snapshot = service->snapshot();
+    ASSERT_TRUE(reopened_snapshot);
+    EXPECT_EQ(reopened_snapshot.value().schema_version, kCatalogSchemaVersion);
+}
+
 } // namespace
 } // namespace ravo

@@ -91,9 +91,13 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         tags.push_back(tag);
     }
     JsonValue::Object metadata{
+        {"city", optional_string_json(asset.metadata.city)},
         {"copyright", optional_string_json(asset.metadata.copyright)},
+        {"country", optional_string_json(asset.metadata.country)},
         {"creator", optional_string_json(asset.metadata.creator)},
         {"description", optional_string_json(asset.metadata.description)},
+        {"province_state", optional_string_json(asset.metadata.province_state)},
+        {"sublocation", optional_string_json(asset.metadata.sublocation)},
         {"title", optional_string_json(asset.metadata.title)},
     };
     JsonValue captured_at{nullptr};

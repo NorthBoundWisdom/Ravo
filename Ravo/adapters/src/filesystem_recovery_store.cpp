@@ -296,7 +296,11 @@ template <typename Integer>
          {std::pair{"copyright", &snapshot.asset.metadata.copyright},
           std::pair{"creator", &snapshot.asset.metadata.creator},
           std::pair{"description", &snapshot.asset.metadata.description},
-          std::pair{"title", &snapshot.asset.metadata.title}})
+          std::pair{"title", &snapshot.asset.metadata.title},
+          std::pair{"country", &snapshot.asset.metadata.country},
+          std::pair{"province_state", &snapshot.asset.metadata.province_state},
+          std::pair{"city", &snapshot.asset.metadata.city},
+          std::pair{"sublocation", &snapshot.asset.metadata.sublocation}})
     {
         if (value->has_value())
         {
@@ -354,9 +358,13 @@ template <typename Integer>
         {"media_type", snapshot.asset.media_type},
         {"metadata",
          JsonValue::Object{
+             {"city", optional_string_json(snapshot.asset.metadata.city)},
              {"copyright", optional_string_json(snapshot.asset.metadata.copyright)},
+             {"country", optional_string_json(snapshot.asset.metadata.country)},
              {"creator", optional_string_json(snapshot.asset.metadata.creator)},
              {"description", optional_string_json(snapshot.asset.metadata.description)},
+             {"province_state", optional_string_json(snapshot.asset.metadata.province_state)},
+             {"sublocation", optional_string_json(snapshot.asset.metadata.sublocation)},
              {"title", optional_string_json(snapshot.asset.metadata.title)},
          }},
         {"mtime_unix_ms", JsonValue::number(std::to_string(snapshot.asset.mtime_unix_ms))},
@@ -692,8 +700,16 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
 
 [[nodiscard]] Result<WritableMetadata> validate_recovery_metadata(const JsonValue::Object &object)
 {
-    auto keys = expect_exact_keys(object, {"copyright", "creator", "description", "title"},
-                                  "payload.asset.metadata");
+    // Accept legacy ADR-0124 quartet sidecars and ADR-0126 location-extended objects.
+    const bool has_location = object.contains("country") || object.contains("province_state") ||
+                              object.contains("city") || object.contains("sublocation");
+    auto keys = has_location ?
+                    expect_exact_keys(object,
+                                      {"city", "copyright", "country", "creator", "description",
+                                       "province_state", "sublocation", "title"},
+                                      "payload.asset.metadata") :
+                    expect_exact_keys(object, {"copyright", "creator", "description", "title"},
+                                      "payload.asset.metadata");
     if (!keys)
         return keys.error();
     WritableMetadata metadata;
@@ -713,9 +729,31 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
     metadata.creator = std::move(creator).value();
     metadata.description = std::move(description).value();
     metadata.title = std::move(title).value();
+    if (has_location)
+    {
+        auto country = require_optional_string(object, "country", kMetadataFieldMaxLength);
+        auto province = require_optional_string(object, "province_state", kMetadataFieldMaxLength);
+        auto city = require_optional_string(object, "city", kMetadataFieldMaxLength);
+        auto sublocation = require_optional_string(object, "sublocation", kMetadataFieldMaxLength);
+        if (!country)
+            return country.error();
+        if (!province)
+            return province.error();
+        if (!city)
+            return city.error();
+        if (!sublocation)
+            return sublocation.error();
+        metadata.country = std::move(country).value();
+        metadata.province_state = std::move(province).value();
+        metadata.city = std::move(city).value();
+        metadata.sublocation = std::move(sublocation).value();
+    }
     for (const auto &[name, value] :
          {std::pair{"copyright", &metadata.copyright}, std::pair{"creator", &metadata.creator},
-          std::pair{"description", &metadata.description}, std::pair{"title", &metadata.title}})
+          std::pair{"description", &metadata.description}, std::pair{"title", &metadata.title},
+          std::pair{"country", &metadata.country},
+          std::pair{"province_state", &metadata.province_state}, std::pair{"city", &metadata.city},
+          std::pair{"sublocation", &metadata.sublocation}})
     {
         if (value->has_value())
         {
