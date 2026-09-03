@@ -44,6 +44,11 @@ scale_working_image(const WorkingImage &input, std::uint32_t width, std::uint32_
 [[nodiscard]] Result<WorkingImage> apply_exposure(const WorkingImage &input,
                                                   const OperationInstance &operation,
                                                   const CancellationToken &cancellation);
+class GpuAdapter;
+[[nodiscard]] Result<WorkingImage> apply_exposure_gpu(const WorkingImage &input,
+                                                      const ExposureParams &params,
+                                                      const GpuAdapter &gpu,
+                                                      const CancellationToken &cancellation);
 // Frozen legacy colorbalance.c v4. The borrowed input is never mutated; successful
 // publication owns its pixels/profile and preserves the immutable RAW analysis snapshot.
 [[nodiscard]] Result<WorkingImage> apply_color_balance(const WorkingImage &input,

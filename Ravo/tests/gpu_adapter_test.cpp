@@ -4,7 +4,9 @@
 #include <vector>
 
 #include "gpu_adapter.h"
+#include "image_ops.h"
 #include "ravo/engine/engine.h"
+#include "ravo/recipe/operation.h"
 
 namespace ravo
 {
@@ -67,6 +69,59 @@ TEST(EngineFacadeTest, GpuCopyRgbRejectsSizeMismatchWhenAvailable)
     EXPECT_EQ(copied.error().code, ErrorCode::kUnsupported);
     EXPECT_EQ(copied.error().context.at("reason"), "gpu_unavailable");
 #endif
+}
+
+TEST(EngineFacadeTest, GpuApplyExposureMatchesCpuGoldWhenAvailable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kMatrix;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = "working-fixture";
+    profile.has_matrix = true;
+    profile.camera_input = true;
+    profile.icc_bytes = {1U, 2U, 3U};
+    const LinearWorkingBuffer input{2, 1, {-0.5F, 0.0F, 0.25F, 0.5F, 1.0F, 2.0F}, profile, {}, {}, {}};
+    ExposureParams params;
+    params.black = -0.25;
+    params.exposure_ev = 1.0;
+    const auto gpu = engine.value().gpu_apply_exposure(input, params, CancellationToken{});
+#ifdef __APPLE__
+    const auto cpu = apply_exposure(input, params, CancellationToken{});
+    ASSERT_TRUE(cpu) << cpu.error().message;
+    ASSERT_TRUE(gpu) << gpu.error().message;
+    ASSERT_EQ(gpu.value().rgb.size(), cpu.value().rgb.size());
+    EXPECT_EQ(gpu.value().width, input.width);
+    EXPECT_EQ(gpu.value().height, input.height);
+    EXPECT_EQ(gpu.value().color_profile, input.color_profile);
+    EXPECT_NE(gpu.value().rgb.data(), input.rgb.data());
+    for (std::size_t index = 0; index < cpu.value().rgb.size(); ++index)
+    {
+        EXPECT_NEAR(gpu.value().rgb[index], cpu.value().rgb[index], 1.0e-5) << index;
+    }
+    EXPECT_EQ(input.rgb[0], -0.5F);
+#else
+    ASSERT_FALSE(gpu);
+    EXPECT_EQ(gpu.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(gpu.error().context.at("reason"), "gpu_unavailable");
+#endif
+}
+
+TEST(EngineFacadeTest, GpuApplyExposureHonorsCancellation)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    LinearWorkingBuffer input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}, {}, {}};
+    input.color_profile.kind = ColorProfileKind::kBuiltin;
+    input.color_profile.model = ColorModel::kRgb;
+    input.color_profile.identifier = "linear-rec709";
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("gpu_exposure_cancel"));
+    const auto gpu =
+        engine.value().gpu_apply_exposure(input, ExposureParams{}, cancellation.token());
+    ASSERT_FALSE(gpu);
+    EXPECT_EQ(gpu.error().code, ErrorCode::kCancelled);
 }
 
 TEST(GpuAdapterTest, TryCreateReportsTheSameBackendAsTheFacade)

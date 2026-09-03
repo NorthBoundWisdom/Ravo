@@ -220,9 +220,9 @@ copy of the 1600px settled linear working, so entering Develop demosaics once.
 Actual Size 1:1 is a CPU CFA window of the visible crop (ADR-0132); lens,
 perspective, and full-frame ROIs reject and keep the 1600 preview. GPU is an
 Engine-owned Metal adapter (ADR-0133): device lifecycle is created once per
-process, identity RGB copy is opt-in and fail-closed, and preview/export stay
-on CPU until RGB apply and gold-gated demosaic land. Recipe, Catalog, CLI, and
-QML do not hold device objects.
+process, identity RGB copy and Exposure affine RGB are opt-in and fail-closed,
+and preview/export stay on CPU until remaining RGB ops and gold-gated demosaic
+land. Recipe, Catalog, CLI, and QML do not hold device objects.
 For an ordinary commit whose parameters are not
 already displayed, Studio first saves
 atomically, publishes that 960px memory preview, then queues the same

@@ -44,6 +44,15 @@ void rgb_to_lab(float r, float g, float b, float &lightness, float &a, float &b_
 void lab_to_rgb(float lightness, float a, float b_channel, float &r, float &g, float &b);
 void rgb_to_hsl(float r, float g, float b, float &h, float &s, float &l);
 void hsl_to_rgb(float h, float s, float l, float &r, float &g, float &b);
+struct ExposureAffine
+{
+    double scale = 1.0;
+    double black = 0.0;
+};
+
+[[nodiscard]] Result<ExposureAffine> prepare_exposure_affine(const WorkingImage &input,
+                                                             const ExposureParams &params,
+                                                             const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> apply_exposure_impl(const WorkingImage &input,
                                                        const ExposureParams &params,
                                                        const CancellationToken &cancellation);

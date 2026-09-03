@@ -317,6 +317,23 @@ Result<void> EngineFacade::gpu_copy_rgb(const std::span<const float> input,
     return g_gpu_adapter->copy_rgb(input, output, cancellation);
 }
 
+Result<LinearWorkingBuffer>
+EngineFacade::gpu_apply_exposure(const LinearWorkingBuffer &working, const ExposureParams &params,
+                                 const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    ensure_gpu_adapter();
+    if (g_gpu_adapter == nullptr)
+    {
+        return gpu_adapter_unavailable_error();
+    }
+    return apply_exposure_gpu(working, params, *g_gpu_adapter, cancellation);
+}
+
 Result<InspectionResult> EngineFacade::inspect(const std::string_view input_uri,
                                                const CancellationToken &cancellation) const
 {

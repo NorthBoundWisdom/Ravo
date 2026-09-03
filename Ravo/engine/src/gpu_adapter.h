@@ -23,6 +23,9 @@ public:
     [[nodiscard]] std::string_view backend_id() const noexcept;
     [[nodiscard]] Result<void> copy_rgb(std::span<const float> input, std::span<float> output,
                                         const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<void> apply_affine_rgb(std::span<const float> input, std::span<float> output,
+                                                float scale, float black,
+                                                const CancellationToken &cancellation) const;
 
 private:
     struct Impl;

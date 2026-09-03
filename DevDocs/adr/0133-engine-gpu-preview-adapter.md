@@ -26,8 +26,10 @@ second renderer in QML/catalog.
   exists. Cache identity will include backend and pipeline version when GPU
   pixels are published.
 - Admission is staged:
-  1. Device, queue, library, cancellation, and destruction (this tranche).
+  1. Device, queue, library, cancellation, and destruction.
   2. GPU apply of post-demosaic RGB on an existing linear working / ROI.
+     Manual Exposure is the first opt-in kernel; CPU remains the default preview
+     path and the correctness reference (RMSE-gated).
   3. GPU Bayer window demosaic with CPU-gold RMSE gates.
 - Export stays CPU until stage 3 goldens exist for the same recipe.
 

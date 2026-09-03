@@ -35,4 +35,16 @@ Result<void> GpuAdapter::copy_rgb(std::span<const float>, std::span<float>,
                       {{"reason", "gpu_unavailable"}});
 }
 
+Result<void> GpuAdapter::apply_affine_rgb(std::span<const float>, std::span<float>, float, float,
+                                          const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    return make_error(ErrorCode::kUnsupported, "GPU adapter is unavailable on this host",
+                      {{"reason", "gpu_unavailable"}});
+}
+
 } // namespace ravo

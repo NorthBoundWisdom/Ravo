@@ -959,9 +959,9 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     return effective;
 }
 
-[[nodiscard]] Result<WorkingImage> apply_exposure_impl(const WorkingImage &input,
-                                                       const ExposureParams &params,
-                                                       const CancellationToken &cancellation)
+[[nodiscard]] Result<ExposureAffine> prepare_exposure_affine(const WorkingImage &input,
+                                                             const ExposureParams &params,
+                                                             const CancellationToken &cancellation)
 {
     auto active = cancellation.check();
     if (!active)
@@ -994,6 +994,24 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     {
         return make_error(ErrorCode::kValidation, "Exposure scale is not representable",
                           {{"reason", "invalid_exposure_denominator"}});
+    }
+    return ExposureAffine{scale, params.black};
+}
+
+[[nodiscard]] Result<WorkingImage> apply_exposure_impl(const WorkingImage &input,
+                                                       const ExposureParams &params,
+                                                       const CancellationToken &cancellation)
+{
+    auto affine = prepare_exposure_affine(input, params, cancellation);
+    if (!affine)
+    {
+        return affine.error();
+    }
+    const double scale = affine.value().scale;
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
     }
 
     WorkingImage output;

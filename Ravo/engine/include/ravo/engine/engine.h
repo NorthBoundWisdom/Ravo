@@ -524,6 +524,9 @@ public:
     [[nodiscard]] std::string_view gpu_backend() const;
     [[nodiscard]] Result<void> gpu_copy_rgb(std::span<const float> input, std::span<float> output,
                                             const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<LinearWorkingBuffer>
+    gpu_apply_exposure(const LinearWorkingBuffer &working, const ExposureParams &params,
+                       const CancellationToken &cancellation) const;
     [[nodiscard]] Result<Recipe> upgrade(Recipe recipe) const;
     [[nodiscard]] Result<void> validate(const Recipe &recipe) const;
     [[nodiscard]] Result<std::string> input_color_cache_fingerprint(const Recipe &recipe) const;

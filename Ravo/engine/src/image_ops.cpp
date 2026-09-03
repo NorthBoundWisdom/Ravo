@@ -22,8 +22,8 @@
 #include <zlib.h>
 
 #include "capability_ops.h"
-#include "color_balance_rgb.h"
 #include "canvas_frame.h"
+#include "color_balance_rgb.h"
 #include "color_contrast.h"
 #include "color_correction.h"
 #include "color_checker.h"
@@ -32,6 +32,7 @@
 #include "color_zones.h"
 #include "d50_lab.h"
 #include "dehaze.h"
+#include "gpu_adapter.h"
 #include "hsl.h"
 #include "lut3d.h"
 #include "mask_evaluator.h"
@@ -64,6 +65,53 @@ Result<WorkingImage> apply_exposure(const WorkingImage &input, const ExposurePar
 try
 {
     return apply_exposure_impl(input, params, cancellation);
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Exposure output allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
+Result<WorkingImage> apply_exposure_gpu(const WorkingImage &input, const ExposureParams &params,
+                                        const GpuAdapter &gpu,
+                                        const CancellationToken &cancellation)
+try
+{
+    auto affine = prepare_exposure_affine(input, params, cancellation);
+    if (!affine)
+    {
+        return affine.error();
+    }
+    const auto scale = static_cast<float>(affine.value().scale);
+    const auto black = static_cast<float>(affine.value().black);
+    if (!std::isfinite(scale) || !std::isfinite(black))
+    {
+        return make_error(ErrorCode::kValidation, "Exposure scale is not representable",
+                          {{"reason", "invalid_exposure_denominator"}});
+    }
+    WorkingImage output;
+    output.width = input.width;
+    output.height = input.height;
+    output.color_profile = input.color_profile;
+    output.exposure_analysis = input.exposure_analysis;
+    output.canonical_roi_scale = input.canonical_roi_scale;
+    output.mask_attached_frame = input.mask_attached_frame;
+    output.rgb.resize(input.rgb.size());
+    auto applied = gpu.apply_affine_rgb(input.rgb, output.rgb, scale, black, cancellation);
+    if (!applied)
+    {
+        return applied.error();
+    }
+    for (std::size_t index = 0; index < output.rgb.size(); ++index)
+    {
+        if (!std::isfinite(output.rgb[index]))
+        {
+            return make_error(ErrorCode::kValidation, "Exposure produced an unrepresentable sample",
+                              {{"reason", "unrepresentable_exposure_sample"},
+                               {"sample_index", std::to_string(index)}});
+        }
+    }
+    return output;
 }
 catch (const std::bad_alloc &)
 {
