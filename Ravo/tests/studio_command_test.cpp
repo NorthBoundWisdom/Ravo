@@ -975,6 +975,78 @@ TEST(StudioPresenterTest, PhotoDebugInfoIdentifiesImportedAsset)
     EXPECT_TRUE(pending_parameters.contains(QStringLiteral("\"black\":0.0553")));
 }
 
+TEST(StudioPresenterTest, ScopedFacetCountsFollowTheActiveLibraryQuery)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+    auto repository = SqliteCatalogRepository::create(catalog.toStdString());
+    ASSERT_TRUE(repository) << repository.error().message;
+
+    for (int index = 0; index < 3; ++index)
+    {
+        const QString photo = directory.filePath(QStringLiteral("facet-%1.png").arg(index));
+        QImage image(16, 12, QImage::Format_RGB888);
+        image.fill(QColor(30 + index, 60 + index, 90 + index));
+        ASSERT_TRUE(image.save(photo, "PNG"));
+        auto location = normalize_local_input(photo.toStdString());
+        ASSERT_TRUE(location) << location.error().message;
+        auto identity = read_file_identity(location.value().path);
+        ASSERT_TRUE(identity) << identity.error().message;
+
+        AssetRecord asset;
+        asset.id = "ast_studio_facet_" + std::to_string(index);
+        asset.normalized_uri = location.value().uri;
+        asset.media_type = std::string(kMediaTypePng);
+        asset.size_bytes = identity.value().size_bytes;
+        asset.mtime_unix_ms = identity.value().mtime_unix_ms;
+        asset.content_fingerprint = make_content_fingerprint(identity.value());
+        asset.width = 16U;
+        asset.height = 12U;
+        asset.created_unix_ms = 1000 + index;
+        asset.capture.camera_make = index < 2 ? "RavoCam" : "OtherCam";
+        asset.capture.camera_model = index < 2 ? "Scope" : "Outside";
+        asset.capture.focal_length_mm = index < 2 ? 35.0 : 50.0;
+        CaptureDateTime captured;
+        captured.local_exif = index < 2 ? "2026:09:03 10:00:00" : "2026:09:02 10:00:00";
+        asset.capture.captured_datetime = captured;
+        asset.review.rating = index < 2 ? 5 : 3;
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+        WritableMetadata metadata;
+        metadata.country = index < 2 ? "China" : "USA";
+        metadata.city = index < 2 ? "Shanghai" : "Seattle";
+        ASSERT_TRUE(repository.value()->upsert_writable_metadata(asset.id, metadata));
+    }
+    ASSERT_TRUE(repository.value()->close());
+    repository.value().reset();
+
+    StudioPresenter presenter;
+    presenter.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(presenter.cameraFacets().size(), 2);
+    EXPECT_EQ(presenter.countryFacets().size(), 2);
+    EXPECT_FALSE(presenter.facetCountsScoped());
+
+    presenter.setRatingFilter(QStringLiteral("exact"), 5);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 2 && presenter.facetCountsScoped() &&
+                   presenter.cameraFacets().size() == 1 && presenter.countryFacets().size() == 1;
+        }))
+        << presenter.errorText().toStdString();
+    const auto camera = presenter.cameraFacets().front().toMap();
+    EXPECT_EQ(camera.value(QStringLiteral("cameraMake")).toString(), QStringLiteral("RavoCam"));
+    EXPECT_EQ(camera.value(QStringLiteral("cameraModel")).toString(), QStringLiteral("Scope"));
+    EXPECT_EQ(camera.value(QStringLiteral("count")).toULongLong(), 2U);
+    const auto country = presenter.countryFacets().front().toMap();
+    EXPECT_EQ(country.value(QStringLiteral("key")).toString(), QStringLiteral("China"));
+    EXPECT_EQ(country.value(QStringLiteral("count")).toULongLong(), 2U);
+}
+
 TEST(StudioPresenterTest, ColdCatalogBuildsOnlyDemandedThumbnails)
 {
     ensure_qt_core();

@@ -100,6 +100,14 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString cityFilter READ cityFilter NOTIFY filterChanged)
     Q_PROPERTY(QString sublocationFilter READ sublocationFilter NOTIFY filterChanged)
     Q_PROPERTY(QString locationFilter READ locationFilter NOTIFY filterChanged)
+    Q_PROPERTY(QVariantList cameraFacets READ cameraFacets NOTIFY facetsChanged)
+    Q_PROPERTY(QVariantList lensFacets READ lensFacets NOTIFY facetsChanged)
+    Q_PROPERTY(QVariantList captureDateFacets READ captureDateFacets NOTIFY facetsChanged)
+    Q_PROPERTY(QVariantList countryFacets READ countryFacets NOTIFY facetsChanged)
+    Q_PROPERTY(QVariantList provinceStateFacets READ provinceStateFacets NOTIFY facetsChanged)
+    Q_PROPERTY(QVariantList cityFacets READ cityFacets NOTIFY facetsChanged)
+    Q_PROPERTY(QVariantList sublocationFacets READ sublocationFacets NOTIFY facetsChanged)
+    Q_PROPERTY(bool facetCountsScoped READ facetCountsScoped NOTIFY facetsChanged)
     Q_PROPERTY(QString sortField READ sortField NOTIFY filterChanged)
     Q_PROPERTY(QString sortDirection READ sortDirection NOTIFY filterChanged)
     Q_PROPERTY(int visibleCount READ visibleCount NOTIFY filterChanged)
@@ -416,6 +424,14 @@ public:
     [[nodiscard]] QString cityFilter() const;
     [[nodiscard]] QString sublocationFilter() const;
     [[nodiscard]] QString locationFilter() const;
+    [[nodiscard]] QVariantList cameraFacets() const;
+    [[nodiscard]] QVariantList lensFacets() const;
+    [[nodiscard]] QVariantList captureDateFacets() const;
+    [[nodiscard]] QVariantList countryFacets() const;
+    [[nodiscard]] QVariantList provinceStateFacets() const;
+    [[nodiscard]] QVariantList cityFacets() const;
+    [[nodiscard]] QVariantList sublocationFacets() const;
+    [[nodiscard]] bool facetCountsScoped() const noexcept;
     [[nodiscard]] QString sortField() const;
     [[nodiscard]] QString sortDirection() const;
     [[nodiscard]] int visibleCount() const;
@@ -779,6 +795,7 @@ signals:
     void zoomChanged();
     void thumbnailSizeChanged();
     void filterChanged();
+    void facetsChanged();
     void folderChanged();
     void editChanged();
     void copiedParametersChanged();
@@ -800,6 +817,7 @@ private:
                      std::size_t total = 0U, bool has_more = false);
     void applyFolders(std::vector<FolderRecord> folders);
     void applyLibrarySets(std::vector<LibrarySetRecord> sets);
+    void applyFacets(LibraryCaptureFacets capture, LibraryLocationFacets location);
     void clearLastImportQuery();
     void requestPreviewForSelection();
     void requestSurveyPreviews();
@@ -932,6 +950,8 @@ private:
     FilesystemBrowserModel import_source_folders_;
     FilesystemBrowserModel import_destination_folders_;
     LibraryQuery query_;
+    LibraryCaptureFacets capture_facets_;
+    LibraryLocationFacets location_facets_;
     QString catalog_path_;
     QVariantList develop_presets_;
     QString startup_catalog_path_;

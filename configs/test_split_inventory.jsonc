@@ -31,8 +31,8 @@
         "Ravo/tests/catalog_capture_test.cpp",
         "Ravo/tests/catalog_import_test.cpp"
       ],
-      "case_count": 135,
-      "case_sha256": "508892b1025261fbfac3b3dbac2333d708cb2a6b3d8bfb65af63360d9d59b12f"
+      "case_count": 140,
+      "case_sha256": "23c4de6e80aab6ea36711a2abec95b2109bfc2192134df8256a3db6c22476f55"
     },
     {
       "sources": [
@@ -43,8 +43,8 @@
         "Ravo/tests/cli_studio_test.cpp",
         "Ravo/tests/cli_lut_test.cpp"
       ],
-      "case_count": 63,
-      "case_sha256": "65f369d323b561a7da8ee15fc0951887cbb1535b2f517084502448587ac7798e"
+      "case_count": 65,
+      "case_sha256": "b4b44efa3e53dba5d890c68c2cbe94a79a42c5abf254d4668a8d7db694c7af0a"
     },
     {
       "sources": [
@@ -54,8 +54,8 @@
         "Ravo/tests/studio_live_control_test.cpp",
         "Ravo/tests/filesystem_browser_model_test.cpp"
       ],
-      "case_count": 102,
-      "case_sha256": "fc21f5e74fa7c092f060bc6fb12af49f3802f89f9adb9fd353d56afd041d16b9"
+      "case_count": 106,
+      "case_sha256": "330b2db6a4a76543dddf7acf4e3c55a203b6dd6489f0906dae05db9fee1610d1"
     },
     {
       "sources": [

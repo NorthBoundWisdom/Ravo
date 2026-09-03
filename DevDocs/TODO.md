@@ -219,13 +219,12 @@ and camera/lens/date facets with transactional multi-selection editing.
   no schema change, bounded value limit and `truncated` unchanged); the service
   validates a scope exactly like listing, the facet payloads carry a `scoped`
   flag, and CLI `catalog facets` accepts the `catalog list` filter flags plus a
-  raw `--query` document and echoes the applied `scope`. Unscoped calls keep the
-  previous whole-catalog answers.
+  raw `--query` document and echoes the applied `scope`. Studio capture and
+  location chip counts consume the same scoped APIs and refresh with the active
+  in-memory query. Unscoped calls keep the previous whole-catalog answers.
 
 **Remaining unfinished work:**
 - Exif LensMake/LensModel persistence as a true lens-name facet;
-- Studio Filter chips still request unscoped facet counts (the scoped port is
-  wired through CLI only);
 - IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126;
 - adjacent XMP/source keyword/IPTC/location merge matrix (PRO-INTERCHANGE).
 

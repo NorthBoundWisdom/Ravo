@@ -15,6 +15,33 @@ Item {
     property var extraFilters: []
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
 
+    function matchingFacetCount(entries, predicate) {
+        for (let i = 0; i < entries.length; ++i) {
+            if (predicate(entries[i]))
+                return entries[i].count;
+        }
+        return 0;
+    }
+
+    readonly property int cameraFacetCount: !root.hasPresenter || root.presenter.cameraFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.cameraFacets, function (entry) {
+        return (entry.cameraMake || "") === root.presenter.cameraMakeFilter && (entry.cameraModel || "") === root.presenter.cameraModelFilter;
+    })
+    readonly property int lensFacetCount: !root.hasPresenter || root.presenter.lensFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.lensFacets, function (entry) {
+        return Math.abs(entry.focalLengthMm - Number(root.presenter.lensFilter)) < 0.000000001;
+    })
+    readonly property int captureDateFacetCount: !root.hasPresenter || root.presenter.captureDateFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.captureDateFacets, function (entry) {
+        return entry.captureDate === root.presenter.captureDateFilter;
+    })
+    readonly property int locationFacetCount: !root.hasPresenter || root.presenter.locationFilter.length === 0 ? -1 : root.presenter.sublocationFilter.length > 0 ? root.matchingFacetCount(root.presenter.sublocationFacets, function (entry) {
+        return entry.key === root.presenter.sublocationFilter;
+    }) : root.presenter.cityFilter.length > 0 ? root.matchingFacetCount(root.presenter.cityFacets, function (entry) {
+        return entry.key === root.presenter.cityFilter;
+    }) : root.presenter.provinceStateFilter.length > 0 ? root.matchingFacetCount(root.presenter.provinceStateFacets, function (entry) {
+        return entry.key === root.presenter.provinceStateFilter;
+    }) : root.matchingFacetCount(root.presenter.countryFacets, function (entry) {
+        return entry.key === root.presenter.countryFilter;
+    })
+
     implicitHeight: Math.max(Fonts.toolbarHeight, Fonts.inputFieldHeight + Fonts.size12)
 
     function extraOpen(id) {
@@ -347,6 +374,13 @@ Item {
                         onEditingFinished: if (root.commands)
                             root.commands.setCameraFacetFilter(cameraMakeField.text, text)
                     }
+                    Text {
+                        visible: root.cameraFacetCount >= 0
+                        text: qsTr("%1 photos").arg(root.cameraFacetCount)
+                        color: Theme.midColor
+                        font: Fonts.standardFont
+                        Layout.alignment: Qt.AlignVCenter
+                    }
                     FilterCloseButton {
                         onClicked: root.removeExtra("camera")
                     }
@@ -368,6 +402,13 @@ Item {
                         onEditingFinished: if (root.commands)
                             root.commands.setLensFacetFilter(text)
                     }
+                    Text {
+                        visible: root.lensFacetCount >= 0
+                        text: qsTr("%1 photos").arg(root.lensFacetCount)
+                        color: Theme.midColor
+                        font: Fonts.standardFont
+                        Layout.alignment: Qt.AlignVCenter
+                    }
                     FilterCloseButton {
                         onClicked: root.removeExtra("lens")
                     }
@@ -388,6 +429,13 @@ Item {
                         text: root.hasPresenter ? root.presenter.captureDateFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setCaptureDateFacetFilter(text)
+                    }
+                    Text {
+                        visible: root.captureDateFacetCount >= 0
+                        text: qsTr("%1 photos").arg(root.captureDateFacetCount)
+                        color: Theme.midColor
+                        font: Fonts.standardFont
+                        Layout.alignment: Qt.AlignVCenter
                     }
                     FilterCloseButton {
                         onClicked: root.removeExtra("captureDate")
@@ -449,6 +497,13 @@ Item {
                         text: root.hasPresenter ? root.presenter.sublocationFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setLocationFacetFilter(locationCountryField.text, locationProvinceField.text, locationCityField.text, text)
+                    }
+                    Text {
+                        visible: root.locationFacetCount >= 0
+                        text: qsTr("%1 photos").arg(root.locationFacetCount)
+                        color: Theme.midColor
+                        font: Fonts.standardFont
+                        Layout.alignment: Qt.AlignVCenter
                     }
                     FilterCloseButton {
                         onClicked: root.removeExtra("location")

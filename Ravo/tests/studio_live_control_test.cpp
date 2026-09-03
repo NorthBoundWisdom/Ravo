@@ -721,6 +721,11 @@ TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
     EXPECT_TRUE(source.contains(QStringLiteral("setLensFacetFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("setCaptureDateFacetFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("setLocationFacetFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.cameraFacets")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.locationFacets")) ||
+                source.contains(QStringLiteral("presenter.countryFacets")));
+    EXPECT_TRUE(source.contains(QStringLiteral("matchingFacetCount")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"%1 photos\")")));
 }
 
 TEST(StudioQmlContract, RecipeStyleUsesExplicitSaveAndApplyFileCommands)

@@ -17,6 +17,9 @@ target_sources(ravo_desktop
     src/import_candidate_list_model.cpp
     src/preview_request_owner.cpp
     src/studio_command_controller.cpp
+    src/studio_command_controller_registry.cpp
+    src/studio_command_controller_validators.cpp
+    src/studio_command_controller_detail.h
     src/studio_command_internal.cpp
     src/studio_command_ids.h
     src/studio_command_presentation.cpp
@@ -27,6 +30,7 @@ target_sources(ravo_desktop
     src/studio_window_geometry.cpp
     src/studio_live_session_controller.cpp
     src/studio_presenter.cpp
+    src/studio_presenter_library.cpp
     src/studio_presenter_export.cpp
     src/studio_presenter_selection.cpp
     src/studio_import.cpp
