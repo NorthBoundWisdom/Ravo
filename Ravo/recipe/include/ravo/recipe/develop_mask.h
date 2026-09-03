@@ -98,6 +98,9 @@ struct DevelopMaskEditorState
 [[nodiscard]] std::string_view
 develop_mask_attachment_status_name(DevelopMaskAttachmentStatus status) noexcept;
 [[nodiscard]] bool is_develop_mask_field(std::string_view field) noexcept;
+// ADR-0116 authorized everyday consumers for histogram-assisted parametric
+// Threshold authoring. Color Harmonizer and Graduated ND stay fail-closed.
+[[nodiscard]] bool develop_mask_parametric_assist_allowed(DevelopMaskTarget target) noexcept;
 [[nodiscard]] DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
                                                                DevelopMaskTarget target);
 

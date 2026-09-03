@@ -476,10 +476,10 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
         setMaskParametricAssistActive(false);
         return;
     }
-    if (*target != DevelopMaskTarget::kExposure)
+    if (!develop_mask_parametric_assist_allowed(*target))
     {
-        setError(QCoreApplication::translate("DevelopPanel",
-                                             "Parametric assist currently supports Exposure only") +
+        setError(QCoreApplication::translate(
+                     "DevelopPanel", "Parametric assist is not available for this operation") +
                  QStringLiteral(" [mask_parametric_assist_target_unsupported]"));
         setMaskParametricAssistActive(false);
         return;

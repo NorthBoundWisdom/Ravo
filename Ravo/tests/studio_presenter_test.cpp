@@ -1273,6 +1273,9 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_TRUE(source.contains(QStringLiteral("setMaskPlaceActive")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"maskParametricAssistActive\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Assist from photo\")")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("maskEditor.mask.parametricAssistAuthorized === true")));
+    EXPECT_FALSE(source.contains(QStringLiteral("maskEditor.mask.target === \"exposure\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("setMaskParametricAssistActive")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("maskEditor.mask.editable === true && modelData.visible")));
@@ -1364,6 +1367,20 @@ TEST(StudioPresenterTest, ParametricAssistGeometryMatchesMaskPlaceFailClosed)
     params.canvas_enabled = false;
     params.perspective_vertical = 0.2;
     EXPECT_FALSE(mask_place_geometry_allowed(params));
+}
+
+TEST(StudioPresenterTest, ParametricAssistAuthorizedEverydayConsumersOnly)
+{
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kColorBalanceRgb));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kExposure));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kRgbCurve));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kToneCurve));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kHighlights));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kShadows));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kWhites));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kBlacks));
+    EXPECT_FALSE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kColorHarmonizer));
+    EXPECT_FALSE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kGraduatedNd));
 }
 
 TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)

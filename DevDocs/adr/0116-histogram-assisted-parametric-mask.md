@@ -40,10 +40,9 @@ preview. Parametric evaluation already owns a four-keyframe channel ramp.
   contiguous density band around the sampled bin; otherwise it uses a fixed
   soft band around the sample. Thresholds remain finite, normalized, and
   monotonic.
-- In principle every accepted masked everyday consumer may use this path
-  (Exposure, Color Balance RGB, RGB Curve, Tone Curve, Highlights, Shadows,
-  Whites, Blacks). This first tranche implements Exposure only; other targets
-  reject with a structured reason.
+- Every accepted masked everyday consumer may use this path (Exposure, Color
+  Balance RGB, RGB Curve, Tone Curve, Highlights, Shadows, Whites, Blacks).
+  Color Harmonizer and Graduated ND reject with a structured reason.
 - Canvas, Perspective, straighten, rotate, and flip reject with a structured
   reason rather than an approximate inverse into the parametric source plane.
   Invalid, out-of-range, missing-preview, unattached, non-parametric, or
@@ -56,10 +55,10 @@ preview. Parametric evaluation already owns a four-keyframe channel ramp.
 
 ## Consequences
 
-A photographer can click the photo to author Exposure parametric thresholds
-through the same recipe CLI/Studio path used for numeric Threshold edits.
-Unmasked Exposure pixels stay unchanged. Later tranches may enable the same
-command for the other authorized consumers without a second picker owner.
+A photographer can click the photo to author parametric thresholds for every
+authorized everyday consumer through the same recipe CLI/Studio path used for
+numeric Threshold edits. Unmasked pixels stay unchanged. Color Harmonizer and
+Graduated ND remain fail-closed without a second picker owner.
 
 ## Rejected alternatives
 
@@ -67,5 +66,5 @@ command for the other authorized consumers without a second picker owner.
   math.
 - Inventing a Perspective/Canvas inverse, or clamping unsupported geometry into
   a guessed channel sample.
-- Waiting for multi-instance, path/brush, or AI masks before Exposure assist.
+- Waiting for multi-instance, path/brush, or AI masks before everyday assist.
 - A second parametric threshold model disconnected from ADR-0061 scopes.

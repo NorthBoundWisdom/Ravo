@@ -597,6 +597,13 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_FALSE(exposure_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(exposure_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("exposureMaskKind"));
+    EXPECT_TRUE(exposure_mask.value(QStringLiteral("parametricAssistAuthorized")).toBool());
+    EXPECT_TRUE(balance_mask.value(QStringLiteral("parametricAssistAuthorized")).toBool());
+    EXPECT_FALSE(presenter.editColorHarmonizerMask()
+                     .value(QStringLiteral("parametricAssistAuthorized"))
+                     .toBool());
+    EXPECT_FALSE(
+        presenter.editGraduatedMask().value(QStringLiteral("parametricAssistAuthorized")).toBool());
     const auto rgb_curve_mask = presenter.editRgbCurveMask();
     EXPECT_FALSE(rgb_curve_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(rgb_curve_mask.value(QStringLiteral("kindField")).toString(),

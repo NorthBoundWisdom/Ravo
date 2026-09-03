@@ -68,23 +68,23 @@ struct MaskTargetInfo
     std::string_view field_prefix;
     std::string_view studio_id_prefix;
     std::string_view name;
-    std::optional<std::string> DevelopParams::* attachment;
-    std::int64_t DevelopParams::* child_index;
-    std::int64_t DevelopParams::* point_index;
-    bool DevelopParams::* present;
-    bool DevelopParams::* enabled;
+    std::optional<std::string> DevelopParams::*attachment;
+    std::int64_t DevelopParams::*child_index;
+    std::int64_t DevelopParams::*point_index;
+    bool DevelopParams::*present;
+    bool DevelopParams::*enabled;
 };
 
 constexpr std::array kDevelopMaskTargetInfo{
-    MaskTargetInfo{DevelopMaskTarget::kColorHarmonizer, kColorHarmonizerMaskFieldPrefix,
-                   "ravo.studio.mask.color_harmonizer.", "color_harmonizer",
-                   &DevelopParams::color_harmonizer_mask_id,
-                   &DevelopParams::color_harmonizer_mask_child_index,
-                   &DevelopParams::color_harmonizer_mask_point_index,
-                   &DevelopParams::color_harmonizer_present, &DevelopParams::color_harmonizer_enabled},
+    MaskTargetInfo{
+        DevelopMaskTarget::kColorHarmonizer, kColorHarmonizerMaskFieldPrefix,
+        "ravo.studio.mask.color_harmonizer.", "color_harmonizer",
+        &DevelopParams::color_harmonizer_mask_id, &DevelopParams::color_harmonizer_mask_child_index,
+        &DevelopParams::color_harmonizer_mask_point_index, &DevelopParams::color_harmonizer_present,
+        &DevelopParams::color_harmonizer_enabled},
     MaskTargetInfo{DevelopMaskTarget::kGraduatedNd, kGraduatedMaskFieldPrefix,
-                   "ravo.studio.mask.graduatednd.", "graduatednd", &DevelopParams::graduated_mask_id,
-                   &DevelopParams::graduated_mask_child_index,
+                   "ravo.studio.mask.graduatednd.", "graduatednd",
+                   &DevelopParams::graduated_mask_id, &DevelopParams::graduated_mask_child_index,
                    &DevelopParams::graduated_mask_point_index, &DevelopParams::graduated_present,
                    &DevelopParams::graduated_enabled},
     MaskTargetInfo{DevelopMaskTarget::kColorBalanceRgb, kColorBalanceRgbMaskFieldPrefix,
@@ -108,15 +108,18 @@ constexpr std::array kDevelopMaskTargetInfo{
                    "ravo.studio.mask.highlights.", "highlights", &DevelopParams::highlights_mask_id,
                    &DevelopParams::highlights_mask_child_index,
                    &DevelopParams::highlights_mask_point_index, nullptr, nullptr},
-    MaskTargetInfo{DevelopMaskTarget::kShadows, kShadowsMaskFieldPrefix, "ravo.studio.mask.shadows.",
-                   "shadows", &DevelopParams::shadows_mask_id, &DevelopParams::shadows_mask_child_index,
+    MaskTargetInfo{DevelopMaskTarget::kShadows, kShadowsMaskFieldPrefix,
+                   "ravo.studio.mask.shadows.", "shadows", &DevelopParams::shadows_mask_id,
+                   &DevelopParams::shadows_mask_child_index,
                    &DevelopParams::shadows_mask_point_index, nullptr, nullptr},
     MaskTargetInfo{DevelopMaskTarget::kWhites, kWhitesMaskFieldPrefix, "ravo.studio.mask.whites.",
-                   "whites", &DevelopParams::whites_mask_id, &DevelopParams::whites_mask_child_index,
-                   &DevelopParams::whites_mask_point_index, nullptr, nullptr},
+                   "whites", &DevelopParams::whites_mask_id,
+                   &DevelopParams::whites_mask_child_index, &DevelopParams::whites_mask_point_index,
+                   nullptr, nullptr},
     MaskTargetInfo{DevelopMaskTarget::kBlacks, kBlacksMaskFieldPrefix, "ravo.studio.mask.blacks.",
-                   "blacks", &DevelopParams::blacks_mask_id, &DevelopParams::blacks_mask_child_index,
-                   &DevelopParams::blacks_mask_point_index, nullptr, nullptr},
+                   "blacks", &DevelopParams::blacks_mask_id,
+                   &DevelopParams::blacks_mask_child_index, &DevelopParams::blacks_mask_point_index,
+                   nullptr, nullptr},
 };
 
 [[nodiscard]] const MaskTargetInfo &mask_target_info(const DevelopMaskTarget target) noexcept
@@ -491,10 +494,14 @@ void smooth_path_handles(std::vector<PathMaskPoint> &points) noexcept
         }
         const double ux = dx / length;
         const double uy = dy / length;
-        next[index].ctrl1_x = std::clamp(curr.x - ux * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
-        next[index].ctrl1_y = std::clamp(curr.y - uy * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
-        next[index].ctrl2_x = std::clamp(curr.x + ux * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
-        next[index].ctrl2_y = std::clamp(curr.y + uy * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl1_x =
+            std::clamp(curr.x - ux * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl1_y =
+            std::clamp(curr.y - uy * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl2_x =
+            std::clamp(curr.x + ux * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl2_y =
+            std::clamp(curr.y + uy * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
     }
     points = std::move(next);
 }
@@ -527,10 +534,14 @@ void smooth_brush_handles(std::vector<BrushMaskPoint> &points) noexcept
         const double uy = dy / length;
         const double incoming = std::hypot(curr.x - prev.x, curr.y - prev.y) / 3.0;
         const double outgoing = std::hypot(succ.x - curr.x, succ.y - curr.y) / 3.0;
-        next[index].ctrl1_x = std::clamp(curr.x - ux * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
-        next[index].ctrl1_y = std::clamp(curr.y - uy * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
-        next[index].ctrl2_x = std::clamp(curr.x + ux * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
-        next[index].ctrl2_y = std::clamp(curr.y + uy * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl1_x =
+            std::clamp(curr.x - ux * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl1_y =
+            std::clamp(curr.y - uy * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl2_x =
+            std::clamp(curr.x + ux * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl2_y =
+            std::clamp(curr.y + uy * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
     }
     points = std::move(next);
 }
@@ -571,7 +582,8 @@ void smooth_brush_handles(std::vector<BrushMaskPoint> &points) noexcept
     return mask;
 }
 
-[[nodiscard]] std::size_t reference_count(const DevelopParams &params, const std::string_view id) noexcept
+[[nodiscard]] std::size_t reference_count(const DevelopParams &params,
+                                          const std::string_view id) noexcept
 {
     std::size_t count = 0U;
     for (const auto &info : kDevelopMaskTargetInfo)
@@ -606,7 +618,8 @@ void delete_unreferenced_studio_children(DevelopParams &params, const MaskGroup 
 {
     for (const auto &child : group.children)
     {
-        if (studio_owns_mask_id(target, child.mask_id) && reference_count(params, child.mask_id) == 0U)
+        if (studio_owns_mask_id(target, child.mask_id) &&
+            reference_count(params, child.mask_id) == 0U)
         {
             erase_mask_id(params, child.mask_id);
         }
@@ -759,9 +772,8 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
     const std::string id = *attachment;
     const Mask *attached = find_mask(params.masks, id);
     MaskGroup owned_group;
-    const bool owned_group_detach =
-        attached != nullptr && attached->kind == MaskKind::kGroup &&
-        state.status == DevelopMaskAttachmentStatus::kEditable;
+    const bool owned_group_detach = attached != nullptr && attached->kind == MaskKind::kGroup &&
+                                    state.status == DevelopMaskAttachmentStatus::kEditable;
     if (owned_group_detach)
     {
         owned_group = std::get<MaskGroup>(attached->payload);
@@ -874,8 +886,8 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
         {
             if (field == MaskField::kRadius)
                 return type_mismatch(mask, target, field_name);
-            auto valid =
-                finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target, field_name);
+            auto valid = finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target,
+                                      field_name);
             if (!valid)
                 return valid.error();
             if (field == MaskField::kCenterX)
@@ -1176,6 +1188,26 @@ bool is_develop_mask_field(const std::string_view field) noexcept
                        { return field.starts_with(info.field_prefix); });
 }
 
+bool develop_mask_parametric_assist_allowed(const DevelopMaskTarget target) noexcept
+{
+    switch (target)
+    {
+    case DevelopMaskTarget::kColorBalanceRgb:
+    case DevelopMaskTarget::kExposure:
+    case DevelopMaskTarget::kRgbCurve:
+    case DevelopMaskTarget::kToneCurve:
+    case DevelopMaskTarget::kHighlights:
+    case DevelopMaskTarget::kShadows:
+    case DevelopMaskTarget::kWhites:
+    case DevelopMaskTarget::kBlacks:
+        return true;
+    case DevelopMaskTarget::kColorHarmonizer:
+    case DevelopMaskTarget::kGraduatedNd:
+        return false;
+    }
+    return false;
+}
+
 DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
                                                  const DevelopMaskTarget target)
 {
@@ -1371,7 +1403,8 @@ DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
             if (!group_id)
                 return group_id.error();
             Mask group = make_kind_mask(group_id.value(), MaskKind::kGroup);
-            group.payload = MaskGroup{{{child_id.value(), MaskGroupOperator::kReplace, 1.0, false}}};
+            group.payload =
+                MaskGroup{{{child_id.value(), MaskGroupOperator::kReplace, 1.0, false}}};
             params.masks.push_back(std::move(group));
             attachment = params.masks.back().id;
             child_index_slot(params, target) = 0;
@@ -1517,8 +1550,7 @@ DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
             return flag.error();
         if (group->children.size() <= 1U)
         {
-            return mask_edit_error(ErrorCode::kValidation,
-                                   "A group must keep at least one child",
+            return mask_edit_error(ErrorCode::kValidation, "A group must keep at least one child",
                                    "invalid_mask_group_size", target, field_name);
         }
         const std::string child_id = edge.mask_id;
@@ -1726,14 +1758,15 @@ DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
     }
     if (field == MaskField::kPointRadius)
     {
-        auto valid =
-            finite_range(value, kCanonicalMaskPositiveMin, kCanonicalMaskUnitMax, target, field_name);
+        auto valid = finite_range(value, kCanonicalMaskPositiveMin, kCanonicalMaskUnitMax, target,
+                                  field_name);
         if (!valid)
             return valid.error();
         brush->points[at].radius = value;
         return {};
     }
-    auto valid = finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target, field_name);
+    auto valid =
+        finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target, field_name);
     if (!valid)
         return valid.error();
     if (field == MaskField::kPointHardness)
@@ -1816,10 +1849,11 @@ Result<void> apply_develop_mask_field_strict(DevelopParams &params, const std::s
             }
             else
             {
-                auto *mask = (parsed->field == MaskField::kOpacity ||
-                              parsed->field == MaskField::kInverted) ?
-                                 find_mask(candidate.masks, *mask_attachment(candidate, parsed->target)) :
-                                 edited_leaf(candidate, parsed->target);
+                auto *mask =
+                    (parsed->field == MaskField::kOpacity ||
+                     parsed->field == MaskField::kInverted) ?
+                        find_mask(candidate.masks, *mask_attachment(candidate, parsed->target)) :
+                        edited_leaf(candidate, parsed->target);
                 if (mask == nullptr)
                 {
                     return mask_edit_error(
@@ -1893,10 +1927,10 @@ Result<void> reset_develop_mask_field(DevelopParams &params, const std::string_v
         }
         else
         {
-            auto *mask = (parsed->field == MaskField::kOpacity ||
-                          parsed->field == MaskField::kInverted) ?
-                             find_mask(candidate.masks, *mask_attachment(candidate, parsed->target)) :
-                             edited_leaf(candidate, parsed->target);
+            auto *mask =
+                (parsed->field == MaskField::kOpacity || parsed->field == MaskField::kInverted) ?
+                    find_mask(candidate.masks, *mask_attachment(candidate, parsed->target)) :
+                    edited_leaf(candidate, parsed->target);
             if (mask == nullptr)
             {
                 return mask_edit_error(

@@ -314,6 +314,8 @@ map_mask_place_preview(const DevelopParams &params, const double preview_x, cons
             {QStringLiteral("attached"), state.attached},
             {QStringLiteral("editable"), state.editable},
             {QStringLiteral("canDetach"), state.can_detach},
+            {QStringLiteral("parametricAssistAuthorized"),
+             develop_mask_parametric_assist_allowed(target)},
             {QStringLiteral("kindIndex"), static_cast<int>(state.kind_index)},
             {QStringLiteral("kindName"), qstring_from_utf8(state.kind_name)},
             {QStringLiteral("kindLabel"), develop_mask_kind_label(state.kind_name)},

@@ -151,7 +151,7 @@ ColumnLayout {
     CustomCheckBox {
         Layout.fillWidth: true
         objectName: "maskParametricAssistActive"
-        visible: maskEditor.mask.attached === true && maskEditor.mask.kindName === "parametric" && maskEditor.mask.target === "exposure"
+        visible: maskEditor.mask.attached === true && maskEditor.mask.kindName === "parametric" && maskEditor.mask.parametricAssistAuthorized === true
         text: qsTr("Assist from photo")
         enabled: panel.hasSelection && maskEditor.mask.editable === true && panel.hasPresenter && panel.presenter.maskParametricAssistAllowed
         checked: panel.hasPresenter && panel.presenter.maskParametricAssistActive && panel.presenter.maskOverlayVisible && panel.presenter.maskOverlayTarget === maskEditor.mask.target

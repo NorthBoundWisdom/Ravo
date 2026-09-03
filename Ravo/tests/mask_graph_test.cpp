@@ -719,41 +719,96 @@ TEST(DevelopMaskAuthoringTest, CreatesTypedStudioOwnedLeavesAndRoundTripsOrdinar
     EXPECT_EQ(ordinary_edit.graduated_mask_id, params.graduated_mask_id);
 }
 
-TEST(DevelopMaskAuthoringTest, ExposureParametricHistogramAssistAuthorsThresholds)
+TEST(DevelopMaskAuthoringTest, AuthorizedParametricHistogramAssistAuthorsThresholds)
 {
-    DevelopParams params;
-    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskKind", 5.0));
-    ASSERT_TRUE(params.exposure_mask_id);
-    auto state = develop_mask_editor_state(params, DevelopMaskTarget::kExposure);
-    EXPECT_EQ(state.kind_name, "parametric");
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kColorBalanceRgb));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kExposure));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kRgbCurve));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kToneCurve));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kHighlights));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kShadows));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kWhites));
+    EXPECT_TRUE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kBlacks));
+    EXPECT_FALSE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kColorHarmonizer));
+    EXPECT_FALSE(develop_mask_parametric_assist_allowed(DevelopMaskTarget::kGraduatedNd));
 
-    const double sample = normalized_display_mask_channel(128, 64, 32, state.channel_index);
-    auto thresholds = parametric_thresholds_from_histogram_assist(sample, nullptr);
-    ASSERT_TRUE(thresholds) << thresholds.error().message;
-    ASSERT_TRUE(
-        apply_develop_mask_field_strict(params, "exposureMaskThreshold2", thresholds.value()[2]));
-    ASSERT_TRUE(
-        apply_develop_mask_field_strict(params, "exposureMaskThreshold1", thresholds.value()[1]));
-    ASSERT_TRUE(
-        apply_develop_mask_field_strict(params, "exposureMaskThreshold0", thresholds.value()[0]));
-    ASSERT_TRUE(
-        apply_develop_mask_field_strict(params, "exposureMaskThreshold3", thresholds.value()[3]));
+    struct Case
+    {
+        DevelopMaskTarget target;
+        const char *kind_field;
+        const char *threshold0;
+        const char *threshold1;
+        const char *threshold2;
+        const char *threshold3;
+        const char *asset_id;
+    };
+    const Case cases[] = {
+        {DevelopMaskTarget::kColorBalanceRgb, "colorBalanceRgbMaskKind",
+         "colorBalanceRgbMaskThreshold0", "colorBalanceRgbMaskThreshold1",
+         "colorBalanceRgbMaskThreshold2", "colorBalanceRgbMaskThreshold3", "asset-cbrgb-assist"},
+        {DevelopMaskTarget::kExposure, "exposureMaskKind", "exposureMaskThreshold0",
+         "exposureMaskThreshold1", "exposureMaskThreshold2", "exposureMaskThreshold3",
+         "asset-exposure-assist"},
+        {DevelopMaskTarget::kRgbCurve, "rgbCurveMaskKind", "rgbCurveMaskThreshold0",
+         "rgbCurveMaskThreshold1", "rgbCurveMaskThreshold2", "rgbCurveMaskThreshold3",
+         "asset-rgbcurve-assist"},
+        {DevelopMaskTarget::kToneCurve, "toneCurveMaskKind", "toneCurveMaskThreshold0",
+         "toneCurveMaskThreshold1", "toneCurveMaskThreshold2", "toneCurveMaskThreshold3",
+         "asset-tonecurve-assist"},
+        {DevelopMaskTarget::kHighlights, "highlightsMaskKind", "highlightsMaskThreshold0",
+         "highlightsMaskThreshold1", "highlightsMaskThreshold2", "highlightsMaskThreshold3",
+         "asset-highlights-assist"},
+        {DevelopMaskTarget::kShadows, "shadowsMaskKind", "shadowsMaskThreshold0",
+         "shadowsMaskThreshold1", "shadowsMaskThreshold2", "shadowsMaskThreshold3",
+         "asset-shadows-assist"},
+        {DevelopMaskTarget::kWhites, "whitesMaskKind", "whitesMaskThreshold0",
+         "whitesMaskThreshold1", "whitesMaskThreshold2", "whitesMaskThreshold3",
+         "asset-whites-assist"},
+        {DevelopMaskTarget::kBlacks, "blacksMaskKind", "blacksMaskThreshold0",
+         "blacksMaskThreshold1", "blacksMaskThreshold2", "blacksMaskThreshold3",
+         "asset-blacks-assist"},
+    };
 
-    state = develop_mask_editor_state(params, DevelopMaskTarget::kExposure);
-    EXPECT_NEAR(state.threshold0, thresholds.value()[0], 1e-12);
-    EXPECT_NEAR(state.threshold1, thresholds.value()[1], 1e-12);
-    EXPECT_NEAR(state.threshold2, thresholds.value()[2], 1e-12);
-    EXPECT_NEAR(state.threshold3, thresholds.value()[3], 1e-12);
+    for (const auto &entry : cases)
+    {
+        DevelopParams params;
+        ASSERT_TRUE(apply_develop_mask_field_strict(params, entry.kind_field, 5.0))
+            << entry.kind_field;
+        auto state = develop_mask_editor_state(params, entry.target);
+        EXPECT_EQ(state.kind_name, "parametric") << entry.kind_field;
+        EXPECT_TRUE(develop_mask_parametric_assist_allowed(entry.target)) << entry.kind_field;
 
-    auto recipe =
-        recipe_from_develop({"asset-exposure-assist", "file:///fixture.raw", std::nullopt}, params);
-    ASSERT_TRUE(recipe) << recipe.error().message;
-    auto restored = develop_from_recipe(recipe.value());
-    ASSERT_TRUE(restored) << restored.error().message;
-    EXPECT_EQ(restored.value().exposure_mask_id, params.exposure_mask_id);
-    auto restored_state = develop_mask_editor_state(restored.value(), DevelopMaskTarget::kExposure);
-    EXPECT_NEAR(restored_state.threshold0, thresholds.value()[0], 1e-12);
-    EXPECT_NEAR(restored_state.threshold3, thresholds.value()[3], 1e-12);
+        const double sample = normalized_display_mask_channel(128, 64, 32, state.channel_index);
+        auto thresholds = parametric_thresholds_from_histogram_assist(sample, nullptr);
+        ASSERT_TRUE(thresholds) << thresholds.error().message << " " << entry.kind_field;
+        ASSERT_TRUE(
+            apply_develop_mask_field_strict(params, entry.threshold2, thresholds.value()[2]))
+            << entry.threshold2;
+        ASSERT_TRUE(
+            apply_develop_mask_field_strict(params, entry.threshold1, thresholds.value()[1]))
+            << entry.threshold1;
+        ASSERT_TRUE(
+            apply_develop_mask_field_strict(params, entry.threshold0, thresholds.value()[0]))
+            << entry.threshold0;
+        ASSERT_TRUE(
+            apply_develop_mask_field_strict(params, entry.threshold3, thresholds.value()[3]))
+            << entry.threshold3;
+
+        state = develop_mask_editor_state(params, entry.target);
+        EXPECT_NEAR(state.threshold0, thresholds.value()[0], 1e-12) << entry.kind_field;
+        EXPECT_NEAR(state.threshold1, thresholds.value()[1], 1e-12) << entry.kind_field;
+        EXPECT_NEAR(state.threshold2, thresholds.value()[2], 1e-12) << entry.kind_field;
+        EXPECT_NEAR(state.threshold3, thresholds.value()[3], 1e-12) << entry.kind_field;
+
+        auto recipe =
+            recipe_from_develop({entry.asset_id, "file:///fixture.raw", std::nullopt}, params);
+        ASSERT_TRUE(recipe) << recipe.error().message << " " << entry.kind_field;
+        auto restored = develop_from_recipe(recipe.value());
+        ASSERT_TRUE(restored) << restored.error().message << " " << entry.kind_field;
+        auto restored_state = develop_mask_editor_state(restored.value(), entry.target);
+        EXPECT_NEAR(restored_state.threshold0, thresholds.value()[0], 1e-12) << entry.kind_field;
+        EXPECT_NEAR(restored_state.threshold3, thresholds.value()[3], 1e-12) << entry.kind_field;
+    }
 
     auto rejected = parametric_thresholds_from_histogram_assist(2.0, nullptr);
     ASSERT_FALSE(rejected);
