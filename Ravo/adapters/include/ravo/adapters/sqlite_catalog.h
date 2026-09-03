@@ -133,6 +133,10 @@ public:
                         std::optional<std::int64_t> expected_revision) override;
     [[nodiscard]] Result<void> upsert_writable_metadata(std::string_view asset_id,
                                                         const WritableMetadata &metadata) override;
+    [[nodiscard]] Result<WritableMetadataMutation>
+    patch_assets_writable_metadata(const std::vector<std::string> &asset_ids,
+                                   const WritableMetadataPatch &patch,
+                                   std::optional<std::int64_t> expected_revision) override;
     [[nodiscard]] Result<std::vector<RecipeHistoryEntry>>
     list_recipe_history(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::optional<RecipeHistoryEntry>>

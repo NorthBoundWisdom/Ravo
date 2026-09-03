@@ -145,7 +145,7 @@ licence/package ADR for remaining format work.
 **Remaining unfinished work:**
 - Owned HEIC/HEIF decode (pixels, colour, orientation, multi-image selection)
   after dependency/licence/package gates.
-- PTP/MTP transport and device lifecycle.
+- PTP/MTP transport and device lifecycle (ADR-0125 Proposed decision stub).
 - DNG conversion and Smart Preview policy.
 
 **Risks:** destination collisions, device disappearance, source mutation,
@@ -160,10 +160,9 @@ ships.
 
 ## PRO-METADATA — Hierarchical keywords and delivery metadata
 
-**Status:** P1 / Partial — ADR-0119 accepted and implemented for hierarchical
-keywords (schema v12 vocabulary + membership, CLI/service APIs, Studio path
-entry, revision-checked multi-select). IPTC subset, location, and facets remain
-undecided.
+**Status:** P1 / Partial — ADR-0119 hierarchical keywords and ADR-0124 IPTC Core
+subset (title/description/creator/copyright) accepted and implemented. Location
+tables and camera/lens/date facets remain undecided.
 
 **Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
 and camera/lens/date facets with transactional multi-selection editing.
@@ -175,21 +174,27 @@ and camera/lens/date facets with transactional multi-selection editing.
 - CLI `keywords` / `keyword-create|rename|move|delete` and path-capable `tag`;
 - Studio Tags field accepts hierarchical paths; multi-select uses one revision-
   checked CatalogService transaction;
-- create/reopen/migrate v12 and rename/membership survive reopen/backup checks.
+- create/reopen/migrate v12 and rename/membership survive reopen/backup checks;
+- ADR-0124 catalog-owned IPTC Core quartet on existing `asset_metadata` columns
+  (no schema bump); capture refresh leaves Core writables untouched;
+- CatalogService/CLI get/set plus `set_writable_metadata_selection` field patches
+  with revision-checked multi-select; Studio metadata fields use the selection API;
+- export privacy keeps Core writables under `full`/`no-location` and strips them
+  under `none` (ADR-0064/0038).
 
 **Remaining unfinished work:**
-- IPTC Core/Ext field subset beyond keyword paths;
 - catalog-owned location tables and camera/lens/date facets;
-- adjacent XMP/source keyword merge matrix (PRO-INTERCHANGE).
+- IPTC Extension / additional Core fields beyond the ADR-0124 quartet;
+- adjacent XMP/source keyword/IPTC merge matrix (PRO-INTERCHANGE).
 
 **Risks:** two live metadata authorities if interchange lands without a matrix,
-QML-built SQL, and privacy stripping that does not match export for future IPTC /
-location fields.
+QML-built SQL, and privacy stripping that does not match export for future
+location/facet fields.
 
-**Acceptance gate:** hierarchy edits survive reopen/backup/restore, source refresh
-preserves catalog-only fields, bulk failure rolls back or reports exact partial
-state according to the accepted contract, queries remain bounded, and export
-privacy is exact.
+**Acceptance gate:** hierarchy and Core writable edits survive reopen/backup/
+restore, source refresh preserves catalog-only fields, bulk failure rolls back
+or reports exact partial state according to the accepted contract, queries remain
+bounded, and export privacy is exact.
 
 ## PRO-LOCAL — Everyday masked grading
 

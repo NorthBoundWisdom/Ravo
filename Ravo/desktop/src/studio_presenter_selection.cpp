@@ -677,50 +677,64 @@ void StudioPresenter::setMetadataField(const QString &name, const QString &value
 {
     const auto field = utf8_from_qstring(name);
     const auto text = utf8_from_qstring(value);
-    mutate_selected_review(
-        [field, text](CatalogService &service,
-                      const std::string_view asset_id) -> Result<AssetRecord>
+    const std::optional<std::string> field_value =
+        text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
+    auto patch = writable_metadata_patch_for_field(field, field_value);
+    if (!patch)
+    {
+        setError(qstring_from_utf8(patch.error().message));
+        return;
+    }
+    if (selected_ids_.empty() || catalog_path_.isEmpty())
+    {
+        return;
+    }
+    const auto ids = selected_asset_ids();
+    const auto metadata_patch = patch.value();
+    executor_.post(
+        [this, ids, metadata_patch]()
         {
-            auto listed = service.list_assets();
-            if (!listed)
+            TaskError error = make_error(ErrorCode::kIo, "Catalog session is closed");
+            std::vector<AssetRecord> updated;
+            bool ok = false;
+            if (service_ != nullptr)
             {
-                return listed.error();
-            }
-            WritableMetadata metadata;
-            for (const auto &asset : listed.value())
-            {
-                if (asset.id == asset_id)
+                std::optional<std::int64_t> revision;
+                auto snapshot = service_->snapshot();
+                if (snapshot)
+                    revision = snapshot.value().revision;
+                auto mutated =
+                    service_->set_writable_metadata_selection(ids, metadata_patch, revision);
+                if (!mutated)
                 {
-                    metadata = asset.metadata;
-                    break;
+                    error = mutated.error();
+                }
+                else
+                {
+                    ok = true;
+                    updated = std::move(mutated).value().assets;
                 }
             }
-            if (field == "title")
-            {
-                metadata.title =
-                    text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
-            }
-            else if (field == "description")
-            {
-                metadata.description =
-                    text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
-            }
-            else if (field == "creator")
-            {
-                metadata.creator =
-                    text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
-            }
-            else if (field == "copyright")
-            {
-                metadata.copyright =
-                    text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
-            }
-            else
-            {
-                return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
-                                  {{"field", field}});
-            }
-            return service.set_writable_metadata(asset_id, metadata);
+            QMetaObject::invokeMethod(
+                this,
+                [this, ok, error = std::move(error), updated = std::move(updated)]() mutable
+                {
+                    if (!ok)
+                    {
+                        setError(qstring_from_utf8(error.message));
+                        return;
+                    }
+                    for (const auto &asset : updated)
+                    {
+                        assets_.updateAsset(asset);
+                    }
+                    emit selectionChanged();
+                    if (filtersActive())
+                    {
+                        reloadVisibleAssets();
+                    }
+                },
+                Qt::QueuedConnection);
         });
 }
 

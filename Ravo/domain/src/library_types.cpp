@@ -560,6 +560,72 @@ Result<void> validate_metadata_field(const std::string_view name, const std::str
     return {};
 }
 
+Result<WritableMetadataPatch>
+writable_metadata_patch_for_field(const std::string_view name,
+                                  const std::optional<std::string> &value)
+{
+    if (value)
+    {
+        auto valid = validate_metadata_field(name, *value);
+        if (!valid)
+            return valid.error();
+    }
+    else if (name != "title" && name != "description" && name != "creator" && name != "copyright")
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
+                          {{"field", std::string(name)}});
+    }
+    WritableMetadataPatch patch;
+    if (name == "title")
+    {
+        patch.update_title = true;
+        patch.title = value;
+    }
+    else if (name == "description")
+    {
+        patch.update_description = true;
+        patch.description = value;
+    }
+    else if (name == "creator")
+    {
+        patch.update_creator = true;
+        patch.creator = value;
+    }
+    else
+    {
+        patch.update_copyright = true;
+        patch.copyright = value;
+    }
+    return patch;
+}
+
+WritableMetadataPatch writable_metadata_patch_all(const WritableMetadata &metadata)
+{
+    WritableMetadataPatch patch;
+    patch.update_title = true;
+    patch.title = metadata.title;
+    patch.update_description = true;
+    patch.description = metadata.description;
+    patch.update_creator = true;
+    patch.creator = metadata.creator;
+    patch.update_copyright = true;
+    patch.copyright = metadata.copyright;
+    return patch;
+}
+
+void apply_writable_metadata_patch(WritableMetadata &metadata,
+                                   const WritableMetadataPatch &patch) noexcept
+{
+    if (patch.update_title)
+        metadata.title = patch.title;
+    if (patch.update_description)
+        metadata.description = patch.description;
+    if (patch.update_creator)
+        metadata.creator = patch.creator;
+    if (patch.update_copyright)
+        metadata.copyright = patch.copyright;
+}
+
 bool asset_in_folder(const AssetRecord &asset, const std::string_view folder_uri) noexcept
 {
     if (folder_uri.empty())

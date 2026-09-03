@@ -9,6 +9,9 @@
 #include <initializer_list>
 #include <limits>
 #include <map>
+#include <string_view>
+#include <string>
+#include <optional>
 #include <set>
 #include <utility>
 #include <vector>
@@ -258,6 +261,191 @@ Result<void> SqliteCatalogRepository::upsert_writable_metadata(const std::string
         return map_sql_error(query, "upsert_writable_metadata");
     }
     return {};
+}
+
+namespace
+{
+
+[[nodiscard]] Result<std::int64_t> read_writable_revision(QSqlDatabase &database,
+                                                          std::string_view action)
+{
+    QSqlQuery revision(database);
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return map_sql_error(revision, action);
+    return revision.value(0).toLongLong();
+}
+
+[[nodiscard]] Result<void>
+require_writable_revision(QSqlDatabase &database,
+                          const std::optional<std::int64_t> expected_revision,
+                          std::string_view action)
+{
+    auto current = read_writable_revision(database, action);
+    if (!current)
+        return current.error();
+    if (expected_revision && *expected_revision != current.value())
+    {
+        return make_error(ErrorCode::kConflict, "Catalog revision is stale",
+                          {{"reason", "stale_catalog_revision"},
+                           {"expected_revision", std::to_string(*expected_revision)},
+                           {"revision", std::to_string(current.value())}});
+    }
+    return {};
+}
+
+[[nodiscard]] Result<std::int64_t> bump_writable_revision_locked(QSqlDatabase &database)
+{
+    QSqlQuery update(database);
+    if (!update.exec(QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
+        return map_sql_error(update, "bump_writable_metadata_revision");
+    return read_writable_revision(database, "read_writable_metadata_revision");
+}
+
+[[nodiscard]] Result<void> validate_writable_patch(const WritableMetadataPatch &patch)
+{
+    if (patch.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Writable metadata patch is empty",
+                          {{"reason", "empty_writable_metadata_patch"}});
+    }
+    const auto check = [](const bool update, const char *name,
+                          const std::optional<std::string> &value) -> Result<void>
+    {
+        if (!update || !value)
+            return {};
+        return validate_metadata_field(name, *value);
+    };
+    if (auto title = check(patch.update_title, "title", patch.title); !title)
+        return title.error();
+    if (auto description = check(patch.update_description, "description", patch.description);
+        !description)
+        return description.error();
+    if (auto creator = check(patch.update_creator, "creator", patch.creator); !creator)
+        return creator.error();
+    if (auto copyright = check(patch.update_copyright, "copyright", patch.copyright); !copyright)
+        return copyright.error();
+    return {};
+}
+
+[[nodiscard]] Result<WritableMetadata> load_writable_metadata_row(QSqlDatabase &database,
+                                                                  std::string_view asset_id)
+{
+    QSqlQuery query(database);
+    query.prepare(QStringLiteral(
+        "SELECT title, description, creator, copyright FROM asset_metadata WHERE asset_id = ?"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+        return map_sql_error(query, "load_writable_metadata");
+    WritableMetadata metadata;
+    if (!query.next())
+        return metadata;
+    metadata.title = string_column(query, 0);
+    metadata.description = string_column(query, 1);
+    metadata.creator = string_column(query, 2);
+    metadata.copyright = string_column(query, 3);
+    return metadata;
+}
+
+} // namespace
+
+Result<WritableMetadataMutation> SqliteCatalogRepository::patch_assets_writable_metadata(
+    const std::vector<std::string> &asset_ids, const WritableMetadataPatch &patch,
+    const std::optional<std::int64_t> expected_revision)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    if (asset_ids.empty())
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Writable metadata patch requires at least one asset",
+                          {{"reason", "empty_writable_metadata_asset_list"}});
+    }
+    auto valid_patch = validate_writable_patch(patch);
+    if (!valid_patch)
+        return valid_patch.error();
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start writable metadata transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    auto revision_ok =
+        require_writable_revision(impl_->database, expected_revision, "read_writable_revision");
+    if (!revision_ok)
+        return impl_->abort_transaction(revision_ok.error());
+
+    std::vector<std::string> unique_assets;
+    unique_assets.reserve(asset_ids.size());
+    std::set<std::string, std::less<>> seen;
+    for (const auto &asset_id : asset_ids)
+    {
+        if (asset_id.empty() || !seen.insert(asset_id).second)
+        {
+            return impl_->abort_transaction(make_error(
+                ErrorCode::kValidation, "Writable metadata asset list is invalid",
+                {{"reason", "invalid_writable_metadata_asset_list"}, {"asset_id", asset_id}}));
+        }
+        unique_assets.push_back(asset_id);
+    }
+
+    QSqlQuery existing(impl_->database);
+    QStringList placeholders;
+    placeholders.reserve(static_cast<qsizetype>(unique_assets.size()));
+    for (std::size_t index = 0; index < unique_assets.size(); ++index)
+        placeholders.push_back(QStringLiteral("?"));
+    existing.prepare(QStringLiteral("SELECT COUNT(*) FROM asset WHERE id IN (") +
+                     placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    for (const auto &asset_id : unique_assets)
+        existing.addBindValue(qstring_from_utf8(asset_id));
+    if (!existing.exec() || !existing.next())
+        return impl_->abort_transaction(map_sql_error(existing, "verify_writable_metadata_assets"));
+    if (static_cast<std::size_t>(existing.value(0).toLongLong()) != unique_assets.size())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kNotFound, "Writable metadata asset does not exist",
+                       {{"reason", "unknown_writable_metadata_asset"}}));
+    }
+
+    for (const auto &asset_id : unique_assets)
+    {
+        auto current = load_writable_metadata_row(impl_->database, asset_id);
+        if (!current)
+            return impl_->abort_transaction(current.error());
+        auto metadata = current.value();
+        apply_writable_metadata_patch(metadata, patch);
+        auto saved = upsert_writable_metadata(asset_id, metadata);
+        if (!saved)
+            return impl_->abort_transaction(saved.error());
+    }
+
+    auto revision = bump_writable_revision_locked(impl_->database);
+    if (!revision)
+        return impl_->abort_transaction(revision.error());
+    impl_->snapshot.revision = revision.value();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit writable metadata patch",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+
+    WritableMetadataMutation mutation;
+    mutation.revision = revision.value();
+    mutation.assets.reserve(unique_assets.size());
+    for (const auto &asset_id : unique_assets)
+    {
+        auto asset = find_asset_by_id(asset_id);
+        if (!asset)
+            return asset.error();
+        if (!asset.value())
+        {
+            return make_error(
+                ErrorCode::kNotFound, "Writable metadata asset does not exist",
+                {{"reason", "unknown_writable_metadata_asset"}, {"asset_id", asset_id}});
+        }
+        mutation.assets.push_back(std::move(*asset.value()));
+    }
+    return mutation;
 }
 
 Result<void> SqliteCatalogRepository::upsert_capture_metadata(const std::string_view asset_id,

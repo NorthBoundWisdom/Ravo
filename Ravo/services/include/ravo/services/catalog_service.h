@@ -247,6 +247,10 @@ public:
                    std::optional<std::int64_t> expected_revision = std::nullopt);
     [[nodiscard]] Result<AssetRecord> set_writable_metadata(std::string_view asset_id,
                                                             const WritableMetadata &metadata);
+    [[nodiscard]] Result<WritableMetadataMutation>
+    set_writable_metadata_selection(const std::vector<std::string> &asset_ids,
+                                    const WritableMetadataPatch &patch,
+                                    std::optional<std::int64_t> expected_revision = std::nullopt);
     [[nodiscard]] Result<std::vector<RecipeHistoryEntry>>
     list_recipe_history(std::string_view asset_id) const;
     [[nodiscard]] Result<AssetRecord> create_recipe_snapshot(std::string_view asset_id,

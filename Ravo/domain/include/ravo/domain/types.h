@@ -463,6 +463,25 @@ struct WritableMetadata
     [[nodiscard]] bool operator==(const WritableMetadata &) const noexcept = default;
 };
 
+// Field patch for multi-select IPTC Core edits (ADR-0124). Flags mark which
+// Core fields to write; optional values use absent = clear the field.
+struct WritableMetadataPatch
+{
+    bool update_title = false;
+    std::optional<std::string> title;
+    bool update_description = false;
+    std::optional<std::string> description;
+    bool update_creator = false;
+    std::optional<std::string> creator;
+    bool update_copyright = false;
+    std::optional<std::string> copyright;
+
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return !update_title && !update_description && !update_creator && !update_copyright;
+    }
+};
+
 struct ExportUnsignedRational
 {
     std::uint32_t numerator = 0U;
@@ -621,6 +640,12 @@ struct AssetVersionMutation
 };
 
 struct KeywordMembershipMutation
+{
+    std::vector<AssetRecord> assets;
+    std::int64_t revision = 0;
+};
+
+struct WritableMetadataMutation
 {
     std::vector<AssetRecord> assets;
     std::int64_t revision = 0;
@@ -1128,6 +1153,11 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata);
 [[nodiscard]] Result<std::string> normalize_tag_name(std::string_view name);
 [[nodiscard]] Result<std::vector<std::string>> parse_tag_list(std::string_view text);
 [[nodiscard]] Result<void> validate_metadata_field(std::string_view name, std::string_view value);
+[[nodiscard]] Result<WritableMetadataPatch>
+writable_metadata_patch_for_field(std::string_view name, const std::optional<std::string> &value);
+[[nodiscard]] WritableMetadataPatch writable_metadata_patch_all(const WritableMetadata &metadata);
+void apply_writable_metadata_patch(WritableMetadata &metadata,
+                                   const WritableMetadataPatch &patch) noexcept;
 [[nodiscard]] std::string asset_display_name(const AssetRecord &asset);
 [[nodiscard]] bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query);
 [[nodiscard]] Result<void> validate_library_query(const LibraryQuery &query);

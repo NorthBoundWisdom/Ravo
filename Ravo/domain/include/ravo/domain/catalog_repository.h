@@ -151,6 +151,10 @@ public:
                         std::optional<std::int64_t> expected_revision) = 0;
     [[nodiscard]] virtual Result<void>
     upsert_writable_metadata(std::string_view asset_id, const WritableMetadata &metadata) = 0;
+    [[nodiscard]] virtual Result<WritableMetadataMutation>
+    patch_assets_writable_metadata(const std::vector<std::string> &asset_ids,
+                                   const WritableMetadataPatch &patch,
+                                   std::optional<std::int64_t> expected_revision) = 0;
     [[nodiscard]] virtual Result<std::vector<RecipeHistoryEntry>>
     list_recipe_history(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::optional<RecipeHistoryEntry>>

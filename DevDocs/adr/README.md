@@ -126,8 +126,10 @@ supersession relationship when direction changes.
 | [0116](0116-histogram-assisted-parametric-mask.md) | Accepted | C++-owned histogram-assisted parametric thresholds from a Develop photo pick for authorized everyday consumers; Canvas/Perspective reject. |
 | [0117](0117-export-box-sharpen-presets-and-restartable-jobs.md) | Accepted | Export box fit, post-resize output sharpen, reusable ExportOptions presets, and restartable batch jobs on CatalogService. |
 | [0118](0118-heic-heif-fail-closed-ingest.md) | Accepted | HEIC/HEIF containers are recognized by ftyp brands and fail closed until an owned decoder ships; never pretend-JPEG or incidental ImageIO decode. |
-| [0119](0119-hierarchical-keywords.md) | Proposed | Hierarchical keyword authority, identity, membership, and export privacy decision stub for PRO-METADATA (no schema dump yet). |
+| [0119](0119-hierarchical-keywords.md) | Accepted | Catalog-owned hierarchical keywords with stable IDs, schema v12 membership, and export privacy via existing tag packets. |
 | [0120](0120-xmp-interchange-conflict-matrix.md) | Accepted | Adjacent XMP conflict matrix; explicit CRS import/export |
 | [0121](0121-ai-architecture-privacy-provenance.md) | Accepted | AI architecture, privacy, provenance, licence boundary |
 | [0122](0122-external-editor-derived-assets.md) | Accepted | External-editor output as derived asset with provenance |
 | [0123](0123-heic-owned-decode-packaging-gate.md) | Accepted | HEIC owned-decode blocked on licence/package evidence |
+| [0124](0124-iptc-core-catalog-subset.md) | Accepted | Catalog-owned IPTC Core quartet (title/description/creator/copyright), refresh isolation, export privacy, multi-select patches |
+| [0125](0125-ptp-mtp-ingest-transport.md) | Proposed | PTP/MTP ingest transport decision stub: planner-fed, fail-closed lifecycle, read-only source |

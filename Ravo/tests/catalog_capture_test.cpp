@@ -453,10 +453,25 @@ TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomicall
     ASSERT_TRUE(before);
     replace_synthetic_capture_year(jpeg_path, QByteArray("2008"));
 
+    WritableMetadata writable;
+    writable.title = "KeepMe";
+    writable.creator = "CatalogOnly";
+    writable.copyright = "© Keep";
+    auto saved = service->set_writable_metadata(asset_id, writable);
+    ASSERT_TRUE(saved) << saved.error().message;
+    before = service->snapshot();
+    ASSERT_TRUE(before);
+
     auto refreshed = service->refresh_capture_metadata(asset_id, CancellationToken{});
     ASSERT_TRUE(refreshed) << refreshed.error().message;
     ASSERT_TRUE(refreshed.value().capture.captured_datetime);
     EXPECT_EQ(refreshed.value().capture.captured_datetime->local_exif, "2008:09:11 13:53:33");
+    ASSERT_TRUE(refreshed.value().metadata.title);
+    EXPECT_EQ(*refreshed.value().metadata.title, "KeepMe");
+    ASSERT_TRUE(refreshed.value().metadata.creator);
+    EXPECT_EQ(*refreshed.value().metadata.creator, "CatalogOnly");
+    ASSERT_TRUE(refreshed.value().metadata.copyright);
+    EXPECT_EQ(*refreshed.value().metadata.copyright, "© Keep");
     auto after = service->snapshot();
     ASSERT_TRUE(after);
     EXPECT_EQ(after.value().revision, before.value().revision + 1);
@@ -469,6 +484,10 @@ TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomicall
     ASSERT_EQ(listed.value().size(), 1U);
     ASSERT_TRUE(listed.value().front().capture.captured_datetime);
     EXPECT_EQ(listed.value().front().capture.captured_datetime->local_exif, "2008:09:11 13:53:33");
+    ASSERT_TRUE(listed.value().front().metadata.title);
+    EXPECT_EQ(*listed.value().front().metadata.title, "KeepMe");
+    ASSERT_TRUE(listed.value().front().metadata.copyright);
+    EXPECT_EQ(*listed.value().front().metadata.copyright, "© Keep");
 }
 
 TEST_F(CatalogServiceTest, RefreshFailurePreservesCaptureAndRevision)

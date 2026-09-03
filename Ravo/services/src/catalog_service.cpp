@@ -1240,69 +1240,46 @@ Result<AssetRecord> CatalogService::set_tags(const std::string_view asset_id,
     return mutated.value().assets.front();
 }
 
-Result<AssetRecord> CatalogService::set_writable_metadata(const std::string_view asset_id,
-                                                          const WritableMetadata &metadata)
+Result<WritableMetadataMutation>
+CatalogService::set_writable_metadata_selection(const std::vector<std::string> &asset_ids,
+                                                const WritableMetadataPatch &patch,
+                                                const std::optional<std::int64_t> expected_revision)
 {
     if (repository_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
-    const auto check_field = [](const std::string_view name,
-                                const std::optional<std::string> &value) -> Result<void>
+    auto mutated = repository_->patch_assets_writable_metadata(asset_ids, patch, expected_revision);
+    if (!mutated)
     {
-        if (!value)
+        return mutated.error();
+    }
+    for (const auto &asset : mutated.value().assets)
+    {
+        auto recovered = synchronize_committed_change(asset.id);
+        if (!recovered)
         {
-            return {};
+            return recovered.error();
         }
-        return validate_metadata_field(name, *value);
-    };
-    auto title = check_field("title", metadata.title);
-    if (!title)
-    {
-        return title.error();
     }
-    auto description = check_field("description", metadata.description);
-    if (!description)
+    return mutated;
+}
+
+Result<AssetRecord> CatalogService::set_writable_metadata(const std::string_view asset_id,
+                                                          const WritableMetadata &metadata)
+{
+    auto mutated = set_writable_metadata_selection(
+        {std::string(asset_id)}, writable_metadata_patch_all(metadata), std::nullopt);
+    if (!mutated)
     {
-        return description.error();
+        return mutated.error();
     }
-    auto creator = check_field("creator", metadata.creator);
-    if (!creator)
-    {
-        return creator.error();
-    }
-    auto copyright = check_field("copyright", metadata.copyright);
-    if (!copyright)
-    {
-        return copyright.error();
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
+    if (mutated.value().assets.empty())
     {
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", std::string(asset_id)}});
     }
-    const auto saved = repository_->upsert_writable_metadata(asset_id, metadata);
-    if (!saved)
-    {
-        return saved.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    asset.value()->metadata = metadata;
-    auto recovered = synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
+    return mutated.value().assets.front();
 }
 
 Result<std::vector<RecipeHistoryEntry>>

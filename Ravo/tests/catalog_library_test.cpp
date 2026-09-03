@@ -1432,5 +1432,102 @@ TEST_F(CatalogServiceTest, HierarchicalKeywordsSurviveReopenBackupAndRename)
     EXPECT_EQ(matched, 2U);
 }
 
+TEST_F(CatalogServiceTest, IptcCoreWritablePatchIsTransactionalAndSurvivesReopen)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto photo_a = root / "iptc-a.jpg";
+    const auto photo_b = root / "iptc-b.jpg";
+    for (const auto &photo : {photo_a, photo_b})
+    {
+        QImage image(24, 18, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(50, 70, 90));
+        ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    }
+    auto imported_a = service->import_one(photo_a.string(), CancellationToken{});
+    auto imported_b = service->import_one(photo_b.string(), CancellationToken{});
+    ASSERT_TRUE(imported_a) << imported_a.error().message;
+    ASSERT_TRUE(imported_b) << imported_b.error().message;
+    ASSERT_TRUE(imported_a.value().asset);
+    ASSERT_TRUE(imported_b.value().asset);
+    const auto id_a = imported_a.value().asset->id;
+    const auto id_b = imported_b.value().asset->id;
+
+    WritableMetadata only_a;
+    only_a.title = "Alpha";
+    only_a.creator = "Alice";
+    ASSERT_TRUE(service->set_writable_metadata(id_a, only_a));
+    WritableMetadata only_b;
+    only_b.title = "Beta";
+    only_b.creator = "Bob";
+    ASSERT_TRUE(service->set_writable_metadata(id_b, only_b));
+
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    auto copyright_patch = writable_metadata_patch_for_field("copyright", std::string("© Ravo"));
+    ASSERT_TRUE(copyright_patch) << copyright_patch.error().message;
+    auto patched = service->set_writable_metadata_selection({id_a, id_b}, copyright_patch.value(),
+                                                            snapshot.value().revision);
+    ASSERT_TRUE(patched) << patched.error().message;
+    ASSERT_EQ(patched.value().assets.size(), 2U);
+    for (const auto &asset : patched.value().assets)
+    {
+        ASSERT_TRUE(asset.metadata.copyright);
+        EXPECT_EQ(*asset.metadata.copyright, "© Ravo");
+        if (asset.id == id_a)
+        {
+            ASSERT_TRUE(asset.metadata.title);
+            EXPECT_EQ(*asset.metadata.title, "Alpha");
+            ASSERT_TRUE(asset.metadata.creator);
+            EXPECT_EQ(*asset.metadata.creator, "Alice");
+        }
+        else if (asset.id == id_b)
+        {
+            ASSERT_TRUE(asset.metadata.title);
+            EXPECT_EQ(*asset.metadata.title, "Beta");
+            ASSERT_TRUE(asset.metadata.creator);
+            EXPECT_EQ(*asset.metadata.creator, "Bob");
+        }
+    }
+
+    auto stale = service->set_writable_metadata_selection(
+        {id_a}, writable_metadata_patch_for_field("title", std::string("Stale")).value(),
+        snapshot.value().revision);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    for (const auto &asset : listed.value())
+    {
+        if (asset.id == id_a)
+        {
+            ASSERT_TRUE(asset.metadata.title);
+            EXPECT_EQ(*asset.metadata.title, "Alpha");
+        }
+    }
+
+    const auto backup_dir = root / "iptc-backup";
+    auto backup = service->create_backup(backup_dir.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto reopened_assets = service->list_assets();
+    ASSERT_TRUE(reopened_assets);
+    std::size_t matched = 0;
+    for (const auto &asset : reopened_assets.value())
+    {
+        if (asset.id != id_a && asset.id != id_b)
+            continue;
+        ++matched;
+        ASSERT_TRUE(asset.metadata.copyright);
+        EXPECT_EQ(*asset.metadata.copyright, "© Ravo");
+    }
+    EXPECT_EQ(matched, 2U);
+}
+
 } // namespace
 } // namespace ravo

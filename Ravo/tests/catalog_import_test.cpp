@@ -689,6 +689,27 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
+    WritableMetadata writable;
+    writable.title = "PrivacyTitle";
+    writable.creator = "PrivacyCreator";
+    writable.copyright = "PrivacyCopyright";
+    ASSERT_TRUE(service->set_writable_metadata(asset_id, writable));
+
+    ExportRequest full;
+    full.asset_id = asset_id;
+    full.output_path = (root / "privacy-full.jpg").string();
+    full.format = ExportFormat::kJpeg;
+    full.metadata_mode = ExportMetadataMode::kFull;
+    auto full_result = service->export_asset(full);
+    ASSERT_TRUE(full_result) << full_result.error().message;
+    {
+        QFile file(QString::fromStdString(full.output_path));
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+        const QByteArray bytes = file.readAll();
+        EXPECT_TRUE(bytes.contains("PrivacyTitle"));
+        EXPECT_TRUE(bytes.contains("PrivacyCreator"));
+        EXPECT_TRUE(bytes.contains("PrivacyCopyright"));
+    }
 
     ExportRequest no_location;
     no_location.asset_id = asset_id;
@@ -702,6 +723,13 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
     ASSERT_TRUE(no_location_capture) << no_location_capture.error().message;
     EXPECT_TRUE(no_location_capture.value().captured_datetime.has_value());
     EXPECT_FALSE(no_location_capture.value().location.has_value());
+    {
+        QFile file(QString::fromStdString(no_location.output_path));
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+        const QByteArray bytes = file.readAll();
+        EXPECT_TRUE(bytes.contains("PrivacyTitle"));
+        EXPECT_TRUE(bytes.contains("PrivacyCreator"));
+    }
 
     const std::array cases{
         std::pair{ExportFormat::kJpeg, std::string("privacy-none.jpg")},
@@ -721,6 +749,9 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
         ASSERT_TRUE(file.open(QIODevice::ReadOnly));
         const QByteArray bytes = file.readAll();
         EXPECT_FALSE(bytes.contains("2007:09:11 13:53:33")) << name;
+        EXPECT_FALSE(bytes.contains("PrivacyTitle")) << name;
+        EXPECT_FALSE(bytes.contains("PrivacyCreator")) << name;
+        EXPECT_FALSE(bytes.contains("PrivacyCopyright")) << name;
         EXPECT_FALSE(bytes.contains("http://ns.adobe.com/xap/1.0/")) << name;
         EXPECT_FALSE(bytes.contains("XML:com.adobe.xmp")) << name;
         auto capture =
@@ -1324,7 +1355,7 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     ASSERT_NE(raw_item, nullptr);
     ASSERT_TRUE(raw_item->jpeg_companion_destination_path);
     EXPECT_TRUE(std::filesystem::equivalent(*raw_item->jpeg_companion_destination_path,
-                                           destination / "DSC0001.jpg"));
+                                            destination / "DSC0001.jpg"));
 
     auto recipe = service->load_recipe(raw_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
@@ -1364,7 +1395,8 @@ TEST_F(CatalogServiceTest, AmbiguousRawJpegCompanionsRejectImport)
     QImage jpeg(32, 24, QImage::Format_RGB888);
     jpeg.setColorSpace(QColorSpace(QColorSpace::SRgb));
     jpeg.fill(QColor(10, 20, 30));
-    ASSERT_TRUE(jpeg.save(QString::fromStdString((source_dir / "DSC0001.jpg").string()), "JPEG", 95));
+    ASSERT_TRUE(
+        jpeg.save(QString::fromStdString((source_dir / "DSC0001.jpg").string()), "JPEG", 95));
     ASSERT_TRUE(
         jpeg.save(QString::fromStdString((source_dir / "DSC0001.jpeg").string()), "JPEG", 95));
 
@@ -1396,8 +1428,8 @@ TEST_F(CatalogServiceTest, DeferredImportOfUntaggedJpegPublishesBrowseThumbnail)
     ASSERT_TRUE(decoded) << decoded.error().message;
     ASSERT_EQ(decoded.value().color_profile.kind, ColorProfileKind::kMissing);
 
-    auto imported = service->import_one(jpeg_path, CancellationToken{},
-                                        ImportPreviewPolicy::kStandard, true);
+    auto imported =
+        service->import_one(jpeg_path, CancellationToken{}, ImportPreviewPolicy::kStandard, true);
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_EQ(imported.value().status, ImportItemStatus::kImported);
     ASSERT_TRUE(imported.value().asset);
