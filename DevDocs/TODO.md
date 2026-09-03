@@ -287,8 +287,11 @@ rewrite, and exact preset apply after reopen.
 
 ## PRO-INTERCHANGE — Explicit XMP, catalog conversion, and external editors
 
-**Status:** P1 / Partial — ADR-0120 (XMP conflict matrix) and ADR-0122
-(external-editor derived assets) accepted. First Ready slices landed for both.
+**Status:** P1 / Partial — ADR-0120 (XMP conflict matrix), ADR-0122
+(external-editor derived assets), and ADR-0131 (read-only foreign catalog
+conversion contract) accepted. First Ready slices landed for XMP and
+external-editor; foreign conversion importer remains the next Ready code
+residual.
 
 **Done (XMP slice):** `catalog xmp-status|xmp-import|xmp-export` with CRS
 recipe-field conflict preflight, catalog-owned exchange baseline, fail-closed
@@ -303,12 +306,16 @@ imports a new catalog asset, writes provenance
 verifies source original SHA-256/size/mtime unchanged, never launches an
 editor/renderer, fail-closed on conflict/cancel/stale revision.
 
-**Still open (P2 / Decision required):**
+**Still open:**
 - launching/scripting external editors; Gallery auto-stack UX for derived pairs
-- backup/restore packaging of `{catalog}.ravo/derived/` byte trees
-- foreign Lightroom/Capture One catalog conversion (no in-place open)
-- keyword/IPTC/location adjacent merge matrix (ADR-0119 stays catalog-owned)
-- supported source-version matrix beyond CRS PV2012 recipe fields
+  (P2 / Decision required)
+- backup/restore packaging of `{catalog}.ravo/derived/` byte trees (P2 /
+  Decision required)
+- **Foreign catalog conversion (ADR-0131 accepted):** first Ready code tranche
+  residual — fixture-backed read-only Lightroom/C1 → new Ravo catalog importer
+  + structured report/CLI; no in-place open; no vendor runtime in default package
+- keyword/IPTC/location adjacent merge matrix (ADR-0119 stays catalog-owned; P2)
+- supported source-version matrix beyond CRS PV2012 recipe fields (P2)
 
 **Outcome:** user-initiated interchange without adjacent XMP becoming a second
 live authority, plus external-editor output as a new derived asset/version.
@@ -428,7 +435,9 @@ residual.
 
 ## AI-03 — Shoot-level consistency and batch assistance
 
-**Status:** blocked by `AI-01` and `AI-02` as applicable.
+**Status:** blocked pending a dated shoot-consistency proposal/batch contract
+ADR (AI-01/AI-02 stubs are on `main` but do not yet authorize multi-destination
+reference-grade proposals). Prefer that ADR + fixture stub over further docs.
 
 **Outcome:** use an explicit reference image or accepted style to propose a
 consistent grade across a selected shoot while preserving per-image exposure,
