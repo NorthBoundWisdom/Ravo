@@ -1291,86 +1291,65 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else
                 presenter_.setDevelopNumbers(fields);
         });
-    const auto validate_preview_xy = [](const QVariant &argument, const QString &x_label,
-                                        const QString &y_label) -> QString
-    {
-        if (const auto e = required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")});
-            !e.isEmpty())
+    // clang-format off
+    const auto validate_preview_xy =
+        [](const QVariant &argument, const QString &x_label, const QString &y_label) -> QString {
+        if (const auto e = required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")}); !e.isEmpty())
             return e;
         const auto fields = argument.toMap();
         if (const auto e = finite_number(fields.value(QStringLiteral("x")), x_label); !e.isEmpty())
             return e;
         return finite_number(fields.value(QStringLiteral("y")), y_label);
     };
-    const auto validate_bool = [](const QVariant &argument, const QString &label) -> QString
-    {
-        return argument.metaType().id() == QMetaType::Bool || argument.canConvert<bool>() ?
-                   QString{} :
-                   label;
+    const auto validate_bool = [](const QVariant &argument, const QString &label) -> QString {
+        return (argument.metaType().id() == QMetaType::Bool || argument.canConvert<bool>()) ? QString{} : label;
     };
-    add(
-        command::kEditPickWhiteBalance, Condition::kDevelopSelection,
-        [&validate_preview_xy](const QVariant &argument)
-        {
-            return validate_preview_xy(argument, QStringLiteral("White-balance X"),
-                                       QStringLiteral("White-balance Y"));
+    add(command::kEditPickWhiteBalance, Condition::kDevelopSelection,
+        [&validate_preview_xy](const QVariant &a) {
+            return validate_preview_xy(a, QStringLiteral("White-balance X"), QStringLiteral("White-balance Y"));
         },
-        [this](const QVariant &argument, const QString &)
-        {
-            const auto fields = argument.toMap();
+        [this](const QVariant &a, const QString &) {
+            const auto fields = a.toMap();
             presenter_.pickWhiteBalance(fields.value(QStringLiteral("x")).toDouble(),
                                         fields.value(QStringLiteral("y")).toDouble());
         });
-    add(
-        command::kEditSetWhiteBalancePick, Condition::kDevelopSelection,
-        [&validate_bool](const QVariant &argument)
-        {
-            return validate_bool(argument,
-                                 QStringLiteral("White-balance pick state must be boolean."));
+    add(command::kEditSetWhiteBalancePick, Condition::kDevelopSelection,
+        [&validate_bool](const QVariant &a) {
+            return validate_bool(a, QStringLiteral("White-balance pick state must be boolean."));
         },
-        [this](const QVariant &argument, const QString &)
-        { presenter_.setWhiteBalancePickActive(argument.toBool()); });
-    add(
-        command::kEditPlaceMask, Condition::kDevelopSelection,
-        [&validate_preview_xy](const QVariant &argument)
-        {
-            return validate_preview_xy(argument, QStringLiteral("Mask place X"),
-                                       QStringLiteral("Mask place Y"));
+        [this](const QVariant &a, const QString &) { presenter_.setWhiteBalancePickActive(a.toBool()); });
+    add(command::kEditPlaceMask, Condition::kDevelopSelection,
+        [&validate_preview_xy](const QVariant &a) {
+            return validate_preview_xy(a, QStringLiteral("Mask place X"), QStringLiteral("Mask place Y"));
         },
-        [this](const QVariant &argument, const QString &)
-        {
-            const auto fields = argument.toMap();
+        [this](const QVariant &a, const QString &) {
+            const auto fields = a.toMap();
             presenter_.placeMask(fields.value(QStringLiteral("x")).toDouble(),
                                  fields.value(QStringLiteral("y")).toDouble());
         });
-    add(
-        command::kEditSetMaskPlace, Condition::kDevelopSelection,
-        [&validate_bool](const QVariant &argument)
-        { return validate_bool(argument, QStringLiteral("Mask place state must be boolean.")); },
-        [this](const QVariant &argument, const QString &)
-        { presenter_.setMaskPlaceActive(argument.toBool()); });
-    add(
-        command::kEditAssistParametricMask, Condition::kDevelopSelection,
-        [&validate_preview_xy](const QVariant &argument)
-        {
-            return validate_preview_xy(argument, QStringLiteral("Parametric assist X"),
+    add(command::kEditSetMaskPlace, Condition::kDevelopSelection,
+        [&validate_bool](const QVariant &a) {
+            return validate_bool(a, QStringLiteral("Mask place state must be boolean."));
+        },
+        [this](const QVariant &a, const QString &) { presenter_.setMaskPlaceActive(a.toBool()); });
+    add(command::kEditAssistParametricMask, Condition::kDevelopSelection,
+        [&validate_preview_xy](const QVariant &a) {
+            return validate_preview_xy(a, QStringLiteral("Parametric assist X"),
                                        QStringLiteral("Parametric assist Y"));
         },
-        [this](const QVariant &argument, const QString &)
-        {
-            const auto fields = argument.toMap();
+        [this](const QVariant &a, const QString &) {
+            const auto fields = a.toMap();
             presenter_.assistParametricMask(fields.value(QStringLiteral("x")).toDouble(),
                                             fields.value(QStringLiteral("y")).toDouble());
         });
-    add(
-        command::kEditSetMaskParametricAssist, Condition::kDevelopSelection,
-        [&validate_bool](const QVariant &argument)
-        {
-            return validate_bool(argument,
-                                 QStringLiteral("Mask parametric assist state must be boolean."));
+    add(command::kEditSetMaskParametricAssist, Condition::kDevelopSelection,
+        [&validate_bool](const QVariant &a) {
+            return validate_bool(a, QStringLiteral("Mask parametric assist state must be boolean."));
         },
-        [this](const QVariant &argument, const QString &)
-        { presenter_.setMaskParametricAssistActive(argument.toBool()); });
+        [this](const QVariant &a, const QString &) {
+            presenter_.setMaskParametricAssistActive(a.toBool());
+        });
+    // clang-format on
     add(
         command::kEditSetToneCurve, Condition::kDevelopSelection,
         [](const QVariant &argument)
