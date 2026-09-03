@@ -100,6 +100,76 @@ namespace ravo::qt_raster_internal
     return starts_with(bytes, kRadianceSignature) || starts_with(bytes, kRgbeSignature);
 }
 
+[[nodiscard]] bool brand_equals(const std::span<const std::uint8_t> brand,
+                                const char expected[5]) noexcept
+{
+    return brand.size() >= 4U && brand[0] == static_cast<std::uint8_t>(expected[0]) &&
+           brand[1] == static_cast<std::uint8_t>(expected[1]) &&
+           brand[2] == static_cast<std::uint8_t>(expected[2]) &&
+           brand[3] == static_cast<std::uint8_t>(expected[3]);
+}
+
+[[nodiscard]] bool is_avif_major_brand(const std::span<const std::uint8_t> brand) noexcept
+{
+    return brand_equals(brand, "avif") || brand_equals(brand, "avis");
+}
+
+[[nodiscard]] bool is_heic_heif_brand(const std::span<const std::uint8_t> brand) noexcept
+{
+    return brand_equals(brand, "heic") || brand_equals(brand, "heix") ||
+           brand_equals(brand, "hevc") || brand_equals(brand, "hevx") ||
+           brand_equals(brand, "heim") || brand_equals(brand, "heis") ||
+           brand_equals(brand, "hevm") || brand_equals(brand, "hevs") ||
+           brand_equals(brand, "heif") || brand_equals(brand, "heifs") ||
+           brand_equals(brand, "mif1") || brand_equals(brand, "msf1") ||
+           brand_equals(brand, "avci") || brand_equals(brand, "avcs");
+}
+
+[[nodiscard]] bool is_heic_heif_payload(const std::span<const std::uint8_t> bytes) noexcept
+{
+    if (bytes.size() < 16U)
+    {
+        return false;
+    }
+    if (!(bytes[4] == static_cast<std::uint8_t>('f') &&
+          bytes[5] == static_cast<std::uint8_t>('t') &&
+          bytes[6] == static_cast<std::uint8_t>('y') && bytes[7] == static_cast<std::uint8_t>('p')))
+    {
+        return false;
+    }
+    const std::uint32_t box_size = read_u32_be(bytes.subspan(0U, 4U));
+    // size 0 means "to EOF"; size 1 is a 64-bit extended box we do not need to fully parse
+    // for brand recognition. Reject undersized declared boxes.
+    if (box_size != 0U && box_size != 1U && box_size < 16U)
+    {
+        return false;
+    }
+    const auto major = bytes.subspan(8U, 4U);
+    // AVIF remains a separate undecided format even when mif1 appears as a compatible brand.
+    if (is_avif_major_brand(major))
+    {
+        return false;
+    }
+    if (is_heic_heif_brand(major))
+    {
+        return true;
+    }
+    std::size_t end = bytes.size();
+    if (box_size > 1U)
+    {
+        end = std::min(end, static_cast<std::size_t>(box_size));
+    }
+    // Compatible brands start at offset 16.
+    for (std::size_t offset = 16U; offset + 4U <= end; offset += 4U)
+    {
+        if (is_heic_heif_brand(bytes.subspan(offset, 4U)))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 [[nodiscard]] std::span<const std::uint8_t> byte_span(const QByteArray &bytes) noexcept
 {
     return {reinterpret_cast<const std::uint8_t *>(bytes.constData()),
@@ -149,6 +219,15 @@ namespace ravo::qt_raster_internal
                       "Radiance RGBE input requires the dedicated HDR float pipeline",
                       {{"format", "rgbe"},
                        {"reason", "unsupported_rgbe_input"},
+                       {"source", std::string(source)}});
+}
+
+[[nodiscard]] TaskError heic_unsupported_error(const std::string_view source)
+{
+    return make_error(ErrorCode::kUnsupported,
+                      "HEIC/HEIF input is explicitly unsupported until an owned decoder ships",
+                      {{"format", "heic"},
+                       {"reason", "unsupported_heic_input"},
                        {"source", std::string(source)}});
 }
 
@@ -266,6 +345,52 @@ read_rgbe_file_candidate(const std::string_view path, const CancellationToken *c
         }
     }
     return RgbeFileCandidate{is_rgbe_payload(byte_span(prefix))};
+}
+
+[[nodiscard]] Result<HeicFileCandidate>
+read_heic_file_candidate(const std::string_view path, const CancellationToken *const cancellation)
+{
+    if (path.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Raster path must not be empty");
+    }
+    const QString file_name = qstring_from_utf8(path);
+    const QFileInfo info(file_name);
+    if (!info.exists())
+    {
+        return make_error(ErrorCode::kNotFound, "Raster input does not exist",
+                          {{"path", std::string(path)}});
+    }
+    if (!info.isFile())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Raster path must reference a regular file",
+                          {{"path", std::string(path)}});
+    }
+    QFile file(file_name);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        return make_error(
+            ErrorCode::kIo, "Unable to open raster input",
+            {{"path", std::string(path)}, {"qt_error", file.errorString().toUtf8().toStdString()}});
+    }
+    // HEIC/HEIF brands live in the leading ftyp box; peek a bounded prefix only.
+    constexpr qint64 kHeicProbeBytes = 256;
+    const QByteArray prefix = file.peek(kHeicProbeBytes);
+    if (file.error() != QFileDevice::NoError)
+    {
+        return make_error(
+            ErrorCode::kIo, "Unable to inspect raster input",
+            {{"path", std::string(path)}, {"qt_error", file.errorString().toUtf8().toStdString()}});
+    }
+    if (cancellation != nullptr)
+    {
+        auto active = cancellation->check();
+        if (!active)
+        {
+            return active.error();
+        }
+    }
+    return HeicFileCandidate{is_heic_heif_payload(byte_span(prefix))};
 }
 
 [[nodiscard]] std::string media_type_for_format(const QByteArray &format)

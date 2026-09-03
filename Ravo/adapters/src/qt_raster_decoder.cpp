@@ -88,6 +88,15 @@ Result<RasterInfo> QtRasterDecoder::probe(const std::string_view path) const
     {
         return rgbe_unsupported_error(path);
     }
+    auto heic_candidate = read_heic_file_candidate(path);
+    if (!heic_candidate)
+    {
+        return heic_candidate.error();
+    }
+    if (heic_candidate.value().recognized)
+    {
+        return heic_unsupported_error(path);
+    }
     QImageReader reader;
     auto prepared = prepare_raster_reader(reader, path);
     if (!prepared)
@@ -184,6 +193,20 @@ Result<DecodedRaster> QtRasterDecoder::decode(const std::string_view path,
         }
         return rgbe_unsupported_error(path);
     }
+    auto heic_candidate = read_heic_file_candidate(path, &cancellation);
+    if (!heic_candidate)
+    {
+        return heic_candidate.error();
+    }
+    if (heic_candidate.value().recognized)
+    {
+        cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        return heic_unsupported_error(path);
+    }
     QImageReader reader;
     auto prepared = prepare_raster_reader(reader, path);
     if (!prepared)
@@ -238,6 +261,15 @@ Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint
             return cancelled.error();
         }
         return rgbe_unsupported_error("memory");
+    }
+    if (is_heic_heif_payload(encoded_bytes))
+    {
+        cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        return heic_unsupported_error("memory");
     }
     QByteArray bytes(reinterpret_cast<const char *>(encoded.data()),
                      static_cast<qsizetype>(encoded.size()));

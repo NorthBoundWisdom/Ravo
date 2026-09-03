@@ -294,6 +294,32 @@ gtest_discover_tests(ravo_qoi_catalog_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-qoi-catalog")
 
+add_executable(ravo_heic_adapter_tests heic_adapter_test.cpp)
+target_link_libraries(ravo_heic_adapter_tests
+  PRIVATE GTest::gtest ravo_adapters Qt6::Core Qt6::Gui)
+target_include_directories(ravo_heic_adapter_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_heic_adapter_tests)
+ravo_copy_windows_runtime_dlls(ravo_heic_adapter_tests)
+gtest_discover_tests(ravo_heic_adapter_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-heic-adapter")
+
+add_executable(ravo_heic_catalog_tests heic_catalog_test.cpp)
+target_link_libraries(ravo_heic_catalog_tests
+  PRIVATE
+    GTest::gtest
+    ravo_services
+    ravo_adapters
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Sql)
+target_include_directories(ravo_heic_catalog_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_heic_catalog_tests)
+ravo_copy_windows_runtime_dlls(ravo_heic_catalog_tests)
+gtest_discover_tests(ravo_heic_catalog_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-heic-catalog")
+
 add_executable(ravo_rgbe_adapter_tests rgbe_adapter_test.cpp)
 target_link_libraries(ravo_rgbe_adapter_tests
   PRIVATE GTest::gtest ravo_adapters Qt6::Core)

@@ -75,7 +75,7 @@ void merge_engine_capture(CaptureMetadata &target, const EngineCaptureMetadata &
     const auto format = context_value(error, "format");
     return format == "jpeg" || format == "jpg" || format == "png" || format == "tiff" ||
            format == "tif" || format == "bmp" || format == "gif" || format == "webp" ||
-           format == "qoi" || format == "rgbe";
+           format == "qoi" || format == "rgbe" || format == "heic";
 }
 
 [[nodiscard]] bool should_try_raw_after_raster(const TaskError &error) noexcept

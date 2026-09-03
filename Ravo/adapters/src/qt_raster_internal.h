@@ -112,6 +112,11 @@ struct RgbeFileCandidate
     bool recognized = false;
 };
 
+struct HeicFileCandidate
+{
+    bool recognized = false;
+};
+
 struct TiffField
 {
     std::uint16_t tag = 0U;
@@ -128,6 +133,7 @@ struct TiffField
 [[nodiscard]] bool is_tiff_payload(std::span<const std::uint8_t> bytes) noexcept;
 [[nodiscard]] bool is_qoi_payload(std::span<const std::uint8_t> bytes) noexcept;
 [[nodiscard]] bool is_rgbe_payload(std::span<const std::uint8_t> bytes) noexcept;
+[[nodiscard]] bool is_heic_heif_payload(std::span<const std::uint8_t> bytes) noexcept;
 [[nodiscard]] bool starts_with(std::span<const std::uint8_t> bytes,
                                std::span<const std::uint8_t> prefix) noexcept;
 [[nodiscard]] std::span<const std::uint8_t> byte_span(const QByteArray &bytes) noexcept;
@@ -144,6 +150,7 @@ struct TiffField
                                    std::map<std::string, std::string, std::less<>> context = {});
 [[nodiscard]] TaskError qoi_unsupported_error(std::string_view source);
 [[nodiscard]] TaskError rgbe_unsupported_error(std::string_view source);
+[[nodiscard]] TaskError heic_unsupported_error(std::string_view source);
 [[nodiscard]] std::uint16_t read_u16(std::span<const std::uint8_t> bytes, std::size_t offset,
                                      bool little_endian) noexcept;
 [[nodiscard]] std::uint32_t read_u32(std::span<const std::uint8_t> bytes, std::size_t offset,
@@ -160,6 +167,8 @@ read_tiff_file_candidate(std::string_view path, const CancellationToken *cancell
 read_qoi_file_candidate(std::string_view path, const CancellationToken *cancellation = nullptr);
 [[nodiscard]] Result<RgbeFileCandidate>
 read_rgbe_file_candidate(std::string_view path, const CancellationToken *cancellation = nullptr);
+[[nodiscard]] Result<HeicFileCandidate>
+read_heic_file_candidate(std::string_view path, const CancellationToken *cancellation = nullptr);
 [[nodiscard]] std::string media_type_for_format(const QByteArray &format);
 [[nodiscard]] Result<void> prepare_raster_reader(QImageReader &reader, std::string_view path);
 [[nodiscard]] QSize transformed_reader_size(const QImageReader &reader);

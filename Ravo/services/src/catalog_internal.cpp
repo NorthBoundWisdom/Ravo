@@ -108,9 +108,9 @@ namespace ravo
         }
     }
     if (found.size() > 1U)
-        return make_error(ErrorCode::kConflict, "Multiple JPEG companions match one RAW file",
-                          {{"source", std::string(source)},
-                           {"reason", "import_jpeg_companion_ambiguous"}});
+        return make_error(
+            ErrorCode::kConflict, "Multiple JPEG companions match one RAW file",
+            {{"source", std::string(source)}, {"reason", "import_jpeg_companion_ambiguous"}});
     return found.empty() ? std::optional<std::string>{} :
                            std::optional<std::string>{path_utf8(found.front())};
 }
@@ -158,8 +158,9 @@ void drop_raw_companion_jpegs(std::vector<std::string> &files)
 
 [[nodiscard]] bool is_import_candidate(const std::filesystem::path &path)
 {
-    static const std::set<std::string> raster{".png",  ".jpg", ".jpeg", ".tif",
-                                              ".tiff", ".bmp", ".gif",  ".webp"};
+    static const std::set<std::string> raster{".png",   ".jpg",   ".jpeg", ".tif",  ".tiff",
+                                              ".bmp",   ".gif",   ".webp", ".heic", ".heif",
+                                              ".heics", ".heifs", ".hif"};
     const auto name = path.filename().generic_u8string();
     if (name.empty() || name.front() == u8'.')
     {
@@ -306,8 +307,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
         return recipe;
     auto &operations = recipe.value().operations;
     const bool has_temperature =
-        std::any_of(operations.begin(), operations.end(),
-                    [](const OperationInstance &operation)
+        std::any_of(operations.begin(), operations.end(), [](const OperationInstance &operation)
                     { return operation.id == "ravo.color.temperature"; });
     if (has_temperature)
         return recipe;
@@ -317,9 +317,9 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
                                   true,
                                   temperature_to_parameters(TemperatureParams{}),
                                   std::nullopt};
-    const auto input = std::find_if(operations.begin(), operations.end(),
-                                    [](const OperationInstance &operation)
-                                    { return operation.id == "ravo.color.input"; });
+    const auto input =
+        std::find_if(operations.begin(), operations.end(), [](const OperationInstance &operation)
+                     { return operation.id == "ravo.color.input"; });
     operations.insert(input, std::move(temperature));
     return recipe;
 }
