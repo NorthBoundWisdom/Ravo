@@ -128,8 +128,11 @@ implementation tranche to **P1 / Ready** and add its exact tests.
 
 **Status:** P1 / Partial — ADR-0118 accepts HEIC/HEIF fail-closed recognition
 (ftyp brands, structured `unsupported_heic_input`, no pretend-JPEG / incidental
-ImageIO decode, enumeration of `.heic`/`.heif`/`.heics`/`.heifs`/`.hif`). Owned
-HEIC decode, PTP/MTP, DNG conversion, and Smart Previews remain unfinished.
+ImageIO decode, enumeration of `.heic`/`.heif`/`.heics`/`.heifs`/`.hif`).
+ADR-0123 accepts the owned-decode **packaging/licence gate**: no decoder until
+Dependency Workflow/Packaging records SPDX/GPL compatibility and notices; leave
+decode residual rather than an illegal GPL surprise. Owned HEIC decode,
+PTP/MTP, DNG conversion, and Smart Previews remain unfinished.
 
 **Outcome:** ingest from supported card/camera sources with explicit destination,
 rename, verified second copy, and resumable failure handling; define HEIC/HEIF,
@@ -235,18 +238,25 @@ rewrite, and exact preset apply after reopen.
 
 ## PRO-INTERCHANGE — Explicit XMP, catalog conversion, and external editors
 
-**Status:** P1 / Ready — ADR-0120 accepted. First Ready slice landed:
-`catalog xmp-status|xmp-import|xmp-export` with CRS recipe-field conflict
-preflight, catalog-owned exchange baseline, fail-closed unsupported CRS, and
-original-byte preservation. Remaining work stays P2 until its own ADR.
+**Status:** P1 / Partial — ADR-0120 (XMP conflict matrix) and ADR-0122
+(external-editor derived assets) accepted. First Ready slices landed for both.
 
-**Done (this slice):** conflict classes
+**Done (XMP slice):** `catalog xmp-status|xmp-import|xmp-export` with CRS
+recipe-field conflict preflight, catalog-owned exchange baseline, fail-closed
+unsupported CRS, and original-byte preservation. Conflict classes
 `missing|identical|catalog-newer|sidecar-newer|both-changed`; explicit
-`--resolve abort|catalog|sidecar`; structured JSON errors; CLI + service tests.
+`--resolve abort|catalog|sidecar`.
+
+**Done (external-editor first tranche):** ADR-0122. `catalog editor-register|
+editor-show` copies editor output into `{catalog}.ravo/derived/<source-id>/`,
+imports a new catalog asset, writes provenance
+`ravo.external-editor.derived/v1` under `{catalog}.ravo/external-editor/`,
+verifies source original SHA-256/size/mtime unchanged, never launches an
+editor/renderer, fail-closed on conflict/cancel/stale revision.
 
 **Still open (P2 / Decision required):**
-- external-editor derived assets/versions (deferred — needs a later ADR;
-  too large for ADR-0120)
+- launching/scripting external editors; Gallery auto-stack UX for derived pairs
+- backup/restore packaging of `{catalog}.ravo/derived/` byte trees
 - foreign Lightroom/Capture One catalog conversion (no in-place open)
 - keyword/IPTC/location adjacent merge matrix (ADR-0119 stays catalog-owned)
 - supported source-version matrix beyond CRS PV2012 recipe fields
@@ -257,8 +267,8 @@ live authority, plus external-editor output as a new derived asset/version.
 **Risks:** in-place foreign-catalog migration, hidden external renderer, original
 RAW mutation, watcher races, and unsupported fields silently dropped.
 
-**Acceptance gate (remaining):** external results enter as new assets/versions;
-foreign conversion is read-only; keyword merge matrix is explicit.
+**Acceptance gate (remaining):** foreign conversion is read-only; keyword merge
+matrix is explicit; derived-tree backup policy is dated.
 
 ## PRO-PRESENT — Tether, print, map, slideshow, and publishing
 

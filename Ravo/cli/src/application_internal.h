@@ -57,6 +57,8 @@ struct CatalogCliArguments
     std::string_view from_xmp;
     std::string_view xmp_path;
     std::string_view xmp_resolve;
+    std::string_view editor_id;
+    std::string_view editor_version;
     std::string_view from_asset;
     std::string_view fields;
     std::string_view output;
@@ -156,6 +158,9 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] Result<JsonValue> run_catalog_xmp_command(CatalogService &service,
                                                         std::string_view subcommand,
                                                         const CatalogCliArguments &flags);
+[[nodiscard]] Result<JsonValue> run_catalog_editor_command(CatalogService &service,
+                                                           std::string_view subcommand,
+                                                           const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue>
 run_perspective_analysis(const EngineFacade &engine, std::span<const std::string_view> positional);
 [[nodiscard]] Result<JsonValue> run_noise_command(std::span<const std::string_view> positional);

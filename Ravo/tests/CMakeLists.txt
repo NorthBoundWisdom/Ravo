@@ -131,6 +131,7 @@ add_executable(ravo_catalog_tests
   catalog_capture_test.cpp
   catalog_import_test.cpp
   catalog_xmp_interchange_test.cpp
+  catalog_external_editor_test.cpp
   export_pro_export_test.cpp
   jpeg_adapter_test.cpp
   runtime_dependency_test.cpp)

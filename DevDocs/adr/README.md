@@ -129,3 +129,5 @@ supersession relationship when direction changes.
 | [0119](0119-hierarchical-keywords.md) | Proposed | Hierarchical keyword authority, identity, membership, and export privacy decision stub for PRO-METADATA (no schema dump yet). |
 | [0120](0120-xmp-interchange-conflict-matrix.md) | Accepted | Adjacent XMP conflict matrix; explicit CRS import/export |
 | [0121](0121-ai-architecture-privacy-provenance.md) | Accepted | AI architecture, privacy, provenance, licence boundary |
+| [0122](0122-external-editor-derived-assets.md) | Accepted | External-editor output as derived asset with provenance |
+| [0123](0123-heic-owned-decode-packaging-gate.md) | Accepted | HEIC owned-decode blocked on licence/package evidence |

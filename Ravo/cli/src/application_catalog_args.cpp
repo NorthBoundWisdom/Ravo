@@ -361,6 +361,19 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "--resolve was specified twice");
             result.xmp_resolve = value;
         }
+        else if (option == "--editor")
+        {
+            if (!result.editor_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--editor was specified twice");
+            result.editor_id = value;
+        }
+        else if (option == "--editor-version")
+        {
+            if (!result.editor_version.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--editor-version was specified twice");
+            result.editor_version = value;
+        }
         else if (option == "--max-edge")
         {
             auto dimension = parse_dimension(value, option);

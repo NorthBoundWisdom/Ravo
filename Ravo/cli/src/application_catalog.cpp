@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|"
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -163,6 +163,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                             subcommand == "ai-proposal-cancel";
     const bool xmp_command =
         subcommand == "xmp-status" || subcommand == "xmp-import" || subcommand == "xmp-export";
+    const bool editor_command = subcommand == "editor-register" || subcommand == "editor-show";
     if (!flags.value().xmp_path.empty() && !xmp_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--xmp is only valid for catalog xmp-status, xmp-import, or xmp-export");
@@ -170,11 +171,15 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand != "xmp-export")
         return make_error(ErrorCode::kInvalidArgument,
                           "--resolve is only valid for catalog xmp-import or xmp-export");
+    if ((!flags.value().editor_id.empty() || !flags.value().editor_version.empty()) &&
+        subcommand != "editor-register")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--editor/--editor-version are only valid for catalog editor-register");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
-        !develop_apply_command && !keyword_command && !ai_command)
+        !develop_apply_command && !keyword_command && !ai_command && !editor_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--revision is only valid for catalog set, version, stack, "
-                          "keyword, tag, develop-apply, or ai proposal commands");
+                          "keyword, tag, develop-apply, ai proposal, or editor commands");
     if (flags.value().user_initiated && subcommand != "ai-propose")
         return make_error(ErrorCode::kInvalidArgument,
                           "--user-initiated is only valid for catalog ai-propose");
@@ -210,9 +215,16 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
         !flags.value().import_filename_template.empty() ||
         !flags.value().import_second_copy.empty() || !flags.value().import_recursive;
-    if (has_import_options && subcommand != "import")
+    if (has_import_options && subcommand != "import" && subcommand != "editor-register")
         return make_error(ErrorCode::kInvalidArgument,
-                          "Import options are only valid for catalog import");
+                          "Import options are only valid for catalog import or editor-register");
+    if (subcommand == "editor-register" &&
+        (!flags.value().import_mode.empty() || !flags.value().import_organization.empty() ||
+         !flags.value().import_preview.empty() || !flags.value().import_filename_template.empty() ||
+         !flags.value().import_second_copy.empty() || !flags.value().import_recursive))
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "catalog editor-register only accepts --destination among import options");
     if (!flags.value().from_xmp.empty() && subcommand != "develop")
     {
         return make_error(ErrorCode::kInvalidArgument,
@@ -1521,6 +1533,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
 
     if (xmp_command)
         return run_catalog_xmp_command(service, subcommand, flags.value());
+    if (editor_command)
+        return run_catalog_editor_command(service, subcommand, flags.value());
     if (subcommand == "keywords")
     {
         auto listed = service.list_keywords();

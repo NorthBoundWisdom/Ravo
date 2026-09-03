@@ -23,6 +23,7 @@
 #include "ravo/recipe/recipe.h"
 #include "ravo/services/ai_proposal.h"
 #include "ravo/services/xmp_interchange.h"
+#include "ravo/services/external_editor.h"
 
 namespace ravo
 {
@@ -308,6 +309,13 @@ public:
     [[nodiscard]] Result<XmpInterchangeExportResult>
     xmp_interchange_export(std::string_view asset_id, XmpInterchangeResolve resolve,
                            std::optional<std::string_view> sidecar_path = std::nullopt);
+
+    // ADR-0122: register external-editor output as a new derived asset with
+    // provenance. Never mutates the source original; never launches an editor.
+    [[nodiscard]] Result<ExternalEditorRegisterResult>
+    register_external_editor_output(const ExternalEditorRegisterRequest &request);
+    [[nodiscard]] Result<ExternalEditorProvenance>
+    external_editor_provenance(std::string_view derived_asset_id) const;
 
     // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
     // applied; reject/cancel never mutate recipe/history.
