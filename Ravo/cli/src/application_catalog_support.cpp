@@ -421,6 +421,7 @@ JsonValue ai_proposal_to_json(const AiProposal &proposal)
         {"field_diff", std::move(diffs)},
         {"fields", std::move(fields)},
         {"id", proposal.id},
+        {"kind", std::string(ai_proposal_kind_name(proposal.kind))},
         {"observed_catalog_revision",
          JsonValue::number(std::to_string(proposal.observed_catalog_revision))},
         {"observed_recovery_generation",
@@ -428,6 +429,10 @@ JsonValue ai_proposal_to_json(const AiProposal &proposal)
         {"provider", std::move(provider)},
         {"status", std::string(ai_proposal_status_name(proposal.status))},
     };
+    if (proposal.semantic_label)
+        object.emplace("semantic_label", *proposal.semantic_label);
+    else
+        object.emplace("semantic_label", nullptr);
     if (proposal.applied_history_id)
         object.emplace("applied_history_id",
                        JsonValue::number(std::to_string(*proposal.applied_history_id)));

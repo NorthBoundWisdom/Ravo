@@ -961,6 +961,80 @@ TEST_F(CliTest, CatalogAiProposalStubProposeApplyAndReject)
     std::filesystem::remove_all(root, ignored);
 }
 
+TEST_F(CliTest, CatalogAiSemanticMaskProposalStubProposeAndApply)
+{
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("ravo-cli-ai-semantic-mask-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    QImage image(16, 12, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(50, 90, 130));
+    const auto photo = (root / "photo.png").string();
+    ASSERT_TRUE(image.save(QString::fromStdString(photo), "PNG"));
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
+                                                            catalog, "--input", photo, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_FALSE(items->array_if()->empty());
+    const auto *asset = items->array_if()->front().find("asset");
+    ASSERT_NE(asset, nullptr);
+    const auto *asset_id = asset->find("id");
+    ASSERT_NE(asset_id, nullptr);
+    ASSERT_NE(asset_id->string_if(), nullptr);
+    const auto id = *asset_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(
+        application.run(std::vector<std::string_view>{
+            "catalog", "ai-propose", "--catalog", catalog, "--asset-id", id, "--user-initiated",
+            "--proposal-kind", "semantic-mask", "--semantic-label", "subject", "--json"}),
+        0)
+        << stdout_stream.str();
+    auto proposed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(proposed) << proposed.error().message;
+    data = proposed.value().find("data");
+    ASSERT_NE(data, nullptr);
+    ASSERT_NE(data->find("kind"), nullptr);
+    EXPECT_EQ(*data->find("kind")->string_if(), "semantic-mask");
+    ASSERT_NE(data->find("semantic_label"), nullptr);
+    EXPECT_EQ(*data->find("semantic_label")->string_if(), "subject");
+    const auto *proposal_id = data->find("id");
+    ASSERT_NE(proposal_id, nullptr);
+    ASSERT_NE(proposal_id->string_if(), nullptr);
+    const auto pid = *proposal_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(
+        application.run(std::vector<std::string_view>{"catalog", "ai-proposal-apply", "--catalog",
+                                                      catalog, "--proposal-id", pid, "--json"}),
+        0)
+        << stdout_stream.str();
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CliTest, CatalogImportProjectsRenameAndVerifiedSecondCopyJson)
 {
     const auto root =

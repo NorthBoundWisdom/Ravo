@@ -187,6 +187,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand != "ai-propose")
         return make_error(ErrorCode::kInvalidArgument,
                           "--provider/--model are only valid for catalog ai-propose");
+    if ((!flags.value().proposal_kind.empty() || !flags.value().semantic_label.empty()) &&
+        subcommand != "ai-propose")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--proposal-kind/--semantic-label are only valid for catalog ai-propose");
     if (!flags.value().from_asset.empty() && !develop_apply_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--from-asset is only valid for catalog develop-apply");
@@ -1598,6 +1602,15 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         request.asset_id = std::string(flags.value().asset_id);
         request.user_initiated = flags.value().user_initiated;
         request.expected_catalog_revision = flags.value().expected_revision;
+        if (!flags.value().proposal_kind.empty())
+        {
+            auto kind = parse_ai_proposal_kind(flags.value().proposal_kind);
+            if (!kind)
+                return kind.error();
+            request.kind = kind.value();
+        }
+        if (!flags.value().semantic_label.empty())
+            request.semantic_label = std::string(flags.value().semantic_label);
         if (!flags.value().provider_id.empty())
             request.provider_id = std::string(flags.value().provider_id);
         if (!flags.value().model_id.empty())

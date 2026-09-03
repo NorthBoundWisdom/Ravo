@@ -24,9 +24,30 @@ namespace ravo
 inline constexpr std::string_view kAiProposalContractVersion = "ravo.ai.proposal/v1";
 inline constexpr std::string_view kAiStubProviderId = "ravo.local.stub";
 inline constexpr std::string_view kAiStubModelId = "deterministic-global-v1";
+inline constexpr std::string_view kAiStubSemanticMaskModelId = "deterministic-semantic-mask-v1";
 inline constexpr std::string_view kAiStubModelVersion = "1.0.0";
 inline constexpr std::string_view kAiStubWeightContentHash = "stub:no-weights";
 inline constexpr std::size_t kAiProposalSessionLimit = 64;
+
+enum class AiProposalKind : std::uint8_t
+{
+    kGlobal = 0,
+    kSemanticMask = 1,
+};
+
+[[nodiscard]] constexpr std::string_view ai_proposal_kind_name(AiProposalKind kind) noexcept
+{
+    switch (kind)
+    {
+    case AiProposalKind::kGlobal:
+        return "global";
+    case AiProposalKind::kSemanticMask:
+        return "semantic-mask";
+    }
+    return "global";
+}
+
+[[nodiscard]] Result<AiProposalKind> parse_ai_proposal_kind(std::string_view text);
 
 enum class AiProposalStatus : std::uint8_t
 {
@@ -79,6 +100,8 @@ struct AiProposal
 {
     std::string id;
     std::string contract_version{std::string(kAiProposalContractVersion)};
+    AiProposalKind kind = AiProposalKind::kGlobal;
+    std::optional<std::string> semantic_label;
     std::int64_t created_unix_ms = 0;
     std::string asset_id;
     std::int64_t observed_catalog_revision = 0;
@@ -96,6 +119,9 @@ struct AiProposalCreateRequest
     std::string asset_id;
     // Explicit user initiation is mandatory (ADR-0121). False fails closed.
     bool user_initiated = false;
+    AiProposalKind kind = AiProposalKind::kGlobal;
+    // Required for semantic-mask kind: subject|sky|background|person|clothing|object.
+    std::optional<std::string> semantic_label;
     std::optional<std::int64_t> expected_catalog_revision;
     std::string provider_id{std::string(kAiStubProviderId)};
     std::string model_id{std::string(kAiStubModelId)};
@@ -111,13 +137,21 @@ struct AiProposalApplyResult
 };
 
 [[nodiscard]] std::span<const std::string_view> ai_proposal_allowed_fields() noexcept;
+[[nodiscard]] std::span<const std::string_view> ai_semantic_mask_allowed_fields() noexcept;
 [[nodiscard]] bool is_ai_proposal_allowed_field(std::string_view field) noexcept;
+[[nodiscard]] bool is_ai_semantic_mask_allowed_field(std::string_view field) noexcept;
 [[nodiscard]] Result<void>
-validate_ai_proposal_fields(const std::vector<AiProposalFieldChange> &fields);
+validate_ai_proposal_fields(const std::vector<AiProposalFieldChange> &fields,
+                            AiProposalKind kind = AiProposalKind::kGlobal);
 [[nodiscard]] Result<DevelopParams>
-apply_ai_proposal_fields(DevelopParams params, const std::vector<AiProposalFieldChange> &fields);
+apply_ai_proposal_fields(DevelopParams params, const std::vector<AiProposalFieldChange> &fields,
+                         AiProposalKind kind = AiProposalKind::kGlobal);
 [[nodiscard]] Result<std::vector<AiProposalFieldChange>>
 build_stub_ai_proposal_fields(std::string_view asset_id);
+[[nodiscard]] Result<std::vector<AiProposalFieldChange>>
+build_stub_semantic_mask_proposal_fields(std::string_view asset_id,
+                                         std::string_view semantic_label);
+[[nodiscard]] Result<void> validate_ai_semantic_label(std::string_view label);
 [[nodiscard]] Result<std::vector<AiProposalAlternative>>
 build_stub_ai_proposal_alternatives(std::string_view asset_id);
 

@@ -9,6 +9,7 @@
 
 #include "ravo/foundation/cancellation.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/services/ai_proposal.h"
 #include "ravo/services/catalog_service.h"
@@ -183,6 +184,101 @@ TEST_F(CatalogServiceTest, AiProposalCancelLeavesCatalogUntouched)
     auto history = service->list_recipe_history(asset_id);
     ASSERT_TRUE(history);
     EXPECT_TRUE(history.value().empty());
+}
+
+TEST_F(CatalogServiceTest, AiSemanticMaskProposalStubProposeApplyAndReject)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto path = root / "ai02-subject.jpg";
+    ASSERT_TRUE(write_jpeg(path, QColor(60, 100, 160)));
+    auto imported = service->import_one(path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    auto before = service->load_recipe(asset_id);
+    ASSERT_TRUE(before) << before.error().message;
+
+    AiProposalCreateRequest request;
+    request.asset_id = asset_id;
+    request.user_initiated = true;
+    request.kind = AiProposalKind::kSemanticMask;
+    request.semantic_label = "subject";
+    auto created = service->create_ai_proposal(request);
+    ASSERT_TRUE(created) << created.error().message;
+    EXPECT_EQ(created.value().kind, AiProposalKind::kSemanticMask);
+    ASSERT_TRUE(created.value().semantic_label.has_value());
+    EXPECT_EQ(*created.value().semantic_label, "subject");
+    EXPECT_EQ(created.value().provider.model_id, kAiStubSemanticMaskModelId);
+    EXPECT_FALSE(created.value().fields.empty());
+    bool saw_mask_kind = false;
+    for (const auto &change : created.value().fields)
+    {
+        if (change.field == "exposureMaskKind")
+        {
+            saw_mask_kind = true;
+            EXPECT_DOUBLE_EQ(change.value, 3.0);
+        }
+    }
+    EXPECT_TRUE(saw_mask_kind);
+
+    auto rejected = service->reject_ai_proposal(created.value().id);
+    ASSERT_TRUE(rejected) << rejected.error().message;
+    auto after_reject = service->load_recipe(asset_id);
+    ASSERT_TRUE(after_reject) << after_reject.error().message;
+    auto before_json = serialize_recipe(before.value());
+    auto after_json = serialize_recipe(after_reject.value());
+    ASSERT_TRUE(before_json);
+    ASSERT_TRUE(after_json);
+    EXPECT_EQ(before_json.value(), after_json.value());
+
+    AiProposalCreateRequest again = request;
+    auto created2 = service->create_ai_proposal(again);
+    ASSERT_TRUE(created2) << created2.error().message;
+    auto applied = service->apply_ai_proposal(created2.value().id);
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(applied.value().proposal.status, AiProposalStatus::kApplied);
+
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto params = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(params) << params.error().message;
+    ASSERT_TRUE(params.value().exposure_mask_id.has_value());
+    const auto state = develop_mask_editor_state(params.value(), DevelopMaskTarget::kExposure);
+    EXPECT_TRUE(state.attached);
+    EXPECT_EQ(state.kind_name, "circle");
+    EXPECT_GT(params.value().exposure_ev, 0.0);
+}
+
+TEST_F(CatalogServiceTest, AiSemanticMaskProposalFailsClosedWithoutLabelOrUnknownLabel)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto path = root / "ai02-fail.jpg";
+    ASSERT_TRUE(write_jpeg(path, QColor(30, 30, 30)));
+    auto imported = service->import_one(path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+
+    AiProposalCreateRequest missing_label;
+    missing_label.asset_id = imported.value().asset->id;
+    missing_label.user_initiated = true;
+    missing_label.kind = AiProposalKind::kSemanticMask;
+    auto denied = service->create_ai_proposal(missing_label);
+    ASSERT_FALSE(denied);
+    EXPECT_EQ(denied.error().context.at("reason"), "missing_ai_semantic_label");
+
+    AiProposalCreateRequest bad_label = missing_label;
+    bad_label.semantic_label = "galaxy";
+    auto unknown = service->create_ai_proposal(bad_label);
+    ASSERT_FALSE(unknown);
+    EXPECT_EQ(unknown.error().context.at("reason"), "unsupported_ai_semantic_label");
+
+    AiProposalCreateRequest label_on_global;
+    label_on_global.asset_id = imported.value().asset->id;
+    label_on_global.user_initiated = true;
+    label_on_global.kind = AiProposalKind::kGlobal;
+    label_on_global.semantic_label = "subject";
+    auto mismatched = service->create_ai_proposal(label_on_global);
+    ASSERT_FALSE(mismatched);
+    EXPECT_EQ(mismatched.error().context.at("reason"), "ai_semantic_label_without_mask_kind");
 }
 
 } // namespace ravo

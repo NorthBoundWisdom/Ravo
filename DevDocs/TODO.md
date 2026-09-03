@@ -274,9 +274,10 @@ coverage.
 ADR-0121 accepts AI architecture/privacy/provenance. AI-01 first ship is on
 `main`: versioned `ravo.ai.proposal/v1` proposals with a local deterministic
 stub provider, CLI/service create/show/apply/reject/cancel, and fail-closed
-validation. AI-02…AI-05 remain blocked on their stated dependencies. Real
-third-party weights remain residual Packaging/Dependency work; the Studio chat
-assistant still does not authorize network inference or upload.
+validation. AI-02 first ship (stub semantic-mask proposals) is also on `main`.
+AI-03…AI-05 remain blocked on their stated dependencies. Real third-party
+weights remain residual Packaging/Dependency work; the Studio chat assistant
+still does not authorize network inference or upload.
 
 ## AI-00 — AI architecture, privacy, provenance, and licence ADR
 
@@ -342,15 +343,29 @@ quality regressions are caught by the evaluation corpus and human review
 
 ## AI-02 — Semantic selections as canonical masks
 
-**Status:** blocked by the applicable local-adjustment / mask contract (ADR-0121 accepted; AI-01 proposal path exists).
+**Status:** P1 / First ship on main (stub provider). Residual: real segmentation
+weights/packaging, multi-consumer mask targets beyond Exposure, Studio proposal
+surface, evaluation corpus for mask quality.
 
 **Outcome:** propose subject, sky, background, person/skin, clothing, and named
 object selections as bounded canonical masks that users can inspect and edit.
 
+**Shipped (bounded):**
+- proposal `kind=semantic-mask` with required `--semantic-label`
+  (`subject|sky|background|person|clothing|object`);
+- local stub model `deterministic-semantic-mask-v1` emits Exposure-attached
+  canonical circle/gradient geometry via existing develop-mask fields (no
+  packaged weights, no network, no auto-apply);
+- create/show/apply/reject/cancel reuse the AI-01 proposal store and fail-closed
+  validation; reject/cancel leave the catalog unchanged;
+- CLI: `catalog ai-propose --proposal-kind semantic-mask --semantic-label …`.
+
 **Acceptance gate:** mask coordinates remain correct through orientation,
 Perspective, crop, Canvas, preview, export, and reopen; uncertain/empty masks are
 visible; CPU/GPU/model absence has explicit behavior; generated mask data is
-bounded, cancellable, versioned, and never silently approximated.
+bounded, cancellable, versioned, and never silently approximated. Stub ship
+satisfies contract/lifecycle gates; geometry quality vs real models remains
+residual.
 
 ## AI-03 — Shoot-level consistency and batch assistance
 

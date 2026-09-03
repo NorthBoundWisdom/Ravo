@@ -673,6 +673,20 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "--model was specified twice");
             result.model_id = value;
         }
+        else if (option == "--proposal-kind")
+        {
+            if (!result.proposal_kind.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--proposal-kind was specified twice");
+            result.proposal_kind = value;
+        }
+        else if (option == "--semantic-label")
+        {
+            if (!result.semantic_label.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--semantic-label was specified twice");
+            result.semantic_label = value;
+        }
         else if (option == "--revision")
         {
             if (result.expected_revision)

@@ -103,6 +103,8 @@ struct CatalogCliArguments
     std::string_view proposal_id;
     std::string_view provider_id;
     std::string_view model_id;
+    std::string_view proposal_kind;
+    std::string_view semantic_label;
     bool user_initiated = false;
     std::optional<std::int64_t> expected_revision;
     std::optional<std::int64_t> history_id;

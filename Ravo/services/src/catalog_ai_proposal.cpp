@@ -17,6 +17,7 @@
 #include "ravo/domain/types.h"
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/develop_mask.h"
 
 namespace ravo
 {
@@ -52,8 +53,34 @@ constexpr auto kAllowedFields = std::to_array<std::string_view>({
     "whiteBalanceFourth",
 });
 
+// First AI-02 tranche: Exposure-attached canonical geometry only (ADR-0043/0116).
+constexpr auto kSemanticMaskAllowedFields = std::to_array<std::string_view>({
+    "exposure",
+    "exposureMaskKind",
+    "exposureMaskCenterX",
+    "exposureMaskCenterY",
+    "exposureMaskRadius",
+    "exposureMaskFeather",
+    "exposureMaskOpacity",
+    "exposureMaskInverted",
+    "exposureMaskAnchorX",
+    "exposureMaskAnchorY",
+    "exposureMaskRotationDegrees",
+    "exposureMaskTransition",
+});
+
+constexpr auto kSemanticLabels = std::to_array<std::string_view>({
+    "subject",
+    "sky",
+    "background",
+    "person",
+    "clothing",
+    "object",
+});
+
 [[nodiscard]] Result<void> require_stub_provider(const std::string_view provider_id,
-                                                 const std::string_view model_id)
+                                                 const std::string_view model_id,
+                                                 const AiProposalKind kind)
 {
     if (provider_id.empty() || model_id.empty())
     {
@@ -69,13 +96,31 @@ constexpr auto kAllowedFields = std::to_array<std::string_view>({
                            {"reason", "ai_provider_not_packaged"},
                            {"available_provider", std::string(kAiStubProviderId)}});
     }
-    if (model_id != kAiStubModelId)
+    const auto expected_model =
+        kind == AiProposalKind::kSemanticMask ? kAiStubSemanticMaskModelId : kAiStubModelId;
+    if (model_id != expected_model && model_id != kAiStubModelId &&
+        model_id != kAiStubSemanticMaskModelId)
     {
         return make_error(ErrorCode::kUnsupported, "AI model is not packaged",
                           {{"provider_id", std::string(provider_id)},
                            {"model_id", std::string(model_id)},
                            {"reason", "ai_model_not_packaged"},
-                           {"available_model", std::string(kAiStubModelId)}});
+                           {"available_model", std::string(expected_model)}});
+    }
+    if (kind == AiProposalKind::kSemanticMask && model_id != kAiStubSemanticMaskModelId)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Semantic-mask proposals require the mask stub model",
+                          {{"model_id", std::string(model_id)},
+                           {"expected_model", std::string(kAiStubSemanticMaskModelId)},
+                           {"reason", "ai_semantic_mask_model_mismatch"}});
+    }
+    if (kind == AiProposalKind::kGlobal && model_id != kAiStubModelId)
+    {
+        return make_error(ErrorCode::kValidation, "Global proposals require the global stub model",
+                          {{"model_id", std::string(model_id)},
+                           {"expected_model", std::string(kAiStubModelId)},
+                           {"reason", "ai_global_model_mismatch"}});
     }
     return {};
 }
@@ -139,6 +184,7 @@ constexpr auto kAllowedFields = std::to_array<std::string_view>({
         {"field_diff", std::move(diffs)},
         {"fields", std::move(fields)},
         {"id", proposal.id},
+        {"kind", std::string(ai_proposal_kind_name(proposal.kind))},
         {"observed_catalog_revision",
          JsonValue::number(std::to_string(proposal.observed_catalog_revision))},
         {"observed_recovery_generation",
@@ -146,6 +192,10 @@ constexpr auto kAllowedFields = std::to_array<std::string_view>({
         {"provider", std::move(provider)},
         {"status", std::string(ai_proposal_status_name(proposal.status))},
     };
+    if (proposal.semantic_label)
+        object.emplace("semantic_label", *proposal.semantic_label);
+    else
+        object.emplace("semantic_label", nullptr);
     if (proposal.applied_history_id)
         object.emplace("applied_history_id",
                        JsonValue::number(std::to_string(*proposal.applied_history_id)));
@@ -207,6 +257,17 @@ constexpr auto kAllowedFields = std::to_array<std::string_view>({
     if (!contract)
         return contract.error();
     proposal.contract_version = std::move(contract).value();
+    if (const auto kind_it = object->find("kind");
+        kind_it != object->end() && kind_it->second.string_if())
+    {
+        auto parsed_kind = parse_ai_proposal_kind(*kind_it->second.string_if());
+        if (!parsed_kind)
+            return parsed_kind.error();
+        proposal.kind = parsed_kind.value();
+    }
+    if (const auto label_it = object->find("semantic_label");
+        label_it != object->end() && label_it->second.string_if())
+        proposal.semantic_label = std::string(*label_it->second.string_if());
     auto created = require_ai_json_number(*object, "created_unix_ms");
     if (!created)
         return created.error();
@@ -325,9 +386,35 @@ constexpr auto kAllowedFields = std::to_array<std::string_view>({
 
 } // namespace
 
+Result<AiProposalKind> parse_ai_proposal_kind(const std::string_view text)
+{
+    if (text == "global")
+        return AiProposalKind::kGlobal;
+    if (text == "semantic-mask")
+        return AiProposalKind::kSemanticMask;
+    return make_error(ErrorCode::kInvalidArgument, "AI proposal kind is unsupported",
+                      {{"kind", std::string(text)}, {"reason", "unsupported_ai_proposal_kind"}});
+}
+
+Result<void> validate_ai_semantic_label(const std::string_view label)
+{
+    if (std::find(kSemanticLabels.begin(), kSemanticLabels.end(), label) == kSemanticLabels.end())
+    {
+        return make_error(
+            ErrorCode::kValidation, "AI semantic label is unsupported",
+            {{"semantic_label", std::string(label)}, {"reason", "unsupported_ai_semantic_label"}});
+    }
+    return {};
+}
+
 std::span<const std::string_view> ai_proposal_allowed_fields() noexcept
 {
     return kAllowedFields;
+}
+
+std::span<const std::string_view> ai_semantic_mask_allowed_fields() noexcept
+{
+    return kSemanticMaskAllowedFields;
 }
 
 bool is_ai_proposal_allowed_field(const std::string_view field) noexcept
@@ -335,17 +422,32 @@ bool is_ai_proposal_allowed_field(const std::string_view field) noexcept
     return std::find(kAllowedFields.begin(), kAllowedFields.end(), field) != kAllowedFields.end();
 }
 
+bool is_ai_semantic_mask_allowed_field(const std::string_view field) noexcept
+{
+    return std::find(kSemanticMaskAllowedFields.begin(), kSemanticMaskAllowedFields.end(), field) !=
+           kSemanticMaskAllowedFields.end();
+}
+
+[[nodiscard]] bool field_allowed_for_kind(const std::string_view field,
+                                          const AiProposalKind kind) noexcept
+{
+    return kind == AiProposalKind::kSemanticMask ? is_ai_semantic_mask_allowed_field(field) :
+                                                   is_ai_proposal_allowed_field(field);
+}
+
 [[nodiscard]] int ai_field_apply_rank(const std::string_view field) noexcept
 {
-    if (field == "cropWidth")
+    if (field == "exposureMaskKind")
         return 0;
-    if (field == "cropHeight")
+    if (field == "cropWidth")
         return 1;
-    if (field == "cropX")
+    if (field == "cropHeight")
         return 2;
-    if (field == "cropY")
+    if (field == "cropX")
         return 3;
-    return 4;
+    if (field == "cropY")
+        return 4;
+    return 5;
 }
 
 [[nodiscard]] std::vector<AiProposalFieldChange>
@@ -357,14 +459,44 @@ order_ai_proposal_fields(std::vector<AiProposalFieldChange> fields)
     return fields;
 }
 
-Result<void> validate_ai_proposal_fields(const std::vector<AiProposalFieldChange> &fields)
+[[nodiscard]] Result<void> apply_one_ai_field(DevelopParams &params, const std::string_view field,
+                                              const double value, const AiProposalKind kind)
+{
+    if (kind == AiProposalKind::kSemanticMask && is_develop_mask_field(field))
+    {
+        auto applied = apply_develop_mask_field_strict(params, field, value);
+        if (!applied)
+        {
+            auto error = applied.error();
+            error.context.insert_or_assign("reason", "invalid_ai_proposal_field_bounds");
+            error.context.insert_or_assign("field", std::string(field));
+            return error;
+        }
+        return {};
+    }
+    auto applied = apply_develop_field_strict(params, field, value);
+    if (!applied)
+    {
+        auto error = applied.error();
+        error.context.insert_or_assign("reason", "invalid_ai_proposal_field_bounds");
+        error.context.insert_or_assign("field", std::string(field));
+        return error;
+    }
+    return {};
+}
+
+Result<void> validate_ai_proposal_fields(const std::vector<AiProposalFieldChange> &fields,
+                                         const AiProposalKind kind)
 {
     if (fields.empty())
     {
         return make_error(ErrorCode::kValidation, "AI proposal fields are empty",
                           {{"reason", "empty_ai_proposal_fields"}});
     }
-    if (fields.size() > kAllowedFields.size())
+    const auto max_fields = kind == AiProposalKind::kSemanticMask ?
+                                kSemanticMaskAllowedFields.size() :
+                                kAllowedFields.size();
+    if (fields.size() > max_fields)
     {
         return make_error(ErrorCode::kValidation, "AI proposal field count exceeds allowlist",
                           {{"reason", "ai_proposal_fields_too_large"},
@@ -378,7 +510,7 @@ Result<void> validate_ai_proposal_fields(const std::vector<AiProposalFieldChange
             return make_error(ErrorCode::kValidation, "AI proposal field is empty or duplicated",
                               {{"field", change.field}, {"reason", "duplicate_or_empty_ai_field"}});
         }
-        if (!is_ai_proposal_allowed_field(change.field))
+        if (!field_allowed_for_kind(change.field, kind))
         {
             return make_error(ErrorCode::kValidation, "AI proposal field is not allowed",
                               {{"field", change.field}, {"reason", "unknown_ai_proposal_field"}});
@@ -387,34 +519,25 @@ Result<void> validate_ai_proposal_fields(const std::vector<AiProposalFieldChange
     DevelopParams probe;
     for (const auto &change : order_ai_proposal_fields(fields))
     {
-        auto applied = apply_develop_field_strict(probe, change.field, change.value);
+        auto applied = apply_one_ai_field(probe, change.field, change.value, kind);
         if (!applied)
-        {
-            auto error = applied.error();
-            error.context.insert_or_assign("reason", "invalid_ai_proposal_field_bounds");
-            error.context.insert_or_assign("field", change.field);
-            return error;
-        }
+            return applied.error();
     }
     return {};
 }
 
 Result<DevelopParams> apply_ai_proposal_fields(DevelopParams params,
-                                               const std::vector<AiProposalFieldChange> &fields)
+                                               const std::vector<AiProposalFieldChange> &fields,
+                                               const AiProposalKind kind)
 {
-    auto valid = validate_ai_proposal_fields(fields);
+    auto valid = validate_ai_proposal_fields(fields, kind);
     if (!valid)
         return valid.error();
     for (const auto &change : order_ai_proposal_fields(fields))
     {
-        auto applied = apply_develop_field_strict(params, change.field, change.value);
+        auto applied = apply_one_ai_field(params, change.field, change.value, kind);
         if (!applied)
-        {
-            auto error = applied.error();
-            error.context.insert_or_assign("reason", "invalid_ai_proposal_field_bounds");
-            error.context.insert_or_assign("field", change.field);
-            return error;
-        }
+            return applied.error();
     }
     return params;
 }
@@ -476,6 +599,90 @@ build_stub_ai_proposal_alternatives(const std::string_view asset_id)
     alternative.label = "punchier";
     alternative.fields = std::move(punchier);
     alternative.confidence = 0.58;
+    return std::vector<AiProposalAlternative>{std::move(alternative)};
+}
+
+Result<std::vector<AiProposalFieldChange>>
+build_stub_semantic_mask_proposal_fields(const std::string_view asset_id,
+                                         const std::string_view semantic_label)
+{
+    if (asset_id.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "AI proposal requires an asset id",
+                          {{"reason", "missing_asset_id"}});
+    }
+    auto label_ok = validate_ai_semantic_label(semantic_label);
+    if (!label_ok)
+        return label_ok.error();
+
+    const double unit = stub_unit(asset_id, 11U);
+    const double tone = stub_unit(asset_id, 12U);
+    std::vector<AiProposalFieldChange> fields;
+    // Circle kind index is 3; linear-gradient is 2 (develop_mask.cpp).
+    if (semantic_label == "sky")
+    {
+        fields.push_back({"exposureMaskKind", 2.0, 0.70});
+        fields.push_back({"exposureMaskAnchorX", 0.5, 0.70});
+        fields.push_back({"exposureMaskAnchorY", 0.18 + unit * 0.08, 0.70});
+        fields.push_back({"exposureMaskRotationDegrees", 0.0, 0.70});
+        fields.push_back({"exposureMaskTransition", 0.18 + tone * 0.10, 0.70});
+        fields.push_back({"exposureMaskOpacity", 0.85, 0.70});
+        fields.push_back({"exposure", -0.25 - unit * 0.15, 0.65});
+    }
+    else if (semantic_label == "background")
+    {
+        fields.push_back({"exposureMaskKind", 3.0, 0.68});
+        fields.push_back({"exposureMaskCenterX", 0.5, 0.68});
+        fields.push_back({"exposureMaskCenterY", 0.5, 0.68});
+        fields.push_back({"exposureMaskRadius", 0.42 + unit * 0.08, 0.68});
+        fields.push_back({"exposureMaskFeather", 0.12 + tone * 0.08, 0.68});
+        fields.push_back({"exposureMaskOpacity", 0.80, 0.68});
+        fields.push_back({"exposureMaskInverted", 1.0, 0.68});
+        fields.push_back({"exposure", -0.20 - tone * 0.10, 0.60});
+    }
+    else
+    {
+        // subject|person|clothing|object — center-weighted circle.
+        const double cy = semantic_label == "person" ? 0.42 : 0.48;
+        const double radius = semantic_label == "object" ? 0.18 + unit * 0.08 : 0.26 + unit * 0.10;
+        fields.push_back({"exposureMaskKind", 3.0, 0.78});
+        fields.push_back({"exposureMaskCenterX", 0.5 + (unit - 0.5) * 0.08, 0.78});
+        fields.push_back({"exposureMaskCenterY", cy + (tone - 0.5) * 0.06, 0.78});
+        fields.push_back({"exposureMaskRadius", radius, 0.78});
+        fields.push_back({"exposureMaskFeather", 0.08 + tone * 0.10, 0.78});
+        fields.push_back({"exposureMaskOpacity", 0.90, 0.78});
+        fields.push_back({"exposure", 0.35 + unit * 0.25, 0.72});
+    }
+    auto valid = validate_ai_proposal_fields(fields, AiProposalKind::kSemanticMask);
+    if (!valid)
+        return valid.error();
+    return fields;
+}
+
+Result<std::vector<AiProposalAlternative>>
+build_stub_semantic_mask_alternatives(const std::string_view asset_id,
+                                      const std::string_view semantic_label)
+{
+    auto primary = build_stub_semantic_mask_proposal_fields(asset_id, semantic_label);
+    if (!primary)
+        return primary.error();
+    std::vector<AiProposalFieldChange> softer = primary.value();
+    for (auto &change : softer)
+    {
+        if (change.field == "exposureMaskRadius")
+            change.value = std::min(1.0, change.value + 0.06);
+        else if (change.field == "exposureMaskOpacity")
+            change.value = std::max(0.35, change.value - 0.15);
+        else if (change.field == "exposure")
+            change.value *= 0.7;
+    }
+    auto valid = validate_ai_proposal_fields(softer, AiProposalKind::kSemanticMask);
+    if (!valid)
+        return valid.error();
+    AiProposalAlternative alternative;
+    alternative.label = "softer-mask";
+    alternative.fields = std::move(softer);
+    alternative.confidence = 0.55;
     return std::vector<AiProposalAlternative>{std::move(alternative)};
 }
 
@@ -569,9 +776,32 @@ Result<AiProposal> CatalogService::create_ai_proposal(const AiProposalCreateRequ
         return make_error(ErrorCode::kInvalidArgument, "AI proposal requires an asset id",
                           {{"reason", "missing_asset_id"}});
     }
-    auto provider_ok = require_stub_provider(request.provider_id, request.model_id);
+    std::string model_id = request.model_id;
+    if (request.kind == AiProposalKind::kSemanticMask &&
+        (model_id.empty() || model_id == kAiStubModelId))
+        model_id = std::string(kAiStubSemanticMaskModelId);
+    if (request.kind == AiProposalKind::kGlobal &&
+        (model_id.empty() || model_id == kAiStubSemanticMaskModelId))
+        model_id = std::string(kAiStubModelId);
+    auto provider_ok = require_stub_provider(request.provider_id, model_id, request.kind);
     if (!provider_ok)
         return provider_ok.error();
+    if (request.kind == AiProposalKind::kSemanticMask)
+    {
+        if (!request.semantic_label)
+        {
+            return make_error(ErrorCode::kValidation, "Semantic-mask proposal requires a label",
+                              {{"reason", "missing_ai_semantic_label"}});
+        }
+        auto label_ok = validate_ai_semantic_label(*request.semantic_label);
+        if (!label_ok)
+            return label_ok.error();
+    }
+    else if (request.semantic_label)
+    {
+        return make_error(ErrorCode::kValidation, "Semantic label is only valid for semantic-mask",
+                          {{"reason", "ai_semantic_label_without_mask_kind"}});
+    }
     std::size_t pending_count = 0;
     for (const auto &[id, existing] : ai_proposals_)
     {
@@ -620,29 +850,44 @@ Result<AiProposal> CatalogService::create_ai_proposal(const AiProposalCreateRequ
     if (!cancelled)
         return cancelled.error();
 
-    auto fields = build_stub_ai_proposal_fields(request.asset_id);
+    Result<std::vector<AiProposalFieldChange>> fields =
+        request.kind == AiProposalKind::kSemanticMask ?
+            build_stub_semantic_mask_proposal_fields(request.asset_id, *request.semantic_label) :
+            build_stub_ai_proposal_fields(request.asset_id);
     if (!fields)
         return fields.error();
-    auto alternatives = build_stub_ai_proposal_alternatives(request.asset_id);
+    Result<std::vector<AiProposalAlternative>> alternatives =
+        request.kind == AiProposalKind::kSemanticMask ?
+            build_stub_semantic_mask_alternatives(request.asset_id, *request.semantic_label) :
+            build_stub_ai_proposal_alternatives(request.asset_id);
     if (!alternatives)
         return alternatives.error();
-    auto proposed = apply_ai_proposal_fields(current.value(), fields.value());
+    auto proposed = apply_ai_proposal_fields(current.value(), fields.value(), request.kind);
     if (!proposed)
         return proposed.error();
 
     AiProposal proposal;
     proposal.id = generate_ai_proposal_id();
     proposal.contract_version = std::string(kAiProposalContractVersion);
+    proposal.kind = request.kind;
+    proposal.semantic_label = request.semantic_label;
     proposal.created_unix_ms = now_unix_ms();
     proposal.asset_id = request.asset_id;
     proposal.observed_catalog_revision = snapshot.value().revision;
     proposal.observed_recovery_generation = recovery.value().generation;
     proposal.provider.provider_id = std::string(kAiStubProviderId);
-    proposal.provider.model_id = std::string(kAiStubModelId);
+    proposal.provider.model_id = request.kind == AiProposalKind::kSemanticMask ?
+                                     std::string(kAiStubSemanticMaskModelId) :
+                                     std::string(kAiStubModelId);
     proposal.provider.model_version = std::string(kAiStubModelVersion);
     proposal.provider.weight_content_hash = std::string(kAiStubWeightContentHash);
-    proposal.provider.parameters = {
-        {"kind", "deterministic_stub"}, {"network", "never"}, {"training", "never"}};
+    proposal.provider.parameters = {{"kind", request.kind == AiProposalKind::kSemanticMask ?
+                                                 "deterministic_semantic_mask_stub" :
+                                                 "deterministic_stub"},
+                                    {"network", "never"},
+                                    {"training", "never"}};
+    if (request.semantic_label)
+        proposal.provider.parameters.emplace("semantic_label", *request.semantic_label);
     proposal.fields = std::move(fields).value();
     proposal.field_diff = develop_change_summary(current.value(), proposed.value());
     proposal.alternatives = std::move(alternatives).value();
@@ -779,8 +1024,8 @@ CatalogService::apply_ai_proposal(const std::string_view proposal_id,
                            {"status", std::string(ai_proposal_status_name(proposal.status))},
                            {"reason", "ai_proposal_not_pending"}});
     }
-    auto provider_ok =
-        require_stub_provider(proposal.provider.provider_id, proposal.provider.model_id);
+    auto provider_ok = require_stub_provider(proposal.provider.provider_id,
+                                             proposal.provider.model_id, proposal.kind);
     if (!provider_ok)
         return provider_ok.error();
     if (proposal.provider.model_id.empty() || proposal.provider.weight_content_hash.empty())
@@ -822,7 +1067,7 @@ CatalogService::apply_ai_proposal(const std::string_view proposal_id,
     auto current = develop_from_recipe(recipe.value());
     if (!current)
         return current.error();
-    auto proposed = apply_ai_proposal_fields(current.value(), proposal.fields);
+    auto proposed = apply_ai_proposal_fields(current.value(), proposal.fields, proposal.kind);
     if (!proposed)
         return proposed.error();
 
