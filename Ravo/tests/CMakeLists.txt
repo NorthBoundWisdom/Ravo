@@ -130,6 +130,7 @@ add_executable(ravo_catalog_tests
   catalog_ai_proposal_test.cpp
   catalog_capture_test.cpp
   catalog_import_test.cpp
+  catalog_ingest_transport_test.cpp
   catalog_xmp_interchange_test.cpp
   catalog_external_editor_test.cpp
   export_pro_export_test.cpp

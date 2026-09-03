@@ -24,6 +24,7 @@
 #include "ravo/services/ai_proposal.h"
 #include "ravo/services/xmp_interchange.h"
 #include "ravo/services/external_editor.h"
+#include "ravo/services/ingest_transport.h"
 
 namespace ravo
 {
@@ -274,6 +275,12 @@ public:
     execute_import(const ImportRequest &request,
                    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
                        &progress = {});
+    // ADR-0125: filesystem-card (DCIM/mount) ingest with disconnect/cancel
+    // reporting. Rejects Move; feeds the existing Add/Copy planner.
+    [[nodiscard]] Result<ImportBatchResult>
+    execute_ingest(const IngestRequest &request,
+                   const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
+                       &progress = {});
     [[nodiscard]] Result<PreviewResult> build_import_preview(std::string_view asset_id,
                                                              ImportPreviewPolicy policy,
                                                              const CancellationToken &cancellation);
@@ -424,6 +431,9 @@ private:
     std::function<void()> testing_before_preview_cache_publication_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_import_checkpoint_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_backup_checkpoint_;
+    // ADR-0125 ingest transport liveness (filesystem-card disconnect).
+    std::function<Result<void>()> ingest_source_liveness_;
+    bool ingest_report_remaining_on_stop_ = false;
     mutable std::map<std::string, AiProposal, std::less<>> ai_proposals_;
     mutable bool ai_proposals_loaded_ = false;
 

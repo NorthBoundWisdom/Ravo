@@ -13,6 +13,7 @@ target_sources(ravo_services
     src/catalog_external_editor.cpp
     src/catalog_internal.cpp
     src/catalog_import.cpp
+    src/catalog_ingest_transport.cpp
     src/encoded_publication.cpp
     src/export_jobs.cpp
     src/export_output_sharpen.cpp

@@ -584,7 +584,47 @@ Result<ImportBatchResult> CatalogService::execute_import(
     {
         auto active = request.cancellation.check();
         if (!active)
+        {
+            if (ingest_report_remaining_on_stop_)
+            {
+                for (std::size_t rest = index; rest < plan.size(); ++rest)
+                {
+                    auto item = failed_item(plan[rest].candidate.source_path, active.error());
+                    ++batch.failed;
+                    batch.items.push_back(std::move(item));
+                    if (progress)
+                        progress(rest + 1U, plan.size(), &batch.items.back());
+                }
+            }
             break;
+        }
+        if (ingest_source_liveness_)
+        {
+            auto live = ingest_source_liveness_();
+            if (!live)
+            {
+                if (ingest_report_remaining_on_stop_)
+                {
+                    for (std::size_t rest = index; rest < plan.size(); ++rest)
+                    {
+                        auto item = failed_item(plan[rest].candidate.source_path, live.error());
+                        ++batch.failed;
+                        batch.items.push_back(std::move(item));
+                        if (progress)
+                            progress(rest + 1U, plan.size(), &batch.items.back());
+                    }
+                }
+                else
+                {
+                    auto item = failed_item(plan[index].candidate.source_path, live.error());
+                    ++batch.failed;
+                    batch.items.push_back(std::move(item));
+                    if (progress)
+                        progress(index + 1U, plan.size(), &batch.items.back());
+                }
+                break;
+            }
+        }
         auto &planned = plan[index];
         std::vector<std::string> owned_outputs;
         std::optional<TaskError> transfer_error;
@@ -790,11 +830,10 @@ Result<ImportBatchResult> CatalogService::execute_import(
                   current_sidecar_identity.value().mtime_unix_ms !=
                       planned.source_sidecar_identity->mtime_unix_ms)) ||
                 !current_jpeg_identity ||
-                (planned.source_jpeg_identity &&
-                 (current_jpeg_identity.value().size_bytes !=
-                      planned.source_jpeg_identity->size_bytes ||
-                  current_jpeg_identity.value().mtime_unix_ms !=
-                      planned.source_jpeg_identity->mtime_unix_ms)))
+                (planned.source_jpeg_identity && (current_jpeg_identity.value().size_bytes !=
+                                                      planned.source_jpeg_identity->size_bytes ||
+                                                  current_jpeg_identity.value().mtime_unix_ms !=
+                                                      planned.source_jpeg_identity->mtime_unix_ms)))
                 result.source_cleanup_error =
                     make_error(ErrorCode::kConflict,
                                "Imported destination but source media or companion changed before "

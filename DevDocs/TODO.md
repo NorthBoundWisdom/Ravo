@@ -131,21 +131,33 @@ implementation tranche to **P1 / Ready** and add its exact tests.
 ImageIO decode, enumeration of `.heic`/`.heif`/`.heics`/`.heifs`/`.hif`).
 ADR-0123 accepts the owned-decode **packaging/licence gate**: no decoder until
 Dependency Workflow/Packaging records SPDX/GPL compatibility and notices; leave
-decode residual rather than an illegal GPL surprise. Owned HEIC decode,
-PTP/MTP, DNG conversion, and Smart Previews remain unfinished.
+decode residual rather than an illegal GPL surprise. ADR-0125 accepts the ingest
+**transport URI + disconnect/cancel contract** and ships the first
+**filesystem-card / DCIM folder** adapter (not native PTP USB) on top of
+ADR-0102/0104 Add/Copy planning, rename, and verified second copy. Owned HEIC
+decode, native PTP/MTP USB, DNG conversion, and Smart Previews remain unfinished.
 
 **Outcome:** ingest from supported card/camera sources with explicit destination,
 rename, verified second copy, and resumable failure handling; define HEIC/HEIF,
 DNG conversion, and Smart Preview scope.
 
 **Dependencies:** existing Add/Copy/Move planner and ADR-0104 publication rules;
-ADR-0118 for HEIC/HEIF recognition; a later PTP/MTP and owned-decoder /
-licence/package ADR for remaining format work.
+ADR-0118 for HEIC/HEIF recognition; ADR-0125 for ingest source URI / lifecycle;
+a later PTP USB adapter and owned-decoder / licence/package ADR for remaining
+format work.
+
+**Done in this tranche (ADR-0125):**
+- `ravo-ingest:` source URI abstraction (`filesystem-card` shipped; `ptp-usb`
+  reserved/fail-closed);
+- filesystem card mount / DCIM folder enumeration adapter;
+- `CatalogService::execute_ingest` with read-only source policy (Move rejected),
+  per-item disconnect/cancel reporting, source preservation, and ADR-0104
+  conflict/second-copy gates.
 
 **Remaining unfinished work:**
 - Owned HEIC/HEIF decode (pixels, colour, orientation, multi-image selection)
   after dependency/licence/package gates.
-- PTP/MTP transport and device lifecycle (ADR-0125 Proposed decision stub).
+- Native PTP/USB and MTP session transport adapter on the ADR-0125 contracts.
 - DNG conversion and Smart Preview policy.
 
 **Risks:** destination collisions, device disappearance, source mutation,
@@ -156,7 +168,8 @@ cataloged batches.
 row on unresolved conflict, preserve source bytes, report partial completion by
 item, and leave the next ingest reusable after cancel, disconnect, or error.
 HEIC/HEIF recognition fails closed with zero publication until an owned decoder
-ships.
+ships. Filesystem-card ingest satisfies the gate for mounted/DCIM sources;
+PTP USB remains residual.
 
 ## PRO-METADATA — Hierarchical keywords and delivery metadata
 
