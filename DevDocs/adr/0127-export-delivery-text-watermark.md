@@ -7,7 +7,7 @@
   [ADR-0117](0117-export-box-sharpen-presets-and-restartable-jobs.md),
   [ADR-0032](0032-encoded-byte-publication-contract.md)
 - Supersedes: the ADR-0117 deferral of “watermark” for **export delivery** only
-  (colour-conversion/frame overlays remain undecided)
+  (colour-conversion/frame overlays decided in ADR-0129)
 
 ## Context
 
@@ -45,8 +45,8 @@ or system-font path would reopen ADR-0071’s portability and failure rules.
 
 - Watermark text is not catalog metadata; export privacy modes (ADR-0064) do not
   strip or invent watermark glyphs. Location/Core packet rules are unchanged.
-- Colour-conversion frame / decorative borders beyond ADR-0070 Frame remain
-  **undecided**.
+- Colour-conversion / delivery Frame are decided in **ADR-0129** (ExportOptions;
+  not this ADR).
 - Logo/SVG watermark, per-user font packs, and EXIF/token expansion beyond
   ADR-0071 remain unsupported.
 
@@ -54,17 +54,17 @@ or system-font path would reopen ADR-0071’s portability and failure rules.
 
 - ExportOptions `watermark` fields, preset/job JSON, CatalogService apply after
   resize/output-sharpen, Studio/CLI controls, and equality tests shipped on
-  `main`. Colour-conversion/frame remains residual.
+  `main`. Colour-conversion/frame moved to ADR-0129.
 
 ## Consequences
 
 PRO-EXPORT watermark is no longer blocked on an open decision. Delivery marks
 share ADR-0071 determinism without becoming a second live Develop authority.
-Colour-conversion/frame stays residual.
+Colour-conversion/frame is owned by ADR-0129.
 
 ## Rejected alternatives
 
 - A separate export-only rasterizer or QML overlay.
 - Baking export watermark into Develop recipe/history by default.
 - Waiting for logo/SVG support before accepting text delivery marks.
-- Treating colour-conversion frame as in-scope for this ADR.
+- Treating colour-conversion/frame as in-scope for this ADR (see ADR-0129).

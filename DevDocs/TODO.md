@@ -253,14 +253,24 @@ identity/default behavior.
 reusable ExportOptions presets, and restartable batch jobs are implemented.
 Long-edge remains ADR-0113. ADR-0127 delivery text watermark is shipped
 (ExportOptions/CLI/Studio; ADR-0071 engine stage after resize/sharpen; no
-Develop recipe mutation; privacy modes unchanged). Colour-conversion/frame
-overlays remain undecided.
+Develop recipe mutation; privacy modes unchanged). ADR-0129 accepts export
+delivery colour override and ADR-0070 delivery frame as ExportOptions; first
+Ready tranche ships on `main`.
 
 **Outcome:** box resize, output sharpening, reusable export presets,
-restartable background batch delivery, and optional delivery text watermark.
+restartable background batch delivery, optional delivery text watermark, and
+optional delivery colour/frame without Develop recipe mutation.
+
+**Done (ADR-0129 first tranche):**
+- ExportOptions `output_color` (ADR-0019 params; proof forced off) applied as an
+  in-memory recipe override for the export render only;
+- ExportOptions `frame` (ADR-0070 params) applied after sharpen and before
+  delivery watermark on packed export pixels;
+- CLI/Studio/preset/job JSON + equality / no-recipe-mutation tests.
 
 **Remaining unfinished work:**
-- Colour-conversion/frame overlays remain undecided.
+- Soft-proof-as-export and logo/SVG/decorative overlays beyond ADR-0070 Frame
+  remain out of scope (rejected by ADR-0129).
 
 **Risks:** resizing in QML, a second encoder/job owner, overwrite/skip guessing,
 recipe mutation, and ambiguous partial delivery after restart.

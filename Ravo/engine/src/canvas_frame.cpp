@@ -9,6 +9,8 @@
 #include <new>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <variant>
 #include <vector>
 
 #include "ravo/recipe/color_input.h"
@@ -527,6 +529,115 @@ Result<ProfiledOutputBuffer> apply_frame(ProfiledOutputBuffer input,
                           {{"reason", "unsupported_frame_mask"}});
     auto params = frame_from_parameters(operation.parameters);
     return params ? apply_frame(std::move(input), params.value(), cancellation) : params.error();
+}
+
+Result<RenderedExportImage> apply_frame_to_export_image(RenderedExportImage image,
+                                                        const FrameParams &params,
+                                                        const CancellationToken &cancellation)
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+    auto canonical = frame_to_parameters(params);
+    if (!canonical)
+        return canonical.error();
+    if (image.width == 0 || image.height == 0)
+        return image;
+
+    const std::size_t expected =
+        static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height) * 3U;
+    ProfiledOutputBuffer profiled;
+    profiled.width = image.width;
+    profiled.height = image.height;
+    profiled.color_profile = image.color_profile;
+    profiled.channels.resize(expected);
+
+    auto to_unit = [&](auto &samples) -> Result<void>
+    {
+        using Sample = std::decay_t<decltype(samples)>;
+        if (samples.size() != expected)
+        {
+            return make_error(ErrorCode::kValidation, "Export frame buffer size is invalid",
+                              {{"reason", "invalid_export_frame_buffer"}});
+        }
+        if constexpr (std::is_same_v<typename Sample::value_type, float>)
+        {
+            for (std::size_t i = 0; i < samples.size(); ++i)
+                profiled.channels[i] = std::clamp(samples[i], 0.0f, 1.0f);
+        }
+        else if constexpr (std::is_same_v<typename Sample::value_type, std::uint16_t>)
+        {
+            constexpr float scale = 1.0f / 65535.0f;
+            for (std::size_t i = 0; i < samples.size(); ++i)
+                profiled.channels[i] = static_cast<float>(samples[i]) * scale;
+        }
+        else
+        {
+            constexpr float scale = 1.0f / 255.0f;
+            for (std::size_t i = 0; i < samples.size(); ++i)
+                profiled.channels[i] = static_cast<float>(samples[i]) * scale;
+        }
+        return {};
+    };
+
+    if (std::holds_alternative<std::vector<std::uint8_t>>(image.samples))
+    {
+        auto converted = to_unit(std::get<std::vector<std::uint8_t>>(image.samples));
+        if (!converted)
+            return converted.error();
+    }
+    else if (std::holds_alternative<std::vector<std::uint16_t>>(image.samples))
+    {
+        auto converted = to_unit(std::get<std::vector<std::uint16_t>>(image.samples));
+        if (!converted)
+            return converted.error();
+    }
+    else
+    {
+        auto converted = to_unit(std::get<std::vector<float>>(image.samples));
+        if (!converted)
+            return converted.error();
+    }
+
+    auto framed = apply_frame(std::move(profiled), params, cancellation);
+    if (!framed)
+        return framed.error();
+
+    const std::size_t out_expected = static_cast<std::size_t>(framed.value().width) *
+                                     static_cast<std::size_t>(framed.value().height) * 3U;
+    image.width = framed.value().width;
+    image.height = framed.value().height;
+    image.color_profile = framed.value().color_profile;
+
+    auto from_unit = [&](auto &samples) -> Result<RenderedExportImage>
+    {
+        using Sample = std::decay_t<decltype(samples)>;
+        samples.resize(out_expected);
+        if constexpr (std::is_same_v<typename Sample::value_type, float>)
+        {
+            for (std::size_t i = 0; i < out_expected; ++i)
+                samples[i] = framed.value().channels[i];
+        }
+        else if constexpr (std::is_same_v<typename Sample::value_type, std::uint16_t>)
+        {
+            for (std::size_t i = 0; i < out_expected; ++i)
+                samples[i] = static_cast<std::uint16_t>(
+                    std::lround(std::clamp(framed.value().channels[i], 0.0f, 1.0f) * 65535.0f));
+        }
+        else
+        {
+            for (std::size_t i = 0; i < out_expected; ++i)
+                samples[i] = static_cast<std::uint8_t>(
+                    std::lround(std::clamp(framed.value().channels[i], 0.0f, 1.0f) * 255.0f));
+        }
+        return image;
+    };
+
+    if (std::holds_alternative<std::vector<std::uint8_t>>(image.samples))
+        return from_unit(std::get<std::vector<std::uint8_t>>(image.samples));
+    if (std::holds_alternative<std::vector<std::uint16_t>>(image.samples))
+        return from_unit(std::get<std::vector<std::uint16_t>>(image.samples));
+    return from_unit(std::get<std::vector<float>>(image.samples));
 }
 
 } // namespace ravo

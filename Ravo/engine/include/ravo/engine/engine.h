@@ -19,6 +19,7 @@
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/perspective.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/recipe/canvas_frame.h"
 #include "ravo/recipe/watermark.h"
 
 namespace ravo
@@ -588,5 +589,11 @@ private:
 apply_watermark_to_export_image(RenderedExportImage image, const WatermarkParams &params,
                                 const AssetDescriptor &asset,
                                 const CancellationToken &cancellation);
+
+// ADR-0129: reuse ADR-0070 frame mathematics on packed export pixels after
+// resize/output-sharpen and before delivery watermark. CatalogService owns when.
+[[nodiscard]] Result<RenderedExportImage>
+apply_frame_to_export_image(RenderedExportImage image, const FrameParams &params,
+                            const CancellationToken &cancellation);
 
 } // namespace ravo

@@ -10,6 +10,8 @@
 
 #include "catalog_internal.h"
 #include "export_output_sharpen.h"
+#include "export_delivery_color.h"
+#include "export_delivery_frame.h"
 #include "export_delivery_watermark.h"
 #include "catalog_service_internal.h"
 #include "ravo/domain/uri.h"
@@ -751,6 +753,13 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         }
         edit_recipe = std::move(parsed).value();
     }
+    if (export_options_request_output_color(request))
+    {
+        auto overridden = apply_export_color_override(std::move(edit_recipe), request.output_color);
+        if (!overridden)
+            return overridden.error();
+        edit_recipe = std::move(overridden).value();
+    }
     const RenderSampleKind sample_kind = [&request]()
     {
         if (request.format == ExportFormat::kPng &&
@@ -787,6 +796,14 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         if (!sharpened)
             return sharpened.error();
         rendered = std::move(sharpened);
+    }
+    if (export_options_request_frame(request))
+    {
+        auto framed = apply_export_delivery_frame(std::move(rendered).value(), request.frame,
+                                                  request.cancellation);
+        if (!framed)
+            return framed.error();
+        rendered = std::move(framed);
     }
     if (export_options_request_watermark(request))
     {

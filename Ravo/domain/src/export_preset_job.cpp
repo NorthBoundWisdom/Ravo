@@ -1,5 +1,6 @@
 #include "ravo/domain/types.h"
 
+#include <array>
 #include <charconv>
 #include <cstdlib>
 #include <limits>
@@ -271,6 +272,170 @@ namespace
     return JsonValue{std::move(object)};
 }
 
+[[nodiscard]] Result<std::array<double, 3>> parse_rgb_color(const JsonValue &object,
+                                                            const std::string_view field)
+{
+    const auto *root = object.object_if();
+    if (root == nullptr)
+        return preset_error("Export colour object required", "invalid_export_json_object", field);
+    const auto found = root->find(std::string(field));
+    if (found == root->end())
+        return preset_error("Export colour field missing", "missing_export_json_field", field);
+    const auto *color = found->second.array_if();
+    if (color == nullptr || color->size() != 3U)
+    {
+        return make_error(ErrorCode::kValidation, "Export colour must contain three channels",
+                          {{"reason", "invalid_export_color"}, {"parameter", std::string(field)}});
+    }
+    std::array<double, 3> result{};
+    for (std::size_t index = 0U; index < 3U; ++index)
+    {
+        const auto *number = (*color)[index].number_if();
+        if (number == nullptr)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Export colour channel must be numeric",
+                {{"reason", "invalid_export_color"}, {"parameter", std::string(field)}});
+        }
+        char *end = nullptr;
+        const std::string owned(number->text);
+        const double value = std::strtod(owned.c_str(), &end);
+        if (end != owned.c_str() + owned.size() || !std::isfinite(value) || value < 0.0 ||
+            value > 1.0)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Export colour channel is invalid",
+                {{"reason", "invalid_export_color"}, {"parameter", std::string(field)}});
+        }
+        result[index] = value;
+    }
+    return result;
+}
+
+[[nodiscard]] Result<ExportColorOptions> parse_output_color(const JsonValue &object)
+{
+    ExportColorOptions color;
+    auto enabled = require_bool(object, "enabled");
+    if (!enabled)
+        return enabled.error();
+    color.enabled = enabled.value();
+    auto profile = require_string(object, "output_profile");
+    if (!profile)
+        return profile.error();
+    color.output_profile = profile.value();
+    auto filename = require_string(object, "output_profile_filename");
+    if (!filename)
+        return filename.error();
+    color.output_profile_filename = filename.value();
+    auto intent = require_string(object, "rendering_intent");
+    if (!intent)
+        return intent.error();
+    color.rendering_intent = intent.value();
+    auto bpc = require_bool(object, "black_point_compensation");
+    if (!bpc)
+        return bpc.error();
+    color.black_point_compensation = bpc.value();
+    auto valid = validate_export_color_options(color);
+    if (!valid)
+        return valid.error();
+    return color;
+}
+
+[[nodiscard]] Result<JsonValue> serialize_output_color(const ExportColorOptions &color)
+{
+    auto valid = validate_export_color_options(color);
+    if (!valid)
+        return valid.error();
+    JsonValue::Object object;
+    object.emplace("enabled", color.enabled);
+    object.emplace("output_profile", color.output_profile);
+    object.emplace("output_profile_filename", color.output_profile_filename);
+    object.emplace("rendering_intent", color.rendering_intent);
+    object.emplace("black_point_compensation", color.black_point_compensation);
+    return JsonValue{std::move(object)};
+}
+
+[[nodiscard]] Result<ExportFrameOptions> parse_frame(const JsonValue &object)
+{
+    ExportFrameOptions frame;
+    auto enabled = require_bool(object, "enabled");
+    if (!enabled)
+        return enabled.error();
+    frame.enabled = enabled.value();
+    auto border = parse_rgb_color(object, "border_color");
+    if (!border)
+        return border.error();
+    frame.border_color = border.value();
+    auto aspect = require_double(object, "aspect");
+    if (!aspect)
+        return aspect.error();
+    frame.aspect = aspect.value();
+    auto orientation = require_string(object, "orientation");
+    if (!orientation)
+        return orientation.error();
+    frame.orientation = orientation.value();
+    auto size = require_double(object, "size");
+    if (!size)
+        return size.error();
+    frame.size = size.value();
+    auto position_h = require_double(object, "position_h");
+    if (!position_h)
+        return position_h.error();
+    frame.position_h = position_h.value();
+    auto position_v = require_double(object, "position_v");
+    if (!position_v)
+        return position_v.error();
+    frame.position_v = position_v.value();
+    auto frame_size = require_double(object, "frame_size");
+    if (!frame_size)
+        return frame_size.error();
+    frame.frame_size = frame_size.value();
+    auto frame_offset = require_double(object, "frame_offset");
+    if (!frame_offset)
+        return frame_offset.error();
+    frame.frame_offset = frame_offset.value();
+    auto frame_color = parse_rgb_color(object, "frame_color");
+    if (!frame_color)
+        return frame_color.error();
+    frame.frame_color = frame_color.value();
+    auto basis = require_string(object, "basis");
+    if (!basis)
+        return basis.error();
+    frame.basis = basis.value();
+    auto valid = validate_export_frame_options(frame);
+    if (!valid)
+        return valid.error();
+    return frame;
+}
+
+[[nodiscard]] Result<JsonValue> serialize_frame(const ExportFrameOptions &frame)
+{
+    auto valid = validate_export_frame_options(frame);
+    if (!valid)
+        return valid.error();
+    JsonValue::Array border;
+    border.reserve(3U);
+    for (const double channel : frame.border_color)
+        border.emplace_back(number_f(channel));
+    JsonValue::Array line;
+    line.reserve(3U);
+    for (const double channel : frame.frame_color)
+        line.emplace_back(number_f(channel));
+    JsonValue::Object object;
+    object.emplace("enabled", frame.enabled);
+    object.emplace("border_color", JsonValue{std::move(border)});
+    object.emplace("aspect", number_f(frame.aspect));
+    object.emplace("orientation", frame.orientation);
+    object.emplace("size", number_f(frame.size));
+    object.emplace("position_h", number_f(frame.position_h));
+    object.emplace("position_v", number_f(frame.position_v));
+    object.emplace("frame_size", number_f(frame.frame_size));
+    object.emplace("frame_offset", number_f(frame.frame_offset));
+    object.emplace("frame_color", JsonValue{std::move(line)});
+    object.emplace("basis", frame.basis);
+    return JsonValue{std::move(object)};
+}
+
 [[nodiscard]] Result<ExportOptions> parse_export_options_object(const JsonValue &value)
 {
     const auto *object = value.object_if();
@@ -311,6 +476,23 @@ namespace
     if (!sharpen)
         return sharpen.error();
     options.output_sharpen = sharpen.value();
+
+    const auto color_found = object->find("output_color");
+    if (color_found == object->end())
+        return preset_error("Export options require output_color", "missing_export_json_field",
+                            "output_color");
+    auto output_color = parse_output_color(color_found->second);
+    if (!output_color)
+        return output_color.error();
+    options.output_color = output_color.value();
+
+    const auto frame_found = object->find("frame");
+    if (frame_found == object->end())
+        return preset_error("Export options require frame", "missing_export_json_field", "frame");
+    auto frame = parse_frame(frame_found->second);
+    if (!frame)
+        return frame.error();
+    options.frame = frame.value();
 
     const auto watermark_found = object->find("watermark");
     if (watermark_found == object->end())
@@ -378,8 +560,8 @@ namespace
 
     // Reject unknown keys fail-closed.
     static constexpr std::string_view kAllowed[] = {
-        "format",         "metadata_mode", "max_edge", "max_width", "max_height",
-        "output_sharpen", "watermark",     "jpeg",     "png",       "tiff"};
+        "format",       "metadata_mode", "max_edge",  "max_width", "max_height", "output_sharpen",
+        "output_color", "frame",         "watermark", "jpeg",      "png",        "tiff"};
     for (const auto &[key, _] : *object)
     {
         bool allowed = false;
@@ -422,6 +604,12 @@ namespace
     auto sharpen = serialize_output_sharpen(options.output_sharpen);
     if (!sharpen)
         return sharpen.error();
+    auto output_color = serialize_output_color(options.output_color);
+    if (!output_color)
+        return output_color.error();
+    auto frame = serialize_frame(options.frame);
+    if (!frame)
+        return frame.error();
     auto watermark = serialize_watermark(options.watermark);
     if (!watermark)
         return watermark.error();
@@ -432,6 +620,8 @@ namespace
     object.emplace("max_width", number_u32(options.max_width));
     object.emplace("max_height", number_u32(options.max_height));
     object.emplace("output_sharpen", std::move(sharpen).value());
+    object.emplace("output_color", std::move(output_color).value());
+    object.emplace("frame", std::move(frame).value());
     object.emplace("watermark", std::move(watermark).value());
     object.emplace("jpeg", JsonValue{std::move(jpeg)});
     object.emplace("png", JsonValue{std::move(png)});
@@ -616,6 +806,133 @@ Result<void> validate_export_watermark_options(const ExportWatermarkOptions &opt
     return {};
 }
 
+Result<void> validate_export_color_options(const ExportColorOptions &options)
+{
+    static constexpr std::array<std::string_view, 12> kProfiles{
+        "srgb",   "adobe_rgb",    "linear_rec709", "linear_rec2020",
+        "rec709", "prophoto_rgb", "pq_rec2020",    "hlg_rec2020",
+        "pq_p3",  "hlg_p3",       "display_p3",    "file_icc"};
+    static constexpr std::array<std::string_view, 4> kIntents{
+        "perceptual", "relative_colorimetric", "saturation", "absolute_colorimetric"};
+    bool profile_ok = false;
+    for (const auto name : kProfiles)
+    {
+        if (options.output_profile == name)
+        {
+            profile_ok = true;
+            break;
+        }
+    }
+    if (!profile_ok)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export output profile is unsupported",
+            {{"reason", "invalid_export_output_profile"}, {"profile", options.output_profile}});
+    }
+    const bool file_icc = options.output_profile == "file_icc";
+    if (file_icc == options.output_profile_filename.empty())
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Export output profile filename must match file_icc selection",
+                          {{"reason", "invalid_export_output_profile_filename"}});
+    }
+    bool intent_ok = false;
+    for (const auto name : kIntents)
+    {
+        if (options.rendering_intent == name)
+        {
+            intent_ok = true;
+            break;
+        }
+    }
+    if (!intent_ok)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export rendering intent is unsupported",
+            {{"reason", "invalid_export_rendering_intent"}, {"intent", options.rendering_intent}});
+    }
+    return {};
+}
+
+Result<void> validate_export_frame_options(const ExportFrameOptions &options)
+{
+    for (const double channel : options.border_color)
+    {
+        if (!std::isfinite(channel) || channel < 0.0 || channel > 1.0)
+        {
+            return make_error(ErrorCode::kValidation, "Export frame border colour is invalid",
+                              {{"reason", "invalid_export_frame_border_color"}});
+        }
+    }
+    for (const double channel : options.frame_color)
+    {
+        if (!std::isfinite(channel) || channel < 0.0 || channel > 1.0)
+        {
+            return make_error(ErrorCode::kValidation, "Export frame line colour is invalid",
+                              {{"reason", "invalid_export_frame_color"}});
+        }
+    }
+    if (!std::isfinite(options.aspect) || (options.aspect < 0.0 && options.aspect != -1.0) ||
+        options.aspect > 3.0 ||
+        (options.aspect > 0.0 && static_cast<float>(options.aspect) <= 0.0F))
+    {
+        return make_error(ErrorCode::kValidation, "Export frame aspect is unsupported",
+                          {{"reason", "invalid_export_frame_aspect"}});
+    }
+    static constexpr std::array<std::string_view, 3> kOrientations{"auto", "portrait", "landscape"};
+    bool orientation_ok = false;
+    for (const auto name : kOrientations)
+    {
+        if (options.orientation == name)
+        {
+            orientation_ok = true;
+            break;
+        }
+    }
+    if (!orientation_ok)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export frame orientation is unsupported",
+            {{"reason", "invalid_export_frame_orientation"}, {"orientation", options.orientation}});
+    }
+    if (!std::isfinite(options.size) || options.size < 0.0 || options.size > 0.5)
+    {
+        return make_error(ErrorCode::kValidation, "Export frame size is out of range",
+                          {{"reason", "invalid_export_frame_size"}});
+    }
+    if (!std::isfinite(options.position_h) || options.position_h < 0.0 ||
+        options.position_h > 1.0 || !std::isfinite(options.position_v) ||
+        options.position_v < 0.0 || options.position_v > 1.0)
+    {
+        return make_error(ErrorCode::kValidation, "Export frame position is out of range",
+                          {{"reason", "invalid_export_frame_position"}});
+    }
+    if (!std::isfinite(options.frame_size) || options.frame_size < 0.0 ||
+        options.frame_size > 1.0 || !std::isfinite(options.frame_offset) ||
+        options.frame_offset < 0.0 || options.frame_offset > 1.0)
+    {
+        return make_error(ErrorCode::kValidation, "Export frame line geometry is out of range",
+                          {{"reason", "invalid_export_frame_line"}});
+    }
+    static constexpr std::array<std::string_view, 5> kBases{"auto", "width", "height", "shorter",
+                                                            "longer"};
+    bool basis_ok = false;
+    for (const auto name : kBases)
+    {
+        if (options.basis == name)
+        {
+            basis_ok = true;
+            break;
+        }
+    }
+    if (!basis_ok)
+    {
+        return make_error(ErrorCode::kValidation, "Export frame basis is unsupported",
+                          {{"reason", "invalid_export_frame_basis"}, {"basis", options.basis}});
+    }
+    return {};
+}
+
 Result<void> validate_export_options(const ExportOptions &options)
 {
     if (options.max_edge > kExportMaxEdgeMax)
@@ -633,6 +950,12 @@ Result<void> validate_export_options(const ExportOptions &options)
     auto sharpen = validate_export_output_sharpen_options(options.output_sharpen);
     if (!sharpen)
         return sharpen.error();
+    auto output_color = validate_export_color_options(options.output_color);
+    if (!output_color)
+        return output_color.error();
+    auto frame = validate_export_frame_options(options.frame);
+    if (!frame)
+        return frame.error();
     auto watermark = validate_export_watermark_options(options.watermark);
     if (!watermark)
         return watermark.error();
@@ -658,11 +981,12 @@ Result<void> validate_export_options(const ExportOptions &options)
         }
         if (export_options_request_resize(options) ||
             export_options_request_output_sharpen(options) ||
+            export_options_request_output_color(options) || export_options_request_frame(options) ||
             export_options_request_watermark(options))
         {
             return make_error(
                 ErrorCode::kValidation,
-                "Original copy rejects resize, output sharpen, and watermark fields",
+                "Original copy rejects resize, colour, frame, sharpen, and watermark fields",
                 {{"format", "original"}, {"reason", "original_copy_resize_not_applicable"}});
         }
         return {};

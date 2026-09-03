@@ -147,6 +147,16 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.delivery_watermark = true;
             continue;
         }
+        if (option == "--delivery-frame")
+        {
+            result.delivery_frame = true;
+            continue;
+        }
+        if (option == "--delivery-color")
+        {
+            result.delivery_color = true;
+            continue;
+        }
         if (option == "--no-recursive")
         {
             if (!result.import_recursive)
@@ -436,6 +446,21 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         {
             result.delivery_watermark = true;
             result.delivery_watermark_alignment = value;
+        }
+        else if (option == "--delivery-frame-size")
+        {
+            result.delivery_frame = true;
+            result.delivery_frame_size = value;
+        }
+        else if (option == "--delivery-output-profile")
+        {
+            result.delivery_color = true;
+            result.delivery_output_profile = value;
+        }
+        else if (option == "--delivery-rendering-intent")
+        {
+            result.delivery_color = true;
+            result.delivery_rendering_intent = value;
         }
         else if (option == "--export-preset")
         {
@@ -1068,6 +1093,32 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             request.watermark.alignment = std::string(flags.delivery_watermark_alignment);
         }
     }
+
+    if (flags.delivery_frame || !flags.delivery_frame_size.empty())
+    {
+        request.frame.enabled = true;
+        if (!flags.delivery_frame_size.empty())
+        {
+            char *end = nullptr;
+            const std::string owned(flags.delivery_frame_size);
+            const double value = std::strtod(owned.c_str(), &end);
+            if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Invalid delivery frame size",
+                                  {{"option", "--delivery-frame-size"}, {"value", owned}});
+            }
+            request.frame.size = value;
+        }
+    }
+    if (flags.delivery_color || !flags.delivery_output_profile.empty() ||
+        !flags.delivery_rendering_intent.empty())
+    {
+        request.output_color.enabled = true;
+        if (!flags.delivery_output_profile.empty())
+            request.output_color.output_profile = std::string(flags.delivery_output_profile);
+        if (!flags.delivery_rendering_intent.empty())
+            request.output_color.rendering_intent = std::string(flags.delivery_rendering_intent);
+    }
     if (!flags.export_preset.empty())
     {
         auto text_body = read_utf8_text_file(flags.export_preset, kExportPresetFileMaxBytes);
@@ -1104,6 +1155,11 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             !flags.delivery_watermark_opacity.empty() || !flags.delivery_watermark_scale.empty() ||
             !flags.delivery_watermark_alignment.empty())
             merged.watermark = request.watermark;
+        if (flags.delivery_frame || !flags.delivery_frame_size.empty())
+            merged.frame = request.frame;
+        if (flags.delivery_color || !flags.delivery_output_profile.empty() ||
+            !flags.delivery_rendering_intent.empty())
+            merged.output_color = request.output_color;
         request = ExportRequest{};
         static_cast<ExportOptions &>(request) = std::move(merged);
     }
@@ -1184,6 +1240,21 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         return make_error(ErrorCode::kInvalidArgument,
                           "Delivery watermark options require catalog export",
                           {{"reason", "delivery_watermark_requires_export"},
+                           {"subcommand", std::string(subcommand)}});
+    }
+    if (flags.delivery_frame || !flags.delivery_frame_size.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Delivery frame options require catalog export",
+                          {{"reason", "delivery_frame_requires_export"},
+                           {"subcommand", std::string(subcommand)}});
+    }
+    if (flags.delivery_color || !flags.delivery_output_profile.empty() ||
+        !flags.delivery_rendering_intent.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Delivery colour options require catalog export",
+                          {{"reason", "delivery_color_requires_export"},
                            {"subcommand", std::string(subcommand)}});
     }
     return {};

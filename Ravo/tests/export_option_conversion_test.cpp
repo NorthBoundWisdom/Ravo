@@ -33,6 +33,11 @@ namespace
     options.insert(QStringLiteral("watermarkOpacity"), 0.5);
     options.insert(QStringLiteral("watermarkScale"), 8.0);
     options.insert(QStringLiteral("watermarkAlignment"), QStringLiteral("bottom_right"));
+    options.insert(QStringLiteral("outputColorEnabled"), false);
+    options.insert(QStringLiteral("outputProfile"), QStringLiteral("srgb"));
+    options.insert(QStringLiteral("renderingIntent"), QStringLiteral("perceptual"));
+    options.insert(QStringLiteral("frameEnabled"), false);
+    options.insert(QStringLiteral("frameSize"), 0.1);
     return options;
 }
 
@@ -56,6 +61,11 @@ namespace
     options.insert(QStringLiteral("watermarkOpacity"), 0.5);
     options.insert(QStringLiteral("watermarkScale"), 8.0);
     options.insert(QStringLiteral("watermarkAlignment"), QStringLiteral("bottom_right"));
+    options.insert(QStringLiteral("outputColorEnabled"), false);
+    options.insert(QStringLiteral("outputProfile"), QStringLiteral("srgb"));
+    options.insert(QStringLiteral("renderingIntent"), QStringLiteral("perceptual"));
+    options.insert(QStringLiteral("frameEnabled"), false);
+    options.insert(QStringLiteral("frameSize"), 0.1);
     return options;
 }
 
@@ -83,6 +93,11 @@ namespace
     options.insert(QStringLiteral("watermarkOpacity"), 0.5);
     options.insert(QStringLiteral("watermarkScale"), 8.0);
     options.insert(QStringLiteral("watermarkAlignment"), QStringLiteral("bottom_right"));
+    options.insert(QStringLiteral("outputColorEnabled"), false);
+    options.insert(QStringLiteral("outputProfile"), QStringLiteral("srgb"));
+    options.insert(QStringLiteral("renderingIntent"), QStringLiteral("perceptual"));
+    options.insert(QStringLiteral("frameEnabled"), false);
+    options.insert(QStringLiteral("frameSize"), 0.1);
     return options;
 }
 
@@ -112,6 +127,8 @@ TEST(ExportOptionConversion, DefaultsMatchDomainDefaults)
     EXPECT_EQ(defaults.value(QStringLiteral("maxHeight")).toInt(), 0);
     EXPECT_FALSE(defaults.value(QStringLiteral("outputSharpenEnabled")).toBool());
     EXPECT_FALSE(defaults.value(QStringLiteral("watermarkEnabled")).toBool());
+    EXPECT_FALSE(defaults.value(QStringLiteral("outputColorEnabled")).toBool());
+    EXPECT_FALSE(defaults.value(QStringLiteral("frameEnabled")).toBool());
     EXPECT_EQ(defaults.value(QStringLiteral("watermarkText")).toString(), QStringLiteral("RAVO"));
     EXPECT_FALSE(jpeg.value().watermark.enabled);
     EXPECT_EQ(jpeg.value().max_width, 0U);
@@ -467,6 +484,23 @@ TEST(ExportOptionConversion, AcceptsDeliveryWatermark)
     EXPECT_DOUBLE_EQ(parsed.value().watermark.opacity, 0.75);
     EXPECT_DOUBLE_EQ(parsed.value().watermark.scale_percent, 12.0);
     EXPECT_EQ(parsed.value().watermark.alignment, "top_left");
+}
+
+TEST(ExportOptionConversion, AcceptsDeliveryColourAndFrame)
+{
+    auto options = jpeg_options(90, QStringLiteral("auto"));
+    options.insert(QStringLiteral("outputColorEnabled"), true);
+    options.insert(QStringLiteral("outputProfile"), QStringLiteral("adobe_rgb"));
+    options.insert(QStringLiteral("renderingIntent"), QStringLiteral("relative_colorimetric"));
+    options.insert(QStringLiteral("frameEnabled"), true);
+    options.insert(QStringLiteral("frameSize"), 0.2);
+    auto parsed = studio_export_options_from_presentation(QStringLiteral("jpeg"), options);
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_TRUE(parsed.value().output_color.enabled);
+    EXPECT_EQ(parsed.value().output_color.output_profile, "adobe_rgb");
+    EXPECT_EQ(parsed.value().output_color.rendering_intent, "relative_colorimetric");
+    EXPECT_TRUE(parsed.value().frame.enabled);
+    EXPECT_DOUBLE_EQ(parsed.value().frame.size, 0.2);
 }
 
 TEST(ExportOptionConversion, PresentationCatalogExposesCanonicalIds)

@@ -37,6 +37,11 @@ inline constexpr std::string_view kStudioExportOptionWatermarkText = "watermarkT
 inline constexpr std::string_view kStudioExportOptionWatermarkOpacity = "watermarkOpacity";
 inline constexpr std::string_view kStudioExportOptionWatermarkScale = "watermarkScale";
 inline constexpr std::string_view kStudioExportOptionWatermarkAlignment = "watermarkAlignment";
+inline constexpr std::string_view kStudioExportOptionOutputColorEnabled = "outputColorEnabled";
+inline constexpr std::string_view kStudioExportOptionOutputProfile = "outputProfile";
+inline constexpr std::string_view kStudioExportOptionRenderingIntent = "renderingIntent";
+inline constexpr std::string_view kStudioExportOptionFrameEnabled = "frameEnabled";
+inline constexpr std::string_view kStudioExportOptionFrameSize = "frameSize";
 
 struct StudioExportSelection
 {
@@ -49,6 +54,8 @@ struct StudioExportSelection
     std::uint32_t max_width = 0;
     std::uint32_t max_height = 0;
     ExportOutputSharpenOptions output_sharpen;
+    ExportColorOptions output_color;
+    ExportFrameOptions frame;
     ExportWatermarkOptions watermark;
 };
 
@@ -73,6 +80,8 @@ studio_export_options_from_presentation(const QString &format_name, const QVaria
 [[nodiscard]] QVariantList studio_tiff_compression_choices();
 [[nodiscard]] QVariantList studio_export_metadata_mode_choices();
 [[nodiscard]] QVariantList studio_export_watermark_alignment_choices();
+[[nodiscard]] QVariantList studio_export_output_profile_choices();
+[[nodiscard]] QVariantList studio_export_rendering_intent_choices();
 [[nodiscard]] QVariantMap studio_export_default_options();
 [[nodiscard]] QVariantMap studio_export_option_bounds();
 

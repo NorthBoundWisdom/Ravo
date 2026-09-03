@@ -73,6 +73,16 @@ QVariantList StudioPresenter::exportWatermarkAlignmentChoices() const
     return studio_export_watermark_alignment_choices();
 }
 
+QVariantList StudioPresenter::exportOutputProfileChoices() const
+{
+    return studio_export_output_profile_choices();
+}
+
+QVariantList StudioPresenter::exportRenderingIntentChoices() const
+{
+    return studio_export_rendering_intent_choices();
+}
+
 QVariantMap StudioPresenter::exportDefaultOptions() const
 {
     return studio_export_default_options();

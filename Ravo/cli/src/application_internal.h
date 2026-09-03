@@ -52,6 +52,12 @@ struct CatalogCliArguments
     std::string_view delivery_watermark_opacity;
     std::string_view delivery_watermark_scale;
     std::string_view delivery_watermark_alignment;
+    bool delivery_frame = false;
+    std::string_view delivery_frame_size;
+    std::string_view delivery_frame_border; // r,g,b 0-1 joined by commas optional; or leave default
+    bool delivery_color = false;
+    std::string_view delivery_output_profile;
+    std::string_view delivery_rendering_intent;
     std::string_view export_preset;
     std::string_view export_job;
     std::string_view job_id;

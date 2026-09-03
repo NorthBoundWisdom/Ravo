@@ -36,6 +36,11 @@ DialogShell {
     property double watermarkOpacity: 0.5
     property double watermarkScale: 8.0
     property string watermarkAlignmentId: "bottom_right"
+    property bool outputColorEnabled: false
+    property string outputProfileId: "srgb"
+    property string renderingIntentId: "perceptual"
+    property bool frameEnabled: false
+    property double frameSize: 0.1
 
     property var formatChoices: presenter.exportFormatChoices()
     property var jpegSubsamplingChoices: presenter.jpegSubsamplingChoices()
@@ -44,6 +49,8 @@ DialogShell {
     property var tiffCompressionChoices: presenter.tiffCompressionChoices()
     property var metadataModeChoices: presenter.exportMetadataModeChoices()
     property var watermarkAlignmentChoices: presenter.exportWatermarkAlignmentChoices()
+    property var outputProfileChoices: presenter.exportOutputProfileChoices()
+    property var renderingIntentChoices: presenter.exportRenderingIntentChoices()
     readonly property var optionBounds: presenter.exportOptionBounds()
     readonly property bool tiffLevelEnabled: formatId === "tiff" && tiffCompressionId !== "none"
     readonly property bool canContinue: formatId.length > 0 && (!batchMode || filenameTemplate.trim().length > 0) && (formatId === "original" || metadataModeId.length > 0) && (formatId !== "jpeg" || jpegSubsamplingId.length > 0) && (formatId !== "png" || pngBitDepthId.length > 0) && (formatId !== "tiff" || (tiffSampleTypeId.length > 0 && tiffCompressionId.length > 0))
@@ -72,6 +79,8 @@ DialogShell {
         tiffCompressionChoices = presenter.tiffCompressionChoices();
         metadataModeChoices = presenter.exportMetadataModeChoices();
         watermarkAlignmentChoices = presenter.exportWatermarkAlignmentChoices();
+        outputProfileChoices = presenter.exportOutputProfileChoices();
+        renderingIntentChoices = presenter.exportRenderingIntentChoices();
         formatId = defaults.format;
         jpegQuality = defaults.quality;
         jpegSubsamplingId = defaults.jpegSubsampling;
@@ -95,6 +104,11 @@ DialogShell {
         watermarkOpacity = defaults.watermarkOpacity !== undefined ? defaults.watermarkOpacity : 0.5;
         watermarkScale = defaults.watermarkScale !== undefined ? defaults.watermarkScale : 8.0;
         watermarkAlignmentId = defaults.watermarkAlignment !== undefined ? defaults.watermarkAlignment : "bottom_right";
+        outputColorEnabled = defaults.outputColorEnabled === true;
+        outputProfileId = defaults.outputProfile !== undefined ? defaults.outputProfile : "srgb";
+        renderingIntentId = defaults.renderingIntent !== undefined ? defaults.renderingIntent : "perceptual";
+        frameEnabled = defaults.frameEnabled === true;
+        frameSize = defaults.frameSize !== undefined ? defaults.frameSize : 0.1;
         filenameTemplate = "{stem}-{sequence}{ext}";
     }
 
@@ -115,7 +129,12 @@ DialogShell {
                 "watermarkText": watermarkTextField.text,
                 "watermarkOpacity": watermarkOpacitySpin.realValue,
                 "watermarkScale": watermarkScaleSpin.realValue,
-                "watermarkAlignment": watermarkAlignmentId
+                "watermarkAlignment": watermarkAlignmentId,
+                "outputColorEnabled": outputColorEnabled,
+                "outputProfile": outputProfileId,
+                "renderingIntent": renderingIntentId,
+                "frameEnabled": frameEnabled,
+                "frameSize": frameSizeSpin.realValue
             };
         if (formatId === "png")
             return {
@@ -133,7 +152,12 @@ DialogShell {
                 "watermarkText": watermarkTextField.text,
                 "watermarkOpacity": watermarkOpacitySpin.realValue,
                 "watermarkScale": watermarkScaleSpin.realValue,
-                "watermarkAlignment": watermarkAlignmentId
+                "watermarkAlignment": watermarkAlignmentId,
+                "outputColorEnabled": outputColorEnabled,
+                "outputProfile": outputProfileId,
+                "renderingIntent": renderingIntentId,
+                "frameEnabled": frameEnabled,
+                "frameSize": frameSizeSpin.realValue
             };
         if (formatId === "tiff")
             return {
@@ -154,7 +178,12 @@ DialogShell {
                 "watermarkText": watermarkTextField.text,
                 "watermarkOpacity": watermarkOpacitySpin.realValue,
                 "watermarkScale": watermarkScaleSpin.realValue,
-                "watermarkAlignment": watermarkAlignmentId
+                "watermarkAlignment": watermarkAlignmentId,
+                "outputColorEnabled": outputColorEnabled,
+                "outputProfile": outputProfileId,
+                "renderingIntent": renderingIntentId,
+                "frameEnabled": frameEnabled,
+                "frameSize": frameSizeSpin.realValue
             };
         return {};
     }
@@ -413,6 +442,110 @@ DialogShell {
                 realValue: root.outputSharpenThreshold
                 onEditingCommitted: function (value) {
                     root.outputSharpenThreshold = value;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original"
+
+            CustomLabel {
+                text: qsTr("Delivery colour")
+                Accessible.name: qsTr("Enable export delivery colour override")
+            }
+            CustomCheckBox {
+                id: outputColorEnabledCheck
+                objectName: "exportOutputColorEnabled"
+                checked: root.outputColorEnabled
+                text: qsTr("Override output profile")
+                Accessible.name: qsTr("Enable delivery colour override for this export")
+                onToggled: root.outputColorEnabled = checked
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.outputColorEnabled
+
+            CustomLabel {
+                text: qsTr("Output profile")
+            }
+            CustomComboBox {
+                id: outputProfileCombo
+                objectName: "exportOutputProfile"
+                Layout.fillWidth: true
+                model: root.outputProfileChoices
+                textRole: "label"
+                currentIndex: root.choiceIndex(root.outputProfileChoices, root.outputProfileId)
+                Accessible.name: qsTr("Delivery output colour profile")
+                onActivated: function (index) {
+                    root.outputProfileId = root.outputProfileChoices[index].id;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.outputColorEnabled
+
+            CustomLabel {
+                text: qsTr("Rendering intent")
+            }
+            CustomComboBox {
+                id: renderingIntentCombo
+                objectName: "exportRenderingIntent"
+                Layout.fillWidth: true
+                model: root.renderingIntentChoices
+                textRole: "label"
+                currentIndex: root.choiceIndex(root.renderingIntentChoices, root.renderingIntentId)
+                Accessible.name: qsTr("Delivery colour rendering intent")
+                onActivated: function (index) {
+                    root.renderingIntentId = root.renderingIntentChoices[index].id;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original"
+
+            CustomLabel {
+                text: qsTr("Delivery frame")
+                Accessible.name: qsTr("Enable export delivery frame")
+            }
+            CustomCheckBox {
+                id: frameEnabledCheck
+                objectName: "exportFrameEnabled"
+                checked: root.frameEnabled
+                text: qsTr("After sharpen")
+                Accessible.name: qsTr("Enable delivery frame after sharpen before watermark")
+                onToggled: root.frameEnabled = checked
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original" && root.frameEnabled
+
+            CustomLabel {
+                text: qsTr("Frame size")
+            }
+            CustomSpinBox {
+                id: frameSizeSpin
+                objectName: "exportFrameSize"
+                Layout.fillWidth: true
+                decimals: 3
+                realFrom: root.optionBounds.frameSizeMin
+                realTo: root.optionBounds.frameSizeMax
+                realValue: root.frameSize
+                onEditingCommitted: function (value) {
+                    root.frameSize = value;
                 }
             }
         }

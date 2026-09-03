@@ -161,8 +161,8 @@ or create automatic adjacent-XMP writeback as a second live authority.
 Studio long-edge already projects Catalog `max_edge` and never enlarges
 (ADR-0113). Box fit, post-resize output sharpen, reusable ExportOptions
 presets, and restartable batch jobs are accepted (ADR-0117). Export delivery
-text watermark is accepted (ADR-0127; implementation residual). Colour-
-conversion/frame remain undecided.
+text watermark is accepted (ADR-0127). Colour-conversion/frame delivery
+overrides are accepted (ADR-0129; ExportOptions, no recipe mutation).
 
 ### Extended library workflows
 

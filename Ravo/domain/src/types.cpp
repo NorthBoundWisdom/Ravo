@@ -350,6 +350,16 @@ bool export_options_request_output_sharpen(const ExportOptions &options) noexcep
     return options.output_sharpen.enabled;
 }
 
+bool export_options_request_output_color(const ExportOptions &options) noexcept
+{
+    return options.output_color.enabled;
+}
+
+bool export_options_request_frame(const ExportOptions &options) noexcept
+{
+    return options.frame.enabled;
+}
+
 bool export_options_request_watermark(const ExportOptions &options) noexcept
 {
     return options.watermark.enabled;

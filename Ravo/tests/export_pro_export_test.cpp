@@ -199,5 +199,101 @@ TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
     EXPECT_EQ(rejected.error().context.at("reason"), "original_copy_resize_not_applicable");
 }
 
+TEST_F(CatalogServiceTest, DeliveryColourAndFrameEqualityAndNoRecipeMutation)
+{
+    ASSERT_TRUE(open_service(true));
+
+    const auto path = (root / "cf-src.jpg").string();
+    QImage image(80, 60, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(30, 90, 150));
+    ASSERT_TRUE(image.save(QString::fromStdString(path), "JPEG", 95));
+    auto imported = service->import_one(path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset.has_value());
+    const auto asset_id = imported.value().asset->id;
+
+    auto before_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(before_recipe) << before_recipe.error().message;
+    const auto before_json = serialize_recipe(before_recipe.value());
+    ASSERT_TRUE(before_json) << before_json.error().message;
+
+    ExportRequest baseline;
+    baseline.asset_id = asset_id;
+    baseline.output_path = (root / "cf-base.png").string();
+    baseline.format = ExportFormat::kPng;
+    auto base_out = service->export_asset(baseline);
+    ASSERT_TRUE(base_out) << base_out.error().message;
+
+    ExportRequest framed = baseline;
+    framed.output_path = (root / "cf-frame.png").string();
+    framed.frame.enabled = true;
+    framed.frame.size = 0.2;
+    framed.frame.border_color = {1.0, 1.0, 1.0};
+    auto frame_out = service->export_asset(framed);
+    ASSERT_TRUE(frame_out) << frame_out.error().message;
+    EXPECT_GT(frame_out.value().width, base_out.value().width);
+    EXPECT_GT(frame_out.value().height, base_out.value().height);
+
+    ExportRequest framed_again = framed;
+    framed_again.output_path = (root / "cf-frame-again.png").string();
+    auto again = service->export_asset(framed_again);
+    ASSERT_TRUE(again) << again.error().message;
+    QImage first(QString::fromStdString(framed.output_path));
+    QImage second(QString::fromStdString(framed_again.output_path));
+    ASSERT_FALSE(first.isNull());
+    ASSERT_FALSE(second.isNull());
+    ASSERT_EQ(first.size(), second.size());
+    for (int y = 0; y < first.height(); ++y)
+    {
+        for (int x = 0; x < first.width(); ++x)
+            EXPECT_EQ(first.pixel(x, y), second.pixel(x, y)) << x << "," << y;
+    }
+
+    ExportRequest colored = baseline;
+    colored.output_path = (root / "cf-color.png").string();
+    colored.output_color.enabled = true;
+    colored.output_color.output_profile = "adobe_rgb";
+    colored.output_color.rendering_intent = "relative_colorimetric";
+    auto color_out = service->export_asset(colored);
+    ASSERT_TRUE(color_out) << color_out.error().message;
+    EXPECT_EQ(color_out.value().width, base_out.value().width);
+    EXPECT_EQ(color_out.value().height, base_out.value().height);
+
+    ExportRequest ordered = baseline;
+    ordered.output_path = (root / "cf-ordered.png").string();
+    ordered.frame.enabled = true;
+    ordered.frame.size = 0.15;
+    ordered.watermark.enabled = true;
+    ordered.watermark.text = "RAVO";
+    ordered.watermark.opacity = 1.0;
+    ordered.watermark.scale_percent = 18.0;
+    ordered.watermark.alignment = "bottom_right";
+    auto ordered_out = service->export_asset(ordered);
+    ASSERT_TRUE(ordered_out) << ordered_out.error().message;
+    EXPECT_GT(ordered_out.value().width, base_out.value().width);
+
+    auto after_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(after_recipe) << after_recipe.error().message;
+    const auto after_json = serialize_recipe(after_recipe.value());
+    ASSERT_TRUE(after_json) << after_json.error().message;
+    EXPECT_EQ(before_json.value(), after_json.value());
+
+    ExportRequest original;
+    original.asset_id = asset_id;
+    original.output_path = (root / "cf-original.jpg").string();
+    original.format = ExportFormat::kOriginalCopy;
+    original.frame.enabled = true;
+    auto rejected_frame = service->export_asset(original);
+    ASSERT_FALSE(rejected_frame);
+    EXPECT_EQ(rejected_frame.error().context.at("reason"), "original_copy_resize_not_applicable");
+
+    original.frame.enabled = false;
+    original.output_color.enabled = true;
+    auto rejected_color = service->export_asset(original);
+    ASSERT_FALSE(rejected_color);
+    EXPECT_EQ(rejected_color.error().context.at("reason"), "original_copy_resize_not_applicable");
+}
+
 } // namespace
 } // namespace ravo

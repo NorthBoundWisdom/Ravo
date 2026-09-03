@@ -1022,6 +1022,36 @@ struct ExportWatermarkOptions
     [[nodiscard]] bool operator==(const ExportWatermarkOptions &) const noexcept = default;
 };
 
+// ADR-0129: delivery colour override (ADR-0019 params; proof forced off on apply).
+struct ExportColorOptions
+{
+    bool enabled = false;
+    std::string output_profile = "srgb";
+    std::string output_profile_filename;
+    std::string rendering_intent = "perceptual";
+    bool black_point_compensation = true;
+
+    [[nodiscard]] bool operator==(const ExportColorOptions &) const noexcept = default;
+};
+
+// ADR-0129: delivery frame (ADR-0070 FrameParams fields as ExportOptions).
+struct ExportFrameOptions
+{
+    bool enabled = false;
+    std::array<double, 3> border_color{1.0, 1.0, 1.0};
+    double aspect = -1.0;
+    std::string orientation = "auto";
+    double size = 0.1;
+    double position_h = 0.5;
+    double position_v = 0.5;
+    double frame_size = 0.0;
+    double frame_offset = 0.5;
+    std::array<double, 3> frame_color{0.0, 0.0, 0.0};
+    std::string basis = "auto";
+
+    [[nodiscard]] bool operator==(const ExportFrameOptions &) const noexcept = default;
+};
+
 struct ExportOptions
 {
     ExportFormat format = ExportFormat::kPng;
@@ -1030,6 +1060,8 @@ struct ExportOptions
     std::uint32_t max_width = 0;
     std::uint32_t max_height = 0;
     ExportOutputSharpenOptions output_sharpen;
+    ExportColorOptions output_color;
+    ExportFrameOptions frame;
     ExportWatermarkOptions watermark;
     PngExportOptions png_options;
     TiffExportOptions tiff_options;
@@ -1154,11 +1186,15 @@ void fit_export_output_size(std::uint32_t source_width, std::uint32_t source_hei
                             std::uint32_t &output_height) noexcept;
 [[nodiscard]] bool export_options_request_resize(const ExportOptions &options) noexcept;
 [[nodiscard]] bool export_options_request_output_sharpen(const ExportOptions &options) noexcept;
+[[nodiscard]] bool export_options_request_output_color(const ExportOptions &options) noexcept;
+[[nodiscard]] bool export_options_request_frame(const ExportOptions &options) noexcept;
 [[nodiscard]] bool export_options_request_watermark(const ExportOptions &options) noexcept;
 [[nodiscard]] Result<void> validate_export_watermark_alignment(std::string_view alignment);
 [[nodiscard]] Result<void>
 validate_export_output_sharpen_options(const ExportOutputSharpenOptions &options);
 [[nodiscard]] Result<void> validate_export_watermark_options(const ExportWatermarkOptions &options);
+[[nodiscard]] Result<void> validate_export_color_options(const ExportColorOptions &options);
+[[nodiscard]] Result<void> validate_export_frame_options(const ExportFrameOptions &options);
 [[nodiscard]] Result<void> validate_export_options(const ExportOptions &options);
 [[nodiscard]] Result<ExportPreset> parse_export_preset_json(std::string_view text);
 [[nodiscard]] Result<std::string> serialize_export_preset(const ExportPreset &preset);

@@ -1,5 +1,6 @@
 #include "ravo/desktop/export_option_conversion.h"
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -310,6 +311,39 @@ QVariantList studio_export_watermark_alignment_choices()
     };
 }
 
+QVariantList studio_export_output_profile_choices()
+{
+    QVariantList choices;
+    for (const auto name : std::array<std::string_view, 11>{
+             "srgb", "adobe_rgb", "linear_rec709", "linear_rec2020", "rec709", "prophoto_rgb",
+             "pq_rec2020", "hlg_rec2020", "pq_p3", "hlg_p3", "display_p3"})
+    {
+        QVariantMap item;
+        item.insert(QStringLiteral("id"),
+                    QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+        item.insert(QStringLiteral("label"),
+                    QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+        choices.push_back(item);
+    }
+    return choices;
+}
+
+QVariantList studio_export_rendering_intent_choices()
+{
+    QVariantList choices;
+    for (const auto name : std::array<std::string_view, 4>{"perceptual", "relative_colorimetric",
+                                                           "saturation", "absolute_colorimetric"})
+    {
+        QVariantMap item;
+        item.insert(QStringLiteral("id"),
+                    QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+        item.insert(QStringLiteral("label"),
+                    QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+        choices.push_back(item);
+    }
+    return choices;
+}
+
 QVariantMap studio_export_default_options()
 {
     QVariantMap options;
@@ -397,6 +431,25 @@ QVariantMap studio_export_default_options()
         QString::fromUtf8(kStudioExportOptionWatermarkAlignment.data(),
                           static_cast<qsizetype>(kStudioExportOptionWatermarkAlignment.size())),
         QStringLiteral("bottom_right"));
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionOutputColorEnabled.data(),
+                          static_cast<qsizetype>(kStudioExportOptionOutputColorEnabled.size())),
+        false);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionOutputProfile.data(),
+                          static_cast<qsizetype>(kStudioExportOptionOutputProfile.size())),
+        QStringLiteral("srgb"));
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionRenderingIntent.data(),
+                          static_cast<qsizetype>(kStudioExportOptionRenderingIntent.size())),
+        QStringLiteral("perceptual"));
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionFrameEnabled.data(),
+                          static_cast<qsizetype>(kStudioExportOptionFrameEnabled.size())),
+        false);
+    options.insert(QString::fromUtf8(kStudioExportOptionFrameSize.data(),
+                                     static_cast<qsizetype>(kStudioExportOptionFrameSize.size())),
+                   0.1);
     return options;
 }
 
@@ -427,6 +480,8 @@ QVariantMap studio_export_option_bounds()
     bounds.insert(QStringLiteral("watermarkOpacityMax"), kExportWatermarkOpacityMax);
     bounds.insert(QStringLiteral("watermarkScaleMin"), kExportWatermarkScaleMin);
     bounds.insert(QStringLiteral("watermarkScaleMax"), kExportWatermarkScaleMax);
+    bounds.insert(QStringLiteral("frameSizeMin"), 0.0);
+    bounds.insert(QStringLiteral("frameSizeMax"), 0.5);
     return bounds;
 }
 
@@ -465,17 +520,28 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     {
     case ExportFormat::kJpeg:
     {
-        auto keys = require_keys(
-            input,
-            {kStudioExportOptionQuality, kStudioExportOptionJpegSubsampling,
-             kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge,
-             kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
-             kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
-             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold,
-             kStudioExportOptionWatermarkEnabled, kStudioExportOptionWatermarkText,
-             kStudioExportOptionWatermarkOpacity, kStudioExportOptionWatermarkScale,
-             kStudioExportOptionWatermarkAlignment},
-            "jpeg");
+        auto keys = require_keys(input,
+                                 {kStudioExportOptionQuality,
+                                  kStudioExportOptionJpegSubsampling,
+                                  kStudioExportOptionMetadataMode,
+                                  kStudioExportOptionMaxEdge,
+                                  kStudioExportOptionMaxWidth,
+                                  kStudioExportOptionMaxHeight,
+                                  kStudioExportOptionOutputSharpenEnabled,
+                                  kStudioExportOptionOutputSharpenAmount,
+                                  kStudioExportOptionOutputSharpenRadius,
+                                  kStudioExportOptionOutputSharpenThreshold,
+                                  kStudioExportOptionWatermarkEnabled,
+                                  kStudioExportOptionWatermarkText,
+                                  kStudioExportOptionWatermarkOpacity,
+                                  kStudioExportOptionWatermarkScale,
+                                  kStudioExportOptionWatermarkAlignment,
+                                  kStudioExportOptionOutputColorEnabled,
+                                  kStudioExportOptionOutputProfile,
+                                  kStudioExportOptionRenderingIntent,
+                                  kStudioExportOptionFrameEnabled,
+                                  kStudioExportOptionFrameSize},
+                                 "jpeg");
         if (!keys)
         {
             return keys.error();
@@ -509,17 +575,28 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     }
     case ExportFormat::kPng:
     {
-        auto keys = require_keys(
-            input,
-            {kStudioExportOptionPngBitDepth, kStudioExportOptionPngCompression,
-             kStudioExportOptionMetadataMode, kStudioExportOptionMaxEdge,
-             kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
-             kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
-             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold,
-             kStudioExportOptionWatermarkEnabled, kStudioExportOptionWatermarkText,
-             kStudioExportOptionWatermarkOpacity, kStudioExportOptionWatermarkScale,
-             kStudioExportOptionWatermarkAlignment},
-            "png");
+        auto keys = require_keys(input,
+                                 {kStudioExportOptionPngBitDepth,
+                                  kStudioExportOptionPngCompression,
+                                  kStudioExportOptionMetadataMode,
+                                  kStudioExportOptionMaxEdge,
+                                  kStudioExportOptionMaxWidth,
+                                  kStudioExportOptionMaxHeight,
+                                  kStudioExportOptionOutputSharpenEnabled,
+                                  kStudioExportOptionOutputSharpenAmount,
+                                  kStudioExportOptionOutputSharpenRadius,
+                                  kStudioExportOptionOutputSharpenThreshold,
+                                  kStudioExportOptionWatermarkEnabled,
+                                  kStudioExportOptionWatermarkText,
+                                  kStudioExportOptionWatermarkOpacity,
+                                  kStudioExportOptionWatermarkScale,
+                                  kStudioExportOptionWatermarkAlignment,
+                                  kStudioExportOptionOutputColorEnabled,
+                                  kStudioExportOptionOutputProfile,
+                                  kStudioExportOptionRenderingIntent,
+                                  kStudioExportOptionFrameEnabled,
+                                  kStudioExportOptionFrameSize},
+                                 "png");
         if (!keys)
         {
             return keys.error();
@@ -553,18 +630,31 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     }
     case ExportFormat::kTiff:
     {
-        auto keys = require_keys(
-            input,
-            {kStudioExportOptionTiffSampleType, kStudioExportOptionTiffCompression,
-             kStudioExportOptionTiffCompressionLevel, kStudioExportOptionTiffGrayscaleIfNeutral,
-             kStudioExportOptionTiffResolutionDpi, kStudioExportOptionMetadataMode,
-             kStudioExportOptionMaxEdge, kStudioExportOptionMaxWidth, kStudioExportOptionMaxHeight,
-             kStudioExportOptionOutputSharpenEnabled, kStudioExportOptionOutputSharpenAmount,
-             kStudioExportOptionOutputSharpenRadius, kStudioExportOptionOutputSharpenThreshold,
-             kStudioExportOptionWatermarkEnabled, kStudioExportOptionWatermarkText,
-             kStudioExportOptionWatermarkOpacity, kStudioExportOptionWatermarkScale,
-             kStudioExportOptionWatermarkAlignment},
-            "tiff");
+        auto keys = require_keys(input,
+                                 {kStudioExportOptionTiffSampleType,
+                                  kStudioExportOptionTiffCompression,
+                                  kStudioExportOptionTiffCompressionLevel,
+                                  kStudioExportOptionTiffGrayscaleIfNeutral,
+                                  kStudioExportOptionTiffResolutionDpi,
+                                  kStudioExportOptionMetadataMode,
+                                  kStudioExportOptionMaxEdge,
+                                  kStudioExportOptionMaxWidth,
+                                  kStudioExportOptionMaxHeight,
+                                  kStudioExportOptionOutputSharpenEnabled,
+                                  kStudioExportOptionOutputSharpenAmount,
+                                  kStudioExportOptionOutputSharpenRadius,
+                                  kStudioExportOptionOutputSharpenThreshold,
+                                  kStudioExportOptionWatermarkEnabled,
+                                  kStudioExportOptionWatermarkText,
+                                  kStudioExportOptionWatermarkOpacity,
+                                  kStudioExportOptionWatermarkScale,
+                                  kStudioExportOptionWatermarkAlignment,
+                                  kStudioExportOptionOutputColorEnabled,
+                                  kStudioExportOptionOutputProfile,
+                                  kStudioExportOptionRenderingIntent,
+                                  kStudioExportOptionFrameEnabled,
+                                  kStudioExportOptionFrameSize},
+                                 "tiff");
         if (!keys)
         {
             return keys.error();
@@ -759,6 +849,52 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
         auto watermark_valid = validate_export_watermark_options(selection.watermark);
         if (!watermark_valid)
             return watermark_valid.error();
+
+        const QVariant color_enabled_value = input.value(QStringLiteral("outputColorEnabled"));
+        if (!color_enabled_value.isValid() || color_enabled_value.userType() != QMetaType::Bool)
+        {
+            return conversion_error(
+                QT_TRANSLATE_NOOP("StudioExport", "Output colour enabled must be a boolean"),
+                {{"field", std::string(kStudioExportOptionOutputColorEnabled)},
+                 {"format", std::string(export_format_name(selection.format))},
+                 {"reason", "studio_export_invalid_option_type"}});
+        }
+        selection.output_color.enabled = color_enabled_value.toBool();
+        auto output_profile =
+            exact_string(input.value(QStringLiteral("outputProfile")),
+                         kStudioExportOptionOutputProfile, export_format_name(selection.format));
+        if (!output_profile)
+            return output_profile.error();
+        selection.output_color.output_profile = output_profile.value();
+        auto rendering_intent =
+            exact_string(input.value(QStringLiteral("renderingIntent")),
+                         kStudioExportOptionRenderingIntent, export_format_name(selection.format));
+        if (!rendering_intent)
+            return rendering_intent.error();
+        selection.output_color.rendering_intent = rendering_intent.value();
+        auto color_valid = validate_export_color_options(selection.output_color);
+        if (!color_valid)
+            return color_valid.error();
+
+        const QVariant frame_enabled_value = input.value(QStringLiteral("frameEnabled"));
+        if (!frame_enabled_value.isValid() || frame_enabled_value.userType() != QMetaType::Bool)
+        {
+            return conversion_error(
+                QT_TRANSLATE_NOOP("StudioExport", "Frame enabled must be a boolean"),
+                {{"field", std::string(kStudioExportOptionFrameEnabled)},
+                 {"format", std::string(export_format_name(selection.format))},
+                 {"reason", "studio_export_invalid_option_type"}});
+        }
+        selection.frame.enabled = frame_enabled_value.toBool();
+        auto frame_size =
+            exact_double(input.value(QStringLiteral("frameSize")), kStudioExportOptionFrameSize,
+                         export_format_name(selection.format), "studio_export_invalid_option_type");
+        if (!frame_size)
+            return frame_size.error();
+        selection.frame.size = frame_size.value();
+        auto frame_valid = validate_export_frame_options(selection.frame);
+        if (!frame_valid)
+            return frame_valid.error();
     }
     if (input != options)
     {
@@ -861,6 +997,8 @@ Result<ExportOptions> make_studio_export_options(const QString &format_name,
     result.max_width = selection.value().max_width;
     result.max_height = selection.value().max_height;
     result.output_sharpen = selection.value().output_sharpen;
+    result.output_color = selection.value().output_color;
+    result.frame = selection.value().frame;
     result.watermark = selection.value().watermark;
     return result;
 }
