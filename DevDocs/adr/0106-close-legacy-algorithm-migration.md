@@ -21,8 +21,7 @@ source tree beside the product.
 Unaccepted leftover image algorithms are leftovers, not ports. Do not rewrite
 them from leftover C, OpenCL, GTK, or dynamic ABI. Defaults stay Sigmoid and
 Color Equalizer. Photographer-useful remaining work is independent Ravo product
-under `TODO_PHOTO_MANAGEMENT.md`, `TODO_PRO_WORKFLOW.md`, and
-`ProductRoadmap.md`.
+under `TODO.md` and `ProductRoadmap.md`.
 
 The leftover source tree was deleted. Freeze/inventory checkers were removed.
 Frozen fixtures live in `Ravo/tests/fixtures/frozen`.

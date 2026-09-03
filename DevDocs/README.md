@@ -21,8 +21,7 @@ private by default, and reproducible enough to audit.
 | [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, performance probes, and validation depth | Product priority |
 | [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history | Mutable implementation status |
 
-The former specialized TODO paths are pointer-only compatibility pages. They
-must not receive new work. Product execution belongs in [TODO.md](TODO.md).
+Product execution belongs only in [TODO.md](TODO.md).
 Three-platform package evidence belongs in [Packaging.md](Packaging.md).
 
 ## Operations and compliance
@@ -68,13 +67,10 @@ ProductRoadmap -> dated ADR -> TODO -> code/tests -> current authorities
    by user outcome, dependency, and release risk.
 4. Remove obsolete plans, historical run diaries, and concept mockups instead
    of archiving competing descriptions.
-5. A compatibility pointer may contain only a link to the new authority. It
-   must never carry a second backlog and should be removed after all inbound
-   references are migrated.
-6. Keep transient reports, private-corpus results, screenshots, and machine-
+5. Keep transient reports, private-corpus results, screenshots, and machine-
    local measurements outside the repository unless a stable test fixture or
    generated evidence owner explicitly requires them.
-7. Update generated output, including third-party notices, only through its
+6. Update generated output, including third-party notices, only through its
    owning script.
-8. For documentation-only changes, verify real paths, relative links, commands,
+7. For documentation-only changes, verify real paths, relative links, commands,
    terminology, and whitespace; do not claim an unrun platform check passed.
