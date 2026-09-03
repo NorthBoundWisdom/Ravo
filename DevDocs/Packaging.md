@@ -114,6 +114,17 @@ existing tag with generated notes and all four files attached. Missing output, a
 existing Release for the tag, or any GitHub API failure is a hard workflow
 failure; the workflow does not overwrite an existing release.
 
+
+## AI provider packaging residual (AI-00 / AI-01)
+
+AI-01 ships with the in-tree deterministic stub provider only
+(`ravo.local.stub` / `deterministic-global-v1`). Packaging a real local or remote
+model/runtime/weight pack remains residual: record the source, licence/GPL
+compatibility, third-party notices, optional download vs bundle size, update
+channel, and local cache root in this document and Dependency Workflow before
+enabling any non-stub provider. Default network posture stays no automatic
+upload; credentials remain desktop-only (ADR-0121).
+
 ## Minimum validation
 
 Packaging changes require these checks:

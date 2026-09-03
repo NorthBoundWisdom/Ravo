@@ -100,6 +100,10 @@ struct CatalogCliArguments
     std::string_view stack_id;
     std::string_view pick_id;
     bool stack_expanded = false;
+    std::string_view proposal_id;
+    std::string_view provider_id;
+    std::string_view model_id;
+    bool user_initiated = false;
     std::optional<std::int64_t> expected_revision;
     std::optional<std::int64_t> history_id;
 };
@@ -140,6 +144,8 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] JsonValue library_stack_mutation_to_json(const LibraryStackMutation &mutation);
 [[nodiscard]] JsonValue keyword_to_json(const KeywordRecord &keyword);
 [[nodiscard]] JsonValue keyword_mutation_to_json(const KeywordMutation &mutation);
+[[nodiscard]] JsonValue ai_proposal_to_json(const AiProposal &proposal);
+[[nodiscard]] JsonValue ai_proposal_apply_to_json(const AiProposalApplyResult &result);
 [[nodiscard]] JsonValue asset_version_mutation_to_json(const AssetVersionMutation &mutation);
 [[nodiscard]] JsonValue folder_relink_to_json(const FolderRelinkResult &result);
 [[nodiscard]] Result<JsonValue> probe_statistics_json(const PreviewResult &preview);

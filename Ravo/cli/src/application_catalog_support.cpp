@@ -359,6 +359,97 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     };
 }
 
+[[nodiscard]] JsonValue ai_proposal_field_to_json(const AiProposalFieldChange &change)
+{
+    JsonValue::Object object{
+        {"field", change.field},
+        {"value", JsonValue::number(std::to_string(change.value))},
+    };
+    if (change.confidence)
+        object.emplace("confidence", JsonValue::number(std::to_string(*change.confidence)));
+    else
+        object.emplace("confidence", nullptr);
+    return object;
+}
+
+[[nodiscard]] JsonValue ai_proposal_alternative_to_json(const AiProposalAlternative &alternative)
+{
+    JsonValue::Array fields;
+    fields.reserve(alternative.fields.size());
+    for (const auto &change : alternative.fields)
+        fields.push_back(ai_proposal_field_to_json(change));
+    JsonValue::Object object{
+        {"label", alternative.label},
+        {"fields", std::move(fields)},
+    };
+    if (alternative.confidence)
+        object.emplace("confidence", JsonValue::number(std::to_string(*alternative.confidence)));
+    else
+        object.emplace("confidence", nullptr);
+    return object;
+}
+
+JsonValue ai_proposal_to_json(const AiProposal &proposal)
+{
+    JsonValue::Array fields;
+    fields.reserve(proposal.fields.size());
+    for (const auto &change : proposal.fields)
+        fields.push_back(ai_proposal_field_to_json(change));
+    JsonValue::Array diffs;
+    diffs.reserve(proposal.field_diff.size());
+    for (const auto &diff : proposal.field_diff)
+        diffs.push_back(JsonValue::Object{{"field", diff.field}, {"value", diff.value}});
+    JsonValue::Array alternatives;
+    alternatives.reserve(proposal.alternatives.size());
+    for (const auto &alternative : proposal.alternatives)
+        alternatives.push_back(ai_proposal_alternative_to_json(alternative));
+    JsonValue::Object parameters;
+    for (const auto &[key, value] : proposal.provider.parameters)
+        parameters.emplace(key, value);
+    JsonValue::Object provider{
+        {"model_id", proposal.provider.model_id},
+        {"model_version", proposal.provider.model_version},
+        {"parameters", std::move(parameters)},
+        {"provider_id", proposal.provider.provider_id},
+        {"weight_content_hash", proposal.provider.weight_content_hash},
+    };
+    JsonValue::Object object{
+        {"alternatives", std::move(alternatives)},
+        {"asset_id", proposal.asset_id},
+        {"contract_version", proposal.contract_version},
+        {"created_unix_ms", JsonValue::number(std::to_string(proposal.created_unix_ms))},
+        {"field_diff", std::move(diffs)},
+        {"fields", std::move(fields)},
+        {"id", proposal.id},
+        {"observed_catalog_revision",
+         JsonValue::number(std::to_string(proposal.observed_catalog_revision))},
+        {"observed_recovery_generation",
+         JsonValue::number(std::to_string(proposal.observed_recovery_generation))},
+        {"provider", std::move(provider)},
+        {"status", std::string(ai_proposal_status_name(proposal.status))},
+    };
+    if (proposal.applied_history_id)
+        object.emplace("applied_history_id",
+                       JsonValue::number(std::to_string(*proposal.applied_history_id)));
+    else
+        object.emplace("applied_history_id", nullptr);
+    return object;
+}
+
+JsonValue ai_proposal_apply_to_json(const AiProposalApplyResult &result)
+{
+    JsonValue::Object object{
+        {"asset", asset_to_json(result.asset)},
+        {"proposal", ai_proposal_to_json(result.proposal)},
+        {"revision", JsonValue::number(std::to_string(result.revision))},
+    };
+    if (result.history_id)
+        object.emplace("history_id", JsonValue::number(std::to_string(*result.history_id)));
+    else
+        object.emplace("history_id", nullptr);
+    return object;
+}
+
 JsonValue keyword_to_json(const KeywordRecord &keyword)
 {
     JsonValue::Object object{

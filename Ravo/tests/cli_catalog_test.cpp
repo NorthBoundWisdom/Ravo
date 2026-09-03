@@ -852,6 +852,115 @@ TEST_F(CliTest, CatalogDevelopApplyOverlaysSelectionAndRejectsPreflight)
     std::filesystem::remove_all(root, ignored);
 }
 
+TEST_F(CliTest, CatalogAiProposalStubProposeApplyAndReject)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-ai-proposal-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    QImage image(16, 12, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 80, 120));
+    const auto photo = (root / "photo.png").string();
+    ASSERT_TRUE(image.save(QString::fromStdString(photo), "PNG"));
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
+                                                            catalog, "--input", photo, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_FALSE(items->array_if()->empty());
+    const auto *asset = items->array_if()->front().find("asset");
+    ASSERT_NE(asset, nullptr);
+    const auto *asset_id = asset->find("id");
+    ASSERT_NE(asset_id, nullptr);
+    ASSERT_NE(asset_id->string_if(), nullptr);
+    const auto id = *asset_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_NE(application.run(std::vector<std::string_view>{"catalog", "ai-propose", "--catalog",
+                                                            catalog, "--asset-id", id, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-propose", "--catalog",
+                                                            catalog, "--asset-id", id,
+                                                            "--user-initiated", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto proposed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(proposed) << proposed.error().message;
+    data = proposed.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *proposal_id = data->find("id");
+    ASSERT_NE(proposal_id, nullptr);
+    ASSERT_NE(proposal_id->string_if(), nullptr);
+    const auto pid = *proposal_id->string_if();
+    const auto *status = data->find("status");
+    ASSERT_NE(status, nullptr);
+    ASSERT_NE(status->string_if(), nullptr);
+    EXPECT_EQ(*status->string_if(), "pending");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(
+        application.run(std::vector<std::string_view>{"catalog", "ai-proposal-reject", "--catalog",
+                                                      catalog, "--proposal-id", pid, "--json"}),
+        0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-propose", "--catalog",
+                                                            catalog, "--asset-id", id,
+                                                            "--user-initiated", "--json"}),
+              0)
+        << stdout_stream.str();
+    proposed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(proposed) << proposed.error().message;
+    data = proposed.value().find("data");
+    ASSERT_NE(data, nullptr);
+    proposal_id = data->find("id");
+    ASSERT_NE(proposal_id, nullptr);
+    ASSERT_NE(proposal_id->string_if(), nullptr);
+    const auto apply_id = *proposal_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-proposal-apply",
+                                                            "--catalog", catalog, "--proposal-id",
+                                                            apply_id, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto applied = parse_json(stdout_stream.str());
+    ASSERT_TRUE(applied) << applied.error().message;
+    data = applied.value().find("data");
+    ASSERT_NE(data, nullptr);
+    ASSERT_NE(data->find("history_id"), nullptr);
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CliTest, CatalogImportProjectsRenameAndVerifiedSecondCopyJson)
 {
     const auto root =

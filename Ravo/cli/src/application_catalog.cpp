@@ -89,7 +89,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export> "
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|"
+            "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
     const auto subcommand = positional[1];
@@ -156,6 +157,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool stack_command =
         subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
     const bool develop_apply_command = subcommand == "develop-apply";
+    const bool ai_command = subcommand == "ai-propose" || subcommand == "ai-proposal" ||
+                            subcommand == "ai-proposals" || subcommand == "ai-proposal-apply" ||
+                            subcommand == "ai-proposal-reject" ||
+                            subcommand == "ai-proposal-cancel";
     const bool xmp_command =
         subcommand == "xmp-status" || subcommand == "xmp-import" || subcommand == "xmp-export";
     if (!flags.value().xmp_path.empty() && !xmp_command)
@@ -166,10 +171,22 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(ErrorCode::kInvalidArgument,
                           "--resolve is only valid for catalog xmp-import or xmp-export");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
-        !develop_apply_command && !keyword_command)
+        !develop_apply_command && !keyword_command && !ai_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--revision is only valid for catalog set, version, stack, "
-                          "keyword, tag, or develop-apply commands");
+                          "keyword, tag, develop-apply, or ai proposal commands");
+    if (flags.value().user_initiated && subcommand != "ai-propose")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--user-initiated is only valid for catalog ai-propose");
+    if (!flags.value().proposal_id.empty() && subcommand != "ai-proposal" &&
+        subcommand != "ai-proposal-apply" && subcommand != "ai-proposal-reject" &&
+        subcommand != "ai-proposal-cancel")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--proposal-id is only valid for catalog ai-proposal commands");
+    if ((!flags.value().provider_id.empty() || !flags.value().model_id.empty()) &&
+        subcommand != "ai-propose")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--provider/--model are only valid for catalog ai-propose");
     if (!flags.value().from_asset.empty() && !develop_apply_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--from-asset is only valid for catalog develop-apply");
@@ -1570,6 +1587,80 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"keyword_id", std::string(flags.value().keyword_id)},
             {"revision", JsonValue::number(std::to_string(deleted.value()))},
         }};
+    }
+
+    if (subcommand == "ai-propose")
+    {
+        if (flags.value().asset_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog ai-propose requires --asset-id");
+        AiProposalCreateRequest request;
+        request.asset_id = std::string(flags.value().asset_id);
+        request.user_initiated = flags.value().user_initiated;
+        request.expected_catalog_revision = flags.value().expected_revision;
+        if (!flags.value().provider_id.empty())
+            request.provider_id = std::string(flags.value().provider_id);
+        if (!flags.value().model_id.empty())
+            request.model_id = std::string(flags.value().model_id);
+        auto created = service.create_ai_proposal(request);
+        if (!created)
+            return created.error();
+        return ai_proposal_to_json(created.value());
+    }
+    if (subcommand == "ai-proposal")
+    {
+        if (flags.value().proposal_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog ai-proposal requires --proposal-id");
+        auto proposal = service.get_ai_proposal(flags.value().proposal_id);
+        if (!proposal)
+            return proposal.error();
+        return ai_proposal_to_json(proposal.value());
+    }
+    if (subcommand == "ai-proposals")
+    {
+        std::optional<std::string_view> asset_id;
+        if (!flags.value().asset_id.empty())
+            asset_id = flags.value().asset_id;
+        auto listed = service.list_ai_proposals(asset_id);
+        if (!listed)
+            return listed.error();
+        JsonValue::Array rows;
+        rows.reserve(listed.value().size());
+        for (const auto &proposal : listed.value())
+            rows.push_back(ai_proposal_to_json(proposal));
+        return JsonValue{JsonValue::Object{{"proposals", std::move(rows)}}};
+    }
+    if (subcommand == "ai-proposal-apply")
+    {
+        if (flags.value().proposal_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog ai-proposal-apply requires --proposal-id");
+        auto applied =
+            service.apply_ai_proposal(flags.value().proposal_id, flags.value().expected_revision);
+        if (!applied)
+            return applied.error();
+        return ai_proposal_apply_to_json(applied.value());
+    }
+    if (subcommand == "ai-proposal-reject")
+    {
+        if (flags.value().proposal_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog ai-proposal-reject requires --proposal-id");
+        auto rejected = service.reject_ai_proposal(flags.value().proposal_id);
+        if (!rejected)
+            return rejected.error();
+        return ai_proposal_to_json(rejected.value());
+    }
+    if (subcommand == "ai-proposal-cancel")
+    {
+        if (flags.value().proposal_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog ai-proposal-cancel requires --proposal-id");
+        auto cancelled = service.cancel_ai_proposal(flags.value().proposal_id);
+        if (!cancelled)
+            return cancelled.error();
+        return ai_proposal_to_json(cancelled.value());
     }
 
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog subcommand",

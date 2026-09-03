@@ -271,11 +271,12 @@ coverage.
 
 # P2 — AI-assisted photo work
 
-ADR-0121 accepts AI architecture/privacy/provenance. AI-01 may become Ready
-against the proposal contract; AI-02…AI-05 remain blocked on their stated
-dependencies. The existing Studio chat assistant still does not authorize
-model inference, image upload, automatic catalog mutation, or generated-pixel
-publication until a provider package is recorded.
+ADR-0121 accepts AI architecture/privacy/provenance. AI-01 first ship is on
+`main`: versioned `ravo.ai.proposal/v1` proposals with a local deterministic
+stub provider, CLI/service create/show/apply/reject/cancel, and fail-closed
+validation. AI-02…AI-05 remain blocked on their stated dependencies. Real
+third-party weights remain residual Packaging/Dependency work; the Studio chat
+assistant still does not authorize network inference or upload.
 
 ## AI-00 — AI architecture, privacy, provenance, and licence ADR
 
@@ -312,21 +313,36 @@ requires originals to be writable.
 
 ## AI-01 — Reviewable global edit proposals
 
-**Status:** P1 / Ready after ADR-0121 (proposal contract).
+**Status:** P1 / First ship on main (stub provider). Residual: packaged real
+model/weights, evaluation corpus + human review, Studio proposal surface polish.
 
 **Outcome:** propose white balance, exposure, tone, colour, crop/straighten, and
 reference-grade adjustments as ordinary validated recipe fields. Show the exact
 field diff, preview before apply, and alternatives where the model supports
 them.
 
+**Shipped (bounded):**
+- versioned proposal contract `ravo.ai.proposal/v1` owned by CatalogService;
+- explicit `--user-initiated` create; reject/cancel leave catalog unchanged;
+  apply uses `save_develop_with_history`;
+- allowlisted develop `--set` fields for WB/exposure/tone/colour/crop/straighten;
+- local deterministic stub provider `ravo.local.stub` /
+  `deterministic-global-v1` (no network, no training, no packaged weights);
+- durable session proposals under `{catalog}.ai_proposals/` JSON;
+- CLI: `catalog ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|
+  ai-proposal-reject|ai-proposal-cancel`;
+- fail closed on unknown fields, invalid bounds, stale catalog revision /
+  recovery generation, missing/unpackaged provider or model, missing initiation.
+
 **Acceptance gate:** reject/cancel changes nothing; apply creates normal
 history/undo and survives reopen/export; unknown fields, stale asset/revision,
 invalid bounds, provider failure, or missing model fail without partial state;
-quality regressions are caught by the evaluation corpus and human review.
+quality regressions are caught by the evaluation corpus and human review
+(corpus still residual before claiming model quality).
 
 ## AI-02 — Semantic selections as canonical masks
 
-**Status:** blocked by `AI-00` and the applicable local-adjustment contract.
+**Status:** blocked by the applicable local-adjustment / mask contract (ADR-0121 accepted; AI-01 proposal path exists).
 
 **Outcome:** propose subject, sky, background, person/skin, clothing, and named
 object selections as bounded canonical masks that users can inspect and edit.
@@ -351,7 +367,7 @@ history and can be independently reverted.
 
 ## AI-04 — Metadata, culling, and similarity suggestions
 
-**Status:** blocked by `AI-00` and the relevant metadata/privacy ADR.
+**Status:** blocked by the relevant metadata/privacy ADR (ADR-0121 accepted; no auto-reject/delete).
 
 **Outcome:** optional keyword/caption suggestions, focus/exposure/duplicate cues,
 and near-duplicate grouping that never auto-rejects, deletes, publishes, or
@@ -363,7 +379,7 @@ and accepting a batch is transactional or reports exact partial state.
 
 ## AI-05 — Retouch and generated-pixel results
 
-**Status:** blocked by `AI-00`; schedule after proposal/mask workflows are proven.
+**Status:** blocked until proposal/mask workflows are proven and derived-asset publication details in ADR-0121 are implemented.
 
 **Outcome:** accelerate dust, blemish, distraction, and object cleanup. Use
 canonical Retouch regions when the result is replayable; otherwise publish a

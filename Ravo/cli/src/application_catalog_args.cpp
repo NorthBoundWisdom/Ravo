@@ -166,6 +166,15 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.keyword_recursive = true;
             continue;
         }
+
+        if (option == "--user-initiated")
+        {
+            if (result.user_initiated)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--user-initiated can only be specified once");
+            result.user_initiated = true;
+            continue;
+        }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {
             return make_error(ErrorCode::kInvalidArgument, "Catalog option requires a value",
@@ -645,6 +654,24 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "Develop field list was specified twice");
             result.fields = value;
+        }
+        else if (option == "--proposal-id")
+        {
+            if (!result.proposal_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--proposal-id was specified twice");
+            result.proposal_id = value;
+        }
+        else if (option == "--provider")
+        {
+            if (!result.provider_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--provider was specified twice");
+            result.provider_id = value;
+        }
+        else if (option == "--model")
+        {
+            if (!result.model_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--model was specified twice");
+            result.model_id = value;
         }
         else if (option == "--revision")
         {

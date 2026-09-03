@@ -2,7 +2,9 @@
 
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -19,6 +21,7 @@
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/services/ai_proposal.h"
 #include "ravo/services/xmp_interchange.h"
 
 namespace ravo
@@ -305,6 +308,19 @@ public:
     [[nodiscard]] Result<XmpInterchangeExportResult>
     xmp_interchange_export(std::string_view asset_id, XmpInterchangeResolve resolve,
                            std::optional<std::string_view> sidecar_path = std::nullopt);
+
+    // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
+    // applied; reject/cancel never mutate recipe/history.
+    [[nodiscard]] Result<AiProposal> create_ai_proposal(const AiProposalCreateRequest &request);
+    [[nodiscard]] Result<AiProposal> get_ai_proposal(std::string_view proposal_id) const;
+    [[nodiscard]] Result<std::vector<AiProposal>>
+    list_ai_proposals(std::optional<std::string_view> asset_id = std::nullopt) const;
+    [[nodiscard]] Result<AiProposalApplyResult>
+    apply_ai_proposal(std::string_view proposal_id,
+                      std::optional<std::int64_t> expected_catalog_revision = std::nullopt);
+    [[nodiscard]] Result<AiProposal> reject_ai_proposal(std::string_view proposal_id);
+    [[nodiscard]] Result<AiProposal> cancel_ai_proposal(std::string_view proposal_id);
+
     Result<void> close();
 
 private:
@@ -396,6 +412,12 @@ private:
     std::function<void()> testing_before_preview_cache_publication_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_import_checkpoint_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_backup_checkpoint_;
+    mutable std::map<std::string, AiProposal, std::less<>> ai_proposals_;
+    mutable bool ai_proposals_loaded_ = false;
+
+    [[nodiscard]] Result<std::filesystem::path> ai_proposals_directory() const;
+    [[nodiscard]] Result<void> ensure_ai_proposals_loaded() const;
+    [[nodiscard]] Result<void> persist_ai_proposal(const AiProposal &proposal);
 
     friend class testing::CatalogServiceTestControl;
 };
