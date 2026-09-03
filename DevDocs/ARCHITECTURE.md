@@ -215,11 +215,11 @@ selection, catalog-close, comparison, and non-interactive supersession still
 cancel the active token and reject late results by revision and asset. During a
 drag, the presenter only forwards in-memory parameters. Services apply the
 complete effect stack to a cached 960px scene-linear working image, return
-memory pixels, and do not write PNG/cache. Entering Develop prepares that image
-before settling at 1600px, so the first later slider change does not pay
-decode/preprocess setup. For an ordinary commit whose parameters are not
+memory pixels, and do not write PNG/cache. That 960px buffer is a box-filtered
+copy of the 1600px settled linear working, so entering Develop demosaics once.
+For an ordinary commit whose parameters are not
 already displayed, Studio first saves
-atomically, publishes that exact 960px memory preview, then queues the same
+atomically, publishes that 960px memory preview, then queues the same
 revision for an exact 1600px persisted preview. Foreground Develop and
 background Gallery work own separate bounded decode/working lanes; within the
 foreground lane, one linear-working slot is retained for each size class. A

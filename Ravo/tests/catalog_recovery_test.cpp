@@ -1061,6 +1061,18 @@ TEST_F(CatalogServiceTest, InteractiveAndSettledRawWorkingBuffersRemainIndepende
     cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
     EXPECT_FALSE(cache_state[0].has_value());
     EXPECT_FALSE(cache_state[1].has_value());
+
+    ASSERT_TRUE(open_service(false));
+    auto interactive_first = service->request_preview(interactive, live_develop.value());
+    ASSERT_TRUE(interactive_first) << interactive_first.error().message;
+    cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
+    EXPECT_EQ(cache_state[0], kInteractivePreviewMaxEdge);
+    EXPECT_EQ(cache_state[1], kDefaultPreviewMaxEdge);
+    auto settled_after = service->request_preview(settled);
+    ASSERT_TRUE(settled_after) << settled_after.error().message;
+    cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
+    EXPECT_EQ(cache_state[0], kInteractivePreviewMaxEdge);
+    EXPECT_EQ(cache_state[1], kDefaultPreviewMaxEdge);
 }
 
 TEST_F(CatalogServiceTest, BrowseWorkingSetCannotEvictForegroundDevelopBuffers)

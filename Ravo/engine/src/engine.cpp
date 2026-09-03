@@ -681,6 +681,16 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
     return apply_input_color(profiled, input_color.value(), cancellation);
 }
 
+Result<LinearWorkingBuffer>
+EngineFacade::scale_linear_working(const LinearWorkingBuffer &working, const std::uint32_t width,
+                                   const std::uint32_t height, const std::uint32_t original_width,
+                                   const std::uint32_t original_height,
+                                   const CancellationToken &cancellation) const
+{
+    return scale_working_image(working, width, height, original_width, original_height,
+                               cancellation);
+}
+
 namespace
 {
 

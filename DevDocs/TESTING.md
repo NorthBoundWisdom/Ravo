@@ -293,8 +293,9 @@ source snapshot unchanged. Optional host-local gates are
 `RAVO_PRIVATE_COLD_PREVIEW_P90_BUDGET_MS`, and
 `RAVO_PRIVATE_WARM_PREVIEW_P90_BUDGET_MS`. Run the existing
 `StudioInteractivePreviewPerformanceProbe` with its fixture/sample/budget
-variables for the first slider frame; ADR-0087/0089 remain the exact 960/1600
-pixel and 30 ms Release P90 authority. Queue depth is structurally one
+variables for the first slider frame; ADR-0087/0089 remain the settled 1600
+pixel identity, interactive 960-from-settled derivation, and 30 ms Release P90
+authority. Queue depth is structurally one
 dispatched import plus one pending foreground executor item, and sparse-model
 memory is structurally three pages, so neither is inferred from process RSS.
 

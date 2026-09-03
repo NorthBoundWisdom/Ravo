@@ -126,6 +126,59 @@ try
         std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
     const bool defer_white_balance = dng_list3_requires_deferred_white_balance(raw.dng_opcodes);
     std::atomic_bool invalid_sample{false};
+    const auto convert_sample = [&](const std::uint32_t source_x, const std::uint32_t source_y,
+                                    const std::uint8_t channel) -> float
+    {
+        float sample = std::max(
+            0.0F, (static_cast<float>(raw.pixels[pixel_index(raw.width, source_x, source_y)]) -
+                   static_cast<float>(raw.black_level)) /
+                      denominator);
+        if (raw.dng_opcodes)
+        {
+            sample = apply_dng_opcode_list2_sample(*raw.dng_opcodes, source_x, source_y, raw.width,
+                                                   raw.height, sample);
+        }
+        if (!defer_white_balance)
+        {
+            sample *= white_balance[channel];
+        }
+        return sample;
+    };
+    if (width == raw.width && height == raw.height)
+    {
+        const auto rows = detail::for_each_row(
+            height, cancellation,
+            [&](const std::uint32_t output_y)
+            {
+                if (invalid_sample.load(std::memory_order_relaxed))
+                {
+                    return;
+                }
+                for (std::uint32_t output_x = 0U; output_x < width; ++output_x)
+                {
+                    const std::uint8_t wanted =
+                        cfa_at(prepared.cfa, static_cast<int>(output_y), static_cast<int>(output_x));
+                    const float sample = convert_sample(output_x, output_y, wanted);
+                    if (!std::isfinite(sample))
+                    {
+                        invalid_sample.store(true, std::memory_order_relaxed);
+                        return;
+                    }
+                    prepared.samples[pixel_index(width, output_x, output_y)] = sample;
+                }
+            });
+        if (!rows)
+        {
+            return rows.error();
+        }
+        if (invalid_sample.load(std::memory_order_relaxed))
+        {
+            return make_error(ErrorCode::kValidation,
+                              "X-Trans preparation could not produce a finite CFA sample",
+                              {{"reason", "invalid_xtrans_sample"}});
+        }
+        return prepared;
+    }
     const auto rows = detail::for_each_row(
         height, cancellation,
         [&](const std::uint32_t output_y)

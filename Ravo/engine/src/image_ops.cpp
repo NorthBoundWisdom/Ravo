@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <iterator>
@@ -515,6 +516,150 @@ Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster)
         image.rgb[index] = static_cast<float>(raster.srgb[index]) / 255.0F;
     }
     return image;
+}
+
+Result<WorkingImage> scale_working_image(const WorkingImage &input, const std::uint32_t width,
+                                         const std::uint32_t height,
+                                         const std::uint32_t original_width,
+                                         const std::uint32_t original_height,
+                                         const CancellationToken &cancellation)
+try
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    if (width == 0U || height == 0U || width > std::numeric_limits<std::size_t>::max() / height)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Linear working scale dimensions must be non-zero and bounded",
+                          {{"reason", "invalid_linear_working_scale"}});
+    }
+    const std::size_t expected =
+        static_cast<std::size_t>(input.width) * input.height * 3U;
+    if (input.width == 0U || input.height == 0U || input.rgb.size() != expected)
+    {
+        return make_error(ErrorCode::kValidation, "Linear working buffer is empty or undersized",
+                          {{"reason", "invalid_linear_working_buffer"}});
+    }
+    if (width > input.width || height > input.height)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Linear working scale cannot enlarge the source",
+                          {{"reason", "linear_working_upscale_unsupported"},
+                           {"source_width", std::to_string(input.width)},
+                           {"source_height", std::to_string(input.height)},
+                           {"width", std::to_string(width)},
+                           {"height", std::to_string(height)}});
+    }
+
+    WorkingImage output;
+    output.width = width;
+    output.height = height;
+    output.color_profile = input.color_profile;
+    output.exposure_analysis = input.exposure_analysis;
+    output.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(
+        width, height, original_width, original_height);
+    if (input.mask_attached_frame.has_value())
+    {
+        const auto &frame = *input.mask_attached_frame;
+        AttachedPixelFrame scaled;
+        scaled.x = frame.x * width / input.width;
+        scaled.y = frame.y * height / input.height;
+        scaled.width = std::max(1U, frame.width * width / input.width);
+        scaled.height = std::max(1U, frame.height * height / input.height);
+        if (scaled.x >= width)
+        {
+            scaled.x = width - 1U;
+        }
+        if (scaled.y >= height)
+        {
+            scaled.y = height - 1U;
+        }
+        scaled.width = std::min(scaled.width, width - scaled.x);
+        scaled.height = std::min(scaled.height, height - scaled.y);
+        output.mask_attached_frame = scaled;
+    }
+    output.rgb.resize(static_cast<std::size_t>(width) * height * 3U);
+    if (width == input.width && height == input.height)
+    {
+        output.rgb = input.rgb;
+        return output;
+    }
+
+    std::atomic_bool invalid_sample{false};
+    const auto rows = detail::for_each_row(
+        height, cancellation,
+        [&](const std::uint32_t output_y)
+        {
+            if (invalid_sample.load(std::memory_order_relaxed))
+            {
+                return;
+            }
+            const std::uint32_t source_top = static_cast<std::uint32_t>(
+                static_cast<std::uint64_t>(output_y) * input.height / height);
+            const std::uint32_t source_bottom = std::max(
+                source_top + 1U,
+                static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_y + 1U) *
+                                            input.height + height - 1U) /
+                                           height));
+            const std::uint32_t y_end = std::min(source_bottom, input.height);
+            for (std::uint32_t output_x = 0U; output_x < width; ++output_x)
+            {
+                const std::uint32_t source_left = static_cast<std::uint32_t>(
+                    static_cast<std::uint64_t>(output_x) * input.width / width);
+                const std::uint32_t source_right = std::max(
+                    source_left + 1U,
+                    static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_x + 1U) *
+                                                input.width + width - 1U) /
+                                               width));
+                const std::uint32_t x_end = std::min(source_right, input.width);
+                double sum_r = 0.0;
+                double sum_g = 0.0;
+                double sum_b = 0.0;
+                std::uint32_t count = 0U;
+                for (std::uint32_t source_y = source_top; source_y < y_end; ++source_y)
+                {
+                    const std::size_t row =
+                        (static_cast<std::size_t>(source_y) * input.width + source_left) * 3U;
+                    for (std::uint32_t source_x = source_left; source_x < x_end; ++source_x)
+                    {
+                        const std::size_t base =
+                            row + static_cast<std::size_t>(source_x - source_left) * 3U;
+                        sum_r += static_cast<double>(input.rgb[base]);
+                        sum_g += static_cast<double>(input.rgb[base + 1U]);
+                        sum_b += static_cast<double>(input.rgb[base + 2U]);
+                        ++count;
+                    }
+                }
+                if (count == 0U)
+                {
+                    invalid_sample.store(true, std::memory_order_relaxed);
+                    return;
+                }
+                const auto dest = (static_cast<std::size_t>(output_y) * width + output_x) * 3U;
+                output.rgb[dest] = static_cast<float>(sum_r / count);
+                output.rgb[dest + 1U] = static_cast<float>(sum_g / count);
+                output.rgb[dest + 2U] = static_cast<float>(sum_b / count);
+            }
+        });
+    if (!rows)
+    {
+        return rows.error();
+    }
+    if (invalid_sample.load(std::memory_order_relaxed))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Linear working scale produced an empty source bin",
+                          {{"reason", "empty_linear_working_scale_bin"}});
+    }
+    return output;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Linear working scale allocation failed",
+                      {{"reason", "allocation_failed"}});
 }
 
 [[nodiscard]] Result<AlphaPlane> evaluate_operation_mask(const WorkingImage &input,

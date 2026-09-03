@@ -436,6 +436,8 @@ private:
     // Preview interaction alternates between the live frame and the
     // 1600px settled frame. Keep one bounded slot for each size class so the
     // live request cannot evict the already-prepared settled working buffer.
+    // Interactive-class requests may box-filter the settled slot instead of a
+    // second CFA demosaic; settled and larger sizes stay native.
     std::array<std::optional<CachedLinearWorking>, 2> linear_working_;
     std::optional<DecodedPreviewSource> browse_decoded_preview_source_;
     std::optional<CachedRawFrame> browse_decoded_raw_;

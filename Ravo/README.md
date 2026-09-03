@@ -195,9 +195,12 @@ Current implementation status:
   **Paste Parameters to Selection** applies that same clipboard through
   CatalogService to every ID in an explicit multi-selection (ADR-0078/0098/0107).
   RAW preview retains bounded 960px interactive and 1600px settled
-  scene-linear working images. An ordinary committed edit publishes the exact
-  960px in-memory result first, then replaces it with the exact persisted
-  1600px result. The foreground live slot also retains an exact pre-light RGB
+  scene-linear working images. The interactive buffer is a box-filtered copy of
+  the settled linear working so Develop demosaics once. An ordinary committed
+  edit publishes the 960px in-memory result first, then replaces it with the
+  exact persisted 1600px result. Studio Actual Size still displays that settled
+  preview at one CSS pixel per preview pixel; a full-sensor 1:1 render remains
+  export, not the loupe path. The foreground live slot also retains an exact pre-light RGB
   prefix and its bounded row team, so Exposure does not recompute unchanged
   calibration, denoise, or lens/canvas stages. Prefix changes publish only
   after successful completion and invalidate with the working generation.

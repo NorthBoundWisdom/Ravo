@@ -156,128 +156,148 @@ try
         std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
     const bool defer_white_balance = dng_list3_requires_deferred_white_balance(raw.dng_opcodes);
     std::atomic_bool invalid_sample{false};
-    const auto rows = detail::for_each_row(
-        height, cancellation,
-        [&](const std::uint32_t output_y)
+    const auto convert_sample = [&](const std::uint32_t source_x, const std::uint32_t source_y,
+                                    const std::uint8_t channel) -> float
+    {
+        float sample = std::max(
+            0.0F, (static_cast<float>(raw.pixels[pixel_index(raw.width, source_x, source_y)]) -
+                   static_cast<float>(raw.black_level)) /
+                      denominator);
+        if (raw.dng_opcodes)
         {
-            if (invalid_sample.load(std::memory_order_relaxed))
+            sample = apply_dng_opcode_list2_sample(*raw.dng_opcodes, source_x, source_y, raw.width,
+                                                   raw.height, sample);
+        }
+        if (!defer_white_balance)
+        {
+            sample *= white_balance[channel];
+        }
+        return sample;
+    };
+    Result<void> rows{};
+    if (width == raw.width && height == raw.height)
+    {
+        rows = detail::for_each_row(
+            height, cancellation,
+            [&](const std::uint32_t output_y)
             {
-                return;
-            }
-            const std::uint32_t source_top = static_cast<std::uint32_t>(
-                static_cast<std::uint64_t>(output_y) * raw.height / height);
-            const std::uint32_t source_bottom = std::max(
-                source_top + 1U,
-                static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_y + 1U) *
-                                            raw.height + height - 1U) /
-                                           height));
-            for (std::uint32_t output_x = 0U; output_x < width; ++output_x)
-            {
-                const std::uint8_t wanted = cfa_at(prepared.cfa, output_y, output_x);
-                const std::uint32_t source_left = static_cast<std::uint32_t>(
-                    static_cast<std::uint64_t>(output_x) * raw.width / width);
-                const std::uint32_t source_right = std::max(
-                    source_left + 1U,
-                    static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_x + 1U) *
-                                                raw.width + width - 1U) /
-                                               width));
-                double sum = 0.0;
-                std::uint32_t count = 0U;
-                for (std::uint32_t source_y = source_top;
-                     source_y < std::min(source_bottom, raw.height); ++source_y)
+                if (invalid_sample.load(std::memory_order_relaxed))
                 {
-                    for (std::uint32_t source_x = source_left;
-                         source_x < std::min(source_right, raw.width); ++source_x)
+                    return;
+                }
+                for (std::uint32_t output_x = 0U; output_x < width; ++output_x)
+                {
+                    const std::uint8_t wanted = cfa_at(prepared.cfa, output_y, output_x);
+                    const float sample = convert_sample(output_x, output_y, wanted);
+                    if (!std::isfinite(sample))
                     {
-                        const std::uint8_t channel = cfa_at(
-                            prepared.cfa, static_cast<int>(source_y), static_cast<int>(source_x));
-                        if (channel != wanted)
+                        invalid_sample.store(true, std::memory_order_relaxed);
+                        return;
+                    }
+                    prepared.samples[pixel_index(width, output_x, output_y)] = sample;
+                }
+            });
+    }
+    else
+    {
+        rows = detail::for_each_row(
+            height, cancellation,
+            [&](const std::uint32_t output_y)
+            {
+                if (invalid_sample.load(std::memory_order_relaxed))
+                {
+                    return;
+                }
+                const std::uint32_t source_top = static_cast<std::uint32_t>(
+                    static_cast<std::uint64_t>(output_y) * raw.height / height);
+                const std::uint32_t source_bottom = std::max(
+                    source_top + 1U,
+                    static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_y + 1U) *
+                                                raw.height + height - 1U) /
+                                               height));
+                for (std::uint32_t output_x = 0U; output_x < width; ++output_x)
+                {
+                    const std::uint8_t wanted = cfa_at(prepared.cfa, output_y, output_x);
+                    const std::uint32_t source_left = static_cast<std::uint32_t>(
+                        static_cast<std::uint64_t>(output_x) * raw.width / width);
+                    const std::uint32_t source_right = std::max(
+                        source_left + 1U,
+                        static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_x + 1U) *
+                                                    raw.width + width - 1U) /
+                                                   width));
+                    double sum = 0.0;
+                    std::uint32_t count = 0U;
+                    for (std::uint32_t source_y = source_top;
+                         source_y < std::min(source_bottom, raw.height); ++source_y)
+                    {
+                        for (std::uint32_t source_x = source_left;
+                             source_x < std::min(source_right, raw.width); ++source_x)
                         {
-                            continue;
+                            if (cfa_at(prepared.cfa, static_cast<int>(source_y),
+                                       static_cast<int>(source_x)) != wanted)
+                            {
+                                continue;
+                            }
+                            const float sample = convert_sample(source_x, source_y, wanted);
+                            if (!std::isfinite(sample))
+                            {
+                                invalid_sample.store(true, std::memory_order_relaxed);
+                                return;
+                            }
+                            sum += sample;
+                            ++count;
                         }
-                        float sample = std::max(
-                            0.0F,
-                            (static_cast<float>(raw.pixels[pixel_index(raw.width, source_x,
-                                                                       source_y)]) -
-                             static_cast<float>(raw.black_level)) /
-                                denominator);
-                        if (raw.dng_opcodes)
+                    }
+                    if (count == 0U)
+                    {
+                        std::uint32_t source_x = std::min(
+                            raw.width - 1U,
+                            static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_x) *
+                                                        raw.width) /
+                                                       width));
+                        std::uint32_t source_y = std::min(
+                            raw.height - 1U,
+                            static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_y) *
+                                                        raw.height) /
+                                                       height));
+                        bool found = false;
+                        for (int radius = 0; radius <= 2 && !found; ++radius)
                         {
-                            sample = apply_dng_opcode_list2_sample(
-                                *raw.dng_opcodes, source_x, source_y, raw.width, raw.height,
-                                sample);
+                            for (int offset_y = -radius; offset_y <= radius && !found; ++offset_y)
+                            {
+                                for (int offset_x = -radius; offset_x <= radius; ++offset_x)
+                                {
+                                    const auto candidate_x = static_cast<std::uint32_t>(std::clamp(
+                                        static_cast<int>(source_x) + offset_x, 0,
+                                        static_cast<int>(raw.width) - 1));
+                                    const auto candidate_y = static_cast<std::uint32_t>(std::clamp(
+                                        static_cast<int>(source_y) + offset_y, 0,
+                                        static_cast<int>(raw.height) - 1));
+                                    if (cfa_at(prepared.cfa, candidate_y, candidate_x) != wanted)
+                                    {
+                                        continue;
+                                    }
+                                    source_x = candidate_x;
+                                    source_y = candidate_y;
+                                    found = true;
+                                    break;
+                                }
+                            }
                         }
-                        if (!defer_white_balance)
-                        {
-                            sample *= white_balance[channel];
-                        }
+                        const float sample = convert_sample(source_x, source_y, wanted);
                         if (!std::isfinite(sample))
                         {
                             invalid_sample.store(true, std::memory_order_relaxed);
                             return;
                         }
-                        sum += sample;
-                        ++count;
+                        sum = sample;
+                        count = 1U;
                     }
+                    prepared.samples[pixel_index(width, output_x, output_y)] =
+                        static_cast<float>(sum / count);
                 }
-                if (count == 0U)
-                {
-                    std::uint32_t source_x = std::min(
-                        raw.width - 1U,
-                        static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_x) *
-                                                    raw.width) /
-                                                   width));
-                    std::uint32_t source_y = std::min(
-                        raw.height - 1U,
-                        static_cast<std::uint32_t>((static_cast<std::uint64_t>(output_y) *
-                                                    raw.height) /
-                                                   height));
-                    bool found = false;
-                    for (int radius = 0; radius <= 2 && !found; ++radius)
-                    {
-                        for (int offset_y = -radius; offset_y <= radius && !found; ++offset_y)
-                        {
-                            for (int offset_x = -radius; offset_x <= radius; ++offset_x)
-                            {
-                                const auto candidate_x = static_cast<std::uint32_t>(std::clamp(
-                                    static_cast<int>(source_x) + offset_x, 0,
-                                    static_cast<int>(raw.width) - 1));
-                                const auto candidate_y = static_cast<std::uint32_t>(std::clamp(
-                                    static_cast<int>(source_y) + offset_y, 0,
-                                    static_cast<int>(raw.height) - 1));
-                                if (cfa_at(prepared.cfa, candidate_y, candidate_x) != wanted)
-                                {
-                                    continue;
-                                }
-                                source_x = candidate_x;
-                                source_y = candidate_y;
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    float sample = std::max(
-                        0.0F,
-                        (static_cast<float>(raw.pixels[pixel_index(raw.width, source_x,
-                                                                   source_y)]) -
-                         static_cast<float>(raw.black_level)) /
-                            denominator);
-                    if (raw.dng_opcodes)
-                    {
-                        sample = apply_dng_opcode_list2_sample(
-                            *raw.dng_opcodes, source_x, source_y, raw.width, raw.height, sample);
-                    }
-                    if (!defer_white_balance)
-                    {
-                        sample *= white_balance[wanted];
-                    }
-                    sum = sample;
-                    count = 1U;
-                }
-                prepared.samples[pixel_index(width, output_x, output_y)] =
-                    static_cast<float>(sum / count);
-            }
-        });
+            });
+    }
     if (!rows)
     {
         return rows.error();

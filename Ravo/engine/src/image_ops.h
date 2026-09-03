@@ -24,6 +24,13 @@ working_from_raw(const DecodedRaw &raw, std::uint32_t width, std::uint32_t heigh
                  const std::array<float, 4> &white_balance, std::string_view demosaic_mode,
                  const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster);
+// Box-filters a larger scene-linear working image onto a strictly smaller
+// display-oriented size. The source is borrowed and never mutated. Upscaling
+// is rejected rather than interpolated.
+[[nodiscard]] Result<WorkingImage>
+scale_working_image(const WorkingImage &input, std::uint32_t width, std::uint32_t height,
+                    std::uint32_t original_width, std::uint32_t original_height,
+                    const CancellationToken &cancellation);
 // The input is borrowed and never mutated. A successful result owns its pixels and
 // retains the exact declared RGB working-profile state.
 [[nodiscard]] Result<WorkingImage> apply_exposure(const WorkingImage &input,

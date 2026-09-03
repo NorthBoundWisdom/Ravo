@@ -538,6 +538,13 @@ public:
     [[nodiscard]] Result<LinearWorkingBuffer>
     linear_working_from_raster(const RasterBuffer &raster, const Recipe &recipe,
                                const CancellationToken &cancellation) const;
+    // Box-filters a larger scene-linear working image onto a strictly smaller
+    // size. The source is borrowed and never mutated.
+    [[nodiscard]] Result<LinearWorkingBuffer>
+    scale_linear_working(const LinearWorkingBuffer &working, std::uint32_t width,
+                         std::uint32_t height, std::uint32_t original_width,
+                         std::uint32_t original_height,
+                         const CancellationToken &cancellation) const;
     // Applies RGB recipe ops onto a copy of `working`. Callers that already baked
     // `ravo.raw.highlights` into the buffer must disable that operation before calling.
     [[nodiscard]] Result<RenderedImage>

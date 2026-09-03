@@ -1124,18 +1124,26 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     EXPECT_TRUE(first.value().cache_path.empty());
     EXPECT_FALSE(first.value().rgb.empty());
     EXPECT_LE(std::max(first.value().width, first.value().height), kInteractivePreviewMaxEdge);
+    auto cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
+    EXPECT_EQ(cache_state[0], kInteractivePreviewMaxEdge);
+    EXPECT_EQ(cache_state[1], kDefaultPreviewMaxEdge);
 
     auto direct_recipe = recipe_from_develop(
         {asset_id, raw_fixture_path(), imported.value().asset->content_fingerprint}, live);
     ASSERT_TRUE(direct_recipe) << direct_recipe.error().message;
+    PreviewRequest settled = request;
+    settled.max_edge = kDefaultPreviewMaxEdge;
+    auto settled_live = service->request_preview(settled, live);
+    ASSERT_TRUE(settled_live) << settled_live.error().message;
+    EXPECT_TRUE(settled_live.value().cache_path.empty());
     RenderRequest direct_request;
     direct_request.asset = direct_recipe.value().asset;
     direct_request.recipe = direct_recipe.value();
-    direct_request.output_width = first.value().width;
-    direct_request.output_height = first.value().height;
+    direct_request.output_width = settled_live.value().width;
+    direct_request.output_height = settled_live.value().height;
     auto direct = engine.render_to_image(direct_request);
     ASSERT_TRUE(direct) << direct.error().message;
-    EXPECT_EQ(first.value().rgb, direct.value().rgb);
+    EXPECT_EQ(settled_live.value().rgb, direct.value().rgb);
 
     auto stored = service->load_recipe(asset_id);
     ASSERT_TRUE(stored) << stored.error().message;

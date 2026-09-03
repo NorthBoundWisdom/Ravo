@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <set>
@@ -915,6 +916,19 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
                working.max_edge == max_edge && working.preprocess_key == preprocess_key &&
                working.buffer.width == width && working.buffer.height == height;
     };
+    const auto same_generation = [&](const CachedLinearWorking &working)
+    {
+        return working.asset_id == asset.id && working.fingerprint == fingerprint &&
+               working.preprocess_key == preprocess_key;
+    };
+    const auto slot_for = [](const std::uint32_t edge) -> std::size_t
+    { return edge <= kInteractivePreviewMaxEdge ? 0U : 1U; };
+    const auto store_foreground = [&](CachedLinearWorking cached) -> CachedLinearWorking *
+    {
+        const std::size_t slot = slot_for(cached.max_edge);
+        linear_working_[slot] = std::move(cached);
+        return &*linear_working_[slot];
+    };
     if (lane == PreviewLane::kBackgroundBrowse)
     {
         if (browse_linear_working_.has_value() && matches(*browse_linear_working_))
@@ -931,6 +945,70 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
                 return &*working;
             }
         }
+        if (max_edge <= kInteractivePreviewMaxEdge)
+        {
+            CachedLinearWorking *source = nullptr;
+            for (auto &working : linear_working_)
+            {
+                if (!working.has_value() || !same_generation(*working) ||
+                    working->buffer.width < width || working->buffer.height < height)
+                {
+                    continue;
+                }
+                if (source == nullptr ||
+                    static_cast<std::uint64_t>(working->buffer.width) * working->buffer.height >
+                        static_cast<std::uint64_t>(source->buffer.width) * source->buffer.height)
+                {
+                    source = &*working;
+                }
+            }
+            if (source != nullptr)
+            {
+                if (source->buffer.width == width && source->buffer.height == height)
+                {
+                    return store_foreground(CachedLinearWorking{
+                        .asset_id = std::string(asset.id),
+                        .fingerprint = fingerprint,
+                        .max_edge = max_edge,
+                        .preprocess_key = preprocess_key,
+                        .buffer = source->buffer,
+                        .interactive_render_cache = {},
+                    });
+                }
+                auto scaled = engine_->scale_linear_working(
+                    source->buffer, width, height, asset.width.value_or(0),
+                    asset.height.value_or(0), cancellation);
+                if (!scaled)
+                {
+                    return scaled.error();
+                }
+                return store_foreground(CachedLinearWorking{
+                    .asset_id = std::string(asset.id),
+                    .fingerprint = fingerprint,
+                    .max_edge = max_edge,
+                    .preprocess_key = preprocess_key,
+                    .buffer = std::move(scaled).value(),
+                    .interactive_render_cache = {},
+                });
+            }
+        }
+    }
+
+    std::uint32_t build_width = width;
+    std::uint32_t build_height = height;
+    std::uint32_t build_edge = max_edge;
+    if (lane == PreviewLane::kForegroundDevelop && max_edge <= kInteractivePreviewMaxEdge)
+    {
+        std::uint32_t settled_width = 0U;
+        std::uint32_t settled_height = 0U;
+        fit_within_max_edge(asset.width.value_or(0), asset.height.value_or(0),
+                            kDefaultPreviewMaxEdge, settled_width, settled_height);
+        if (settled_width >= width && settled_height >= height)
+        {
+            build_width = settled_width;
+            build_height = settled_height;
+            build_edge = kDefaultPreviewMaxEdge;
+        }
     }
 
     LinearWorkingBuffer buffer;
@@ -941,8 +1019,8 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         {
             return raw.error();
         }
-        auto working =
-            engine_->linear_working_from_raw(*raw.value(), recipe, width, height, cancellation);
+        auto working = engine_->linear_working_from_raw(*raw.value(), recipe, build_width,
+                                                        build_height, cancellation);
         if (!working)
         {
             return working.error();
@@ -951,7 +1029,7 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
     }
     else
     {
-        auto source = decode_preview_source(asset, path, max_edge, cancellation, lane);
+        auto source = decode_preview_source(asset, path, build_edge, cancellation, lane);
         if (!source)
         {
             return source.error();
@@ -964,22 +1042,50 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         buffer = std::move(working).value();
     }
 
-    CachedLinearWorking cached{
+    CachedLinearWorking built{
         .asset_id = std::string(asset.id),
         .fingerprint = fingerprint,
-        .max_edge = max_edge,
+        .max_edge = build_edge,
         .preprocess_key = preprocess_key,
         .buffer = std::move(buffer),
         .interactive_render_cache = {},
     };
     if (lane == PreviewLane::kBackgroundBrowse)
     {
-        browse_linear_working_ = std::move(cached);
+        browse_linear_working_ = std::move(built);
         return &*browse_linear_working_;
     }
-    const std::size_t slot = max_edge <= kInteractivePreviewMaxEdge ? 0U : 1U;
-    linear_working_[slot] = std::move(cached);
-    return &*linear_working_[slot];
+    auto *stored = store_foreground(std::move(built));
+    if (build_edge == max_edge && stored->buffer.width == width && stored->buffer.height == height)
+    {
+        return stored;
+    }
+    if (stored->buffer.width == width && stored->buffer.height == height)
+    {
+        return store_foreground(CachedLinearWorking{
+            .asset_id = std::string(asset.id),
+            .fingerprint = fingerprint,
+            .max_edge = max_edge,
+            .preprocess_key = preprocess_key,
+            .buffer = stored->buffer,
+            .interactive_render_cache = {},
+        });
+    }
+    auto scaled = engine_->scale_linear_working(stored->buffer, width, height,
+                                                asset.width.value_or(0), asset.height.value_or(0),
+                                                cancellation);
+    if (!scaled)
+    {
+        return scaled.error();
+    }
+    return store_foreground(CachedLinearWorking{
+        .asset_id = std::string(asset.id),
+        .fingerprint = fingerprint,
+        .max_edge = max_edge,
+        .preprocess_key = preprocess_key,
+        .buffer = std::move(scaled).value(),
+        .interactive_render_cache = {},
+    });
 }
 
 Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &asset,

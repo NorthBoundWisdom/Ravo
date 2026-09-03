@@ -43,7 +43,12 @@ the already prepared settled working image.
 - CatalogService owns two linear-working slots: one for the interactive size
   class and one for the settled size class. Both remain keyed by asset, source
   fingerprint, target size, and RAW/input-colour preprocess state. New RAW
-  ownership and close clear both slots.
+  ownership and close clear both slots. A foreground interactive-class request
+  materializes the settled-size linear working first when that slot is empty,
+  then box-filters it to the interactive size. Interactive 960 pixels therefore
+  match a downsampled settled linear image rather than a second CFA demosaic.
+  Settled 1600, preview-cache PNG, and export remain native at their requested
+  size. Gallery browse does not promote or downscale across size classes.
 - Gallery thumbnail decode/working state is a separate bounded background lane.
   A Develop request cancels active thumbnail work and takes foreground queue
   priority, so browse work cannot evict or queue ahead of the selected photo.
@@ -68,8 +73,8 @@ the already prepared settled working image.
 
 Studio can show the changed look before full preview settlement, while the
 persisted result, cache identity, and export path remain exact. The additional
-960px working slot raises bounded session memory modestly and avoids rebuilding
-the larger linear image after the first stage. Fast cache PNG may consume more
+960px working slot is a box-filtered view of the settled linear image, so
+Develop pays one demosaic and then reuses that generation for sliders. Fast cache PNG may consume more
 of the existing 512 MiB LRU budget, but it is disposable and pixel/profile
 equivalent when decoded. Progressive drag frames may briefly trail the newest
 slider position, but they never regress after a newer frame and the final
