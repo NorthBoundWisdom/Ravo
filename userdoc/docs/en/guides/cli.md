@@ -357,7 +357,7 @@ Mounted-card Copy/Move uses the same service contract:
 ```text
 ravo catalog import --catalog "/work/Ravo Library.sqlite" \
   --input "/Volumes/CARD/DCIM" --mode copy \
-  --destination "/photos/client-job" --organize date \
+  --destination "/photos/client-job" --organize month \
   --rename-template "job-{date}-{sequence}-{stem}{ext}" \
   --second-copy "/backup/client-job" --preview standard --json
 ```

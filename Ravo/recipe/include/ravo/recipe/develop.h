@@ -481,6 +481,15 @@ struct DevelopParams
     [[nodiscard]] bool operator==(const DevelopParams &) const noexcept = default;
 };
 
+// RAW import colour and Lab USM baseline. Not a stored user edit.
+[[nodiscard]] inline DevelopParams develop_raw_import_baseline() noexcept
+{
+    DevelopParams params;
+    params.sigmoid_enabled = true;
+    params.sharpen = SharpenParams{}.amount;
+    return params;
+}
+
 [[nodiscard]] bool tone_curve_is_identity(const std::vector<ToneCurvePoint> &points) noexcept;
 void clamp_tone_curve(std::vector<ToneCurvePoint> &points) noexcept;
 [[nodiscard]] bool curve_interpolation_is_supported(std::string_view interpolation) noexcept;

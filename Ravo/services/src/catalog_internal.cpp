@@ -286,12 +286,14 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 
 [[nodiscard]] DevelopParams baseline_develop_for(const AssetRecord &asset)
 {
-    DevelopParams params;
     // RAW import colour calibration: as-shot WB (default temperature), the
-    // file's camera matrix via input profile `source`, and Sigmoid. Later
-    // Develop edits stack on this baseline. Adobe DCP is not used.
-    params.sigmoid_enabled = is_raw_media_type(asset.media_type);
-    return params;
+    // file's camera matrix via input profile `source`, and Sigmoid. RAW also
+    // enables the accepted Lab USM at SharpenParams defaults (amount 0.5,
+    // radius 2, threshold 0.5). Later Develop edits stack on this baseline.
+    // Adobe DCP is not used. JPEG/PNG/TIFF stay identity.
+    if (is_raw_media_type(asset.media_type))
+        return develop_raw_import_baseline();
+    return {};
 }
 
 [[nodiscard]] Result<Recipe> baseline_recipe_for(const AssetRecord &asset, const std::string &path)

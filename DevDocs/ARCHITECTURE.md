@@ -68,6 +68,7 @@ replace or fall back to LibRaw. Ravo does not expose Exiv2's upstream CMake opti
 | Read path | filesystem `ImageFactory::open`, plus in-memory TIFF from PNG `eXIf` |
 | Containers | BMFF on (CR3); Exiv2 XMP SDK, PNG codec, video, webready/curl, Brotli, NLS, inih, and Nikon lens data off |
 | Extra targets | CLI, samples, unit/fuzz tests, and docs off |
+| Apple host | Force-include `<ctime>` on `exiv2lib` so pinned `value.cpp` can use `std::mktime` |
 
 Public configure still has only Ravo `BUILD_TESTING`. That flag never enables
 Exiv2 tests or docs.
@@ -424,7 +425,8 @@ malformed or mandatory-unsupported DNG opcode, and unsupported CFA
 full-decode inputs fail with stable `reason` context.
 
 ADR-0102 extends that baseline with one planned local-source workspace for Add,
-Copy, and Move. ADR-0104 further gives Copy/Move an optional bounded filename
+Copy, and Move, including `YYYY/MM` month organization and Studio folder trees
+for source and destination. ADR-0104 further gives Copy/Move an optional bounded filename
 template (`date`, source stem, stable sequence, and extension) and one distinct
 second-copy root. Services derive one relative organization/name, preflight the
 complete primary/second media, XMP, and JPEG companion path set with
@@ -489,8 +491,9 @@ processed RAW. Loupe, Develop, scopes, export, and `request_preview` with
 `prefer_embedded_preview=false` use preview contract v10: full CPU
 decode/render of the RAW. Import writes a colour-calibration baseline for RAW:
 as-shot white balance from LibRaw `cam_mul`, the camera input matrix
-(`enhanced_matrix` via input profile `source`), and `ravo.display.sigmoid`.
-Later Develop edits stack on that baseline. This is Ravo's analogue of a
+(`enhanced_matrix` via input profile `source`), `ravo.display.sigmoid`, and
+`ravo.detail.sharpen` at the accepted Lab USM defaults (amount 0.5, radius 2,
+threshold 0.5). Later Develop edits stack on that baseline. This is Ravo's analogue of a
 Lightroom camera profile; Adobe DCP / Adobe Color / Adobe Standard are not
 shipped (ADR-0085/0088). As-shot white balance prefers `cam_mul` even when
 `as_shot_wb_applied` is set. The cache types
@@ -803,7 +806,7 @@ still camera RGB, then white balance and Input Color run. WarpRectilinear is
 parsed and inspect-visible so the file's lens geometry is not hidden, but the
 default colour decode does not apply it. darktable keeps DNG warp for the lens
 module (off by default); RapidRAW uses optional lensfun. Ravo import uses
-as-shot white balance, the camera matrix, and Sigmoid. The private adapter
+as-shot white balance, the camera matrix, Sigmoid, and default Lab USM. The private adapter
 owns all parsed values, applies DNG's `[0, 1]` clip after each executed
 List2/List3 opcode, and preserves repeated operations. Known malformed or
 unknown mandatory operations fail before publication; unknown optional
@@ -1219,6 +1222,8 @@ budget. [ADR-0096](adr/0096-reference-algorithm-assimilation-boundary.md)
 records the selection and rejection evidence.
 
 `ravo.detail.sharpen` schema v2 is the accepted scale-aware D50 Lab L* USM.
+The RAW import baseline enables it at amount 0.5, radius 2, and threshold 0.5
+without creating an `asset_recipe` row. Raster files stay at amount 0.
 The explicit schema fixes `working_space=lab_d50`,
 `algorithm=separable_gaussian_usm_v1`, radius, amount, and threshold. Current
 Ravo schema-v1 values upgrade to v2 in one recipe owner; the former approximate

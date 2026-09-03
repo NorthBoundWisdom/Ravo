@@ -5,7 +5,7 @@
 Make non-destructive edits to a selected photo, inspect their effect, and keep
 or recover the result through the catalog recipe and history.
 
-**Last reviewed:** 2026-09-01 against the current Develop recipe and Studio
+**Last reviewed:** 2026-09-03 against the current Develop recipe and Studio
 presenter contracts.
 
 ## Applies to
@@ -58,7 +58,8 @@ Balance, Color Equalizer, or Color Balance RGB.
 - Flip horizontally or vertically.
 - Enter **Crop & Rotate** mode.
 - Choose a free, 1:1, 3:2, 4:3, 5:4, or 16:9 crop aspect.
-- Drag the crop frame to crop.
+- Drag the crop frame to crop. Return or **Done** applies the frame and exits the
+  tool; the photo stays in Edit.
 - Adjust **Angle**, **Vertical**, **Horizontal**, and **Shear** for manual
   perspective correction. Choose Bilinear, Lanczos 2, or Lanczos 3 sampling,
   and use **Constrain crop** to remove invalid transformed edges.
@@ -172,8 +173,9 @@ Light controls include:
 Compensate middle grey and region splits stay under **Curves · more**.
 
 For RAW, the **Sigmoid Display · Standard SDR** group exposes Contrast, Skew,
-and Preserve Hue. RAW uses Sigmoid as its default display transform; a default
-RAW Sigmoid is not itself marked as a user edit.
+and Preserve Hue. RAW uses Sigmoid as its default display transform and a mild
+Lab unsharp mask (amount 0.5). Those import-baseline values are not themselves
+marked as a user edit.
 
 Deflicker is a RAW analysis mode. It does not synthesize an automatic result for
 unsupported raster analysis cases.

@@ -74,6 +74,15 @@ Item {
             cache: true
             source: root.thumbnailUrl
             visible: root.thumbnailUrl.toString().length > 0
+            opacity: root.rejected ? 0.38 : 1
+        }
+
+        Rectangle {
+            objectName: "rejectedPreviewWash"
+            anchors.fill: photo
+            visible: root.rejected && photo.visible
+            color: "#b8b8b8"
+            opacity: 0.58
         }
 
         Rectangle {

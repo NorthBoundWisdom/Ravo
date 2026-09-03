@@ -11,6 +11,7 @@ qt_add_resources(ravo_desktop "studio_locale_manifest"
 target_sources(ravo_desktop
   PRIVATE
     src/asset_list_model.cpp
+    src/filesystem_browser_model.cpp
     src/folder_list_model.cpp
     src/library_set_list_model.cpp
     src/import_candidate_list_model.cpp
@@ -43,6 +44,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/asset_list_model.h
     include/ravo/desktop/export_option_conversion.h
     include/ravo/desktop/folder_list_model.h
+    include/ravo/desktop/filesystem_browser_model.h
     include/ravo/desktop/library_set_list_model.h
     include/ravo/desktop/import_candidate_list_model.h
     include/ravo/desktop/preview_request_owner.h
@@ -192,6 +194,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
     qml/chrome/ImportPage.qml
+    qml/chrome/ImportFolderTree.qml
     qml/chrome/AssistantPanel.qml
     qml/chrome/StudioActions.qml
     qml/chrome/StudioCommandMenuItems.qml

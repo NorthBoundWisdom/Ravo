@@ -54,7 +54,7 @@ Current implementation status:
   (ADR-0047/0067).
 - Studio import opens one full-page source browser. New photos start selected
   and can be added by reference, copied, or moved to an explicit destination
-  using one folder, preserved hierarchy, or `YYYY/MM/DD` organization.
+  using one folder, preserved hierarchy, `YYYY/MM/DD`, or `YYYY/MM` organization.
   Copy/Move optionally expand a bounded `{date}`/`{stem}`/`{sequence}`/`{ext}`
   rename template and can mirror the exact organized media plus same-stem XMP
   into a distinct second-copy root. Both trees are completely preflighted,
@@ -597,7 +597,8 @@ Current implementation status:
   shared DWT/heal/bilateral and historic mask/order consumers remain.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
-  the default baseline is not marked as a user edit. Gallery embedded-JPEG
+  the default baseline is not marked as a user edit. RAW baseline also enables
+  `ravo.detail.sharpen` at amount 0.5, radius 2, and threshold 0.5. Gallery embedded-JPEG
   thumbnails and inspect dimensions are corrected to camera orientation.
   Configure requires JPEG/GIF/WebP/TIFF imageformat plugins and the QSQLITE
   driver; missing them is a hard error.
@@ -757,7 +758,7 @@ ravo render <input> --recipe <recipe> --output <png> --backend cpu [--width N] [
 ravo catalog create --path <library.sqlite> --json
 ravo catalog import --catalog <library.sqlite> --input <file-or-folder> \
   [--mode add|copy|move] [--destination <directory>] \
-  [--organize single|hierarchy|date] \
+  [--organize single|hierarchy|date|month] \
   [--rename-template '{date}-{sequence}-{stem}{ext}'] \
   [--second-copy <directory>] [--preview minimal|standard|one-to-one] \
   [--no-recursive] --json

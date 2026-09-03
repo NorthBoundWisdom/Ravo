@@ -720,6 +720,93 @@ TEST(StudioCommands, CropToolShortcutIsRAndDoesNotRequireEditMode)
               QCoreApplication::translate("StudioCommands", "Open a library first."));
 }
 
+TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("crop-enter.png"));
+    QImage image(640, 480, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 80, 120));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+
+    presenter.setCropToolActive(true);
+    ASSERT_TRUE(presenter.cropToolActive());
+    presenter.previewCropRect(0.15, 0.20, 0.55, 0.50);
+    const double crop_x = presenter.editCropX();
+    const double crop_y = presenter.editCropY();
+    const double crop_width = presenter.editCropWidth();
+    const double crop_height = presenter.editCropHeight();
+    ASSERT_GT(crop_width, 0.0);
+    ASSERT_GT(crop_height, 0.0);
+    ASSERT_LT(crop_width, 0.999);
+    ASSERT_LT(crop_height, 0.999);
+
+    const auto loupe = controller.ids().value(QStringLiteral("viewLoupe")).toString();
+    ASSERT_EQ(loupe, QStringLiteral("studio.view.show_loupe"));
+    bool found_return = false;
+    bool found_enter = false;
+    for (const auto &entry_value : controller.shortcutEntries())
+    {
+        const auto entry = entry_value.toMap();
+        if (entry.value(QStringLiteral("actionId")).toString() != loupe)
+            continue;
+        const auto sequence = entry.value(QStringLiteral("sequence")).toString();
+        found_return = found_return || sequence == QStringLiteral("Return");
+        found_enter = found_enter || sequence == QStringLiteral("Enter");
+    }
+    EXPECT_TRUE(found_return);
+    EXPECT_TRUE(found_enter);
+
+    const auto confirmed = controller.executeAction(loupe, QStringLiteral("keyboard"));
+    EXPECT_TRUE(confirmed.value(QStringLiteral("accepted")).toBool());
+    EXPECT_FALSE(presenter.cropToolActive());
+    EXPECT_EQ(presenter.browseMode(), QStringLiteral("develop"));
+    EXPECT_NEAR(presenter.editCropX(), crop_x, 1e-6);
+    EXPECT_NEAR(presenter.editCropY(), crop_y, 1e-6);
+    EXPECT_NEAR(presenter.editCropWidth(), crop_width, 1e-6);
+    EXPECT_NEAR(presenter.editCropHeight(), crop_height, 1e-6);
+
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && !presenter.busy() && presenter.canUndo(); }))
+        << presenter.errorText().toStdString();
+    const QString asset_id = presenter.selectedAssetId();
+    presenter.setBrowseMode(QStringLiteral("grid"));
+    presenter.selectAsset(QString{});
+    presenter.selectAsset(asset_id);
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && !presenter.busy() &&
+                   std::abs(presenter.editCropWidth() - crop_width) < 1e-6;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_FALSE(presenter.cropToolActive());
+    EXPECT_NEAR(presenter.editCropX(), crop_x, 1e-6);
+    EXPECT_NEAR(presenter.editCropY(), crop_y, 1e-6);
+    EXPECT_NEAR(presenter.editCropHeight(), crop_height, 1e-6);
+}
+
 TEST(StudioCommands, SelectAllShortcutSelectsLoadedPhotosAndYieldsToTextInput)
 {
     ensure_qt_core();

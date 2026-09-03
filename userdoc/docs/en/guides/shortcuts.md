@@ -5,7 +5,7 @@
 Find Studio actions quickly from the keyboard and understand when a command is
 disabled.
 
-**Last reviewed:** 2026-09-02 against the current Studio command registry.
+**Last reviewed:** 2026-09-03 against the current Studio command registry.
 
 ## Command palette
 
@@ -46,7 +46,7 @@ modifier.
 | Paste Parameters to Selection | `Cmd/Ctrl+Alt+Shift+V` |
 | Reset All Edits | `Cmd/Ctrl+Shift+R` |
 | Gallery | `Cmd/Ctrl+1` or `G` |
-| Loupe | `Cmd/Ctrl+2`, `E`, or Return |
+| Loupe | `Cmd/Ctrl+2`, `E`, or Return. While Crop & Rotate is active, these apply the crop and stay in Edit. |
 | Edit | `Cmd/Ctrl+3` or `D` |
 | Fit | `Cmd/Ctrl+0` or `F` |
 | Fill | `Cmd/Ctrl+9` |

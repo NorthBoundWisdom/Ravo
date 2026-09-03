@@ -11,6 +11,7 @@
 #include <QMetaObject>
 #include <QUrl>
 
+#include "ravo/desktop/filesystem_browser_model.h"
 #include "studio_qt.h"
 
 namespace ravo
@@ -131,11 +132,27 @@ ImportCandidateListModel *StudioPresenter::importCandidates() noexcept
     return &import_candidates_;
 }
 
+FilesystemBrowserModel *StudioPresenter::importSourceFolders() noexcept
+{
+    return &import_source_folders_;
+}
+
+FilesystemBrowserModel *StudioPresenter::importDestinationFolders() noexcept
+{
+    return &import_destination_folders_;
+}
+
 void StudioPresenter::openImportPage()
 {
     if (catalog_path_.isEmpty() || import_work_active_)
         return;
     import_page_open_ = true;
+    import_source_folders_.loadMountedVolumes();
+    import_destination_folders_.loadMountedVolumes();
+    if (!import_source_root_.isEmpty())
+        import_source_folders_.selectFolder(import_source_root_);
+    if (!import_destination_.isEmpty())
+        import_destination_folders_.selectFolder(import_destination_);
     emit importPageChanged();
     if (!import_source_root_.isEmpty())
         rescanImportSource();
@@ -160,6 +177,7 @@ void StudioPresenter::setImportSourceRoot(const QString &path)
     if (next.isEmpty() || next == import_source_root_)
         return;
     import_source_root_ = next;
+    import_source_folders_.selectFolder(next);
     emit importPageChanged();
     rescanImportSource();
 }
@@ -170,6 +188,7 @@ void StudioPresenter::setImportDestination(const QString &path)
     if (next == import_destination_)
         return;
     import_destination_ = next;
+    import_destination_folders_.selectFolder(next);
     emit importPageChanged();
 }
 
@@ -204,7 +223,7 @@ void StudioPresenter::setImportMode(const QString &mode)
 void StudioPresenter::setImportOrganization(const QString &organization)
 {
     if (organization != QLatin1String("single") && organization != QLatin1String("hierarchy") &&
-        organization != QLatin1String("date"))
+        organization != QLatin1String("date") && organization != QLatin1String("month"))
         return;
     if (import_organization_ == organization)
         return;
@@ -485,6 +504,8 @@ void StudioPresenter::startPlannedImport()
                                ImportOrganization::kPreserveHierarchy :
                            import_organization_ == QLatin1String("date") ?
                                ImportOrganization::kCaptureDate :
+                           import_organization_ == QLatin1String("month") ?
+                               ImportOrganization::kCaptureMonth :
                                ImportOrganization::kSingleFolder;
     request.preview = preview_policy(import_preview_policy_);
     if (request.mode != ImportTransferMode::kAdd)
@@ -611,6 +632,28 @@ void StudioPresenter::cancelImportPreviews()
         return;
     static_cast<void>(import_preview_operation_.cancel("user_cancelled"));
     pending_import_preview_ids_.clear();
+}
+
+void StudioPresenter::requestFilesystemListing(FilesystemBrowserModel *browser, const QString &path,
+                                               const quint64 generation)
+{
+    if (browser == nullptr)
+        return;
+    executor_.post(
+        [this, browser, path, generation]()
+        {
+            auto listed = list_filesystem_folders(path);
+            QMetaObject::invokeMethod(
+                this,
+                [this, browser, path, generation, listed = std::move(listed)]() mutable
+                {
+                    if (browser != &import_source_folders_ &&
+                        browser != &import_destination_folders_)
+                        return;
+                    browser->applyChildren(path, generation, std::move(listed));
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 } // namespace ravo

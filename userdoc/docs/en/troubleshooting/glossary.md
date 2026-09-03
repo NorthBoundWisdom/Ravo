@@ -11,7 +11,7 @@
 | Catalog backup | An immutable verified directory containing a preview-free SQLite snapshot, manifest, and recovery mirrors. It excludes originals and previews. |
 | Recipe | A versioned JSON description of the Develop operations and parameters for an asset. |
 | Recipe style / preset | A `.rstyle.json` recipe template. Schema v1 replaces a complete recipe; schema v2 overlays explicitly selected logical fields. |
-| Baseline | The Ravo product rendering state before user edits. RAW baseline rendering includes the default Sigmoid Standard SDR display transform. |
+| Baseline | The Ravo product rendering state before user edits. RAW baseline rendering includes the default Sigmoid Standard SDR display transform and a mild Lab unsharp mask. |
 | Develop | Ravo's non-destructive editing workflow. The Studio view is labeled **Edit**. |
 | Active photo | The primary selected asset shown in Loupe, Edit, and Inspector, and used by single-photo export. Batch export can use the wider selection. |
 | Review state | Rating, color label, and rejected/kept state stored in the catalog. |

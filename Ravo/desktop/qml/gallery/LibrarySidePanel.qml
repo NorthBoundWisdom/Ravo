@@ -18,6 +18,67 @@ Rectangle {
     readonly property bool developOpen: presenter && presenter.browseMode === "develop"
     signal viewportSeeked(real nx, real ny)
 
+    component WorkMeter: ColumnLayout {
+        id: meter
+        required property string title
+        property string countText: ""
+        property real fraction: 0
+        property bool cancellable: false
+        property color barColor: Theme.accentColor
+
+        signal cancelRequested()
+
+        Layout.fillWidth: true
+        spacing: Fonts.size4
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.smallSpacing
+            CustomLabel {
+                Layout.fillWidth: true
+                text: meter.title
+                elide: Text.ElideRight
+            }
+            CustomLabel {
+                visible: meter.countText.length > 0
+                text: meter.countText
+                color: Theme.placeholderTextColor
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.size6
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                implicitHeight: Fonts.size8
+                height: Fonts.size8
+                radius: 4
+                color: Theme.midlightColor
+                Rectangle {
+                    width: parent.width * Math.max(0, Math.min(1, meter.fraction))
+                    height: parent.height
+                    radius: parent.radius
+                    color: meter.barColor
+                }
+            }
+            CustomButton {
+                visible: meter.cancellable
+                display: AbstractButton.IconOnly
+                icon.source: "qrc:/GeoControls/icons/Close.svg"
+                tooltipText: qsTr("Cancel")
+                Accessible.name: qsTr("Cancel")
+                implicitWidth: Fonts.iconButtonSize
+                implicitHeight: Fonts.iconButtonSize
+                Layout.preferredWidth: implicitWidth
+                Layout.preferredHeight: implicitHeight
+                Layout.alignment: Qt.AlignVCenter
+                defaultPadding: 0
+                onClicked: meter.cancelRequested()
+            }
+        }
+    }
+
     function backupTime(unixMs) {
         if (!unixMs || unixMs <= 0)
             return qsTr("Never");
@@ -82,157 +143,42 @@ Rectangle {
                 return active || (total > 0 && completed < total);
             }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
+            WorkMeter {
                 visible: libraryWork.meterVisible(root.presenter.importWorkActive, root.presenter.importWorkCompleted, root.presenter.importWorkTotal)
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    CustomLabel {
-                        text: qsTr("Import")
-                        font.pixelSize: Fonts.size10
-                    }
-                    Item {
-                        Layout.fillWidth: true
-                    }
-                    CustomLabel {
-                        text: root.presenter.importWorkTotal > 0 ? (root.presenter.importWorkCompleted + " / " + root.presenter.importWorkTotal) : qsTr("Scanning…")
-                        color: Theme.placeholderTextColor
-                        font.pixelSize: Fonts.size10
-                    }
-                }
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 6
-                    radius: 3
-                    color: Theme.midlightColor
-                    Rectangle {
-                        width: parent.width * (root.presenter.importWorkTotal > 0 ? Math.min(1, root.presenter.importWorkCompleted / root.presenter.importWorkTotal) : 0.35)
-                        height: parent.height
-                        radius: 3
-                        color: Theme.accentColor
-                    }
-                }
-                CustomButton {
-                    Layout.alignment: Qt.AlignRight
-                    text: qsTr("Cancel")
-                    visible: root.presenter.importWorkActive
-                    onClicked: if (root.commands)
-                        root.commands.run(root.commands.ids.libraryCancelOperation)
-                }
+                title: qsTr("Import")
+                countText: root.presenter.importWorkTotal > 0 ? (root.presenter.importWorkCompleted + " / " + root.presenter.importWorkTotal) : qsTr("Scanning…")
+                fraction: root.presenter.importWorkTotal > 0 ? Math.min(1, root.presenter.importWorkCompleted / root.presenter.importWorkTotal) : 0.35
+                cancellable: root.presenter.importWorkActive
+                onCancelRequested: if (root.commands)
+                    root.commands.run(root.commands.ids.libraryCancelOperation)
             }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
+            WorkMeter {
                 visible: libraryWork.meterVisible(root.presenter.previewWorkActive, root.presenter.previewWorkCompleted, root.presenter.previewWorkTotal)
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    CustomLabel {
-                        text: qsTr("Previews")
-                        font.pixelSize: Fonts.size10
-                    }
-                    Item {
-                        Layout.fillWidth: true
-                    }
-                    CustomLabel {
-                        text: root.presenter.previewWorkCompleted + " / " + root.presenter.previewWorkTotal
-                        color: Theme.placeholderTextColor
-                        font.pixelSize: Fonts.size10
-                    }
-                }
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 6
-                    radius: 3
-                    color: Theme.midlightColor
-                    Rectangle {
-                        width: parent.width * (root.presenter.previewWorkTotal > 0 ? Math.min(1, root.presenter.previewWorkCompleted / root.presenter.previewWorkTotal) : 0)
-                        height: parent.height
-                        radius: 3
-                        color: Theme.highlightColor
-                    }
-                }
+                title: qsTr("Previews")
+                countText: root.presenter.previewWorkCompleted + " / " + root.presenter.previewWorkTotal
+                fraction: root.presenter.previewWorkTotal > 0 ? Math.min(1, root.presenter.previewWorkCompleted / root.presenter.previewWorkTotal) : 0
+                barColor: Theme.highlightColor
             }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
+            WorkMeter {
                 visible: root.presenter.importPreviewWorkActive
-                RowLayout {
-                    Layout.fillWidth: true
-                    CustomLabel {
-                        text: qsTr("Import previews")
-                        font.pixelSize: Fonts.size10
-                    }
-                    Item {
-                        Layout.fillWidth: true
-                    }
-                    CustomLabel {
-                        text: root.presenter.importPreviewWorkCompleted + " / " + root.presenter.importPreviewWorkTotal
-                        color: Theme.placeholderTextColor
-                        font.pixelSize: Fonts.size10
-                    }
-                }
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 6
-                    radius: 3
-                    color: Theme.midlightColor
-                    Rectangle {
-                        width: parent.width * (root.presenter.importPreviewWorkTotal > 0 ? Math.min(1, root.presenter.importPreviewWorkCompleted / root.presenter.importPreviewWorkTotal) : 0)
-                        height: parent.height
-                        radius: 3
-                        color: Theme.highlightColor
-                    }
-                }
-                CustomButton {
-                    Layout.alignment: Qt.AlignRight
-                    text: qsTr("Cancel")
-                    onClicked: root.presenter.cancelImportPreviews()
-                }
+                title: qsTr("Import previews")
+                countText: root.presenter.importPreviewWorkCompleted + " / " + root.presenter.importPreviewWorkTotal
+                fraction: root.presenter.importPreviewWorkTotal > 0 ? Math.min(1, root.presenter.importPreviewWorkCompleted / root.presenter.importPreviewWorkTotal) : 0
+                cancellable: true
+                barColor: Theme.highlightColor
+                onCancelRequested: root.presenter.cancelImportPreviews()
             }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
+            WorkMeter {
                 visible: root.presenter.catalogOperationActive
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    CustomLabel {
-                        Layout.fillWidth: true
-                        text: root.presenter.catalogOperationStage
-                        elide: Text.ElideRight
-                        font.pixelSize: Fonts.size10
-                    }
-                    CustomLabel {
-                        visible: root.presenter.catalogOperationTotal > 0
-                        text: root.presenter.catalogOperationCompleted + " / " + root.presenter.catalogOperationTotal
-                        color: Theme.placeholderTextColor
-                        font.pixelSize: Fonts.size10
-                    }
-                }
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 6
-                    radius: 3
-                    color: Theme.midlightColor
-                    Rectangle {
-                        width: parent.width * (root.presenter.catalogOperationTotal > 0 ? Math.min(1, root.presenter.catalogOperationCompleted / root.presenter.catalogOperationTotal) : 0.35)
-                        height: parent.height
-                        radius: 3
-                        color: Theme.accentColor
-                    }
-                }
-                CustomButton {
-                    Layout.alignment: Qt.AlignRight
-                    text: qsTr("Cancel")
-                    onClicked: if (root.commands)
-                        root.commands.run(root.commands.ids.libraryCancelOperation)
-                }
+                title: root.presenter.catalogOperationStage
+                countText: root.presenter.catalogOperationTotal > 0 ? (root.presenter.catalogOperationCompleted + " / " + root.presenter.catalogOperationTotal) : ""
+                fraction: root.presenter.catalogOperationTotal > 0 ? Math.min(1, root.presenter.catalogOperationCompleted / root.presenter.catalogOperationTotal) : 0.35
+                cancellable: true
+                onCancelRequested: if (root.commands)
+                    root.commands.run(root.commands.ids.libraryCancelOperation)
             }
         }
 
@@ -251,20 +197,17 @@ Rectangle {
                 CustomLabel {
                     Layout.fillWidth: true
                     text: qsTr("Scheduled backups")
-                    font.pixelSize: Fonts.size10
                     font.bold: true
                 }
                 CustomLabel {
                     text: backupStatus.value.enabled ? qsTr("On") : qsTr("Off")
                     color: backupStatus.value.enabled ? Theme.accentColor : Theme.placeholderTextColor
-                    font.pixelSize: Fonts.size10
                 }
             }
             CustomLabel {
                 Layout.fillWidth: true
                 text: qsTr("Last verified: %1 · %2").arg(root.backupTime(backupStatus.value.lastSuccessUnixMs)).arg(root.backupBytes(backupStatus.value.lastBackupBytes))
                 color: Theme.placeholderTextColor
-                font.pixelSize: Fonts.size10
                 elide: Text.ElideRight
             }
             CustomLabel {
@@ -272,7 +215,6 @@ Rectangle {
                 visible: backupStatus.value.enabled === true
                 text: qsTr("Next: %1 · Keep %2").arg(root.backupTime(backupStatus.value.nextRunUnixMs)).arg(backupStatus.value.retentionCount)
                 color: Theme.placeholderTextColor
-                font.pixelSize: Fonts.size10
                 elide: Text.ElideRight
             }
             CustomLabel {
@@ -280,7 +222,6 @@ Rectangle {
                 visible: String(backupStatus.value.destination || "").length > 0
                 text: String(backupStatus.value.destination || "")
                 color: Theme.placeholderTextColor
-                font.pixelSize: Fonts.size10
                 elide: Text.ElideMiddle
             }
             CustomLabel {
@@ -288,7 +229,6 @@ Rectangle {
                 visible: String(backupStatus.value.lastError || "").length > 0
                 text: qsTr("Last failure: %1").arg(String(backupStatus.value.lastError || ""))
                 color: Theme.errorColor
-                font.pixelSize: Fonts.size10
                 wrapMode: Text.WordWrap
             }
         }

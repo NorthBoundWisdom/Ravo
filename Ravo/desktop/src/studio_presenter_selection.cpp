@@ -235,6 +235,11 @@ void StudioPresenter::setBrowseMode(const QString &mode)
     }
     browse_mode_ = normalized;
     emit browseModeChanged();
+    if (previous == QLatin1String("develop") && normalized != QLatin1String("develop") &&
+        crop_tool_active_)
+    {
+        setCropToolActive(false);
+    }
     if (comparison_changed)
     {
         emit editChanged();
@@ -265,6 +270,11 @@ void StudioPresenter::openLoupe()
 {
     if (selected_asset_id_.isEmpty())
     {
+        return;
+    }
+    if (crop_tool_active_)
+    {
+        setCropToolActive(false);
         return;
     }
     setBrowseMode(QStringLiteral("loupe"));

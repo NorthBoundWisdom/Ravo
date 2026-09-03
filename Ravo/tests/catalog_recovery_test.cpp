@@ -709,6 +709,38 @@ TEST_F(CatalogServiceTest, CaptureDateOrganizationAndRenameUseOneDeterministicDa
     EXPECT_TRUE(imported.value().items[0].copies_verified);
 }
 
+TEST_F(CatalogServiceTest, CopyImportOrganizesByCaptureMonth)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_dir = root / "month-source";
+    const auto destination = root / "month-destination";
+    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(destination);
+    QImage image(36, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(80, 110, 140));
+    const auto source = source_dir / "photo.png";
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "PNG"));
+    using namespace std::chrono;
+    const auto desired = sys_days{year{2024} / month{5} / day{6}} + hours{12};
+    const auto file_time =
+        std::filesystem::file_time_type::clock::now() + (desired - system_clock::now());
+    std::filesystem::last_write_time(source, file_time);
+
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.source_root = source_dir.string();
+    request.mode = ImportTransferMode::kCopy;
+    request.organization = ImportOrganization::kCaptureMonth;
+    request.destination_directory = destination.string();
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().imported, 1U);
+    const auto relative = std::filesystem::path("2024") / "05" / "photo.png";
+    EXPECT_TRUE(std::filesystem::exists(destination / relative));
+    EXPECT_FALSE(std::filesystem::exists(destination / "2024" / "05" / "06" / "photo.png"));
+}
+
 TEST_F(CatalogServiceTest, VerificationMismatchRemovesOnlyOwnedCopiesAndPublishesNoAsset)
 {
     ASSERT_TRUE(open_service(true));

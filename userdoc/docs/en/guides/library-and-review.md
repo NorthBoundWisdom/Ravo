@@ -5,7 +5,7 @@
 Use the local library to organize referenced photos, review them quickly, and
 keep catalog state separate from original files.
 
-**Last reviewed:** 2026-09-02 against the current catalog schema and Studio
+**Last reviewed:** 2026-09-03 against the current catalog schema and Studio
 review workflow.
 
 ## Applies to
@@ -158,7 +158,8 @@ stays on the bar.
 
 - Set a rating from `0` to `5` stars.
 - Apply **No Color**, **Red**, **Yellow**, **Green**, **Blue**, or **Purple**.
-- Set **Reject** or **Keep**.
+- Set **Reject** or **Keep**. Rejected photos keep the red Reject flag and
+  show a greyed, dimmed thumbnail in Gallery and the filmstrip.
 - Choose **Copy Info** to copy a stable identity block for the selected photo
   to the system clipboard. The block names the open library, asset ID, file
   URI/path, fingerprint, and basic file metadata so a later debug session can

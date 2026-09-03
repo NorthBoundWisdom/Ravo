@@ -57,6 +57,15 @@ struct PlannedImport
     return stream.str();
 }
 
+[[nodiscard]] std::string month_directory(const ImportCandidate &candidate)
+{
+    const auto date = date_directory(candidate);
+    const auto slash = date.rfind('/');
+    if (slash == std::string::npos)
+        return date;
+    return date.substr(0, slash);
+}
+
 [[nodiscard]] Result<std::optional<std::string>> adjacent_xmp(const std::string_view source)
 {
     const auto path = utf8_path(source);
@@ -497,6 +506,8 @@ Result<ImportBatchResult> CatalogService::execute_import(
                 relative = utf8_path(filename);
             else if (request.organization == ImportOrganization::kCaptureDate)
                 relative = utf8_path(date_directory(item.candidate)) / utf8_path(filename);
+            else if (request.organization == ImportOrganization::kCaptureMonth)
+                relative = utf8_path(month_directory(item.candidate)) / utf8_path(filename);
             else
             {
                 const auto root_name = utf8_path(source_root).filename();

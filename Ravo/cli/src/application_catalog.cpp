@@ -628,6 +628,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             request.organization = ImportOrganization::kPreserveHierarchy;
         else if (organization == "date")
             request.organization = ImportOrganization::kCaptureDate;
+        else if (organization == "month")
+            request.organization = ImportOrganization::kCaptureMonth;
         else
             return make_error(ErrorCode::kInvalidArgument, "Unknown import organization",
                               {{"organization", std::string(organization)}});

@@ -566,7 +566,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto baseline = service->load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_EQ(baseline.value().operations.size(), 4U);
+    ASSERT_EQ(baseline.value().operations.size(), 5U);
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == "ravo.color.temperature"; }),
@@ -583,10 +583,17 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
                            [](const OperationInstance &operation)
                            { return operation.id == "ravo.color.output"; }),
               baseline.value().operations.end());
+    EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == std::string(kSharpenOperationId); }),
+              baseline.value().operations.end());
     auto baseline_params = develop_from_recipe(baseline.value());
     ASSERT_TRUE(baseline_params) << baseline_params.error().message;
     EXPECT_TRUE(baseline_params.value().sigmoid_enabled);
     EXPECT_NEAR(baseline_params.value().sigmoid_contrast, kSigmoidContrastDefault, 1e-9);
+    EXPECT_NEAR(baseline_params.value().sharpen, SharpenParams{}.amount, 1e-9);
+    EXPECT_NEAR(baseline_params.value().sharpen_radius, SharpenParams{}.radius, 1e-9);
+    EXPECT_NEAR(baseline_params.value().sharpen_threshold, SharpenParams{}.threshold, 1e-9);
     auto baseline_has_edits = service->asset_has_edits(asset_id);
     ASSERT_TRUE(baseline_has_edits) << baseline_has_edits.error().message;
     EXPECT_FALSE(baseline_has_edits.value());
@@ -616,6 +623,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     ASSERT_TRUE(reset_params) << reset_params.error().message;
     EXPECT_TRUE(reset_params.value().sigmoid_enabled);
     EXPECT_NEAR(reset_params.value().sigmoid_skew, kSigmoidSkewDefault, 1e-9);
+    EXPECT_NEAR(reset_params.value().sharpen, SharpenParams{}.amount, 1e-9);
 }
 
 TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)

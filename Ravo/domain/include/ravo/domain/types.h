@@ -172,6 +172,7 @@ enum class ImportOrganization
     kSingleFolder,
     kPreserveHierarchy,
     kCaptureDate,
+    kCaptureMonth,
 };
 
 enum class ImportPreviewPolicy

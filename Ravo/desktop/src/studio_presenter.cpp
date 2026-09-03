@@ -1,6 +1,7 @@
 #include "ravo/desktop/studio_presenter.h"
 
 #include "ravo/desktop/export_option_conversion.h"
+#include "ravo/desktop/filesystem_browser_model.h"
 
 #include <algorithm>
 #include <climits>
@@ -150,7 +151,17 @@ StudioPresenter::StudioPresenter(QObject *parent)
     , folders_(this)
     , library_sets_(this)
     , import_candidates_(this)
+    , import_source_folders_(this)
+    , import_destination_folders_(this)
 {
+    const auto bind_browser = [this](FilesystemBrowserModel *browser)
+    {
+        QObject::connect(browser, &FilesystemBrowserModel::directoryListingRequested, this,
+                         [this, browser](const QString &path, quint64 generation)
+                         { requestFilesystemListing(browser, path, generation); });
+    };
+    bind_browser(&import_source_folders_);
+    bind_browser(&import_destination_folders_);
     catalog_revision_timer_ = new QTimer(this);
     catalog_revision_timer_->setInterval(kCatalogRevisionPollMs);
     catalog_revision_timer_->setTimerType(Qt::CoarseTimer);

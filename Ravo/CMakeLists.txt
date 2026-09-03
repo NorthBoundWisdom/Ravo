@@ -431,6 +431,18 @@ function(ravo_add_private_exiv2)
       target_compile_options(exiv2lib_int PRIVATE /wd4100)
     endif()
   endif()
+  # Pinned Exiv2 value.cpp calls std::mktime without including <ctime>.
+  # Apple SDK 26 / current libc++ no longer leak that name through other
+  # headers. Force the header onto the private Exiv2 targets only.
+  if(APPLE)
+    foreach(_ravo_exiv2_ctime_target IN ITEMS exiv2lib exiv2lib_int)
+      if(TARGET ${_ravo_exiv2_ctime_target})
+        target_compile_options(${_ravo_exiv2_ctime_target} PRIVATE
+          "SHELL:-include ctime")
+      endif()
+    endforeach()
+    unset(_ravo_exiv2_ctime_target)
+  endif()
   foreach(_ravo_exiv2_option IN ITEMS
       EXIV2_ENABLE_XMP
       EXIV2_ENABLE_EXTERNAL_XMP

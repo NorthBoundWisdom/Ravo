@@ -326,6 +326,8 @@ TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLo
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("compact: true")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("captureSummary: root.captureSummary")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"placeholderName\"")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"rejectedPreviewWash\"")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("root.rejected ? 0.38 : 1")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("Qt.lighter(Theme.imageSurroundColor, 1.5)")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("root.current ? 3 : (root.selected ? 2 : 1)")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("Theme.selectedSecondaryBorderColor")));
@@ -399,6 +401,9 @@ TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancell
     EXPECT_TRUE(library_source.contains(QStringLiteral("catalogOperationStage")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("catalogOperationCompleted")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("libraryCancelOperation")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("qrc:/GeoControls/icons/Close.svg")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("tooltipText: qsTr(\"Cancel\")")));
+    EXPECT_FALSE(library_source.contains(QStringLiteral("text: qsTr(\"Cancel\")")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("backupScheduleStatus")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("Last verified: %1 · %2")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("libraryFolderRelink")));
@@ -637,6 +642,12 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
         QStringLiteral("onIndexChanged: root.presenter.ensureImportThumbnail(index)")));
     EXPECT_TRUE(source.contains(QStringLiteral("required property bool inspected")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportOrganization")));
+    EXPECT_TRUE(source.contains(QStringLiteral("By month (YYYY/MM)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ImportFolderTree")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importSourceFolderTree\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importDestinationFolderTree\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importSourceFolders")));
+    EXPECT_TRUE(source.contains(QStringLiteral("importDestinationFolders")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportPreviewPolicy")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportFilenameTemplate")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportSecondCopyDestination")));

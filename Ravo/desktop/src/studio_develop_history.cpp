@@ -296,13 +296,10 @@ DevelopParams develop_from_history_json(const std::string &recipe_json)
 
 DevelopParams StudioPresenter::baseline_develop() const
 {
-    DevelopParams params;
     const auto asset = assets_.assetById(selected_asset_id_);
-    if (asset)
-    {
-        params.sigmoid_enabled = is_raw_media_type(asset->media_type);
-    }
-    return params;
+    if (asset && is_raw_media_type(asset->media_type))
+        return develop_raw_import_baseline();
+    return {};
 }
 
 QVariantList StudioPresenter::modifiedParameterChoices() const

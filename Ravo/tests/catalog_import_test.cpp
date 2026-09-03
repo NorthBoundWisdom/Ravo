@@ -1331,6 +1331,7 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     EXPECT_TRUE(develop.value().sigmoid_enabled);
+    EXPECT_NEAR(develop.value().sharpen, SharpenParams{}.amount, 1e-9);
 
     PreviewRequest browse;
     browse.asset_id = raw_id;

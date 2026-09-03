@@ -26,6 +26,7 @@
 #include <QVariantMap>
 
 #include "ravo/desktop/asset_list_model.h"
+#include "ravo/desktop/filesystem_browser_model.h"
 #include "ravo/desktop/folder_list_model.h"
 #include "ravo/desktop/library_set_list_model.h"
 #include "ravo/desktop/import_candidate_list_model.h"
@@ -296,6 +297,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString importPreviewPolicy READ importPreviewPolicy NOTIFY importPageChanged)
     Q_PROPERTY(bool importRecursive READ importRecursive NOTIFY importPageChanged)
     Q_PROPERTY(ImportCandidateListModel *importCandidates READ importCandidates CONSTANT)
+    Q_PROPERTY(FilesystemBrowserModel *importSourceFolders READ importSourceFolders CONSTANT)
+    Q_PROPERTY(FilesystemBrowserModel *importDestinationFolders READ importDestinationFolders CONSTANT)
 
 public:
     explicit StudioPresenter(QObject *parent = nullptr);
@@ -336,6 +339,8 @@ public:
     [[nodiscard]] QString importPreviewPolicy() const;
     [[nodiscard]] bool importRecursive() const noexcept;
     [[nodiscard]] ImportCandidateListModel *importCandidates() noexcept;
+    [[nodiscard]] FilesystemBrowserModel *importSourceFolders() noexcept;
+    [[nodiscard]] FilesystemBrowserModel *importDestinationFolders() noexcept;
     [[nodiscard]] bool busy() const noexcept;
     [[nodiscard]] QString statusText() const;
     [[nodiscard]] QString errorText() const;
@@ -768,6 +773,8 @@ private:
     void beginImportGalleryPlaceholders(const std::vector<std::string> &paths);
     void publishImportItem(const ImportItemResult &item, int row);
     void startNextImportItem();
+    void requestFilesystemListing(FilesystemBrowserModel *browser, const QString &path,
+                                  quint64 generation);
     void finishImportBatch();
     void setCatalogOperation(QString stage, int completed, int total, bool active);
     void startPreviewRebuild(std::vector<std::string> asset_ids, std::size_t expected_total);
@@ -879,6 +886,8 @@ private:
     FolderListModel folders_;
     LibrarySetListModel library_sets_;
     ImportCandidateListModel import_candidates_;
+    FilesystemBrowserModel import_source_folders_;
+    FilesystemBrowserModel import_destination_folders_;
     LibraryQuery query_;
     QString catalog_path_;
     QVariantList develop_presets_;

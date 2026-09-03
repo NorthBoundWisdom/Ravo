@@ -63,7 +63,9 @@ photo: Ravo catalogs the RAW and uses the JPEG as the Gallery thumbnail.
 JPEG-only files still import as their own photos. **Add** records the existing
 paths. **Copy** and **Move** require an existing destination and can organize
 files into one folder, preserve the selected root hierarchy, or use
-`YYYY/MM/DD` directories.
+`YYYY/MM/DD` or `YYYY/MM` directories. The import workspace lists mounted
+folders as a tree so you can choose a source or destination without leaving
+the page.
 
 For a shoot ingest, Copy/Move can also use a rename template with only
 `{date}`, `{stem}`, `{sequence}`, and `{ext}`, and can select a distinct second
@@ -95,7 +97,8 @@ or an unsupported RAW sensor returns a structured unsupported or failed result.
 - Review state starts at rating `0`, no color label, and Keep/not rejected.
 - A baseline recipe is synthesized for the asset. RAW assets receive a colour
   calibration that later edits stack on: as-shot white balance, the camera
-  input matrix from the file, and Sigmoid Standard SDR. That is Ravo's default
+  input matrix from the file, Sigmoid Standard SDR, and a mild Lab unsharp
+  mask (amount 0.5, radius 2, threshold 0.5). That is Ravo's default
   camera profile analogue; Lightroom's Adobe Color / `.dcp` files are not
   included. DNG lens warp is not applied. A default raster asset has no visible
   edit.
@@ -113,6 +116,7 @@ or an unsupported RAW sensor returns a structured unsupported or failed result.
 ## Progress and results
 
 During a batch, the left panel can show separate Import and Previews progress.
+Click the **x** beside an active bar to cancel that work.
 The final Studio status has the form:
 
 ```text

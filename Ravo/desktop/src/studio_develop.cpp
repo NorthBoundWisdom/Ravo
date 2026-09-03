@@ -1047,6 +1047,14 @@ void StudioPresenter::setCropToolActive(const bool active)
     else
     {
         crop_guide_ready_ = false;
+        if (develop_ != saved_develop_)
+        {
+            DevelopParams pending = develop_;
+            if (mutate_develop(std::move(pending), DevelopEdit::Commit))
+            {
+                return;
+            }
+        }
     }
     emit editChanged();
     emit previewChanged();
@@ -1117,9 +1125,7 @@ void StudioPresenter::resetAllEdits()
 {
     crop_aspect_ = QStringLiteral("free");
     locked_crop_ratio_ = 0.0;
-    DevelopParams reset;
-    reset.sigmoid_enabled = develop_.sigmoid_enabled;
-    mutate_develop(std::move(reset), DevelopEdit::Commit);
+    mutate_develop(baseline_develop(), DevelopEdit::Commit);
 }
 
 void StudioPresenter::copyParametersSelected(const QVariantList &fields)

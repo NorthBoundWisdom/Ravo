@@ -23,9 +23,11 @@ sorted insertion also made Gallery unstable during a batch.
   distinct from the import checkbox: Command/Control multi-selects, Shift
   selects a range, Command/Control+A selects all, and checking one highlighted
   cell applies that check state to every highlighted eligible photo.
-- A typed request chooses Add, Copy, or Move; single-folder, preserved-root, or
-  `YYYY/MM/DD` organization; and Minimal 320, Standard 1600, or full-size 1:1
-  previews. Session defaults are Add, recursive, Standard, and single-folder.
+- A typed request chooses Add, Copy, or Move; single-folder, preserved-root,
+  `YYYY/MM/DD`, or `YYYY/MM` organization; and Minimal 320, Standard 1600, or
+  full-size 1:1 previews. Session defaults are Add, recursive, Standard, and
+  single-folder. Studio shows mounted-folder trees for source and Copy/Move
+  destination; QML only displays the C++ browser model.
 - Copy and Move require an existing destination root and preserve names. The
   complete media, same-stem XMP, and same-stem JPEG companion output set is
   preflighted before mutation. Existing outputs, symlinks, duplicate paths,

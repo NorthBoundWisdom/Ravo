@@ -74,7 +74,7 @@ Rectangle {
             spacing: 0
 
             Rectangle {
-                Layout.preferredWidth: 260
+                Layout.preferredWidth: 280
                 Layout.fillHeight: true
                 color: Theme.railSurfaceColor
                 border.color: Theme.dividerColor
@@ -86,17 +86,21 @@ Rectangle {
                         text: qsTr("Source")
                         font.bold: true
                     }
+                    ImportFolderTree {
+                        objectName: "importSourceFolderTree"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        folderModel: root.presenter.importSourceFolders
+                        enabled: !root.presenter.importWorkActive
+                        onFolderChosen: function (path) {
+                            root.presenter.setImportSourceRoot(path);
+                        }
+                    }
                     CustomButton {
                         Layout.fillWidth: true
                         text: qsTr("Choose Source…")
                         enabled: !root.presenter.importWorkActive
                         onClicked: root.chooseSourceRequested()
-                    }
-                    CustomLabel {
-                        Layout.fillWidth: true
-                        text: root.presenter.importSourceRoot.length ? root.presenter.importSourceRoot : qsTr("No source selected")
-                        wrapMode: Text.WrapAnywhere
-                        color: Theme.placeholderTextColor
                     }
                     CustomCheckBox {
                         text: qsTr("Include subfolders")
@@ -110,6 +114,8 @@ Rectangle {
                         color: Theme.dividerColor
                     }
                     CustomLabel {
+                        Layout.fillWidth: true
+                        elide: Text.ElideMiddle
                         text: qsTr("Selected: %1 of %2").arg(root.presenter.importCandidates.selectedCount).arg(root.presenter.importCandidates.rowCount())
                     }
                     RowLayout {
@@ -124,9 +130,6 @@ Rectangle {
                             text: qsTr("Uncheck All")
                             onClicked: root.presenter.importCandidates.setAllSelected(false)
                         }
-                    }
-                    Item {
-                        Layout.fillHeight: true
                     }
                 }
             }
@@ -310,23 +313,16 @@ Rectangle {
                         onClicked: root.chooseDestinationRequested()
                     }
                     CustomLabel {
-                        Layout.fillWidth: true
-                        visible: root.presenter.importMode !== "add"
-                        text: root.presenter.importDestination.length ? root.presenter.importDestination : qsTr("No destination selected")
-                        wrapMode: Text.WrapAnywhere
-                        color: Theme.placeholderTextColor
-                    }
-                    CustomLabel {
                         text: qsTr("Organize")
                         visible: root.presenter.importMode !== "add"
                     }
                     CustomComboBox {
                         Layout.fillWidth: true
                         visible: root.presenter.importMode !== "add"
-                        model: [qsTr("Into one folder"), qsTr("Preserve hierarchy"), qsTr("By date (YYYY/MM/DD)")]
-                        currentIndex: root.presenter.importOrganization === "hierarchy" ? 1 : root.presenter.importOrganization === "date" ? 2 : 0
+                        model: [qsTr("Into one folder"), qsTr("Preserve hierarchy"), qsTr("By date (YYYY/MM/DD)"), qsTr("By month (YYYY/MM)")]
+                        currentIndex: root.presenter.importOrganization === "hierarchy" ? 1 : root.presenter.importOrganization === "date" ? 2 : root.presenter.importOrganization === "month" ? 3 : 0
                         onActivated: function (index) {
-                            root.presenter.setImportOrganization(["single", "hierarchy", "date"][index]);
+                            root.presenter.setImportOrganization(["single", "hierarchy", "date", "month"][index]);
                         }
                     }
                     CustomLabel {
@@ -388,8 +384,20 @@ Rectangle {
                         wrapMode: Text.WordWrap
                         color: Theme.warningColor
                     }
+                    ImportFolderTree {
+                        objectName: "importDestinationFolderTree"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: root.presenter.importMode !== "add"
+                        Layout.minimumHeight: root.presenter.importMode !== "add" ? 120 : 0
+                        visible: root.presenter.importMode !== "add"
+                        folderModel: root.presenter.importDestinationFolders
+                        enabled: !root.presenter.importWorkActive
+                        onFolderChosen: function (path) {
+                            root.presenter.setImportDestination(path);
+                        }
+                    }
                     Item {
-                        Layout.fillHeight: true
+                        Layout.fillHeight: root.presenter.importMode === "add"
                     }
                 }
             }

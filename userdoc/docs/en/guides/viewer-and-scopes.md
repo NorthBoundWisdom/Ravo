@@ -26,6 +26,7 @@ scope presenter contracts.
 - Its sequence number in the current visible order.
 - The media type and dimensions when available.
 - Rating stars, a color-label dot, a reject flag, and an edited indicator.
+  Rejected photos grey and dim the thumbnail itself.
 
 Use the **Size** slider in the Gallery review bar to change thumbnail size. The
 current range is 120–320 for the grid control. Select a tile to make it active;
