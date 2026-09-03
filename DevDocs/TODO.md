@@ -157,11 +157,15 @@ ships.
 
 ## PRO-METADATA — Hierarchical keywords and delivery metadata
 
+**Status:** P2 / Decision required — ADR-0119 is a Proposed stub for hierarchical
+keywords only. IPTC subset, location, and facets remain undecided.
+
 **Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
 and camera/lens/date facets with transactional multi-selection editing.
 
-**Dependencies:** schema/migration ADR; export embed/omit policy; LibraryQuery and
-index plan; privacy rules for location and people data.
+**Dependencies:** finish and accept ADR-0119 (merge matrix, ID/rename,
+LibraryQuery, export embed/omit); schema/migration ADR; privacy rules for
+location and people data.
 
 **Risks:** two live metadata authorities, refresh clobbering catalog-only values,
 QML-built SQL, hierarchy rename losing membership, and privacy stripping that
