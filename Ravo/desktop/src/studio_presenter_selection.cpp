@@ -338,7 +338,8 @@ void StudioPresenter::createAssetVersion()
                     selected_ids_.insert(created.value().version.id);
                     selected_asset_id_ = version_id;
                     selection_anchor_id_ = version_id;
-                    setStatus(QCoreApplication::translate("StudioPresenter", "Virtual copy created."));
+                    setStatus(
+                        QCoreApplication::translate("StudioPresenter", "Virtual copy created."));
                     reloadVisibleAssets();
                 },
                 Qt::QueuedConnection);
@@ -352,7 +353,8 @@ void StudioPresenter::stackSelection()
     const auto ids = selected_asset_ids();
     if (ids.size() < 2)
         return;
-    const auto pick = selected_asset_id_.isEmpty() ? ids.front() : utf8_from_qstring(selected_asset_id_);
+    const auto pick =
+        selected_asset_id_.isEmpty() ? ids.front() : utf8_from_qstring(selected_asset_id_);
     const auto revision = observed_catalog_revision_;
     executor_.post(
         [this, ids, pick, revision]()
@@ -438,7 +440,8 @@ void StudioPresenter::setSelectedStackPick()
                         return;
                     }
                     observed_catalog_revision_ = mutated.value().revision;
-                    setStatus(QCoreApplication::translate("StudioPresenter", "Stack pick updated."));
+                    setStatus(
+                        QCoreApplication::translate("StudioPresenter", "Stack pick updated."));
                     reloadVisibleAssets();
                 },
                 Qt::QueuedConnection);
@@ -618,9 +621,56 @@ void StudioPresenter::setAssetTags(const QString &text)
         setError(qstring_from_utf8(parsed.error().message));
         return;
     }
+    if (selected_ids_.empty() || catalog_path_.isEmpty())
+    {
+        return;
+    }
     const auto tags = parsed.value();
-    mutate_selected_review([tags](CatalogService &service, const std::string_view asset_id)
-                           { return service.set_tags(asset_id, tags); });
+    const auto ids = selected_asset_ids();
+    executor_.post(
+        [this, tags, ids]()
+        {
+            TaskError error = make_error(ErrorCode::kIo, "Catalog session is closed");
+            std::vector<AssetRecord> updated;
+            bool ok = false;
+            if (service_ != nullptr)
+            {
+                std::optional<std::int64_t> revision;
+                auto snapshot = service_->snapshot();
+                if (snapshot)
+                    revision = snapshot.value().revision;
+                auto mutated = service_->set_tags_selection(ids, tags, revision);
+                if (!mutated)
+                {
+                    error = mutated.error();
+                }
+                else
+                {
+                    ok = true;
+                    updated = std::move(mutated).value().assets;
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, ok, error = std::move(error), updated = std::move(updated)]() mutable
+                {
+                    if (!ok)
+                    {
+                        setError(qstring_from_utf8(error.message));
+                        return;
+                    }
+                    for (const auto &asset : updated)
+                    {
+                        assets_.updateAsset(asset);
+                    }
+                    emit selectionChanged();
+                    if (filtersActive())
+                    {
+                        reloadVisibleAssets();
+                    }
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::setMetadataField(const QString &name, const QString &value)
@@ -1140,10 +1190,11 @@ void StudioPresenter::removeFolderFromCatalog(const QString &folder_uri)
                     {
                         selectAsset(assets_.assetIdAt(0));
                     }
-                    setStatus(QCoreApplication::translate(
-                                  "StudioPresenter",
-                                  "Removed %1 photos from catalog. Original files were not deleted.")
-                                  .arg(removed.value().asset_count));
+                    setStatus(
+                        QCoreApplication::translate(
+                            "StudioPresenter",
+                            "Removed %1 photos from catalog. Original files were not deleted.")
+                            .arg(removed.value().asset_count));
                 },
                 Qt::QueuedConnection);
         });
@@ -1187,8 +1238,7 @@ void StudioPresenter::remove_selected_from_catalog()
             QMetaObject::invokeMethod(
                 this,
                 [this, removed = std::move(removed), listed = std::move(listed),
-                 folders = std::move(folders), sets = std::move(sets), keep_index,
-                 count]() mutable
+                 folders = std::move(folders), sets = std::move(sets), keep_index, count]() mutable
                 {
                     if (!removed)
                     {
@@ -1282,8 +1332,7 @@ void StudioPresenter::remove_selected_from_disk()
             QMetaObject::invokeMethod(
                 this,
                 [this, removed = std::move(removed), listed = std::move(listed),
-                 folders = std::move(folders), sets = std::move(sets), keep_index,
-                 count]() mutable
+                 folders = std::move(folders), sets = std::move(sets), keep_index, count]() mutable
                 {
                     if (!removed)
                     {

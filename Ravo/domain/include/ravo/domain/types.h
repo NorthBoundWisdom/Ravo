@@ -16,7 +16,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 11;
+inline constexpr std::int64_t kCatalogSchemaVersion = 12;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 1;
@@ -46,6 +46,11 @@ struct RecipeCommitResult
 };
 
 inline constexpr std::size_t kTagMaxLength = 128;
+inline constexpr std::size_t kKeywordMaximumDepth = 16;
+inline constexpr std::size_t kKeywordMaximumCount = 50'000U;
+inline constexpr std::size_t kKeywordPathMaxLength = 512;
+inline constexpr char kKeywordPathSeparator = '|';
+
 inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
 inline constexpr std::int64_t kPreviewContractVersion = 10;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
@@ -563,6 +568,25 @@ struct CatalogSnapshot
     std::int64_t revision = 0;
 };
 
+struct KeywordRecord
+{
+    std::string id;
+    std::optional<std::string> parent_id;
+    std::string name;
+    std::string path;
+    int depth = 0;
+    std::int64_t created_unix_ms = 0;
+    std::int64_t updated_unix_ms = 0;
+
+    [[nodiscard]] bool operator==(const KeywordRecord &) const noexcept = default;
+};
+
+struct KeywordMutation
+{
+    KeywordRecord keyword;
+    std::int64_t revision = 0;
+};
+
 struct AssetRecord
 {
     std::string id;
@@ -593,6 +617,12 @@ struct AssetRecord
 struct AssetVersionMutation
 {
     AssetRecord version;
+    std::int64_t revision = 0;
+};
+
+struct KeywordMembershipMutation
+{
+    std::vector<AssetRecord> assets;
     std::int64_t revision = 0;
 };
 
@@ -1003,6 +1033,11 @@ struct FileIdentity
 [[nodiscard]] std::string generate_folder_id();
 [[nodiscard]] std::string generate_library_set_id();
 [[nodiscard]] std::string generate_library_stack_id();
+[[nodiscard]] std::string generate_keyword_id();
+[[nodiscard]] Result<std::string> normalize_keyword_name(std::string_view name);
+[[nodiscard]] Result<std::vector<std::string>> parse_keyword_path(std::string_view path);
+[[nodiscard]] Result<std::string> join_keyword_path(const std::vector<std::string> &segments);
+
 [[nodiscard]] std::string_view catalog_restore_stage_name(CatalogRestoreStage stage) noexcept;
 [[nodiscard]] std::string make_content_fingerprint(const FileIdentity &identity);
 [[nodiscard]] std::string make_preview_cache_key(std::string_view asset_id, std::uint32_t width,

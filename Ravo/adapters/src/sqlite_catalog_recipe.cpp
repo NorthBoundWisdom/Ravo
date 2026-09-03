@@ -234,46 +234,6 @@ Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
     return RecipeCommitResult{revision, committed_history_id};
 }
 
-Result<void> SqliteCatalogRepository::replace_asset_tags(const std::string_view asset_id,
-                                                         const std::vector<std::string> &tags)
-{
-    if (impl_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog repository is closed");
-    }
-    if (!impl_->database.transaction())
-    {
-        return make_error(ErrorCode::kIo, "Unable to start tag replacement transaction",
-                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
-    }
-    QSqlQuery clear(impl_->database);
-    clear.prepare(QStringLiteral("DELETE FROM asset_tag WHERE asset_id = ?"));
-    clear.addBindValue(qstring_from_utf8(asset_id));
-    if (!clear.exec())
-    {
-        return impl_->abort_transaction(map_sql_error(clear, "clear_asset_tags"));
-    }
-    QSqlQuery insert(impl_->database);
-    insert.prepare(QStringLiteral("INSERT INTO asset_tag(asset_id, name) VALUES (?, ?)"));
-    for (const auto &tag : tags)
-    {
-        insert.addBindValue(qstring_from_utf8(asset_id));
-        insert.addBindValue(qstring_from_utf8(tag));
-        if (!insert.exec())
-        {
-            return impl_->abort_transaction(map_sql_error(insert, "insert_asset_tag"));
-        }
-        insert.finish();
-    }
-    if (!impl_->database.commit())
-    {
-        return impl_->abort_transaction(
-            make_error(ErrorCode::kIo, "Unable to commit tag replacement",
-                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
-    }
-    return {};
-}
-
 Result<void> SqliteCatalogRepository::upsert_writable_metadata(const std::string_view asset_id,
                                                                const WritableMetadata &metadata)
 {

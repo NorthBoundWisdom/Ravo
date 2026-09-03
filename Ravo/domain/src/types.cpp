@@ -181,6 +181,11 @@ std::string generate_library_stack_id()
     return random_hex_id("stk_");
 }
 
+std::string generate_keyword_id()
+{
+    return random_hex_id("kwd_");
+}
+
 std::string make_content_fingerprint(const FileIdentity &identity)
 {
     return std::to_string(identity.size_bytes) + "-" + std::to_string(identity.mtime_unix_ms);

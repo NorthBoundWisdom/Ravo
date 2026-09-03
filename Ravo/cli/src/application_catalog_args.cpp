@@ -158,6 +158,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.stack_expanded = true;
             continue;
         }
+        if (option == "--recursive")
+        {
+            if (result.keyword_recursive)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--recursive can only be specified once");
+            result.keyword_recursive = true;
+            continue;
+        }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {
             return make_error(ErrorCode::kInvalidArgument, "Catalog option requires a value",
@@ -559,6 +567,18 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "Replacement folder was specified twice");
             result.replacement_directory = value;
+        }
+        else if (option == "--keyword-id")
+        {
+            result.keyword_id = value;
+        }
+        else if (option == "--keyword-name")
+        {
+            result.keyword_name = value;
+        }
+        else if (option == "--parent-id")
+        {
+            result.parent_id = value;
         }
         else if (option == "--set-id")
         {

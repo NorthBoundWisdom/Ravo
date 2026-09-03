@@ -26,6 +26,7 @@ target_sources(ravo_adapters
     src/sqlite_catalog_assets.cpp
     src/sqlite_catalog_internal.cpp
     src/sqlite_catalog_library.cpp
+    src/sqlite_catalog_keywords.cpp
     src/sqlite_catalog_recipe.cpp
     src/sqlite_catalog_recovery.cpp
     src/tiff_encoder.cpp

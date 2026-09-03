@@ -1227,51 +1227,17 @@ Result<AssetRecord> CatalogService::reset_recipe(const std::string_view asset_id
 Result<AssetRecord> CatalogService::set_tags(const std::string_view asset_id,
                                              const std::vector<std::string> &tags)
 {
-    if (repository_ == nullptr)
+    auto mutated = set_tags_selection({std::string(asset_id)}, tags, std::nullopt);
+    if (!mutated)
     {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
+        return mutated.error();
     }
-    std::vector<std::string> normalized;
-    normalized.reserve(tags.size());
-    for (const auto &tag : tags)
-    {
-        auto parsed = normalize_tag_name(tag);
-        if (!parsed)
-        {
-            return parsed.error();
-        }
-        if (std::find(normalized.begin(), normalized.end(), parsed.value()) == normalized.end())
-        {
-            normalized.push_back(std::move(parsed).value());
-        }
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
+    if (mutated.value().assets.empty())
     {
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", std::string(asset_id)}});
     }
-    const auto saved = repository_->replace_asset_tags(asset_id, normalized);
-    if (!saved)
-    {
-        return saved.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    asset.value()->tags = std::move(normalized);
-    auto recovered = synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
+    return mutated.value().assets.front();
 }
 
 Result<AssetRecord> CatalogService::set_writable_metadata(const std::string_view asset_id,

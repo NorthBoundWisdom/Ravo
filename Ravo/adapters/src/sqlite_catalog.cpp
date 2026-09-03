@@ -201,6 +201,27 @@ constexpr const char *kSchemaV11Statements[] = {
     "CREATE INDEX IF NOT EXISTS library_stack_pick_idx ON library_stack(pick_asset_id)",
 };
 
+constexpr const char *kSchemaV12Statements[] = {
+    "CREATE TABLE IF NOT EXISTS keyword ("
+    "  id TEXT PRIMARY KEY,"
+    "  parent_id TEXT REFERENCES keyword(id) ON DELETE CASCADE,"
+    "  name TEXT NOT NULL,"
+    "  path TEXT NOT NULL UNIQUE,"
+    "  depth INTEGER NOT NULL,"
+    "  created_unix_ms INTEGER NOT NULL,"
+    "  updated_unix_ms INTEGER NOT NULL,"
+    "  CHECK(depth >= 0),"
+    "  UNIQUE(parent_id, name)"
+    ")",
+    "CREATE INDEX IF NOT EXISTS keyword_parent_idx ON keyword(parent_id, name)",
+    "CREATE TABLE IF NOT EXISTS asset_keyword ("
+    "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+    "  keyword_id TEXT NOT NULL REFERENCES keyword(id) ON DELETE CASCADE,"
+    "  PRIMARY KEY (asset_id, keyword_id)"
+    ")",
+    "CREATE INDEX IF NOT EXISTS asset_keyword_keyword_idx ON asset_keyword(keyword_id, asset_id)",
+};
+
 constexpr const char *kSchemaV4Statements[] = {
     "CREATE TABLE asset_tag ("
     "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
@@ -478,6 +499,13 @@ SqliteCatalogRepository::create(const std::string_view database_path)
     for (const char *statement : kSchemaV11Statements)
     {
         const auto created = impl->exec(QString::fromUtf8(statement), "create_library_stack");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
+
+    for (const char *statement : kSchemaV12Statements)
+    {
+        const auto created = impl->exec(QString::fromUtf8(statement), "create_keyword_tables");
         if (!created)
             return impl->abort_transaction(created.error());
     }
@@ -893,6 +921,63 @@ SqliteCatalogRepository::open(const std::string_view database_path)
             }
             version = 11;
         }
+
+        if (version == 11)
+        {
+            for (const char *sql : kSchemaV12Statements)
+            {
+                const auto created =
+                    impl->exec(QString::fromUtf8(sql), "migrate_v12_keyword_tables");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            // Synthetic pre-v4 fixtures used by migration tests may omit asset_tag.
+            auto ensure_tags = impl->exec(
+                QStringLiteral("CREATE TABLE IF NOT EXISTS asset_tag ("
+                               "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+                               "  name TEXT NOT NULL,"
+                               "  PRIMARY KEY (asset_id, name)"
+                               ")"),
+                "migrate_v12_ensure_asset_tag");
+            if (!ensure_tags)
+                return impl->abort_transaction(ensure_tags.error());
+            auto ensure_tag_index = impl->exec(
+                QStringLiteral(
+                    "CREATE INDEX IF NOT EXISTS asset_tag_name_idx ON asset_tag(name, asset_id)"),
+                "migrate_v12_ensure_asset_tag_index");
+            if (!ensure_tag_index)
+                return impl->abort_transaction(ensure_tag_index.error());
+            QSqlQuery distinct(impl->database);
+            if (!distinct.exec(QStringLiteral("SELECT DISTINCT name FROM asset_tag ORDER BY name")))
+                return impl->abort_transaction(map_sql_error(distinct, "migrate_v12_read_tags"));
+            const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::system_clock::now().time_since_epoch())
+                                 .count();
+            while (distinct.next())
+            {
+                const auto name = utf8_from_qstring(distinct.value(0).toString());
+                const auto id = generate_keyword_id();
+                QSqlQuery insert(impl->database);
+                insert.prepare(QStringLiteral(
+                    "INSERT INTO keyword(id, parent_id, name, path, depth, created_unix_ms, "
+                    "updated_unix_ms) VALUES (?, NULL, ?, ?, 0, ?, ?)"));
+                insert.addBindValue(qstring_from_utf8(id));
+                insert.addBindValue(qstring_from_utf8(name));
+                insert.addBindValue(qstring_from_utf8(name));
+                insert.addBindValue(static_cast<qlonglong>(now));
+                insert.addBindValue(static_cast<qlonglong>(now));
+                if (!insert.exec())
+                    return impl->abort_transaction(
+                        map_sql_error(insert, "migrate_v12_insert_keyword"));
+            }
+            QSqlQuery link(impl->database);
+            if (!link.exec(QStringLiteral("INSERT INTO asset_keyword(asset_id, keyword_id) "
+                                          "SELECT t.asset_id, k.id FROM asset_tag t "
+                                          "INNER JOIN keyword k ON k.path = t.name")))
+                return impl->abort_transaction(map_sql_error(link, "migrate_v12_link_keywords"));
+            version = 12;
+        }
+
         if (version != kCatalogSchemaVersion)
         {
             return impl->abort_transaction(

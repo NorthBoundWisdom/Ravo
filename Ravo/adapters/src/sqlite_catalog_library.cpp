@@ -652,6 +652,14 @@ SqliteCatalogRepository::create_asset_version(const std::string_view source_asse
     insert.addBindValue(qstring_from_utf8(source_asset_id));
     if (!insert.exec())
         return impl_->abort_transaction(map_sql_error(insert, "insert_asset_version"));
+    QSqlQuery copy_keywords(impl_->database);
+    copy_keywords.prepare(
+        QStringLiteral("INSERT INTO asset_keyword(asset_id, keyword_id) "
+                       "SELECT ?, keyword_id FROM asset_keyword WHERE asset_id = ?"));
+    copy_keywords.addBindValue(qstring_from_utf8(version_id));
+    copy_keywords.addBindValue(qstring_from_utf8(source_asset_id));
+    if (!copy_keywords.exec())
+        return impl_->abort_transaction(map_sql_error(copy_keywords, "copy_version_keywords"));
     QSqlQuery copy_tags(impl_->database);
     copy_tags.prepare(QStringLiteral(
         "INSERT INTO asset_tag(asset_id, name) SELECT ?, name FROM asset_tag WHERE asset_id = ?"));

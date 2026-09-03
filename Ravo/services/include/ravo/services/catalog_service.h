@@ -222,6 +222,24 @@ public:
     [[nodiscard]] Result<AssetRecord> reset_recipe(std::string_view asset_id);
     [[nodiscard]] Result<AssetRecord> set_tags(std::string_view asset_id,
                                                const std::vector<std::string> &tags);
+    [[nodiscard]] Result<KeywordMembershipMutation>
+    set_tags_selection(const std::vector<std::string> &asset_ids,
+                       const std::vector<std::string> &tags,
+                       std::optional<std::int64_t> expected_revision = std::nullopt);
+    [[nodiscard]] Result<std::vector<KeywordRecord>> list_keywords() const;
+    [[nodiscard]] Result<KeywordMutation>
+    create_keyword(std::string_view name, std::optional<std::string_view> parent_id = std::nullopt,
+                   std::optional<std::int64_t> expected_revision = std::nullopt);
+    [[nodiscard]] Result<KeywordMutation>
+    rename_keyword(std::string_view keyword_id, std::string_view name,
+                   std::optional<std::int64_t> expected_revision = std::nullopt);
+    [[nodiscard]] Result<KeywordMutation>
+    move_keyword(std::string_view keyword_id,
+                 std::optional<std::string_view> parent_id = std::nullopt,
+                 std::optional<std::int64_t> expected_revision = std::nullopt);
+    [[nodiscard]] Result<std::int64_t>
+    delete_keyword(std::string_view keyword_id, bool recursive = false,
+                   std::optional<std::int64_t> expected_revision = std::nullopt);
     [[nodiscard]] Result<AssetRecord> set_writable_metadata(std::string_view asset_id,
                                                             const WritableMetadata &metadata);
     [[nodiscard]] Result<std::vector<RecipeHistoryEntry>>

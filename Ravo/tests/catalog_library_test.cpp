@@ -826,9 +826,9 @@ TEST_F(CatalogServiceTest, RemoveFolderFromCatalogKeepsOriginalsAndRejectsAllPho
 
     auto folders = service->list_folders();
     ASSERT_TRUE(folders) << folders.error().message;
-    const auto found = std::find_if(folders.value().begin(), folders.value().end(),
-                                    [](const FolderRecord &item)
-                                    { return item.display_name == "folder-remove-root"; });
+    const auto found =
+        std::find_if(folders.value().begin(), folders.value().end(), [](const FolderRecord &item)
+                     { return item.display_name == "folder-remove-root"; });
     ASSERT_NE(found, folders.value().end());
     ASSERT_FALSE(found->uri.empty());
 
@@ -1258,8 +1258,10 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     auto tagged = service->set_tags(asset_id, {"landscape", "  landscape  ", "archive"});
     ASSERT_TRUE(tagged) << tagged.error().message;
     ASSERT_EQ(tagged.value().tags.size(), 2U);
-    EXPECT_EQ(tagged.value().tags.front(), "landscape");
-    EXPECT_EQ(tagged.value().tags.back(), "archive");
+    EXPECT_NE(std::find(tagged.value().tags.begin(), tagged.value().tags.end(), "landscape"),
+              tagged.value().tags.end());
+    EXPECT_NE(std::find(tagged.value().tags.begin(), tagged.value().tags.end(), "archive"),
+              tagged.value().tags.end());
 
     WritableMetadata metadata;
     metadata.title = "Title";
@@ -1318,6 +1320,116 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     ASSERT_TRUE(develop) << develop.error().message;
     EXPECT_NEAR(develop.value().exposure_ev, 0.4, 1e-6);
     EXPECT_NEAR(develop.value().graduated_density, 0.6, 1e-6);
+}
+
+TEST_F(CatalogServiceTest, HierarchicalKeywordsSurviveReopenBackupAndRename)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto photo_a = root / "keyword-a.jpg";
+    const auto photo_b = root / "keyword-b.jpg";
+    for (const auto &photo : {photo_a, photo_b})
+    {
+        QImage image(24, 18, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(40, 90, 130));
+        ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    }
+    auto imported_a = service->import_one(photo_a.string(), CancellationToken{});
+    auto imported_b = service->import_one(photo_b.string(), CancellationToken{});
+    ASSERT_TRUE(imported_a) << imported_a.error().message;
+    ASSERT_TRUE(imported_b) << imported_b.error().message;
+    ASSERT_TRUE(imported_a.value().asset);
+    ASSERT_TRUE(imported_b.value().asset);
+    const auto id_a = imported_a.value().asset->id;
+    const auto id_b = imported_b.value().asset->id;
+
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
+
+    auto tagged = service->set_tags_selection({id_a, id_b}, {"Nature|Birds", "Archive"},
+                                              snapshot.value().revision);
+    ASSERT_TRUE(tagged) << tagged.error().message;
+    ASSERT_EQ(tagged.value().assets.size(), 2U);
+    for (const auto &asset : tagged.value().assets)
+    {
+        ASSERT_EQ(asset.tags.size(), 2U);
+        EXPECT_NE(std::find(asset.tags.begin(), asset.tags.end(), "Nature|Birds"),
+                  asset.tags.end());
+        EXPECT_NE(std::find(asset.tags.begin(), asset.tags.end(), "Archive"), asset.tags.end());
+    }
+
+    auto stale = service->set_tags_selection({id_a}, {"Stale"}, snapshot.value().revision);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+
+    auto keywords = service->list_keywords();
+    ASSERT_TRUE(keywords) << keywords.error().message;
+    ASSERT_GE(keywords.value().size(), 3U);
+    const KeywordRecord *birds = nullptr;
+    for (const auto &keyword : keywords.value())
+    {
+        if (keyword.path == "Nature|Birds")
+            birds = &keyword;
+    }
+    ASSERT_NE(birds, nullptr);
+
+    auto renamed = service->rename_keyword(birds->id, "Avian");
+    ASSERT_TRUE(renamed) << renamed.error().message;
+    EXPECT_EQ(renamed.value().keyword.path, "Nature|Avian");
+
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    for (const auto &asset : listed.value())
+    {
+        if (asset.id != id_a && asset.id != id_b)
+            continue;
+        ASSERT_EQ(asset.tags.size(), 2U);
+        const bool has_archive =
+            std::find(asset.tags.begin(), asset.tags.end(), "Archive") != asset.tags.end();
+        const bool has_avian =
+            std::find(asset.tags.begin(), asset.tags.end(), "Nature|Avian") != asset.tags.end();
+        EXPECT_TRUE(has_archive);
+        EXPECT_TRUE(has_avian);
+    }
+
+    LibraryQuery query;
+    query.tag = "Nature|Avian";
+    auto filtered = service->list_assets(query);
+    ASSERT_TRUE(filtered) << filtered.error().message;
+    EXPECT_EQ(filtered.value().size(), 2U);
+
+    const auto backup_dir = root / "keyword-backup";
+    auto backup = service->create_backup(backup_dir.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto reopened_snapshot = service->snapshot();
+    ASSERT_TRUE(reopened_snapshot) << reopened_snapshot.error().message;
+    EXPECT_EQ(reopened_snapshot.value().schema_version, kCatalogSchemaVersion);
+    auto reopened_keywords = service->list_keywords();
+    ASSERT_TRUE(reopened_keywords) << reopened_keywords.error().message;
+    bool found_avian = false;
+    for (const auto &keyword : reopened_keywords.value())
+        found_avian = found_avian || keyword.path == "Nature|Avian";
+    EXPECT_TRUE(found_avian);
+    auto reopened_assets = service->list_assets();
+    ASSERT_TRUE(reopened_assets);
+    std::size_t matched = 0;
+    for (const auto &asset : reopened_assets.value())
+    {
+        if (asset.id == id_a || asset.id == id_b)
+        {
+            ++matched;
+            EXPECT_NE(std::find(asset.tags.begin(), asset.tags.end(), "Nature|Avian"),
+                      asset.tags.end());
+        }
+    }
+    EXPECT_EQ(matched, 2U);
 }
 
 } // namespace

@@ -157,19 +157,31 @@ ships.
 
 ## PRO-METADATA — Hierarchical keywords and delivery metadata
 
-**Status:** P2 / Decision required — ADR-0119 is a Proposed stub for hierarchical
-keywords only. IPTC subset, location, and facets remain undecided.
+**Status:** P1 / Partial — ADR-0119 accepted and implemented for hierarchical
+keywords (schema v12 vocabulary + membership, CLI/service APIs, Studio path
+entry, revision-checked multi-select). IPTC subset, location, and facets remain
+undecided.
 
 **Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
 and camera/lens/date facets with transactional multi-selection editing.
 
-**Dependencies:** finish and accept ADR-0119 (merge matrix, ID/rename,
-LibraryQuery, export embed/omit); schema/migration ADR; privacy rules for
-location and people data.
+**Done in this tranche:**
+- catalog-owned single-parent keyword tree with stable IDs and `|` display paths;
+- `asset_keyword` membership plus denormalized `asset_tag` paths for LibraryQuery /
+  recovery / export;
+- CLI `keywords` / `keyword-create|rename|move|delete` and path-capable `tag`;
+- Studio Tags field accepts hierarchical paths; multi-select uses one revision-
+  checked CatalogService transaction;
+- create/reopen/migrate v12 and rename/membership survive reopen/backup checks.
 
-**Risks:** two live metadata authorities, refresh clobbering catalog-only values,
-QML-built SQL, hierarchy rename losing membership, and privacy stripping that
-does not match export.
+**Remaining unfinished work:**
+- IPTC Core/Ext field subset beyond keyword paths;
+- catalog-owned location tables and camera/lens/date facets;
+- adjacent XMP/source keyword merge matrix (PRO-INTERCHANGE).
+
+**Risks:** two live metadata authorities if interchange lands without a matrix,
+QML-built SQL, and privacy stripping that does not match export for future IPTC /
+location fields.
 
 **Acceptance gate:** hierarchy edits survive reopen/backup/restore, source refresh
 preserves catalog-only fields, bulk failure rolls back or reports exact partial
@@ -223,12 +235,16 @@ rewrite, and exact preset apply after reopen.
 
 ## PRO-INTERCHANGE — Explicit XMP, catalog conversion, and external editors
 
+**Status:** P2 / Decision required — ADR-0120 is a Proposed stub for the
+adjacent-XMP conflict matrix first slice. External-editor derived assets and
+foreign-catalog conversion remain undecided.
+
 **Outcome:** user-initiated interchange without adjacent XMP becoming a second
 live authority, plus external-editor output as a new derived asset/version.
 
-**Dependencies:** conflict matrix, supported source-version matrix, read-only
-conversion artifact, derived-asset lifecycle, and external process timeout/
-cancel policy.
+**Dependencies:** accept ADR-0120 (conflict tuples, fingerprints, command
+owners); supported source-version matrix; read-only conversion artifact;
+derived-asset lifecycle; external process timeout/cancel policy.
 
 **Risks:** in-place foreign-catalog migration, hidden external renderer, original
 RAW mutation, watcher races, and unsupported fields silently dropped.

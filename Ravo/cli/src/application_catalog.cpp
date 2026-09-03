@@ -143,6 +143,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                              subcommand == "set-rename" || subcommand == "set-delete" ||
                              subcommand == "set-add" || subcommand == "set-remove" ||
                              subcommand == "list";
+    const bool keyword_command = subcommand == "keywords" || subcommand == "keyword-create" ||
+                                 subcommand == "keyword-rename" || subcommand == "keyword-move" ||
+                                 subcommand == "keyword-delete" || subcommand == "tag";
     if (has_set_options && !set_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "Library set options are only valid for catalog set commands or list");
@@ -154,10 +157,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
     const bool develop_apply_command = subcommand == "develop-apply";
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
-        !develop_apply_command)
+        !develop_apply_command && !keyword_command)
         return make_error(ErrorCode::kInvalidArgument,
-                          "--revision is only valid for catalog set, version, stack, or "
-                          "develop-apply commands");
+                          "--revision is only valid for catalog set, version, stack, "
+                          "keyword, tag, or develop-apply commands");
     if (!flags.value().from_asset.empty() && !develop_apply_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--from-asset is only valid for catalog develop-apply");
@@ -1485,6 +1488,79 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }
         return asset_to_json(restored.value());
     }
+
+    if (subcommand == "keywords")
+    {
+        auto listed = service.list_keywords();
+        if (!listed)
+            return listed.error();
+        JsonValue::Array rows;
+        rows.reserve(listed.value().size());
+        for (const auto &keyword : listed.value())
+            rows.push_back(keyword_to_json(keyword));
+        return JsonValue{JsonValue::Object{{"keywords", std::move(rows)}}};
+    }
+    if (subcommand == "keyword-create")
+    {
+        const auto name = !flags.value().keyword_name.empty() ? flags.value().keyword_name :
+                                                                flags.value().set_name;
+        if (name.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog keyword-create requires --keyword-name or --name");
+        std::optional<std::string_view> parent;
+        if (!flags.value().parent_id.empty())
+            parent = flags.value().parent_id;
+        auto created = service.create_keyword(name, parent, flags.value().expected_revision);
+        if (!created)
+            return created.error();
+        return keyword_mutation_to_json(created.value());
+    }
+    if (subcommand == "keyword-rename")
+    {
+        if (flags.value().keyword_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog keyword-rename requires --keyword-id");
+        const auto name = !flags.value().keyword_name.empty() ? flags.value().keyword_name :
+                                                                flags.value().set_name;
+        if (name.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog keyword-rename requires --keyword-name or --name");
+        auto renamed =
+            service.rename_keyword(flags.value().keyword_id, name, flags.value().expected_revision);
+        if (!renamed)
+            return renamed.error();
+        return keyword_mutation_to_json(renamed.value());
+    }
+    if (subcommand == "keyword-move")
+    {
+        if (flags.value().keyword_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog keyword-move requires --keyword-id");
+        std::optional<std::string_view> parent;
+        if (!flags.value().parent_id.empty())
+            parent = flags.value().parent_id;
+        auto moved =
+            service.move_keyword(flags.value().keyword_id, parent, flags.value().expected_revision);
+        if (!moved)
+            return moved.error();
+        return keyword_mutation_to_json(moved.value());
+    }
+    if (subcommand == "keyword-delete")
+    {
+        if (flags.value().keyword_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog keyword-delete requires --keyword-id");
+        auto deleted =
+            service.delete_keyword(flags.value().keyword_id, flags.value().keyword_recursive,
+                                   flags.value().expected_revision);
+        if (!deleted)
+            return deleted.error();
+        return JsonValue{JsonValue::Object{
+            {"keyword_id", std::string(flags.value().keyword_id)},
+            {"revision", JsonValue::number(std::to_string(deleted.value()))},
+        }};
+    }
+
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog subcommand",
                       {{"subcommand", std::string(subcommand)}});
 }

@@ -359,6 +359,31 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     };
 }
 
+JsonValue keyword_to_json(const KeywordRecord &keyword)
+{
+    JsonValue::Object object{
+        {"id", keyword.id},
+        {"name", keyword.name},
+        {"path", keyword.path},
+        {"depth", JsonValue::number(std::to_string(keyword.depth))},
+        {"created_unix_ms", JsonValue::number(std::to_string(keyword.created_unix_ms))},
+        {"updated_unix_ms", JsonValue::number(std::to_string(keyword.updated_unix_ms))},
+    };
+    if (keyword.parent_id)
+        object.emplace("parent_id", *keyword.parent_id);
+    else
+        object.emplace("parent_id", nullptr);
+    return object;
+}
+
+JsonValue keyword_mutation_to_json(const KeywordMutation &mutation)
+{
+    return JsonValue::Object{
+        {"keyword", keyword_to_json(mutation.keyword)},
+        {"revision", JsonValue::number(std::to_string(mutation.revision))},
+    };
+}
+
 [[nodiscard]] JsonValue asset_version_mutation_to_json(const AssetVersionMutation &mutation)
 {
     return JsonValue::Object{

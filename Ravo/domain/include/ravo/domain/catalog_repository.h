@@ -128,6 +128,27 @@ public:
                   std::optional<std::int64_t> coalesce_history_id) = 0;
     [[nodiscard]] virtual Result<void> replace_asset_tags(std::string_view asset_id,
                                                           const std::vector<std::string> &tags) = 0;
+    [[nodiscard]] virtual Result<std::vector<KeywordRecord>> list_keywords() const = 0;
+    [[nodiscard]] virtual Result<std::optional<KeywordRecord>>
+    find_keyword_by_id(std::string_view keyword_id) const = 0;
+    [[nodiscard]] virtual Result<std::optional<KeywordRecord>>
+    find_keyword_by_path(std::string_view path) const = 0;
+    [[nodiscard]] virtual Result<KeywordMutation>
+    create_keyword(std::string_view name, std::optional<std::string_view> parent_id,
+                   std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<KeywordMutation>
+    rename_keyword(std::string_view keyword_id, std::string_view name,
+                   std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<KeywordMutation>
+    move_keyword(std::string_view keyword_id, std::optional<std::string_view> parent_id,
+                 std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<std::int64_t>
+    delete_keyword(std::string_view keyword_id, bool recursive,
+                   std::optional<std::int64_t> expected_revision) = 0;
+    [[nodiscard]] virtual Result<KeywordMembershipMutation>
+    replace_assets_tags(const std::vector<std::string> &asset_ids,
+                        const std::vector<std::string> &tag_paths,
+                        std::optional<std::int64_t> expected_revision) = 0;
     [[nodiscard]] virtual Result<void>
     upsert_writable_metadata(std::string_view asset_id, const WritableMetadata &metadata) = 0;
     [[nodiscard]] virtual Result<std::vector<RecipeHistoryEntry>>

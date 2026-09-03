@@ -88,6 +88,10 @@ struct CatalogCliArguments
     std::string_view folder_uri;
     std::string_view replacement_directory;
     std::string_view set_id;
+    std::string_view keyword_id;
+    std::string_view keyword_name;
+    std::string_view parent_id;
+    bool keyword_recursive = false;
     std::string_view set_name;
     std::string_view set_kind;
     std::string_view query_json;
@@ -132,6 +136,8 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] Result<JsonValue> library_set_to_json(const LibrarySetRecord &set);
 [[nodiscard]] Result<JsonValue> library_set_mutation_to_json(const LibrarySetMutation &mutation);
 [[nodiscard]] JsonValue library_stack_mutation_to_json(const LibraryStackMutation &mutation);
+[[nodiscard]] JsonValue keyword_to_json(const KeywordRecord &keyword);
+[[nodiscard]] JsonValue keyword_mutation_to_json(const KeywordMutation &mutation);
 [[nodiscard]] JsonValue asset_version_mutation_to_json(const AssetVersionMutation &mutation);
 [[nodiscard]] JsonValue folder_relink_to_json(const FolderRelinkResult &result);
 [[nodiscard]] Result<JsonValue> probe_statistics_json(const PreviewResult &preview);

@@ -425,6 +425,119 @@ Result<std::vector<std::string>> parse_tag_list(const std::string_view text)
     return tags;
 }
 
+Result<std::string> normalize_keyword_name(const std::string_view name)
+{
+    auto normalized = normalize_tag_name(name);
+    if (!normalized)
+    {
+        return normalized.error();
+    }
+    if (normalized.value().find(kKeywordPathSeparator) != std::string::npos)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Keyword name must not contain the path separator",
+                          {{"reason", "invalid_keyword_name_separator"},
+                           {"separator", std::string(1, kKeywordPathSeparator)}});
+    }
+    return normalized;
+}
+
+Result<std::vector<std::string>> parse_keyword_path(const std::string_view path)
+{
+    if (path.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Keyword path must not be empty",
+                          {{"reason", "empty_keyword_path"}});
+    }
+    if (path.size() > kKeywordPathMaxLength)
+    {
+        return make_error(ErrorCode::kValidation, "Keyword path exceeds the maximum length",
+                          {{"reason", "keyword_path_too_long"},
+                           {"max_length", std::to_string(kKeywordPathMaxLength)}});
+    }
+    std::vector<std::string> segments;
+    std::string current;
+    auto flush = [&]() -> Result<void>
+    {
+        if (current.empty())
+        {
+            return make_error(ErrorCode::kValidation, "Keyword path contains an empty segment",
+                              {{"reason", "empty_keyword_path_segment"}});
+        }
+        auto normalized = normalize_keyword_name(current);
+        current.clear();
+        if (!normalized)
+        {
+            return normalized.error();
+        }
+        segments.push_back(std::move(normalized).value());
+        return {};
+    };
+    for (const char ch : path)
+    {
+        if (ch == kKeywordPathSeparator)
+        {
+            auto flushed = flush();
+            if (!flushed)
+            {
+                return flushed.error();
+            }
+            continue;
+        }
+        current.push_back(ch);
+    }
+    auto flushed = flush();
+    if (!flushed)
+    {
+        return flushed.error();
+    }
+    if (segments.size() > kKeywordMaximumDepth)
+    {
+        return make_error(ErrorCode::kValidation, "Keyword path exceeds the maximum depth",
+                          {{"reason", "keyword_path_too_deep"},
+                           {"maximum", std::to_string(kKeywordMaximumDepth)},
+                           {"depth", std::to_string(segments.size())}});
+    }
+    return segments;
+}
+
+Result<std::string> join_keyword_path(const std::vector<std::string> &segments)
+{
+    if (segments.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Keyword path must not be empty",
+                          {{"reason", "empty_keyword_path"}});
+    }
+    std::string path;
+    for (std::size_t index = 0; index < segments.size(); ++index)
+    {
+        auto normalized = normalize_keyword_name(segments[index]);
+        if (!normalized)
+        {
+            return normalized.error();
+        }
+        if (index != 0)
+        {
+            path.push_back(kKeywordPathSeparator);
+        }
+        path += normalized.value();
+        if (path.size() > kKeywordPathMaxLength)
+        {
+            return make_error(ErrorCode::kValidation, "Keyword path exceeds the maximum length",
+                              {{"reason", "keyword_path_too_long"},
+                               {"max_length", std::to_string(kKeywordPathMaxLength)}});
+        }
+    }
+    if (segments.size() > kKeywordMaximumDepth)
+    {
+        return make_error(ErrorCode::kValidation, "Keyword path exceeds the maximum depth",
+                          {{"reason", "keyword_path_too_deep"},
+                           {"maximum", std::to_string(kKeywordMaximumDepth)},
+                           {"depth", std::to_string(segments.size())}});
+    }
+    return path;
+}
+
 Result<void> validate_metadata_field(const std::string_view name, const std::string_view value)
 {
     if (name != "title" && name != "description" && name != "creator" && name != "copyright")

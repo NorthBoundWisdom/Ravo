@@ -102,7 +102,7 @@ ColumnLayout {
     }
 
     MetaField {
-        placeholderText: qsTr("tags, comma separated")
+        placeholderText: qsTr("keywords, comma separated; use | for hierarchy")
         text: root.hasPresenter ? root.presenter.selectedTags : ""
         onEditingFinished: if (root.commands)
             root.commands.setTags(text)
