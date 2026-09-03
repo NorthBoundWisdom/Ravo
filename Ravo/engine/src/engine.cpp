@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <new>
 #include <optional>
@@ -14,6 +15,7 @@
 #include "capability_ops.h"
 #include "canvas_frame.h"
 #include "dehaze.h"
+#include "gpu_adapter.h"
 #include "image_ops.h"
 #include "input_color.h"
 #include "lut3d.h"
@@ -114,6 +116,33 @@ Result<std::size_t> validate_profiled_output_for_pack(const ProfiledOutputBuffer
 
 namespace
 {
+
+std::once_flag g_gpu_once;
+std::shared_ptr<GpuAdapter> g_gpu_adapter;
+std::optional<TaskError> g_gpu_create_error;
+
+void ensure_gpu_adapter()
+{
+    std::call_once(g_gpu_once, []() {
+        auto created = GpuAdapter::try_create();
+        if (created)
+        {
+            g_gpu_adapter = std::move(created).value();
+            return;
+        }
+        g_gpu_create_error = created.error();
+    });
+}
+
+[[nodiscard]] TaskError gpu_adapter_unavailable_error()
+{
+    if (g_gpu_create_error.has_value())
+    {
+        return *g_gpu_create_error;
+    }
+    return make_error(ErrorCode::kUnsupported, "GPU adapter is unavailable on this host",
+                      {{"reason", "gpu_unavailable"}});
+}
 
 [[nodiscard]] Result<void> pack_profiled_row(const ProfiledOutputBuffer &input,
                                              const std::uint32_t row,
@@ -263,6 +292,29 @@ Result<EngineFacade> EngineFacade::create_phase1()
         return registry.error();
     }
     return EngineFacade{std::move(registry).value()};
+}
+
+std::string_view EngineFacade::gpu_backend() const
+{
+    ensure_gpu_adapter();
+    return g_gpu_adapter != nullptr ? g_gpu_adapter->backend_id() : std::string_view{"unavailable"};
+}
+
+Result<void> EngineFacade::gpu_copy_rgb(const std::span<const float> input,
+                                        const std::span<float> output,
+                                        const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    ensure_gpu_adapter();
+    if (g_gpu_adapter == nullptr)
+    {
+        return gpu_adapter_unavailable_error();
+    }
+    return g_gpu_adapter->copy_rgb(input, output, cancellation);
 }
 
 Result<InspectionResult> EngineFacade::inspect(const std::string_view input_uri,

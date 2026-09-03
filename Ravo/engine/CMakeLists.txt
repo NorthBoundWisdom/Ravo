@@ -36,6 +36,7 @@ target_sources(ravo_engine
     src/harmony_geometry.h
     src/hsl.h
     src/engine.cpp
+    src/gpu_adapter.h
     src/guided_filter.cpp
     src/guided_filter.h
     src/image_ops.cpp
@@ -104,5 +105,17 @@ target_include_directories(ravo_engine
 target_link_libraries(ravo_engine
   PUBLIC ravo_recipe
   PRIVATE Exiv2::exiv2lib Qt6::Core PNG::PNG ZLIB::ZLIB lcms2 ravo_libraw)
+
+if(APPLE)
+  target_sources(ravo_engine PRIVATE src/gpu_adapter_metal.mm)
+  set_target_properties(ravo_engine PROPERTIES
+    OBJCXX_STANDARD 20
+    OBJCXX_STANDARD_REQUIRED ON
+    OBJCXX_EXTENSIONS OFF)
+  target_compile_options(ravo_engine PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
+  target_link_libraries(ravo_engine PUBLIC "-framework Metal" "-framework Foundation")
+else()
+  target_sources(ravo_engine PRIVATE src/gpu_adapter_stub.cpp)
+endif()
 
 ravo_configure_target(ravo_engine)

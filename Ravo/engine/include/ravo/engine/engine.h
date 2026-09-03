@@ -8,6 +8,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -519,6 +520,10 @@ public:
     inspect_with_embedded_preview(std::string_view input_uri, std::uint32_t max_edge,
                                   const CancellationToken &cancellation) const;
     [[nodiscard]] const std::vector<OperationDescriptor> &operations() const noexcept;
+    // Engine-owned GPU adapter. CPU remains the default preview/export path.
+    [[nodiscard]] std::string_view gpu_backend() const;
+    [[nodiscard]] Result<void> gpu_copy_rgb(std::span<const float> input, std::span<float> output,
+                                            const CancellationToken &cancellation) const;
     [[nodiscard]] Result<Recipe> upgrade(Recipe recipe) const;
     [[nodiscard]] Result<void> validate(const Recipe &recipe) const;
     [[nodiscard]] Result<std::string> input_color_cache_fingerprint(const Recipe &recipe) const;

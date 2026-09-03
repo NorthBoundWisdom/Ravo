@@ -140,6 +140,10 @@ click wiring, active-asset comparison, recenter triggers, crop pan exclusion,
 and QML smoke; same-asset review notifications are required not to reset pan.
 Catalog tests cover Bayer viewport-ROI 1:1 windows, full-frame ROI rejection,
 and geometry rejection (ADR-0132).
+Engine GPU adapter tests require `create_phase1` to succeed whether or not a
+device exists, honor cancellation before dispatch, reject size-mismatched
+opt-in copies, and treat Apple Metal identity copies as bit-exact. Other hosts
+return `gpu_unavailable` without copying. Preview/export stay on the CPU path.
 Progressive-preview coverage uses a source larger than both preview classes and
 requires the 960px interactive image to retain the preceding 1600px viewport
 extent until settlement; QML must use that accepted presenter extent instead of

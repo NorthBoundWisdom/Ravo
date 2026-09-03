@@ -38,7 +38,7 @@ global state.
 | --- | --- | --- | --- |
 | `ravo_foundation` | errors, IDs, cancellation, basic resource contracts | standard library, QtCore where needed | recipe, engine, catalog, UI |
 | `ravo_recipe` | recipes, operation schema, version upgrades | foundation, QtCore where needed | codec, database, UI |
-| `ravo_engine` | inspect, operation registry, CPU render/preview, offline numeric fitting | foundation resource types, recipe, engine ports, QtCore where needed | catalog, services, CLI, UI, old `src` |
+| `ravo_engine` | inspect, operation registry, CPU render/preview, Engine-owned GPU adapter, offline numeric fitting | foundation resource types, recipe, engine ports, QtCore where needed; Apple Metal for the GPU adapter | catalog, services, CLI, UI, old `src`, OpenCL |
 | `ravo_domain` | Asset/Catalog, Import/Preview state, repository ports | foundation | SQLite, codec, engine-private types, UI |
 | `ravo_services` | create/open/import/list/preview use cases and task orchestration | domain, engine facade; adapters for filesystem text/hash and CRS interchange helpers (implementation .cpp only — public headers must not include `ravo/adapters`) | SQL, QML/presentation types, third-party codec types; adapters types in public headers |
 | `ravo_adapters` | SQLite, filesystem, RAW/raster codecs, preview cache | matching ports, Qt Core/Gui/Sql, pinned third-party dependencies | QML/UI state, old core |
@@ -218,7 +218,11 @@ complete effect stack to a cached 960px scene-linear working image, return
 memory pixels, and do not write PNG/cache. That 960px buffer is a box-filtered
 copy of the 1600px settled linear working, so entering Develop demosaics once.
 Actual Size 1:1 is a CPU CFA window of the visible crop (ADR-0132); lens,
-perspective, and full-frame ROIs reject and keep the 1600 preview.
+perspective, and full-frame ROIs reject and keep the 1600 preview. GPU is an
+Engine-owned Metal adapter (ADR-0133): device lifecycle is created once per
+process, identity RGB copy is opt-in and fail-closed, and preview/export stay
+on CPU until RGB apply and gold-gated demosaic land. Recipe, Catalog, CLI, and
+QML do not hold device objects.
 For an ordinary commit whose parameters are not
 already displayed, Studio first saves
 atomically, publishes that 960px memory preview, then queues the same
@@ -1496,7 +1500,9 @@ CLI and Studio project that contract without expanding paths themselves. See
   the native file/folder dialog; it does not infer format from a localized filter.
 - Ravo does not implement every historic blend/operation or
   old-catalog migration.
-- Do not implement GPU before CPU correctness and viewer resource gates.
+- GPU is an Engine adapter only (ADR-0133). CPU remains the correctness
+  reference. Preview/export stay on CPU until RGB apply and gold-gated demosaic
+  land. Do not reuse 0.9 OpenCL or add a silent CPU fallback.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
   query language without consumers.
 - Do not modify frozen 0.9 to call Ravo or let Ravo production call the frozen

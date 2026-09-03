@@ -14,6 +14,9 @@ endif()
 # reference and is not part of this graph.
 project(Ravo VERSION 0.9.2 LANGUAGES CXX)
 unset(PROJECT_VERSION CACHE)
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
 
 option(BUILD_TESTING "Build Ravo unit and contract tests" OFF)
 if(BUILD_TESTING)

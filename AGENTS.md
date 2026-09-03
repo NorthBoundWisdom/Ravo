@@ -139,9 +139,9 @@ define unfinished execution work.
 - When Ravo decides not to support an old capability, record it as a leftover
   or dated product decision in `DevDocs/MIGRATION.md`. Do not add empty shells
   or leftover-faithful ports to inflate coverage.
-- Do not replace 0.9 OpenCL with Metal inside the old application. A future
-  Ravo GPU path is an Engine adapter only (`DevDocs/MIGRATION.md`); do not reuse
-  the OpenCL API and do not add a silent CPU fallback.
+- Do not replace 0.9 OpenCL with Metal inside the old application. Ravo GPU is
+  an Engine adapter only (ADR-0133); do not reuse the OpenCL API and do not add
+  a silent CPU fallback.
 - Follow the style of adjacent C/C++/CMake files and format only touched code.
   Do not bulk-format unrelated sources as part of another task.
 - Record the rationale and validation method in the same change for new
