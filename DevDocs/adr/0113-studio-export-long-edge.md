@@ -5,6 +5,7 @@
 - Extends: [ADR-0039](0039-explicit-export-option-controls.md),
   [ADR-0050](0050-ashift-rotation-and-export-scale.md),
   [ADR-0068](0068-typed-batch-export-storage.md)
+- Extended by: [ADR-0117](0117-export-box-sharpen-presets-and-restartable-jobs.md)
 
 ## Context
 
@@ -31,8 +32,8 @@ jobs remain separate undecided work.
 ## Consequences
 
 Studio and CLI can request the same long-edge fit. Box resize, output
-sharpening, reusable export presets, and restartable background jobs stay out
-of scope.
+sharpening, reusable export presets, and restartable background jobs are
+accepted separately in ADR-0117.
 
 ## Rejected alternatives
 

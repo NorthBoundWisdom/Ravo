@@ -2,7 +2,7 @@
 
 > **Status:** product execution queue
 >
-> **Updated:** 2026-09-01
+> **Updated:** 2026-09-03
 
 This file contains unfinished product work, dependencies, risks, validation,
 and acceptance gates. Three-platform Release package evidence lives in
@@ -160,16 +160,15 @@ privacy is exact.
 
 ## PRO-LOCAL — Everyday masked grading
 
-**Status:** P2 / Partial — ADR-0116 accepted; Exposure histogram-assisted
-parametric authoring is the first implementation tranche. Click placement of
+**Status:** P2 / Partial — ADR-0116 accepted and implemented for every
+authorized everyday consumer (Exposure, Color Balance RGB, RGB Curve, Tone
+Curve, Highlights/Shadows/Whites/Blacks). Click placement of
 circle/ellipse/gradient geometry remains accepted (ADR-0114).
 
 **Outcome:** C++-owned histogram-assisted parametric authoring for every
 accepted masked everyday consumer through the same recipe CLI/Studio path.
 
 **Remaining unfinished work:**
-- Enable ADR-0116 assist for Color Balance RGB, RGB Curve, Tone Curve, and
-  Highlights/Shadows/Whites/Blacks (Exposure done).
 - Multi-instance policy, group-child parametric assist, path/brush stroking,
   and Canvas/Perspective inverse mapping remain undecided/out of scope.
 - Importer behavior for unsupported legacy blend/mask forms stays fail-closed.
@@ -186,13 +185,23 @@ identity/default behavior.
 
 ## PRO-EXPORT — Repeatable delivery jobs
 
-**Status:** P2 / Decision required after accepted Studio long-edge (ADR-0113).
+**Status:** P1 / Ready — ADR-0117 accepted (box fit, post-resize output sharpen,
+reusable ExportOptions presets, restartable batch jobs). Long-edge remains
+ADR-0113. Watermark and colour-conversion frame stay undecided.
 
 **Outcome:** box resize, output sharpening, reusable export presets, and
 restartable background batch delivery.
 
-**Dependencies:** accepted geometry/sharpen order, preset artifact owner, durable
-job state, and reuse of existing encoders and atomic publication.
+**Remaining unfinished work:**
+- Implement `ExportOptions` box limits and tighter-of-long-edge/box fit in
+  CatalogService; reject on original copy.
+- Implement optional post-resize output sharpen before encode; keep Develop
+  Sharpen recipe fields untouched.
+- Implement versioned export-preset load/save/apply for the typed options
+  snapshot (no paths/assets/templates).
+- Implement durable restartable batch job records that resume unfinished items
+  under ADR-0068 no-replace semantics.
+- Add CLI/Studio controls and focused tests for each tranche above.
 
 **Risks:** resizing in QML, a second encoder/job owner, overwrite/skip guessing,
 recipe mutation, and ambiguous partial delivery after restart.

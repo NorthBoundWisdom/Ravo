@@ -2,7 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-08-27
-- Extended by: [ADR-0113](0113-studio-export-long-edge.md)
+- Extended by: [ADR-0113](0113-studio-export-long-edge.md),
+  [ADR-0117](0117-export-box-sharpen-presets-and-restartable-jobs.md)
 
 ## Context
 
