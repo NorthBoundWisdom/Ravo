@@ -487,17 +487,6 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
     return {};
 }
 
-struct SigmoidCurve
-{
-    double white_target = 1.0;
-    double black_target = 0.000152;
-    double paper_exposure = 1.0;
-    double film_fog = 0.0;
-    double film_power = 1.0;
-    double paper_power = 1.0;
-    double hue_preservation = 1.0;
-};
-
 [[nodiscard]] double generalized_loglogistic(const double value, const double magnitude,
                                              const double paper_exposure, const double film_fog,
                                              const double film_power, const double paper_power)
@@ -509,7 +498,7 @@ struct SigmoidCurve
     return std::isfinite(paper_response) ? paper_response : magnitude;
 }
 
-[[nodiscard]] Result<SigmoidCurve> make_sigmoid_curve(const OperationInstance &operation)
+Result<SigmoidCurve> make_sigmoid_curve(const OperationInstance &operation)
 {
     const double contrast = parameter(operation, "middle_grey_contrast", kSigmoidContrastDefault);
     const double skew = parameter(operation, "contrast_skewness", kSigmoidSkewDefault);

@@ -245,6 +245,7 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     result.rgb = std::move(applied.value().rgb);
     result.color_profile = std::move(applied.value().color_profile);
     result.mask_alpha = std::move(applied.value().mask_alpha);
+    result.gpu_backend = applied.value().gpu_backend;
     result.original_missing = false;
     return result;
 }

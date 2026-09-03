@@ -5,7 +5,7 @@
 Identify current product boundaries before treating an explicit unsupported
 result as a regression.
 
-**Last reviewed:** 2026-08-31 against the current migration status and product
+**Last reviewed:** 2026-09-03 against the current migration status and product
 baseline.
 
 ## Current boundaries
@@ -78,7 +78,9 @@ pyramid, Hald image, OCIO, and CTL inputs are unsupported.
 ### CPU render backend
 
 The supported standalone CLI render backend is `cpu`. Ravo does not expose the
-old OpenCL path, and the current GPU work is not a user-selectable fallback.
+old OpenCL path, and GPU is not a user-selectable fallback. Develop preview may
+run unmasked Exposure and Sigmoid on the Engine GPU when the host has a compute
+backend; `catalog probe --json` reports `gpu_backend`. Export stays on CPU.
 
 ### Original-safe editing
 

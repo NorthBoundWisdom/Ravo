@@ -26,9 +26,10 @@ constraint.
 - All first-party new code uses C++20, CMake, and FreeCM; do not add Rust/Cargo
   to the build graph.
 - CPU is the correctness reference. Do not port 0.9 OpenCL. GPU is an Engine
-  adapter only (ADR-0133), with no silent CPU fallback
-  (`../DevDocs/MIGRATION.md`). Preview/export stay on CPU until RGB apply and
-  gold-gated demosaic land.
+  QRhi adapter (ADR-0133/0134), with no silent CPU fallback
+  (`../DevDocs/MIGRATION.md`). Preview interleaves GPU Exposure/Sigmoid with
+  remaining CPU RGB ops; export and demosaic stay CPU until gold-gated demosaic
+  lands.
 - The `ravo` CLI and Ravo Studio are both supported clients. Algorithms belong
   in the engine; catalog/import/preview orchestration belongs in services; CLI
   and UI are limited to input/output, progress, selection, and error
@@ -184,7 +185,8 @@ no silent CPU fallback, and needs a dated ADR (`../DevDocs/MIGRATION.md`).
   and after tests to prove it was not modified.
 - New targets update `tools/check_ravo_dependency_boundary.py` in the same
   change: scan CMake targets and QML imports; `Qt6::Sql` is adapters-only,
-  `Qt6::Gui` is raster adapters/desktop-only, `Qt6::Qml`/`Qt6::Quick`,
+  `Qt6::Gui` is raster adapters, desktop, and the Engine QRhi GPU adapter,
+  `Qt6::Qml`/`Qt6::Quick`,
   `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts`, and production `.qml`
   are desktop-only, `Qt6::QuickTest` and QML tests are desktop-test-only; every
   Ravo target rejects Qt Widgets and frozen `src`/GTK dependencies.

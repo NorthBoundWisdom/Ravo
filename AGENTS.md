@@ -110,7 +110,7 @@ define unfinished execution work.
   `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts` imports may only be
   used by desktop and its tests. Qt Sql/QSQLITE may only live in the private
   SQLite adapter; Qt Gui may be used in the private raster adapter for
-  `QImageReader`. The first version introduces neither Qt Widgets nor a second
+  `QImageReader` and in the Engine QRhi GPU adapter. The first version introduces neither Qt Widgets nor a second
   UI architecture. QML may display state and forward intents only; SQL, codecs,
   image algorithms, business state, and task owners stay in C++
   domain/services/engine/adapters.
@@ -140,8 +140,8 @@ define unfinished execution work.
   or dated product decision in `DevDocs/MIGRATION.md`. Do not add empty shells
   or leftover-faithful ports to inflate coverage.
 - Do not replace 0.9 OpenCL with Metal inside the old application. Ravo GPU is
-  an Engine adapter only (ADR-0133); do not reuse the OpenCL API and do not add
-  a silent CPU fallback.
+  an Engine QRhi adapter (ADR-0133/0134); do not reuse the OpenCL API and do not
+  add a silent CPU fallback.
 - Follow the style of adjacent C/C++/CMake files and format only touched code.
   Do not bulk-format unrelated sources as part of another task.
 - Record the rationale and validation method in the same change for new

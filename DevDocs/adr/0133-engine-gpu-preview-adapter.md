@@ -22,14 +22,18 @@ second renderer in QML/catalog.
 - There is no silent CPU fallback. A GPU request that cannot run returns a
   structured error (`gpu_unavailable`, `gpu_pipeline_failed`, cancellation).
   CPU preview remains the default path until a caller opts in.
-- Apple uses Metal. Other hosts report `gpu_unavailable` until their adapter
-  exists. Cache identity will include backend and pipeline version when GPU
-  pixels are published.
+- Apple used Metal in the first tranche. ADR-0134 replaces per-platform
+  kernels with one QRhi compute backend. Other hosts report `gpu_unavailable`
+  until that backend can create a device with compute and buffer readback.
+  Cache identity will include backend and pipeline version when GPU pixels are
+  published.
 - Admission is staged:
   1. Device, queue, library, cancellation, and destruction.
   2. GPU apply of post-demosaic RGB on an existing linear working / ROI.
-     Manual Exposure is the first opt-in kernel; CPU remains the default preview
-     path and the correctness reference (RMSE-gated).
+     Unmasked Exposure and Sigmoid are admitted as GPU passes and interleaved
+     with remaining CPU RGB ops so default RAW (sharpen then sigmoid) still
+     hits the GPU. Other kernels, masks, demosaic, and export stay on CPU.
+     CPU remains the correctness reference (RMSE-gated).
   3. GPU Bayer window demosaic with CPU-gold RMSE gates.
 - Export stays CPU until stage 3 goldens exist for the same recipe.
 
@@ -42,5 +46,6 @@ Device loss and teardown are explicit. OpenCL stays leftover.
 
 - Reviving `GPU_Baseline.md` four-workload checklist before any adapter.
 - Silent CPU copy when Metal init fails.
-- QML/Qt RHI as a second image pipeline.
+- QML/Qt Quick RHI as a second image pipeline. Engine-owned QRhi compute is
+  ADR-0134.
 - Porting leftover OpenCL kernels.

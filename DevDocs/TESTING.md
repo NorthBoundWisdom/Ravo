@@ -19,7 +19,8 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 ```
 
 The dependency-boundary checker covers the product target graph:
-`Qt6::Sql` is adapters-only, `Qt6::Gui` is raster adapters/desktop-only,
+`Qt6::Sql` is adapters-only, `Qt6::Gui` is raster adapters, desktop, and the
+Engine QRhi GPU adapter,
 `Qt6::Network` is control/CLI-local-socket or desktop-only, `Qt6::Qml`/`Qt6::Quick`,
 `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts`,
 `GeoControls`/`GeoControls.AppShell` imports, and production `.qml` are
@@ -141,11 +142,13 @@ and QML smoke; same-asset review notifications are required not to reset pan.
 Catalog tests cover Bayer viewport-ROI 1:1 windows, full-frame ROI rejection,
 and geometry rejection (ADR-0132).
 Engine GPU adapter tests require `create_phase1` to succeed whether or not a
-device exists, honor cancellation before dispatch, reject size-mismatched
-opt-in copies, and treat Apple Metal identity copies as bit-exact. Opt-in
-Exposure affine RGB is RMSE-gated against the CPU gold. Other hosts return
-`gpu_unavailable` without copying or applying. Preview/export stay on the CPU
-path.
+device exists, honor cancellation before dispatch, and reject size-mismatched
+opt-in copies. When QRhi reports a compute backend, identity copies are
+bit-exact and Exposure affine RGB plus default Sigmoid are RMSE-gated against
+the CPU gold. `render_linear_working` reports `gpu_backend` when Exposure or
+Sigmoid ran on the GPU, including the default RAW baseline that still runs
+sharpen on CPU. Recipes without those ops stay on CPU. Hosts without compute or
+buffer readback return `gpu_unavailable`. Export stays on the CPU path.
 Progressive-preview coverage uses a source larger than both preview classes and
 requires the 960px interactive image to retain the preceding 1600px viewport
 extent until settlement; QML must use that accepted presenter extent instead of

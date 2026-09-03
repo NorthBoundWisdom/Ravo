@@ -16,6 +16,7 @@
 #include "canvas_frame.h"
 #include "dehaze.h"
 #include "gpu_adapter.h"
+#include "gpu_preview.h"
 #include "image_ops.h"
 #include "input_color.h"
 #include "lut3d.h"
@@ -123,15 +124,17 @@ std::optional<TaskError> g_gpu_create_error;
 
 void ensure_gpu_adapter()
 {
-    std::call_once(g_gpu_once, []() {
-        auto created = GpuAdapter::try_create();
-        if (created)
-        {
-            g_gpu_adapter = std::move(created).value();
-            return;
-        }
-        g_gpu_create_error = created.error();
-    });
+    std::call_once(g_gpu_once,
+                   []()
+                   {
+                       auto created = GpuAdapter::try_create();
+                       if (created)
+                       {
+                           g_gpu_adapter = std::move(created).value();
+                           return;
+                       }
+                       g_gpu_create_error = created.error();
+                   });
 }
 
 [[nodiscard]] TaskError gpu_adapter_unavailable_error()
@@ -443,16 +446,15 @@ Result<std::string> EngineFacade::output_color_cache_fingerprint(const Recipe &r
     return ravo::output_color_cache_fingerprint(recipe);
 }
 
-Result<Lut3dInspection>
-EngineFacade::inspect_lut3d(const std::string_view path,
-                            const CancellationToken &cancellation) const
+Result<Lut3dInspection> EngineFacade::inspect_lut3d(const std::string_view path,
+                                                    const CancellationToken &cancellation) const
 {
     auto lut = process_lut3d_cache().load(path, cancellation);
     if (!lut)
         return lut.error();
     return Lut3dInspection{lut.value()->canonical_path, lut.value()->fingerprint,
-                           lut.value()->title, lut.value()->size, lut.value()->domain_min,
-                           lut.value()->domain_max};
+                           lut.value()->title,          lut.value()->size,
+                           lut.value()->domain_min,     lut.value()->domain_max};
 }
 
 Result<std::string>
@@ -692,12 +694,10 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     return working;
 }
 
-Result<LinearWorkingBuffer>
-EngineFacade::linear_working_from_raw_window(const DecodedRaw &raw, const Recipe &recipe,
-                                             const std::uint32_t origin_x,
-                                             const std::uint32_t origin_y, const std::uint32_t width,
-                                             const std::uint32_t height,
-                                             const CancellationToken &cancellation) const
+Result<LinearWorkingBuffer> EngineFacade::linear_working_from_raw_window(
+    const DecodedRaw &raw, const Recipe &recipe, const std::uint32_t origin_x,
+    const std::uint32_t origin_y, const std::uint32_t width, const std::uint32_t height,
+    const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -891,9 +891,11 @@ EngineFacade::scale_linear_working(const LinearWorkingBuffer &working, const std
 namespace
 {
 
-[[nodiscard]] Result<ProfiledOutputBuffer> render_recipe_to_profiled_output(
-    const LinearWorkingBuffer &working, const Recipe &recipe, const CancellationToken &cancellation,
-    const std::optional<std::string> &overlay_mask_id, AlphaPlane *overlay_alpha)
+[[nodiscard]] Result<ProfiledOutputBuffer>
+render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recipe &recipe,
+                                 const CancellationToken &cancellation,
+                                 const std::optional<std::string> &overlay_mask_id,
+                                 AlphaPlane *overlay_alpha, std::string *gpu_backend = nullptr)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -945,8 +947,7 @@ namespace
         for (std::size_t index = replay_begin; index < overlay_recipe.operations.size(); ++index)
         {
             auto &operation = overlay_recipe.operations[index];
-            if (operation.id == "ravo.geometry.rotate" ||
-                operation.id == "ravo.geometry.flip" ||
+            if (operation.id == "ravo.geometry.rotate" || operation.id == "ravo.geometry.flip" ||
                 operation.id == "ravo.geometry.crop" ||
                 operation.id == "ravo.geometry.straighten" ||
                 operation.id == kPerspectiveOperationId)
@@ -977,20 +978,28 @@ namespace
         auto alpha = evaluate_canonical_mask(recipe.masks, *overlay_mask_id, request);
         if (!alpha)
             return alpha.error();
-        auto transformed =
-            apply_recipe_geometry_to_alpha(std::move(alpha).value(), remaining_recipe, cancellation);
+        auto transformed = apply_recipe_geometry_to_alpha(std::move(alpha).value(),
+                                                          remaining_recipe, cancellation);
         if (!transformed)
             return transformed.error();
         pending_overlay = std::move(transformed).value();
     }
-    auto adjusted = apply_recipe_ops(std::move(image), remaining_recipe, cancellation);
+    ensure_gpu_adapter();
+    Result<WorkingImage> adjusted =
+        overlay_alpha == nullptr ?
+            apply_preview_rgb(std::move(image), remaining_recipe, g_gpu_adapter.get(), gpu_backend,
+                              cancellation) :
+            apply_recipe_ops(std::move(image), remaining_recipe, cancellation);
     if (!adjusted)
     {
         return adjusted.error();
     }
-    if (pending_overlay.has_value() &&
-        (pending_overlay->width != adjusted.value().width ||
-         pending_overlay->height != adjusted.value().height))
+    if (overlay_alpha != nullptr && gpu_backend != nullptr)
+    {
+        gpu_backend->clear();
+    }
+    if (pending_overlay.has_value() && (pending_overlay->width != adjusted.value().width ||
+                                        pending_overlay->height != adjusted.value().height))
     {
         return make_error(ErrorCode::kInternal,
                           "Mask overlay geometry does not match rendered dimensions",
@@ -1196,8 +1205,10 @@ render_validated_preview(const LinearWorkingBuffer &working, const Recipe &recip
                          const std::optional<std::string> &overlay_mask_id)
 {
     AlphaPlane overlay;
+    std::string gpu_backend;
     auto output = render_recipe_to_profiled_output(working, recipe, cancellation, overlay_mask_id,
-                                                   overlay_mask_id ? &overlay : nullptr);
+                                                   overlay_mask_id ? &overlay : nullptr,
+                                                   overlay_mask_id ? nullptr : &gpu_backend);
     if (!output)
     {
         return output.error();
@@ -1229,6 +1240,7 @@ render_validated_preview(const LinearWorkingBuffer &working, const Recipe &recip
     result.height = packed.value().height;
     result.color_profile = std::move(packed.value().color_profile);
     result.rgb = std::get<std::vector<std::uint8_t>>(std::move(packed.value().samples));
+    result.gpu_backend = std::move(gpu_backend);
     if (overlay_mask_id && overlay.width == result.width && overlay.height == result.height)
     {
         result.mask_alpha = std::move(overlay.alpha);

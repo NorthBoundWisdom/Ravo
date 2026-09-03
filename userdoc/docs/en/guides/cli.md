@@ -402,9 +402,11 @@ ravo catalog probe --catalog "/work/Ravo Library.sqlite" \
 ```
 
 The result includes output profile, dimensions, channel statistics, clipping
-counts, and display-luma mean. Unknown, duplicate, non-finite, or out-of-range
-Develop fields fail before publication. The command guarantees
-`recipe_unchanged: true` and `preview_records_unchanged: true` on success.
+counts, display-luma mean, and `gpu_backend` (`cpu` when the preview RGB path
+stayed on the CPU; otherwise the Engine QRhi backend such as `metal`). Unknown,
+duplicate, non-finite, or out-of-range Develop fields fail before publication.
+The command guarantees `recipe_unchanged: true` and
+`preview_records_unchanged: true` on success.
 
 Optional `--output` writes a throwaway display PNG of the in-memory probe
 pixels. It is not a catalog preview record, must end in `.png`, and never

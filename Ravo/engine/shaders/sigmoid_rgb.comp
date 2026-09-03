@@ -1,0 +1,167 @@
+#version 440
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer Values {
+    float values[];
+};
+
+layout(std140, binding = 1) uniform Params {
+    uvec4 header;
+    vec4 curve0;
+    vec4 curve1;
+};
+
+float generalized_loglogistic(float value)
+{
+    const float white_target = curve0.x;
+    const float paper_exposure = curve0.z;
+    const float film_fog = curve0.w;
+    const float film_power = curve1.x;
+    const float paper_power = curve1.y;
+    const float clamped = max(value, 0.0);
+    const float film_response = pow(film_fog + clamped, film_power);
+    const float paper_response =
+        white_target * pow(film_response / (paper_exposure + film_response), paper_power);
+    return isnan(paper_response) || isinf(paper_response) ? white_target : paper_response;
+}
+
+vec3 desaturate_negative(vec3 pixel)
+{
+    const float average = max((pixel.r + pixel.g + pixel.b) / 3.0, 0.0);
+    const float minimum = min(pixel.r, min(pixel.g, pixel.b));
+    const float saturation = minimum < 0.0 ? -average / (minimum - average) : 1.0;
+    return average + saturation * (pixel - vec3(average));
+}
+
+void channel_order(vec3 pixel, out uint minimum, out uint middle, out uint maximum)
+{
+    uint i0 = 0u;
+    uint i1 = 1u;
+    uint i2 = 2u;
+    if (pixel[i0] > pixel[i1])
+    {
+        const uint swap = i0;
+        i0 = i1;
+        i1 = swap;
+    }
+    if (pixel[i1] > pixel[i2])
+    {
+        const uint swap = i1;
+        i1 = i2;
+        i2 = swap;
+    }
+    if (pixel[i0] > pixel[i1])
+    {
+        const uint swap = i0;
+        i0 = i1;
+        i1 = swap;
+    }
+    minimum = i0;
+    middle = i1;
+    maximum = i2;
+}
+
+vec3 preserve_hue(vec3 input_pixel, vec3 per_channel)
+{
+    uint minimum;
+    uint middle;
+    uint maximum;
+    channel_order(input_pixel, minimum, middle, maximum);
+    const float chroma = input_pixel[maximum] - input_pixel[minimum];
+    const float middle_scale =
+        chroma != 0.0 ? (input_pixel[middle] - input_pixel[minimum]) / chroma : 0.0;
+    const float full_hue_middle =
+        per_channel[minimum] + (per_channel[maximum] - per_channel[minimum]) * middle_scale;
+    const float hue_preservation = curve1.z;
+    const float naive_hue_middle =
+        (1.0 - hue_preservation) * per_channel[middle] + hue_preservation * full_hue_middle;
+    const float per_channel_energy = per_channel.r + per_channel.g + per_channel.b;
+    const float naive_hue_energy = per_channel[minimum] + naive_hue_middle + per_channel[maximum];
+    const float minimum_plus_middle = input_pixel[minimum] + input_pixel[middle];
+    const float blend =
+        minimum_plus_middle != 0.0 ? 2.0 * input_pixel[minimum] / minimum_plus_middle : 0.0;
+    const float target_energy = blend * per_channel_energy + (1.0 - blend) * naive_hue_energy;
+    vec3 output_pixel = vec3(0.0);
+    if (naive_hue_middle <= per_channel[middle])
+    {
+        const float corrected_middle =
+            ((1.0 - hue_preservation) * per_channel[middle] +
+             hue_preservation * (middle_scale * per_channel[maximum] +
+                                 (1.0 - middle_scale) * (target_energy - per_channel[maximum]))) /
+            (1.0 + hue_preservation * (1.0 - middle_scale));
+        output_pixel[minimum] = target_energy - per_channel[maximum] - corrected_middle;
+        output_pixel[middle] = corrected_middle;
+        output_pixel[maximum] = per_channel[maximum];
+    }
+    else
+    {
+        const float corrected_middle =
+            ((1.0 - hue_preservation) * per_channel[middle] +
+             hue_preservation * (per_channel[minimum] * (1.0 - middle_scale) +
+                                 middle_scale * (target_energy - per_channel[minimum]))) /
+            (1.0 + hue_preservation * middle_scale);
+        output_pixel[minimum] = per_channel[minimum];
+        output_pixel[middle] = corrected_middle;
+        output_pixel[maximum] = target_energy - per_channel[minimum] - corrected_middle;
+    }
+    return output_pixel;
+}
+
+vec3 rgb_ratio(vec3 positive)
+{
+    const float luma_value = (positive.r + positive.g + positive.b) / 3.0;
+    const float mapped_luma = generalized_loglogistic(luma_value);
+    vec3 pre_out;
+    if (luma_value > 1.0e-9)
+    {
+        pre_out = positive * (mapped_luma / luma_value);
+    }
+    else
+    {
+        pre_out = vec3(mapped_luma);
+    }
+    uint minimum;
+    uint middle;
+    uint maximum;
+    channel_order(pre_out, minimum, middle, maximum);
+    const float pixel_min = pre_out[minimum];
+    const float pixel_max = pre_out[maximum];
+    const float k_epsilon = 1.0e-6;
+    const float white_target = curve0.x;
+    const float black_target = curve0.y;
+    const float display_white = (white_target - mapped_luma) / (pixel_max - mapped_luma + k_epsilon);
+    const float display_black = (black_target - mapped_luma) / (pixel_min - mapped_luma - k_epsilon);
+    const float display_border = min(display_white, display_black);
+    const float chroma_vs_border = (mapped_luma - pixel_min) / (mapped_luma + k_epsilon);
+    const float adjustment = 1.0 / (chroma_vs_border * display_border + k_epsilon);
+    const float hyperbolic = 2.0 * chroma_vs_border /
+                             (1.0 - chroma_vs_border * chroma_vs_border + k_epsilon) * adjustment;
+    const float hyperbolic_z = sqrt(hyperbolic * hyperbolic + 1.0);
+    const float chroma_factor = hyperbolic / (1.0 + hyperbolic_z) * display_border;
+    return mapped_luma + chroma_factor * (pre_out - vec3(mapped_luma));
+}
+
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+    if (index >= header.x)
+        return;
+    const uint base = index * 3u;
+    const vec3 input_pixel = vec3(values[base], values[base + 1u], values[base + 2u]);
+    const vec3 positive = desaturate_negative(input_pixel);
+    vec3 output_pixel;
+    if (header.y == 1u)
+    {
+        output_pixel = rgb_ratio(positive);
+    }
+    else
+    {
+        const vec3 mapped = vec3(generalized_loglogistic(positive.r),
+                                 generalized_loglogistic(positive.g),
+                                 generalized_loglogistic(positive.b));
+        output_pixel = preserve_hue(positive, mapped);
+    }
+    values[base] = output_pixel.r;
+    values[base + 1u] = output_pixel.g;
+    values[base + 2u] = output_pixel.b;
+}

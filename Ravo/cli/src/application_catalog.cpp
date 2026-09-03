@@ -106,14 +106,14 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (!flags.value().output.empty() && subcommand != "export" && subcommand != "probe" &&
         subcommand != "backup-restore" && subcommand != "preview")
     {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--output is only valid for catalog export, probe, preview, or backup-restore",
-                          {{"subcommand", std::string(subcommand)}});
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "--output is only valid for catalog export, probe, preview, or backup-restore",
+            {{"subcommand", std::string(subcommand)}});
     }
     if (subcommand == "preview" && !flags.value().output.empty() && !flags.value().roi.has_value())
     {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "catalog preview --output requires --roi",
+        return make_error(ErrorCode::kInvalidArgument, "catalog preview --output requires --roi",
                           {{"reason", "preview_output_requires_roi"}});
     }
     if (flags.value().baseline && subcommand != "probe")
@@ -996,6 +996,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"recipe_unchanged", true},
             {"statistics", std::move(statistics).value()},
             {"width", JsonValue::number(std::to_string(previewed.value().width))},
+            {"gpu_backend",
+             previewed.value().gpu_backend.empty() ? "cpu" : previewed.value().gpu_backend},
         };
         if (!flags.value().output.empty())
         {

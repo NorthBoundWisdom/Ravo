@@ -672,8 +672,15 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         return generate_roi_preview(asset, request, edit_recipe, location.value().path);
     }
     const bool interactive = !request.persist_preview_record || request.overlay_mask_id.has_value();
-    const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
-                                                  interactive ? "interactive" : edit_digest);
+    std::string cache_digest = interactive ? "interactive" : edit_digest;
+    if (!interactive && engine_->gpu_backend() != "unavailable")
+    {
+        cache_digest += "_gpu-";
+        cache_digest += engine_->gpu_backend();
+        cache_digest += "-v1";
+    }
+    const auto cache_key =
+        make_preview_cache_key(asset.id, width, height, fingerprint, cache_digest);
 
     PreviewResult result;
     result.asset_id = asset.id;
@@ -766,11 +773,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     const auto render_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                std::chrono::steady_clock::now() - render_started)
                                .count();
-    LOG_INFO(ravo::logger(), "preview render asset={} {}x{} interactive={} {}ms", asset.id,
-             rendered.width, rendered.height, interactive, render_ms);
+    LOG_INFO(ravo::logger(), "preview render asset={} {}x{} interactive={} gpu={} {}ms", asset.id,
+             rendered.width, rendered.height, interactive,
+             rendered.gpu_backend.empty() ? "cpu" : rendered.gpu_backend, render_ms);
 
     result.width = rendered.width;
     result.height = rendered.height;
+    result.gpu_backend = rendered.gpu_backend;
     if (interactive)
     {
         result.rgb = std::move(rendered.rgb);

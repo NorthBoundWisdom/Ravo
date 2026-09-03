@@ -102,20 +102,47 @@ target_include_directories(ravo_engine
     "${RAVO_EXIV2_SOURCE_ROOT}/include"
     "${CMAKE_BINARY_DIR}")
 
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+find_package(Qt6 6.11 REQUIRED COMPONENTS GuiPrivate)
 target_link_libraries(ravo_engine
-  PUBLIC ravo_recipe
-  PRIVATE Exiv2::exiv2lib Qt6::Core PNG::PNG ZLIB::ZLIB lcms2 ravo_libraw)
+  PUBLIC ravo_recipe Qt6::Gui
+  PRIVATE Exiv2::exiv2lib Qt6::Core Qt6::GuiPrivate PNG::PNG ZLIB::ZLIB lcms2 ravo_libraw)
 
-if(APPLE)
-  target_sources(ravo_engine PRIVATE src/gpu_adapter_metal.mm)
-  set_target_properties(ravo_engine PROPERTIES
-    OBJCXX_STANDARD 20
-    OBJCXX_STANDARD_REQUIRED ON
-    OBJCXX_EXTENSIONS OFF)
-  target_compile_options(ravo_engine PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
-  target_link_libraries(ravo_engine PUBLIC "-framework Metal" "-framework Foundation")
-else()
-  target_sources(ravo_engine PRIVATE src/gpu_adapter_stub.cpp)
+if(NOT Python3_Interpreter_FOUND)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
 endif()
+get_filename_component(_ravo_qt_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
+find_program(RAVO_QSB_EXECUTABLE qsb HINTS "${_ravo_qt_prefix}/bin" REQUIRED)
+set(_ravo_gpu_shader_dir "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+function(ravo_embed_gpu_shader shader_name)
+  set(_src "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${shader_name}.comp")
+  set(_qsb "${_ravo_gpu_shader_dir}/${shader_name}.comp.qsb")
+  set(_cpp "${_ravo_gpu_shader_dir}/${shader_name}_qsb.cpp")
+  add_custom_command(
+    OUTPUT "${_qsb}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ravo_gpu_shader_dir}"
+    COMMAND "${RAVO_QSB_EXECUTABLE}"
+      --glsl "310es,430"
+      --hlsl 50
+      --msl 12
+      -o "${_qsb}"
+      "${_src}"
+    DEPENDS "${_src}"
+    VERBATIM)
+  add_custom_command(
+    OUTPUT "${_cpp}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/configs/embed_binary.py"
+      --input "${_qsb}"
+      --output "${_cpp}"
+      --symbol ravo_gpu_${shader_name}_qsb
+    DEPENDS "${_qsb}" "${CMAKE_SOURCE_DIR}/configs/embed_binary.py"
+    VERBATIM)
+  target_sources(ravo_engine PRIVATE "${_cpp}")
+endfunction()
+ravo_embed_gpu_shader(affine_rgb)
+ravo_embed_gpu_shader(sigmoid_rgb)
+target_sources(ravo_engine PRIVATE
+  src/gpu_adapter_rhi.cpp
+  src/gpu_preview.cpp)
 
 ravo_configure_target(ravo_engine)

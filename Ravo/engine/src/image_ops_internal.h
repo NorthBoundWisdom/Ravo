@@ -50,6 +50,18 @@ struct ExposureAffine
     double black = 0.0;
 };
 
+struct SigmoidCurve
+{
+    double white_target = 1.0;
+    double black_target = 0.000152;
+    double paper_exposure = 1.0;
+    double film_fog = 0.0;
+    double film_power = 1.0;
+    double paper_power = 1.0;
+    double hue_preservation = 1.0;
+};
+
+[[nodiscard]] Result<SigmoidCurve> make_sigmoid_curve(const OperationInstance &operation);
 [[nodiscard]] Result<ExposureAffine> prepare_exposure_affine(const WorkingImage &input,
                                                              const ExposureParams &params,
                                                              const CancellationToken &cancellation);

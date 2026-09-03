@@ -157,6 +157,17 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
     ASSERT_NE(preview_records_unchanged, nullptr);
     ASSERT_NE(preview_records_unchanged->boolean_if(), nullptr);
     EXPECT_TRUE(*preview_records_unchanged->boolean_if());
+    const auto *gpu_backend = minus_data->find("gpu_backend");
+    ASSERT_NE(gpu_backend, nullptr);
+    ASSERT_NE(gpu_backend->string_if(), nullptr);
+    if (engine.gpu_backend() != "unavailable")
+    {
+        EXPECT_EQ(*gpu_backend->string_if(), std::string(engine.gpu_backend()));
+    }
+    else
+    {
+        EXPECT_EQ(*gpu_backend->string_if(), "cpu");
+    }
 
     stdout_stream.str({});
     stdout_stream.clear();

@@ -120,6 +120,7 @@ struct RenderedImage
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
     std::vector<float> mask_alpha;
+    std::string gpu_backend;
 };
 
 enum class RenderSampleKind : std::uint8_t

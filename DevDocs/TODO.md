@@ -116,7 +116,7 @@ cancellation, memory, source-safety, colour/profile, HDD-seek, or package
 regression. Item-count-only memory limits are insufficient. Browse placeholders
 and embedded JPEGs remain presentation resources, never RAW correctness
 references or silent Develop fallbacks. Browse GPU remains deferred; the
-Develop GPU adapter is ADR-0133 in [MIGRATION.md](MIGRATION.md).
+Develop GPU adapter is ADR-0133/0134 in [MIGRATION.md](MIGRATION.md).
 
 # P1/P2 — Professional photographer workflows
 

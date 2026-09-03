@@ -92,7 +92,7 @@ ALLOWED_PUBLIC_HEADER_LAYERS = {
 ALLOWED_QT_COMPONENTS = {
     "foundation": frozenset(),
     "recipe": frozenset(),
-    "engine": frozenset({"Core"}),
+    "engine": frozenset({"Core", "Gui", "GuiPrivate"}),
     "domain": frozenset(),
     "adapters": frozenset({"Core", "Gui", "Sql"}),
     "services": frozenset(),
@@ -114,7 +114,7 @@ ALLOWED_QT_COMPONENTS = {
 QT_FREE_OWNERS = frozenset({"foundation", "recipe", "domain", "services"})
 SQL_OWNERS = frozenset({"adapters"})
 QML_OWNERS = frozenset({"desktop"})
-GUI_OWNERS = frozenset({"adapters", "desktop"})
+GUI_OWNERS = frozenset({"adapters", "desktop", "engine"})
 ALLOWED_QML_IMPORTS = frozenset(
     {
         "QtQuick",
