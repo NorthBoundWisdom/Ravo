@@ -129,6 +129,15 @@ Item {
     function setMaskPlaceActive(active) {
         root.run(root.ids.editSetMaskPlace, active);
     }
+    function assistParametricMask(x, y) {
+        root.run(root.ids.editAssistParametricMask, {
+            "x": x,
+            "y": y
+        });
+    }
+    function setMaskParametricAssistActive(active) {
+        root.run(root.ids.editSetMaskParametricAssist, active);
+    }
     function setDevelopText(name, value) {
         root.run(root.ids.editSetText, {
             "name": name,

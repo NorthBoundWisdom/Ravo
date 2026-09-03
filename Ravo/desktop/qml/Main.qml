@@ -1197,7 +1197,7 @@ ApplicationWindow {
                                     HoverHandler {
                                         id: photoInspectHover
                                         enabled: window.photoInspectEnabled
-                                        cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive ? Qt.CrossCursor : Qt.BlankCursor
+                                        cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive || studio.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor
                                     }
 
                                     Rectangle {
@@ -1229,6 +1229,12 @@ ApplicationWindow {
                                             const w = Math.max(1, photoPlane.width);
                                             const h = Math.max(1, photoPlane.height);
                                             studioActions.placeMask((eventPoint.position.x - photoPlane.x) / w, (eventPoint.position.y - photoPlane.y) / h);
+                                            return;
+                                        }
+                                        if (studio.browseMode === "develop" && studio.maskParametricAssistActive) {
+                                            const w = Math.max(1, photoPlane.width);
+                                            const h = Math.max(1, photoPlane.height);
+                                            studioActions.assistParametricMask((eventPoint.position.x - photoPlane.x) / w, (eventPoint.position.y - photoPlane.y) / h);
                                             return;
                                         }
                                         if (studio.browseMode === "loupe") {
@@ -1297,7 +1303,7 @@ ApplicationWindow {
                             height: 28
                             z: 20
                             antialiasing: true
-                            visible: photoInspectHover.hovered && window.photoInspectEnabled && !studio.whiteBalancePickActive && !studio.maskPlaceActive
+                            visible: photoInspectHover.hovered && window.photoInspectEnabled && !studio.whiteBalancePickActive && !studio.maskPlaceActive && !studio.maskParametricAssistActive
                             property bool zoomOut: studio.zoomMode === "actual"
                             x: {
                                 if (!visible)

@@ -268,7 +268,7 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("inspectAnimScale")));
     EXPECT_TRUE(source.contains(QStringLiteral("transform: Scale")));
     EXPECT_TRUE(source.contains(QStringLiteral(
-        "cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive ? Qt.CrossCursor : Qt.BlankCursor")));
+        "cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive || studio.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
     EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));
@@ -284,7 +284,8 @@ TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLo
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("WheelHandler")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("target: strip")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("blocking: true")));
-    EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("flickableDirection: Flickable.HorizontalFlick")));
+    EXPECT_TRUE(
+        filmstrip_source.contains(QStringLiteral("flickableDirection: Flickable.HorizontalFlick")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.pixelDelta.x")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.pixelDelta.y")));
     EXPECT_TRUE(filmstrip_source.contains(QStringLiteral("event.angleDelta.y")));
@@ -328,8 +329,10 @@ TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLo
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"placeholderName\"")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"rejectedPreviewWash\"")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("root.rejected ? 0.38 : 1")));
-    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("Qt.lighter(Theme.imageSurroundColor, 1.5)")));
-    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("root.current ? 3 : (root.selected ? 2 : 1)")));
+    EXPECT_TRUE(
+        thumbnail_source.contains(QStringLiteral("Qt.lighter(Theme.imageSurroundColor, 1.5)")));
+    EXPECT_TRUE(
+        thumbnail_source.contains(QStringLiteral("root.current ? 3 : (root.selected ? 2 : 1)")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("Theme.selectedSecondaryBorderColor")));
 }
 
@@ -408,12 +411,13 @@ TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancell
     EXPECT_TRUE(library_source.contains(QStringLiteral("Last verified: %1 · %2")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("libraryFolderRelink")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("missing — click to locate")));
-    EXPECT_TRUE(library_source.contains(QStringLiteral("acceptedButtons: Qt.LeftButton | Qt.RightButton")));
+    EXPECT_TRUE(
+        library_source.contains(QStringLiteral("acceptedButtons: Qt.LeftButton | Qt.RightButton")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("root.showFolderMenu(folderRow)")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("FolderContextMenu")));
 
-    QFile folder_menu(QStringLiteral(RAVO_REPOSITORY_ROOT
-                                     "/Ravo/desktop/qml/chrome/FolderContextMenu.qml"));
+    QFile folder_menu(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/chrome/FolderContextMenu.qml"));
     ASSERT_TRUE(folder_menu.open(QIODevice::ReadOnly | QIODevice::Text))
         << folder_menu.errorString().toStdString();
     const auto folder_menu_source = QString::fromUtf8(folder_menu.readAll());

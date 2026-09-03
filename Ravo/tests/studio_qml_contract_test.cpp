@@ -82,7 +82,8 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
         light.indexOf(QStringLiteral("previewDevelopNumber(\"sigmoidContrast\""));
     const auto raster_contrast = light.indexOf(QStringLiteral("previewDevelopNumber(\"contrast\""));
     const auto highlights = light.indexOf(QStringLiteral("previewDevelopNumber(\"highlights\""));
-    const auto highlights_mask = light.indexOf(QStringLiteral("objectName: \"highlightsMaskEditor\""));
+    const auto highlights_mask =
+        light.indexOf(QStringLiteral("objectName: \"highlightsMaskEditor\""));
     const auto shadows = light.indexOf(QStringLiteral("previewDevelopNumber(\"shadows\""));
     const auto shadows_mask = light.indexOf(QStringLiteral("objectName: \"shadowsMaskEditor\""));
     const auto whites = light.indexOf(QStringLiteral("previewDevelopNumber(\"whites\""));
@@ -561,6 +562,10 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(action_source.contains(QStringLiteral("setMaskPlaceActive(active)")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPlaceMask")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetMaskPlace")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("assistParametricMask(x, y)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("setMaskParametricAssistActive(active)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editAssistParametricMask")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetMaskParametricAssist")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("maximumLineCount: 1")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("entryText")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("inactive")));

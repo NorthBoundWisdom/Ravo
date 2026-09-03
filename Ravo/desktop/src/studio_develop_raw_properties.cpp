@@ -335,6 +335,8 @@ void StudioPresenter::setWhiteBalancePickActive(const bool active)
         setCropToolActive(false);
         if (mask_place_active_)
             setMaskPlaceActive(false);
+        if (mask_parametric_assist_active_)
+            setMaskParametricAssistActive(false);
     }
     emit editChanged();
     if (comparison_changed)

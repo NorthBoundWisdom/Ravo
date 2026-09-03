@@ -1271,6 +1271,9 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"maskPlaceActive\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Place on photo\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("setMaskPlaceActive")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"maskParametricAssistActive\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Assist from photo\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMaskParametricAssistActive")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("maskEditor.mask.editable === true && modelData.visible")));
     EXPECT_TRUE(source.contains(QStringLiteral("Show mask overlay")));
@@ -1319,6 +1322,48 @@ TEST(StudioPresenterTest, MaskPlacePreviewMapsThroughCropAndRejectsGeometry)
     auto invalid = map_mask_place_preview(params, -0.1, 0.5);
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().context.at("reason"), "invalid_mask_place_preview");
+}
+
+TEST(StudioPresenterTest, ParametricAssistThresholdsFromSampleAndHistogram)
+{
+    auto plain = parametric_thresholds_from_histogram_assist(0.5, nullptr);
+    ASSERT_TRUE(plain) << plain.error().message;
+    EXPECT_NEAR(plain.value()[0], 0.5 - 32.0 / 255.0, 1e-9);
+    EXPECT_NEAR(plain.value()[3], 0.5 + 32.0 / 255.0, 1e-9);
+    EXPECT_LE(plain.value()[0], plain.value()[1]);
+    EXPECT_LE(plain.value()[1], plain.value()[2]);
+    EXPECT_LE(plain.value()[2], plain.value()[3]);
+
+    auto invalid = parametric_thresholds_from_histogram_assist(-0.1, nullptr);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_parametric_assist_sample");
+
+    std::array<std::uint32_t, 256> bins{};
+    bins[100] = 50;
+    bins[101] = 40;
+    bins[102] = 30;
+    bins[99] = 20;
+    auto assisted = parametric_thresholds_from_histogram_assist(100.0 / 255.0, &bins);
+    ASSERT_TRUE(assisted) << assisted.error().message;
+    EXPECT_NEAR(assisted.value()[0], 99.0 / 255.0, 1e-9);
+    EXPECT_NEAR(assisted.value()[3], 102.0 / 255.0, 1e-9);
+
+    EXPECT_NEAR(normalized_display_mask_channel(255, 0, 0, 1), 1.0, 1e-12);
+    EXPECT_NEAR(normalized_display_mask_channel(0, 255, 0, 2), 1.0, 1e-12);
+    EXPECT_NEAR(normalized_display_mask_channel(0, 0, 255, 3), 1.0, 1e-12);
+    EXPECT_NEAR(normalized_display_mask_channel(255, 255, 255, 0), 1.0, 1e-9);
+}
+
+TEST(StudioPresenterTest, ParametricAssistGeometryMatchesMaskPlaceFailClosed)
+{
+    using studio_develop_internal::mask_place_geometry_allowed;
+    DevelopParams params;
+    EXPECT_TRUE(mask_place_geometry_allowed(params));
+    params.canvas_enabled = true;
+    EXPECT_FALSE(mask_place_geometry_allowed(params));
+    params.canvas_enabled = false;
+    params.perspective_vertical = 0.2;
+    EXPECT_FALSE(mask_place_geometry_allowed(params));
 }
 
 TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
@@ -1610,10 +1655,10 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesNamedPlaceholdersBeforeThumbna
     EXPECT_EQ(candidates->selectedCount(), 3);
     for (int row = 0; row < 3; ++row)
     {
-        EXPECT_EQ(candidates->data(candidates->index(row, 0),
-                                   ImportCandidateListModel::DisplayNameRole)
-                      .toString(),
-                  names.at(row));
+        EXPECT_EQ(
+            candidates->data(candidates->index(row, 0), ImportCandidateListModel::DisplayNameRole)
+                .toString(),
+            names.at(row));
         EXPECT_FALSE(candidates->inspected(row));
         EXPECT_TRUE(candidates->thumbnail(row).isNull());
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -106,6 +107,18 @@ develop_mask_attachment_status_name(DevelopMaskAttachmentStatus status) noexcept
 // external, shared, or group attachment.
 [[nodiscard]] Result<void> apply_develop_mask_field_strict(DevelopParams &params,
                                                            std::string_view field, double value);
+
+[[nodiscard]] double normalized_display_mask_channel(std::uint8_t red, std::uint8_t green,
+                                                     std::uint8_t blue,
+                                                     std::int64_t channel_index) noexcept;
+
+// Authors Threshold0..3 from a normalized display-histogram channel sample.
+// When `bins` is non-null it must address exactly 256 counts for that channel;
+// assistance expands a contiguous density band around the sample. Invalid
+// samples fail closed.
+[[nodiscard]] Result<std::array<double, 4>> parametric_thresholds_from_histogram_assist(
+    double sample, const std::array<std::uint32_t, 256> *bins = nullptr) noexcept;
+
 [[nodiscard]] Result<void> reset_develop_mask_field(DevelopParams &params, std::string_view field);
 
 } // namespace ravo

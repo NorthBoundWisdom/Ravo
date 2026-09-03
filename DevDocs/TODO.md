@@ -160,26 +160,29 @@ privacy is exact.
 
 ## PRO-LOCAL — Everyday masked grading
 
-**Status:** P2 / Decision required after accepted Color Balance RGB (ADR-0108),
-Exposure (ADR-0109), RGB Curve (ADR-0110), Tone Curve (ADR-0111), Light HSWB
-(ADR-0112) mask tranches, and click placement (ADR-0114).
+**Status:** P2 / Partial — ADR-0116 accepted; Exposure histogram-assisted
+parametric authoring is the first implementation tranche. Click placement of
+circle/ellipse/gradient geometry remains accepted (ADR-0114).
 
-**Outcome:** provide C++-owned histogram-assisted parametric authoring for the
-accepted masked everyday operations. Click placement of circle/ellipse/
-gradient geometry is accepted (ADR-0114).
+**Outcome:** C++-owned histogram-assisted parametric authoring for every
+accepted masked everyday consumer through the same recipe CLI/Studio path.
 
-**Dependencies:** local-adjustment ADR defining picker/histogram assistance,
-multi-instance policy, coordinate frame, ROI/order semantics, and importer
-behavior.
+**Remaining unfinished work:**
+- Enable ADR-0116 assist for Color Balance RGB, RGB Curve, Tone Curve, and
+  Highlights/Shadows/Whites/Blacks (Exposure done).
+- Multi-instance policy, group-child parametric assist, path/brush stroking,
+  and Canvas/Perspective inverse mapping remain undecided/out of scope.
+- Importer behavior for unsupported legacy blend/mask forms stays fail-closed.
 
-**Risks:** QML-owned mask pixels, coordinate drift after Canvas/Perspective/crop,
-silent approximation of legacy blend modes, and altered unmasked defaults.
+**Risks:** QML-owned mask pixels, display-histogram vs linear parametric source
+mismatch under heavy grading, coordinate drift after Canvas/Perspective, and
+altered unmasked defaults.
 
 **Acceptance gate:** C++-owned histogram assistance authors a parametric
-canonical mask for an accepted everyday consumer through the same recipe
-CLI/Studio path; preview/export/reopen equality; geometry correctness;
-cancellation/resource bounds; and no change to unmasked identity/default
-behavior.
+canonical mask for each authorized everyday consumer through the same recipe
+CLI/Studio path; preview/export/reopen equality; fail-closed unsupported
+geometry; cancellation/resource bounds; and no change to unmasked
+identity/default behavior.
 
 ## PRO-EXPORT — Repeatable delivery jobs
 

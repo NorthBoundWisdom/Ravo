@@ -148,6 +148,26 @@ ColumnLayout {
         wrapMode: Text.WordWrap
         opacity: 0.75
     }
+    CustomCheckBox {
+        Layout.fillWidth: true
+        objectName: "maskParametricAssistActive"
+        visible: maskEditor.mask.attached === true && maskEditor.mask.kindName === "parametric" && maskEditor.mask.target === "exposure"
+        text: qsTr("Assist from photo")
+        enabled: panel.hasSelection && maskEditor.mask.editable === true && panel.hasPresenter && panel.presenter.maskParametricAssistAllowed
+        checked: panel.hasPresenter && panel.presenter.maskParametricAssistActive && panel.presenter.maskOverlayVisible && panel.presenter.maskOverlayTarget === maskEditor.mask.target
+        onToggled: if (panel.hasPresenter && panel.commands) {
+            if (checked)
+                panel.presenter.setMaskOverlay(maskEditor.mask.target, true);
+            panel.commands.setMaskParametricAssistActive(checked);
+        }
+    }
+    CustomLabel {
+        Layout.fillWidth: true
+        visible: panel.hasPresenter && panel.presenter.maskParametricAssistActive && maskEditor.mask.attached === true
+        text: qsTr("Click the photo to set parametric thresholds from the display histogram channel. Canvas, Perspective, straighten, rotate, and flip must be off.")
+        wrapMode: Text.WordWrap
+        opacity: 0.75
+    }
     ColumnLayout {
         Layout.fillWidth: true
         visible: maskEditor.mask.groupVisible === true

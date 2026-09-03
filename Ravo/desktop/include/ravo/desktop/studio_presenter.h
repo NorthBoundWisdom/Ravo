@@ -104,6 +104,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool whiteBalancePickActive READ whiteBalancePickActive NOTIFY editChanged)
     Q_PROPERTY(bool maskPlaceActive READ maskPlaceActive NOTIFY editChanged)
     Q_PROPERTY(bool maskPlaceGeometryAllowed READ maskPlaceGeometryAllowed NOTIFY editChanged)
+    Q_PROPERTY(bool maskParametricAssistActive READ maskParametricAssistActive NOTIFY editChanged)
+    Q_PROPERTY(bool maskParametricAssistAllowed READ maskParametricAssistAllowed NOTIFY editChanged)
     Q_PROPERTY(QVariantList editColorEqBands READ editColorEqBands NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editInputColor READ editInputColor NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editProfileGamma READ editProfileGamma NOTIFY editChanged)
@@ -298,7 +300,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool importRecursive READ importRecursive NOTIFY importPageChanged)
     Q_PROPERTY(ImportCandidateListModel *importCandidates READ importCandidates CONSTANT)
     Q_PROPERTY(FilesystemBrowserModel *importSourceFolders READ importSourceFolders CONSTANT)
-    Q_PROPERTY(FilesystemBrowserModel *importDestinationFolders READ importDestinationFolders CONSTANT)
+    Q_PROPERTY(
+        FilesystemBrowserModel *importDestinationFolders READ importDestinationFolders CONSTANT)
 
 public:
     explicit StudioPresenter(QObject *parent = nullptr);
@@ -635,6 +638,10 @@ public:
     [[nodiscard]] bool maskPlaceGeometryAllowed() const noexcept;
     Q_INVOKABLE void setMaskPlaceActive(bool active);
     Q_INVOKABLE void placeMask(double preview_x, double preview_y);
+    [[nodiscard]] bool maskParametricAssistActive() const noexcept;
+    [[nodiscard]] bool maskParametricAssistAllowed() const noexcept;
+    Q_INVOKABLE void setMaskParametricAssistActive(bool active);
+    Q_INVOKABLE void assistParametricMask(double preview_x, double preview_y);
     void retranslate();
     Q_INVOKABLE void setToneCurve(const QVariantList &points);
     Q_INVOKABLE void previewToneCurve(const QVariantList &points);
@@ -1021,6 +1028,7 @@ private:
     bool crop_tool_active_ = false;
     bool white_balance_pick_active_ = false;
     bool mask_place_active_ = false;
+    bool mask_parametric_assist_active_ = false;
     bool crop_guide_ready_ = false;
     QString crop_aspect_{QStringLiteral("free")};
     double locked_crop_ratio_ = 0.0;

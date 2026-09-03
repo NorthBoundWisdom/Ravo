@@ -123,3 +123,4 @@ supersession relationship when direction changes.
 | [0113](0113-studio-export-long-edge.md) | Accepted | Studio export long-edge projects Catalog `max_edge`; 0 keeps rendered size and the fit never enlarges; original copy rejects resize. |
 | [0114](0114-mask-click-placement.md) | Accepted | Clicking the Develop photo places circle/ellipse centers or gradient anchors through existing mask fields; Canvas/Perspective/rotate/flip reject. |
 | [0115](0115-typed-studio-window-geometry.md) | Accepted | Typed Studio window size, position, and maximized state restore across launches; corrupt records repair and off-screen rectangles are fitted. |
+| [0116](0116-histogram-assisted-parametric-mask.md) | Accepted | C++-owned histogram-assisted parametric thresholds from a Develop photo pick; Exposure first; Canvas/Perspective reject. |

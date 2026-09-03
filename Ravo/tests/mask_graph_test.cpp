@@ -719,6 +719,47 @@ TEST(DevelopMaskAuthoringTest, CreatesTypedStudioOwnedLeavesAndRoundTripsOrdinar
     EXPECT_EQ(ordinary_edit.graduated_mask_id, params.graduated_mask_id);
 }
 
+TEST(DevelopMaskAuthoringTest, ExposureParametricHistogramAssistAuthorsThresholds)
+{
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskKind", 5.0));
+    ASSERT_TRUE(params.exposure_mask_id);
+    auto state = develop_mask_editor_state(params, DevelopMaskTarget::kExposure);
+    EXPECT_EQ(state.kind_name, "parametric");
+
+    const double sample = normalized_display_mask_channel(128, 64, 32, state.channel_index);
+    auto thresholds = parametric_thresholds_from_histogram_assist(sample, nullptr);
+    ASSERT_TRUE(thresholds) << thresholds.error().message;
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(params, "exposureMaskThreshold2", thresholds.value()[2]));
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(params, "exposureMaskThreshold1", thresholds.value()[1]));
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(params, "exposureMaskThreshold0", thresholds.value()[0]));
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(params, "exposureMaskThreshold3", thresholds.value()[3]));
+
+    state = develop_mask_editor_state(params, DevelopMaskTarget::kExposure);
+    EXPECT_NEAR(state.threshold0, thresholds.value()[0], 1e-12);
+    EXPECT_NEAR(state.threshold1, thresholds.value()[1], 1e-12);
+    EXPECT_NEAR(state.threshold2, thresholds.value()[2], 1e-12);
+    EXPECT_NEAR(state.threshold3, thresholds.value()[3], 1e-12);
+
+    auto recipe =
+        recipe_from_develop({"asset-exposure-assist", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().exposure_mask_id, params.exposure_mask_id);
+    auto restored_state = develop_mask_editor_state(restored.value(), DevelopMaskTarget::kExposure);
+    EXPECT_NEAR(restored_state.threshold0, thresholds.value()[0], 1e-12);
+    EXPECT_NEAR(restored_state.threshold3, thresholds.value()[3], 1e-12);
+
+    auto rejected = parametric_thresholds_from_histogram_assist(2.0, nullptr);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_parametric_assist_sample");
+}
+
 TEST(DevelopMaskAuthoringTest, ColorBalanceRgbOwnsCircleAndBrushMasksAndRoundTrips)
 {
     DevelopParams params;
@@ -755,17 +796,14 @@ TEST(MaskGraphEngineTest, ColorBalanceRgbNormalMixMatchesUnmaskedAndZeroOpacityI
     ColorBalanceRgbParams grade;
     grade.saturation_global = 0.5;
     auto parameters = color_balance_rgb_to_parameters(grade);
-    OperationInstance operation{"ravo.color.colorbalancergb",
-                                1,
-                                "colorbalancergb-1",
-                                true,
-                                std::move(parameters),
-                                std::nullopt};
+    OperationInstance operation{"ravo.color.colorbalancergb", 1,
+                                "colorbalancergb-1",          true,
+                                std::move(parameters),        std::nullopt};
     WorkingImage input;
     input.width = 2U;
     input.height = 2U;
-    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
-                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F,
+                 0.33F, 0.55F, 0.41F, 0.60F, 0.10F, 0.25F};
     WorkingImage expected = input;
     ASSERT_TRUE(apply_color_balance_rgb(expected, operation, CancellationToken{}));
 
@@ -844,8 +882,8 @@ TEST(MaskGraphEngineTest, ExposureNormalMixMatchesUnmaskedAndZeroOpacityInput)
     WorkingImage input;
     input.width = 2U;
     input.height = 2U;
-    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
-                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F,
+                 0.33F, 0.55F, 0.41F, 0.60F, 0.10F, 0.25F};
     input.color_profile.kind = ColorProfileKind::kMatrix;
     input.color_profile.model = ColorModel::kRgb;
     const auto expected = apply_exposure(input, operation, CancellationToken{});
@@ -928,17 +966,13 @@ TEST(MaskGraphEngineTest, RgbCurveNormalMixMatchesUnmaskedAndZeroOpacityInput)
     RgbCurveParams grade;
     grade.preserve_colors = std::string(kToneCurvePreserveColorsNone);
     grade.channels[0] = {{0.0, 0.0}, {0.5, 0.75}, {1.0, 1.0}};
-    OperationInstance operation{"ravo.color.rgbcurve",
-                                1,
-                                "rgbcurve-1",
-                                true,
-                                rgb_curve_to_parameters(grade),
-                                std::nullopt};
+    OperationInstance operation{"ravo.color.rgbcurve",          1,           "rgbcurve-1", true,
+                                rgb_curve_to_parameters(grade), std::nullopt};
     WorkingImage input;
     input.width = 2U;
     input.height = 2U;
-    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
-                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F,
+                 0.33F, 0.55F, 0.41F, 0.60F, 0.10F, 0.25F};
     input.color_profile.kind = ColorProfileKind::kMatrix;
     input.color_profile.model = ColorModel::kRgb;
     Recipe expected_recipe;
@@ -969,8 +1003,7 @@ TEST(MaskGraphEngineTest, RgbCurveNormalMixMatchesUnmaskedAndZeroOpacityInput)
     Recipe identity_unmasked;
     identity_unmasked.asset = all_recipe.asset;
     identity_unmasked.operations = {identity};
-    const auto unmasked_identity =
-        apply_recipe_ops(input, identity_unmasked, CancellationToken{});
+    const auto unmasked_identity = apply_recipe_ops(input, identity_unmasked, CancellationToken{});
     ASSERT_TRUE(unmasked_identity) << unmasked_identity.error().message;
     identity.mask_id = "all";
     Recipe identity_recipe = all_recipe;
@@ -1037,8 +1070,8 @@ TEST(MaskGraphEngineTest, ToneCurveNormalMixMatchesUnmaskedAndZeroOpacityInput)
     WorkingImage input;
     input.width = 2U;
     input.height = 2U;
-    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
-                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F,
+                 0.33F, 0.55F, 0.41F, 0.60F, 0.10F, 0.25F};
     input.color_profile.kind = ColorProfileKind::kMatrix;
     input.color_profile.model = ColorModel::kRgb;
     Recipe expected_recipe;
@@ -1066,8 +1099,8 @@ TEST(MaskGraphEngineTest, ToneCurveNormalMixMatchesUnmaskedAndZeroOpacityInput)
         {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
         {"preserve_colors", ParameterValue{std::string(kToneCurvePreserveColorsAverage)}},
         {"points", tone_curve_points_to_parameter({{0.0, 0.0}, {1.0, 1.0}})}};
-    OperationInstance identity{"ravo.core.tonecurve", 1, "tonecurve-identity", true,
-                               identity_parameters, std::nullopt};
+    OperationInstance identity{"ravo.core.tonecurve", 1,           "tonecurve-identity", true,
+                               identity_parameters,   std::nullopt};
     Recipe identity_unmasked;
     identity_unmasked.asset = all_recipe.asset;
     identity_unmasked.operations = {identity};
@@ -1104,7 +1137,7 @@ TEST(DevelopMaskAuthoringTest, LightControlsOwnCircleAndBrushMasksAndRoundTrip)
         const char *radius_field;
         DevelopMaskTarget target;
         const char *operation_id;
-        std::optional<std::string> DevelopParams::* attachment;
+        std::optional<std::string> DevelopParams::*attachment;
         const char *studio_id;
     };
     const std::array cases{
@@ -1175,8 +1208,8 @@ TEST(MaskGraphEngineTest, HighlightsNormalMixMatchesUnmaskedAndZeroOpacityInput)
     WorkingImage input;
     input.width = 2U;
     input.height = 2U;
-    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
-                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F,
+                 0.33F, 0.55F, 0.41F, 0.60F, 0.10F, 0.25F};
     input.color_profile.kind = ColorProfileKind::kMatrix;
     input.color_profile.model = ColorModel::kRgb;
     Recipe expected_recipe;
@@ -1222,8 +1255,8 @@ TEST(MaskGraphEngineTest, MaskedHighlightsDoesNotFuseWithFollowingShadows)
     WorkingImage input;
     input.width = 2U;
     input.height = 2U;
-    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F, 0.33F, 0.55F,
-                 0.41F, 0.60F, 0.10F, 0.25F};
+    input.rgb = {0.12F, 0.40F, 0.70F, 0.80F, 0.22F, 0.18F,
+                 0.33F, 0.55F, 0.41F, 0.60F, 0.10F, 0.25F};
     input.color_profile.kind = ColorProfileKind::kMatrix;
     input.color_profile.model = ColorModel::kRgb;
     OperationInstance highlights{"ravo.core.highlights",
@@ -1232,12 +1265,9 @@ TEST(MaskGraphEngineTest, MaskedHighlightsDoesNotFuseWithFollowingShadows)
                                  true,
                                  {{"amount", ParameterValue{0.6}}},
                                  std::nullopt};
-    OperationInstance shadows{"ravo.core.shadows",
-                              1,
-                              "shadows-1",
-                              true,
-                              {{"amount", ParameterValue{-0.5}}},
-                              std::nullopt};
+    OperationInstance shadows{
+        "ravo.core.shadows", 1, "shadows-1", true, {{"amount", ParameterValue{-0.5}}},
+        std::nullopt};
     Recipe sequential_highlights;
     sequential_highlights.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
     sequential_highlights.operations = {highlights};
@@ -1437,13 +1467,13 @@ TEST(DevelopMaskAuthoringTest, AuthorsOwnedGroupsPathsAndBrushes)
 {
     DevelopParams params;
     ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 6.0));
-    const auto group_state =
-        develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer);
+    const auto group_state = develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer);
     EXPECT_TRUE(group_state.editable);
     EXPECT_EQ(group_state.kind_name, "group");
     EXPECT_EQ(group_state.child_count, 1);
     ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskAddChild", 3.0));
-    EXPECT_EQ(develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer).child_count, 2);
+    EXPECT_EQ(develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer).child_count,
+              2);
     ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskChildOperator", 1.0));
     ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskCenterX", 0.4));
     ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 7.0));

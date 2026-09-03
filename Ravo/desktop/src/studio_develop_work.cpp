@@ -46,6 +46,7 @@ void StudioPresenter::load_develop_for_selection()
     develop_load_error_.clear();
     white_balance_pick_active_ = false;
     mask_place_active_ = false;
+    mask_parametric_assist_active_ = false;
     undo_stack_.clear();
     redo_stack_.clear();
     recipe_history_.clear();

@@ -881,9 +881,9 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kLibraryRequestRemoveFolder, Condition::kCatalogReady, non_empty_string,
         [request_preset_confirmation](const QVariant &argument, const QString &)
         {
-            request_preset_confirmation(
-                command::kLibraryRequestRemoveFolder, command::kLibraryRemoveFolder,
-                QVariantMap{{QStringLiteral("path"), argument.toString()}});
+            request_preset_confirmation(command::kLibraryRequestRemoveFolder,
+                                        command::kLibraryRemoveFolder,
+                                        QVariantMap{{QStringLiteral("path"), argument.toString()}});
         });
     add(
         command::kLibraryRemoveFolder, Condition::kCatalogReady,
@@ -895,7 +895,6 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             presenter_.removeFolderFromCatalog(
                 argument.toMap().value(QStringLiteral("path")).toString());
         });
-
     add(
         command::kPhotoSelect, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -1099,7 +1098,6 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                      row >= 0 && row + 1 < presenter_.assets()->rowCount())
                 presenter_.selectAssetRange(presenter_.assets()->assetIdAt(row + 1));
         });
-
     add(command::kPhotoCreateVersion, Condition::kReadySelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.createAssetVersion(); });
     add(
@@ -1179,7 +1177,6 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         },
         [this](const QVariant &argument, const QString &)
         { presenter_.setScopeMode(argument.toString()); });
-
     add(command::kEditUndo, Condition::kCanUndo, no_argument,
         [this](const QVariant &, const QString &) { presenter_.undoEdit(); });
     add(command::kEditRedo, Condition::kCanRedo, no_argument,
@@ -1294,21 +1291,29 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else
                 presenter_.setDevelopNumbers(fields);
         });
+    const auto validate_preview_xy = [](const QVariant &argument, const QString &x_label,
+                                        const QString &y_label) -> QString
+    {
+        if (const auto e = required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")});
+            !e.isEmpty())
+            return e;
+        const auto fields = argument.toMap();
+        if (const auto e = finite_number(fields.value(QStringLiteral("x")), x_label); !e.isEmpty())
+            return e;
+        return finite_number(fields.value(QStringLiteral("y")), y_label);
+    };
+    const auto validate_bool = [](const QVariant &argument, const QString &label) -> QString
+    {
+        return argument.metaType().id() == QMetaType::Bool || argument.canConvert<bool>() ?
+                   QString{} :
+                   label;
+    };
     add(
         command::kEditPickWhiteBalance, Condition::kDevelopSelection,
-        [](const QVariant &argument)
+        [&validate_preview_xy](const QVariant &argument)
         {
-            const auto error =
-                required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")});
-            if (!error.isEmpty())
-                return error;
-            const auto fields = argument.toMap();
-            const auto x_error =
-                finite_number(fields.value(QStringLiteral("x")), QStringLiteral("White-balance X"));
-            if (!x_error.isEmpty())
-                return x_error;
-            return finite_number(fields.value(QStringLiteral("y")),
-                                 QStringLiteral("White-balance Y"));
+            return validate_preview_xy(argument, QStringLiteral("White-balance X"),
+                                       QStringLiteral("White-balance Y"));
         },
         [this](const QVariant &argument, const QString &)
         {
@@ -1318,28 +1323,19 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     add(
         command::kEditSetWhiteBalancePick, Condition::kDevelopSelection,
-        [](const QVariant &argument)
+        [&validate_bool](const QVariant &argument)
         {
-            return argument.metaType().id() == QMetaType::Bool || argument.canConvert<bool>() ?
-                       QString{} :
-                       QStringLiteral("White-balance pick state must be boolean.");
+            return validate_bool(argument,
+                                 QStringLiteral("White-balance pick state must be boolean."));
         },
         [this](const QVariant &argument, const QString &)
         { presenter_.setWhiteBalancePickActive(argument.toBool()); });
     add(
         command::kEditPlaceMask, Condition::kDevelopSelection,
-        [](const QVariant &argument)
+        [&validate_preview_xy](const QVariant &argument)
         {
-            const auto error =
-                required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")});
-            if (!error.isEmpty())
-                return error;
-            const auto fields = argument.toMap();
-            const auto x_error =
-                finite_number(fields.value(QStringLiteral("x")), QStringLiteral("Mask place X"));
-            if (!x_error.isEmpty())
-                return x_error;
-            return finite_number(fields.value(QStringLiteral("y")), QStringLiteral("Mask place Y"));
+            return validate_preview_xy(argument, QStringLiteral("Mask place X"),
+                                       QStringLiteral("Mask place Y"));
         },
         [this](const QVariant &argument, const QString &)
         {
@@ -1349,14 +1345,32 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     add(
         command::kEditSetMaskPlace, Condition::kDevelopSelection,
-        [](const QVariant &argument)
-        {
-            return argument.metaType().id() == QMetaType::Bool || argument.canConvert<bool>() ?
-                       QString{} :
-                       QStringLiteral("Mask place state must be boolean.");
-        },
+        [&validate_bool](const QVariant &argument)
+        { return validate_bool(argument, QStringLiteral("Mask place state must be boolean.")); },
         [this](const QVariant &argument, const QString &)
         { presenter_.setMaskPlaceActive(argument.toBool()); });
+    add(
+        command::kEditAssistParametricMask, Condition::kDevelopSelection,
+        [&validate_preview_xy](const QVariant &argument)
+        {
+            return validate_preview_xy(argument, QStringLiteral("Parametric assist X"),
+                                       QStringLiteral("Parametric assist Y"));
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.assistParametricMask(fields.value(QStringLiteral("x")).toDouble(),
+                                            fields.value(QStringLiteral("y")).toDouble());
+        });
+    add(
+        command::kEditSetMaskParametricAssist, Condition::kDevelopSelection,
+        [&validate_bool](const QVariant &argument)
+        {
+            return validate_bool(argument,
+                                 QStringLiteral("Mask parametric assist state must be boolean."));
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setMaskParametricAssistActive(argument.toBool()); });
     add(
         command::kEditSetToneCurve, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -1498,7 +1512,6 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &, const QString &) { presenter_.toggleBeforeAfter(); });
     add(command::kEditComparison, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.toggleComparison(); });
-
     add(command::kWindowSettings, Condition::kAlways, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kWindowSettings, argument); });
@@ -1525,14 +1538,12 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else if (presenter_.catalogOpen())
                 presenter_.returnToGrid();
         });
-
     const auto errors = validateBuiltinDefinitions();
     if (!errors.isEmpty())
         qFatal("Studio command registry validation failed: %s",
                errors.join(QLatin1String("; ")).toUtf8().constData());
     if (string_set(impl_->commands.keys()) != string_set(command_ids()))
         qFatal("Studio command handlers do not cover the builtin command registry");
-
     const auto changed = [this]() { refresh(); };
     connect(&presenter_, &StudioPresenter::catalogChanged, this, changed);
     connect(&presenter_, &StudioPresenter::busyChanged, this, changed);

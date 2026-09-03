@@ -620,6 +620,8 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
               QStringLiteral("blacksMaskKind"));
     EXPECT_FALSE(presenter.maskPlaceActive());
     EXPECT_TRUE(presenter.maskPlaceGeometryAllowed());
+    EXPECT_FALSE(presenter.maskParametricAssistActive());
+    EXPECT_TRUE(presenter.maskParametricAssistAllowed());
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("shadowsFalloff")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("highlightsFalloff")).toDouble(), 1.0);

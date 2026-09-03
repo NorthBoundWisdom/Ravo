@@ -778,8 +778,7 @@ void StudioPresenter::removeRetouchRegion(const int index)
         (!next.highlights_mask_id || *next.highlights_mask_id != mask_id) &&
         (!next.shadows_mask_id || *next.shadows_mask_id != mask_id) &&
         (!next.whites_mask_id || *next.whites_mask_id != mask_id) &&
-        (!next.blacks_mask_id || *next.blacks_mask_id != mask_id) &&
-        !group_references_mask)
+        (!next.blacks_mask_id || *next.blacks_mask_id != mask_id) && !group_references_mask)
     {
         next.masks.erase(std::remove_if(next.masks.begin(), next.masks.end(),
                                         [&mask_id](const Mask &mask)
@@ -1032,6 +1031,10 @@ void StudioPresenter::setCropToolActive(const bool active)
         {
             mask_place_active_ = false;
         }
+        if (mask_parametric_assist_active_)
+        {
+            mask_parametric_assist_active_ = false;
+        }
         setZoomMode(QStringLiteral("fit"));
         DevelopParams next = develop_;
         // Geometry is rendered by the canonical Perspective owner while Crop
@@ -1180,9 +1183,8 @@ void StudioPresenter::pasteParametersToSelection()
         request.expected_revision = observed_catalog_revision_;
     request.cancellation = cancellation;
     const auto selected = utf8_from_qstring(selected_asset_id_);
-    const bool reload_selected =
-        std::find(request.asset_ids.begin(), request.asset_ids.end(), selected) !=
-        request.asset_ids.end();
+    const bool reload_selected = std::find(request.asset_ids.begin(), request.asset_ids.end(),
+                                           selected) != request.asset_ids.end();
     setError({});
     setCatalogOperation(
         QCoreApplication::translate("StudioPresenter", "Applying parameters to selection…"), 0,
@@ -1356,6 +1358,10 @@ void StudioPresenter::toggleComparison()
     if (mask_place_active_)
     {
         setMaskPlaceActive(false);
+    }
+    if (mask_parametric_assist_active_)
+    {
+        setMaskParametricAssistActive(false);
     }
     if (mask_overlay_visible_)
     {

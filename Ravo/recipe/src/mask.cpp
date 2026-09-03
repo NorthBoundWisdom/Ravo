@@ -1,4 +1,5 @@
 #include "ravo/recipe/mask.h"
+#include "ravo/recipe/develop_mask.h"
 
 #include <algorithm>
 #include <array>
@@ -1424,13 +1425,13 @@ try
         for (const auto &point : path_mask.points)
         {
             JsonObject point_object;
-            for (const auto &[key, value] : std::array<std::pair<std::string_view, double>, 6>{
-                     {{"x", point.x},
-                      {"y", point.y},
-                      {"ctrl1_x", point.ctrl1_x},
-                      {"ctrl1_y", point.ctrl1_y},
-                      {"ctrl2_x", point.ctrl2_x},
-                      {"ctrl2_y", point.ctrl2_y}}})
+            for (const auto &[key, value] :
+                 std::array<std::pair<std::string_view, double>, 6>{{{"x", point.x},
+                                                                     {"y", point.y},
+                                                                     {"ctrl1_x", point.ctrl1_x},
+                                                                     {"ctrl1_y", point.ctrl1_y},
+                                                                     {"ctrl2_x", point.ctrl2_x},
+                                                                     {"ctrl2_y", point.ctrl2_y}}})
             {
                 auto field = add_number(point_object, key, value);
                 if (!field)
@@ -1451,16 +1452,16 @@ try
         for (const auto &point : brush.points)
         {
             JsonObject point_object;
-            for (const auto &[key, value] : std::array<std::pair<std::string_view, double>, 9>{
-                     {{"x", point.x},
-                      {"y", point.y},
-                      {"ctrl1_x", point.ctrl1_x},
-                      {"ctrl1_y", point.ctrl1_y},
-                      {"ctrl2_x", point.ctrl2_x},
-                      {"ctrl2_y", point.ctrl2_y},
-                      {"radius", point.radius},
-                      {"hardness", point.hardness},
-                      {"density", point.density}}})
+            for (const auto &[key, value] :
+                 std::array<std::pair<std::string_view, double>, 9>{{{"x", point.x},
+                                                                     {"y", point.y},
+                                                                     {"ctrl1_x", point.ctrl1_x},
+                                                                     {"ctrl1_y", point.ctrl1_y},
+                                                                     {"ctrl2_x", point.ctrl2_x},
+                                                                     {"ctrl2_y", point.ctrl2_y},
+                                                                     {"radius", point.radius},
+                                                                     {"hardness", point.hardness},
+                                                                     {"density", point.density}}})
             {
                 auto field = add_number(point_object, key, value);
                 if (!field)
@@ -1480,6 +1481,92 @@ catch (const std::bad_alloc &)
 {
     return make_error(ErrorCode::kIo, "Canonical mask serialization allocation failed",
                       {{"reason", "allocation_failed"}});
+}
+
+double normalized_display_mask_channel(const std::uint8_t red, const std::uint8_t green,
+                                       const std::uint8_t blue,
+                                       const std::int64_t channel_index) noexcept
+{
+    switch (channel_index)
+    {
+    case 1:
+        return static_cast<double>(red) / 255.0;
+    case 2:
+        return static_cast<double>(green) / 255.0;
+    case 3:
+        return static_cast<double>(blue) / 255.0;
+    default:
+        // ADR-0061 / collect_rgb_histogram display luma weights.
+        return std::clamp((0.2126 * static_cast<double>(red) + 0.7152 * static_cast<double>(green) +
+                           0.0722 * static_cast<double>(blue)) /
+                              255.0,
+                          0.0, 1.0);
+    }
+}
+
+Result<std::array<double, 4>>
+parametric_thresholds_from_histogram_assist(const double sample,
+                                            const std::array<std::uint32_t, 256> *bins) noexcept
+{
+    if (!std::isfinite(sample) || sample < 0.0 || sample > 1.0)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Parametric assist sample must be a finite unit value",
+                          {{"reason", "invalid_parametric_assist_sample"}});
+    }
+
+    constexpr double kDefaultHalfWidth = 16.0 / 255.0;
+    double lo = sample - 2.0 * kDefaultHalfWidth;
+    double hi = sample + 2.0 * kDefaultHalfWidth;
+    if (bins != nullptr)
+    {
+        const int center = static_cast<int>(std::clamp(std::lround(sample * 255.0), 0L, 255L));
+        std::uint32_t peak = (*bins)[static_cast<std::size_t>(center)];
+        const int window_lo = std::max(0, center - 8);
+        const int window_hi = std::min(255, center + 8);
+        for (int index = window_lo; index <= window_hi; ++index)
+        {
+            peak = std::max(peak, (*bins)[static_cast<std::size_t>(index)]);
+        }
+        const std::uint32_t floor = std::max<std::uint32_t>(1U, peak / 50U);
+        int left = center;
+        int right = center;
+        while (left > 0 && (*bins)[static_cast<std::size_t>(left - 1)] >= floor)
+        {
+            --left;
+        }
+        while (right < 255 && (*bins)[static_cast<std::size_t>(right + 1)] >= floor)
+        {
+            ++right;
+        }
+        lo = static_cast<double>(left) / 255.0;
+        hi = static_cast<double>(right) / 255.0;
+    }
+
+    lo = std::clamp(lo, 0.0, 1.0);
+    hi = std::clamp(hi, 0.0, 1.0);
+    if (hi < lo)
+    {
+        std::swap(lo, hi);
+    }
+    const double width = hi - lo;
+    const double soft = std::max(1.0 / 255.0, width * 0.25);
+    double t0 = lo;
+    double t3 = hi;
+    double t1 = std::min(t3, t0 + soft);
+    double t2 = std::max(t0, t3 - soft);
+    if (t1 > t2)
+    {
+        t1 = t0;
+        t2 = t3;
+    }
+    if (!(t0 <= t1 && t1 <= t2 && t2 <= t3))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Parametric assist produced non-monotonic thresholds",
+                          {{"reason", "invalid_parametric_assist_thresholds"}});
+    }
+    return std::array<double, 4>{t0, t1, t2, t3};
 }
 
 } // namespace ravo
