@@ -411,6 +411,7 @@ add_executable(ravo_desktop_command_tests
   studio_test_support.cpp
   studio_command_test.cpp
   studio_presenter_test.cpp
+  studio_gallery_viewer_develop_perf_test.cpp
   studio_qml_contract_test.cpp
   studio_live_control_test.cpp
   studio_assistant_test.cpp

@@ -1242,6 +1242,17 @@ The opt-in `InteractivePreviewPerformanceProbe` warms both live and settled
 working slots, then measures a non-persistent Develop parameter sweep through
 CatalogService and includes the RGB ownership copies plus histogram work used
 by its service-level result. The corresponding
+`StudioGalleryViewerDevelopPerformanceProbe` extends PERF-01 coverage with a
+shared `ravo.perf01.report/v1` JSONL schema (`interactive_perf_report.h`) for
+Gallery grid→Loupe select, adjacent-photo revisit, and Loupe→Develop first-frame
+latency. Each case records warmups, P50/P90/max, cache state, source kind, and
+optional host/storage/workers/peak-owned-bytes/display-refresh fields from env.
+Set `RAVO_INTERACTIVE_PERF_REPORT_PATH` to append JSONL rows; optional
+`RAVO_INTERACTIVE_PERF_WARMUPS` (default 2) and
+`RAVO_INTERACTIVE_PERF_RECORDED_SAMPLES` (default 8) select the protocol.
+`RAVO_GALLERY_VIEWER_DEVELOP_P90_BUDGET_MS` is an optional local gate. This is
+measurement-only and does not admit browse optimizations.
+
 `StudioInteractivePreviewPerformanceProbe` measures from the Presenter numeric
 intent through publication of the owned live `QImage`; SHA-256 and scopes are
 intentionally a separate latest-only stage and their exact final identity is a

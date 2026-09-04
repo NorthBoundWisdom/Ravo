@@ -63,6 +63,7 @@
 #include "studio_qml_test_support.h"
 
 #include "studio_test_support.h"
+#include "interactive_perf_report.h"
 
 namespace ravo
 {
@@ -747,6 +748,19 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
               << " intent_to_publish_median_us=" << median_us
               << " intent_to_publish_p90_us=" << p90_us
               << " intent_to_publish_max_us=" << elapsed_us.back() << '\n';
+    {
+        interactive_perf_report::CaseMeta meta;
+        meta.case_id = "develop_intent_to_publish";
+        meta.path = "gallery_viewer_develop";
+        meta.unit = "us";
+        meta.cache_state = "warm";
+        meta.source_kind = "raw";
+        meta.warmups = 0;
+        meta.recorded_samples = runs;
+        meta.asset_id = asset_id;
+        meta.catalog_path = catalog_path;
+        interactive_perf_report::emit_case(meta, elapsed_us);
+    }
     if (const char *budget = std::getenv("RAVO_INTERACTIVE_PERF_P90_BUDGET_MS"))
     {
         EXPECT_LE(p90_us, std::stoll(budget) * 1000);

@@ -193,7 +193,13 @@ another.
 
 ## PERF-01 — End-to-end interaction and large-library budgets
 
-**Status:** Active release evidence.
+**Status:** Active release evidence. Measurement harness expanded for
+Gallery→viewer→Develop latency fields (`ravo.perf01.report/v1` via
+`interactive_perf_report.h` + `StudioGalleryViewerDevelopPerformanceProbe`);
+budgets still unfrozen. Do not start PERF-02 admit optimizations yet.
+
+Host-local Gallery→viewer→Develop JSONL evidence (not in git):
+`~/Documents/RavoEvidence/reports/20260904_201715/`.
 
 **Dependency:** REL-01, a Release build, declared storage and power state, and
 explicit cold/warm cache state.
@@ -220,7 +226,15 @@ refresh rate, GPU backend, and power state.
 RAVO_INTERACTIVE_PERF_CATALOG=/temporary/private-corpus/library.sqlite \
 RAVO_INTERACTIVE_PERF_ASSET_ID=<imported-raw-asset-id> \
   build/<release-preset>/Ravo/tests/ravo_desktop_command_tests \
-  --gtest_filter='StudioInteractivePreviewPerformanceProbe.*'
+  --gtest_filter='StudioInteractivePreviewPerformanceProbe.*:StudioGalleryViewerDevelopPerformanceProbe.*'
+```
+
+Optional structured report append (host-local):
+
+```text
+RAVO_INTERACTIVE_PERF_REPORT_PATH=~/Documents/RavoEvidence/reports/<ts>/perf01_cases.jsonl
+RAVO_INTERACTIVE_PERF_WARMUPS=2
+RAVO_INTERACTIVE_PERF_RECORDED_SAMPLES=8
 ```
 
 **Acceptance gate:**
