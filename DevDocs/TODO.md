@@ -1,156 +1,170 @@
 # Ravo product execution TODO
 
-> **Status:** ordered execution queue
+> **Status:** ordered residual queue
 >
 > **Updated:** 2026-09-04
+>
+> **Review basis:** `main` through ADR-0149 and the first same-SHA green
+> three-platform Debug matrix after CI-01 repairs.
 
-This file contains only unfinished product work, dependencies, risks, validation,
-and acceptance gates. Current behavior belongs in `Ravo/README.md`,
-[ARCHITECTURE.md](ARCHITECTURE.md), [TESTING.md](TESTING.md), code, tests, and
-accepted ADRs. Three-platform package evidence belongs in
-[Packaging.md](Packaging.md). It blocks a release-ready claim, not independent
-product implementation. Product themes that are not ready for execution belong
-in [ProductRoadmap.md](ProductRoadmap.md).
+This file contains only unfinished product work, dependencies, risks,
+verification, and acceptance gates. Current behavior belongs in
+`Ravo/README.md`, [ARCHITECTURE.md](ARCHITECTURE.md),
+[TESTING.md](TESTING.md), code, tests, and accepted ADRs. Package evidence
+belongs in [Packaging.md](Packaging.md). Product themes without an executable
+contract belong in [ProductRoadmap.md](ProductRoadmap.md).
 
-Ravo's near-term objective is not to maximize feature count. It is to become a
-photo manager and non-destructive grading application that a professional
-photographer can trust with a large real catalog, removable storage, repeated
+Ravo's near-term objective is not feature count. It is a professional photo
+manager and non-destructive grading application that remains safe, predictable,
+colour-correct, and responsive with real catalogs, removable storage, repeated
 delivery work, and long editing sessions.
 
 Leftover-faithful algorithm ports remain closed by ADR-0106. Nothing below
 reopens the deleted GTK application, dynamic IOP ABI, Lua surface, old catalog,
-or OpenCL path. New GPU work remains an Engine QRhi adapter with CPU as the
+or OpenCL path. GPU work remains an Engine QRhi adapter with CPU as the
 correctness reference.
 
-## Priority and queue rules
+## Queue discipline
 
 Priority is dependency-based:
 
-- **P0 — repository or release gate:** CI, source-safety, and catalog-integrity
-  failures block product breadth. Evidence-only performance and package gates
-  block a release-ready claim but may run in parallel with independent P1 work.
-- **P1 — next professional workflow:** the highest-value daily workflow gaps.
-  Contract-changing work requires a dated accepted ADR before implementation.
-- **P2 — important extension:** valuable after the P0/P1 foundation is proven,
-  or blocked by a dependency, licence, privacy, or product decision.
-- **P3 — deferred specialization:** research or market-specific work that must
-  not displace the current professional baseline.
+- **P0 — repository or release gate:** a red main branch, source-safety defect,
+  catalog-integrity defect, or unbounded resource path preempts product breadth.
+  Corpus, performance, rendering-consistency, and installed-package evidence
+  block a release-ready claim.
+- **P1 — complete the professional baseline:** finish the current daily
+  workflows end to end through domain/service/engine/adapter/CLI/Studio rather
+  than starting more first-Ready contracts.
+- **P2 — important extension:** valuable after the P0/P1 baseline, or blocked by
+  dependency, licence, privacy, hardware, market, or product decisions.
+- **P3 — deferred specialization:** research or cohort-specific work that must
+  not displace the baseline.
 
-Every implementation tranche must name its domain/service/engine/adapter/desktop
-owner, lifecycle, persisted or machine contract, cancellation and failure
-behavior, smallest validation set, and acceptance gate. QML presents state and
-forwards intent; it does not own SQL, image algorithms, durable masks, codecs,
-jobs, or conflict policy.
+Every implementation tranche must name its owner, lifecycle, persisted or
+machine contract, failure/cancellation behavior, smallest validation set, and
+acceptance gate. QML presents state and forwards intent; it does not own SQL,
+image algorithms, durable masks, codecs, jobs, or conflict policy.
 
-Completed slices must be removed from this file after durable facts move to
-their authority. Stub or fixture implementations prove a contract only; they do
-not prove product quality.
+A service/CLI stub or a first-Ready contract is not a completed photographer
+workflow. Completed facts must move to their authoritative ADR, architecture,
+product documentation, code, and tests; do not retain `Closed in this tranche`
+history in this queue.
 
-## Current execution order
+### Vertical-completion freeze
 
-Work should proceed in this order unless a newly discovered data-loss or
-security issue preempts it:
+ADR-0144 through ADR-0149 move in the intended directions: monitor ICC,
+multi-instance local adjustments, offline proxies, deterministic culling,
+native-ingest lifecycle, and external-editor working copies. The correction is
+execution depth, not a reversal of those decisions.
+
+Until the current P0 head is green and at least one P1 workflow reaches its
+end-to-end Studio acceptance gate:
+
+- do not introduce another P1/P2 capability ID, additional AI stub, or
+  service-only placeholder surface;
+- finish residual Studio, persistence, backup/restore, performance, and
+  cross-platform behavior on the accepted contracts;
+- do not label a first-Ready service/CLI slice as a finished product outcome;
+- keep ADR-0149 average-hash output explicitly heuristic and non-authoritative;
+- keep SPECIALIZE neutral until an external photographer cohort supplies
+  evidence for HDR/Panorama or tethered-studio priority.
+
+A newly discovered data-loss, security, catalog-corruption, or colour-integrity
+defect preempts this freeze and all product work.
+
+## Current execution lanes
+
+The release-evidence lane and product-completion lane may run in parallel only
+while `main` is green. A red head immediately returns all owners to CI-01.
+
+### Release-evidence lane
 
 | Order | ID | Priority | Outcome |
 | ---: | --- | --- | --- |
-| 1 | CI-01 | P0 | Restore a green, enforceable three-platform main branch |
-| 2 | REL-01 | P0 | Prove original safety, catalog durability, and crash recovery on a real corpus |
-| 3 | PERF-01 | P0 | Establish end-to-end Gallery, viewer, and Develop latency budgets |
-| 4 | REL-02 | P0 | Prove installed packages, upgrades, backup, and restore on each supported host |
-| 5 | IQ-00 | P0 | Gate preview/export/reopen and CPU/GPU rendering consistency |
-| 6 | DISPLAY-01 | P1 | Add per-display ICC colour management without recipe mutation |
-| 7 | LOCAL-01 | P1 | Ship a professional multi-instance local-adjustment and mask system |
-| 8 | OFFLINE-01 | P1 | Ship Smart Preview / offline-original editing |
-| 9 | CULL-01 | P1 | Ship high-throughput ingest review, burst grouping, and duplicate assistance |
-| 10 | INGEST-01 | P1 | Add native PTP/MTP transport and resumable verified camera ingest |
-| 11 | IQ-01 | P1 | Establish camera/profile quality and a real denoise evaluation path |
-| 12 | EDITIN-01 | P1 | Complete the daily external-editor round trip in Studio |
-| 13 | SPECIALIZE-01 | P2 | Choose one: HDR/Panorama or tethered-studio workflow |
-| 14 | AI-00…AI-05 | P2 | Admit real AI only after packaging, evaluation, mask, and provenance gates |
+| 1 | CI-01 | P0 | Keep the latest main SHA green and make the gate enforceable |
+| 2 | REL-01 | P0 | Prove source safety, catalog durability, interruption recovery, and upgrade |
+| 3 | PERF-01 | P0 | Freeze end-to-end Gallery, viewer, Develop, and large-library budgets |
+| 4 | IQ-00 | P0 | Gate preview/export/reopen, ICC, and CPU/GPU consistency |
+| 5 | REL-02 | P0 | Prove installed packages and backup/restore on supported hosts |
 
-# P0 — Repository and release blockers
+### Product-completion lane
 
-## CI-01 — Restore green main and enforce the gate
+| Order | ID | Priority | Outcome |
+| ---: | --- | --- | --- |
+| 1 | LOCAL-01 | P1 | Finish professional multi-instance local adjustments in Studio |
+| 2 | DISPLAY-01 | P1 | Finish per-display ICC presentation on all supported hosts and views |
+| 3 | OFFLINE-01 | P1 | Make offline proxies usable for actual Loupe/Develop work |
+| 4 | CULL-01 | P1 | Finish keyboard-first review and evaluated duplicate/burst assistance |
+| 5 | EDITIN-01 | P1 | Finish the Studio external-editor round trip |
+| 6 | INGEST-01 | P1 | Replace native-ingest stubs with packaged adapters and hardware evidence |
+| 7 | IQ-01 | P1 | Establish camera/profile and denoise quality admission |
 
-**Status:** Active blocker (portable CLI float parser landed locally; three-platform
-green and merge gate still open).
+# P0 — Repository and release gates
 
-The pre-reorder `main` head `98026410f90bc99c116c3910abb5ccab63cb0976`
-failed CI run `33843178641` (Static checks green). Triage from that run:
+## CI-01 — Green and enforceable main
 
-- **macOS (`mac_clang_debug`):** compile failure —
-  floating `std::from_chars` for `--roi` in
-  `Ravo/cli/src/application_catalog_args.cpp` (Apple libc++ deletes/omits the
-  floating overload).
-- **Windows / Linux:** build succeeded; product/test failures included GPU
-  adapter tests returning `gpu_pipeline_failed` while `gpu_available` was true,
-  many `CatalogServiceTest.*PersistsReopensAndExports*Pixels` exact-pixel
-  mismatches, `XTransImportsAndPublishesAnEngineRenderedPreview`,
-  `BackupRestorePreservesDerivedAndExternalEditorTrees`,
-  `ravo_test_split_inventory` / inventory checker, and related catalog reopen
-  pixel gates. These remain residual until fixed with regressions on those hosts
-  (this tranche did not claim Windows/Linux green).
+**Status:** Partially closed.
 
-**Closed in this tranche (local `main`, mac verified):**
+The original CI-01 failures were repaired. CI run `33853463156` on
+`e7eac8dc2472645178c70814a2ea199d2bd981ca` is the first recorded same-SHA
+success for Static checks plus macOS, Windows, and Linux Debug jobs after the
+portable number parser, GPU classification, pixel-reopen, X-Trans, backup,
+Windows long-path, and test-inventory repairs.
 
-- one foundation owner `ravo::parse_ascii_double` (classic-locale, complete
-  consumption, finite) used by CLI `parse_double_flag`, `--roi`, sharpen /
-  watermark / frame export doubles; integer `from_chars` kept;
-- unit + CLI coverage for boundary, malformed, locale (dot accepted / comma
-  rejected under comma `LC_NUMERIC`), and duplicate `--exposure-ev` / `--roi`.
+The repository still allows direct pushes to an unprotected `main`, and the
+Debug matrix alone is not a release gate.
 
-**Still open:**
+**Remaining work:**
 
-- fix or correctly classify every Windows/Linux failure from run `33843178641`
-  (and re-verify on current `main`) with regressions — do not skip/weaken tests;
-- rerun static + macOS/Windows/Linux Debug on one pushed SHA;
-- add a Release or RelWithDebInfo compile/smoke gate so Debug-only success cannot
-  authorize a release;
-- configure a repository ruleset or equivalent merge policy requiring the
-  static and three platform jobs before ordinary changes reach `main`;
-- forbid tags and release publication from a red commit.
+- require Static checks and the macOS/Windows/Linux jobs through a repository
+  ruleset or equivalent branch policy;
+- require the latest `main` SHA to finish green before more product-state
+  commits or tags are accepted;
+- add a Release or RelWithDebInfo compile plus minimal CLI/Studio smoke job;
+- make tag packaging and release publication depend on the same green source
+  SHA, with no red-commit or skipped-job path;
+- document the required checks and emergency override policy;
+- keep flaky tests visible and owned; do not convert them to permanent skips.
 
 **Acceptance gate:**
 
-- static, macOS, Windows, and Linux jobs pass on the same `main` SHA;
-- no required job is skipped, allowed to fail, or replaced by a narrower test;
-- the portable parser has boundary, malformed, locale, duplicate-option, and
-  cross-platform tests;
-- the merge/release gate is visible in repository configuration and documented
-  in the contributor path;
-- the next ordinary commit cannot silently bypass the required checks.
-
-**Risk:** a documentation-only green run does not close a code or test failure;
-all required targets must execute on the same resolved source roots. Local mac
-parser verification alone does not authorize a three-platform green claim.
+- the latest `main` SHA has one successful Static/macOS/Windows/Linux matrix;
+- ordinary pushes cannot bypass required checks;
+- a release candidate compiles and launches outside the Debug-only path;
+- tag publication cannot run from a failed, cancelled, or incomplete gate;
+- no required job is `continue-on-error`, silently narrowed, or replaced by a
+  documentation-only run.
 
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
 **Status:** Active release evidence.
 
 **Dependency:** an explicit read-only mixed RAW/raster tree in
-`RAVO_PHOTO_CORPUS`. Generated catalogs, previews, recovery mirrors, backups,
-derived files, and reports must live under a unique temporary root. Use a
-Release build on the candidate host.
+`RAVO_PHOTO_CORPUS`; a Release build; all generated state under a unique
+temporary root. Private photos and reports remain outside the repository.
 
-The corpus should include multiple Bayer and X-Trans cameras, DNG, JPEG, PNG,
-TIFF, adjacent XMP, same-stem RAW+JPEG pairs, malformed/truncated files,
-unsupported inputs, large files, Unicode paths, removable-storage paths, and
-duplicate content. Private photos and reports remain outside the repository.
+The corpus must cover multiple Bayer and X-Trans cameras, DNG, JPEG, PNG, TIFF,
+adjacent XMP, same-stem RAW+JPEG, malformed/truncated/unsupported inputs, large
+files, Unicode paths, duplicate content, removable-storage paths, and source
+disappearance.
 
 **Required scenarios:**
 
-- Add, Copy, Move, filesystem-card ingest, second-copy verification, rename, and
-  cancellation;
+- Add, Copy, Move, filesystem-card ingest, native-ingest stub lifecycle,
+  verified second copy, rename, cancellation, disconnect, and resume;
 - ratings, labels, reject state, keywords, metadata, collections, virtual
-  copies, stacks, history, snapshots, and batch edits;
-- preview rebuild, missing-folder relink, external-editor derived assets, XMP
-  status/import/export, backup/verify/restore, and catalog reopen;
-- source disappearance, destination collision, disk-full simulation, process
-  interruption at publication boundaries, and restart;
-- upgrade from the latest published catalog/package to the current candidate.
+  copies, stacks, history, snapshots, multi-instance recipes, and batch edits;
+- preview rebuild, folder relink, XMP import/export/conflict resolution,
+  external-editor working copies and derived assets, offline proxies, cull
+  reports, and catalog reopen;
+- backup/verify/restore for every authoritative or retained support tree,
+  including derived/external-editor state, DNG/Smart Preview state, and any
+  accepted offline-proxy state;
+- destination collision, disk-full simulation, process termination at
+  publication boundaries, corrupt support files, stale revisions, and restart;
+- upgrade from the latest published package/catalog to the candidate.
 
-Suggested evidence entry point:
+Suggested entry point:
 
 ```text
 RAVO_PHOTO_CORPUS=/absolute/private/photos \
@@ -160,43 +174,46 @@ RAVO_PHOTO_CORPUS=/absolute/private/photos \
 
 **Acceptance gate:**
 
-- every source file retains exact SHA-256, size, and modification time unless an
+- every source retains exact SHA-256, size, and modification time unless an
   explicit successful destructive command owns the mutation;
-- unresolved conflicts publish no catalog row or destination file;
-- interrupted work leaves either the previous complete state or the new complete
-  state, never a half-published authority;
-- catalog reopen, backup/restore, relink, virtual copies, stacks, history,
-  metadata, XMP baselines, AI proposals, and derived provenance remain coherent;
-- every unsupported input fails structurally without a lower-quality or
-  incidental decoder fallback;
-- reports record imported, skipped, unsupported, cancelled, and failed items
-  without treating an unset corpus or skipped test as evidence.
+- unresolved conflicts publish no catalog row or destination artifact;
+- interruption leaves the previous complete state or the new complete state,
+  never a half-published authority;
+- reopen, relink, upgrade, backup/restore, virtual copies, stacks, recipes,
+  metadata, XMP baselines, proposals, proxies, and derived provenance remain
+  coherent;
+- unsupported inputs and missing dependencies fail structurally without an
+  incidental decoder, renderer, or lower-quality fallback;
+- reports distinguish imported, duplicate, skipped, unsupported, cancelled, and
+  failed items; an unset corpus or skipped test is not evidence.
 
-**Risk:** one macOS corpus result is not evidence for Windows, Linux, another
-storage device, or another GPU path.
+**Risk:** one host, storage device, GPU, or camera family does not generalize to
+another.
 
-## PERF-01 — Representative Gallery-to-viewer and Develop latency
+## PERF-01 — End-to-end interaction and large-library budgets
 
 **Status:** Active release evidence.
 
-**Dependency:** `REL-01`, a Release build, declared storage type, stable power
-state, and explicit cold/warm cache state.
+**Dependency:** REL-01, a Release build, declared storage and power state, and
+explicit cold/warm cache state.
 
-Measure complete user-visible paths rather than isolated kernels:
+Measure complete user-visible paths:
 
-- folder enumeration and import publication;
-- first placeholder, first thumbnail, viewport-complete thumbnails, and exact
-  1600-edge browse publication;
-- adjacent-photo selection and revisit;
-- Fit, Fill, and Actual Size / 1:1 ROI publication;
-- first interactive Develop frame, latest frame after a rapid input burst, and
-  settled persisted preview;
-- active-query page/facet refresh at large-catalog scale;
-- owned-image publication separately from native frame swap.
+- folder enumeration, ingest publication, first placeholder, first thumbnail,
+  viewport-complete thumbnails, and exact browse publication;
+- adjacent-photo select/revisit; Fit, Fill, Actual Size, and 1:1 ROI;
+- first interactive Develop frame, latest frame after a rapid burst, settled
+  preview, save, and reopen;
+- monitor-presentation transform and native frame swap separately from owned
+  image publication;
+- active-query paging/facets, exact-duplicate scan, burst proposal, heuristic
+  fingerprint scan, and their cancellation/memory behavior at 100,000 photos;
+- offline-proxy creation, verification, offline selection, and reconnect;
+- external-editor working-copy preparation and returned-file registration.
 
 Record at least two warmups and eight samples per case with P50/P90/max, source
-kind, file count, cache state, host, storage, worker count, peak owned bytes,
-display refresh rate, GPU backend, and power state.
+kind, file count, cache state, host, storage, workers, peak owned bytes, display
+refresh rate, GPU backend, and power state.
 
 ```text
 RAVO_INTERACTIVE_PERF_CATALOG=/temporary/private-corpus/library.sqlite \
@@ -207,525 +224,461 @@ RAVO_INTERACTIVE_PERF_ASSET_ID=<imported-raw-asset-id> \
 
 **Acceptance gate:**
 
-- host-local budgets are frozen only after repeatable candidate measurements;
-- the report distinguishes enumeration, catalog query, decode/demosaic,
-  processing, encoding, image ownership, QML presentation, and frame swap;
+- host-local budgets are frozen only from repeatable candidate measurements;
+- reports separate catalog query, decode/demosaic, processing, encoding,
+  presentation transform, image ownership, QML publication, and frame swap;
 - rapid intents never publish an older frame after a newer one;
-- cancellation, memory bounds, profile state, and foreground-Develop priority
-  remain correct under load;
-- the same-corpus rerun with the frozen budgets passes.
+- background ingest, fingerprinting, proxy generation, or export cannot starve
+  foreground Develop;
+- memory, cancellation, colour/profile state, and deterministic publication stay
+  bounded;
+- a same-corpus rerun with the frozen budgets passes.
 
 ### PERF-02 — Admit only measured optimizations
 
-`PERF-02` starts only when `PERF-01` identifies a dominant owner. Evaluate one
-candidate at a time:
+Start PERF-02 only after PERF-01 identifies a dominant owner. Evaluate one
+candidate at a time: byte-bounded concurrency, profiled browse resources,
+byte-bounded adjacent-preview LRU, deferred metadata, non-PNG rebuildable browse
+encoding, or additional QRhi stages/transfer elimination.
 
-- byte-bounded browse worker concurrency;
-- profiled medium browse resources;
-- byte-bounded adjacent-preview LRU;
-- deferred optional metadata extraction;
-- non-PNG rebuildable browse encoding;
-- additional QRhi stages or transfer elimination.
+Adopt a candidate only when same-corpus end-to-end P90 improves without
+foreground, determinism, cancellation, memory, source-safety, colour/profile,
+HDD-seek, package-size, or CPU-reference regression. Embedded JPEGs,
+placeholders, Smart Previews, and offline proxies must retain their declared
+roles and cannot become silent RAW correctness references.
 
-Adopt a candidate only when same-corpus end-to-end P90 improves without a
-foreground latency, deterministic publication, cancellation, memory,
-source-safety, colour/profile, HDD-seek, package-size, or CPU-correctness
-regression. Embedded JPEGs and placeholders remain presentation resources, not
-RAW correctness references.
+## IQ-00 — Rendering and colour consistency gate
 
-## REL-02 — Installed package, upgrade, and restore evidence
+**Status:** Active after representative corpus access exists.
 
-**Status:** P0 after CI-01 is green.
-
-Use the existing `RavoPackage` path and validate the final DMG, Windows ZIP,
-Linux AppImage, and Linux DEB after each artifact is copied away from the build
-tree.
-
-**Required installed smoke:**
-
-1. launch Studio and the bundled CLI;
-2. create a catalog and import one raster plus one supported RAW;
-3. browse, rate, edit, save, reopen, and export JPEG plus TIFF or PNG;
-4. rebuild a preview, create and verify a backup, restore to a new path, and
-   reopen the restored catalog;
-5. verify language catalogs, Qt image/platform plugins, SQLite, ICC handling,
-   GPU availability reporting, and external-editor OS payload behavior;
-6. open or upgrade a catalog created by the latest published release;
-7. uninstall or remove the package without touching user catalogs or originals.
-
-**Acceptance gate:**
-
-- every platform artifact launches on a clean supported host without build-tree
-  paths or undeclared runtime dependencies;
-- package smoke succeeds with the same machine contracts as the source build;
-- an upgrade failure is explicit and leaves the old catalog recoverable;
-- backup/restore uses complete staged verification and no original is packaged;
-- package version, release notes, README status, supported formats, and actual
-  artifacts agree;
-- signing/notarization status is recorded accurately and never implied when
-  absent.
-
-**Risk:** successful archive creation is not installed-product evidence.
-
-## IQ-00 — Rendering consistency release gate
-
-**Status:** P0 after representative corpus access exists.
-
-The current CPU path remains the correctness reference. GPU preview may improve
-latency but cannot silently change the recipe, colour pipeline, supported-input
-boundary, or export result.
+CPU remains the correctness reference. GPU and display presentation may improve
+latency but cannot silently alter recipe state, supported-input boundaries,
+colour transforms, or export bytes.
 
 **Required matrix:**
 
 - raster and supported Bayer/X-Trans RAW;
-- default and edited white balance, exposure, highlight recovery, curves, colour
-  grading, lens/perspective/crop/canvas, sharpening, denoise, masks, frame, and
-  watermark;
-- built-in and file ICC input/output profiles, rendering intents, proof state,
-  and metadata privacy modes;
-- interactive preview, settled preview, close/reopen, CLI probe/render, and
-  JPEG/PNG/TIFF export;
-- CPU-only, supported GPU path, GPU-unavailable, resource-exhausted, and
-  cancelled execution.
+- default and edited white balance, exposure, highlight recovery, curves,
+  multi-instance local adjustments, masks, colour grading, denoise,
+  lens/perspective/crop/canvas, sharpening, frame, and watermark;
+- built-in/file ICC input and output profiles, proof state, monitor matrix/LUT
+  profiles, rendering intents, and privacy modes;
+- interactive preview, settled preview, close/reopen, CLI probe/render, 1:1 ROI,
+  and JPEG/PNG/TIFF export;
+- CPU-only, supported GPU, GPU-unavailable, resource-exhausted, cancelled, and
+  corrupt-profile execution.
 
 **Acceptance gate:**
 
-- preview, settled save, reopen, and export use one canonical recipe and
-  documented tolerance;
-- CPU/GPU comparisons use per-operation and composed colour/error thresholds
-  derived from an approved corpus, not screenshot judgment;
-- unsupported GPU stages remain explicit and never select an unreported
+- preview, settled save, reopen, and export use one canonical recipe with
+  documented tolerances;
+- CPU/GPU and preview/monitor comparisons use owned pixel results and approved
+  metrics, never screenshots;
+- unsupported GPU stages are explicit and do not choose an unreported
   lower-quality algorithm;
-- ICC identity and embedded profile bytes match the declared output;
-- 1:1 ROI and full export agree for the overlapping source region after the same
-  accepted geometry;
-- regressions retain inputs, recipe JSON, backend, profile identity, hashes, and
-  error metrics.
+- ICC identity and embedded bytes match the declared output;
+- moving a window between displays changes presentation only, never recipe,
+  history, catalog revision, or export;
+- overlapping 1:1 ROI and native export regions agree after the same geometry;
+- regressions retain input, recipe, backend, profile identity, hashes, and error
+  metrics.
 
-# P1 — Next professional daily workflows
+## REL-02 — Installed package, upgrade, and restore evidence
 
-P1 work starts only after CI-01 is closed. A P1 item may be researched earlier,
-but implementation that expands product state must not displace active P0
-evidence.
+**Status:** P0 after CI-01 enforcement and candidate artifacts exist.
 
-## DISPLAY-01 — Per-display ICC colour management
+Validate the final DMG, Windows ZIP, Linux AppImage, and Linux DEB after each is
+copied away from the build tree.
 
-**Status:** P1; ADR-0144 accepted. First Ready tranche on `main` (service /
-presenter contract + tests + CLI status). Residual OS/Studio/GPU work remains.
+**Required installed smoke:**
 
-Ravo already owns input/output ICC transforms and soft-proof state. On-screen
-monitor conversion is a separate presentation contract: it must not mutate the
-canonical recipe, settled preview authority, export profile, history, or
-catalog revision.
-
-**Accepted (ADR-0144):**
-
-- Monitor ICC is presentation-only; never mutates recipe JSON, history, catalog
-  revision, settled preview authority, or export profile.
-- C++ display-presentation owner applies preview→monitor after soft-proof;
-  QML only presents pixels.
-- First Ready: macOS CoreGraphics discovery + change lifecycle; explicit
-  **sRGB** fallback when missing/corrupt (`source=fallback_srgb`); injectable
-  ICC path; synthetic matrix/LUT CPU reference paths; CLI
-  `display-profile status`.
-- Soft-proof remains recipe-owned and inspectable; display transform is
-  on-screen only.
-- Window/screen token refresh does not change recipe.
-- Headless/tests inject profiles; never silent assumed transform without
-  machine-visible state.
-
-**Residual:**
-
-- Windows/Linux monitor discovery and profile-change lifecycle;
-- Studio window-move wiring to refresh presentation across Gallery/Loupe/
-  Develop/Before/After/comparison/magnifier/scopes with explicit pixel-kind
-  declarations;
-- GPU presentation-path parity with CPU synthetic matrix/LUT references;
-- SDR versus HDR display policy and first-version HDR boundary;
-- validation corpus comparing owned transform output (not screenshots) across
-  hosts.
+1. launch Studio and bundled CLI;
+2. create/open a catalog; import one raster and one supported RAW;
+3. browse, rate, edit, save, reopen, and export JPEG plus TIFF or PNG;
+4. exercise monitor-profile status, multi-instance recipe reopen, cull report,
+   offline-proxy status, and external-editor working-copy preparation;
+5. rebuild previews; create/verify a backup; restore to a new path; reopen;
+6. upgrade a catalog created by the latest published release;
+7. verify locales, platform/image plugins, SQLite, ICC, GPU reporting, long
+   paths, and installed runtime closure;
+8. remove the package without touching user catalogs or originals.
 
 **Acceptance gate:**
 
-- moving Studio between displays changes presentation only and never changes
-  recipe JSON, history, catalog revision, or exported bytes;
-- synthetic matrix and LUT monitor profiles produce repeatable reference output
-  on CPU and any supported GPU presentation path;
-- soft-proof and gamut-warning behavior remains defined and inspectable;
-- missing, corrupt, changed, or unsupported profiles are visible machine states;
-- Gallery, Loupe, Develop, Before/After, comparison, magnifier, and scopes all
-  declare whether they consume scene/output pixels or display-transformed
-  pixels;
-- validation compares owned transform output, not application screenshots.
+- every artifact launches on a clean supported host without build-tree paths or
+  undeclared runtime dependencies;
+- package smoke uses the same machine contracts as source builds;
+- upgrade failure is explicit and leaves the old catalog recoverable;
+- backup/restore stages and verifies all retained support state and excludes
+  originals/rebuildable caches according to contract;
+- package version, release notes, README, formats, signing/notarization claims,
+  and actual artifacts agree.
 
-## LOCAL-01 — Multi-instance local adjustments and professional masks
+# P1 — Complete the professional baseline
 
-**Status:** P1; ADR-0145 accepted. Ready on `main`: multi-instance Exposure and
-Color Balance RGB recipe/Develop serialization + CLI `recipe inspect` with
-gradient/radial/parametric masks. Studio instance chrome remains residual.
+Product work below may proceed only from a green `main`. Finish one vertical
+workflow before admitting another product area.
 
-Existing canonical masks and single-mask everyday consumers are foundations.
-The remaining product gap is a coherent local-adjustment system rather than more
-one-off masked fields.
+## LOCAL-01 — Professional multi-instance local adjustments
 
-**Accepted (ADR-0145):**
+**Status:** ADR-0145 and first Exposure/Color Balance RGB multi-instance
+serialization/inspection slices are on `main`; the photographer workflow is
+incomplete.
 
-- Ordered multi-instance Develop ops; first consumers Exposure + Color Balance
-  RGB (both Ready for Develop/CLI; Studio chrome residual).
-- Instance `instance_id`, optional `name`, `enabled`, `bypass`, reorder via
-  recipe order, serialize on `OperationInstance` /
-  `exposure_instances` / `color_balance_rgb_instances`.
-- C++-owned mask leaves reuse ADR-0043/0116 (brush/path/linear/radial +
-  luminance/colour parametric); group Add/Subtract/Intersect/Invert + opacity.
-- Legacy/CRS unsupported multi-instance forms stay fail-closed (no approximation).
-- Empty `exposure_instances` / `color_balance_rgb_instances` preserve legacy
-  single-field Develop behaviour.
+**Remaining work:**
 
-**Residual:**
-
-- Studio instance list chrome (name/bypass/reorder/duplicate/delete) beyond thin
-  hooks;
-- history/undo/style/selective copy completeness for instance vectors;
-- GPU adapter boundary for masked multi-instance evaluation if needed.
+- Studio instance list with create, name, select, bypass, enable, reorder,
+  duplicate, and delete;
+- complete brush/path/linear/radial/parametric authoring, overlay visibility,
+  feather, flow/density where accepted, opacity, and
+  Add/Subtract/Intersect/Invert composition;
+- one canonical coordinate path through orientation, lens, Perspective, crop,
+  Canvas, preview scaling, 1:1 ROI, and export;
+- history/undo/redo, snapshots, style/preset, selective copy/paste,
+  multi-selection batch, virtual-copy, and reopen completeness for instance
+  vectors;
+- explicit XMP export/import failure for unrepresentable multi-instance state;
+- GPU parity only after CPU equality and PERF-01 evidence;
+- split oversized Studio owners while implementing the workflow; do not grow
+  `Main.qml`.
 
 **Acceptance gate:**
 
-- no mask pixels or durable geometry are owned by QML;
-- preview, export, reopen, history, undo, style apply, and copy/paste are equal;
-- mask geometry remains correct through every accepted transform;
-- unsupported legacy blend/mask shapes reject without approximation;
+- a photographer can create and edit at least two named local instances in
+  Studio without CLI assistance;
+- preview, settled save, export, reopen, history, undo, style, and copy/paste
+  agree;
+- masks stay aligned through accepted geometry and 1:1 inspection;
+- QML owns no durable geometry or mask pixels;
 - stale revision, cancellation, malformed graph, excessive points, allocation
   failure, and partial batch behavior are tested;
-- unmasked identity and existing single-instance recipes retain their exact
-  behavior through a versioned migration.
+- legacy single-instance recipes remain bit-compatible.
 
-**Blocks:** real AI semantic selections and replayable AI retouch proposals.
+**Blocks:** real semantic-mask and replayable retouch providers.
 
-## OFFLINE-01 — Smart Preview and offline-original editing
+## DISPLAY-01 — Per-display ICC presentation
 
-**Status:** P1 first Ready landed (ADR-0146). Residuals remain.
+**Status:** ADR-0144 macOS discovery, explicit sRGB fallback, synthetic CPU
+transform references, presenter/service contract, and CLI status are on `main`;
+cross-platform Studio presentation is incomplete.
 
-**Closed in this tranche (local `main`):**
+**Remaining work:**
 
-- ADR-0146 accepts an explicit **offline-edit proxy** class under
-  `{catalog}.ravo/offline-edit-proxies/` (distinct from ADR-0141 browse-only
-  Smart Preview).
-- Service/CLI: `offline-proxy-create|list|verify|status|reconnect` with
-  source hash + recipe cache key + max edge + `srgb` profile; machine states
-  `original|proxy|placeholder|missing`.
-- Offline Develop recipe apply while original is stashed; export fail-closed
-  with `proxy_export_forbidden` (v1: no proxy export); reconnect verifies
-  source SHA-256 then returns to original-backed export.
-
-**Still open:**
-
-- delete/pin/quota/eviction and background generation policy;
-- Studio status/storage chrome;
-- Develop/loupe render path consuming the offline-edit proxy when original is
-  offline (recipe writes already work);
-- backup/restore packaging of `offline-edit-proxies/` (ADR-0136 extension);
-- packaged Smart Preview / DNG converter enablement (ADR-0141 residual).
-
-**Acceptance gate:** unchanged for remaining residuals; first Ready proves
-create/verify, offline develop apply, export rejection, and reconnect hash
-check with originals byte-identical.
-
-## CULL-01 — High-throughput review, burst grouping, and duplicate assistance
-
-**Status:** P1 Ready deepened (ADR-0147 + ADR-0149 near-dup). Residuals remain.
-
-**Closed in this tranche (local `main`):**
-
-- ADR-0147 accepts deterministic exact-duplicate hash groups
-  (`ravo.cull.exact-duplicate/v1`) and ephemeral burst proposals
-  (`ravo.cull.burst-proposal/v1`); no auto-delete/auto-reject.
-- Service/CLI: `cull-exact-duplicates`, `cull-burst-propose`
-  (`--burst-window-seconds`), `cull-burst-accept` (`--user-initiated`, member
-  `--asset-id`s, optional `--pick-id`) stacking via ADR-0105.
-- Outcomes: `same_file` (shared URI / virtual copies) vs `same_bytes` (distinct
-  URIs, identical SHA-256); missing originals skipped with `original_missing`.
-
-**Also closed (ADR-0149 near-dup residual):**
-
-- Bounded 64-bit average-hash near-duplicate groups
-  (`ravo.cull.near-duplicate/v1`); Hamming ≤ `--near-dup-max-hamming` (default 5);
-  CLI `cull-near-duplicates`; no auto-delete/auto-reject.
-
-**Still open:**
-
-- keyboard-first Pick/Reject/rating/colour-label with auto-advance;
-- Studio 1:1 focus inspection sync and Library filters for
-  unreviewed/picked/rejected/duplicate/burst;
-- durable proposal store / dismiss ledger; 100k paging budgets;
-- learned embeddings (AI-04) beyond deterministic aHash.
-
-**Acceptance gate:** unchanged for remaining residuals; Ready proves exact hash
-groups, near-dup aHash groups, burst propose/accept stack, and no auto-delete.
-
-**Blocks:** AI-04 metadata/culling/similarity quality work.
-
-## INGEST-01 — Native PTP/MTP and resumable verified camera ingest
-
-**Status:** P1 first Ready landed (ADR-0148). Residuals remain.
-
-The filesystem-card/DCIM adapter remains the first transport. Native PTP/MTP
-plugs into the same URI + Copy planner without a second catalog authority.
-
-**Closed in this tranche (local `main`):**
-
-- ADR-0148 accepts session identity (`ptp-usb` / `mtp` URIs), three-platform
-  support matrix, fail-closed probe when adapter is not packaged, resume
-  checkpoints under `{catalog}.ravo/ingest-resume/`, and fixture `ptp-stub`.
-- Service/CLI: `probe_ingest_native_support` / `catalog ingest-probe`;
-  `execute_ingest_detailed` / `catalog ingest` with `--transport` and
-  `--resume-batch-id`; Copy-only; Move rejected; no camera delete.
-- Resume skips completed objects (`ImportItemStatus::kSkipped`, reason
-  `ingest_resume_already_completed`) after reconnect; structured per-item
-  imported/duplicate/skipped/unsupported/failed report.
-- Live `ptp-usb`/`mtp` report `native_ingest_adapter_not_packaged` with
-  platform machine state rather than pretending a filesystem mount is native.
-
-**Still open:**
-
-- Packaged ImageCaptureCore / WinRT / libmtp adapters and real device
-  enumeration;
-- Studio source selector and progress chrome;
-- Permission/timeout UX polish; durable dismiss of abandoned checkpoints.
-
-**Acceptance gate:** unchanged for remaining residuals; first Ready proves
-fail-closed native probe, resume contract (stubbed), Copy-only planner path,
-and structured per-item reports.
-
-## IQ-01 — Camera/profile quality and denoise evaluation
-
-**Status:** P1 after IQ-00 establishes the regression harness.
-
-**Required work:**
-
-- define a licensed, redistributable quality corpus plus a private-camera
-  extension set covering skin, saturated fabrics, foliage, tungsten/LED,
-  underexposure, clipped highlights, high ISO, moiré, hot pixels, and lens
-  extremes;
-- record camera model, firmware, lens, illuminant, exposure, expected profile,
-  and legal provenance;
-- measure colour accuracy, hue stability, highlight recovery, noise/detail,
-  edge halos, false colour, and scaling behavior with repeatable metrics plus
-  blinded human review;
-- define camera input/profile update and lens database validation workflows;
-- separate deterministic algorithm regression from learned-model quality;
-- evaluate a first real denoise provider only after runtime, weight, licence,
-  package, memory, cancellation, and fallback decisions are accepted.
+- Windows and Linux monitor discovery and profile-change lifecycle;
+- bind Studio window/screen changes to one C++ presentation owner;
+- apply the transform consistently to Gallery, Loupe, Develop, Before/After,
+  comparison, magnifier, and any view declared display-referred;
+- define whether scopes consume output-profile pixels or
+  display-transformed pixels, and keep the choice explicit;
+- GPU presentation parity against synthetic matrix/LUT CPU references;
+- corrupt/missing/changed profile state and cache invalidation;
+- SDR/HDR display boundary without silently treating an HDR screen as sRGB;
+- multi-display corpus evidence and performance budgets.
 
 **Acceptance gate:**
 
-- no camera support claim is based only on file decode;
-- new profiles and model versions have before/after evidence and known-failure
-  notes;
-- quality tests cover preview and export at native resolution;
-- model absence or unsupported hardware has explicit behavior and never changes
-  the deterministic default silently;
+- moving Studio between displays changes presentation only;
+- recipe, history, catalog revision, settled preview authority, and exported
+  bytes remain unchanged;
+- every relevant view declares its pixel kind;
+- matrix and LUT profiles produce repeatable CPU and supported-GPU results;
+- missing/corrupt/unsupported profiles are visible machine states;
+- validation compares owned transformed pixels, not screenshots.
+
+## OFFLINE-01 — Offline-original editing
+
+**Status:** ADR-0146 manifest/service/CLI create/list/verify/status/reconnect and
+offline recipe writes are on `main`. It is not yet an offline editing workflow:
+Loupe/Develop do not consume the proxy while the original is absent.
+
+**Remaining work:**
+
+- route Loupe/Develop preview requests to a verified offline-edit proxy only
+  under the explicit media-state contract;
+- re-render from the verified original after reconnect and compare accepted
+  resolution-dependent results;
+- Studio media-state, create/delete/pin, storage, corruption, and reconnect UI;
+- background generation policy by explicit asset/collection, with cancellation;
+- byte quota, pinning, eviction, disk-full, corruption, and cleanup;
+- backup/restore and catalog-relocation policy for
+  `offline-edit-proxies/`;
+- clarify proxy format, bit depth, profile, maximum edge, and regeneration when
+  recipe/source identity changes;
+- retain fail-closed full-resolution export while the original is unavailable.
+
+**Acceptance gate:**
+
+- an offline original can be selected, viewed, graded, saved, reopened, and
+  compared in Studio through the declared proxy;
+- edits remain canonical recipes and re-render from the original after verified
+  reconnect;
+- export never silently uses a proxy as full-resolution authority;
+- stale/corrupt/missing proxies are explicit and recoverable;
+- quotas are byte-bounded and pinned proxies are not auto-deleted;
+- source bytes remain unchanged and backup/restore behavior is tested.
+
+## CULL-01 — Keyboard-first review and evaluated assistance
+
+**Status:** ADR-0147 exact-byte groups and burst propose/accept plus ADR-0149
+64-bit average-hash groups are on `main`. These are service/CLI foundations, not
+a complete culling workflow.
+
+**Correction:** ADR-0149 aHash is a bounded visual heuristic. It is not a
+quality-complete near-duplicate classifier, does not currently cover every RAW
+path, and must not be presented as delete authority or as an evaluated
+professional similarity model.
+
+**Remaining work:**
+
+- keyboard-first Pick/Reject, rating, colour label, auto-advance, previous/next,
+  and selection behavior with visible shortcut state;
+- synchronized 1:1/focus inspection for burst members and fast Survey compare;
+- Library filters for unreviewed, picked, rejected, exact duplicate, heuristic
+  similar, and burst groups;
+- persistent/incremental fingerprint and proposal lifecycle with invalidation on
+  source identity changes, bounded storage, dismiss state, and cancellation;
+- produce fingerprints through an accepted Ravo image resource path, including
+  supported RAW, orientation, and colour handling, rather than creating a
+  second hidden decode authority;
+- evaluate exact, burst, and heuristic-similarity precision/recall and
+  false-positive cost on licensed/private corpora;
+- 100,000-photo paging, hash/fingerprint scheduling, I/O throttling, and memory
+  budgets;
+- never auto-delete or auto-reject; auto-stack requires a separate accepted
+  confidence/action contract.
+
+**Acceptance gate:**
+
+- the main keyboard review loop works without pointer interaction;
+- foreground review and 1:1 inspection remain responsive while analysis runs;
+- exact and heuristic groups are visibly distinct;
+- heuristic thresholds have recorded corpus metrics and known failures;
+- source files are never modified and accepting a burst uses ordinary stack
+  history/conflict behavior;
+- cancel/restart, missing source, corrupt decode, stale fingerprint, and
+  resource exhaustion are deterministic.
+
+**Blocks:** real AI culling/similarity quality claims.
+
+## EDITIN-01 — Studio external-editor round trip
+
+**Status:** ADR-0122/0136/0139 plus the working-copy service/CLI path are on
+`main`; Studio remains incomplete.
+
+**Remaining work:**
+
+- Studio `Edit in...` dialog for application, TIFF sample type, profile,
+  resize, naming, open action, and auto-stack choice;
+- visible working-copy/session/provenance state and explicit check-returned /
+  register action;
+- reopen, abandon, retry, remove, and conflict UX;
+- derived-pair Gallery/stack presentation;
+- profile/bit-depth equality and package smoke on each host;
+- keep watch-folder auto-import and proprietary editor scripting out unless a
+  later dated decision supplies deterministic ownership.
+
+**Acceptance gate:**
+
+- create, open, return, register, auto-stack, reopen, backup/restore, and export
+  work from Studio without CLI assembly;
+- originals remain byte-identical;
+- unchanged/missing/unsupported/stale/conflicting returns fail visibly;
+- partial derived publication is impossible;
+- package behavior matches the service/CLI contract.
+
+## INGEST-01 — Packaged native camera transport
+
+**Status:** ADR-0148 session identity, support probe, resume checkpoints,
+Copy-only planner path, structured reports, and `ptp-stub` are on `main`.
+No real native adapter has shipped.
+
+**Remaining work:**
+
+- macOS ImageCaptureCore, Windows WinRT/WPD, and Linux libgphoto2/libmtp
+  dependency/licence/package decisions;
+- real device/session enumeration, permission, timeout, disconnect, reconnect,
+  object identity, and cancellation;
+- verified primary and optional second-copy publication through the existing
+  planner;
+- checkpoint cleanup/abandon policy and resume after process restart;
+- Studio source selector, progress, per-item report, retry, and permission UX;
+- real camera/card hardware matrix and source-preservation evidence.
+
+**Acceptance gate:**
+
+- at least one declared native adapter per supported host is packaged or the
+  host is explicitly unsupported;
+- disconnect/cancel/restart leaves reusable sessions and exact per-item state;
+- Move and camera delete remain rejected unless separately accepted;
+- originals on the device are unchanged;
+- no filesystem mount is reported as native PTP/MTP;
+- hardware tests cover duplicate names, unavailable destinations, second-copy
+  failure, and resume.
+
+## IQ-01 — Camera/profile and denoise quality admission
+
+**Status:** Begins after IQ-00 supplies the regression harness.
+
+**Remaining work:**
+
+- licensed redistributable quality corpus plus private-camera extension set for
+  skin, saturated fabrics, foliage, tungsten/LED, underexposure, clipped
+  highlights, high ISO, moiré, hot pixels, and lens extremes;
+- camera model/firmware/lens/illuminant/exposure/profile provenance;
+- repeatable colour accuracy, hue stability, highlight recovery, noise/detail,
+  halo, false-colour, and scaling metrics plus blinded human review;
+- camera input/profile and lens-database update workflows;
+- separate deterministic regression from learned-model quality;
+- admit a first real denoise provider only after runtime, weights, licence,
+  package, memory, cancellation, update, and no-model decisions.
+
+**Acceptance gate:**
+
+- camera support claims include image-quality evidence, not decode alone;
+- profile/model changes carry before/after results and known failures;
+- preview and native-resolution export are covered;
+- model absence/unsupported hardware is explicit and does not change the
+  deterministic default silently;
 - redistributed data, profiles, runtimes, and weights have licence and notice
   evidence.
 
-## EDITIN-01 — Complete the Studio external-editor round trip
-
-**Status:** P1 first Ready landed (ADR-0122 / ADR-0136 / ADR-0139). Residuals remain.
-
-**Closed in this tranche (local `main`):**
-
-- Service contract `ravo.external-editor.working-copy/v1`: create TIFF working
-  copy under `{catalog}.ravo/external-editor/working-copies/`, persist session,
-  optional application-path preflight, then explicit check-returned / register
-  (no watch-folder).
-- CLI: `catalog editor-prepare-working-copy` (`--user-initiated`, TIFF sample
-  type, `--max-edge`, optional `--invoke-os-open`) and
-  `catalog editor-check-returned` (`--working-copy-id`, optional returned
-  `--input`).
-- Fail-closed: missing user initiation, missing application, unsupported
-  profile (v1 `srgb` only), unchanged returned bytes, stale revision, duplicate
-  derived destination; originals remain byte-identical; check-returned
-  default-on auto-stack uses ADR-0139 conflict retention.
-- Service + CLI tests cover create → unchanged reject → returned register +
-  auto-stack. Studio `Edit in…` dialog deferred (TU-heavy; same machine
-  contract).
-
-**Still open:**
-
-- Studio `Edit in…` dialog (destination app, TIFF baseline, profile, resize,
-  naming, auto-stack choice) and visible session provenance chrome;
-- PSD/PSB, proprietary application scripting, background watch-folder import;
-- reopen/removal UX for working-copy sessions beyond register; richer Gallery
-  derived-pair chrome.
-
-**Acceptance gate:** unchanged for remaining residuals; first Ready proves
-working-copy create, check-returned/register, auto-stack, and originals
-byte-identical with CLI/service parity.
-
-# P2 — Important extensions after the professional baseline
+# P2 — Important extensions
 
 ## FORMAT-01 — Owned HEIC/HEIF decode
 
-**Status:** Blocked by the ADR-0123 dependency/licence/package gate.
+**Status:** Blocked by ADR-0123 dependency/licence/package evidence.
 
-Remaining scope includes pixels, orientation, colour/profile, alpha, HDR
-transfer/metadata policy, multi-image selection, malformed-container limits, and
-three-platform packaging. Recognition continues to fail closed until an owned
-decoder ships.
+Define pixels, orientation, ICC/HDR transfer metadata, alpha, multi-image
+selection, malformed-container limits, memory/cancellation, and three-platform
+packaging. Recognition continues to fail closed until one owned decoder ships.
 
-**Acceptance gate:** one declared decoder owner produces bounded, colour-managed
-pixels on all supported hosts; unsupported brands/features remain structural;
-no incidental platform ImageIO or Qt plugin becomes a hidden product contract.
+**Acceptance gate:** one declared decoder produces bounded colour-managed pixels
+on supported hosts; unsupported brands/features are structural; incidental
+ImageIO or Qt plugin behavior never becomes a hidden contract.
 
-## SPECIALIZE-01 — Choose one vertical specialization
+## FORMAT-02 — DNG side conversion and browse Smart Preview implementation
 
-**Interim note (2026-09-04):** Defer starting SPECIALIZE while CULL/INGEST
-deepen. When selected, prefer **tethered-studio** (Track B) as the P2 photo-manager
-track; HDR/Panorama remains the alternate. Record the formal choice in a dated
-ADR before implementation.
+**Status:** ADR-0141 and backup-v3 contracts exist; packaged converter/encoder
+implementation remains blocked.
 
-Do not start both tracks concurrently. Select one based on the first external
-photographer cohort and record the decision in a dated ADR.
-
-### Track A — HDR/Panorama
-
-Define source grouping, alignment, projection, ghost handling, exposure merge,
-working colour space, memory/cancellation, crop, provenance, recipe relationship,
-rebuild, and derived-asset publication. The merged result must remain linked to
-its sources and never overwrite them.
-
-### Track B — Tethered studio
-
-Define camera support, USB/network lifecycle, reconnect, live view, capture
-destination, naming/metadata/style application, client display, session
-organization, privacy, and package dependencies. This is independent Ravo work,
-not a port of the removed tether module.
-
-**Acceptance gate:** the selected track has one complete service/CLI contract,
-one Studio workflow, real hardware/corpus evidence, cancellation/recovery, and
-source-preservation tests before the other track enters implementation.
+Choose owned converter/encoder dependencies and package/licence policy. Preserve
+Copy-only side conversion, browse-only Smart Preview semantics, explicit source
+hashes, cancellation, quota, and no original replacement. Do not merge this
+cache class with ADR-0146 offline-edit proxies.
 
 ## META-01 — Remaining professional metadata depth
 
-**Status:** P2 unless a journalism, sports, agency, or archive cohort makes it a
-P1 requirement.
+**Status:** P2 unless a journalism, sports, agency, or archive cohort promotes
+it.
 
-**Residual from ADR-0140 Studio chrome:** headline/credit/source/instructions/usage_terms/job_id (plus description) are already exposed in Studio PhotoInfo via selection metadata patches on `main`.
-
-**Residual from ADR-0143:** CRS `ProcessVersion` matrix is accepted on `main`.
-`catalog xmp-status` / import report `crs_version_class` /
-`crs_process_version`; unsupported Process Versions fail closed with
-`unsupported_crs_process_version` (no silent drop). Remaining META-01 work is
-IPTC Extension depth beyond ADR-0140, not ProcessVersion admission.
-
-Define the remaining IPTC Extension/contact/scene/subject-code subset, controlled
-vocabularies, multi-select semantics, facets, export privacy, XMP conflict
-fingerprints, and capture-refresh authority. Do not add empty columns or panes
-before the contract and target users are known.
+Define only the required IPTC Extension/contact/scene/subject-code subset,
+controlled vocabularies, multi-select semantics, facets, export privacy, XMP
+fingerprints, and capture-refresh authority. Do not add empty columns or panes.
 
 ## CONVERT-01 — Real foreign-catalog readers
 
 **Status:** P2.
 
-Potential readers for Lightroom `.lrcat` and Capture One catalogs/sessions need
-a dependency/licence/package decision, a **vendor catalog** supported-version
-matrix (distinct from ADR-0143 CRS ProcessVersion admission), read-only
-parsing, Copy-mode destination policy, persistent resume/report state, and a
-Studio surface. Never open or migrate a vendor catalog in place. Unsupported
-fields must be reported per item rather than silently dropped.
+Lightroom `.lrcat` and Capture One readers require a dependency/licence/package
+decision, vendor-version matrix, read-only parsing, Copy-mode destination
+policy, persistent resume/report state, and Studio migration surface. Never
+open or migrate a vendor catalog in place; report unsupported fields per item.
 
-## DELIVERY-01 — Advanced export delivery
+## DELIVERY-01 — Advanced delivery
 
 Soft-proof-as-export, SVG/logo overlays, arbitrary fonts, decorative templates,
-and publishing services remain outside the accepted ADR-0129 tranche. Each
-requires a new product/dependency decision and must remain ExportOptions or a
-derived delivery job rather than mutating Develop recipes.
+printing, and publishing services remain outside ADR-0129. Each needs a new
+product/dependency decision and must remain ExportOptions or a derived delivery
+job rather than mutating Develop.
+
+## SPECIALIZE-01 — Select one cohort-backed vertical
+
+**Status:** Deferred; no preferred track is authorized.
+
+Do not preselect tethered-studio or HDR/Panorama from implementation momentum.
+Choose only after an external photographer cohort, representative workflow,
+hardware/corpus availability, and measurable product advantage are recorded in
+a dated ADR.
+
+- **HDR/Panorama:** source grouping, alignment, projection, ghost handling,
+  exposure merge, colour space, memory/cancellation, crop, provenance, rebuild,
+  and derived-asset publication.
+- **Tethered studio:** camera support, USB/network lifecycle, reconnect, live
+  view, destination, naming/metadata/style, client display, session
+  organization, privacy, and package dependencies.
+
+Do not start both. The selected track needs one service/CLI contract, one Studio
+workflow, real evidence, cancellation/recovery, and source-preservation tests
+before the alternate track enters implementation.
 
 # P2 — Real AI admission
 
-ADR-0121 and the deterministic AI-01/AI-02/AI-03 stubs establish proposal
-lifecycle and failure contracts. They are test fixtures, not claims of model
-quality. No additional stub provider or placeholder Studio surface is a
-priority.
+ADR-0121 and deterministic AI-01/AI-02/AI-03/AI-04 fixtures establish lifecycle
+and failure contracts. They do not establish model quality. Do not add more
+stubs or placeholder Studio panes.
 
 ## AI-00 — Runtime, privacy, packaging, and evaluation gate
 
-**Status:** Required before any non-stub provider ships.
-
-Record the concrete provider/runtime, model or weight identity, source, licence,
-GPL compatibility, notices, package/download size, update channel, cache root,
+Record the concrete provider/runtime/model identity, source, licence/GPL
+compatibility, notices, package/download size, update channel, cache root,
 credential ownership, local/remote payload, retention, logging, telemetry,
 training-use policy, concurrency, memory, timeout, retry, cancellation, and
 offline behavior.
 
-Establish a licensed evaluation corpus and blinded human-review protocol across
-RAW/raster inputs, cameras, lighting, genres, skin tones, failure cases, and
-provider versions.
+Establish a licensed evaluation corpus and blinded review protocol across
+RAW/raster, cameras, lighting, genres, skin tones, failure cases, and model
+versions.
 
-**Acceptance gate:** privacy/threat review, dependency evidence, reproducible
-model identity, bounded resources, no-model behavior, and quality thresholds are
-all testable; originals never need to be writable.
+**Acceptance gate:** privacy/threat review, reproducible model identity,
+dependency evidence, bounded resources, no-model behavior, and quality
+thresholds are testable; originals never need to be writable.
 
 ## AI-01 — Real global edit proposals
 
 **Blocked by:** AI-00 and IQ-01.
 
-Admit white-balance, exposure, tone, colour, crop/straighten, and
-reference-grade proposals only as ordinary validated recipe-field diffs. Show
-the exact diff and preview before apply. Reject/cancel changes nothing; apply
-creates ordinary history/undo. Model quality must pass the approved corpus and
-human review.
+Proposals remain ordinary validated recipe diffs with exact preview and field
+diff before apply. Reject/cancel changes nothing; apply creates normal
+history/undo. Quality must pass the approved corpus and human review.
 
 ## AI-02 — Real semantic selections
 
 **Blocked by:** AI-00 and LOCAL-01.
 
-Subject, sky, background, person/skin, clothing, and object results must be
-bounded canonical masks in the accepted coordinate system. Uncertain and empty
-masks remain visible. No provider-specific bitmap may become a hidden second
-mask authority.
+Results must become bounded canonical masks in the accepted coordinate system.
+Uncertain/empty results stay visible. Provider-specific bitmaps cannot become a
+second mask authority.
 
-## AI-03 — Real shoot-consistency assistance
+## AI-03 — Real shoot consistency
 
-**Blocked by:** AI-00, AI-01, and the accepted batch/culling evaluation set.
+**Blocked by:** AI-00, AI-01, and an accepted batch evaluation set.
 
-Every destination remains explicitly selected and receives an independent
-proposal/history entry. Partial completion and cancellation follow the existing
-batch contract. Per-image exposure and white-balance exceptions must remain
-inspectable.
+Every destination is explicit and gets independent proposal/history state.
+Partial completion and cancellation use the existing batch contract; per-image
+exceptions remain inspectable.
 
-## AI-04 — Metadata, culling, and similarity suggestions
+## AI-04 — Real metadata, culling, and similarity
 
 **Blocked by:** AI-00 and CULL-01.
 
-**Residual from ADR-0142:** stub keyword/caption/focus/duplicate suggestions ship
-under `{catalog}.ai_suggestions/` via provider `ravo.local.stub` /
-`deterministic-suggestion-v1`, with explicit accept/reject/cancel CLI
-(`ai-suggest`, `ai-suggestion(s)`, `ai-suggestion-accept|reject|cancel`).
-Accept maps keyword→`set_tags` merge and caption→writable description/headline;
-focus/duplicate acknowledge only and never delete peers. Stub ship satisfies
-contract/lifecycle only.
+Suggestions remain distinct from catalog facts and never auto-reject, delete,
+publish, or write identity-sensitive metadata. ADR-0142 stub suggestions prove
+only lifecycle. Real quality, batch acceptance, people/face policy, and Studio
+surfaces remain unfinished.
 
-Keyword/caption, focus/exposure, duplicate, and near-duplicate suggestions remain
-separate from catalog facts. They never auto-reject, delete, publish, or write
-identity-sensitive metadata. Acceptance is transactional or reports exact
-partial state. Real model quality, batch accept beyond single-id, people/face
-policy, and Studio surfaces remain unfinished.
+## AI-05 — Retouch and generated pixels
 
-## AI-05 — Retouch and generated-pixel results
-
-**Blocked by:** AI-00, LOCAL-01, and completion of immutable generated-derived
-asset publication.
+**Blocked by:** AI-00, LOCAL-01, and immutable generated-derived publication.
 
 Replayable dust/blemish work may propose canonical Retouch regions.
-Non-replayable generated pixels must publish a new immutable derived asset with
-source revision, provider/model/version or weight hash, settings, output hash,
-privacy provenance, backup/restore policy, and visible generated status.
-Failure or cancellation publishes no partial asset; reopen/export cannot require
-the original provider to be online.
+Non-replayable pixels must publish an immutable derived asset with source
+revision, model identity, settings, output hash, privacy provenance,
+backup/restore policy, and visible generated status. Failure/cancellation
+publishes nothing partial; reopen/export cannot require the provider online.
 
 # P3 — Deferred product areas
 
-The following remain decision-only and must not displace the queue above:
+The following must not displace the queue above:
 
 - print layout and printer/profile ownership;
 - map, geocoding, and location-service privacy;
@@ -735,14 +688,14 @@ The following remain decision-only and must not displace the queue above:
 - face identity and biometric privacy;
 - broad natural-language library search;
 - proprietary editor automation;
-- arbitrary legacy IOP, GTK, Lua, OpenCL, or foreign-catalog compatibility.
+- arbitrary legacy IOP, GTK, Lua, OpenCL, or in-place foreign compatibility.
 
-Each needs an independent Ravo contract, target cohort, privacy/security review,
+Each needs a target cohort, independent Ravo contract, privacy/security review,
 offline/failure behavior, package plan, and measurable acceptance gate.
 
 # Cross-cutting acceptance
 
-Any new Ready tranche adapts this minimum set rather than weakening it:
+Every Ready tranche adapts this minimum set rather than weakening it:
 
 ```text
 python3 configs/source_roots.py verify
@@ -754,24 +707,24 @@ cmake --build --preset mac_clang_debug --target \
 ctest --test-dir build/mac_clang_debug --output-on-failure
 ```
 
-The matching Linux and Windows CI jobs must run for cross-platform changes. A
-release candidate additionally requires the Release corpus/performance probes
-and installed-package smoke described above.
+Matching Windows and Linux CI jobs must run for cross-platform changes. Release
+candidates additionally require Release corpus/performance/IQ probes and
+installed-package smoke.
 
-For persisted state, add create/migrate/reopen/backup/restore tests. For
-asynchronous work, add stale revision, conflict, cancellation, source
-disappearance, resource exhaustion, disk-full, restart, and partial-publication
-tests. For image behavior, add CPU reference, GPU comparison where supported,
-ICC/profile, preview/export equality, and source-immutability evidence. For new
-dependencies, models, profiles, or corpora, add pin, licence, package, notice,
-and reproducibility checks.
+For persisted state, add create/migrate/reopen/backup/restore/relocate tests.
+For asynchronous work, add stale revision, conflict, cancellation, disconnect,
+source disappearance, disk-full, resource exhaustion, restart, and partial
+publication tests. For image behavior, add CPU reference, supported-GPU
+comparison, ICC/profile identity, preview/export equality, and source
+immutability. For new dependencies, models, profiles, hardware, or corpora, add
+pin, licence, package, notice, provenance, and reproducibility evidence.
 
 Studio work must preserve keyboard-only operation, focus order, localization,
-high-DPI behavior, and explicit unavailable reasons. When a P1 workflow touches
-registered oversized QML or C++ owners, split the workflow owner and reduce the
+high-DPI behavior, accessibility, and explicit unavailable reasons. When work
+touches registered oversized QML/C++ owners, split the workflow owner and reduce
 registered debt; do not grow `Main.qml` or stop product work for a detached UI
 rewrite.
 
-A skipped test is not a pass. An unsupported state must be explicit. A fallback
-must be named, observable, quality-bounded, and accepted by contract; otherwise
-fail closed.
+A skipped test is not a pass. An unsupported state is explicit. A fallback is
+named, observable, quality-bounded, and accepted by contract; otherwise fail
+closed.
