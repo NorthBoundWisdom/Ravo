@@ -303,9 +303,10 @@ rewrite, and exact preset apply after reopen.
 ## PRO-INTERCHANGE — Explicit XMP, catalog conversion, and external editors
 
 **Status:** P1 / Partial — ADR-0120 (XMP conflict matrix), ADR-0122
-(external-editor derived assets), and ADR-0131 (read-only foreign catalog
-conversion contract) accepted. First Ready slices landed for XMP,
-external-editor, and the fixture-backed foreign-catalog conversion importer.
+(external-editor derived assets), ADR-0131 (read-only foreign catalog
+conversion contract), and ADR-0136 (derived/external-editor backup packaging)
+accepted. First Ready slices landed for XMP, external-editor, foreign-catalog
+conversion, and verified derived-tree backup/restore.
 
 **Done (XMP slice):** `catalog xmp-status|xmp-import|xmp-export` with CRS
 recipe-field conflict preflight, catalog-owned exchange baseline, fail-closed
@@ -333,11 +334,17 @@ imported/skipped/unsupported/failed report with per-item `mapped_fields`,
 session directories fail closed (`unsupported_source_schema`), unknown versions
 fail closed (`unsupported_source_version`), and cancellation publishes nothing.
 
+**Done (derived-tree backup/restore):** ADR-0136. Verified catalog backup
+format v2 packages `{catalog}.ravo/derived/` and `{catalog}.ravo/external-editor/`
+with SHA-256 manifests alongside recovery sidecars; restore publishes those
+trees atomically with the support root; originals/previews remain excluded; v1
+backups stay readable for catalog+sidecars only.
+
 **Still open:**
 - launching/scripting external editors; Gallery auto-stack UX for derived pairs
   (P2 / Decision required)
-- backup/restore packaging of `{catalog}.ravo/derived/` byte trees (P2 /
-  Decision required)
+- rewrite catalog absolute URIs that still name the source `{catalog}.ravo/`
+  prefix onto the restored destination path (ADR-0136 residual)
 - **Foreign conversion residuals:** real `.lrcat` SQLite and Capture One
   session/catalog readers (needs a dependency/licence/package decision — no
   vendor runtime in the default package today); Copy-mode conversion into a
@@ -356,7 +363,8 @@ RAW mutation, watcher races, and unsupported fields silently dropped.
 the read-only / new-catalog / structured-report / fail-closed gates
 (`CatalogServiceTest.ForeignCatalog*`, `CliTest.CatalogConvertForeign*`); a
 vendor-format reader still needs its packaging/licence evidence before it may
-ship; keyword merge matrix is explicit; derived-tree backup policy is dated.
+ship; keyword merge matrix is explicit; derived-tree backup/restore is on
+`main` (ADR-0136); destination URI rewrite for support-rooted assets remains.
 
 ## PRO-PRESENT — Tether, print, map, slideshow, and publishing
 

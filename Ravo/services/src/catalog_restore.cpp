@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "atomic_publication_internal.h"
+#include "catalog_backup_trees.h"
 #include "catalog_internal.h"
 
 namespace ravo
@@ -112,10 +113,13 @@ constexpr int kRestoreTemporaryAttempts = 16;
     return error;
 }
 
-[[nodiscard]] Result<void> verify_support_root(const std::filesystem::path &support_root,
-                                               const std::vector<RecoveryArtifact> &expected,
-                                               const RecoveryStore &recovery_verifier,
-                                               const CancellationToken &cancellation)
+[[nodiscard]] Result<void>
+verify_support_root(const std::filesystem::path &support_root,
+                    const std::vector<RecoveryArtifact> &expected,
+                    const std::vector<CatalogBackupTreeFile> &expected_derived,
+                    const std::vector<CatalogBackupTreeFile> &expected_external_editor,
+                    const bool expect_support_trees, const RecoveryStore &recovery_verifier,
+                    const CancellationToken &cancellation)
 {
     std::error_code error;
     const auto root_status = std::filesystem::symlink_status(support_root, error);
@@ -123,6 +127,12 @@ constexpr int kRestoreTemporaryAttempts = 16;
         return restore_error(ErrorCode::kValidation, "Restore support root is invalid",
                              "restore_support_root_invalid", path_utf8(support_root),
                              error.message());
+    std::set<std::string, std::less<>> allowed_root{"sidecars"};
+    if (expect_support_trees)
+    {
+        allowed_root.insert(std::string(kCatalogBackupDerivedDirectory));
+        allowed_root.insert(std::string(kCatalogBackupExternalEditorDirectory));
+    }
     std::set<std::string, std::less<>> root_entries;
     for (std::filesystem::directory_iterator iterator(support_root, error), end; iterator != end;
          iterator.increment(error))
@@ -133,7 +143,7 @@ constexpr int kRestoreTemporaryAttempts = 16;
                                  error.message());
         root_entries.insert(path_utf8(iterator->path().filename()));
     }
-    if (error || root_entries != std::set<std::string, std::less<>>{"sidecars"})
+    if (error || root_entries != allowed_root)
         return restore_error(ErrorCode::kValidation, "Restore support layout is invalid",
                              "restore_support_layout_invalid", path_utf8(support_root),
                              error.message());
@@ -183,16 +193,43 @@ constexpr int kRestoreTemporaryAttempts = 16;
                                  "Restored sidecar differs from verified backup",
                                  "restore_sidecar_mismatch", path_utf8(restored));
     }
+    if (expect_support_trees)
+    {
+        std::vector<CatalogBackupTreeFile> derived_at_root = expected_derived;
+        for (auto &entry : derived_at_root)
+            entry.path = path_utf8(support_root / kCatalogBackupDerivedDirectory /
+                                   path_from_utf8(entry.relative_path));
+        auto derived_layout = catalog_backup_verify_tree_layout(
+            support_root / kCatalogBackupDerivedDirectory, derived_at_root);
+        if (!derived_layout)
+            return derived_layout.error();
+        auto derived_bytes = catalog_backup_verify_tree_checksums(derived_at_root, cancellation);
+        if (!derived_bytes)
+            return derived_bytes.error();
+        std::vector<CatalogBackupTreeFile> external_at_root = expected_external_editor;
+        for (auto &entry : external_at_root)
+            entry.path = path_utf8(support_root / kCatalogBackupExternalEditorDirectory /
+                                   path_from_utf8(entry.relative_path));
+        auto external_layout = catalog_backup_verify_tree_layout(
+            support_root / kCatalogBackupExternalEditorDirectory, external_at_root);
+        if (!external_layout)
+            return external_layout.error();
+        auto external_bytes = catalog_backup_verify_tree_checksums(external_at_root, cancellation);
+        if (!external_bytes)
+            return external_bytes.error();
+    }
     return {};
 }
 
-[[nodiscard]] Result<void> remove_verified_support(const std::filesystem::path &support_root,
-                                                   const std::vector<RecoveryArtifact> &expected,
-                                                   const RecoveryStore &recovery_verifier,
-                                                   TaskError &primary)
+[[nodiscard]] Result<void> remove_verified_support(
+    const std::filesystem::path &support_root, const std::vector<RecoveryArtifact> &expected,
+    const std::vector<CatalogBackupTreeFile> &expected_derived,
+    const std::vector<CatalogBackupTreeFile> &expected_external_editor,
+    const bool expect_support_trees, const RecoveryStore &recovery_verifier, TaskError &primary)
 {
     auto still_owned =
-        verify_support_root(support_root, expected, recovery_verifier, CancellationToken{});
+        verify_support_root(support_root, expected, expected_derived, expected_external_editor,
+                            expect_support_trees, recovery_verifier, CancellationToken{});
     if (!still_owned)
     {
         primary.context.insert_or_assign("restore_support_retained", "true");
@@ -282,6 +319,27 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
             return artifact.error();
         source_sidecars.push_back(std::move(artifact).value());
     }
+    const bool expect_support_trees = source.value().artifact.format_version >= 2;
+    std::vector<CatalogBackupTreeFile> source_derived;
+    std::vector<CatalogBackupTreeFile> source_external_editor;
+    if (expect_support_trees)
+    {
+        auto derived = catalog_backup_enumerate_tree(backup_path / kCatalogBackupDerivedDirectory,
+                                                     request.cancellation);
+        if (!derived)
+            return derived.error();
+        auto external = catalog_backup_enumerate_tree(
+            backup_path / kCatalogBackupExternalEditorDirectory, request.cancellation);
+        if (!external)
+            return external.error();
+        if (derived.value().size() != source.value().artifact.derived_count ||
+            external.value().size() != source.value().artifact.external_editor_count)
+            return restore_error(ErrorCode::kValidation,
+                                 "Backup support trees do not match verified counts",
+                                 "restore_support_tree_count_mismatch", request.backup_directory);
+        source_derived = std::move(derived).value();
+        source_external_editor = std::move(external).value();
+    }
 
     atomic_publication_internal::OwnedTemporaryDirectory stage;
     std::error_code create_error;
@@ -353,6 +411,23 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
         copied_sidecar_bytes += copied.value();
     }
 
+    if (expect_support_trees)
+    {
+        auto staged_derived = catalog_backup_copy_tree(
+            backup_path / kCatalogBackupDerivedDirectory,
+            stage_support / kCatalogBackupDerivedDirectory, request.cancellation);
+        if (!staged_derived)
+            return fail(staged_derived.error());
+        // Rebind paths to staged copies for support verification.
+        source_derived = std::move(staged_derived).value();
+        auto staged_external = catalog_backup_copy_tree(
+            backup_path / kCatalogBackupExternalEditorDirectory,
+            stage_support / kCatalogBackupExternalEditorDirectory, request.cancellation);
+        if (!staged_external)
+            return fail(staged_external.error());
+        source_external_editor = std::move(staged_external).value();
+    }
+
     progress_result = report_progress(
         progress, request.cancellation, CatalogRestoreStage::kVerifyStaging, source_sidecars.size(),
         source_sidecars.size(), copied_sidecar_bytes, path_utf8(stage.path()));
@@ -368,8 +443,9 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
         return fail(restore_error(ErrorCode::kValidation,
                                   "Staged catalog identity differs from backup",
                                   "restore_catalog_identity_mismatch", path_utf8(stage_catalog)));
-    auto staged_support = verify_support_root(stage_support, source_sidecars, recovery_verifier,
-                                              request.cancellation);
+    auto staged_support =
+        verify_support_root(stage_support, source_sidecars, source_derived, source_external_editor,
+                            expect_support_trees, recovery_verifier, request.cancellation);
     if (!staged_support)
         return fail(staged_support.error());
 
@@ -397,8 +473,9 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
     if (!progress_result)
     {
         auto error = progress_result.error();
-        static_cast<void>(
-            remove_verified_support(support_path, source_sidecars, recovery_verifier, error));
+        static_cast<void>(remove_verified_support(support_path, source_sidecars, source_derived,
+                                                  source_external_editor, expect_support_trees,
+                                                  recovery_verifier, error));
         return fail(std::move(error));
     }
     const auto catalog_publish_error =
@@ -411,8 +488,9 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
                                    code == ErrorCode::kConflict ? "restore_destination_conflict" :
                                                                   "restore_catalog_publish_failed",
                                    request.destination_catalog, catalog_publish_error.message());
-        static_cast<void>(
-            remove_verified_support(support_path, source_sidecars, recovery_verifier, error));
+        static_cast<void>(remove_verified_support(support_path, source_sidecars, source_derived,
+                                                  source_external_editor, expect_support_trees,
+                                                  recovery_verifier, error));
         return fail(std::move(error));
     }
 
@@ -440,7 +518,8 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
         return error;
     }
     auto final_support =
-        verify_support_root(support_path, source_sidecars, recovery_verifier, CancellationToken{});
+        verify_support_root(support_path, source_sidecars, source_derived, source_external_editor,
+                            expect_support_trees, recovery_verifier, CancellationToken{});
     if (!final_support)
     {
         auto error = final_support.error();

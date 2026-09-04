@@ -19,7 +19,7 @@ namespace ravo
 inline constexpr std::int64_t kCatalogSchemaVersion = 14;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
-inline constexpr std::int64_t kCatalogBackupFormatVersion = 1;
+inline constexpr std::int64_t kCatalogBackupFormatVersion = 2;
 inline constexpr std::uintmax_t kRecoverySidecarMaximumBytes = 16U * 1024U * 1024U;
 inline constexpr std::size_t kRecoveryHistoryMaximumEntries = 10'000U;
 inline constexpr std::size_t kRecoveryTagMaximumEntries = 10'000U;
@@ -27,6 +27,9 @@ inline constexpr std::uintmax_t kCatalogBackupManifestMaximumBytes = 64U * 1024U
 inline constexpr std::string_view kCatalogBackupCatalogFilename = "catalog.sqlite";
 inline constexpr std::string_view kCatalogBackupManifestFilename = "manifest.json";
 inline constexpr std::string_view kCatalogBackupSidecarDirectory = "sidecars";
+inline constexpr std::string_view kCatalogBackupDerivedDirectory = "derived";
+inline constexpr std::string_view kCatalogBackupExternalEditorDirectory = "external-editor";
+inline constexpr std::int64_t kCatalogBackupFormatVersionMin = 1;
 inline constexpr std::string_view kRecipeHistoryKindHistory = "history";
 inline constexpr std::string_view kRecipeHistoryKindSnapshot = "snapshot";
 
@@ -816,14 +819,27 @@ struct CatalogDatabaseArtifact
     std::vector<AssetRecoveryState> recovery_states;
 };
 
+struct CatalogBackupTreeFile
+{
+    std::string relative_path;
+    std::string path;
+    std::string sha256;
+    std::uint64_t bytes = 0;
+};
+
 struct CatalogBackupArtifact
 {
     std::string path;
     std::string manifest_path;
     CatalogDatabaseArtifact catalog;
+    std::int64_t format_version = kCatalogBackupFormatVersion;
     std::int64_t created_unix_ms = 0;
     std::size_t sidecar_count = 0;
     std::uint64_t sidecar_bytes = 0;
+    std::size_t derived_count = 0;
+    std::uint64_t derived_bytes = 0;
+    std::size_t external_editor_count = 0;
+    std::uint64_t external_editor_bytes = 0;
 };
 
 struct CatalogBackupVerification

@@ -10,8 +10,12 @@
 #include <gtest/gtest.h>
 
 #include "ravo/adapters/text_file.h"
+#include "ravo/adapters/qt_raster_decoder.h"
+#include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/cancellation.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
+#include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/services/catalog_service.h"
 #include "ravo/services/external_editor.h"
 
@@ -154,6 +158,123 @@ TEST_F(CatalogServiceTest, ExternalEditorRejectsEmptyEditorId)
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kInvalidArgument);
     EXPECT_EQ(failed.error().context.at("reason"), "invalid_editor_id");
+}
+
+TEST_F(CatalogServiceTest, BackupRestorePreservesDerivedAndExternalEditorTrees)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "backup-source.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(11, 22, 33)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, source_id);
+    ASSERT_FALSE(original.empty());
+    const auto original_sha = sha256_file_hex(original);
+    ASSERT_TRUE(original_sha) << original_sha.error().message;
+
+    const auto editor_out = root / "backup-editor-out.jpg";
+    ASSERT_TRUE(write_jpeg(editor_out, QColor(240, 10, 10)));
+    ExternalEditorRegisterRequest request;
+    request.source_asset_id = source_id;
+    request.editor_output_path = editor_out.string();
+    request.editor_id = "photoshop";
+    request.editor_version = "2026";
+    auto registered = service->register_external_editor_output(request);
+    ASSERT_TRUE(registered) << registered.error().message;
+    const auto derived_id = registered.value().derived_asset.id;
+    const auto derived_location =
+        normalize_local_input(registered.value().derived_asset.normalized_uri);
+    ASSERT_TRUE(derived_location) << derived_location.error().message;
+    const auto derived_sha = sha256_file_hex(derived_location.value().path);
+    ASSERT_TRUE(derived_sha) << derived_sha.error().message;
+
+    const auto backup_path = root / "derived-backup";
+    auto backup = service->create_backup(backup_path.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+    EXPECT_EQ(backup.value().format_version, kCatalogBackupFormatVersion);
+    EXPECT_GE(backup.value().derived_count, 1U);
+    EXPECT_GE(backup.value().external_editor_count, 1U);
+    EXPECT_TRUE(std::filesystem::is_directory(backup_path / "derived"));
+    EXPECT_TRUE(std::filesystem::is_directory(backup_path / "external-editor"));
+    EXPECT_FALSE(std::filesystem::exists(backup_path / "originals"));
+
+    auto verified = service->verify_backup(backup_path.string());
+    ASSERT_TRUE(verified) << verified.error().message;
+    EXPECT_EQ(verified.value().artifact.derived_count, backup.value().derived_count);
+    EXPECT_EQ(verified.value().artifact.external_editor_count,
+              backup.value().external_editor_count);
+    EXPECT_FALSE(verified.value().originals_included);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto backup_recovery =
+        FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
+    ASSERT_TRUE(backup_recovery) << backup_recovery.error().message;
+    const SqliteCatalogBackupVerifier verifier;
+    const auto restored_path = (root / "restored-with-derived.sqlite").string();
+    CatalogRestoreRequest restore_request;
+    restore_request.backup_directory = backup_path.string();
+    restore_request.destination_catalog = restored_path;
+    auto restored =
+        restore_catalog_backup(verifier, verifier, *backup_recovery.value(), restore_request);
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(std::filesystem::is_directory(restored_path + ".ravo/derived"));
+    EXPECT_TRUE(std::filesystem::is_directory(restored_path + ".ravo/external-editor"));
+
+    // Byte-compare restored support trees against the verified backup package.
+    std::error_code walk_error;
+    std::size_t restored_derived_files = 0U;
+    for (std::filesystem::recursive_directory_iterator it(backup_path / "derived", walk_error), end;
+         it != end; it.increment(walk_error))
+    {
+        ASSERT_FALSE(walk_error) << walk_error.message();
+        if (!it->is_regular_file())
+            continue;
+        const auto relative = std::filesystem::relative(it->path(), backup_path / "derived");
+        const auto restored_file =
+            std::filesystem::path(restored_path + ".ravo/derived") / relative;
+        ASSERT_TRUE(std::filesystem::is_regular_file(restored_file)) << restored_file.string();
+        const auto backup_digest = sha256_file_hex(it->path().string());
+        const auto restored_digest = sha256_file_hex(restored_file.string());
+        ASSERT_TRUE(backup_digest) << backup_digest.error().message;
+        ASSERT_TRUE(restored_digest) << restored_digest.error().message;
+        EXPECT_EQ(restored_digest.value(), backup_digest.value());
+        ++restored_derived_files;
+    }
+    EXPECT_EQ(restored_derived_files, backup.value().derived_count);
+
+    std::size_t restored_external_files = 0U;
+    for (std::filesystem::recursive_directory_iterator
+             it(backup_path / "external-editor", walk_error),
+         end;
+         it != end; it.increment(walk_error))
+    {
+        ASSERT_FALSE(walk_error) << walk_error.message();
+        if (!it->is_regular_file())
+            continue;
+        const auto relative =
+            std::filesystem::relative(it->path(), backup_path / "external-editor");
+        const auto restored_file =
+            std::filesystem::path(restored_path + ".ravo/external-editor") / relative;
+        ASSERT_TRUE(std::filesystem::is_regular_file(restored_file)) << restored_file.string();
+        const auto backup_digest = sha256_file_hex(it->path().string());
+        const auto restored_digest = sha256_file_hex(restored_file.string());
+        ASSERT_TRUE(backup_digest) << backup_digest.error().message;
+        ASSERT_TRUE(restored_digest) << restored_digest.error().message;
+        EXPECT_EQ(restored_digest.value(), backup_digest.value());
+        ++restored_external_files;
+    }
+    EXPECT_EQ(restored_external_files, backup.value().external_editor_count);
+    EXPECT_TRUE(std::filesystem::is_regular_file(restored_path + ".ravo/external-editor/" +
+                                                 derived_id + ".json"));
+
+    // Removing the source catalog support must not remove restored derived bytes.
+    std::error_code remove_error;
+    std::filesystem::remove_all(database_path + ".ravo", remove_error);
+    ASSERT_FALSE(remove_error) << remove_error.message();
+    EXPECT_TRUE(std::filesystem::is_directory(restored_path + ".ravo/derived"));
+    EXPECT_EQ(sha256_file_hex(original).value(), original_sha.value());
 }
 
 } // namespace ravo

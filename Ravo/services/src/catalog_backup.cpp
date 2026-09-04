@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "atomic_publication_internal.h"
+#include "catalog_backup_trees.h"
 #include "catalog_internal.h"
 #include "ravo/foundation/json.h"
 #include "ravo/services/artifact_publication.h"
@@ -157,9 +158,12 @@ template <typename Integer>
 
 struct ParsedBackupManifest
 {
+    std::int64_t format_version = kCatalogBackupFormatVersion;
     std::int64_t created_unix_ms = 0;
     CatalogDatabaseArtifact catalog;
     std::vector<RecoveryArtifact> sidecars;
+    std::vector<CatalogBackupTreeFile> derived;
+    std::vector<CatalogBackupTreeFile> external_editor;
 };
 
 [[nodiscard]] Result<std::string> read_backup_manifest(const std::filesystem::path &path,
@@ -220,11 +224,6 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
     auto root = require_object(&parsed.value(), "root");
     if (!root)
         return root.error();
-    auto root_keys = expect_exact_keys(
-        *root.value(), {"catalog", "created_unix_ms", "excludes", "schema", "sidecars", "version"},
-        "root");
-    if (!root_keys)
-        return root_keys.error();
     auto schema = require_string(*root.value(), "schema", 64U);
     auto version = require_integer<std::int64_t>(*root.value(), "version", 1,
                                                  std::numeric_limits<std::int64_t>::max());
@@ -242,9 +241,26 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
     if (version.value() > kCatalogBackupFormatVersion)
         return backup_error(ErrorCode::kUnsupported, "Backup format is newer than this Ravo",
                             "newer_backup_format");
-    if (version.value() != kCatalogBackupFormatVersion)
+    if (version.value() < kCatalogBackupFormatVersionMin)
         return backup_error(ErrorCode::kValidation, "Backup format version is invalid",
                             "invalid_backup_format_version");
+    if (version.value() == 1)
+    {
+        auto root_keys = expect_exact_keys(
+            *root.value(),
+            {"catalog", "created_unix_ms", "excludes", "schema", "sidecars", "version"}, "root");
+        if (!root_keys)
+            return root_keys.error();
+    }
+    else
+    {
+        auto root_keys = expect_exact_keys(*root.value(),
+                                           {"catalog", "created_unix_ms", "derived", "excludes",
+                                            "external_editor", "schema", "sidecars", "version"},
+                                           "root");
+        if (!root_keys)
+            return root_keys.error();
+    }
 
     auto catalog = require_object(parsed.value().find("catalog"), "catalog");
     if (!catalog)
@@ -350,20 +366,45 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
                                      path_utf8(backup_root / path_from_utf8(file.value())),
                                      std::move(checksum).value(), bytes.value()});
     }
+    manifest.format_version = version.value();
+    if (version.value() >= 2)
+    {
+        auto derived = require_array(parsed.value().find("derived"), "derived");
+        if (!derived)
+            return derived.error();
+        auto external = require_array(parsed.value().find("external_editor"), "external_editor");
+        if (!external)
+            return external.error();
+        auto derived_files = catalog_backup_parse_tree_files(
+            *derived.value(), kCatalogBackupDerivedDirectory, backup_root);
+        if (!derived_files)
+            return derived_files.error();
+        auto external_files = catalog_backup_parse_tree_files(
+            *external.value(), kCatalogBackupExternalEditorDirectory, backup_root);
+        if (!external_files)
+            return external_files.error();
+        manifest.derived = std::move(derived_files).value();
+        manifest.external_editor = std::move(external_files).value();
+    }
     return manifest;
 }
 
 [[nodiscard]] Result<void> verify_backup_layout(const std::filesystem::path &root,
-                                                const std::vector<RecoveryArtifact> &sidecars)
+                                                const ParsedBackupManifest &manifest)
 {
     std::error_code error;
     const auto root_status = std::filesystem::symlink_status(root, error);
     if (error || !std::filesystem::is_directory(root_status))
         return backup_error(ErrorCode::kValidation, "Backup root is not a directory",
                             "backup_root_not_directory", path_utf8(root), error.message());
-    const std::set<std::string, std::less<>> expected_root{
-        std::string(kCatalogBackupCatalogFilename), std::string(kCatalogBackupManifestFilename),
-        std::string(kCatalogBackupSidecarDirectory)};
+    std::set<std::string, std::less<>> expected_root{std::string(kCatalogBackupCatalogFilename),
+                                                     std::string(kCatalogBackupManifestFilename),
+                                                     std::string(kCatalogBackupSidecarDirectory)};
+    if (manifest.format_version >= 2)
+    {
+        expected_root.insert(std::string(kCatalogBackupDerivedDirectory));
+        expected_root.insert(std::string(kCatalogBackupExternalEditorDirectory));
+    }
     std::set<std::string, std::less<>> actual_root;
     for (std::filesystem::directory_iterator iterator(root, error), end; iterator != end;
          iterator.increment(error))
@@ -384,6 +425,7 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
         return backup_error(ErrorCode::kValidation, "Backup sidecar root is not a directory",
                             "backup_sidecar_root_not_directory", path_utf8(sidecar_root),
                             error.message());
+    const auto &sidecars = manifest.sidecars;
     std::set<std::string, std::less<>> expected_sidecars;
     for (const auto &sidecar : sidecars)
         expected_sidecars.insert(sidecar_filename(sidecar.asset_id, sidecar.generation));
@@ -411,12 +453,24 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
         return backup_error(
             ErrorCode::kValidation, "Backup sidecar directory does not match its manifest",
             "invalid_backup_sidecar_layout", path_utf8(sidecar_root), error.message());
+    if (manifest.format_version >= 2)
+    {
+        auto derived_layout = catalog_backup_verify_tree_layout(
+            root / path_from_utf8(kCatalogBackupDerivedDirectory), manifest.derived);
+        if (!derived_layout)
+            return derived_layout.error();
+        auto external_layout = catalog_backup_verify_tree_layout(
+            root / path_from_utf8(kCatalogBackupExternalEditorDirectory), manifest.external_editor);
+        if (!external_layout)
+            return external_layout.error();
+    }
     return {};
 }
 
-[[nodiscard]] JsonValue backup_manifest_json(const CatalogDatabaseArtifact &catalog,
-                                             const std::vector<RecoveryArtifact> &sidecars,
-                                             const std::int64_t created_unix_ms)
+[[nodiscard]] JsonValue backup_manifest_json(
+    const CatalogDatabaseArtifact &catalog, const std::vector<RecoveryArtifact> &sidecars,
+    const std::vector<CatalogBackupTreeFile> &derived,
+    const std::vector<CatalogBackupTreeFile> &external_editor, const std::int64_t created_unix_ms)
 {
     JsonValue::Array sidecar_array;
     sidecar_array.reserve(sidecars.size());
@@ -442,7 +496,10 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
              {"sha256", catalog.sha256},
          }},
         {"created_unix_ms", JsonValue::number(std::to_string(created_unix_ms))},
+        {"derived", catalog_backup_tree_files_json(derived, kCatalogBackupDerivedDirectory)},
         {"excludes", JsonValue::Array{JsonValue{"originals"}, JsonValue{"previews"}}},
+        {"external_editor",
+         catalog_backup_tree_files_json(external_editor, kCatalogBackupExternalEditorDirectory)},
         {"schema", "ravo-catalog-backup"},
         {"sidecars", std::move(sidecar_array)},
         {"version", JsonValue::number(std::to_string(kCatalogBackupFormatVersion))},
@@ -618,6 +675,26 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
             return fail(ready.error());
     }
 
+    const auto live_support = path_from_utf8(before.value().database_path + ".ravo");
+    const auto stage_derived = stage.path() / path_from_utf8(kCatalogBackupDerivedDirectory);
+    auto copied_derived = catalog_backup_copy_tree(
+        live_support / path_from_utf8(kCatalogBackupDerivedDirectory), stage_derived, cancellation);
+    if (!copied_derived)
+        return fail(copied_derived.error());
+    ready = checkpoint("derived_tree_copied", path_utf8(stage_derived));
+    if (!ready)
+        return fail(ready.error());
+    const auto stage_external =
+        stage.path() / path_from_utf8(kCatalogBackupExternalEditorDirectory);
+    auto copied_external = catalog_backup_copy_tree(
+        live_support / path_from_utf8(kCatalogBackupExternalEditorDirectory), stage_external,
+        cancellation);
+    if (!copied_external)
+        return fail(copied_external.error());
+    ready = checkpoint("external_editor_tree_copied", path_utf8(stage_external));
+    if (!ready)
+        return fail(ready.error());
+
     auto after = repository_->snapshot();
     if (!after)
         return fail(after.error());
@@ -636,8 +713,9 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
 
     const auto created_unix_ms = now_unix_ms();
     const auto manifest_path = stage.path() / path_from_utf8(kCatalogBackupManifestFilename);
-    const auto manifest =
-        serialize_json(backup_manifest_json(catalog.value(), copied_sidecars, created_unix_ms));
+    const auto manifest = serialize_json(
+        backup_manifest_json(catalog.value(), copied_sidecars, copied_derived.value(),
+                             copied_external.value(), created_unix_ms));
     if (manifest.size() > kCatalogBackupManifestMaximumBytes)
         return fail(backup_error(ErrorCode::kValidation, "Backup manifest exceeds its byte limit",
                                  "backup_manifest_too_large", path_utf8(manifest_path)));
@@ -692,7 +770,7 @@ Result<CatalogBackupVerification> verify_catalog_backup(
     auto manifest = parse_backup_manifest(root, cancellation);
     if (!manifest)
         return manifest.error();
-    auto layout = verify_backup_layout(root, manifest.value().sidecars);
+    auto layout = verify_backup_layout(root, manifest.value());
     if (!layout)
         return layout.error();
     auto catalog = database_verifier.verify_backup_database(
@@ -730,6 +808,14 @@ Result<CatalogBackupVerification> verify_catalog_backup(
                                 "backup_sidecar_size_overflow");
         sidecar_bytes += expected.bytes;
     }
+    auto derived_bytes =
+        catalog_backup_verify_tree_checksums(manifest.value().derived, cancellation);
+    if (!derived_bytes)
+        return derived_bytes.error();
+    auto external_bytes =
+        catalog_backup_verify_tree_checksums(manifest.value().external_editor, cancellation);
+    if (!external_bytes)
+        return external_bytes.error();
     active = cancellation.check();
     if (!active)
         return active.error();
@@ -739,9 +825,14 @@ Result<CatalogBackupVerification> verify_catalog_backup(
     verification.artifact.manifest_path =
         path_utf8(root / path_from_utf8(kCatalogBackupManifestFilename));
     verification.artifact.catalog = std::move(catalog).value();
+    verification.artifact.format_version = manifest.value().format_version;
     verification.artifact.created_unix_ms = manifest.value().created_unix_ms;
     verification.artifact.sidecar_count = manifest.value().sidecars.size();
     verification.artifact.sidecar_bytes = sidecar_bytes;
+    verification.artifact.derived_count = manifest.value().derived.size();
+    verification.artifact.derived_bytes = derived_bytes.value();
+    verification.artifact.external_editor_count = manifest.value().external_editor.size();
+    verification.artifact.external_editor_bytes = external_bytes.value();
     verification.originals_included = false;
     verification.previews_included = false;
     return verification;
