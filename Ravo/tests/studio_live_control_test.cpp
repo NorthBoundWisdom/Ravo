@@ -263,6 +263,9 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("id: previewPlaceholderImage")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedThumbnailUrl")));
     EXPECT_TRUE(source.contains(QStringLiteral("source: visible ? studio.previewUrl : \"\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Select a photo to inspect.\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "studio.gpuPreviewGeneration === 0 && !studio.previewLoading && previewImage.source.toString().length === 0 && (studio.selectedAssetId.length === 0 || studio.selectedImportState === \"missing\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitWidth")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("function beginInspectZoomAnimation()")));

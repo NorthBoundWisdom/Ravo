@@ -1436,7 +1436,7 @@ ApplicationWindow {
 
                         CustomLabel {
                             anchors.centerIn: parent
-                            visible: previewImage.source.toString().length === 0 && !studio.previewLoading
+                            visible: studio.gpuPreviewGeneration === 0 && !studio.previewLoading && previewImage.source.toString().length === 0 && (studio.selectedAssetId.length === 0 || studio.selectedImportState === "missing")
                             text: studio.selectedImportState === "missing" ? qsTr("Original file is missing.") : qsTr("Select a photo to inspect.")
                             color: Theme.placeholderTextColor
                         }
