@@ -198,7 +198,7 @@ namespace
     switch (suggestion.kind)
     {
     case AiSuggestionKind::kKeyword:
-        suggestion.suggested_keywords = {"stub-keyword", "stub-scene"};
+        suggestion.suggested_keywords = {"stub|keyword", "stub|scene"};
         suggestion.catalog_mutated_on_accept = true;
         break;
     case AiSuggestionKind::kCaption:
@@ -452,10 +452,10 @@ CatalogService::accept_ai_suggestion(const std::string_view suggestion_id,
     }
     if (found->second.status != AiSuggestionStatus::kPending)
     {
-        return make_error(
-            ErrorCode::kConflict, "AI suggestion is not pending",
-            {{"suggestion_id", std::string(suggestion_id)},
-             {"status", std::string(ai_suggestion_status_name(found->second.status))}});
+        return make_error(ErrorCode::kConflict, "AI suggestion is not pending",
+                          {{"suggestion_id", std::string(suggestion_id)},
+                           {"status", std::string(ai_suggestion_status_name(found->second.status))},
+                           {"reason", "ai_suggestion_not_pending"}});
     }
 
     auto snapshot = this->snapshot();

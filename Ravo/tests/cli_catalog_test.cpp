@@ -961,6 +961,117 @@ TEST_F(CliTest, CatalogAiProposalStubProposeApplyAndReject)
     std::filesystem::remove_all(root, ignored);
 }
 
+TEST_F(CliTest, CatalogAiSuggestionStubSuggestAcceptReject)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-ai-suggest-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    QImage image(16, 12, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(50, 90, 130));
+    const auto photo = (root / "photo.png").string();
+    ASSERT_TRUE(image.save(QString::fromStdString(photo), "PNG"));
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
+                                                            catalog, "--input", photo, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_FALSE(items->array_if()->empty());
+    const auto *asset = items->array_if()->front().find("asset");
+    ASSERT_NE(asset, nullptr);
+    const auto *asset_id = asset->find("id");
+    ASSERT_NE(asset_id, nullptr);
+    ASSERT_NE(asset_id->string_if(), nullptr);
+    const auto id = *asset_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_NE(application.run(std::vector<std::string_view>{
+                  "catalog", "ai-suggest", "--catalog", catalog, "--asset-id", id,
+                  "--suggestion-kind", "keyword", "--json"}),
+              0);
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "ai-suggest", "--catalog", catalog, "--asset-id", id,
+                  "--suggestion-kind", "keyword", "--user-initiated", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto suggested = parse_json(stdout_stream.str());
+    ASSERT_TRUE(suggested) << suggested.error().message;
+    data = suggested.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *suggestion_id = data->find("id");
+    ASSERT_NE(suggestion_id, nullptr);
+    ASSERT_NE(suggestion_id->string_if(), nullptr);
+    const auto sid = *suggestion_id->string_if();
+    const auto *status = data->find("status");
+    ASSERT_NE(status, nullptr);
+    ASSERT_NE(status->string_if(), nullptr);
+    EXPECT_EQ(*status->string_if(), "pending");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-suggestion-reject",
+                                                            "--catalog", catalog, "--suggestion-id",
+                                                            sid, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "ai-suggest", "--catalog", catalog, "--asset-id", id,
+                  "--suggestion-kind", "caption", "--user-initiated", "--json"}),
+              0)
+        << stdout_stream.str();
+    suggested = parse_json(stdout_stream.str());
+    ASSERT_TRUE(suggested) << suggested.error().message;
+    data = suggested.value().find("data");
+    ASSERT_NE(data, nullptr);
+    suggestion_id = data->find("id");
+    ASSERT_NE(suggestion_id, nullptr);
+    const auto accept_id = *suggestion_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-suggestion-accept",
+                                                            "--catalog", catalog, "--suggestion-id",
+                                                            accept_id, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto accepted = parse_json(stdout_stream.str());
+    ASSERT_TRUE(accepted) << accepted.error().message;
+    data = accepted.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *mutated = data->find("catalog_mutated");
+    ASSERT_NE(mutated, nullptr);
+    ASSERT_NE(mutated->boolean_if(), nullptr);
+    EXPECT_TRUE(*mutated->boolean_if());
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CliTest, CatalogAiSemanticMaskProposalStubProposeAndApply)
 {
     const auto root = std::filesystem::temp_directory_path() /

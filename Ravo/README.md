@@ -870,7 +870,13 @@ publishes no derived asset, and leaves the source original byte-identical.
 `--ensure` reports `smart_preview_encoder_unavailable` until an encoder is
 packaged.
 
-`ravo catalog ai-suggest --catalog <library.sqlite> --asset-id <id> --suggestion-kind keyword|caption|focus|duplicate --user-initiated` creates an ADR-0142 non-authoritative suggestion stub (`deterministic-suggestion-v1`). `ai-suggestion-accept` applies keyword/caption via existing tag/metadata APIs; focus/duplicate acceptance never deletes or rejects peers.
+`ravo catalog ai-suggest --catalog <library.sqlite> --asset-id <id>
+--suggestion-kind keyword|caption|focus|duplicate --user-initiated` creates an
+ADR-0142 non-authoritative suggestion stub (`deterministic-suggestion-v1`).
+`ai-suggestion` / `ai-suggestions` list inspectable confidence and model id;
+`ai-suggestion-accept` applies keyword/caption (and caption headline) through
+existing tag/metadata APIs; `ai-suggestion-reject` / `ai-suggestion-cancel`
+leave the catalog unchanged; focus/duplicate acceptance never deletes peers.
 
 
 `ravo catalog convert-foreign` is the read-only foreign-catalog conversion
