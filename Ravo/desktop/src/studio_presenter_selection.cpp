@@ -1084,6 +1084,34 @@ void StudioPresenter::setLensFacetFilter(const QString &focal_mm)
     reloadVisibleAssets();
 }
 
+void StudioPresenter::setLensNameFacetFilter(const QString &make, const QString &model)
+{
+    LibraryQuery next = query_;
+    const auto make_utf8 = utf8_from_qstring(make.trimmed());
+    const auto model_utf8 = utf8_from_qstring(model.trimmed());
+    if (make_utf8.empty() && model_utf8.empty())
+    {
+        next.lens_make_equals.reset();
+        next.lens_model_equals.reset();
+    }
+    else
+    {
+        next.lens_make_equals = make_utf8;
+        next.lens_model_equals = model_utf8;
+    }
+    auto valid = validate_library_query(next);
+    if (!valid)
+    {
+        setError(qstring_from_utf8(valid.error().message));
+        return;
+    }
+    if (next == query_)
+        return;
+    query_ = std::move(next);
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
 void StudioPresenter::setCaptureDateFacetFilter(const QString &local_date)
 {
     LibraryQuery next = query_;
@@ -1182,6 +1210,8 @@ void StudioPresenter::clearFilters()
     query_.camera.clear();
     query_.camera_make_equals.reset();
     query_.camera_model_equals.reset();
+    query_.lens_make_equals.reset();
+    query_.lens_model_equals.reset();
     query_.focal_length_mm_equals.reset();
     query_.captured_local_date.reset();
     query_.country_equals.reset();

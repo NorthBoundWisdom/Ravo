@@ -498,7 +498,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         {
             if (result.roi.has_value())
             {
-                return make_error(ErrorCode::kInvalidArgument, "--roi was specified more than once");
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--roi was specified more than once");
             }
             PreviewNormRect roi;
             const char *begin = value.data();
@@ -509,29 +510,27 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 auto parsed = std::from_chars(begin, end, *fields[field]);
                 if (parsed.ec != std::errc{} || parsed.ptr == begin)
                 {
-                    return make_error(ErrorCode::kInvalidArgument,
-                                      "--roi requires x,y,width,height in 0-1",
-                                      {{"value", std::string(value)},
-                                       {"reason", "invalid_preview_roi"}});
+                    return make_error(
+                        ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
+                        {{"value", std::string(value)}, {"reason", "invalid_preview_roi"}});
                 }
                 begin = parsed.ptr;
                 if (field + 1U < 4U)
                 {
                     if (begin == end || *begin != ',')
                     {
-                        return make_error(ErrorCode::kInvalidArgument,
-                                          "--roi requires x,y,width,height in 0-1",
-                                          {{"value", std::string(value)},
-                                           {"reason", "invalid_preview_roi"}});
+                        return make_error(
+                            ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
+                            {{"value", std::string(value)}, {"reason", "invalid_preview_roi"}});
                     }
                     ++begin;
                 }
             }
             if (begin != end)
             {
-                return make_error(ErrorCode::kInvalidArgument,
-                                  "--roi requires x,y,width,height in 0-1",
-                                  {{"value", std::string(value)}, {"reason", "invalid_preview_roi"}});
+                return make_error(
+                    ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
+                    {{"value", std::string(value)}, {"reason", "invalid_preview_roi"}});
             }
             result.roi = roi;
         }
@@ -625,6 +624,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         else if (option == "--camera-model")
         {
             result.camera_model = value;
+        }
+        else if (option == "--lens-make")
+        {
+            result.lens_make = value;
+        }
+        else if (option == "--lens-model")
+        {
+            result.lens_model = value;
         }
         else if (option == "--focal-length-mm")
         {

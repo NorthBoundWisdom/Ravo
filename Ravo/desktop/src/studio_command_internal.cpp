@@ -152,6 +152,7 @@ QStringList command_ids()
             QLatin1String(command::kLibrarySetEditFilter),
             QLatin1String(command::kLibrarySetCameraFilter),
             QLatin1String(command::kLibrarySetLensFilter),
+            QLatin1String(command::kLibrarySetLensNameFilter),
             QLatin1String(command::kLibrarySetCaptureDateFilter),
             QLatin1String(command::kLibrarySetLocationFilter),
             QLatin1String(command::kLibrarySetSort),

@@ -142,3 +142,4 @@ supersession relationship when direction changes.
 | [0132](0132-viewport-roi-full-resolution-inspect.md) | Accepted | Actual Size 1:1 is a CPU CFA window of the visible crop; lens/perspective and full-frame ROIs reject; GPU display stays deferred. |
 | [0133](0133-engine-gpu-preview-adapter.md) | Accepted; backend host extended by 0134 | GPU is an Engine adapter with no silent CPU fallback; first tranche owns device lifecycle, then RGB apply, then gold-gated demosaic. |
 | [0134](0134-engine-qrhi-gpu-backend.md) | Accepted | One Engine QRhi compute backend replaces per-platform GPU kernels; `ravo_engine` may link Qt Gui for that adapter only. |
+| [0135](0135-exif-lens-name-library-facet.md) | Accepted | Exif LensMake/LensModel capture columns + lens-name facet; keep focal-length proxy; schema v14 |

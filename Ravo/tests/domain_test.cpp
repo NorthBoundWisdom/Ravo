@@ -507,6 +507,8 @@ TEST(LibraryQueryTest, MatchesProductTextMediaEditCaptureAndNumericFields)
     photo.metadata.title = "Golden hour";
     photo.capture.camera_make = "Canon";
     photo.capture.camera_model = "EOS R5";
+    photo.capture.lens_make = "Canon";
+    photo.capture.lens_model = "RF 35mm F1.8";
     photo.capture.iso = 400.0;
     photo.capture.aperture = 5.6;
     photo.capture.focal_length_mm = 35.0;
@@ -565,6 +567,18 @@ TEST(LibraryQueryTest, MatchesProductTextMediaEditCaptureAndNumericFields)
     auto half = validate_library_query(query);
     ASSERT_FALSE(half);
     EXPECT_EQ(half.error().context.at("reason"), "invalid_library_camera_facet");
+
+    query = {};
+    query.lens_make_equals = "Canon";
+    query.lens_model_equals = "RF 35mm F1.8";
+    ASSERT_TRUE(validate_library_query(query));
+    EXPECT_TRUE(asset_matches_query(photo, query));
+    query.lens_model_equals = "RF 50mm F1.8";
+    EXPECT_FALSE(asset_matches_query(photo, query));
+    query.lens_model_equals.reset();
+    auto half_lens = validate_library_query(query);
+    ASSERT_FALSE(half_lens);
+    EXPECT_EQ(half_lens.error().context.at("reason"), "invalid_library_lens_name_facet");
 
     query = {};
     query.country_equals = "China";

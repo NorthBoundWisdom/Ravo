@@ -33,6 +33,10 @@ QVariantList facet_values(const std::vector<LibraryFacetEntry> &entries)
             value.insert(QStringLiteral("cameraModel"), qstring_from_utf8(*entry.camera_model));
         if (entry.focal_length_mm)
             value.insert(QStringLiteral("focalLengthMm"), *entry.focal_length_mm);
+        if (entry.lens_make)
+            value.insert(QStringLiteral("lensMake"), qstring_from_utf8(*entry.lens_make));
+        if (entry.lens_model)
+            value.insert(QStringLiteral("lensModel"), qstring_from_utf8(*entry.lens_model));
         if (entry.captured_local_date)
             value.insert(QStringLiteral("captureDate"),
                          qstring_from_utf8(*entry.captured_local_date));
@@ -51,6 +55,11 @@ QVariantList StudioPresenter::cameraFacets() const
 QVariantList StudioPresenter::lensFacets() const
 {
     return facet_values(capture_facets_.lenses);
+}
+
+QVariantList StudioPresenter::lensNameFacets() const
+{
+    return facet_values(capture_facets_.lens_names);
 }
 
 QVariantList StudioPresenter::captureDateFacets() const
@@ -186,6 +195,20 @@ QString StudioPresenter::lensFilter() const
     return QString::number(*query_.focal_length_mm_equals, 'g', 15);
 }
 
+QString StudioPresenter::lensMakeFilter() const
+{
+    if (!query_.lens_make_equals)
+        return {};
+    return qstring_from_utf8(*query_.lens_make_equals);
+}
+
+QString StudioPresenter::lensModelFilter() const
+{
+    if (!query_.lens_model_equals)
+        return {};
+    return qstring_from_utf8(*query_.lens_model_equals);
+}
+
 QString StudioPresenter::captureDateFilter() const
 {
     if (!query_.captured_local_date)
@@ -257,13 +280,14 @@ bool StudioPresenter::filtersActive() const noexcept
            query_.reject_filter != RejectFilter::kInclude || !query_.tag.empty() ||
            !query_.text.empty() || !query_.media_types.empty() ||
            query_.edit_filter != EditFilter::kAny || !query_.camera.empty() ||
-           query_.camera_make_equals || query_.camera_model_equals ||
-           query_.focal_length_mm_equals || query_.captured_local_date || query_.country_equals ||
-           query_.province_state_equals || query_.city_equals || query_.sublocation_equals ||
-           query_.iso.minimum || query_.iso.maximum || query_.aperture.minimum ||
-           query_.aperture.maximum || query_.focal_length_mm.minimum ||
-           query_.focal_length_mm.maximum || query_.shutter_s.minimum || query_.shutter_s.maximum ||
-           query_.aspect_ratio.minimum || query_.aspect_ratio.maximum ||
+           query_.camera_make_equals || query_.camera_model_equals || query_.lens_make_equals ||
+           query_.lens_model_equals || query_.focal_length_mm_equals ||
+           query_.captured_local_date || query_.country_equals || query_.province_state_equals ||
+           query_.city_equals || query_.sublocation_equals || query_.iso.minimum ||
+           query_.iso.maximum || query_.aperture.minimum || query_.aperture.maximum ||
+           query_.focal_length_mm.minimum || query_.focal_length_mm.maximum ||
+           query_.shutter_s.minimum || query_.shutter_s.maximum || query_.aspect_ratio.minimum ||
+           query_.aspect_ratio.maximum ||
            (!last_import_selected_ &&
             (query_.imported_after_unix_ms || query_.imported_before_unix_ms)) ||
            query_.captured_after_unix_s || query_.captured_before_unix_s;

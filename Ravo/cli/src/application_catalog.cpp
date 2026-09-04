@@ -224,7 +224,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "--stack-expanded is only valid for catalog list");
     const bool has_facet_list_options =
         !flags.value().camera.empty() || !flags.value().camera_make.empty() ||
-        !flags.value().camera_model.empty() || !flags.value().focal_length_mm.empty() ||
+        !flags.value().camera_model.empty() || !flags.value().lens_make.empty() ||
+        !flags.value().lens_model.empty() || !flags.value().focal_length_mm.empty() ||
         !flags.value().captured_local_date.empty() ||
         !flags.value().captured_after_unix_s.empty() ||
         !flags.value().captured_before_unix_s.empty();

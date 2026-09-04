@@ -93,6 +93,8 @@ struct CatalogCliArguments
     std::string_view camera;
     std::string_view camera_make;
     std::string_view camera_model;
+    std::string_view lens_make;
+    std::string_view lens_model;
     std::string_view focal_length_mm;
     std::string_view captured_local_date;
     std::string_view captured_after_unix_s;

@@ -17,8 +17,8 @@
         "Ravo/tests/engine_detail_test.cpp",
         "Ravo/tests/engine_raw_reference_test.cpp"
       ],
-      "case_count": 125,
-      "case_sha256": "c8590b25d8451716e7d587a018410f932f777af8fab8de2bedd53fe42cbe4b0f"
+      "case_count": 126,
+      "case_sha256": "17d7963389175a7b584564ce6ffa9bd40a2ba0b4ab1be269d42fdd7a3e0a895b"
     },
     {
       "sources": [
@@ -31,8 +31,8 @@
         "Ravo/tests/catalog_capture_test.cpp",
         "Ravo/tests/catalog_import_test.cpp"
       ],
-      "case_count": 142,
-      "case_sha256": "fe2f60171b8015cc6aa598c345bac7c12b867436c64f460e6a5ebf822509ffcb"
+      "case_count": 144,
+      "case_sha256": "09dd31c121b1c1355b05eb975f48cd69f078dbb7dcdfc00dcf192771cb796dca"
     },
     {
       "sources": [

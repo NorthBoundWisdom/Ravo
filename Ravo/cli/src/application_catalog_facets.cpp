@@ -33,6 +33,11 @@ Result<LibraryQuery> build_library_query(const CatalogCliArguments &flags)
         query.camera_make_equals = std::string(flags.camera_make);
         query.camera_model_equals = std::string(flags.camera_model);
     }
+    if (!flags.lens_make.empty() || !flags.lens_model.empty())
+    {
+        query.lens_make_equals = std::string(flags.lens_make);
+        query.lens_model_equals = std::string(flags.lens_model);
+    }
     if (!flags.focal_length_mm.empty())
     {
         auto parsed = parse_double_flag(flags.focal_length_mm, "--focal-length-mm");
@@ -81,6 +86,10 @@ namespace
         row.emplace("camera_model", *entry.camera_model);
     if (entry.focal_length_mm)
         row.emplace("focal_length_mm", JsonValue::number(std::to_string(*entry.focal_length_mm)));
+    if (entry.lens_make)
+        row.emplace("lens_make", *entry.lens_make);
+    if (entry.lens_model)
+        row.emplace("lens_model", *entry.lens_model);
     if (entry.captured_local_date)
         row.emplace("captured_local_date", *entry.captured_local_date);
     return JsonValue{std::move(row)};
@@ -110,6 +119,10 @@ namespace
         row.emplace("camera_make", *scope.camera_make_equals);
     if (scope.camera_model_equals)
         row.emplace("camera_model", *scope.camera_model_equals);
+    if (scope.lens_make_equals)
+        row.emplace("lens_make", *scope.lens_make_equals);
+    if (scope.lens_model_equals)
+        row.emplace("lens_model", *scope.lens_model_equals);
     if (scope.focal_length_mm_equals)
         row.emplace("focal_length_mm",
                     JsonValue::number(std::to_string(*scope.focal_length_mm_equals)));
@@ -150,6 +163,7 @@ Result<JsonValue> run_catalog_facets_command(CatalogService &service,
     return JsonValue{JsonValue::Object{
         {"cameras", facet_entries_json(captures.value().cameras)},
         {"lenses", facet_entries_json(captures.value().lenses)},
+        {"lens_names", facet_entries_json(captures.value().lens_names)},
         {"capture_dates", facet_entries_json(captures.value().capture_dates)},
         {"countries", facet_entries_json(locations.value().countries)},
         {"province_states", facet_entries_json(locations.value().province_states)},

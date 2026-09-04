@@ -257,6 +257,14 @@ void append_ifd(std::vector<std::uint8_t> &out, const std::vector<TiffIfdEntry> 
     {
         entries.push_back(make_rational_entry(37386U, *prepared.focal_length));
     }
+    if (prepared.lens_make)
+    {
+        entries.push_back(make_ascii_entry(42035U, *prepared.lens_make)); // Exif.Photo.LensMake
+    }
+    if (prepared.lens_model)
+    {
+        entries.push_back(make_ascii_entry(42036U, *prepared.lens_model)); // Exif.Photo.LensModel
+    }
     if (prepared.subsec_time_original)
     {
         entries.push_back(make_ascii_entry(37521U, *prepared.subsec_time_original));
@@ -747,6 +755,8 @@ Result<PreparedExportMetadata> prepare_export_metadata(const ExportMetadataSnaps
         prepared.color_space = builtin_srgb ? 1U : 0xFFFFU;
         prepared.make = snapshot.capture.camera_make;
         prepared.model = snapshot.capture.camera_model;
+        prepared.lens_make = snapshot.capture.lens_make;
+        prepared.lens_model = snapshot.capture.lens_model;
         prepared.title = snapshot.writable.title;
         prepared.description = snapshot.writable.description;
         prepared.creator = snapshot.writable.creator;

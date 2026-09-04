@@ -510,13 +510,14 @@ Result<void> SqliteCatalogRepository::upsert_capture_metadata(const std::string_
     }
     QSqlQuery query(impl_->database);
     query.prepare(QStringLiteral(
-        "INSERT INTO asset_metadata(asset_id, camera_make, camera_model, iso, aperture, "
-        "focal_length_mm, shutter_s, captured_unix_s, captured_local_exif, "
+        "INSERT INTO asset_metadata(asset_id, camera_make, camera_model, lens_make, lens_model, "
+        "iso, aperture, focal_length_mm, shutter_s, captured_unix_s, captured_local_exif, "
         "captured_subsecond_digits, captured_utc_offset_minutes, gps_latitude_e6, "
         "gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref) VALUES "
-        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(asset_id) DO UPDATE SET camera_make = excluded.camera_make, "
-        "camera_model = excluded.camera_model, iso = excluded.iso, aperture = excluded.aperture, "
+        "camera_model = excluded.camera_model, lens_make = excluded.lens_make, "
+        "lens_model = excluded.lens_model, iso = excluded.iso, aperture = excluded.aperture, "
         "focal_length_mm = excluded.focal_length_mm, shutter_s = excluded.shutter_s, "
         "captured_unix_s = excluded.captured_unix_s, "
         "captured_local_exif = excluded.captured_local_exif, "
@@ -529,6 +530,8 @@ Result<void> SqliteCatalogRepository::upsert_capture_metadata(const std::string_
     query.addBindValue(qstring_from_utf8(asset_id));
     query.addBindValue(optional_string(capture.camera_make));
     query.addBindValue(optional_string(capture.camera_model));
+    query.addBindValue(optional_string(capture.lens_make));
+    query.addBindValue(optional_string(capture.lens_model));
     query.addBindValue(optional_double(capture.iso));
     query.addBindValue(optional_double(capture.aperture));
     query.addBindValue(optional_double(capture.focal_length_mm));

@@ -1068,6 +1068,8 @@ extract_capture_number(const Exiv2::ExifData &exif, const char *key, const std::
 {
     AsciiTag make{};
     AsciiTag model{};
+    AsciiTag lens_make{};
+    AsciiTag lens_model{};
     AsciiTag photo{};
     AsciiTag image{};
     AsciiTag fraction{};
@@ -1080,6 +1082,8 @@ extract_capture_number(const Exiv2::ExifData &exif, const char *key, const std::
     RationalTag alt{};
     extract_ascii(exif, make, "Exif.Image.Make", 128U);
     extract_ascii(exif, model, "Exif.Image.Model", 128U);
+    extract_ascii(exif, lens_make, "Exif.Photo.LensMake", 128U);
+    extract_ascii(exif, lens_model, "Exif.Photo.LensModel", 128U);
     extract_ascii(exif, photo, "Exif.Photo.DateTimeOriginal", 20U);
     extract_ascii(exif, image, "Exif.Image.DateTimeOriginal", 20U);
     extract_ascii(exif, fraction, "Exif.Photo.SubSecTimeOriginal", 10U);
@@ -1092,20 +1096,25 @@ extract_capture_number(const Exiv2::ExifData &exif, const char *key, const std::
     extract_urational(exif, alt, "Exif.GPSInfo.GPSAltitude");
     auto camera_make = resolve_capture_text(make, "camera_make");
     auto camera_model = resolve_capture_text(model, "camera_model");
+    auto lens_make_text = resolve_capture_text(lens_make, "lens_make");
+    auto lens_model_text = resolve_capture_text(lens_model, "lens_model");
     auto iso_new = extract_capture_number(exif, "Exif.Photo.PhotographicSensitivity", "iso");
     auto iso_old = extract_capture_number(exif, "Exif.Photo.ISOSpeedRatings", "iso");
     auto aperture = extract_capture_number(exif, "Exif.Photo.FNumber", "aperture");
     auto focal = extract_capture_number(exif, "Exif.Photo.FocalLength", "focal_length_mm");
     auto shutter = extract_capture_number(exif, "Exif.Photo.ExposureTime", "shutter_s");
-    if (!camera_make || !camera_model || !iso_new || !iso_old || !aperture || !focal || !shutter)
+    if (!camera_make || !camera_model || !lens_make_text || !lens_model_text || !iso_new ||
+        !iso_old || !aperture || !focal || !shutter)
     {
-        return !camera_make  ? camera_make.error() :
-               !camera_model ? camera_model.error() :
-               !iso_new      ? iso_new.error() :
-               !iso_old      ? iso_old.error() :
-               !aperture     ? aperture.error() :
-               !focal        ? focal.error() :
-                               shutter.error();
+        return !camera_make     ? camera_make.error() :
+               !camera_model    ? camera_model.error() :
+               !lens_make_text  ? lens_make_text.error() :
+               !lens_model_text ? lens_model_text.error() :
+               !iso_new         ? iso_new.error() :
+               !iso_old         ? iso_old.error() :
+               !aperture        ? aperture.error() :
+               !focal           ? focal.error() :
+                                  shutter.error();
     }
     if (iso_new.value() && iso_old.value() &&
         std::abs(*iso_new.value() - *iso_old.value()) > 1.0e-9)
@@ -1126,6 +1135,8 @@ extract_capture_number(const Exiv2::ExifData &exif, const char *key, const std::
     EngineCaptureMetadata extracted;
     extracted.camera_make = std::move(camera_make).value();
     extracted.camera_model = std::move(camera_model).value();
+    extracted.lens_make = std::move(lens_make_text).value();
+    extracted.lens_model = std::move(lens_model_text).value();
     extracted.iso = iso_new.value() ? iso_new.value() : iso_old.value();
     extracted.aperture = aperture.value();
     extracted.focal_length_mm = focal.value();

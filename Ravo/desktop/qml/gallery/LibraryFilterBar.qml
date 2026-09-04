@@ -29,6 +29,9 @@ Item {
     readonly property int lensFacetCount: !root.hasPresenter || root.presenter.lensFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.lensFacets, function (entry) {
         return Math.abs(entry.focalLengthMm - Number(root.presenter.lensFilter)) < 0.000000001;
     })
+    readonly property int lensNameFacetCount: !root.hasPresenter || (root.presenter.lensMakeFilter.length === 0 && root.presenter.lensModelFilter.length === 0) ? -1 : root.matchingFacetCount(root.presenter.lensNameFacets, function (entry) {
+        return (entry.lensMake || "") === root.presenter.lensMakeFilter && (entry.lensModel || "") === root.presenter.lensModelFilter;
+    })
     readonly property int captureDateFacetCount: !root.hasPresenter || root.presenter.captureDateFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.captureDateFacets, function (entry) {
         return entry.captureDate === root.presenter.captureDateFilter;
     })
@@ -63,6 +66,8 @@ Item {
             return root.presenter.cameraFilter.length > 0;
         if (id === "lens")
             return root.presenter.lensFilter.length > 0;
+        if (id === "lensName")
+            return root.presenter.lensMakeFilter.length > 0 || root.presenter.lensModelFilter.length > 0;
         if (id === "captureDate")
             return root.presenter.captureDateFilter.length > 0;
         if (id === "location")
@@ -94,6 +99,8 @@ Item {
             root.commands.setCameraFacetFilter("", "");
         else if (id === "lens")
             root.commands.setLensFacetFilter("");
+        else if (id === "lensName")
+            root.commands.setLensNameFacetFilter("", "");
         else if (id === "captureDate")
             root.commands.setCaptureDateFacetFilter("");
         else if (id === "location")
@@ -415,6 +422,48 @@ Item {
                 }
 
                 RowLayout {
+                    visible: root.extraOpen("lensName")
+                    spacing: Fonts.size2
+                    Layout.alignment: Qt.AlignVCenter
+                    CustomTextField {
+                        id: lensMakeField
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 110
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("Lens make")
+                        text: root.hasPresenter ? root.presenter.lensMakeFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setLensNameFacetFilter(text, lensModelField.text)
+                    }
+                    CustomTextField {
+                        id: lensModelField
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 150
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        alignRightWhenFocused: false
+                        placeholderText: qsTr("Lens model")
+                        text: root.hasPresenter ? root.presenter.lensModelFilter : ""
+                        onEditingFinished: if (root.commands)
+                            root.commands.setLensNameFacetFilter(lensMakeField.text, text)
+                    }
+                    Text {
+                        visible: root.lensNameFacetCount >= 0
+                        text: qsTr("%1 photos").arg(root.lensNameFacetCount)
+                        color: Theme.midColor
+                        font: Fonts.standardFont
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    FilterCloseButton {
+                        onClicked: root.removeExtra("lensName")
+                    }
+                }
+
+                RowLayout {
                     visible: root.extraOpen("captureDate")
                     spacing: Fonts.size2
                     Layout.alignment: Qt.AlignVCenter
@@ -516,7 +565,7 @@ Item {
                     display: AbstractButton.IconOnly
                     icon.source: "qrc:/GeoControls/icons/Plus.svg"
                     tooltipText: qsTr("Add filter")
-                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected") || !root.extraOpen("camera") || !root.extraOpen("lens") || !root.extraOpen("captureDate") || !root.extraOpen("location")
+                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected") || !root.extraOpen("camera") || !root.extraOpen("lens") || !root.extraOpen("lensName") || !root.extraOpen("captureDate") || !root.extraOpen("location")
                     implicitWidth: Fonts.iconButtonSize
                     implicitHeight: Fonts.iconButtonSize
                     Layout.preferredWidth: implicitWidth
@@ -577,6 +626,11 @@ Item {
                             text: qsTr("Lens")
                             visible: !root.extraOpen("lens")
                             onTriggered: root.addExtra("lens")
+                        }
+                        FilterMenuItem {
+                            text: qsTr("Lens name")
+                            visible: !root.extraOpen("lensName")
+                            onTriggered: root.addExtra("lensName")
                         }
                         FilterMenuItem {
                             text: qsTr("Capture date")

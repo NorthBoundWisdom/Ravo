@@ -107,6 +107,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString cameraMakeFilter READ cameraMakeFilter NOTIFY filterChanged)
     Q_PROPERTY(QString cameraModelFilter READ cameraModelFilter NOTIFY filterChanged)
     Q_PROPERTY(QString lensFilter READ lensFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString lensMakeFilter READ lensMakeFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString lensModelFilter READ lensModelFilter NOTIFY filterChanged)
     Q_PROPERTY(QString captureDateFilter READ captureDateFilter NOTIFY filterChanged)
     Q_PROPERTY(QString countryFilter READ countryFilter NOTIFY filterChanged)
     Q_PROPERTY(QString provinceStateFilter READ provinceStateFilter NOTIFY filterChanged)
@@ -115,6 +117,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString locationFilter READ locationFilter NOTIFY filterChanged)
     Q_PROPERTY(QVariantList cameraFacets READ cameraFacets NOTIFY facetsChanged)
     Q_PROPERTY(QVariantList lensFacets READ lensFacets NOTIFY facetsChanged)
+    Q_PROPERTY(QVariantList lensNameFacets READ lensNameFacets NOTIFY facetsChanged)
     Q_PROPERTY(QVariantList captureDateFacets READ captureDateFacets NOTIFY facetsChanged)
     Q_PROPERTY(QVariantList countryFacets READ countryFacets NOTIFY facetsChanged)
     Q_PROPERTY(QVariantList provinceStateFacets READ provinceStateFacets NOTIFY facetsChanged)
@@ -445,6 +448,8 @@ public:
     [[nodiscard]] QString cameraMakeFilter() const;
     [[nodiscard]] QString cameraModelFilter() const;
     [[nodiscard]] QString lensFilter() const;
+    [[nodiscard]] QString lensMakeFilter() const;
+    [[nodiscard]] QString lensModelFilter() const;
     [[nodiscard]] QString captureDateFilter() const;
     [[nodiscard]] QString countryFilter() const;
     [[nodiscard]] QString provinceStateFilter() const;
@@ -453,6 +458,7 @@ public:
     [[nodiscard]] QString locationFilter() const;
     [[nodiscard]] QVariantList cameraFacets() const;
     [[nodiscard]] QVariantList lensFacets() const;
+    [[nodiscard]] QVariantList lensNameFacets() const;
     [[nodiscard]] QVariantList captureDateFacets() const;
     [[nodiscard]] QVariantList countryFacets() const;
     [[nodiscard]] QVariantList provinceStateFacets() const;
@@ -790,6 +796,7 @@ public:
     Q_INVOKABLE void setEditFilter(const QString &mode);
     Q_INVOKABLE void setCameraFacetFilter(const QString &make, const QString &model);
     Q_INVOKABLE void setLensFacetFilter(const QString &focal_mm);
+    Q_INVOKABLE void setLensNameFacetFilter(const QString &make, const QString &model);
     Q_INVOKABLE void setCaptureDateFacetFilter(const QString &local_date);
     Q_INVOKABLE void setLocationFacetFilter(const QString &country, const QString &province_state,
                                             const QString &city, const QString &sublocation);

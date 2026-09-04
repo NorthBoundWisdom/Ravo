@@ -93,6 +93,12 @@ Item {
     function setLensFacetFilter(value) {
         root.run(root.ids.librarySetLensFilter, value === undefined ? "" : value);
     }
+    function setLensNameFacetFilter(make, model) {
+        root.run(root.ids.librarySetLensNameFilter, {
+            "make": make === undefined ? "" : make,
+            "model": model === undefined ? "" : model
+        });
+    }
     function setCaptureDateFacetFilter(value) {
         root.run(root.ids.librarySetCaptureDateFilter, value === undefined ? "" : value);
     }

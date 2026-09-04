@@ -16,7 +16,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 13;
+inline constexpr std::int64_t kCatalogSchemaVersion = 14;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 1;
@@ -100,7 +100,7 @@ inline constexpr std::size_t kExportFilenameTemplateMaxBytes = 512U;
 inline constexpr std::size_t kExportFilenameMaxBytes = 240U;
 inline constexpr std::size_t kLibraryPageDefaultSize = 200U;
 inline constexpr std::size_t kLibraryPageMaximumSize = 512U;
-inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 3;
+inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 4;
 inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersionMin = 1;
 inline constexpr std::size_t kLibraryFacetMaximumValues = 2048U;
 inline constexpr std::size_t kLibrarySetNameMaxLength = 128;
@@ -386,6 +386,9 @@ struct LibraryQuery
     std::optional<std::string> camera_make_equals;
     std::optional<std::string> camera_model_equals;
     std::optional<double> focal_length_mm_equals;
+    // ADR-0135 Exif lens-name facet pair (empty string = absent capture field).
+    std::optional<std::string> lens_make_equals;
+    std::optional<std::string> lens_model_equals;
     std::optional<std::string> captured_local_date; // YYYY:MM:DD from captured_local_exif
     // ADR-0130 exact location selectors (empty string = absent writable field).
     std::optional<std::string> country_equals;
@@ -405,6 +408,8 @@ struct LibraryFacetEntry
     std::optional<std::string> camera_make;
     std::optional<std::string> camera_model;
     std::optional<double> focal_length_mm;
+    std::optional<std::string> lens_make;
+    std::optional<std::string> lens_model;
     std::optional<std::string> captured_local_date;
 
     [[nodiscard]] bool operator==(const LibraryFacetEntry &) const noexcept = default;
@@ -413,7 +418,8 @@ struct LibraryFacetEntry
 struct LibraryCaptureFacets
 {
     std::vector<LibraryFacetEntry> cameras;
-    std::vector<LibraryFacetEntry> lenses;
+    std::vector<LibraryFacetEntry> lenses;     // ADR-0128 focal-length proxy
+    std::vector<LibraryFacetEntry> lens_names; // ADR-0135 Exif LensMake/LensModel
     std::vector<LibraryFacetEntry> capture_dates;
     bool truncated = false;
     // True when counts were computed inside an explicit LibraryQuery scope
@@ -505,6 +511,8 @@ struct CaptureMetadata
 {
     std::optional<std::string> camera_make;
     std::optional<std::string> camera_model;
+    std::optional<std::string> lens_make;
+    std::optional<std::string> lens_model;
     std::optional<double> iso;
     std::optional<double> aperture;
     std::optional<double> focal_length_mm;

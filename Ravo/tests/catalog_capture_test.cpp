@@ -426,6 +426,69 @@ TEST_F(CatalogServiceTest, ImportsSyntheticJpegCaptureTimeAndGps)
               CaptureAltitudeReference::kAboveSeaLevel);
 }
 
+TEST_F(CatalogServiceTest, ImportsAndReopensExifLensMakeModelFacet)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    test_support::CaptureExifProfile profile;
+    profile.lens_make = "RavoOptics";
+    profile.lens_model = "Prime 35mm f/1.8";
+    const auto tiff = test_support::make_capture_exif_tiff(profile);
+    QImage image(8, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(20, 40, 60));
+    QByteArray jpeg;
+    QBuffer buffer(&jpeg);
+    buffer.open(QIODevice::WriteOnly);
+    ASSERT_TRUE(image.save(&buffer, "JPEG", 90));
+    QByteArray app1;
+    app1.append(static_cast<char>(0xFF));
+    app1.append(static_cast<char>(0xE1));
+    const auto payload = 2 + 6 + static_cast<int>(tiff.size());
+    app1.append(static_cast<char>((payload >> 8) & 0xFF));
+    app1.append(static_cast<char>(payload & 0xFF));
+    app1.append("Exif", 4);
+    app1.append('\0');
+    app1.append('\0');
+    app1.append(reinterpret_cast<const char *>(tiff.data()), static_cast<int>(tiff.size()));
+    jpeg.insert(2, app1);
+    const auto jpeg_path = (root / "lens-name.jpg").string();
+    QFile file(QString::fromStdString(jpeg_path));
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write(jpeg), jpeg.size());
+    file.close();
+
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    ASSERT_TRUE(imported.value().asset->capture.lens_make);
+    ASSERT_TRUE(imported.value().asset->capture.lens_model);
+    EXPECT_EQ(*imported.value().asset->capture.lens_make, "RavoOptics");
+    EXPECT_EQ(*imported.value().asset->capture.lens_model, "Prime 35mm f/1.8");
+
+    auto facets = service->list_capture_facets();
+    ASSERT_TRUE(facets) << facets.error().message;
+    ASSERT_EQ(facets.value().lens_names.size(), 1U);
+    EXPECT_EQ(facets.value().lens_names.front().label, "RavoOptics Prime 35mm f/1.8");
+
+    LibraryQuery query;
+    query.lens_make_equals = "RavoOptics";
+    query.lens_model_equals = "Prime 35mm f/1.8";
+    auto listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    ASSERT_TRUE(listed.value().front().capture.lens_make);
+    EXPECT_EQ(*listed.value().front().capture.lens_make, "RavoOptics");
+    EXPECT_EQ(*listed.value().front().capture.lens_model, "Prime 35mm f/1.8");
+}
+
 void replace_synthetic_capture_year(const std::string &path, const QByteArray &year)
 {
     QFile file(QString::fromStdString(path));

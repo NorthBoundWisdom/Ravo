@@ -25,6 +25,10 @@ void merge_engine_capture(CaptureMetadata &target, const EngineCaptureMetadata &
         target.camera_make = source.camera_make;
     if (source.camera_model)
         target.camera_model = source.camera_model;
+    if (source.lens_make)
+        target.lens_make = source.lens_make;
+    if (source.lens_model)
+        target.lens_model = source.lens_model;
     if (source.iso)
         target.iso = source.iso;
     if (source.aperture)

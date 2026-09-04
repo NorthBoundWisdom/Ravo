@@ -39,6 +39,7 @@ inline constexpr auto kLibrarySetMediaFilter = "studio.library.set_media_filter"
 inline constexpr auto kLibrarySetEditFilter = "studio.library.set_edit_filter";
 inline constexpr auto kLibrarySetCameraFilter = "studio.library.set_camera_filter";
 inline constexpr auto kLibrarySetLensFilter = "studio.library.set_lens_filter";
+inline constexpr auto kLibrarySetLensNameFilter = "studio.library.set_lens_name_filter";
 inline constexpr auto kLibrarySetCaptureDateFilter = "studio.library.set_capture_date_filter";
 inline constexpr auto kLibrarySetLocationFilter = "studio.library.set_location_filter";
 inline constexpr auto kLibrarySetSort = "studio.library.set_sort";

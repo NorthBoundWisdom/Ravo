@@ -557,6 +557,28 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &argument, const QString &)
         { presenter_.setLensFacetFilter(argument.toString()); });
     add(
+        command::kLibrarySetLensNameFilter, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            const auto error =
+                required_fields(argument, {QStringLiteral("make"), QStringLiteral("model")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap();
+            for (const auto &key : {QStringLiteral("make"), QStringLiteral("model")})
+            {
+                if (fields.value(key).metaType().id() != QMetaType::QString)
+                    return QStringLiteral("Lens-name facet make and model must be strings.");
+            }
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.setLensNameFacetFilter(fields.value(QStringLiteral("make")).toString(),
+                                              fields.value(QStringLiteral("model")).toString());
+        });
+    add(
         command::kLibrarySetCaptureDateFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {

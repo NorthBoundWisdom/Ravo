@@ -176,9 +176,10 @@ PTP USB remains residual.
 **Status:** P1 / Partial — ADR-0119 hierarchical keywords, ADR-0124 IPTC Core
 subset (title/description/creator/copyright), ADR-0126 catalog-owned IPTC
 location quartet (country/province_state/city/sublocation), ADR-0128
-camera/lens(focal)/capture-date facets, and ADR-0130 LibraryQuery location
-exact filters + location facets accepted and implemented (no facet tables;
-catalog schema unchanged at v13; LibraryQuery document schema v3).
+camera/lens(focal)/capture-date facets, ADR-0130 LibraryQuery location
+exact filters + location facets, and ADR-0135 Exif LensMake/LensModel
+lens-name facet accepted and implemented (no facet tables; catalog schema
+v14; LibraryQuery document schema v4).
 
 **Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
 and camera/lens/date facets with transactional multi-selection editing.
@@ -222,9 +223,14 @@ and camera/lens/date facets with transactional multi-selection editing.
   raw `--query` document and echoes the applied `scope`. Studio capture and
   location chip counts consume the same scoped APIs and refresh with the active
   in-memory query. Unscoped calls keep the previous whole-catalog answers.
+- ADR-0135 Exif lens-name facet: schema v14 `lens_make`/`lens_model` on
+  `asset_metadata`; capture refresh/import overwrite from Exif LensMake/LensModel;
+  `lens_names` facet enumeration beside focal-length `lenses`; exact
+  `lens_make_equals`/`lens_model_equals` selectors (LibraryQuery document v4);
+  CLI `--lens-make`/`--lens-model` + `lens_names` facets JSON; Studio lens-name
+  chips; not user-writable.
 
 **Remaining unfinished work:**
-- Exif LensMake/LensModel persistence as a true lens-name facet;
 - IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126;
 - adjacent XMP/source keyword/IPTC/location merge matrix (PRO-INTERCHANGE).
 

@@ -78,6 +78,8 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("librarySetEditFilter"), QLatin1String(command::kLibrarySetEditFilter)},
         {QStringLiteral("librarySetCameraFilter"), QLatin1String(command::kLibrarySetCameraFilter)},
         {QStringLiteral("librarySetLensFilter"), QLatin1String(command::kLibrarySetLensFilter)},
+        {QStringLiteral("librarySetLensNameFilter"),
+         QLatin1String(command::kLibrarySetLensNameFilter)},
         {QStringLiteral("librarySetCaptureDateFilter"),
          QLatin1String(command::kLibrarySetCaptureDateFilter)},
         {QStringLiteral("librarySetLocationFilter"),

@@ -368,6 +368,8 @@ TEST_F(CatalogServiceTest, CaptureFacetsEnumerateAndFilterThroughService)
             asset.capture.camera_make = index < 2 ? "RavoCam" : "OtherCam";
             asset.capture.camera_model = index % 2 == 0 ? "Alpha" : "Beta";
             asset.capture.focal_length_mm = index < 2 ? 35.0 : 85.0;
+            asset.capture.lens_make = index < 2 ? "RavoOptics" : "OtherOptics";
+            asset.capture.lens_model = index % 2 == 0 ? "Prime 35" : "Zoom 85";
             CaptureDateTime when;
             when.local_exif = (index < 3 ? "2024:05:01" : "2024:05:02") + std::string(" 12:00:00");
             asset.capture.captured_datetime = when;
@@ -386,6 +388,8 @@ TEST_F(CatalogServiceTest, CaptureFacetsEnumerateAndFilterThroughService)
     ASSERT_EQ(facets.value().cameras.size(), 4U);
     EXPECT_EQ(facets.value().cameras[0].camera_make, "OtherCam");
     EXPECT_EQ(facets.value().lenses.size(), 2U);
+    ASSERT_EQ(facets.value().lens_names.size(), 4U);
+    EXPECT_EQ(facets.value().lens_names[0].label, "OtherOptics Prime 35");
     ASSERT_EQ(facets.value().capture_dates.size(), 2U);
     EXPECT_EQ(facets.value().capture_dates.front().captured_local_date, "2024:05:02");
 
@@ -413,6 +417,113 @@ TEST_F(CatalogServiceTest, CaptureFacetsEnumerateAndFilterThroughService)
     auto invalid = service->list_assets(query);
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().context.at("reason"), "invalid_library_camera_facet");
+
+    query = {};
+    query.lens_make_equals = "RavoOptics";
+    query.lens_model_equals = "Prime 35";
+    listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().capture.lens_model, "Prime 35");
+
+    query.lens_model_equals.reset();
+    invalid = service->list_assets(query);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_library_lens_name_facet");
+}
+
+TEST_F(CatalogServiceTest, MigratesV13CatalogAddsLensNameColumns)
+{
+    {
+        const auto connection = QStringLiteral("ravo_v13_lens_name");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA foreign_keys = ON")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE schema_info (id INTEGER PRIMARY KEY CHECK (id = 1), "
+            "schema_version INTEGER NOT NULL, catalog_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+            "created_unix_ms INTEGER NOT NULL, migrated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE catalog_folder (id TEXT PRIMARY KEY, uri TEXT NOT NULL UNIQUE, "
+            "created_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset (id TEXT PRIMARY KEY, normalized_uri TEXT NOT NULL UNIQUE, "
+            "display_name TEXT NOT NULL, folder_uri TEXT NOT NULL, folder_id TEXT NOT NULL "
+            "REFERENCES catalog_folder(id), media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, "
+            "mtime_unix_ms INTEGER NOT NULL, content_fingerprint TEXT, width INTEGER, height INTEGER, "
+            "import_state TEXT NOT NULL, error_code TEXT, error_message TEXT, "
+            "created_unix_ms INTEGER NOT NULL, rating INTEGER NOT NULL DEFAULT 0, "
+            "color_label TEXT NOT NULL DEFAULT 'none', rejected INTEGER NOT NULL DEFAULT 0)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_metadata (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "title TEXT, description TEXT, creator TEXT, copyright TEXT, camera_make TEXT, "
+            "camera_model TEXT, iso REAL, aperture REAL, focal_length_mm REAL, shutter_s REAL, "
+            "captured_unix_s INTEGER, captured_local_exif TEXT, captured_subsecond_digits TEXT, "
+            "captured_utc_offset_minutes INTEGER, gps_latitude_e6 INTEGER, gps_longitude_e6 INTEGER, "
+            "gps_altitude_magnitude_mm INTEGER, gps_altitude_ref INTEGER, country TEXT, "
+            "province_state TEXT, city TEXT, sublocation TEXT)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_recovery_state (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "generation INTEGER NOT NULL, synchronized_generation INTEGER NOT NULL DEFAULT 0)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE library_stack (id TEXT PRIMARY KEY, pick_asset_id TEXT NOT NULL, "
+            "created_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE library_stack_member (stack_id TEXT NOT NULL REFERENCES library_stack(id) ON DELETE CASCADE, "
+            "asset_id TEXT NOT NULL UNIQUE REFERENCES asset(id) ON DELETE CASCADE, position INTEGER NOT NULL, "
+            "PRIMARY KEY (stack_id, asset_id))")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
+            "migrated_unix_ms) VALUES (1, 13, 'cat_v13', 1, 1, 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO catalog_folder(id, uri, created_unix_ms) VALUES ('fld_one', 'file:///tmp', 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset(id, normalized_uri, display_name, folder_uri, folder_id, media_type, "
+            "size_bytes, mtime_unix_ms, import_state, created_unix_ms) VALUES "
+            "('ast_old', 'file:///tmp/old.jpg', 'old.jpg', 'file:///tmp', 'fld_one', 'image/jpeg', "
+            "12, 1, 'imported', 1)")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("INSERT INTO asset_metadata(asset_id, camera_make, camera_model) "
+                           "VALUES ('ast_old', 'OldCam', 'Body')")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset_recovery_state(asset_id, generation, synchronized_generation) "
+            "VALUES ('ast_old', 1, 1)")));
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto opened = open_service(false);
+    ASSERT_TRUE(opened) << opened.error().message;
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
+    ASSERT_TRUE(service->close());
+    service.reset();
+
+    const auto connection = QStringLiteral("ravo_v13_lens_name_verify");
+    auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+    database.setDatabaseName(QString::fromStdString(database_path));
+    ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+    QSqlQuery query(database);
+    ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA table_info(asset_metadata)")));
+    bool has_lens_make = false;
+    bool has_lens_model = false;
+    while (query.next())
+    {
+        const auto name = query.value(1).toString();
+        if (name == QStringLiteral("lens_make"))
+            has_lens_make = true;
+        if (name == QStringLiteral("lens_model"))
+            has_lens_model = true;
+    }
+    EXPECT_TRUE(has_lens_make);
+    EXPECT_TRUE(has_lens_model);
+    database.close();
+    database = QSqlDatabase();
+    QSqlDatabase::removeDatabase(connection);
 }
 
 TEST_F(CatalogServiceTest, LocationFacetsEnumerateAndFilterThroughService)

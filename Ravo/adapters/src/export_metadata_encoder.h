@@ -29,6 +29,8 @@ struct PreparedExportMetadata
     std::uint16_t color_space = 0xFFFFU;
     std::optional<std::string> make;
     std::optional<std::string> model;
+    std::optional<std::string> lens_make;
+    std::optional<std::string> lens_model;
     std::optional<std::uint16_t> iso;
     std::optional<ExportUnsignedRational> aperture;
     std::optional<ExportUnsignedRational> focal_length;

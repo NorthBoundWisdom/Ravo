@@ -240,6 +240,8 @@ template <typename Integer>
         {"aperture", std::move(aperture).value()},
         {"camera_make", optional_string_json(capture.camera_make)},
         {"camera_model", optional_string_json(capture.camera_model)},
+        {"lens_make", optional_string_json(capture.lens_make)},
+        {"lens_model", optional_string_json(capture.lens_model)},
         {"captured_datetime", std::move(captured_datetime)},
         {"captured_unix_s", optional_integer_json(capture.captured_unix_s)},
         {"focal_length_mm", std::move(focal).value()},
@@ -560,11 +562,11 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
 
 [[nodiscard]] Result<CaptureMetadata> validate_recovery_capture(const JsonValue::Object &object)
 {
-    auto keys =
-        expect_exact_keys(object,
-                          {"aperture", "camera_make", "camera_model", "captured_datetime",
-                           "captured_unix_s", "focal_length_mm", "iso", "location", "shutter_s"},
-                          "payload.asset.capture");
+    auto keys = expect_exact_keys(object,
+                                  {"aperture", "camera_make", "camera_model", "captured_datetime",
+                                   "captured_unix_s", "focal_length_mm", "iso", "lens_make",
+                                   "lens_model", "location", "shutter_s"},
+                                  "payload.asset.capture");
     if (!keys)
         return keys.error();
 
@@ -572,6 +574,8 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
     auto camera_make = require_optional_string(object, "camera_make", kExportCaptureFieldMaxLength);
     auto camera_model =
         require_optional_string(object, "camera_model", kExportCaptureFieldMaxLength);
+    auto lens_make = require_optional_string(object, "lens_make", kExportCaptureFieldMaxLength);
+    auto lens_model = require_optional_string(object, "lens_model", kExportCaptureFieldMaxLength);
     auto iso = require_optional_double(object, "iso");
     auto aperture = require_optional_double(object, "aperture");
     auto focal = require_optional_double(object, "focal_length_mm");
@@ -583,6 +587,10 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
         return camera_make.error();
     if (!camera_model)
         return camera_model.error();
+    if (!lens_make)
+        return lens_make.error();
+    if (!lens_model)
+        return lens_model.error();
     if (!iso)
         return iso.error();
     if (!aperture)
@@ -595,6 +603,8 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
         return captured_unix.error();
     capture.camera_make = std::move(camera_make).value();
     capture.camera_model = std::move(camera_model).value();
+    capture.lens_make = std::move(lens_make).value();
+    capture.lens_model = std::move(lens_model).value();
     capture.iso = iso.value();
     capture.aperture = aperture.value();
     capture.focal_length_mm = focal.value();

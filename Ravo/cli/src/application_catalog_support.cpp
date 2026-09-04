@@ -133,6 +133,8 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
                          JsonValue{nullptr}},
         {"camera_make", optional_string_json(asset.capture.camera_make)},
         {"camera_model", optional_string_json(asset.capture.camera_model)},
+        {"lens_make", optional_string_json(asset.capture.lens_make)},
+        {"lens_model", optional_string_json(asset.capture.lens_model)},
         {"captured_at", std::move(captured_at)},
         {"focal_length_mm", asset.capture.focal_length_mm ?
                                 JsonValue::number(std::to_string(*asset.capture.focal_length_mm)) :

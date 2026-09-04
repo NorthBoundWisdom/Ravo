@@ -104,6 +104,8 @@ const char *kSchemaStatements[] = {
     "  copyright TEXT,"
     "  camera_make TEXT,"
     "  camera_model TEXT,"
+    "  lens_make TEXT,"
+    "  lens_model TEXT,"
     "  iso REAL,"
     "  aperture REAL,"
     "  focal_length_mm REAL,"
@@ -998,6 +1000,24 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                     return impl->abort_transaction(altered.error());
             }
             version = 13;
+        }
+
+        if (version == 13)
+        {
+            auto columns = asset_metadata_columns(impl->database);
+            if (!columns)
+                return impl->abort_transaction(columns.error());
+            for (const char *name : {"lens_make", "lens_model"})
+            {
+                if (columns.value().contains(name))
+                    continue;
+                const auto sql = QStringLiteral("ALTER TABLE asset_metadata ADD COLUMN %1 TEXT")
+                                     .arg(QString::fromUtf8(name));
+                const auto altered = impl->exec(sql, "migrate_v14_lens_name_columns");
+                if (!altered)
+                    return impl->abort_transaction(altered.error());
+            }
+            version = 14;
         }
 
         if (version != kCatalogSchemaVersion)

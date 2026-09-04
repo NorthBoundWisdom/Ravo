@@ -750,6 +750,33 @@ TEST(EngineFacadeTest, ReadsMire1EmbeddedCaptureAsLocalTimeWithoutOffset)
     EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
 }
 
+TEST(EngineFacadeTest, ReadsExifLensMakeAndLensModelFromSyntheticTiff)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-engine-lens-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    test_support::CaptureExifProfile profile;
+    profile.lens_make = "RavoOptics";
+    profile.lens_model = "Prime 35mm f/1.8 MACRO";
+    const auto path = root / "lens-name.tif";
+    const auto bytes = test_support::make_capture_exif_tiff(profile);
+    std::ofstream output(path, std::ios::binary);
+    output.write(reinterpret_cast<const char *>(bytes.data()),
+                 static_cast<std::streamsize>(bytes.size()));
+    output.close();
+    auto extracted =
+        engine.value().read_embedded_capture_metadata(path.string(), CancellationToken{});
+    ASSERT_TRUE(extracted) << extracted.error().message;
+    ASSERT_TRUE(extracted.value().lens_make);
+    ASSERT_TRUE(extracted.value().lens_model);
+    EXPECT_EQ(*extracted.value().lens_make, "RavoOptics");
+    EXPECT_EQ(*extracted.value().lens_model, "Prime 35mm f/1.8 MACRO");
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
 TEST(EngineFacadeTest, ConvertsUnsignedExifRationalsExactlyAtTheReaderBoundary)
 {
     const auto engine = EngineFacade::create_phase1();

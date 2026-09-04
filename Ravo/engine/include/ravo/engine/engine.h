@@ -495,6 +495,8 @@ struct EngineCaptureMetadata
 {
     std::optional<std::string> camera_make;
     std::optional<std::string> camera_model;
+    std::optional<std::string> lens_make;
+    std::optional<std::string> lens_model;
     std::optional<double> iso;
     std::optional<double> aperture;
     std::optional<double> focal_length_mm;
@@ -537,8 +539,8 @@ public:
         std::string backend;
         std::uint64_t native_surface = 0;
     };
-    [[nodiscard]] GpuDisplayFrame gpu_display_frame(
-        GpuDisplayKind kind = GpuDisplayKind::kPreview) const;
+    [[nodiscard]] GpuDisplayFrame
+    gpu_display_frame(GpuDisplayKind kind = GpuDisplayKind::kPreview) const;
     [[nodiscard]] Result<void> gpu_copy_rgb(std::span<const float> input, std::span<float> output,
                                             const CancellationToken &cancellation) const;
     [[nodiscard]] Result<LinearWorkingBuffer>
@@ -572,11 +574,9 @@ public:
     [[nodiscard]] Result<LinearWorkingBuffer>
     linear_working_from_raw(const DecodedRaw &raw, const Recipe &recipe, std::uint32_t width,
                             std::uint32_t height, const CancellationToken &cancellation) const;
-    [[nodiscard]] Result<LinearWorkingBuffer>
-    linear_working_from_raw_window(const DecodedRaw &raw, const Recipe &recipe,
-                                   std::uint32_t origin_x, std::uint32_t origin_y,
-                                   std::uint32_t width, std::uint32_t height,
-                                   const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<LinearWorkingBuffer> linear_working_from_raw_window(
+        const DecodedRaw &raw, const Recipe &recipe, std::uint32_t origin_x, std::uint32_t origin_y,
+        std::uint32_t width, std::uint32_t height, const CancellationToken &cancellation) const;
     [[nodiscard]] Result<LinearWorkingBuffer>
     linear_working_from_raster(const RasterBuffer &raster, const Recipe &recipe,
                                const CancellationToken &cancellation) const;
@@ -596,13 +596,11 @@ public:
     // Reuses the exact source/geometry/detail prefix preceding live light controls. `cache`
     // belongs to this `working` generation only; no operation, resolution, or pixel arithmetic
     // is approximated. The caller serializes access and drops the cache with the working buffer.
-    [[nodiscard]] Result<RenderedImage>
-    render_interactive_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
-                                      InteractivePreviewRenderCache &cache,
-                                      const CancellationToken &cancellation,
-                                      std::optional<std::string> overlay_mask_id = {},
-                                      bool need_cpu_pixels = true,
-                                      GpuDisplayKind display_kind = GpuDisplayKind::kPreview) const;
+    [[nodiscard]] Result<RenderedImage> render_interactive_linear_working(
+        const LinearWorkingBuffer &working, const Recipe &recipe,
+        InteractivePreviewRenderCache &cache, const CancellationToken &cancellation,
+        std::optional<std::string> overlay_mask_id = {}, bool need_cpu_pixels = true,
+        GpuDisplayKind display_kind = GpuDisplayKind::kPreview) const;
     // Same recipe/output-colour stage as render_linear_working; packs the owned
     // ProfiledOutputBuffer to the requested sample kind. Preview callers stay on
     // the RGB8 APIs above.

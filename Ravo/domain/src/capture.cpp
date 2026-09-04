@@ -212,9 +212,9 @@ Result<void> validate_capture_location(const CaptureLocation &value)
 
 bool capture_metadata_has_values(const CaptureMetadata &capture) noexcept
 {
-    return capture.camera_make || capture.camera_model || capture.iso || capture.aperture ||
-           capture.focal_length_mm || capture.shutter_s || capture.captured_unix_s ||
-           capture.captured_datetime || capture.location;
+    return capture.camera_make || capture.camera_model || capture.lens_make || capture.lens_model ||
+           capture.iso || capture.aperture || capture.focal_length_mm || capture.shutter_s ||
+           capture.captured_unix_s || capture.captured_datetime || capture.location;
 }
 
 Result<void> validate_capture_metadata(const CaptureMetadata &capture)

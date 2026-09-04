@@ -670,11 +670,11 @@ SqliteCatalogRepository::create_asset_version(const std::string_view source_asse
     QSqlQuery copy_metadata(impl_->database);
     copy_metadata.prepare(QStringLiteral(
         "INSERT INTO asset_metadata SELECT ?, title, description, creator, copyright, camera_make, "
-        "camera_model, iso, aperture, focal_length_mm, shutter_s, captured_unix_s, "
-        "captured_local_exif, captured_subsecond_digits, captured_utc_offset_minutes, "
-        "gps_latitude_e6, gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref, "
-        "country, province_state, city, sublocation "
-        "FROM asset_metadata WHERE asset_id = ?"));
+        "camera_model, lens_make, lens_model, iso, aperture, focal_length_mm, shutter_s, "
+        "captured_unix_s, captured_local_exif, captured_subsecond_digits, "
+        "captured_utc_offset_minutes, gps_latitude_e6, gps_longitude_e6, "
+        "gps_altitude_magnitude_mm, gps_altitude_ref, country, province_state, city, "
+        "sublocation FROM asset_metadata WHERE asset_id = ?"));
     copy_metadata.addBindValue(qstring_from_utf8(version_id));
     copy_metadata.addBindValue(qstring_from_utf8(source_asset_id));
     if (!copy_metadata.exec())
@@ -1098,6 +1098,60 @@ SqliteCatalogRepository::list_capture_facets(const LibraryQuery &scope) const
                         (entry.camera_model ? *entry.camera_model : std::string{});
             entry.count = static_cast<std::size_t>(query.value(2).toULongLong());
             facets.cameras.push_back(std::move(entry));
+        }
+        if (!facets.truncated && query.next())
+            facets.truncated = true;
+    }
+
+    {
+        QStringList predicates = scope_predicates;
+        predicates.push_back(
+            QStringLiteral("((m.lens_make IS NOT NULL AND m.lens_make != '') "
+                           "OR (m.lens_model IS NOT NULL AND m.lens_model != ''))"));
+        QSqlQuery query(impl_->database);
+        query.prepare(
+            QStringLiteral("SELECT m.lens_make, m.lens_model, COUNT(*) AS asset_count ") +
+            facet_from_clause(predicates) +
+            QStringLiteral(
+                " GROUP BY m.lens_make, m.lens_model "
+                "ORDER BY "
+                "  lower(trim(coalesce(m.lens_make, '') || ' ' || coalesce(m.lens_model, ''))) "
+                "ASC, "
+                "  m.lens_make ASC, m.lens_model ASC "
+                "LIMIT ?"));
+        for (const auto &binding : scope_bindings)
+            query.addBindValue(binding);
+        query.addBindValue(limit + 1);
+        if (!query.exec())
+            return map_sql_error(query, "list_capture_facets_lens_names");
+        while (query.next())
+        {
+            if (facets.lens_names.size() >= kLibraryFacetMaximumValues)
+            {
+                facets.truncated = true;
+                break;
+            }
+            LibraryFacetEntry entry;
+            entry.lens_make = string_column(query, 0);
+            entry.lens_model = string_column(query, 1);
+            if (entry.lens_make && entry.lens_make->empty())
+                entry.lens_make.reset();
+            if (entry.lens_model && entry.lens_model->empty())
+                entry.lens_model.reset();
+            std::string label;
+            if (entry.lens_make)
+                label = *entry.lens_make;
+            if (entry.lens_model)
+            {
+                if (!label.empty())
+                    label.push_back(' ');
+                label.append(*entry.lens_model);
+            }
+            entry.label = label;
+            entry.key = (entry.lens_make ? *entry.lens_make : std::string{}) + "\x1f" +
+                        (entry.lens_model ? *entry.lens_model : std::string{});
+            entry.count = static_cast<std::size_t>(query.value(2).toULongLong());
+            facets.lens_names.push_back(std::move(entry));
         }
         if (!facets.truncated && query.next())
             facets.truncated = true;

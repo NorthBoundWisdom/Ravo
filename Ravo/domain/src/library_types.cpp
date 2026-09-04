@@ -138,9 +138,11 @@ Result<void> validate_library_query(const LibraryQuery &query)
             return valid.error();
     }
     for (const auto &[value, field] :
-         std::array<std::pair<const std::optional<std::string> *, std::string_view>, 7>{
+         std::array<std::pair<const std::optional<std::string> *, std::string_view>, 9>{
              std::pair{&query.camera_make_equals, std::string_view{"camera_make_equals"}},
              std::pair{&query.camera_model_equals, std::string_view{"camera_model_equals"}},
+             std::pair{&query.lens_make_equals, std::string_view{"lens_make_equals"}},
+             std::pair{&query.lens_model_equals, std::string_view{"lens_model_equals"}},
              std::pair{&query.captured_local_date, std::string_view{"captured_local_date"}},
              std::pair{&query.country_equals, std::string_view{"country_equals"}},
              std::pair{&query.province_state_equals, std::string_view{"province_state_equals"}},
@@ -171,6 +173,12 @@ Result<void> validate_library_query(const LibraryQuery &query)
         return make_error(ErrorCode::kValidation,
                           "Library camera facet requires both make and model equality selectors",
                           {{"reason", "invalid_library_camera_facet"}});
+    }
+    if ((query.lens_make_equals.has_value() != query.lens_model_equals.has_value()))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Library lens-name facet requires both make and model equality selectors",
+                          {{"reason", "invalid_library_lens_name_facet"}});
     }
     if (query.focal_length_mm_equals)
     {
@@ -390,6 +398,18 @@ bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
             return false;
         if (query.camera_model_equals &&
             !equals_absent(asset.capture.camera_model, *query.camera_model_equals))
+            return false;
+    }
+    if (query.lens_make_equals || query.lens_model_equals)
+    {
+        const auto equals_absent =
+            [](const std::optional<std::string> &field, const std::string &expected)
+        { return field.value_or(std::string{}) == expected; };
+        if (query.lens_make_equals &&
+            !equals_absent(asset.capture.lens_make, *query.lens_make_equals))
+            return false;
+        if (query.lens_model_equals &&
+            !equals_absent(asset.capture.lens_model, *query.lens_model_equals))
             return false;
     }
     if (query.focal_length_mm_equals)
@@ -1242,6 +1262,10 @@ Result<std::string> serialize_library_query_document(const LibraryQuery &query)
          query.camera_make_equals ? JsonValue{*query.camera_make_equals} : JsonValue{nullptr}},
         {"camera_model_equals",
          query.camera_model_equals ? JsonValue{*query.camera_model_equals} : JsonValue{nullptr}},
+        {"lens_make_equals",
+         query.lens_make_equals ? JsonValue{*query.lens_make_equals} : JsonValue{nullptr}},
+        {"lens_model_equals",
+         query.lens_model_equals ? JsonValue{*query.lens_model_equals} : JsonValue{nullptr}},
         {"focal_length_mm_equals",
          query.focal_length_mm_equals ?
              JsonValue::number(std::to_string(*query.focal_length_mm_equals)) :
@@ -1271,7 +1295,7 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
         return make_error(ErrorCode::kValidation, "Library query document must be an object",
                           {{"reason", "invalid_library_query"}});
     }
-    static constexpr std::array<std::string_view, 30> kKeys{"schema_version",
+    static constexpr std::array<std::string_view, 32> kKeys{"schema_version",
                                                             "rating_mode",
                                                             "rating_value",
                                                             "color_labels",
@@ -1295,6 +1319,8 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
                                                             "captured_before_unix_s",
                                                             "camera_make_equals",
                                                             "camera_model_equals",
+                                                            "lens_make_equals",
+                                                            "lens_model_equals",
                                                             "focal_length_mm_equals",
                                                             "captured_local_date",
                                                             "country_equals",
@@ -1331,6 +1357,7 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
     }
     const bool schema_v2 = *schema_version.value() >= 2;
     const bool schema_v3 = *schema_version.value() >= 3;
+    const bool schema_v4 = *schema_version.value() >= 4;
     LibraryQuery query;
     auto rating_mode = required_string(parsed.value(), "rating_mode");
     if (!rating_mode)
@@ -1512,6 +1539,14 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
     if (!camera_model_equals)
         return camera_model_equals.error();
     query.camera_model_equals = camera_model_equals.value();
+    auto lens_make_equals = parse_optional_string("lens_make_equals", schema_v4);
+    if (!lens_make_equals)
+        return lens_make_equals.error();
+    query.lens_make_equals = lens_make_equals.value();
+    auto lens_model_equals = parse_optional_string("lens_model_equals", schema_v4);
+    if (!lens_model_equals)
+        return lens_model_equals.error();
+    query.lens_model_equals = lens_model_equals.value();
     const auto *focal_equals = parsed.value().find("focal_length_mm_equals");
     if (focal_equals == nullptr)
     {

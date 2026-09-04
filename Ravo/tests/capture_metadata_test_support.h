@@ -23,6 +23,8 @@ struct CaptureExifProfile
     std::optional<std::string> duplicate_photo_datetime;
     std::string offset = "+02:00";
     std::string subsecond = "18";
+    std::optional<std::string> lens_make;
+    std::optional<std::string> lens_model;
     char latitude_ref = 'N';
     std::array<UnsignedRational, 3> latitude{{{49U, 1U}, {15U, 1U}, {116604U, 10000U}}};
     char longitude_ref = 'E';
@@ -169,8 +171,10 @@ inline std::vector<std::uint8_t> make_capture_exif_tiff(const CaptureExifProfile
     }
 
     patch_u32(bytes, exif_offset_field, static_cast<std::uint32_t>(bytes.size()));
-    append_u16(bytes,
-               static_cast<std::uint16_t>(3U + (profile.duplicate_photo_datetime ? 1U : 0U)));
+    const std::uint16_t exif_count =
+        static_cast<std::uint16_t>(3U + (profile.duplicate_photo_datetime ? 1U : 0U) +
+                                   (profile.lens_make ? 1U : 0U) + (profile.lens_model ? 1U : 0U));
+    append_u16(bytes, exif_count);
     const auto datetime_offset_field = append_entry(
         bytes, 0x9003U, 2U, static_cast<std::uint32_t>(profile.datetime.size() + 1U), 0U);
     std::size_t duplicate_datetime_offset_field = 0U;
@@ -200,6 +204,49 @@ inline std::vector<std::uint8_t> make_capture_exif_tiff(const CaptureExifProfile
         subsecond_offset_field = append_entry(
             bytes, 0x9291U, 2U, static_cast<std::uint32_t>(profile.subsecond.size() + 1U), 0U);
     }
+    std::size_t lens_make_offset_field = 0U;
+    if (profile.lens_make)
+    {
+        if (profile.lens_make->size() <= 3U)
+        {
+            std::uint32_t inline_value = 0U;
+            for (std::size_t index = 0; index < profile.lens_make->size(); ++index)
+            {
+                inline_value |= static_cast<std::uint32_t>(
+                                    static_cast<unsigned char>((*profile.lens_make)[index]))
+                                << static_cast<unsigned int>(index * 8U);
+            }
+            append_entry(bytes, 0xA433U, 2U,
+                         static_cast<std::uint32_t>(profile.lens_make->size() + 1U), inline_value);
+        }
+        else
+        {
+            lens_make_offset_field = append_entry(
+                bytes, 0xA433U, 2U, static_cast<std::uint32_t>(profile.lens_make->size() + 1U), 0U);
+        }
+    }
+    std::size_t lens_model_offset_field = 0U;
+    if (profile.lens_model)
+    {
+        if (profile.lens_model->size() <= 3U)
+        {
+            std::uint32_t inline_value = 0U;
+            for (std::size_t index = 0; index < profile.lens_model->size(); ++index)
+            {
+                inline_value |= static_cast<std::uint32_t>(
+                                    static_cast<unsigned char>((*profile.lens_model)[index]))
+                                << static_cast<unsigned int>(index * 8U);
+            }
+            append_entry(bytes, 0xA434U, 2U,
+                         static_cast<std::uint32_t>(profile.lens_model->size() + 1U), inline_value);
+        }
+        else
+        {
+            lens_model_offset_field =
+                append_entry(bytes, 0xA434U, 2U,
+                             static_cast<std::uint32_t>(profile.lens_model->size() + 1U), 0U);
+        }
+    }
     append_u32(bytes, 0U);
     patch_u32(bytes, datetime_offset_field, static_cast<std::uint32_t>(bytes.size()));
     append_c_string(bytes, profile.datetime);
@@ -214,6 +261,16 @@ inline std::vector<std::uint8_t> make_capture_exif_tiff(const CaptureExifProfile
     {
         patch_u32(bytes, subsecond_offset_field, static_cast<std::uint32_t>(bytes.size()));
         append_c_string(bytes, profile.subsecond);
+    }
+    if (lens_make_offset_field != 0U)
+    {
+        patch_u32(bytes, lens_make_offset_field, static_cast<std::uint32_t>(bytes.size()));
+        append_c_string(bytes, *profile.lens_make);
+    }
+    if (lens_model_offset_field != 0U)
+    {
+        patch_u32(bytes, lens_model_offset_field, static_cast<std::uint32_t>(bytes.size()));
+        append_c_string(bytes, *profile.lens_model);
     }
     if ((bytes.size() & 1U) != 0U)
     {

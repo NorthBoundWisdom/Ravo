@@ -1455,6 +1455,8 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
     add_exif_ascii(metadata.writable.copyright);
     add_exif_ascii(metadata.capture.camera_make);
     add_exif_ascii(metadata.capture.camera_model);
+    add_exif_ascii(metadata.capture.lens_make);
+    add_exif_ascii(metadata.capture.lens_model);
     if (metadata.capture.iso)
     {
         bounded_add(sizes.exif_tiff_profile_bytes, 12U, kExportExifTiffProfileMaxBytes);
@@ -1516,6 +1518,8 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
     add_xmp_text(metadata.writable.sublocation, 112U);
     add_xmp_text(metadata.capture.camera_make, 64U);
     add_xmp_text(metadata.capture.camera_model, 64U);
+    add_xmp_text(metadata.capture.lens_make, 64U);
+    add_xmp_text(metadata.capture.lens_model, 64U);
     if (metadata.capture.captured_datetime)
     {
         bounded_add(sizes.xmp_packet_bytes, 96U, kExportXmpPacketMaxBytes);
@@ -1686,6 +1690,20 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
     if (!model)
     {
         return model.error();
+    }
+    auto lens_make =
+        validate_optional_utf8_field("lens_make", metadata.capture.lens_make,
+                                     "invalid_export_capture_text", kExportCaptureFieldMaxLength);
+    if (!lens_make)
+    {
+        return lens_make.error();
+    }
+    auto lens_model =
+        validate_optional_utf8_field("lens_model", metadata.capture.lens_model,
+                                     "invalid_export_capture_text", kExportCaptureFieldMaxLength);
+    if (!lens_model)
+    {
+        return lens_model.error();
     }
     for (const auto &[name, value] :
          std::array<std::pair<std::string_view, const std::optional<double> *>, 4U>{{

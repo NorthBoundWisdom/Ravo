@@ -172,6 +172,19 @@ void append_library_query_predicates(const LibraryQuery &query, QStringList &pre
         else
             add(QStringLiteral("m.camera_model = ?"), {qstring_from_utf8(model)});
     }
+    if (query.lens_make_equals || query.lens_model_equals)
+    {
+        const auto make = query.lens_make_equals.value_or(std::string{});
+        const auto model = query.lens_model_equals.value_or(std::string{});
+        if (make.empty())
+            predicates.push_back(QStringLiteral("(m.lens_make IS NULL OR m.lens_make = '')"));
+        else
+            add(QStringLiteral("m.lens_make = ?"), {qstring_from_utf8(make)});
+        if (model.empty())
+            predicates.push_back(QStringLiteral("(m.lens_model IS NULL OR m.lens_model = '')"));
+        else
+            add(QStringLiteral("m.lens_model = ?"), {qstring_from_utf8(model)});
+    }
     if (query.focal_length_mm_equals)
     {
         predicates.push_back(QStringLiteral("m.focal_length_mm = ?"));
@@ -579,11 +592,11 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
     QSqlQuery metadata(database);
     metadata.prepare(
         QStringLiteral("SELECT asset_id, title, description, creator, copyright, camera_make, "
-                       "camera_model, iso, aperture, focal_length_mm, shutter_s, "
-                       "captured_unix_s, captured_local_exif, captured_subsecond_digits, "
-                       "captured_utc_offset_minutes, gps_latitude_e6, gps_longitude_e6, "
-                       "gps_altitude_magnitude_mm, gps_altitude_ref, country, province_state, "
-                       "city, sublocation FROM asset_metadata "
+                       "camera_model, lens_make, lens_model, iso, aperture, focal_length_mm, "
+                       "shutter_s, captured_unix_s, captured_local_exif, "
+                       "captured_subsecond_digits, captured_utc_offset_minutes, gps_latitude_e6, "
+                       "gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref, country, "
+                       "province_state, city, sublocation FROM asset_metadata "
                        "WHERE asset_id IN (") +
         in_clause + QStringLiteral(")"));
     for (const auto &asset : assets)
@@ -605,28 +618,30 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
         asset.metadata.description = string_column(metadata, 2);
         asset.metadata.creator = string_column(metadata, 3);
         asset.metadata.copyright = string_column(metadata, 4);
-        asset.metadata.country = string_column(metadata, 19);
-        asset.metadata.province_state = string_column(metadata, 20);
-        asset.metadata.city = string_column(metadata, 21);
-        asset.metadata.sublocation = string_column(metadata, 22);
+        asset.metadata.country = string_column(metadata, 21);
+        asset.metadata.province_state = string_column(metadata, 22);
+        asset.metadata.city = string_column(metadata, 23);
+        asset.metadata.sublocation = string_column(metadata, 24);
         asset.capture.camera_make = string_column(metadata, 5);
         asset.capture.camera_model = string_column(metadata, 6);
-        asset.capture.iso = double_column(metadata, 7);
-        asset.capture.aperture = double_column(metadata, 8);
-        asset.capture.focal_length_mm = double_column(metadata, 9);
-        asset.capture.shutter_s = double_column(metadata, 10);
-        asset.capture.captured_unix_s = i64_column(metadata, 11);
-        auto local_exif_value = text_column(metadata, 12, "captured_local_exif");
+        asset.capture.lens_make = string_column(metadata, 7);
+        asset.capture.lens_model = string_column(metadata, 8);
+        asset.capture.iso = double_column(metadata, 9);
+        asset.capture.aperture = double_column(metadata, 10);
+        asset.capture.focal_length_mm = double_column(metadata, 11);
+        asset.capture.shutter_s = double_column(metadata, 12);
+        asset.capture.captured_unix_s = i64_column(metadata, 13);
+        auto local_exif_value = text_column(metadata, 14, "captured_local_exif");
         if (!local_exif_value)
         {
             return local_exif_value.error();
         }
-        auto subsecond_value = text_column(metadata, 13, "captured_subsecond_digits");
+        auto subsecond_value = text_column(metadata, 15, "captured_subsecond_digits");
         if (!subsecond_value)
         {
             return subsecond_value.error();
         }
-        auto offset_value = i32_column(metadata, 14, "captured_utc_offset_minutes");
+        auto offset_value = i32_column(metadata, 16, "captured_utc_offset_minutes");
         if (!offset_value)
         {
             return offset_value.error();
@@ -648,23 +663,23 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
             captured.utc_offset_minutes = offset;
             asset.capture.captured_datetime = std::move(captured);
         }
-        auto latitude_value = i32_column(metadata, 15, "gps_latitude_e6");
+        auto latitude_value = i32_column(metadata, 17, "gps_latitude_e6");
         if (!latitude_value)
         {
             return latitude_value.error();
         }
-        auto longitude_value = i32_column(metadata, 16, "gps_longitude_e6");
+        auto longitude_value = i32_column(metadata, 18, "gps_longitude_e6");
         if (!longitude_value)
         {
             return longitude_value.error();
         }
         auto altitude_magnitude_value =
-            u32_column_checked(metadata, 17, "gps_altitude_magnitude_mm");
+            u32_column_checked(metadata, 19, "gps_altitude_magnitude_mm");
         if (!altitude_magnitude_value)
         {
             return altitude_magnitude_value.error();
         }
-        auto altitude_ref_value = i32_column(metadata, 18, "gps_altitude_ref");
+        auto altitude_ref_value = i32_column(metadata, 20, "gps_altitude_ref");
         if (!altitude_ref_value)
         {
             return altitude_ref_value.error();
