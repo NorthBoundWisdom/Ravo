@@ -129,6 +129,20 @@ TEST(LocalAdjustmentMultiInstanceTest, BypassSkipsEvaluationButSerializes)
     EXPECT_TRUE(back.value().exposure_instances[1].bypass);
 }
 
+TEST(LocalAdjustmentMultiInstanceTest, AssignExposureUpdatesFrontInstanceWhenPresent)
+{
+    DevelopParams develop;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-global";
+    global.exposure_ev = 0.4;
+    develop.exposure_instances = {global};
+    clamp_develop(develop);
+    ASSERT_TRUE(apply_develop_field(develop, "exposure", -0.1));
+    EXPECT_DOUBLE_EQ(develop.exposure_ev, -0.1);
+    ASSERT_EQ(develop.exposure_instances.size(), 1U);
+    EXPECT_DOUBLE_EQ(develop.exposure_instances.front().exposure_ev, -0.1);
+}
+
 TEST(LocalAdjustmentMultiInstanceTest, LegacySingleExposureUnchangedWhenInstancesEmpty)
 {
     DevelopParams develop;

@@ -25,6 +25,23 @@
 namespace ravo::develop_internal
 {
 
+void mirror_legacy_exposure_into_front_instance(DevelopParams &params)
+{
+    if (params.exposure_instances.empty())
+    {
+        return;
+    }
+    auto &front = params.exposure_instances.front();
+    front.mode = params.exposure_mode;
+    front.black = params.exposure_black;
+    front.exposure_ev = params.exposure_ev;
+    front.deflicker_percentile = params.exposure_deflicker_percentile;
+    front.deflicker_target_ev = params.exposure_deflicker_target_ev;
+    front.compensate_exposure_bias = params.exposure_compensate_exposure_bias;
+    front.compensate_highlight_preservation = params.exposure_compensate_highlight_preservation;
+    front.mask_id = params.exposure_mask_id;
+}
+
 bool assign_develop_field(DevelopParams &params, const std::string_view name, const double value)
 {
     const auto selected = [value](const auto &options) -> std::optional<std::string>
@@ -395,6 +412,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         }
         params.exposure_mode =
             value == 0.0 ? std::string(kExposureModeManual) : std::string(kExposureModeDeflicker);
+        mirror_legacy_exposure_into_front_instance(params);
 
         return true;
     }
@@ -405,6 +423,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.exposure_black = value;
+        mirror_legacy_exposure_into_front_instance(params);
 
         return true;
     }
@@ -420,6 +439,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         {
             params.exposure_black = std::max(kExposureBlackMin, white - 0.01);
         }
+        mirror_legacy_exposure_into_front_instance(params);
 
         return true;
     }
@@ -430,6 +450,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.exposure_deflicker_percentile = value;
+        mirror_legacy_exposure_into_front_instance(params);
 
         return true;
     }
@@ -440,6 +461,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.exposure_deflicker_target_ev = value;
+        mirror_legacy_exposure_into_front_instance(params);
 
         return true;
     }
@@ -450,6 +472,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.exposure_compensate_exposure_bias = value == 1.0;
+        mirror_legacy_exposure_into_front_instance(params);
 
         return true;
     }
@@ -460,6 +483,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.exposure_compensate_highlight_preservation = value == 1.0;
+        mirror_legacy_exposure_into_front_instance(params);
 
         return true;
     }
@@ -982,6 +1006,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     }
     if (apply_color_balance_field(params.color_balance_rgb, name, value))
     {
+        if (!params.color_balance_rgb_instances.empty())
+        {
+            params.color_balance_rgb_instances.front().params = params.color_balance_rgb;
+        }
         return true;
     }
     if (apply_color_correction_field(params, name, value))

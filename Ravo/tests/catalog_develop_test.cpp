@@ -929,7 +929,22 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
-    EXPECT_EQ(restored.value(), edited.value());
+    auto comparable = restored.value();
+    // ADR-0145: a singleton recipe op loads as one instance while empty
+    // instance vectors remain the in-memory legacy form.
+    if (edited.value().exposure_instances.empty() && comparable.exposure_instances.size() == 1U)
+    {
+        EXPECT_EQ(comparable.exposure_instances.front().exposure_ev, comparable.exposure_ev);
+        comparable.exposure_instances.clear();
+    }
+    if (edited.value().color_balance_rgb_instances.empty() &&
+        comparable.color_balance_rgb_instances.size() == 1U)
+    {
+        EXPECT_EQ(comparable.color_balance_rgb_instances.front().params,
+                  comparable.color_balance_rgb);
+        comparable.color_balance_rgb_instances.clear();
+    }
+    EXPECT_EQ(comparable, edited.value());
 
     auto after_reopen = service->request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
