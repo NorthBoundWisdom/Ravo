@@ -103,6 +103,10 @@ failed CI run `33843178641` (Static checks green). Triage from that run:
 
 - fix or correctly classify every Windows/Linux failure from run `33843178641`
   (and re-verify on current `main`) with regressions — do not skip/weaken tests;
+- local `ravo_dependency_boundary` is already red on pre-parser `main` because
+  `Ravo/services/include/ravo/services/xmp_interchange.h` includes
+  `ravo/adapters/crs_xmp.h` against the services public-header direction (not
+  introduced by the float-parser tranche; still blocks a gate-green claim);
 - rerun static + macOS/Windows/Linux Debug on one pushed SHA;
 - add a Release or RelWithDebInfo compile/smoke gate so Debug-only success cannot
   authorize a release;

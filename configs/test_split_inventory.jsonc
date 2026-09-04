@@ -41,10 +41,11 @@
         "Ravo/tests/cli_legacy_xmp_test.cpp",
         "Ravo/tests/cli_catalog_test.cpp",
         "Ravo/tests/cli_studio_test.cpp",
-        "Ravo/tests/cli_lut_test.cpp"
+        "Ravo/tests/cli_lut_test.cpp",
+        "Ravo/tests/cli_catalog_args_parse_test.cpp"
       ],
-      "case_count": 66,
-      "case_sha256": "e1b426312b59fd19d9e7491df2dc7c90ab67e15bd3bc5835959e330622a952de"
+      "case_count": 72,
+      "case_sha256": "e53726d7fbe71c66b0a0a29d1df47d20f98311598041191f96521c2b50fe748e"
     },
     {
       "sources": [
@@ -54,8 +55,8 @@
         "Ravo/tests/studio_live_control_test.cpp",
         "Ravo/tests/filesystem_browser_model_test.cpp"
       ],
-      "case_count": 109,
-      "case_sha256": "efa75efbd1edec586c51518a2a54ff2d03589b3d59ef70f6abcda77bed0cd101"
+      "case_count": 110,
+      "case_sha256": "02bcd2fe4094815a1da3d7dcf72b42c73f9b5870320f8efb02e3b2871888e86f"
     },
     {
       "sources": [
