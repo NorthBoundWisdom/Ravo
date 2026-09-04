@@ -14,17 +14,8 @@
 #include "atomic_publication_internal.h"
 
 #ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <fcntl.h>
 #include <io.h>
-#include <share.h>
 #else
-#include <fcntl.h>
 #include <unistd.h>
 #endif
 
@@ -40,6 +31,7 @@ constexpr int kOriginalCopyTemporaryAttempts = 32;
 using atomic_publication_internal::checkpoint_path_utf8;
 using atomic_publication_internal::FileDescriptor;
 using atomic_publication_internal::has_write_permission;
+using atomic_publication_internal::open_read_descriptor;
 using atomic_publication_internal::open_temporary_descriptor;
 using atomic_publication_internal::OwnedTemporaryPath;
 using atomic_publication_internal::publish_no_replace;
@@ -48,19 +40,7 @@ using atomic_publication_internal::write_descriptor;
 
 [[nodiscard]] int open_source_descriptor(const std::filesystem::path &path) noexcept
 {
-#ifdef _WIN32
-    int descriptor = -1;
-    const errno_t result =
-        ::_wsopen_s(&descriptor, path.c_str(), _O_BINARY | _O_RDONLY | _O_NOINHERIT, _SH_DENYNO, 0);
-    if (result != 0)
-    {
-        errno = result;
-        return -1;
-    }
-    return descriptor;
-#else
-    return ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
-#endif
+    return open_read_descriptor(path);
 }
 
 [[nodiscard]] std::int64_t read_descriptor(const int descriptor, void *const bytes,

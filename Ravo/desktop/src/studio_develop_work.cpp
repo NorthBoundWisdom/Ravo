@@ -486,8 +486,10 @@ void StudioPresenter::kick_develop_work()
                     request.persist_preview_record =
                         job.comparison_before ? false : !job.interactive;
                     request.cancellation = cancellation;
-                    request.need_cpu_pixels =
-                        !job.interactive || job.comparison_before || job.overlay_mask_id.has_value();
+                    // CPU RGB is required for live identity, comparison Image,
+                    // scopes, and headless presenter tests. Metal still
+                    // publishes an IOSurface for QML when the recipe stays GPU.
+                    request.need_cpu_pixels = true;
                     if (job.overlay_mask_id)
                     {
                         request.overlay_mask_id = job.overlay_mask_id;

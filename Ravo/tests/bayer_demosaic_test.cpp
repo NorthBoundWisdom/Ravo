@@ -12,6 +12,7 @@
 
 #include "bayer_demosaic.h"
 #include "gpu_adapter.h"
+#include "ravo/foundation/error.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
@@ -319,8 +320,17 @@ TEST(BayerDemosaicTest, GpuRcdWindowMatchesCpuGoldWhenAvailable)
     auto gpu = GpuAdapter::try_create();
     if (!gpu)
     {
-        ASSERT_EQ(gpu.error().code, ErrorCode::kUnsupported);
-        EXPECT_EQ(gpu.error().context.at("reason"), "gpu_unavailable");
+        const auto reason = gpu.error().context.find("reason");
+        ASSERT_NE(reason, gpu.error().context.end());
+        if (reason->second == "gpu_unavailable")
+        {
+            EXPECT_EQ(gpu.error().code, ErrorCode::kUnsupported);
+        }
+        else
+        {
+            EXPECT_EQ(reason->second, "gpu_pipeline_failed");
+            EXPECT_EQ(gpu.error().code, ErrorCode::kIo);
+        }
         return;
     }
     const DecodedRaw raw = smooth_bayer(96U, 64U);

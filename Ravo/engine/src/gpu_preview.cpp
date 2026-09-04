@@ -490,7 +490,9 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
 #else
             const bool can_publish = false;
 #endif
-            gpu_options.publish_display = !need_cpu_pixels && !cpu_after && can_publish;
+            // Metal can publish an IOSurface for QML even when the caller also
+            // downloads CPU RGB for live identity, comparison, and tests.
+            gpu_options.publish_display = !cpu_after && can_publish;
             gpu_options.download = need_cpu_pixels || cpu_after || !gpu_options.publish_display;
             gpu_options.from_retained_source =
                 allow_retained && gpu->has_retained_source(working.width, working.height);

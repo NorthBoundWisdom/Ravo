@@ -71,6 +71,7 @@ private:
 };
 
 [[nodiscard]] int open_temporary_descriptor(const std::filesystem::path &path) noexcept;
+[[nodiscard]] int open_read_descriptor(const std::filesystem::path &path) noexcept;
 [[nodiscard]] std::int64_t write_descriptor(int descriptor, const void *bytes,
                                             std::size_t size) noexcept;
 [[nodiscard]] std::string path_utf8(const std::filesystem::path &path);

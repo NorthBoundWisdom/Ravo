@@ -47,7 +47,8 @@ preview/original exclusion. ADR-0099 tests add cancellable chunked database
 copy, every backup/restore publication checkpoint, destination races,
 support-first/catalog-last commit, post-commit durable-fact errors, ordinary
 reopen, source immutability, CLI round trip, Studio progress/cancellation, and
-explicit preview rebuild. Schema v7 page tests compare every accepted filter
+explicit preview rebuild. Windows atomic publication uses `\\?\` extended-length
+paths so nested derived-tree restore temps can exceed `MAX_PATH`. Schema v7 page tests compare every accepted filter
 and sort against the domain oracle, traverse 10,000 real SQLite rows in 50
 bounded pages, require at most 200 materialized assets per page, and pin page,
 tag, and stable-folder query plans. A sparse-model test exposes 10,000 logical
@@ -155,10 +156,15 @@ Sigmoid on the GPU. `render_linear_working` and export stay on CPU even when a
 compute backend exists. Recipes without those ops stay on CPU. A later smaller
 upload must not over-read a grow-only SSBO. Retained-source RGB apply matches
 the uploaded path. Interactive skip-download on Metal publishes a non-zero
-display generation and native surface with empty CPU RGB. Hosts without compute
-or buffer readback return `gpu_unavailable`. Bayer window RCD is RMSE-gated
-against the CPU gold when the adapter is present; PPG and hosts without
-compute stay on CPU. Export stays on the CPU path.
+display generation and native surface with empty CPU RGB, including odd widths
+whose IOSurface `bytesPerRow` is 16-byte aligned. Studio interactive Develop
+still downloads CPU RGB for live identity, comparison, scopes, and headless
+presenter tests while Metal also publishes that IOSurface. Hosts without
+compute or buffer readback, and hosts whose QRhi device cannot build the
+preview pipelines, return `gpu_unavailable` or `gpu_pipeline_failed`. Bayer
+window RCD is RMSE-gated against the CPU gold when the adapter is present; PPG
+and hosts without a working compute backend stay on CPU. Export stays on the
+CPU path.
 Progressive-preview coverage uses a source larger than both preview classes and
 requires the 960px interactive image to retain the preceding 1600px viewport
 extent until settlement; QML must use that accepted presenter extent instead of

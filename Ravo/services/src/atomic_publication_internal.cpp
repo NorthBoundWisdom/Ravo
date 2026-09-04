@@ -1,6 +1,9 @@
 #include "atomic_publication_internal.h"
 
 #include <cerrno>
+#include <filesystem>
+#include <string>
+#include <system_error>
 #include <utility>
 
 #include "ravo/domain/types.h"
@@ -29,6 +32,32 @@
 
 namespace ravo::atomic_publication_internal
 {
+namespace
+{
+
+#ifdef _WIN32
+[[nodiscard]] std::wstring win32_extended_path(const std::filesystem::path &path)
+{
+    std::error_code error;
+    auto absolute = std::filesystem::absolute(path, error);
+    if (error)
+        absolute = path;
+    std::wstring native = absolute.native();
+    for (auto &ch : native)
+    {
+        if (ch == L'/')
+            ch = L'\\';
+    }
+    if (native.compare(0, 4, L"\\\\?\\") == 0 || native.compare(0, 4, L"\\\\.\\") == 0)
+        return native;
+    if (native.compare(0, 2, L"\\\\") == 0)
+        return L"\\\\?\\UNC\\" + native.substr(2);
+    return L"\\\\?\\" + native;
+}
+#endif
+
+} // namespace
+
 
 FileDescriptor::FileDescriptor(const int descriptor) noexcept
     : descriptor_(descriptor)
@@ -139,7 +168,11 @@ std::error_code OwnedTemporaryPath::remove() noexcept
         return {};
     }
     std::error_code error;
+#ifdef _WIN32
+    std::filesystem::remove(std::filesystem::path(win32_extended_path(path_)), error);
+#else
     std::filesystem::remove(path_, error);
+#endif
     if (!error)
     {
         path_.clear();
@@ -178,7 +211,11 @@ std::error_code OwnedTemporaryDirectory::remove() noexcept
     if (path_.empty())
         return {};
     std::error_code error;
+#ifdef _WIN32
+    std::filesystem::remove_all(std::filesystem::path(win32_extended_path(path_)), error);
+#else
     std::filesystem::remove_all(path_, error);
+#endif
     if (!error)
         path_.clear();
     return error;
@@ -198,7 +235,8 @@ int open_temporary_descriptor(const std::filesystem::path &path) noexcept
 {
 #ifdef _WIN32
     int descriptor = -1;
-    const errno_t result = ::_wsopen_s(&descriptor, path.c_str(),
+    const auto extended = win32_extended_path(path);
+    const errno_t result = ::_wsopen_s(&descriptor, extended.c_str(),
                                        _O_BINARY | _O_WRONLY | _O_CREAT | _O_EXCL | _O_NOINHERIT,
                                        _SH_DENYRW, _S_IREAD | _S_IWRITE);
     if (result != 0)
@@ -209,6 +247,25 @@ int open_temporary_descriptor(const std::filesystem::path &path) noexcept
     return descriptor;
 #else
     return ::open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0666);
+#endif
+}
+
+int open_read_descriptor(const std::filesystem::path &path) noexcept
+{
+#ifdef _WIN32
+    int descriptor = -1;
+    const auto extended = win32_extended_path(path);
+    const errno_t result =
+        ::_wsopen_s(&descriptor, extended.c_str(), _O_BINARY | _O_RDONLY | _O_NOINHERIT, _SH_DENYNO,
+                    0);
+    if (result != 0)
+    {
+        errno = result;
+        return -1;
+    }
+    return descriptor;
+#else
+    return ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
 #endif
 }
 
@@ -267,7 +324,9 @@ std::error_code publish_no_replace(const std::filesystem::path &temporary,
                                    const std::filesystem::path &output) noexcept
 {
 #ifdef _WIN32
-    if (::MoveFileExW(temporary.c_str(), output.c_str(), MOVEFILE_WRITE_THROUGH) != 0)
+    const auto from = win32_extended_path(temporary);
+    const auto to = win32_extended_path(output);
+    if (::MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_WRITE_THROUGH) != 0)
     {
         return {};
     }

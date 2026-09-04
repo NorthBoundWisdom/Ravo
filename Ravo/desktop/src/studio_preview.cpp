@@ -580,6 +580,7 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         live_preview_height_ = preview.gpu_display_height;
         live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
         live_preview_pixel_sha256_.clear();
+        preview_url_ = QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision));
         return;
     }
     auto prepared = preview_result_image(preview);

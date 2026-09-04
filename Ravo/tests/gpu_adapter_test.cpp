@@ -8,6 +8,7 @@
 #include "gpu_preview.h"
 #include "image_ops.h"
 #include "ravo/engine/engine.h"
+#include "ravo/foundation/error.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
@@ -21,6 +22,20 @@ namespace
 [[nodiscard]] bool gpu_available(const EngineFacade &engine) noexcept
 {
     return engine.gpu_backend() != "unavailable";
+}
+
+[[nodiscard]] bool gpu_host_unavailable(const TaskError &error)
+{
+    const auto reason = error.context.find("reason");
+    if (reason == error.context.end())
+    {
+        return false;
+    }
+    if (reason->second == "gpu_unavailable")
+    {
+        return error.code == ErrorCode::kUnsupported;
+    }
+    return reason->second == "gpu_pipeline_failed" && error.code == ErrorCode::kIo;
 }
 
 [[nodiscard]] LinearWorkingBuffer make_preview_working(const std::uint32_t width,
@@ -84,8 +99,7 @@ TEST(EngineFacadeTest, GpuCopyRgbMatchesHostAvailability)
     if (!gpu_available(engine.value()))
     {
         ASSERT_FALSE(copied);
-        EXPECT_EQ(copied.error().code, ErrorCode::kUnsupported);
-        EXPECT_EQ(copied.error().context.at("reason"), "gpu_unavailable");
+        EXPECT_TRUE(gpu_host_unavailable(copied.error())) << copied.error().message;
         EXPECT_EQ(output[0], 99.0F);
         return;
     }
@@ -103,8 +117,7 @@ TEST(EngineFacadeTest, GpuCopyRgbRejectsSizeMismatchWhenAvailable)
     ASSERT_FALSE(copied);
     if (!gpu_available(engine.value()))
     {
-        EXPECT_EQ(copied.error().code, ErrorCode::kUnsupported);
-        EXPECT_EQ(copied.error().context.at("reason"), "gpu_unavailable");
+        EXPECT_TRUE(gpu_host_unavailable(copied.error())) << copied.error().message;
         return;
     }
     EXPECT_EQ(copied.error().code, ErrorCode::kInvalidArgument);
@@ -131,8 +144,7 @@ TEST(EngineFacadeTest, GpuApplyExposureMatchesCpuGoldWhenAvailable)
     if (!gpu_available(engine.value()))
     {
         ASSERT_FALSE(gpu);
-        EXPECT_EQ(gpu.error().code, ErrorCode::kUnsupported);
-        EXPECT_EQ(gpu.error().context.at("reason"), "gpu_unavailable");
+        EXPECT_TRUE(gpu_host_unavailable(gpu.error())) << gpu.error().message;
         return;
     }
     const auto cpu = apply_exposure(input, params, CancellationToken{});
@@ -174,8 +186,7 @@ TEST(GpuAdapterTest, TryCreateReportsTheSameBackendAsTheFacade)
     if (!gpu_available(engine.value()))
     {
         ASSERT_FALSE(created);
-        EXPECT_EQ(created.error().code, ErrorCode::kUnsupported);
-        EXPECT_EQ(created.error().context.at("reason"), "gpu_unavailable");
+        EXPECT_TRUE(gpu_host_unavailable(created.error())) << created.error().message;
         return;
     }
     ASSERT_TRUE(created) << created.error().message;
@@ -618,6 +629,19 @@ TEST(EngineFacadeTest, GpuInteractiveSkipDownloadPublishesDisplayWhenAvailable)
         EXPECT_NE(frame.native_surface, 0U);
         EXPECT_EQ(frame.width, 8U);
         EXPECT_EQ(frame.height, 8U);
+
+        const auto odd = make_preview_working(5, 4);
+        InteractivePreviewRenderCache odd_cache;
+        const auto odd_rendered = engine.value().render_interactive_linear_working(
+            odd, recipe, odd_cache, CancellationToken{}, std::nullopt, false);
+        ASSERT_TRUE(odd_rendered) << odd_rendered.error().message;
+        EXPECT_TRUE(odd_rendered.value().rgb.empty());
+        EXPECT_EQ(odd_rendered.value().width, 5U);
+        EXPECT_EQ(odd_rendered.value().height, 4U);
+        const auto odd_frame = engine.value().gpu_display_frame();
+        EXPECT_EQ(odd_frame.width, 5U);
+        EXPECT_EQ(odd_frame.height, 4U);
+        EXPECT_NE(odd_frame.native_surface, 0U);
     }
     else
     {

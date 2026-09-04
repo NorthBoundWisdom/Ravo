@@ -4,6 +4,7 @@
 #import <Metal/Metal.h>
 
 #include <CoreFoundation/CoreFoundation.h>
+#include <cstdint>
 
 namespace ravo::gpu_metal
 {
@@ -14,11 +15,17 @@ void *create_iosurface(const std::uint32_t width, const std::uint32_t height)
     {
         return nullptr;
     }
+    // Metal rejects IOSurface textures whose bytesPerRow is not 16-byte aligned
+    // (odd preview widths such as 639 hit this on CI).
+    constexpr std::uint32_t kRowAlign = 16U;
+    const std::uint64_t raw_row = static_cast<std::uint64_t>(width) * 4U;
+    const std::uint32_t bytes_per_row = static_cast<std::uint32_t>(
+        ((raw_row + kRowAlign - 1U) / kRowAlign) * kRowAlign);
     const NSDictionary *properties = @{
         (id)kIOSurfaceWidth : @(width),
         (id)kIOSurfaceHeight : @(height),
         (id)kIOSurfaceBytesPerElement : @4,
-        (id)kIOSurfaceBytesPerRow : @(static_cast<NSUInteger>(width) * 4U),
+        (id)kIOSurfaceBytesPerRow : @(bytes_per_row),
         (id)kIOSurfacePixelFormat : @(static_cast<unsigned int>('RGBA')),
     };
     return IOSurfaceCreate((__bridge CFDictionaryRef)properties);

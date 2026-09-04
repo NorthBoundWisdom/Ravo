@@ -31,8 +31,9 @@ constraint.
   controls, Lab USM, and Sigmoid on one GPU SSBO session; remaining RGB ops
   stay CPU. Bayer window RCD for ROI 1:1 is GPU when admitted; PPG and export
   stay CPU. Interactive Studio may sample an Engine IOSurface through the
-  window RHI native handles; persist preview, export, and CLI/PNG gold stay
-  on CPU.
+  window RHI native handles (16-byte-aligned rows); live identity, comparison,
+  and scopes still download CPU RGB. Persist preview, export, and CLI/PNG gold
+  stay on CPU.
 - The `ravo` CLI and Ravo Studio are both supported clients. Algorithms belong
   in the engine; catalog/import/preview orchestration belongs in services; CLI
   and UI are limited to input/output, progress, selection, and error
