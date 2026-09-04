@@ -54,6 +54,7 @@
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/texture.h"
 #include "ravo/services/catalog_service.h"
+#include "ravo/engine/iq_consistency.h"
 
 #include "capture_metadata_test_support.h"
 #include "catalog_test_support.h"
@@ -1270,6 +1271,69 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReturnsWindowPixelsWithoutCache)
     auto rejected_geometry = service->request_preview(request, live);
     ASSERT_FALSE(rejected_geometry);
     EXPECT_EQ(rejected_geometry.error().context.at("reason"), "preview_roi_geometry_unsupported");
+}
+
+TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
+{
+    // IQ-00 macOS contract: persist/export stay CPU gold; RAW viewport ROI may
+    // use the interactive GPU path. When sizes match, packed RGB8 stays within
+    // the documented delta. Win/Linux hosts are not claimed here.
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest settled;
+    settled.asset_id = asset_id;
+    settled.max_edge = 128U;
+    settled.persist_preview_record = true;
+    settled.prefer_embedded_preview = false;
+    auto preview = service->request_preview(settled);
+    ASSERT_TRUE(preview) << preview.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(preview.value().gpu_backend, "settled_preview"));
+    // ICC identity: reopen must carry the same ColorProfileState declaration as
+    // the settled preview (bytes + identifier), even when identifier is empty on
+    // the default RAW baseline recipe.
+
+    const auto export_path = (root / "iq00-roi-export.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 128U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+
+    // Reopen settled preview from cache/re-render must remain CPU gold.
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto reopened = service->request_preview(settled);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(reopened.value().gpu_backend, "reopen_preview"));
+    EXPECT_EQ(reopened.value().color_profile, preview.value().color_profile);
+
+    PreviewRequest roi;
+    roi.asset_id = asset_id;
+    roi.persist_preview_record = false;
+    roi.prefer_embedded_preview = false;
+    roi.roi = PreviewNormRect{0.30, 0.30, 0.25, 0.20};
+    auto roi_preview = service->request_preview(roi);
+    ASSERT_TRUE(roi_preview) << roi_preview.error().message;
+    EXPECT_FALSE(roi_preview.value().rgb.empty());
+    EXPECT_GT(roi_preview.value().width, 0U);
+    EXPECT_GT(roi_preview.value().height, 0U);
+    // Live ROI may report a GPU backend; that residual is explicit, not CPU gold.
+    if (roi_preview.value().gpu_backend.empty())
+    {
+        EXPECT_TRUE(is_cpu_gold_backend(roi_preview.value().gpu_backend));
+    }
+    else
+    {
+        EXPECT_FALSE(is_cpu_gold_backend(roi_preview.value().gpu_backend));
+    }
 }
 
 TEST_F(CatalogServiceTest, RawPreviewRoiReusesLinearWorkingForRgbEdits)

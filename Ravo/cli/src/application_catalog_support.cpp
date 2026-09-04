@@ -536,10 +536,19 @@ JsonValue keyword_mutation_to_json(const KeywordMutation &mutation)
         {"cpu_gold_paths",
          JsonValue::Array{"persist_preview", "settled_preview", "export", "cli_png", "reopen"}},
         {"gpu_live_path", "interactive_develop_preview"},
+        {"gpu_live_also_includes", JsonValue::Array{"raw_viewport_roi_preview"}},
         {"gpu_cpu_working_abs_tolerance",
          JsonValue::number(std::to_string(kIqGpuCpuWorkingAbsTolerance))},
+        {"gpu_cpu_packed_rgb8_abs_delta",
+         JsonValue::number(std::to_string(kIqGpuCpuPackedRgb8AbsDelta))},
         {"persist_export_fail_closed_to_cpu", true},
         {"silent_gpu_fallback_forbidden", true},
+        {"host_scope", std::string(kIqConsistencyHostScope)},
+        {"gpu_live_residual", std::string(kIqConsistencyGpuLiveResidual)},
+        {"win_linux_hosts_claimed", false},
+        {"full_corpus_matrix_closed", false},
+        {"roi_overlap_policy", "cpu_gold_packed_regions_bit_exact; gpu_live_roi_uses_packed_delta"},
+        {"icc_policy", "preview_and_export_color_profile_identifier_and_icc_bytes_must_match"},
     };
 }
 

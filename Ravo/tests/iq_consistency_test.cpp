@@ -161,4 +161,98 @@ TEST(IqConsistencyTest, RequireCpuGoldRejectsNamedGpuBackend)
     EXPECT_EQ(bad.error().context.at("reason"), "iq_cpu_gold_backend_required");
 }
 
+TEST(IqConsistencyTest, PersistPreviewMatchesExportRgb8AndIccIdentity)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto working = make_working(8, 6);
+    const auto recipe = make_sigmoid_recipe();
+
+    const auto preview = engine.value().render_linear_working(working, recipe, CancellationToken{});
+    ASSERT_TRUE(preview) << preview.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(preview.value().gpu_backend, "persist_preview"));
+
+    const auto exported = engine.value().render_linear_working_export(
+        working, recipe, RenderSampleKind::kRgb8, CancellationToken{});
+    ASSERT_TRUE(exported) << exported.error().message;
+    const auto *export_rgb = export_rgb8(exported.value());
+    ASSERT_NE(export_rgb, nullptr);
+    EXPECT_EQ(preview.value().width, exported.value().width);
+    EXPECT_EQ(preview.value().height, exported.value().height);
+    EXPECT_TRUE(rgb8_buffers_equal(preview.value().rgb, *export_rgb));
+    EXPECT_EQ(preview.value().color_profile.identifier, exported.value().color_profile.identifier);
+    EXPECT_EQ(preview.value().color_profile.icc_bytes, exported.value().color_profile.icc_bytes);
+    EXPECT_FALSE(exported.value().color_profile.identifier.empty());
+}
+
+TEST(IqConsistencyTest, OverlappingPackedRoiAgreesWithFullFrameCrop)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto working = make_working(16, 12);
+    const auto recipe = make_sigmoid_recipe();
+
+    const auto full = engine.value().render_linear_working(working, recipe, CancellationToken{});
+    ASSERT_TRUE(full) << full.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(full.value().gpu_backend, "full_frame_cpu_gold"));
+
+    const std::uint32_t x = 4;
+    const std::uint32_t y = 3;
+    const std::uint32_t w = 6;
+    const std::uint32_t h = 4;
+    auto cropped =
+        crop_packed_rgb8(full.value().rgb, full.value().width, full.value().height, x, y, w, h);
+    ASSERT_TRUE(cropped) << cropped.error().message;
+
+    const auto reopen = engine.value().render_linear_working(working, recipe, CancellationToken{});
+    ASSERT_TRUE(reopen) << reopen.error().message;
+    auto cropped_reopen = crop_packed_rgb8(reopen.value().rgb, reopen.value().width,
+                                           reopen.value().height, x, y, w, h);
+    ASSERT_TRUE(cropped_reopen) << cropped_reopen.error().message;
+    EXPECT_TRUE(rgb8_buffers_equal(cropped.value(), cropped_reopen.value()));
+
+    auto exported = engine.value().render_linear_working_export(
+        working, recipe, RenderSampleKind::kRgb8, CancellationToken{});
+    ASSERT_TRUE(exported) << exported.error().message;
+    const auto *export_rgb = export_rgb8(exported.value());
+    ASSERT_NE(export_rgb, nullptr);
+    auto cropped_export =
+        crop_packed_rgb8(*export_rgb, exported.value().width, exported.value().height, x, y, w, h);
+    ASSERT_TRUE(cropped_export) << cropped_export.error().message;
+    EXPECT_TRUE(rgb8_buffers_equal(cropped.value(), cropped_export.value()));
+}
+
+TEST(IqConsistencyTest, InteractiveGpuResidualStaysWithinDocumentedPackedDelta)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto working = make_working(8, 8);
+    const auto recipe = make_sigmoid_recipe();
+
+    const auto cpu = engine.value().render_linear_working(working, recipe, CancellationToken{});
+    ASSERT_TRUE(cpu) << cpu.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(cpu.value().gpu_backend, "cpu_reference"));
+
+    InteractivePreviewRenderCache cache;
+    const auto interactive = engine.value().render_interactive_linear_working(
+        working, recipe, cache, CancellationToken{}, std::nullopt, true);
+    ASSERT_TRUE(interactive) << interactive.error().message;
+    ASSERT_EQ(interactive.value().rgb.size(), cpu.value().rgb.size());
+
+    if (interactive.value().gpu_backend.empty())
+    {
+        EXPECT_TRUE(rgb8_buffers_equal(interactive.value().rgb, cpu.value().rgb));
+    }
+    else
+    {
+        EXPECT_FALSE(is_cpu_gold_backend(interactive.value().gpu_backend));
+        EXPECT_TRUE(packed_rgb8_within_abs_delta(interactive.value().rgb, cpu.value().rgb,
+                                                 kIqGpuCpuPackedRgb8AbsDelta));
+    }
+    const auto persist = engine.value().render_linear_working(working, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(persist.value().gpu_backend, "persist_after_gpu"));
+    EXPECT_TRUE(rgb8_buffers_equal(persist.value().rgb, cpu.value().rgb));
+}
+
 } // namespace ravo

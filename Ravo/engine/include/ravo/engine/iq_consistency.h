@@ -57,4 +57,52 @@ inline constexpr float kIqGpuCpuWorkingAbsTolerance = 2.0e-3F;
     return true;
 }
 
+// Max abs channel delta on packed RGB8 for interactive GPU (or GPU ROI live)
+// versus CPU-gold export/persist when sizes match. One code unit beyond bit-
+// exact; used by IQ-00 macOS contract probes, not a Win/Linux claim.
+inline constexpr int kIqGpuCpuPackedRgb8AbsDelta = 1;
+
+[[nodiscard]] inline bool packed_rgb8_within_abs_delta(const std::vector<std::uint8_t> &left,
+                                                       const std::vector<std::uint8_t> &right,
+                                                       const int abs_delta) noexcept
+{
+    if (left.size() != right.size())
+        return false;
+    for (std::size_t index = 0; index < left.size(); ++index)
+    {
+        const int delta = static_cast<int>(left[index]) - static_cast<int>(right[index]);
+        if (std::abs(delta) > abs_delta)
+            return false;
+    }
+    return true;
+}
+
+[[nodiscard]] inline Result<std::vector<std::uint8_t>>
+crop_packed_rgb8(const std::vector<std::uint8_t> &rgb, const std::uint32_t width,
+                 const std::uint32_t height, const std::uint32_t x, const std::uint32_t y,
+                 const std::uint32_t crop_w, const std::uint32_t crop_h)
+{
+    if (width == 0U || height == 0U || crop_w == 0U || crop_h == 0U || x + crop_w > width ||
+        y + crop_h > height || rgb.size() < static_cast<std::size_t>(width) * height * 3U)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Packed RGB8 crop is out of bounds",
+                          {{"reason", "iq_rgb8_crop_out_of_bounds"}});
+    }
+    std::vector<std::uint8_t> out;
+    out.resize(static_cast<std::size_t>(crop_w) * crop_h * 3U);
+    for (std::uint32_t row = 0; row < crop_h; ++row)
+    {
+        const auto src = (static_cast<std::size_t>(y + row) * width + x) * 3U;
+        const auto dst = static_cast<std::size_t>(row) * crop_w * 3U;
+        for (std::uint32_t col = 0; col < crop_w * 3U; ++col)
+            out[dst + col] = rgb[src + col];
+    }
+    return out;
+}
+
+// Host evidence scope for IQ-00 contract probes on this tree (honest residual).
+inline constexpr std::string_view kIqConsistencyHostScope = "macos_debug_release_contract";
+inline constexpr std::string_view kIqConsistencyGpuLiveResidual =
+    "interactive_develop_preview_and_raw_roi_may_use_gpu; persist_export_reopen_cpu_gold";
+
 } // namespace ravo
