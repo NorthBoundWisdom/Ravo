@@ -364,10 +364,9 @@ catalog revision.
 
 ## LOCAL-01 — Multi-instance local adjustments and professional masks
 
-**Status:** P1; ADR-0145 accepted. First Ready on `main`: multi-instance
-Exposure recipe/Develop serialization + CLI `recipe inspect` with
-gradient/radial/parametric masks. Color Balance RGB instances and Studio chrome
-remain residual.
+**Status:** P1; ADR-0145 accepted. Ready on `main`: multi-instance Exposure and
+Color Balance RGB recipe/Develop serialization + CLI `recipe inspect` with
+gradient/radial/parametric masks. Studio instance chrome remains residual.
 
 Existing canonical masks and single-mask everyday consumers are foundations.
 The remaining product gap is a coherent local-adjustment system rather than more
@@ -376,17 +375,18 @@ one-off masked fields.
 **Accepted (ADR-0145):**
 
 - Ordered multi-instance Develop ops; first consumers Exposure + Color Balance
-  RGB (Ready ships Exposure; Color Balance residual).
+  RGB (both Ready for Develop/CLI; Studio chrome residual).
 - Instance `instance_id`, optional `name`, `enabled`, `bypass`, reorder via
-  recipe order, serialize on `OperationInstance` / `exposure_instances`.
+  recipe order, serialize on `OperationInstance` /
+  `exposure_instances` / `color_balance_rgb_instances`.
 - C++-owned mask leaves reuse ADR-0043/0116 (brush/path/linear/radial +
   luminance/colour parametric); group Add/Subtract/Intersect/Invert + opacity.
 - Legacy/CRS unsupported multi-instance forms stay fail-closed (no approximation).
-- Empty `exposure_instances` preserves legacy single-Exposure Develop fields.
+- Empty `exposure_instances` / `color_balance_rgb_instances` preserve legacy
+  single-field Develop behaviour.
 
 **Residual:**
 
-- Multi-instance Color Balance RGB Develop/CLI/Studio parity;
 - Studio instance list chrome (name/bypass/reorder/duplicate/delete) beyond thin
   hooks;
 - history/undo/style/selective copy completeness for instance vectors;

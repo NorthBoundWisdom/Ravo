@@ -55,22 +55,22 @@ CRS multi-instance forms must remain fail-closed rather than approximated.
 ### First Ready
 
 - Recipe/`DevelopParams` serialization for **multi-instance Exposure**
-  (`exposure_instances`) with optional instance `name`/`bypass` on
+  (`exposure_instances`) and **Color Balance RGB**
+  (`color_balance_rgb_instances`) with optional instance `name`/`bypass` on
   `OperationInstance`.
 - CLI `recipe inspect` plus existing validate/render apply paths covering
-  multi-instance Exposure with linear gradient, radial/ellipse, and one
-  parametric leaf.
-- Color Balance RGB multi-instance and Studio polish are residual under this
-  ADR (authorized consumers; Ready may ship Exposure-first).
+  multi-instance Exposure and Color Balance RGB with linear gradient,
+  radial/ellipse, and one parametric leaf.
+- Studio instance chrome remains residual under this ADR.
 
 ### Migration
 
-- Existing single-Exposure recipes remain bit-compatible: empty
-  `exposure_instances` keeps the legacy DevelopParams exposure fields and
-  emits at most one `exposure-1` operation as today.
-- When `exposure_instances` is non-empty it is the ordered authority; the
-  legacy single fields mirror `exposure_instances.front()` for thin Studio
-  compatibility.
+- Existing single-Exposure / single Color Balance RGB recipes remain
+  bit-compatible: empty `exposure_instances` / `color_balance_rgb_instances`
+  keep the legacy DevelopParams fields and emit at most one singleton
+  operation as today.
+- When an instance vector is non-empty it is the ordered authority; the
+  legacy single fields mirror `.front()` for thin Studio compatibility.
 
 ## Non-goals (explicit)
 

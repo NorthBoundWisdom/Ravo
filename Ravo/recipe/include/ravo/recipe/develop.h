@@ -261,6 +261,19 @@ struct RgbCurveParams
     [[nodiscard]] bool operator==(const RgbCurveParams &) const noexcept = default;
 };
 
+// ADR-0145: ordered Color Balance RGB instances. Empty => legacy color_balance_rgb_*.
+struct DevelopColorBalanceRgbInstance
+{
+    std::string instance_id{"colorbalancergb-1"};
+    std::string name;
+    bool enabled = true;
+    bool bypass = false;
+    ColorBalanceRgbParams params;
+    std::optional<std::string> mask_id;
+
+    [[nodiscard]] bool operator==(const DevelopColorBalanceRgbInstance &) const noexcept = default;
+};
+
 // ADR-0145: ordered Exposure instances. Empty => legacy single exposure_* fields.
 struct DevelopExposureInstance
 {
@@ -387,6 +400,8 @@ struct DevelopParams
     std::optional<std::string> color_balance_rgb_mask_id;
     std::int64_t color_balance_rgb_mask_child_index = 0;
     std::int64_t color_balance_rgb_mask_point_index = 0;
+    // When non-empty, ordered Color Balance RGB authority (mirrors front() into fields above).
+    std::vector<DevelopColorBalanceRgbInstance> color_balance_rgb_instances;
     bool color_correction_enabled = false;
     ColorCorrectionParams color_correction;
     bool color_contrast_enabled = false;

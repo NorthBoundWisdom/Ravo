@@ -258,7 +258,7 @@ Current implementation status:
 - Exposure provides `ravo.core.exposure` v2 with the frozen manual EV and black
   response, optional camera exposure-bias/highlight-preservation compensation,
   and deflicker percentile-to-EV analysis. Studio may attach one owned canonical
-  mask through the same MaskEditor as Color Harmonizer (ADR-0109). RAW deflicker owns an immutable 65,536-bin snapshot ADR-0145 adds ordered multi-instance Exposure (`name`/`bypass`/`exposure_instances`) with CLI `recipe inspect`; Color Balance RGB multi-instance remains residual under the same ADR.
+  mask through the same MaskEditor as Color Harmonizer (ADR-0109). RAW deflicker owns an immutable 65,536-bin snapshot. ADR-0145 adds ordered multi-instance Exposure and Color Balance RGB (`name`/`bypass`/`exposure_instances`/`color_balance_rgb_instances`) with CLI `recipe inspect`; Studio instance chrome remains residual under the same ADR.
   from the original decoded sensor data before repair, resize, or demosaic;
   private pinned Exiv2 supplies value-only metadata without crossing the engine
   boundary. Memory, cancellation, missing-tag, metadata-read-failure, and raster

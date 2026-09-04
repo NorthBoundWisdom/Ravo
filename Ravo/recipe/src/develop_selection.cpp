@@ -253,6 +253,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
     {
         destination.color_balance_rgb = source.color_balance_rgb;
         destination.color_balance_rgb_mask_id = source.color_balance_rgb_mask_id;
+        destination.color_balance_rgb_instances = source.color_balance_rgb_instances;
     }
     else if (field == "colorCorrection")
     {

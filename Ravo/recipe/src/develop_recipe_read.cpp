@@ -554,9 +554,24 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             {
                 return color_balance.error();
             }
-            params.color_balance_rgb = std::move(color_balance).value();
-            params.color_balance_rgb_mask_id = operation.mask_id;
-            note_section("color", operation.enabled);
+            DevelopColorBalanceRgbInstance instance;
+            instance.instance_id = operation.instance_id;
+            if (operation.name.has_value())
+            {
+                instance.name = *operation.name;
+            }
+            instance.enabled = operation.enabled;
+            instance.bypass = operation.bypass;
+            instance.params = std::move(color_balance).value();
+            instance.mask_id = operation.mask_id;
+            params.color_balance_rgb_instances.push_back(instance);
+            // Legacy single fields mirror the first Color Balance RGB instance.
+            if (params.color_balance_rgb_instances.size() == 1U)
+            {
+                params.color_balance_rgb = instance.params;
+                params.color_balance_rgb_mask_id = instance.mask_id;
+            }
+            note_section("color", operation.enabled && !operation.bypass);
         }
         else if (operation.id == kColorCorrectionOperationId)
         {

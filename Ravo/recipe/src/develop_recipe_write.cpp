@@ -312,7 +312,34 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       kColorBalanceOperationSchemaVersion, std::nullopt,
                       clamped.color_effect_enabled);
     }
-    if (!clamped.color_balance_rgb.is_identity() || clamped.color_balance_rgb_mask_id.has_value())
+    if (!clamped.color_balance_rgb_instances.empty())
+    {
+        for (const auto &instance : clamped.color_balance_rgb_instances)
+        {
+            const bool emit = !instance.params.is_identity() || instance.mask_id.has_value() ||
+                              !instance.name.empty() || instance.bypass ||
+                              clamped.color_balance_rgb_instances.size() > 1U;
+            if (!emit)
+            {
+                continue;
+            }
+            OperationInstance operation{"ravo.color.colorbalancergb",
+                                        1,
+                                        instance.instance_id.empty() ? "colorbalancergb-1" :
+                                                                       instance.instance_id,
+                                        instance.enabled && clamped.color_effect_enabled,
+                                        color_balance_rgb_to_parameters(instance.params),
+                                        instance.mask_id};
+            if (!instance.name.empty())
+            {
+                operation.name = instance.name;
+            }
+            operation.bypass = instance.bypass;
+            recipe.operations.push_back(std::move(operation));
+        }
+    }
+    else if (!clamped.color_balance_rgb.is_identity() ||
+             clamped.color_balance_rgb_mask_id.has_value())
     {
         add_operation(recipe, "ravo.color.colorbalancergb", "colorbalancergb-1",
                       color_balance_rgb_to_parameters(clamped.color_balance_rgb), 1,

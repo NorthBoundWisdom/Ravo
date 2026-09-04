@@ -156,5 +156,127 @@ TEST(LocalAdjustmentMultiInstanceTest, LegacySingleExposureUnchangedWhenInstance
     EXPECT_DOUBLE_EQ(back.value().exposure_ev, 0.5);
 }
 
+TEST(LocalAdjustmentMultiInstanceTest, RoundTripsOrderedColorBalanceRgbInstancesWithMasks)
+{
+    DevelopParams develop;
+    DevelopColorBalanceRgbInstance global;
+    global.instance_id = "cbrgb-global";
+    global.name = "Global grade";
+    global.params.contrast = 0.12;
+    DevelopColorBalanceRgbInstance warm;
+    warm.instance_id = "cbrgb-warm";
+    warm.name = "Warm face";
+    warm.params.global_chroma = 0.2;
+    warm.params.global_hue = 35.0;
+    warm.mask_id = "mask-ellipse";
+    DevelopColorBalanceRgbInstance cool;
+    cool.instance_id = "cbrgb-cool";
+    cool.name = "Cool sky";
+    cool.params.shadows_y = -0.05;
+    cool.mask_id = "mask-gradient";
+    DevelopColorBalanceRgbInstance tones;
+    tones.instance_id = "cbrgb-tones";
+    tones.name = "Midtones";
+    tones.params.vibrance = 0.15;
+    tones.mask_id = "mask-parametric";
+    develop.color_balance_rgb_instances = {global, warm, cool, tones};
+    develop.masks = {make_ellipse("mask-ellipse"), make_gradient("mask-gradient"),
+                     make_parametric("mask-parametric")};
+
+    const AssetDescriptor asset{"asset-cbrgb", "file:///fixture.raw", std::nullopt};
+    auto recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    std::size_t cbrgb_ops = 0;
+    for (const auto &operation : recipe.value().operations)
+    {
+        if (operation.id == "ravo.color.colorbalancergb")
+        {
+            ++cbrgb_ops;
+            EXPECT_TRUE(operation.name.has_value());
+        }
+    }
+    EXPECT_EQ(cbrgb_ops, 4U);
+    EXPECT_EQ(recipe.value().masks.size(), 3U);
+
+    auto json = serialize_recipe(recipe.value());
+    ASSERT_TRUE(json) << json.error().message;
+    auto parsed = parse_recipe_json(json.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+
+    auto round_trip = develop_from_recipe(parsed.value());
+    ASSERT_TRUE(round_trip) << round_trip.error().message;
+    ASSERT_EQ(round_trip.value().color_balance_rgb_instances.size(), 4U);
+    EXPECT_EQ(round_trip.value().color_balance_rgb_instances[0].instance_id, "cbrgb-global");
+    EXPECT_EQ(round_trip.value().color_balance_rgb_instances[0].name, "Global grade");
+    EXPECT_DOUBLE_EQ(round_trip.value().color_balance_rgb_instances[0].params.contrast, 0.12);
+    EXPECT_EQ(round_trip.value().color_balance_rgb_instances[1].mask_id, "mask-ellipse");
+    EXPECT_EQ(round_trip.value().color_balance_rgb_instances[2].mask_id, "mask-gradient");
+    EXPECT_EQ(round_trip.value().color_balance_rgb_instances[3].mask_id, "mask-parametric");
+    EXPECT_DOUBLE_EQ(round_trip.value().color_balance_rgb.contrast, 0.12);
+    EXPECT_EQ(round_trip.value().masks.size(), 3U);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, ColorBalanceRgbBypassSkipsEvaluationButSerializes)
+{
+    DevelopParams develop;
+    DevelopColorBalanceRgbInstance active;
+    active.instance_id = "cbrgb-a";
+    active.params.contrast = 0.25;
+    DevelopColorBalanceRgbInstance bypassed;
+    bypassed.instance_id = "cbrgb-b";
+    bypassed.name = "Bypassed grade";
+    bypassed.params.vibrance = 0.5;
+    bypassed.bypass = true;
+    develop.color_balance_rgb_instances = {active, bypassed};
+
+    const AssetDescriptor asset{"asset-cbrgb-bypass", "file:///fixture.raw", std::nullopt};
+    auto recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    std::vector<OperationInstance> ops;
+    for (const auto &operation : recipe.value().operations)
+    {
+        if (operation.id == "ravo.color.colorbalancergb")
+        {
+            ops.push_back(operation);
+        }
+    }
+    ASSERT_EQ(ops.size(), 2U);
+    EXPECT_TRUE(ops[1].bypass);
+    ASSERT_TRUE(ops[1].name.has_value());
+    EXPECT_EQ(*ops[1].name, "Bypassed grade");
+
+    auto back = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(back) << back.error().message;
+    ASSERT_EQ(back.value().color_balance_rgb_instances.size(), 2U);
+    EXPECT_TRUE(back.value().color_balance_rgb_instances[1].bypass);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, LegacySingleColorBalanceRgbUnchangedWhenInstancesEmpty)
+{
+    DevelopParams develop;
+    develop.color_balance_rgb.contrast = 0.3;
+    develop.color_balance_rgb_mask_id = "mask-gradient";
+    develop.masks = {make_gradient("mask-gradient")};
+    const AssetDescriptor asset{"asset-cbrgb-legacy", "file:///fixture.raw", std::nullopt};
+    auto recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    std::size_t cbrgb_ops = 0;
+    for (const auto &operation : recipe.value().operations)
+    {
+        if (operation.id == "ravo.color.colorbalancergb")
+        {
+            ++cbrgb_ops;
+            EXPECT_EQ(operation.instance_id, "colorbalancergb-1");
+            EXPECT_FALSE(operation.bypass);
+            EXPECT_FALSE(operation.name.has_value());
+        }
+    }
+    EXPECT_EQ(cbrgb_ops, 1U);
+    auto back = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(back) << back.error().message;
+    EXPECT_EQ(back.value().color_balance_rgb_instances.size(), 1U);
+    EXPECT_DOUBLE_EQ(back.value().color_balance_rgb.contrast, 0.3);
+}
+
 } // namespace
 } // namespace ravo

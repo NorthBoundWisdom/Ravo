@@ -428,11 +428,16 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
         }
         JsonValue::Array operations;
         std::size_t exposure_count = 0;
+        std::size_t color_balance_rgb_count = 0;
         for (const auto &operation : recipe.value().operations)
         {
             if (operation.id == std::string(kExposureOperationId))
             {
                 ++exposure_count;
+            }
+            if (operation.id == "ravo.color.colorbalancergb")
+            {
+                ++color_balance_rgb_count;
             }
             JsonValue::Object entry{
                 {"bypass", operation.bypass},
@@ -460,6 +465,8 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
             JsonValue{JsonValue::Object{
                 {"asset_id", recipe.value().asset.id},
                 {"exposure_instance_count", JsonValue::number(std::to_string(exposure_count))},
+                {"color_balance_rgb_instance_count",
+                 JsonValue::number(std::to_string(color_balance_rgb_count))},
                 {"masks", std::move(masks)},
                 {"operations", std::move(operations)},
                 {"schema_version",

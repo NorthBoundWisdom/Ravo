@@ -102,6 +102,16 @@ void clamp_develop(DevelopParams &params) noexcept
             std::clamp(params.color_checker_patch, std::int64_t{0},
                        static_cast<std::int64_t>(params.color_checker.patches.size() - 1U));
     clamp_color_balance(params.color_balance_rgb);
+    for (auto &instance : params.color_balance_rgb_instances)
+    {
+        clamp_color_balance(instance.params);
+    }
+    if (!params.color_balance_rgb_instances.empty())
+    {
+        const auto &front = params.color_balance_rgb_instances.front();
+        params.color_balance_rgb = front.params;
+        params.color_balance_rgb_mask_id = front.mask_id;
+    }
     clamp_color_correction(params.color_correction);
     clamp_color_contrast(params.color_contrast);
     clamp_color_reconstruction(params.color_reconstruction);
@@ -470,13 +480,13 @@ bool DevelopParams::is_identity() const noexcept
            !watermark_enabled && !velvia_present && !velvia_enabled &&
            !velvia_mask_id.has_value() && !lut3d_present && !lut3d_enabled &&
            !color_balance_enabled && !color_checker_enabled && color_balance_rgb.is_identity() &&
-           !color_balance_rgb_mask_id.has_value() && !color_correction_enabled &&
-           !color_contrast_enabled && !color_reconstruction_enabled && !color_zones_present &&
-           !color_zones_enabled && !color_zones_mask_id.has_value() && !color_harmonizer_enabled &&
-           !monochrome_present && !monochrome_enabled && !monochrome_mask_id.has_value() &&
-           !split_toning_present && !split_toning_enabled && !split_toning_mask_id.has_value() &&
-           near(gamma, kDevelopGammaDefault) && rgb_levels.is_identity() &&
-           rgb_curve.is_identity() && !rgb_curve_mask_id.has_value() &&
+           !color_balance_rgb_mask_id.has_value() && color_balance_rgb_instances.empty() &&
+           !color_correction_enabled && !color_contrast_enabled && !color_reconstruction_enabled &&
+           !color_zones_present && !color_zones_enabled && !color_zones_mask_id.has_value() &&
+           !color_harmonizer_enabled && !monochrome_present && !monochrome_enabled &&
+           !monochrome_mask_id.has_value() && !split_toning_present && !split_toning_enabled &&
+           !split_toning_mask_id.has_value() && near(gamma, kDevelopGammaDefault) &&
+           rgb_levels.is_identity() && rgb_curve.is_identity() && !rgb_curve_mask_id.has_value() &&
            !tone_curve_mask_id.has_value() && tone_curve_is_identity(tone_curve) &&
            tone_curve_is_identity(tone_curve_a) && tone_curve_is_identity(tone_curve_b) &&
            !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
