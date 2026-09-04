@@ -1806,6 +1806,9 @@ TEST(StudioQmlContract, LibraryFilterBarExposesCullReviewAndSuggestionChips)
     EXPECT_TRUE(source.contains(QStringLiteral("unreviewed")));
     EXPECT_TRUE(source.contains(QStringLiteral("near_duplicate")));
     EXPECT_TRUE(source.contains(QStringLiteral("burst")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Exact byte duplicate")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Near duplicate (heuristic)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("exact_duplicate")));
 }
 
 TEST(StudioCommands, CullReviewPickRejectUnflagShortcutsWireToAdr0150)

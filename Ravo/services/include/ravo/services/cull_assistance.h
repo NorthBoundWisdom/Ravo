@@ -19,6 +19,10 @@ namespace ravo
 inline constexpr std::string_view kCullFingerprintCacheContractVersion =
     "ravo.cull.fingerprint-cache/v1";
 inline constexpr std::string_view kCullNearDupFingerprintAlgorithm = "ahash_v1";
+// Single accepted RAW/raster orientation+colour decode owner for aHash
+// fingerprints (same path as import candidate thumbnails).
+inline constexpr std::string_view kCullFingerprintDecodePath =
+    "catalog.decode_import_candidate_thumbnail";
 inline constexpr std::string_view kCullGroupKindExactByte = "exact_byte";
 inline constexpr std::string_view kCullGroupKindSameFile = "same_file";
 inline constexpr std::string_view kCullGroupKindHeuristicAHash = "heuristic_ahash";
@@ -194,6 +198,8 @@ struct NearDuplicateReport
     bool throttled = false;
     // Heuristic only: never authoritative for delete/reject/stack.
     bool non_authoritative = true;
+    // Declares the one accepted image-resource decode path for fingerprints.
+    std::string fingerprint_decode_path{std::string(kCullFingerprintDecodePath)};
 };
 
 struct NearDuplicateRequest

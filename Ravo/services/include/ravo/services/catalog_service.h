@@ -288,6 +288,12 @@ public:
     [[nodiscard]] Result<RasterBuffer>
     decode_import_candidate_thumbnail(std::string_view path,
                                       const CancellationToken &cancellation) const;
+    // CULL-01: one accepted RAW/raster fingerprint decode path (orientation +
+    // colour). Alias of decode_import_candidate_thumbnail; do not add a second
+    // decode owner for aHash.
+    [[nodiscard]] Result<RasterBuffer>
+    decode_cull_fingerprint_raster(std::string_view path,
+                                   const CancellationToken &cancellation) const;
     [[nodiscard]] Result<ImportBatchResult>
     execute_import(const ImportRequest &request,
                    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>

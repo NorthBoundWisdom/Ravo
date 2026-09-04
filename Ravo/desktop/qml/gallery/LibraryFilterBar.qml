@@ -391,7 +391,7 @@ Item {
                         objectName: "cullSuggestionFilterCombo"
                         Layout.alignment: Qt.AlignVCenter
                         Layout.preferredWidth: 170
-                        model: [qsTr("No suggestion"), qsTr("Exact duplicate"), qsTr("Near duplicate"), qsTr("Burst")]
+                        model: [qsTr("No suggestion"), qsTr("Exact byte duplicate"), qsTr("Near duplicate (heuristic)"), qsTr("Burst")]
                         currentIndex: root.hasPresenter && root.presenter.cullSuggestionFilter === "exact_duplicate" ? 1 : root.hasPresenter && root.presenter.cullSuggestionFilter === "near_duplicate" ? 2 : root.hasPresenter && root.presenter.cullSuggestionFilter === "burst" ? 3 : 0
                         onActivated: function (index) {
                             if (!root.hasPresenter)

@@ -327,6 +327,13 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
     return raster_from_decoded(std::move(decoded).value());
 }
 
+Result<RasterBuffer>
+CatalogService::decode_cull_fingerprint_raster(const std::string_view path,
+                                               const CancellationToken &cancellation) const
+{
+    return decode_import_candidate_thumbnail(path, cancellation);
+}
+
 Result<ImportBatchResult> CatalogService::execute_import(
     const ImportRequest &request,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress)

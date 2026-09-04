@@ -547,4 +547,104 @@ TEST_F(CatalogServiceTest, Cull01FingerprintCacheSurvivesRestartAndCorruptStore)
     ASSERT_TRUE(third) << third.error().message;
     EXPECT_GE(third.value().assets_computed, 1U);
 }
+
+TEST_F(CatalogServiceTest, Cull01AcceptedFingerprintDecodePathForRasterAndRaw)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto jpeg_path = root / "cull-decode-raster.jpg";
+    ASSERT_TRUE(write_jpeg(jpeg_path, QColor(40, 80, 120)));
+
+    auto raster = service->decode_cull_fingerprint_raster(jpeg_path.string(), CancellationToken{});
+    ASSERT_TRUE(raster) << raster.error().message;
+    EXPECT_GT(raster.value().width, 0U);
+    EXPECT_GT(raster.value().height, 0U);
+    EXPECT_FALSE(raster.value().srgb.empty());
+
+    auto via_import =
+        service->decode_import_candidate_thumbnail(jpeg_path.string(), CancellationToken{});
+    ASSERT_TRUE(via_import) << via_import.error().message;
+    EXPECT_EQ(raster.value().width, via_import.value().width);
+    EXPECT_EQ(raster.value().height, via_import.value().height);
+    EXPECT_EQ(raster.value().srgb, via_import.value().srgb);
+
+    auto raw = service->decode_cull_fingerprint_raster(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(raw) << raw.error().message;
+    EXPECT_GT(raw.value().width, 0U);
+    EXPECT_GT(raw.value().height, 0U);
+    EXPECT_FALSE(raw.value().srgb.empty());
+
+    auto jpeg_imported = service->import_one(jpeg_path.string(), CancellationToken{});
+    ASSERT_TRUE(jpeg_imported) << jpeg_imported.error().message;
+    auto raw_imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(raw_imported) << raw_imported.error().message;
+    NearDuplicateRequest request;
+    request.throttle_ms = 0;
+    auto report = service->find_near_duplicate_groups(request);
+    ASSERT_TRUE(report) << report.error().message;
+    EXPECT_EQ(report.value().fingerprint_decode_path, kCullFingerprintDecodePath);
+    EXPECT_GE(report.value().assets_fingerprinted, 2U);
+    EXPECT_TRUE(report.value().non_authoritative);
+    for (const auto &group : report.value().groups)
+    {
+        EXPECT_EQ(group.group_kind, kCullGroupKindHeuristicAHash);
+        EXPECT_TRUE(group.non_authoritative);
+    }
+}
+
+TEST_F(CatalogServiceTest, Cull01DismissPersistsAcrossCatalogReopen)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto write_pattern = [](const std::filesystem::path &path, int quality) -> bool
+    {
+        QImage image(64, 64, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        for (int y = 0; y < image.height(); ++y)
+        {
+            for (int x = 0; x < image.width(); ++x)
+            {
+                const int cell = ((x / 8) + (y / 8)) % 2;
+                const int v = cell == 0 ? 30 : 220;
+                image.setPixelColor(x, y, QColor(v, v, v));
+            }
+        }
+        return image.save(QString::fromStdString(path.string()), "JPEG", quality);
+    };
+    // Near-identical patterns so aHash groups them.
+    ASSERT_TRUE(write_pattern(root / "dismiss-near-a.jpg", 70));
+    ASSERT_TRUE(write_pattern(root / "dismiss-near-b.jpg", 72));
+    auto a = service->import_one((root / "dismiss-near-a.jpg").string(), CancellationToken{});
+    ASSERT_TRUE(a) << a.error().message;
+    auto b = service->import_one((root / "dismiss-near-b.jpg").string(), CancellationToken{});
+    ASSERT_TRUE(b) << b.error().message;
+
+    NearDuplicateRequest seed;
+    seed.throttle_ms = 0;
+    auto report = service->find_near_duplicate_groups(seed);
+    ASSERT_TRUE(report) << report.error().message;
+    ASSERT_FALSE(report.value().groups.empty());
+    ASSERT_GE(report.value().groups.front().members.size(), 2U);
+    const auto &left = report.value().groups.front().members[0].fingerprint_hex;
+    const auto &right = report.value().groups.front().members[1].fingerprint_hex;
+    const std::string key = left <= right ? left + "|" + right : right + "|" + left;
+
+    CullSuggestionDismissRequest dismiss;
+    dismiss.kind = CullSuggestionKind::kNearDuplicate;
+    dismiss.key = key;
+    ASSERT_TRUE(service->dismiss_cull_suggestion(dismiss));
+
+    service.reset();
+    sqlite_repository = nullptr;
+    ASSERT_TRUE(open_service(false));
+    auto still = service->is_cull_suggestion_dismissed(CullSuggestionKind::kNearDuplicate, key);
+    ASSERT_TRUE(still) << still.error().message;
+    EXPECT_TRUE(still.value());
+
+    NearDuplicateRequest omitted;
+    omitted.throttle_ms = 0;
+    omitted.omit_dismissed = true;
+    auto after = service->find_near_duplicate_groups(omitted);
+    ASSERT_TRUE(after) << after.error().message;
+    EXPECT_GE(after.value().dismissed_groups_omitted, 1U);
+}
+
 } // namespace ravo

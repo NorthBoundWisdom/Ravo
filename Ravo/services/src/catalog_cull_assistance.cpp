@@ -398,6 +398,7 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
         return assets.error();
 
     NearDuplicateReport report;
+    report.fingerprint_decode_path = std::string(kCullFingerprintDecodePath);
     report.max_hamming = request.max_hamming;
     report.max_groups = request.max_groups;
     report.max_assets = request.max_assets;
@@ -578,8 +579,7 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
             continue;
         }
 
-        auto raster =
-            decode_import_candidate_thumbnail(location.value().path, request.cancellation);
+        auto raster = decode_cull_fingerprint_raster(location.value().path, request.cancellation);
         if (!raster)
         {
             NearDuplicateSkip skip;
