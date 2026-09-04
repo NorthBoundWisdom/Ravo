@@ -447,16 +447,16 @@ TEST_F(CatalogServiceTest, Cull01FingerprintCachePersistsInvalidatesDismissThrot
     ASSERT_FALSE(exceeded);
     EXPECT_EQ(exceeded.error().context.at("reason"), "near_dup_asset_bound_exceeded");
 
-    // Cancel mid-scan is deterministic.
+    // Cancel is fail-closed and deterministic (start-of-scan; decode cancel propagates).
     CancellationSource cancel;
     ASSERT_TRUE(cancel.cancel("test"));
     NearDuplicateRequest cancelled;
     cancelled.cancellation = cancel.token();
     cancelled.throttle_ms = 0;
-    // Force compute by using persist_cache false and fresh service reopen without cache reuse:
     // cancelled token fails before decode when checked at start — still deterministic.
     auto denied = service->find_near_duplicate_groups(cancelled);
     ASSERT_FALSE(denied);
+    EXPECT_EQ(denied.error().code, ErrorCode::kCancelled);
 }
 
 TEST_F(CatalogServiceTest, Cull01ExactVersusHeuristicKindsAndNoAutoReject)
@@ -497,6 +497,12 @@ TEST_F(CatalogServiceTest, Cull01ExactVersusHeuristicKindsAndNoAutoReject)
     {
         EXPECT_EQ(group.group_kind, kCullGroupKindHeuristicAHash);
         EXPECT_NE(group.group_kind, kCullGroupKindExactByte);
+        EXPECT_NE(group.group_kind, kCullGroupKindSameFile);
+        EXPECT_TRUE(group.non_authoritative);
+    }
+    for (const auto &group : exact.value().groups)
+    {
+        EXPECT_NE(group.group_kind, kCullGroupKindHeuristicAHash);
     }
 
     // Exact/near reports must not mutate review flags.

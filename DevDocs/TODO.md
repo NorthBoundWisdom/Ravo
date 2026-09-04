@@ -6,7 +6,7 @@
 >
 > **Review basis:** `main` through LOCAL-01 C2, EDITIN-01 C2 (+ macOS installed-
 > package TIFF matrix residual closed on report `20260905_024633`; Win/Linux
-> package matrix still open), CULL-01 keyboard C2 + analysis decode-path residual,
+> package matrix still open), CULL-01 keyboard C2 + analysis decode-path / Exact-vs-Near cancel residual,
 > OFFLINE-01 C2, DISPLAY-01 C2, INGEST-01 C2 Studio filesystem-card + ptp-stub
 > ingest (native adapters residual), IQ-01 C2 fixture evaluation, and IQ-00 macOS
 > contract expansions (CPU gold + GPU live residual documented; Win/Linux not
@@ -83,8 +83,9 @@ resource defect preempts both streams.
 
 LOCAL-01 and EDITIN-01 Studio C2 evidence are on `main`. Recent work on
 CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
-moves in the intended direction. DISPLAY-01 is C2 with GPU/Linux discovery
-residuals; OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
+moves in the intended direction. DISPLAY-01 is C2 with Gallery thumbnail
+monitor convert landed; GPU native + Linux discovery residuals remain;
+OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
 INGEST-01 is C2 for Studio filesystem-card + ptp-stub Copy ingest with fail-
 closed native probe (packaged ImageCapture/WinRT/libmtp residual is C3). AI
 proposal chrome and the tethered-studio probe do not count as product progress.
@@ -109,9 +110,9 @@ the next one.
 | ---: | --- | --- | --- |
 | 1 | LOCAL-01 | P1 | C2 Studio multi-instance local adjustments/masks; GPU residual after PERF-01 |
 | 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; Win/Linux package TIFF residual |
-| 3 | CULL-01 | P1 | Keyboard C2; analysis C1+ decode-path; corpora/index residual |
+| 3 | CULL-01 | P1 | Keyboard C2; analysis C1+ decode-path/Exact-Near; corpora/index residual |
 | 4 | OFFLINE-01 | P1 | C2 Studio offline-edit proxies; C3 quota/corpus residual |
-| 5 | DISPLAY-01 | P1 | Finish per-display ICC presentation on supported hosts and views |
+| 5 | DISPLAY-01 | P1 | C2 + Gallery thumb convert; GPU native / Linux discovery residual |
 | 6 | INGEST-01 | P1 | C2 Studio filesystem-card + stub ingest; C3 packaged native adapters/hardware |
 | 7 | IQ-01 | P1 | C2 fixture evaluation workflow; C3 licensed corpus/human review/learned denoise |
 
@@ -499,8 +500,13 @@ still capped rather than indexed).
   (`decode_cull_fingerprint_raster` → `decode_import_candidate_thumbnail`;
   report `fingerprint_decode_path`; Studio chips label Exact byte vs Near
   (heuristic); dismiss persists across catalog reopen);
+- [done] Exact vs Near UX/contracts deepened: exclusive `group_kind` labels,
+  per-group `non_authoritative` on heuristic groups; cancel fail-closed with
+  `ErrorCode::kCancelled` including decode-path propagation (no swallow-as-skip);
+  throttle evidence retained. No ADR-aligned indexed near-dup design yet —
+  pairwise remains capped by `max_assets` (ADR-0149);
 - replace pairwise O(N²) with an indexed design beyond the hard asset bound
-  (PERF-01);
+  only after an accepted ADR (PERF-01);
 - measure precision/recall and false-positive cost on approved corpora.
 
 **Acceptance gate:** the keyboard loop needs no pointer; a committed mutation
@@ -568,8 +574,14 @@ visible.
 
 **Remaining work (post-C2 residuals, not blocking this C2 claim):**
 
-- GPU native preview presentation parity (currently declared `output_referred`);
-- Gallery thumbnail monitor convert (declared `output_referred` by contract);
+- [done] Gallery thumbnail monitor convert: Studio applies
+  `apply_display_presentation_rgb8` to browse thumbs (base cache preserved for
+  scopes); view contract `gallery_thumbnail` is `display_transformed`; owned-
+  pixel contract on synthetic matrix inject
+  (`GalleryThumbnailAppliesMonitorPresentation`);
+- GPU native preview presentation parity (still declared `output_referred`;
+  CPU Loupe/Develop path remains display-transformed; Win/Linux discovery
+  residual honest);
 - Linux packaged monitor discovery (or keep fallback claim);
 - CPU/GPU matrix/LUT parity evidence, multi-display performance, SDR/HDR policy.
 

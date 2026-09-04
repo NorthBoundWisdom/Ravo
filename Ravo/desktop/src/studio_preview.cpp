@@ -14,10 +14,13 @@
 #include <QByteArray>
 #include <QColorSpace>
 #include <QCryptographicHash>
+#include <QDir>
+#include <QFileInfo>
 #include <QImage>
 #include <QMetaObject>
 #include <QMutexLocker>
 #include <QSize>
+#include <QStandardPaths>
 #include <QString>
 #include <QUrl>
 #include <QVariantList>
@@ -331,11 +334,13 @@ void StudioPresenter::bindDisplayPresentation(StudioDisplayPresentation *owner)
     connect(display_presentation_, &StudioDisplayPresentation::stateChanged, this,
             &StudioPresenter::handle_display_presentation_changed);
     reapply_display_presentation_to_cached_previews();
+    reapply_display_presentation_to_cached_thumbnails();
 }
 
 void StudioPresenter::handle_display_presentation_changed()
 {
     reapply_display_presentation_to_cached_previews();
+    reapply_display_presentation_to_cached_thumbnails();
 }
 
 void StudioPresenter::reapply_display_presentation_to_cached_previews()
@@ -369,6 +374,98 @@ void StudioPresenter::reapply_display_presentation_to_cached_previews()
     }
     if (changed)
         emit previewChanged();
+}
+
+void StudioPresenter::clear_thumbnail_presentation_cache()
+{
+    thumbnail_base_paths_.clear();
+    thumbnail_base_profiles_.clear();
+    if (!thumbnail_presented_root_.isEmpty())
+    {
+        QDir(thumbnail_presented_root_).removeRecursively();
+        thumbnail_presented_root_.clear();
+    }
+}
+
+QUrl StudioPresenter::present_gallery_thumbnail_url(const std::string &asset_id,
+                                                    const QString &base_path,
+                                                    const ColorProfileState &source_profile)
+{
+    if (base_path.isEmpty() || !QFileInfo::exists(base_path))
+        return {};
+    if (display_presentation_ == nullptr || !display_presentation_->valid())
+        return QUrl::fromLocalFile(base_path);
+
+    QImage base(base_path);
+    if (base.isNull())
+        return QUrl::fromLocalFile(base_path);
+
+    QImage presented = apply_display_presentation_image(base, source_profile);
+    if (presented.isNull())
+        return QUrl::fromLocalFile(base_path);
+
+    if (thumbnail_presented_root_.isEmpty())
+    {
+        const QString root = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+        thumbnail_presented_root_ =
+            QDir(root.isEmpty() ? QDir::tempPath() : root)
+                .filePath(QStringLiteral("ravo-gallery-display-%1")
+                              .arg(reinterpret_cast<quintptr>(this), 0, 16));
+    }
+    const QString fingerprint =
+        qstring_from_utf8(display_presentation_->presentationState().profile_fingerprint);
+    const QString dir_path =
+        QDir(thumbnail_presented_root_)
+            .filePath(fingerprint.isEmpty() ? QStringLiteral("fallback") : fingerprint);
+    QDir().mkpath(dir_path);
+    const QString out_path =
+        QDir(dir_path).filePath(QString::fromStdString(asset_id) + QStringLiteral(".png"));
+    if (!presented.save(out_path, "PNG"))
+        return QUrl::fromLocalFile(base_path);
+    return QUrl::fromLocalFile(out_path);
+}
+
+void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const QString &base_path,
+                                              const ColorProfileState &source_profile,
+                                              const QString &thumb_state)
+{
+    if (asset_id.empty() || base_path.isEmpty())
+        return;
+    thumbnail_base_paths_[asset_id] = base_path;
+    thumbnail_base_profiles_[asset_id] = source_profile;
+    const QUrl presented = present_gallery_thumbnail_url(asset_id, base_path, source_profile);
+    assets_.setThumbnail(asset_id, presented.isEmpty() ? QUrl::fromLocalFile(base_path) : presented,
+                         thumb_state);
+}
+
+void StudioPresenter::reapply_display_presentation_to_cached_thumbnails()
+{
+    if (thumbnail_base_paths_.empty())
+        return;
+    bool changed = false;
+    for (const auto &[asset_id, base_path] : thumbnail_base_paths_)
+    {
+        if (!assets_.assetById(qstring_from_utf8(asset_id)))
+            continue;
+        const auto profile_it = thumbnail_base_profiles_.find(asset_id);
+        const ColorProfileState profile =
+            profile_it == thumbnail_base_profiles_.end() ? ColorProfileState{} : profile_it->second;
+        const QString state = assets_.thumbnailState(asset_id);
+        const QString publish_state = state.isEmpty() ? QStringLiteral("ready") : state;
+        const QUrl presented = present_gallery_thumbnail_url(asset_id, base_path, profile);
+        if (presented.isEmpty())
+            continue;
+        const int row = assets_.indexOf(qstring_from_utf8(asset_id));
+        const QUrl current =
+            row < 0 ? QUrl{} :
+                      assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
+        if (current == presented)
+            continue;
+        assets_.setThumbnail(asset_id, presented, publish_state);
+        changed = true;
+    }
+    if (changed)
+        emit thumbnailsChanged();
 }
 
 QUrl StudioPresenter::previewUrl() const
@@ -484,6 +581,13 @@ void StudioPresenter::refresh_scopes_from_thumbnail(const QString &asset_id)
     if (asset_id.isEmpty())
     {
         clear_scopes();
+        return;
+    }
+    const auto id = utf8_from_qstring(asset_id);
+    const auto base = thumbnail_base_paths_.find(id);
+    if (base != thumbnail_base_paths_.end() && QFileInfo::exists(base->second))
+    {
+        refresh_scopes(QImage(base->second));
         return;
     }
     const int row = assets_.indexOf(asset_id);
@@ -976,9 +1080,8 @@ void StudioPresenter::startThumbnailRequest(std::string id)
                                 QStringLiteral("proxy") :
                                 (preview.value().original_missing ? QStringLiteral("missing") :
                                                                     QStringLiteral("ready"));
-                        assets_.setThumbnail(
-                            id, QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path)),
-                            thumb_state);
+                        remember_thumbnail_base(id, qstring_from_utf8(preview.value().cache_path),
+                                                preview.value().color_profile, thumb_state);
                         if (utf8_from_qstring(selected_asset_id_) == id)
                         {
                             emit thumbnailsChanged();

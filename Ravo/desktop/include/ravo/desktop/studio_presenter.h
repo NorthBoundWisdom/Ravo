@@ -1051,6 +1051,14 @@ private:
                                      const ColorProfileState &source_profile) const;
     void handle_display_presentation_changed();
     void reapply_display_presentation_to_cached_previews();
+    void reapply_display_presentation_to_cached_thumbnails();
+    void clear_thumbnail_presentation_cache();
+    [[nodiscard]] QUrl present_gallery_thumbnail_url(const std::string &asset_id,
+                                                     const QString &base_path,
+                                                     const ColorProfileState &source_profile);
+    void remember_thumbnail_base(const std::string &asset_id, const QString &base_path,
+                                 const ColorProfileState &source_profile,
+                                 const QString &thumb_state);
     [[nodiscard]] bool clear_comparison();
     void show_preview_result(const PreviewResult &preview, std::uint64_t revision,
                              bool preserve_viewport_extent);
@@ -1264,6 +1272,9 @@ private:
     PreviewRequestOwner perspective_analysis_owner_;
     std::uint64_t thumbnail_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
+    std::unordered_map<std::string, QString> thumbnail_base_paths_;
+    std::unordered_map<std::string, ColorProfileState> thumbnail_base_profiles_;
+    QString thumbnail_presented_root_;
     void apply_curve_points(const QString &family, int channel, const QVariantList &points,
                             DevelopEdit edit);
     void sync_curve_ui_from_develop();

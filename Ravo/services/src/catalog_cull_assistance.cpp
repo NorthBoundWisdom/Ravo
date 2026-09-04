@@ -582,6 +582,8 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
         auto raster = decode_cull_fingerprint_raster(location.value().path, request.cancellation);
         if (!raster)
         {
+            if (raster.error().code == ErrorCode::kCancelled)
+                return raster.error();
             NearDuplicateSkip skip;
             skip.asset_id = asset.id;
             skip.reason = "near_dup_decode_failed";

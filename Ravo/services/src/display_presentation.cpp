@@ -707,9 +707,9 @@ JsonValue display_presentation_state_to_json(const DisplayPresentationState &sta
 std::vector<DisplayViewPixelContract> display_presentation_view_contracts()
 {
     return {
-        {"gallery_thumbnail", DisplayViewPixelKind::kOutputReferred,
+        {"gallery_thumbnail", DisplayViewPixelKind::kDisplayTransformed,
          "after_soft_proof_display_only",
-         "Gallery thumbs stay output/soft-proof referred; monitor ICC not applied."},
+         "Gallery thumbs apply presentation after soft-proof/output; scopes keep base."},
         {"loupe_preview", DisplayViewPixelKind::kDisplayTransformed,
          "after_soft_proof_display_only",
          "Loupe CPU preview applies presentation after soft-proof/output."},

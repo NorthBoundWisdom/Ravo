@@ -553,8 +553,32 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
 {
     ++library_query_generation_;
     const QString previous = selected_asset_id_;
+    const auto incoming_thumbs = thumbnail_urls;
+    const auto incoming_states = thumbnail_states;
     assets_.setAssets(std::move(assets), std::move(thumbnail_urls), std::move(thumbnail_states),
                       total);
+    for (auto it = thumbnail_base_paths_.begin(); it != thumbnail_base_paths_.end();)
+    {
+        if (!assets_.assetById(qstring_from_utf8(it->first)))
+        {
+            thumbnail_base_profiles_.erase(it->first);
+            it = thumbnail_base_paths_.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    for (const auto &[id, url] : incoming_thumbs)
+    {
+        if (!url.isLocalFile() || !assets_.assetById(qstring_from_utf8(id)))
+            continue;
+        QString state = QStringLiteral("ready");
+        const auto state_it = incoming_states.find(id);
+        if (state_it != incoming_states.end() && !state_it->second.isEmpty())
+            state = state_it->second;
+        remember_thumbnail_base(id, url.toLocalFile(), ColorProfileState{}, state);
+    }
     library_total_ = total == 0U && assets_.rowCount() > 0 ?
                          static_cast<std::size_t>(assets_.rowCount()) :
                          total;
@@ -1360,6 +1384,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                     last_import_selected_ = false;
                     catalog_path_ = qstring_from_utf8(path);
                     thumbnail_requests_.clear();
+                    clear_thumbnail_presentation_cache();
                     emit catalogChanged();
                     setError({});
                     setStatus(QCoreApplication::translate(
@@ -1465,6 +1490,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                     selected_asset_id_.clear();
                     clear_displayed_preview();
                     thumbnail_requests_.clear();
+                    clear_thumbnail_presentation_cache();
                     emit catalogChanged();
                     emit selectionChanged();
                     emit previewChanged();
