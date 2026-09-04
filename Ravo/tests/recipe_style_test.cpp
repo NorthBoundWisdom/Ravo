@@ -641,6 +641,79 @@ TEST(RecipeStyleTest, SelectivePresetMergesRequiredMasksAndKeepsTargetOnlyGraph)
         restored.value().masks.cend());
 }
 
+TEST(RecipeStyleTest, SelectiveStyleCarriesMultiInstanceExposure)
+{
+    DevelopParams source;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-global";
+    global.name = "Global";
+    global.exposure_ev = 0.15;
+    DevelopExposureInstance dodge;
+    dodge.instance_id = "exposure-dodge";
+    dodge.name = "Dodge";
+    dodge.exposure_ev = 0.4;
+    dodge.mask_id = "style-exposure-mask";
+    source.exposure_instances = {global, dodge};
+    Mask mask{"style-exposure-mask", kCanonicalMaskSchemaVersion, MaskKind::kEllipse};
+    mask.payload = EllipseMask{0.55, 0.4, 0.18, 0.12, 5.0, 0.04};
+    source.masks.push_back(mask);
+    source.saturation = 0.25;
+    auto source_recipe =
+        recipe_from_develop({"source", "file:///source.raw", std::nullopt}, source);
+    ASSERT_TRUE(source_recipe) << source_recipe.error().message;
+    auto style = recipe_style_from_selected_fields("Multi exposure", {}, source_recipe.value(),
+                                                   {"exposure"});
+    ASSERT_TRUE(style) << style.error().message;
+
+    DevelopParams target;
+    target.saturation = -0.1;
+    target.contrast = 0.2;
+    auto target_recipe =
+        recipe_from_develop({"target", "file:///target.raw", std::nullopt}, target);
+    ASSERT_TRUE(target_recipe) << target_recipe.error().message;
+    auto applied = apply_recipe_style(style.value(), target_recipe.value());
+    ASSERT_TRUE(applied) << applied.error().message;
+    auto restored = develop_from_recipe(applied.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    ASSERT_EQ(restored.value().exposure_instances.size(), 2U);
+    EXPECT_EQ(restored.value().exposure_instances[1].mask_id, "style-exposure-mask");
+    EXPECT_NEAR(restored.value().saturation, -0.1, 1e-9);
+    EXPECT_NEAR(restored.value().contrast, 0.2, 1e-9);
+    EXPECT_NE(std::find(restored.value().masks.begin(), restored.value().masks.end(), mask),
+              restored.value().masks.end());
+}
+
+TEST(RecipeStyleTest, CompleteStyleCarriesMultiInstanceColorBalanceRgb)
+{
+    DevelopParams source;
+    DevelopColorBalanceRgbInstance master;
+    master.instance_id = "cbr-master";
+    master.params.contrast = 0.08;
+    DevelopColorBalanceRgbInstance grade;
+    grade.instance_id = "cbr-grade";
+    grade.name = "Cool";
+    grade.params.vibrance = -0.15;
+    grade.mask_id = "style-cbr-mask";
+    source.color_balance_rgb_instances = {master, grade};
+    Mask mask{"style-cbr-mask", kCanonicalMaskSchemaVersion, MaskKind::kLinearGradient};
+    mask.payload = LinearGradientMask{0.3, 0.5, 45.0, 0.15};
+    source.masks.push_back(mask);
+    auto source_recipe =
+        recipe_from_develop({"source", "file:///source.raw", std::nullopt}, source);
+    ASSERT_TRUE(source_recipe) << source_recipe.error().message;
+    auto style = recipe_style_from_recipe("Multi CBR", {}, source_recipe.value());
+    ASSERT_TRUE(style) << style.error().message;
+
+    AssetDescriptor target{"asset-b", "file:///target.jpg", "hash-b"};
+    auto applied = apply_recipe_style(style.value(), target);
+    ASSERT_TRUE(applied) << applied.error().message;
+    auto restored = develop_from_recipe(applied.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    ASSERT_EQ(restored.value().color_balance_rgb_instances.size(), 2U);
+    EXPECT_EQ(restored.value().color_balance_rgb_instances[1].mask_id, "style-cbr-mask");
+    EXPECT_EQ(restored.value().masks, source.masks);
+}
+
 TEST(RecipeStyleTest, RejectsLegacyUnknownNewerAndNonPlaceholderState)
 {
     auto legacy = parse_recipe_style_json("<darktable_style version=\"1.0\"></darktable_style>");

@@ -4,9 +4,9 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0156 XMP fail-closed multi-instance + LOCAL-01 history/undo
-> measurement harness and AI-01/02 Studio stub proposal inspect/apply/reject chrome;
-> next free ADR **0156**.
+> **Review basis:** `main` through LOCAL-01 style/selective-copy/virtual-copy/batch
+> multi-instance Exposure/CBR carry-or-fail-closed + ADR-0156 XMP fail-closed;
+> next free ADR **0157**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -351,8 +351,11 @@ the existing mask pipeline is on `main` with fail-closed external/shared sibling
 attachments. Session undo/redo and develop history now keep discrete entries for
 add/duplicate/reorder/bypass/enable/delete and selected-instance mask edits
 (instance vector + masks restore). ADR-0156 fail-closes XMP export/status/import
-when CRS cannot represent multi-instance locals. Overlay/composition polish and
-style/batch still residual.
+when CRS cannot represent multi-instance locals. Style/preset, selective
+copy/paste, multi-selection batch develop, and virtual-copy now carry
+Exposure/CBR instance vectors with required masks (or fail closed on orphan
+mask refs); they never silently drop instances. Overlay/composition polish and
+snapshot/reopen depth still residual.
 
 **Remaining work:**
 
@@ -360,8 +363,8 @@ style/batch still residual.
   Add/Subtract/Intersect/Invert composition UX beyond the existing leaf editor;
 - one canonical coordinate path through orientation, lens, Perspective, crop,
   Canvas, preview scaling, 1:1 ROI, and export;
-- snapshots, style/preset, selective copy/paste, multi-selection batch,
-  virtual-copy, and reopen completeness for instance vectors;
+- snapshot reopen completeness checks for instance vectors beyond recipe JSON
+  round-trip already covered by history/VC paths;
 - GPU parity only after CPU equality and PERF-01 evidence;
 - split oversized Studio owners while implementing the workflow; do not grow
   `Main.qml`.

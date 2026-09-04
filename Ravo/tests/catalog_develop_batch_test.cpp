@@ -9,6 +9,7 @@
 
 #include "ravo/foundation/cancellation.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/mask.h"
 #include "ravo/services/catalog_service.h"
 
 #include "catalog_test_support.h"
@@ -243,6 +244,66 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionReportsPartialItemFailure)
     auto second_params = develop_from_recipe(second_recipe.value());
     ASSERT_TRUE(second_params);
     EXPECT_NEAR(second_params.value().exposure_ev, 0.0, 1e-9);
+}
+
+TEST_F(CatalogServiceTest, ApplyDevelopSelectionCarriesMultiInstanceExposure)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto first_path = root / "multi-a.jpg";
+    const auto second_path = root / "multi-b.jpg";
+    ASSERT_TRUE(write_jpeg(first_path, QColor(20, 80, 140)));
+    ASSERT_TRUE(write_jpeg(second_path, QColor(140, 80, 20)));
+    auto first = service->import_one(first_path.string(), CancellationToken{});
+    auto second = service->import_one(second_path.string(), CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(second) << second.error().message;
+    const auto first_id = first.value().asset->id;
+    const auto second_id = second.value().asset->id;
+
+    DevelopParams source;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-global";
+    global.name = "Global";
+    global.exposure_ev = 0.2;
+    DevelopExposureInstance dodge;
+    dodge.instance_id = "exposure-dodge";
+    dodge.name = "Dodge";
+    dodge.exposure_ev = 0.55;
+    dodge.mask_id = "batch-mask-ellipse";
+    source.exposure_instances = {global, dodge};
+    Mask mask{"batch-mask-ellipse", kCanonicalMaskSchemaVersion, MaskKind::kEllipse};
+    mask.payload = EllipseMask{0.5, 0.45, 0.2, 0.15, 0.0, 0.05};
+    source.masks.push_back(mask);
+    source.saturation = 0.15;
+    ASSERT_TRUE(service->save_develop(first_id, source)) << "source save failed";
+
+    DevelopParams destination;
+    destination.saturation = -0.25;
+    destination.contrast = 0.1;
+    ASSERT_TRUE(service->save_develop(second_id, destination));
+
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    DevelopApplyRequest request;
+    request.source = source;
+    request.fields = {"exposure"};
+    request.asset_ids = {second_id};
+    request.expected_revision = snapshot.value().revision;
+    auto applied = service->apply_develop_selection(request);
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(applied.value().applied, 1U);
+    EXPECT_EQ(applied.value().failed, 0U);
+
+    auto second_recipe = service->load_recipe(second_id);
+    ASSERT_TRUE(second_recipe) << second_recipe.error().message;
+    auto second_params = develop_from_recipe(second_recipe.value());
+    ASSERT_TRUE(second_params) << second_params.error().message;
+    ASSERT_EQ(second_params.value().exposure_instances.size(), 2U);
+    EXPECT_EQ(second_params.value().exposure_instances[1].mask_id, "batch-mask-ellipse");
+    EXPECT_NEAR(second_params.value().saturation, -0.25, 1e-9);
+    EXPECT_NEAR(second_params.value().contrast, 0.1, 1e-9);
+    ASSERT_FALSE(second_params.value().masks.empty());
+    EXPECT_EQ(second_params.value().masks.front().id, "batch-mask-ellipse");
 }
 
 } // namespace ravo

@@ -508,9 +508,91 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
 
 [[nodiscard]] bool selected_field_carries_masks(const std::string_view field) noexcept
 {
+    // Every selectable field that copies mask_id attachments (including multi-instance
+    // Exposure / Color Balance RGB vectors) must merge source masks. Omitting a field
+    // here silently drops local effect by leaving orphan mask references.
     return field == "masks" || field == "retouch" || field == "velvia" || field == "colorZones" ||
            field == "colorHarmonizer" || field == "colorBalanceRgb" || field == "monochrome" ||
-           field == "splitToning" || field == "graduated";
+           field == "splitToning" || field == "graduated" || field == "exposure" ||
+           field == "highlights" || field == "shadows" || field == "whites" || field == "blacks" ||
+           field == "rgbCurve" || field == "toneCurve";
+}
+
+[[nodiscard]] bool develop_has_mask(const DevelopParams &params,
+                                    const std::string_view mask_id) noexcept
+{
+    return std::any_of(params.masks.begin(), params.masks.end(),
+                       [&](const Mask &mask) { return mask.id == mask_id; });
+}
+
+[[nodiscard]] Result<void> require_mask_attachment(const DevelopParams &params,
+                                                   const std::optional<std::string> &mask_id,
+                                                   const std::string_view field)
+{
+    if (!mask_id.has_value())
+        return {};
+    if (develop_has_mask(params, *mask_id))
+        return {};
+    return make_error(ErrorCode::kValidation, "Develop selection references a missing mask",
+                      {{"field", std::string(field)},
+                       {"mask_id", *mask_id},
+                       {"reason", "missing_develop_selection_mask"}});
+}
+
+[[nodiscard]] Result<void> validate_selected_field_mask_attachments(const DevelopParams &params,
+                                                                    const std::string_view field)
+{
+    if (field == "exposure")
+    {
+        auto check = require_mask_attachment(params, params.exposure_mask_id, field);
+        if (!check)
+            return check.error();
+        for (const auto &instance : params.exposure_instances)
+        {
+            check = require_mask_attachment(params, instance.mask_id, field);
+            if (!check)
+                return check.error();
+        }
+        return {};
+    }
+    if (field == "colorBalanceRgb")
+    {
+        auto check = require_mask_attachment(params, params.color_balance_rgb_mask_id, field);
+        if (!check)
+            return check.error();
+        for (const auto &instance : params.color_balance_rgb_instances)
+        {
+            check = require_mask_attachment(params, instance.mask_id, field);
+            if (!check)
+                return check.error();
+        }
+        return {};
+    }
+    if (field == "highlights")
+        return require_mask_attachment(params, params.highlights_mask_id, field);
+    if (field == "shadows")
+        return require_mask_attachment(params, params.shadows_mask_id, field);
+    if (field == "whites")
+        return require_mask_attachment(params, params.whites_mask_id, field);
+    if (field == "blacks")
+        return require_mask_attachment(params, params.blacks_mask_id, field);
+    if (field == "rgbCurve")
+        return require_mask_attachment(params, params.rgb_curve_mask_id, field);
+    if (field == "toneCurve")
+        return require_mask_attachment(params, params.tone_curve_mask_id, field);
+    if (field == "velvia")
+        return require_mask_attachment(params, params.velvia_mask_id, field);
+    if (field == "colorZones")
+        return require_mask_attachment(params, params.color_zones_mask_id, field);
+    if (field == "colorHarmonizer")
+        return require_mask_attachment(params, params.color_harmonizer_mask_id, field);
+    if (field == "monochrome")
+        return require_mask_attachment(params, params.monochrome_mask_id, field);
+    if (field == "splitToning")
+        return require_mask_attachment(params, params.split_toning_mask_id, field);
+    if (field == "graduated")
+        return require_mask_attachment(params, params.graduated_mask_id, field);
+    return {};
 }
 
 void merge_develop_masks(DevelopParams &destination, const DevelopParams &source)
@@ -598,6 +680,12 @@ Result<void> apply_develop_selected_fields(DevelopParams &destination, const Dev
     }
     if (carries_masks)
         merge_develop_masks(candidate, source);
+    for (const auto &field : fields)
+    {
+        auto attached = validate_selected_field_mask_attachments(candidate, field);
+        if (!attached)
+            return attached.error();
+    }
     destination = std::move(candidate);
     return {};
 }

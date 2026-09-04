@@ -45,6 +45,7 @@
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/color_reconstruction.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/mask.h"
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/dehaze.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -1235,4 +1236,50 @@ TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwn
 }
 
 } // namespace
+
+TEST_F(CatalogServiceTest, VirtualCopyPreservesMultiInstanceExposureRecipe)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto path = root / "vc-multi.jpg";
+    // Prefer JPEG helper if available via other includes; fall back to import fixture.
+    QImage image(16, 12, QImage::Format_RGB888);
+    image.fill(QColor(40, 90, 130));
+    ASSERT_TRUE(image.save(QString::fromStdString(path.string()), "JPEG", 90));
+    auto imported = service->import_one(path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+
+    DevelopParams develop;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-global";
+    global.name = "Global";
+    global.exposure_ev = 0.1;
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-local";
+    local.name = "Local";
+    local.exposure_ev = 0.35;
+    local.mask_id = "vc-mask";
+    develop.exposure_instances = {global, local};
+    Mask mask{"vc-mask", kCanonicalMaskSchemaVersion, MaskKind::kEllipse};
+    mask.payload = EllipseMask{0.4, 0.5, 0.2, 0.15, 10.0, 0.05};
+    develop.masks.push_back(mask);
+    ASSERT_TRUE(service->save_develop(source_id, develop));
+
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot);
+    auto versioned = service->create_asset_version(source_id, snapshot.value().revision);
+    ASSERT_TRUE(versioned) << versioned.error().message;
+    const auto version_id = versioned.value().version.id;
+
+    auto version_recipe = service->load_recipe(version_id);
+    ASSERT_TRUE(version_recipe) << version_recipe.error().message;
+    auto version_develop = develop_from_recipe(version_recipe.value());
+    ASSERT_TRUE(version_develop) << version_develop.error().message;
+    ASSERT_EQ(version_develop.value().exposure_instances.size(), 2U);
+    EXPECT_EQ(version_develop.value().exposure_instances[0].instance_id, "exposure-global");
+    EXPECT_EQ(version_develop.value().exposure_instances[1].mask_id, "vc-mask");
+    ASSERT_EQ(version_develop.value().masks.size(), 1U);
+    EXPECT_EQ(version_develop.value().masks.front().id, "vc-mask");
+}
+
 } // namespace ravo

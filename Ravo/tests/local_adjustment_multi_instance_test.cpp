@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <variant>
 #include <string>
@@ -705,6 +706,88 @@ TEST(LocalAdjustmentMultiInstanceTest, StructuralOpsRoundTripThroughRecipeHistor
             found_clone = true;
     }
     EXPECT_TRUE(found_clone);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, SelectiveCopyCarriesMultiInstanceExposureMasks)
+{
+    DevelopParams source;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-global";
+    global.name = "Global";
+    global.exposure_ev = 0.2;
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-local";
+    local.name = "Dodge";
+    local.exposure_ev = 0.45;
+    local.mask_id = "mask-ellipse";
+    source.exposure_instances = {global, local};
+    source.masks = {make_ellipse("mask-ellipse")};
+    source.saturation = 0.1;
+
+    DevelopParams destination;
+    destination.saturation = -0.2;
+    destination.contrast = 0.15;
+    Mask keep{"keep-mask", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    keep.payload = CircleMask{0.5, 0.5, 0.1, 0.05};
+    destination.masks.push_back(keep);
+
+    auto applied = apply_develop_selected_fields(destination, source, {"exposure"});
+    ASSERT_TRUE(applied) << applied.error().message;
+    ASSERT_EQ(destination.exposure_instances.size(), 2U);
+    EXPECT_EQ(destination.exposure_instances[1].mask_id, "mask-ellipse");
+    EXPECT_NEAR(destination.saturation, -0.2, 1e-9);
+    EXPECT_NEAR(destination.contrast, 0.15, 1e-9);
+    EXPECT_EQ(destination.masks.size(), 2U);
+    EXPECT_NE(
+        std::find(destination.masks.begin(), destination.masks.end(), make_ellipse("mask-ellipse")),
+        destination.masks.end());
+    EXPECT_NE(std::find(destination.masks.begin(), destination.masks.end(), keep),
+              destination.masks.end());
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, SelectiveCopyCarriesMultiInstanceColorBalanceRgbMasks)
+{
+    DevelopParams source;
+    DevelopColorBalanceRgbInstance master;
+    master.instance_id = "cbr-master";
+    master.name = "Master";
+    master.params.contrast = 0.1;
+    DevelopColorBalanceRgbInstance grade;
+    grade.instance_id = "cbr-grade";
+    grade.name = "Warm face";
+    grade.params.vibrance = 0.2;
+    grade.mask_id = "mask-gradient";
+    source.color_balance_rgb_instances = {master, grade};
+    source.masks = {make_gradient("mask-gradient")};
+    source.exposure_ev = 0.3;
+
+    DevelopParams destination;
+    destination.exposure_ev = -0.1;
+    auto applied = apply_develop_selected_fields(destination, source, {"colorBalanceRgb"});
+    ASSERT_TRUE(applied) << applied.error().message;
+    ASSERT_EQ(destination.color_balance_rgb_instances.size(), 2U);
+    EXPECT_EQ(destination.color_balance_rgb_instances[1].mask_id, "mask-gradient");
+    EXPECT_NEAR(destination.exposure_ev, -0.1, 1e-9);
+    ASSERT_EQ(destination.masks.size(), 1U);
+    EXPECT_EQ(destination.masks.front().id, "mask-gradient");
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, SelectiveCopyFailClosedOnOrphanInstanceMask)
+{
+    DevelopParams source;
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-orphan";
+    local.exposure_ev = 0.5;
+    local.mask_id = "missing-mask";
+    source.exposure_instances = {local};
+    // Intentionally no masks entry for missing-mask.
+
+    DevelopParams destination;
+    auto applied = apply_develop_selected_fields(destination, source, {"exposure"});
+    ASSERT_FALSE(applied);
+    EXPECT_EQ(applied.error().context.at("reason"), "missing_develop_selection_mask");
+    EXPECT_EQ(applied.error().context.at("mask_id"), "missing-mask");
+    EXPECT_TRUE(destination.exposure_instances.empty());
 }
 
 } // namespace
