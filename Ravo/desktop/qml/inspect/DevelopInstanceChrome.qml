@@ -83,6 +83,18 @@ Item {
                 }
 
                 CustomCheckBox {
+                    objectName: root.objectNamePrefix + "Enabled" + index
+                    text: qsTr("On")
+                    checked: modelData.enabled !== false
+                    enabled: root.hasPresenter && root.panel.hasSelection && !modelData.synthetic
+                    onToggled: {
+                        if (root.operation === "exposure")
+                            root.panel.presenter.setExposureInstanceEnabled(modelData.id, checked);
+                        else
+                            root.panel.presenter.setColorBalanceRgbInstanceEnabled(modelData.id, checked);
+                    }
+                }
+                CustomCheckBox {
                     objectName: root.objectNamePrefix + "Bypass" + index
                     text: qsTr("Bypass")
                     checked: !!modelData.bypass

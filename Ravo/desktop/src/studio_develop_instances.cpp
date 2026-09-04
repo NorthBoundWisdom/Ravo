@@ -424,6 +424,36 @@ void StudioPresenter::setColorBalanceRgbInstanceBypass(const QString &instance_i
                    std::string("colorbalancergb.instance.bypass"));
 }
 
+void StudioPresenter::setExposureInstanceEnabled(const QString &instance_id, const bool enabled)
+{
+    DevelopParams next = develop_;
+    static_cast<void>(ensure_exposure_instances(next));
+    auto updated = set_exposure_instance_enabled(next, utf8_from_qstring(instance_id), enabled);
+    if (!updated)
+    {
+        setError(qstring_from_utf8(updated.error().message));
+        return;
+    }
+    mutate_develop(std::move(next), DevelopEdit::Commit, true,
+                   std::string("exposure.instance.enabled"));
+}
+
+void StudioPresenter::setColorBalanceRgbInstanceEnabled(const QString &instance_id,
+                                                        const bool enabled)
+{
+    DevelopParams next = develop_;
+    static_cast<void>(ensure_color_balance_rgb_instances(next));
+    auto updated =
+        set_color_balance_rgb_instance_enabled(next, utf8_from_qstring(instance_id), enabled);
+    if (!updated)
+    {
+        setError(qstring_from_utf8(updated.error().message));
+        return;
+    }
+    mutate_develop(std::move(next), DevelopEdit::Commit, true,
+                   std::string("colorbalancergb.instance.enabled"));
+}
+
 void StudioPresenter::reorderExposureInstance(const int from, const int to)
 {
     if (from < 0 || to < 0)

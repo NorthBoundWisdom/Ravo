@@ -305,6 +305,8 @@ TEST(LocalAdjustmentMultiInstanceTest, StudioInstanceHelpersAddReorderBypassDele
     ASSERT_TRUE(rename_exposure_instance(develop, second_id, "Dodge"));
     ASSERT_TRUE(set_exposure_instance_bypass(develop, second_id, true));
     EXPECT_TRUE(develop.exposure_instances[1].bypass);
+    ASSERT_TRUE(set_exposure_instance_enabled(develop, second_id, false));
+    EXPECT_FALSE(develop.exposure_instances[1].enabled);
     ASSERT_TRUE(reorder_exposure_instance(develop, 1, 0));
     EXPECT_EQ(develop.exposure_instances.front().instance_id, second_id);
     ASSERT_TRUE(delete_exposure_instance(develop, second_id));

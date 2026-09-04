@@ -765,6 +765,8 @@ public:
     Q_INVOKABLE void renameColorBalanceRgbInstance(const QString &instanceId, const QString &name);
     Q_INVOKABLE void setExposureInstanceBypass(const QString &instanceId, bool bypass);
     Q_INVOKABLE void setColorBalanceRgbInstanceBypass(const QString &instanceId, bool bypass);
+    Q_INVOKABLE void setExposureInstanceEnabled(const QString &instanceId, bool enabled);
+    Q_INVOKABLE void setColorBalanceRgbInstanceEnabled(const QString &instanceId, bool enabled);
     Q_INVOKABLE void reorderExposureInstance(int from, int to);
     Q_INVOKABLE void reorderColorBalanceRgbInstance(int from, int to);
     Q_INVOKABLE void setDevelopText(const QString &name, const QString &value);

@@ -1832,6 +1832,8 @@ TEST(StudioQmlContract, ExposureAndColorBalanceInstanceChrome)
     EXPECT_TRUE(chrome_source.contains(QStringLiteral("addColorBalanceRgbInstance")));
     EXPECT_TRUE(chrome_source.contains(QStringLiteral("duplicateExposureInstance")));
     EXPECT_TRUE(chrome_source.contains(QStringLiteral("duplicateColorBalanceRgbInstance")));
+    EXPECT_TRUE(chrome_source.contains(QStringLiteral("setExposureInstanceEnabled")));
+    EXPECT_TRUE(chrome_source.contains(QStringLiteral("setColorBalanceRgbInstanceEnabled")));
     EXPECT_TRUE(chrome_source.contains(QStringLiteral("setExposureInstanceBypass")));
     EXPECT_TRUE(chrome_source.contains(QStringLiteral("reorderExposureInstance")));
     EXPECT_TRUE(chrome_source.contains(QStringLiteral("deleteExposureInstance")));
