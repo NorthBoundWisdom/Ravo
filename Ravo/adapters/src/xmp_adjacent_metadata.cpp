@@ -26,6 +26,7 @@ namespace
 constexpr QLatin1String kDcNs("http://purl.org/dc/elements/1.1/");
 constexpr QLatin1String kPhotoshopNs("http://ns.adobe.com/photoshop/1.0/");
 constexpr QLatin1String kIptcCoreNs("http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/");
+constexpr QLatin1String kXmpNs("http://ns.adobe.com/xap/1.0/");
 constexpr QLatin1String kLrNs("http://ns.adobe.com/lightroom/1.0/");
 constexpr QLatin1String kRdfNs("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
 constexpr QLatin1String kMwgKwNs("http://www.metadataworkinggroup.com/schemas/keywords/");
@@ -226,7 +227,8 @@ normalize_keyword_paths(const std::vector<std::string> &raw, const bool require_
 } // namespace
 
 std::string xmp_adjacent_metadata_fingerprint_sha256(const WritableMetadata &writable,
-                                                     const std::vector<std::string> &keyword_paths)
+                                                     const std::vector<std::string> &keyword_paths,
+                                                     const int rating)
 {
     JsonValue::Object object;
     object.emplace("city", optional_string_json(writable.city));
@@ -245,6 +247,7 @@ std::string xmp_adjacent_metadata_fingerprint_sha256(const WritableMetadata &wri
         keywords.emplace_back(path);
     object.emplace("keywords", std::move(keywords));
     object.emplace("province_state", optional_string_json(writable.province_state));
+    object.emplace("rating", JsonValue::number(std::to_string(rating)));
     object.emplace("source", optional_string_json(writable.source));
     object.emplace("sublocation", optional_string_json(writable.sublocation));
     object.emplace("title", optional_string_json(writable.title));
@@ -252,10 +255,11 @@ std::string xmp_adjacent_metadata_fingerprint_sha256(const WritableMetadata &wri
     return sha256_utf8_hex(serialize_json(JsonValue{std::move(object)}));
 }
 
-bool xmp_adjacent_metadata_catalog_has_content(
-    const WritableMetadata &writable, const std::vector<std::string> &keyword_paths) noexcept
+bool xmp_adjacent_metadata_catalog_has_content(const WritableMetadata &writable,
+                                               const std::vector<std::string> &keyword_paths,
+                                               const int rating) noexcept
 {
-    return writable != WritableMetadata{} || !keyword_paths.empty();
+    return writable != WritableMetadata{} || !keyword_paths.empty() || rating != 0;
 }
 
 XmpAdjacentMetadataParseResult parse_xmp_adjacent_metadata(const std::string_view xmp_utf8)
@@ -339,6 +343,22 @@ XmpAdjacentMetadataParseResult parse_xmp_adjacent_metadata(const std::string_vie
                 else if (ns == QLatin1String("http://ns.adobe.com/xap/1.0/rights/") &&
                          name == QLatin1String("UsageTerms"))
                     set_field(result.metadata.writable.usage_terms);
+                else if (ns == kXmpNs && name == QLatin1String("Rating"))
+                {
+                    // Attribute form used by Lightroom / frozen fixtures.
+                    bool ok = false;
+                    const int parsed =
+                        QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()))
+                            .trimmed()
+                            .toInt(&ok);
+                    if (!ok || parsed < 0 || parsed > 5)
+                    {
+                        fail("invalid_xmp_rating");
+                        return result;
+                    }
+                    result.metadata.rating = parsed;
+                    result.metadata.has_any_writable_element = true;
+                }
             }
             continue;
         }
@@ -427,6 +447,25 @@ XmpAdjacentMetadataParseResult parse_xmp_adjacent_metadata(const std::string_vie
         {
             if (!assign_writable(result.metadata.writable.usage_terms))
                 return result;
+            continue;
+        }
+        if (reader.namespaceUri() == kXmpNs && reader.name() == QLatin1String("Rating"))
+        {
+            auto text_value = read_text_or_lang_alt(reader);
+            if (!text_value)
+            {
+                fail(reason_of(text_value.error()));
+                return result;
+            }
+            bool ok = false;
+            const int parsed = QString::fromStdString(text_value.value()).trimmed().toInt(&ok);
+            if (!ok || parsed < 0 || parsed > 5)
+            {
+                fail("invalid_xmp_rating");
+                return result;
+            }
+            result.metadata.rating = parsed;
+            result.metadata.has_any_writable_element = true;
             continue;
         }
         if (reader.namespaceUri() == kLrNs && reader.name() == QLatin1String("hierarchicalSubject"))
@@ -518,12 +557,22 @@ export_xmp_adjacent_interchange(const XmpAdjacentExportRequest &request)
                           {{"reason", "xmp_adjacent_export_malformed_crs"}});
     }
 
+    if (request.rating < 0 || request.rating > 5)
+    {
+        return make_error(
+            ErrorCode::kValidation, "XMP adjacent export rating must be 0..5",
+            {{"rating", std::to_string(request.rating)}, {"reason", "invalid_xmp_rating"}});
+    }
+
     const std::string xmlns =
         "\n    xmlns:dc=\"http://purl.org/dc/elements/1.1/\""
         "\n    xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\""
         "\n    xmlns:Iptc4xmpCore=\"http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/\""
+        "\n    xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\""
         "\n    xmlns:xmpRights=\"http://ns.adobe.com/xap/1.0/rights/\""
-        "\n    xmlns:lr=\"http://ns.adobe.com/lightroom/1.0/\"";
+        "\n    xmlns:lr=\"http://ns.adobe.com/lightroom/1.0/\""
+        "\n   xmp:Rating=\"" +
+        std::to_string(request.rating) + "\"";
 
     std::ostringstream body;
     body.imbue(std::locale::classic());

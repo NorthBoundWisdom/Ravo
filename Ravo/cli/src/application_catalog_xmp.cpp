@@ -113,6 +113,7 @@ Result<JsonValue> run_catalog_xmp_command(CatalogService &service,
         object.emplace("applied_crs", imported.value().applied_crs);
         object.emplace("applied_metadata", imported.value().applied_metadata);
         object.emplace("applied_keywords", imported.value().applied_keywords);
+        object.emplace("applied_rating", imported.value().applied_rating);
         return JsonValue{std::move(object)};
     }
     if (subcommand == "xmp-export")

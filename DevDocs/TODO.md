@@ -14,8 +14,8 @@
 > `20260905_020736`), packaged-CLI Add/Copy + XMP deepen on `e1a68eeb` (report
 > `20260905_023651`), plus contract/packaged deepen for disconnect/reconnect,
 > ENOSPC injection harness, Move, missing-volume fail-closed on report
-> `20260905_024633` (PNG/TIFF-in-corpus, rating-via-XMP, X-Trans, Win/Linux still
-> residual; not C3). REL-02 has a macOS Release DMG package-smoke tranche on
+> `20260905_024633` (PNG/TIFF-in-corpus, X-Trans, Win/Linux still residual; rating-via-XMP
+> closed by contract on this SHA; not C3). REL-02 has a macOS Release DMG package-smoke tranche on
 > `e1a68eeb` (report `20260905_023651`); Windows ZIP / Linux AppImage+DEB and full
 > REL matrices remain open. The next free ADR number is **0157**, but new product
 > ADRs are frozen by the work-in-progress rule below.
@@ -222,7 +222,7 @@ packaged-CLI deepen on candidate `e1a68eeb0ebc4f8aafab45287549f5720e8c2580`
 (report `20260905_023651`): Add vs Copy ingest keeps source SHA-256/size/mtime
 unchanged and copy destination byte-identical; XMP sidecar export/import on a
 writable working copy restores `dc:title`/`dc:creator` with `catalog-newer` →
-sidecar resolve → `identical` (rating-via-XMP still residual; read-only corpus
+sidecar resolve → `identical` (rating-via-XMP closed: `xmp:Rating` 0..5 write/read under ADR-0138; colour label/pick/reject still out of XMP matrix; read-only corpus
 dir fail-closes adjacent `.xmp` write). Further host-local deepen on report
 `20260905_024633` (same package binary + Debug contracts): filesystem-card
 disconnect partial + PTP stub reconnect, folder relink, offline missing-volume
@@ -232,7 +232,7 @@ Move relocates with destination SHA match, filesystem-card ingest Move rejects
 publication and original-copy publication boundaries via existing injection
 harnesses. Private corpus still has **0 PNG / 0 TIFF** (not invented). A host
 path alone is still not evidence; Windows/Linux and remaining required scenarios
-(X-Trans, PNG/TIFF-in-corpus, rating-via-XMP, live host disk-full, upgrade,
+(X-Trans, PNG/TIFF-in-corpus, live host disk-full, upgrade,
 large-library) remain open. Do not claim C3.
 
 Use an explicit read-only mixed RAW/raster corpus in `RAVO_PHOTO_CORPUS`, a
@@ -520,9 +520,10 @@ not double-applied. Reconnect re-renders from the verified original
 (`catalog_recipe`) and may clear the proxy unless pinned. User-initiated
 eviction skips pinned proxies. Export remains fail-closed
 (`proxy_export_forbidden`); ROI inspect while offline stays fail-closed
-(`offline_proxy_roi_unsupported`). Residual toward C3: background quota policy,
-collection generation, disk-full/cleanup automation, backup/restore corpus
-(REL-01), and deferred delta-preview on baked pixels.
+(`offline_proxy_roi_unsupported`). Residual toward C3: background/auto quota enablement (still fail-closed without
+user initiation; C3-toward harness on this SHA), collection generation, live
+host disk-full, backup/restore corpus (REL-01), and deferred delta-preview on
+baked pixels.
 
 **Remaining work:**
 
@@ -537,9 +538,12 @@ collection generation, disk-full/cleanup automation, backup/restore corpus
 - [done] Studio create/list/pin/delete/status/reconnect chrome in
   `OfflineEditDialog.qml` (no Main.qml growth);
 - [done] user-initiated pin + evict (`max_total_bytes`, skip pinned);
+- [done] C3-toward contracts: auto quota fail-closed; ENOSPC inject retain-prior
+  + reconnect; user-initiated cleanup exact retained/evicted set
+  (`Offline01C3Toward*`);
 - retain fail-closed full-resolution export while the original is unavailable;
-- background quota/collection generation, disk-full automation, and
-  backup/restore corpus remain REL-01 / C3;
+- background/auto quota enablement, collection generation, live host disk-full,
+  and backup/restore corpus remain REL-01 / C3;
 - delta-preview on baked proxy pixels remains deferred.
 
 **Acceptance gate:** an offline original can be viewed, graded, saved, reopened,

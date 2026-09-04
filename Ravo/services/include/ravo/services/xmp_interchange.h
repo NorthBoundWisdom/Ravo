@@ -115,6 +115,7 @@ struct XmpInterchangeImportResult
     bool applied_crs = false;
     bool applied_metadata = false;
     bool applied_keywords = false;
+    bool applied_rating = false;
 };
 
 struct XmpInterchangeExportResult

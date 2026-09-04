@@ -381,12 +381,12 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
     status.asset_id = asset.value()->id;
     status.original_path = location.value().path;
     status.has_edits = has_edits.value();
-    status.has_adjacent_metadata =
-        xmp_adjacent_metadata_catalog_has_content(asset.value()->metadata, asset.value()->tags);
+    status.has_adjacent_metadata = xmp_adjacent_metadata_catalog_has_content(
+        asset.value()->metadata, asset.value()->tags, asset.value()->review.rating);
     status.catalog.recovery_generation = recovery.value().generation;
     status.catalog.recipe_sha256 = sha256_utf8_hex(recipe_text);
-    status.catalog.metadata_sha256 =
-        xmp_adjacent_metadata_fingerprint_sha256(asset.value()->metadata, asset.value()->tags);
+    status.catalog.metadata_sha256 = xmp_adjacent_metadata_fingerprint_sha256(
+        asset.value()->metadata, asset.value()->tags, asset.value()->review.rating);
 
     if (!recipe_text.empty())
     {
@@ -580,8 +580,9 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
                           std::move(context));
     }
 
-    const bool has_metadata_payload =
-        adjacent.metadata.has_any_writable_element || adjacent.metadata.keyword_paths.has_value();
+    const bool has_metadata_payload = adjacent.metadata.has_any_writable_element ||
+                                      adjacent.metadata.keyword_paths.has_value() ||
+                                      adjacent.metadata.rating.has_value();
     if (!status.value().crs_parse_ok && !has_metadata_payload)
     {
         return make_error(ErrorCode::kUnsupported, "XMP sidecar has no supported CRS or metadata",
@@ -682,6 +683,15 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
             return tagged.error();
         latest = std::move(tagged).value();
         result.applied_keywords = true;
+    }
+
+    if (adjacent.metadata.rating)
+    {
+        auto rated = set_rating(asset_id, *adjacent.metadata.rating);
+        if (!rated)
+            return rated.error();
+        latest = std::move(rated).value();
+        result.applied_rating = true;
     }
 
     auto snapshot = repository_->snapshot();
@@ -803,8 +813,9 @@ CatalogService::xmp_interchange_export(const std::string_view asset_id,
     auto params = develop_from_recipe(loaded.value());
     if (!params)
         return params.error();
-    auto exported = export_xmp_adjacent_interchange(
-        {params.value(), "Ravo", asset.value()->metadata, asset.value()->tags});
+    auto exported =
+        export_xmp_adjacent_interchange({params.value(), "Ravo", asset.value()->metadata,
+                                         asset.value()->tags, asset.value()->review.rating});
     if (!exported)
         return exported.error();
 

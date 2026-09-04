@@ -49,8 +49,9 @@ import/export allow rules as ADR-0120 (default abort; no silent last-write-wins)
 
 - **Catalog fingerprint** extends ADR-0120 with a deterministic
   `metadata_sha256` over catalog-owned adjacent fields for the asset:
-  Core quartet, location quartet, and sorted keyword display paths (`asset_tag`
-  / ADR-0119 projection). Recipe SHA-256 and recovery generation stay as today.
+  Core quartet, location quartet, sorted keyword display paths (`asset_tag` /
+  ADR-0119 projection), and catalog review `rating` (0..5). Recipe SHA-256 and
+  recovery generation stay as today.
 - **Sidecar fingerprint** remains file SHA-256 + size + mtime (whole sidecar).
 - Exchange baseline under `<catalog>.ravo/xmp-exchange/<asset-id>.json` bumps to
   **version 2** and stores `metadata_sha256`. Version-1 baselines load with an
@@ -68,6 +69,9 @@ import/export allow rules as ADR-0120 (default abort; no silent last-write-wins)
   - Extension / additional Core (ADR-0140): `photoshop:Headline`,
     `photoshop:Credit`, `photoshop:Source`, `photoshop:Instructions`,
     `photoshop:TransmissionReference`, `xmpRights:UsageTerms`
+  - Review rating: `xmp:Rating` integer **0..5** (attribute or element). Maps to
+    catalog `ReviewState.rating` (ADR-0008/0150). Invalid values fail closed
+    (`invalid_xmp_rating`). Colour label / pick / reject remain out of scope.
   - Keywords: `lr:hierarchicalSubject` as an RDF Bag of `|`-separated display
     paths (ADR-0119). When that element is absent, flat `dc:subject` Bag items
     are accepted only as **single-segment** root paths.
@@ -79,18 +83,21 @@ import/export allow rules as ADR-0120 (default abort; no silent last-write-wins)
   - CRS look when the sidecar carries supported CRS (ADR-0086/0120);
   - field-patch Core/location for elements present in the sidecar;
   - replace keyword membership when `lr:hierarchicalSubject` or `dc:subject` is
-    present (resolve-or-create via existing `set_tags` / ADR-0119 paths).
+    present (resolve-or-create via existing `set_tags` / ADR-0119 paths);
+  - apply `xmp:Rating` via `set_rating` when present.
   - If CRS is present but unsupported, the whole import fails (no metadata-only
-    partial apply). Metadata-only sidecars without CRS may import metadata.
+    partial apply). Metadata-only sidecars without CRS may import metadata/rating.
 - Export writes one adjacent XMP that includes the CRS PV2012 look subset **and**
-  the catalog Core/location/keyword packets above. Original media bytes stay
-  untouched. Catalog remains authority for unmapped Develop features (listed in
-  `omitted_catalog_fields` as today).
+  the catalog Core/location/keyword packets above **and** `xmp:Rating` from the
+  catalog review rating. Original media bytes stay untouched. Catalog remains
+  authority for unmapped Develop features (listed in `omitted_catalog_fields` as
+  today).
 
 ### Out of scope
 
 - Full IPTC Extension / contact / scene / subject codes beyond the ADR-0140
   bounded subset (those six writables participate in this matrix).
+- Colour label, pick, and reject review flags (rating only for this matrix).
 - Automatic adjacent watch/merge; treating recovery JSON as interchange XMP.
 - Vendor `.lrcat` readers; external-editor launch (ADR-0122 residuals).
 

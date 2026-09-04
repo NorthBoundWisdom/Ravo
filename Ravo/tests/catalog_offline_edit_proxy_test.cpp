@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -662,6 +663,149 @@ TEST_F(CatalogServiceTest, OfflineEditProxyPinDeleteAndPinnedSurvivesEvict)
     auto drop_status = service->verify_offline_edit_proxy(drop_id);
     ASSERT_TRUE(drop_status) << drop_status.error().message;
     EXPECT_FALSE(drop_status.value().proxy_present);
+}
+
+// OFFLINE-01 C3-toward contracts: fail-closed background/auto quota, ENOSPC
+// publish exact partial state + reconnect, and user-initiated cleanup automation
+// with exact retained/evicted accounting. Not live host disk fill; not Studio C2 claim change.
+TEST_F(CatalogServiceTest, Offline01C3TowardBackgroundQuotaFailClosedAndCleanupExactState)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto a_path = root / "c3-quota-a.jpg";
+    const auto b_path = root / "c3-quota-b.jpg";
+    const auto c_path = root / "c3-quota-c.jpg";
+    ASSERT_TRUE(write_jpeg(a_path, QColor(11, 22, 33), 128, 96));
+    ASSERT_TRUE(write_jpeg(b_path, QColor(44, 55, 66), 128, 96));
+    ASSERT_TRUE(write_jpeg(c_path, QColor(77, 88, 99), 128, 96));
+    auto a = service->import_one(a_path.string(), CancellationToken{});
+    auto b = service->import_one(b_path.string(), CancellationToken{});
+    auto c = service->import_one(c_path.string(), CancellationToken{});
+    ASSERT_TRUE(a) << a.error().message;
+    ASSERT_TRUE(b) << b.error().message;
+    ASSERT_TRUE(c) << c.error().message;
+    const auto id_a = a.value().asset->id;
+    const auto id_b = b.value().asset->id;
+    const auto id_c = c.value().asset->id;
+
+    OfflineEditProxyCreateRequest create;
+    create.user_initiated = true;
+    create.max_edge = 48;
+    for (const auto &id : {id_a, id_b, id_c})
+    {
+        create.asset_id = id;
+        auto created = service->create_offline_edit_proxy(create);
+        ASSERT_TRUE(created) << created.error().message << " id=" << id;
+    }
+
+    OfflineEditProxyPinRequest pin;
+    pin.asset_id = id_a;
+    pin.user_initiated = true;
+    pin.pinned = true;
+    ASSERT_TRUE(service->pin_offline_edit_proxy(pin));
+
+    // Background / automatic quota cleanup remains fail-closed (ADR-0146).
+    OfflineEditProxyEvictRequest auto_evict;
+    auto_evict.user_initiated = false;
+    auto_evict.max_total_bytes = 1;
+    auto refused = service->evict_offline_edit_proxies(auto_evict);
+    ASSERT_FALSE(refused);
+    EXPECT_EQ(refused.error().context.at("reason"), "missing_user_initiated");
+
+    OfflineEditProxyEvictRequest missing_bytes;
+    missing_bytes.user_initiated = true;
+    missing_bytes.max_total_bytes = 0;
+    auto refused_bytes = service->evict_offline_edit_proxies(missing_bytes);
+    ASSERT_FALSE(refused_bytes);
+    EXPECT_EQ(refused_bytes.error().context.at("reason"), "missing_max_total_bytes");
+
+    // User-initiated cleanup automation: exact partial state under tiny quota.
+    OfflineEditProxyEvictRequest evict;
+    evict.user_initiated = true;
+    evict.max_total_bytes = 1;
+    auto cleaned = service->evict_offline_edit_proxies(evict);
+    ASSERT_TRUE(cleaned) << cleaned.error().message;
+    EXPECT_EQ(cleaned.value().evicted, 2U);
+    EXPECT_EQ(cleaned.value().retained_pinned, 1U);
+    ASSERT_EQ(cleaned.value().retained_pinned_asset_ids.size(), 1U);
+    EXPECT_EQ(cleaned.value().retained_pinned_asset_ids.front(), id_a);
+    EXPECT_EQ(cleaned.value().evicted_asset_ids.size(), 2U);
+    // Unpinned proxies are removed (pinned retained). Exact eviction order among
+    // equal created_unix_ms is not guaranteed by std::sort.
+    std::vector<std::string> evicted = cleaned.value().evicted_asset_ids;
+    std::sort(evicted.begin(), evicted.end());
+    std::vector<std::string> expected{id_b, id_c};
+    std::sort(expected.begin(), expected.end());
+    EXPECT_EQ(evicted, expected);
+
+    auto keep = service->verify_offline_edit_proxy(id_a);
+    ASSERT_TRUE(keep) << keep.error().message;
+    EXPECT_TRUE(keep.value().proxy_present);
+    EXPECT_TRUE(keep.value().proxy_verified);
+    EXPECT_TRUE(keep.value().manifest->pinned);
+    for (const auto &id : {id_b, id_c})
+    {
+        auto gone = service->verify_offline_edit_proxy(id);
+        ASSERT_TRUE(gone) << gone.error().message;
+        EXPECT_FALSE(gone.value().proxy_present);
+    }
+}
+
+TEST_F(CatalogServiceTest, Offline01C3TowardEnospcPublishRetainsPriorAndReconnect)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "c3-enospc.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(12, 34, 56), 160, 120));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, asset_id);
+    ASSERT_FALSE(original.empty());
+
+    OfflineEditProxyCreateRequest create;
+    create.asset_id = asset_id;
+    create.user_initiated = true;
+    create.max_edge = 64;
+    auto first = service->create_offline_edit_proxy(create);
+    ASSERT_TRUE(first) << first.error().message;
+    const auto first_sha = first.value().manifest.proxy_sha256;
+
+    testing::CatalogServiceTestControl::set_before_offline_proxy_publish(
+        *service,
+        [](std::string_view, std::string_view)
+        {
+            return make_error(ErrorCode::kIo, "Injected ENOSPC at offline proxy publish",
+                              {{"reason", "offline_edit_proxy_publish_failed"},
+                               {"detail", "injected_enospc"},
+                               {"disk_full", "true"}});
+        });
+    auto failed = service->create_offline_edit_proxy(create);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().context.at("reason"), "offline_edit_proxy_publish_failed");
+    EXPECT_EQ(failed.error().context.at("disk_full"), "true");
+    testing::CatalogServiceTestControl::set_before_offline_proxy_publish(*service, {});
+
+    // Exact partial state: prior verified proxy retained; original untouched.
+    auto status = service->verify_offline_edit_proxy(asset_id);
+    ASSERT_TRUE(status) << status.error().message;
+    ASSERT_TRUE(status.value().manifest);
+    EXPECT_EQ(status.value().manifest->proxy_sha256, first_sha);
+    EXPECT_TRUE(status.value().proxy_verified);
+    EXPECT_TRUE(std::filesystem::is_regular_file(original));
+
+    // Reconnect after ENOSPC-failed republish remains available on original.
+    OfflineEditProxyReconnectRequest reconnect;
+    reconnect.asset_id = asset_id;
+    reconnect.user_initiated = true;
+    reconnect.clear_proxy = false;
+    auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
+    ASSERT_TRUE(reconnected) << reconnected.error().message;
+    EXPECT_TRUE(reconnected.value().source_hash_matched);
+    EXPECT_EQ(reconnected.value().status.media_state, OfflineEditMediaState::kOriginal);
+    // Prior proxy may still be present when clear_proxy=false.
+    auto after = service->verify_offline_edit_proxy(asset_id);
+    ASSERT_TRUE(after) << after.error().message;
+    ASSERT_TRUE(after.value().manifest);
+    EXPECT_EQ(after.value().manifest->proxy_sha256, first_sha);
 }
 
 } // namespace ravo

@@ -22,6 +22,8 @@ struct XmpAdjacentMetadata
     // Present when lr:hierarchicalSubject or dc:subject appeared in the sidecar
     // (including an empty Bag → clear membership on import).
     std::optional<std::vector<std::string>> keyword_paths;
+    // Present when xmp:Rating appeared (attribute or element). Valid range 0..5.
+    std::optional<int> rating;
     bool has_any_writable_element = false;
 };
 
@@ -36,11 +38,13 @@ struct XmpAdjacentMetadataParseResult
 // sorted keyword display paths). Empty/absent fields serialize stably.
 [[nodiscard]] std::string
 xmp_adjacent_metadata_fingerprint_sha256(const WritableMetadata &writable,
-                                         const std::vector<std::string> &keyword_paths);
+                                         const std::vector<std::string> &keyword_paths,
+                                         int rating = 0);
 
 [[nodiscard]] bool
 xmp_adjacent_metadata_catalog_has_content(const WritableMetadata &writable,
-                                          const std::vector<std::string> &keyword_paths) noexcept;
+                                          const std::vector<std::string> &keyword_paths,
+                                          int rating = 0) noexcept;
 
 // Parses dublin-core / photoshop / Iptc4xmpCore / lr:hierarchicalSubject from an
 // adjacent XMP document. Fail-closed reasons include unsupported hierarchical
@@ -54,6 +58,8 @@ struct XmpAdjacentExportRequest
     std::string_view preset_name = "Ravo";
     WritableMetadata writable;
     std::vector<std::string> keyword_paths;
+    // Catalog review rating (0..5). Always written as xmp:Rating on export.
+    int rating = 0;
 };
 
 struct XmpAdjacentExportResult
@@ -62,8 +68,8 @@ struct XmpAdjacentExportResult
     std::vector<std::string> omitted_catalog_fields;
 };
 
-// CRS PV2012 look subset plus catalog Core/location/keyword packets in one
-// adjacent XMP document (ADR-0120 + ADR-0138).
+// CRS PV2012 look subset plus catalog Core/location/keyword packets and
+// xmp:Rating in one adjacent XMP document (ADR-0120 + ADR-0138 + rating).
 [[nodiscard]] Result<XmpAdjacentExportResult>
 export_xmp_adjacent_interchange(const XmpAdjacentExportRequest &request);
 

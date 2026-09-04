@@ -489,5 +489,99 @@ TEST_F(CatalogServiceTest, XmpFailsClosedForUnrepresentableMultiInstance)
     static_cast<void>(sidecar_path);
 }
 
+TEST_F(CatalogServiceTest, XmpInterchangeRatingRoundTripViaXmpRating)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto local_png = (root / "rating-xmp.png").string();
+    std::error_code copy_error;
+    std::filesystem::copy_file(png_fixture_path(), local_png,
+                               std::filesystem::copy_options::overwrite_existing, copy_error);
+    ASSERT_FALSE(copy_error) << copy_error.message();
+    auto imported = service->import_one(local_png, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    auto rated = service->set_rating(asset_id, 4);
+    ASSERT_TRUE(rated) << rated.error().message;
+    EXPECT_EQ(rated.value().review.rating, 4);
+
+    WritableMetadataPatch meta_patch;
+    meta_patch.update_title = true;
+    meta_patch.title = "Rating Round Trip";
+    meta_patch.update_creator = true;
+    meta_patch.creator = "REL01";
+    auto patched =
+        service->set_writable_metadata_selection({std::string(asset_id)}, meta_patch, std::nullopt);
+    ASSERT_TRUE(patched) << patched.error().message;
+
+    auto before = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(before) << before.error().message;
+    const auto original = before.value().original_path;
+    const auto before_id = read_file_identity(original);
+    ASSERT_TRUE(before_id) << before_id.error().message;
+    const auto before_sha = sha256_file_hex(original);
+    ASSERT_TRUE(before_sha) << before_sha.error().message;
+
+    auto exported = service->xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
+    ASSERT_TRUE(exported) << exported.error().message;
+    EXPECT_EQ(exported.value().status.conflict_class, XmpInterchangeConflictClass::kIdentical);
+    const auto sidecar_path = exported.value().sidecar_path;
+    auto sidecar_text = read_utf8_text_file(sidecar_path);
+    ASSERT_TRUE(sidecar_text) << sidecar_text.error().message;
+    EXPECT_NE(sidecar_text.value().find("xmp:Rating=\"4\""), std::string::npos);
+    EXPECT_NE(sidecar_text.value().find("xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\""),
+              std::string::npos);
+
+    ASSERT_TRUE(service->set_rating(asset_id, 1));
+    WritableMetadataPatch diverge;
+    diverge.update_title = true;
+    diverge.title = "Diverged";
+    ASSERT_TRUE(
+        service->set_writable_metadata_selection({std::string(asset_id)}, diverge, std::nullopt));
+    auto catalog_newer = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(catalog_newer) << catalog_newer.error().message;
+    EXPECT_EQ(catalog_newer.value().conflict_class, XmpInterchangeConflictClass::kCatalogNewer);
+
+    auto restored = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().applied_rating);
+    EXPECT_TRUE(restored.value().applied_metadata);
+    EXPECT_EQ(restored.value().asset.review.rating, 4);
+    ASSERT_TRUE(restored.value().asset.metadata.title);
+    EXPECT_EQ(*restored.value().asset.metadata.title, "Rating Round Trip");
+    EXPECT_EQ(restored.value().status.conflict_class, XmpInterchangeConflictClass::kIdentical);
+
+    ASSERT_TRUE(service->set_rating(asset_id, 5));
+    auto rating_newer = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(rating_newer) << rating_newer.error().message;
+    EXPECT_EQ(rating_newer.value().conflict_class, XmpInterchangeConflictClass::kCatalogNewer);
+
+    auto bad = sidecar_text.value();
+    const auto needle = std::string("xmp:Rating=\"4\"");
+    const auto rating_pos = bad.find(needle);
+    ASSERT_NE(rating_pos, std::string::npos);
+    bad.replace(rating_pos, needle.size(), "xmp:Rating=\"9\"");
+    ASSERT_TRUE(write_utf8_text_file_replace_atomically(sidecar_path, bad));
+    auto bad_status = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(bad_status) << bad_status.error().message;
+    EXPECT_FALSE(bad_status.value().metadata_parse_ok);
+    EXPECT_EQ(bad_status.value().metadata_parse_reason.value_or(""), "invalid_xmp_rating");
+    auto bad_import = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    ASSERT_FALSE(bad_import);
+    EXPECT_EQ(bad_import.error().code, ErrorCode::kUnsupported);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().review.rating, 5);
+
+    auto after_id = read_file_identity(original);
+    ASSERT_TRUE(after_id) << after_id.error().message;
+    EXPECT_EQ(after_id.value().size_bytes, before_id.value().size_bytes);
+    EXPECT_EQ(after_id.value().mtime_unix_ms, before_id.value().mtime_unix_ms);
+    const auto after_sha = sha256_file_hex(original);
+    ASSERT_TRUE(after_sha);
+    EXPECT_EQ(after_sha.value(), before_sha.value());
+}
+
 } // namespace
 } // namespace ravo
