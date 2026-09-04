@@ -1,0 +1,80 @@
+# ADR-0151: IQ-00 CPU gold and GPU consistency gate
+
+- Status: Accepted
+- Date: 2026-09-04
+- Relates: IQ-00 in [TODO.md](../TODO.md)
+- Extends: [ADR-0133](0133-engine-gpu-preview-adapter.md),
+  [ADR-0134](0134-engine-qrhi-gpu-backend.md)
+- Aligns with: persist/export CPU-gold fix (`render_linear_working` /
+  `render_linear_working_export` never opt into GPU)
+
+## Context
+
+IQ-00 requires a dated release gate so GPU latency work cannot silently change
+settled preview, reopen, or export bytes. ADR-0133 already makes CPU the RMSE
+reference and forbids silent CPU fallback on a failed GPU request. The Engine
+now separates:
+
+- **CPU gold path** — `render_linear_working` / `render_linear_working_export`
+  (Catalog persist preview, settled cache, CLI PNG, export).
+- **Interactive GPU path** — `render_interactive_linear_working` (Studio live
+  develop; may report `gpu_backend` and optionally retain IOSurface pixels).
+
+IQ-00 needs the contract, tolerances, fail-closed policy, and first Ready
+hooks dated without claiming the full corpus matrix is closed.
+
+## Decision
+
+### Authority
+
+1. **CPU is the gold reference** for persist preview, settled save, close/reopen
+   of persisted preview, CLI probe/render that downloads pixels, and all export
+   formats.
+2. **Preview / export / reopen equality on the CPU gold path** is **bit-exact**
+   for the same asset fingerprint, recipe JSON, geometry (including ROI),
+   output colour, and dither target. Documented float working-buffer equality
+   before packing uses the Engine’s existing deterministic CPU ops; packed
+   RGB8/16 export and preview PNG bytes must match on reopen of the same
+   persisted inputs.
+3. **GPU interactive preview** may run only on the interactive path. When a
+   GPU batch is admitted, its linear working result must match the CPU gold
+   within **documented tolerances** (`kIqGpuCpuWorkingAbsTolerance = 2e-3` per
+   channel for the current Exposure/light/Lab-USM/Sigmoid batch; RMSE gates for
+   future Bayer RCD remain ADR-0133 stage 3). If a GPU request cannot meet the
+   gate or the adapter is unavailable, the call **fail-closes** with a
+   structured reason (`gpu_unavailable` / `gpu_pipeline_failed`) — never a
+   silent lower-quality algorithm and never a silent substitute for persist or
+   export bytes.
+4. **Persist and export never select the interactive GPU path.**
+   `gpu_backend` on those results stays empty (reported as `cpu` at CLI).
+
+### First Ready (this ADR)
+
+- Publish contract constants and helpers under `ravo.iq.consistency/v1`.
+- Contract tests assert CPU gold for persist `render_linear_working` and
+  export `render_linear_working_export`, bit-exact CPU re-render equality, and
+  that interactive GPU (when available) stays within the documented abs
+  tolerance versus CPU for an admissible recipe.
+- `catalog probe --json` reports an `iq_consistency` object describing the
+  gold policy and residual GPU live path.
+
+### Explicit residuals
+
+- Full IQ-00 matrix (RAW corpus, ICC/proof, multi-instance locals, denoise,
+  watermark/frame, GPU-unavailable/exhausted/cancelled, 1:1 ROI vs export
+  overlap) still open.
+- Studio window-move / monitor presentation remains ADR-0144 (presentation
+  only; never mutates recipe/export).
+- Expanding GPU batches beyond the current admitted RGB ops requires new
+  dated tolerances before they may leave the interactive path.
+
+## Consequences
+
+IQ-00 gains a testable first Ready that freezes CPU gold for durable pixels
+while documenting the interactive GPU residual without claiming corpus closure.
+
+## Rejected alternatives
+
+- Allowing persist/export to share the interactive GPU path with download.
+- Silent CPU fallback when GPU init or RMSE fails.
+- Screenshot-based GPU acceptance.

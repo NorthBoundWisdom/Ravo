@@ -84,7 +84,7 @@ while `main` is green. A red head immediately returns all owners to CI-01.
 | 1 | CI-01 | P0 | Keep the latest main SHA green and make the gate enforceable |
 | 2 | REL-01 | P0 | Prove source safety, catalog durability, interruption recovery, and upgrade |
 | 3 | PERF-01 | P0 | Freeze end-to-end Gallery, viewer, Develop, and large-library budgets |
-| 4 | IQ-00 | P0 | Gate preview/export/reopen, ICC, and CPU/GPU consistency |
+| 4 | IQ-00 | P0 | Finish corpus matrix after ADR-0151 CPU-gold first Ready |
 | 5 | REL-02 | P0 | Prove installed packages and backup/restore on supported hosts |
 
 ### Product-completion lane
@@ -249,7 +249,13 @@ roles and cannot become silent RAW correctness references.
 
 ## IQ-00 — Rendering and colour consistency gate
 
-**Status:** Active after representative corpus access exists.
+**Status:** First Ready on `main` (ADR-0151). Full corpus matrix remains open.
+
+**Closed in ADR-0151:** CPU is gold for persist preview / settled save / export /
+reopen / CLI PNG; interactive GPU may run only on the live develop path and
+must match within `kIqGpuCpuWorkingAbsTolerance` or fail-closed; contract tests
++ `catalog probe --json` `iq_consistency` policy object. Aligns with existing
+persist/export CPU-gold Engine split.
 
 CPU remains the correctness reference. GPU and display presentation may improve
 latency but cannot silently alter recipe state, supported-input boundaries,

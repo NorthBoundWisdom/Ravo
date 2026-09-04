@@ -39,6 +39,7 @@
 #include "ravo/engine/noise_calibration.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/style.h"
+#include "ravo/engine/iq_consistency.h"
 #include "ravo/services/catalog_service.h"
 #include "ravo/services/artifact_publication.h"
 
@@ -523,6 +524,21 @@ JsonValue keyword_mutation_to_json(const KeywordMutation &mutation)
         {"previous_uri", result.previous_uri},
         {"recovery_pending", JsonValue::number(std::to_string(result.recovery_pending))},
         {"replacement_uri", result.replacement_uri},
+    };
+}
+
+[[nodiscard]] JsonValue iq_consistency_policy_json()
+{
+    return JsonValue::Object{
+        {"contract", std::string(kIqConsistencyContractVersion)},
+        {"schema_version", JsonValue::number(std::to_string(kIqConsistencySchemaVersion))},
+        {"cpu_gold_paths",
+         JsonValue::Array{"persist_preview", "settled_preview", "export", "cli_png", "reopen"}},
+        {"gpu_live_path", "interactive_develop_preview"},
+        {"gpu_cpu_working_abs_tolerance",
+         JsonValue::number(std::to_string(kIqGpuCpuWorkingAbsTolerance))},
+        {"persist_export_fail_closed_to_cpu", true},
+        {"silent_gpu_fallback_forbidden", true},
     };
 }
 

@@ -158,3 +158,4 @@ supersession relationship when direction changes.
 | [0148](0148-native-ptp-mtp-session-and-resume.md) | Accepted | Native PTP/MTP session identity + platform matrix; fail-closed until packaged; resume checkpoints; ptp-stub fixture |
 | [0149](0149-cull-near-duplicate-fingerprint.md) | Accepted | Bounded aHash near-duplicate groups; Hamming threshold; no auto-delete |
 | [0150](0150-cull-keyboard-review-pick-reject.md) | Accepted | Schema v16 picked + transactional cull-review Pick/Reject/rating/colour with auto-advance; no auto-delete |
+| [0151](0151-iq-cpu-gpu-consistency-gate.md) | Accepted | IQ-00 CPU gold for persist/export/reopen; GPU interactive within tolerances or fail-closed; first Ready hooks |

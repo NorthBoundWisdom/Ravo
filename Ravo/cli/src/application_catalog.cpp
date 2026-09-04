@@ -1089,6 +1089,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"baseline", flags.value().baseline},
             {"color_profile", previewed.value().color_profile.identifier},
             {"height", JsonValue::number(std::to_string(previewed.value().height))},
+            {"iq_consistency", iq_consistency_policy_json()},
             {"original_missing", previewed.value().original_missing},
             {"overrides", std::move(overrides)},
             {"preview_records_unchanged", true},

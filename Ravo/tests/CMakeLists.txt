@@ -89,6 +89,7 @@ add_executable(ravo_contract_tests
   xtrans_demosaic_test.cpp
   engine_test.cpp
   gpu_adapter_test.cpp
+  iq_consistency_test.cpp
   engine_raw_test.cpp
   engine_color_test.cpp
   engine_dt_ucs_test.cpp

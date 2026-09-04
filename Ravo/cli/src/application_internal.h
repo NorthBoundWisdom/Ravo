@@ -186,6 +186,7 @@ apply_develop_overrides(DevelopParams &params, const CatalogCliArguments &flags)
 [[nodiscard]] Result<std::unique_ptr<CatalogService>>
 open_catalog_session(const EngineFacade &engine, std::string_view path, bool create);
 [[nodiscard]] JsonValue asset_to_json(const AssetRecord &asset);
+[[nodiscard]] JsonValue iq_consistency_policy_json();
 [[nodiscard]] JsonValue recovery_state_to_json(const AssetRecoveryState &state);
 [[nodiscard]] JsonValue recovery_artifact_to_json(const RecoveryArtifact &artifact);
 [[nodiscard]] JsonValue backup_artifact_to_json(const CatalogBackupArtifact &artifact,
