@@ -17,6 +17,7 @@ target_sources(ravo_services
     src/catalog_foreign_catalog.cpp
     src/catalog_dng_smart_preview.cpp
     src/catalog_offline_edit_proxy.cpp
+    src/catalog_cull_assistance.cpp
     src/display_presentation.cpp
     src/catalog_internal.cpp
     src/catalog_import.cpp

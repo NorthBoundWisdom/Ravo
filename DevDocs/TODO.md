@@ -432,33 +432,29 @@ check with originals byte-identical.
 
 ## CULL-01 — High-throughput review, burst grouping, and duplicate assistance
 
-**Status:** P1 after `PERF-01` establishes baseline measurements.
+**Status:** P1 first Ready landed (ADR-0147). Residuals remain.
 
-Ship deterministic workflow improvements before model-dependent ranking.
+**Closed in this tranche (local `main`):**
 
-**First bounded tranche:**
+- ADR-0147 accepts deterministic exact-duplicate hash groups
+  (`ravo.cull.exact-duplicate/v1`) and ephemeral burst proposals
+  (`ravo.cull.burst-proposal/v1`); no auto-delete/auto-reject.
+- Service/CLI: `cull-exact-duplicates`, `cull-burst-propose`
+  (`--burst-window-seconds`), `cull-burst-accept` (`--user-initiated`, member
+  `--asset-id`s, optional `--pick-id`) stacking via ADR-0105.
+- Outcomes: `same_file` (shared URI / virtual copies) vs `same_bytes` (distinct
+  URIs, identical SHA-256); missing originals skipped with `original_missing`.
 
-- exact duplicate identity by content hash with explicit same-file, same-bytes,
-  and distinct-version outcomes;
-- bounded perceptual fingerprinting for near-duplicate suggestions;
-- capture-time/camera/sequence burst grouping and optional auto-stack proposal;
-- keyboard-first Pick/Reject/rating/colour-label flow with auto-advance;
-- fast selected-photo 1:1 focus inspection and previous/next synchronization;
-- import-session and collection-level filtering for unreviewed, picked,
-  rejected, duplicate, and burst groups;
-- transactional accept/dismiss actions; no automatic delete or reject.
+**Still open:**
 
-**Acceptance gate:**
+- perceptual / near-duplicate fingerprinting;
+- keyboard-first Pick/Reject/rating/colour-label with auto-advance;
+- Studio 1:1 focus inspection sync and Library filters for
+  unreviewed/picked/rejected/duplicate/burst;
+- durable proposal store / dismiss ledger; 100k paging budgets.
 
-- suggestions remain separate from catalog facts until explicit acceptance;
-- exact duplicates do not conflate virtual copies, RAW+JPEG companions, derived
-  assets, or files with different bytes;
-- 100,000-photo query, grouping, and paging remain bounded;
-- source disappearance, stale revision, cancellation, and partial batch state
-  are explicit;
-- the user can undo accepted stack/review mutations where the existing catalog
-  contract permits;
-- baseline review latency does not regress.
+**Acceptance gate:** unchanged for remaining residuals; first Ready proves
+exact hash groups, burst propose/accept stack, and no auto-delete.
 
 **Blocks:** AI-04 metadata/culling/similarity quality work.
 

@@ -113,10 +113,11 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     CatalogCliArguments result;
     const bool batch_export = positional.size() > 1U && positional[1] == "export-batch";
     const bool multi_asset =
-        batch_export || (positional.size() > 1U &&
-                         (positional[1] == "preview-rebuild" || positional[1] == "set-create" ||
-                          positional[1] == "set-add" || positional[1] == "set-remove" ||
-                          positional[1] == "stack" || positional[1] == "develop-apply"));
+        batch_export ||
+        (positional.size() > 1U &&
+         (positional[1] == "preview-rebuild" || positional[1] == "set-create" ||
+          positional[1] == "set-add" || positional[1] == "set-remove" || positional[1] == "stack" ||
+          positional[1] == "develop-apply" || positional[1] == "cull-burst-accept"));
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -451,6 +452,22 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             if (!result.foreign_source_kind.empty())
                 return make_error(ErrorCode::kInvalidArgument, "--source-kind was specified twice");
             result.foreign_source_kind = value;
+        }
+        else if (option == "--burst-window-seconds")
+        {
+            if (result.burst_window_seconds)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--burst-window-seconds was specified twice");
+            auto parsed = parse_int_flag(value, option);
+            if (!parsed)
+                return parsed.error();
+            if (parsed.value() <= 0)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--burst-window-seconds must be positive",
+                                  {{"value", std::string(value)}});
+            }
+            result.burst_window_seconds = parsed.value();
         }
         else if (option == "--max-edge")
         {

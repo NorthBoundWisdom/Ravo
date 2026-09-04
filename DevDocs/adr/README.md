@@ -154,3 +154,4 @@ supersession relationship when direction changes.
 | [0144](0144-per-display-icc-presentation.md) | Accepted | Per-display ICC is presentation-only; C++ owns preview→monitor; sRGB fallback; synthetic test profiles |
 | [0145](0145-multi-instance-local-adjustments.md) | Accepted | Multi-instance Exposure/Color Balance RGB; name/bypass/reorder; mask leaves reuse ADR-0043/0116; XMP fail-closed |
 | [0146](0146-offline-edit-proxy.md) | Accepted | Offline-edit proxy class distinct from browse-only Smart Preview; export fail-closed without original |
+| [0147](0147-cull-exact-duplicate-and-burst-proposals.md) | Accepted | Exact-duplicate SHA-256 groups + burst proposals; no auto-delete; stack only on explicit accept |

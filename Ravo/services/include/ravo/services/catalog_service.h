@@ -28,6 +28,7 @@
 #include "ravo/services/foreign_catalog.h"
 #include "ravo/services/dng_smart_preview.h"
 #include "ravo/services/offline_edit_proxy.h"
+#include "ravo/services/cull_assistance.h"
 #include "ravo/services/ingest_transport.h"
 
 namespace ravo
@@ -378,6 +379,14 @@ public:
     offline_edit_media_status(std::string_view asset_id) const;
     [[nodiscard]] Result<OfflineEditProxyReconnectResult>
     reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequest &request);
+
+    // ADR-0147: exact-duplicate hash groups + burst proposals (no auto-delete).
+    [[nodiscard]] Result<ExactDuplicateReport>
+    find_exact_duplicate_groups(const ExactDuplicateRequest &request = {}) const;
+    [[nodiscard]] Result<BurstProposeReport>
+    propose_burst_groups(const BurstProposeRequest &request = {}) const;
+    [[nodiscard]] Result<BurstAcceptResult>
+    accept_burst_group_proposal(const BurstAcceptRequest &request);
 
     // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
     // applied; reject/cancel never mutate recipe/history.

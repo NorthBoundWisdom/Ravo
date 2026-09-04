@@ -75,6 +75,7 @@ struct CatalogCliArguments
     bool editor_invoke_os_open = false;
     std::string_view working_copy_id;
     std::string_view application_path;
+    std::optional<std::int64_t> burst_window_seconds;
     bool ensure = false;
     std::string_view foreign_source;
     std::string_view foreign_source_kind;
@@ -210,6 +211,9 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] Result<LibraryQuery> build_library_query(const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue> run_catalog_facets_command(CatalogService &service,
                                                            const CatalogCliArguments &flags);
+[[nodiscard]] Result<JsonValue> run_catalog_cull_command(CatalogService &service,
+                                                         std::string_view subcommand,
+                                                         const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue> run_catalog_convert_command(CatalogService &service,
                                                             std::string_view subcommand,
                                                             const CatalogCliArguments &flags);

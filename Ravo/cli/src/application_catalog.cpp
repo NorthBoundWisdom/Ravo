@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -176,6 +176,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                                 subcommand == "editor-open" ||
                                 subcommand == "editor-prepare-working-copy" ||
                                 subcommand == "editor-check-returned";
+    const bool cull_command = subcommand == "cull-exact-duplicates" ||
+                              subcommand == "cull-burst-propose" ||
+                              subcommand == "cull-burst-accept";
     const bool convert_command =
         subcommand == "convert-foreign" || subcommand == "dng-convert" ||
         subcommand == "smart-preview" || subcommand == "offline-proxy-create" ||
@@ -213,18 +216,20 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "--invoke-os-open is only valid for catalog editor-open or "
                           "editor-prepare-working-copy");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
-        !develop_apply_command && !keyword_command && !ai_command && !editor_command)
+        !develop_apply_command && !keyword_command && !ai_command && !editor_command &&
+        !cull_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--revision is only valid for catalog set, version, stack, "
                           "keyword, tag, develop-apply, ai proposal/suggestion, or editor "
                           "commands");
     if (flags.value().user_initiated && subcommand != "ai-propose" && subcommand != "ai-suggest" &&
         subcommand != "editor-open" && subcommand != "editor-prepare-working-copy" &&
-        subcommand != "offline-proxy-create" && subcommand != "offline-proxy-reconnect")
+        subcommand != "offline-proxy-create" && subcommand != "offline-proxy-reconnect" &&
+        subcommand != "cull-burst-accept")
         return make_error(ErrorCode::kInvalidArgument,
                           "--user-initiated is only valid for catalog ai-propose, ai-suggest, "
-                          "editor-open, editor-prepare-working-copy, offline-proxy-create, or "
-                          "offline-proxy-reconnect");
+                          "editor-open, editor-prepare-working-copy, offline-proxy-create, "
+                          "offline-proxy-reconnect, or cull-burst-accept");
     if (!flags.value().working_copy_id.empty() && subcommand != "editor-check-returned")
         return make_error(ErrorCode::kInvalidArgument,
                           "--working-copy-id is only valid for catalog editor-check-returned");
@@ -232,6 +237,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(
             ErrorCode::kInvalidArgument,
             "--application-path is only valid for catalog editor-prepare-working-copy");
+
+    if (flags.value().burst_window_seconds && subcommand != "cull-burst-propose")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--burst-window-seconds is only valid for catalog cull-burst-propose");
 
     if (!flags.value().proposal_id.empty() && subcommand != "ai-proposal" &&
         subcommand != "ai-proposal-apply" && subcommand != "ai-proposal-reject" &&
@@ -269,8 +278,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (!flags.value().stack_id.empty() && subcommand != "unstack" && subcommand != "stack-pick")
         return make_error(ErrorCode::kInvalidArgument,
                           "--stack-id is only valid for catalog unstack or stack-pick");
-    if (!flags.value().pick_id.empty() && subcommand != "stack")
-        return make_error(ErrorCode::kInvalidArgument, "--pick-id is only valid for catalog stack");
+    if (!flags.value().pick_id.empty() && subcommand != "stack" &&
+        subcommand != "cull-burst-accept")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--pick-id is only valid for catalog stack or cull-burst-accept");
     if (flags.value().stack_expanded && subcommand != "list")
         return make_error(ErrorCode::kInvalidArgument,
                           "--stack-expanded is only valid for catalog list");
@@ -1684,6 +1695,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return run_catalog_xmp_command(service, subcommand, flags.value());
     if (editor_command)
         return run_catalog_editor_command(service, subcommand, flags.value());
+    if (cull_command)
+        return run_catalog_cull_command(service, subcommand, flags.value());
     if (convert_command)
         return run_catalog_convert_command(service, subcommand, flags.value());
     if (subcommand == "keywords")
