@@ -12,6 +12,7 @@ namespace
     return JsonValue{JsonValue::Object{
         {"recovery_generation", JsonValue::number(std::to_string(value.recovery_generation))},
         {"recipe_sha256", value.recipe_sha256},
+        {"metadata_sha256", value.metadata_sha256},
     }};
 }
 
@@ -32,8 +33,10 @@ namespace
         {"conflict_class", std::string(xmp_interchange_conflict_class_name(status.conflict_class))},
         {"has_baseline", status.has_baseline},
         {"has_edits", status.has_edits},
+        {"has_adjacent_metadata", status.has_adjacent_metadata},
         {"catalog", fingerprint_catalog_json(status.catalog)},
         {"crs_parse_ok", status.crs_parse_ok},
+        {"metadata_parse_ok", status.metadata_parse_ok},
     };
     if (status.sidecar_path)
         object.emplace("sidecar_path", *status.sidecar_path);
@@ -45,6 +48,8 @@ namespace
         object.emplace("baseline_sidecar", fingerprint_sidecar_json(*status.baseline_sidecar));
     if (status.crs_parse_reason)
         object.emplace("crs_parse_reason", *status.crs_parse_reason);
+    if (status.metadata_parse_reason)
+        object.emplace("metadata_parse_reason", *status.metadata_parse_reason);
     if (!status.omitted.empty())
         object.emplace("omitted", crs_omissions_json(status.omitted));
     return JsonValue{std::move(object)};
@@ -98,6 +103,9 @@ Result<JsonValue> run_catalog_xmp_command(CatalogService &service,
         object.emplace("preset_name", imported.value().preset_name);
         object.emplace("omitted", crs_omissions_json(imported.value().omitted));
         object.emplace("resolve", std::string(xmp_interchange_resolve_name(resolve)));
+        object.emplace("applied_crs", imported.value().applied_crs);
+        object.emplace("applied_metadata", imported.value().applied_metadata);
+        object.emplace("applied_keywords", imported.value().applied_keywords);
         return JsonValue{std::move(object)};
     }
     if (subcommand == "xmp-export")

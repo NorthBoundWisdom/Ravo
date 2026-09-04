@@ -2,7 +2,7 @@
 
 > **Status:** product execution queue
 >
-> **Updated:** 2026-09-03
+> **Updated:** 2026-09-04
 
 This file contains unfinished product work, dependencies, risks, validation,
 and acceptance gates. Three-platform Release package evidence lives in
@@ -177,8 +177,9 @@ PTP USB remains residual.
 subset (title/description/creator/copyright), ADR-0126 catalog-owned IPTC
 location quartet (country/province_state/city/sublocation), ADR-0128
 camera/lens(focal)/capture-date facets, ADR-0130 LibraryQuery location
-exact filters + location facets, and ADR-0135 Exif LensMake/LensModel
-lens-name facet accepted and implemented (no facet tables; catalog schema
+exact filters + location facets, ADR-0135 Exif LensMake/LensModel
+lens-name facet, and ADR-0138 adjacent XMP keyword/IPTC/location merge under
+the ADR-0120 matrix accepted and implemented (no facet tables; catalog schema
 v14; LibraryQuery document schema v4).
 
 **Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
@@ -231,8 +232,7 @@ and camera/lens/date facets with transactional multi-selection editing.
   chips; not user-writable.
 
 **Remaining unfinished work:**
-- IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126;
-- adjacent XMP/source keyword/IPTC/location merge matrix (PRO-INTERCHANGE).
+- IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126.
 
 **Risks:** two live metadata authorities if interchange lands without a matrix,
 QML-built SQL, and privacy stripping that does not match export for future
@@ -304,8 +304,9 @@ rewrite, and exact preset apply after reopen.
 
 **Status:** P1 / Partial — ADR-0120 (XMP conflict matrix), ADR-0122
 (external-editor derived assets), ADR-0131 (read-only foreign catalog
-conversion contract), and ADR-0136 (derived/external-editor backup packaging)
-accepted. First Ready slices landed for XMP, external-editor, foreign-catalog
+conversion contract), ADR-0136 (derived/external-editor backup packaging),
+and ADR-0138 (adjacent keyword/IPTC/location merge) accepted. First Ready
+slices landed for XMP (CRS + metadata), external-editor, foreign-catalog
 conversion, and verified derived-tree backup/restore.
 
 **Done (XMP slice):** `catalog xmp-status|xmp-import|xmp-export` with CRS
@@ -313,6 +314,13 @@ recipe-field conflict preflight, catalog-owned exchange baseline, fail-closed
 unsupported CRS, and original-byte preservation. Conflict classes
 `missing|identical|catalog-newer|sidecar-newer|both-changed`; explicit
 `--resolve abort|catalog|sidecar`.
+
+**Done (XMP adjacent metadata merge):** ADR-0138. Same matrix fingerprints
+include Core/location/keyword display paths; status reports
+`metadata_parse_ok`; import/export apply or emit `dc:` / `photoshop:` /
+`Iptc4xmpCore:` / `lr:hierarchicalSubject` with fail-closed unsupported
+hierarchical keyword shapes; capture refresh still leaves catalog-owned
+writables untouched; catalog remains sole live authority.
 
 **Done (external-editor first tranche):** ADR-0122. `catalog editor-register|
 editor-show` copies editor output into `{catalog}.ravo/derived/<source-id>/`,
@@ -350,7 +358,6 @@ backups stay readable for catalog+sidecars only.
   vendor runtime in the default package today); Copy-mode conversion into a
   managed destination tree; Studio conversion surface; partial-progress
   resume/report persistence
-- keyword/IPTC/location adjacent merge matrix (ADR-0119 stays catalog-owned; P2)
 - supported source-version matrix beyond CRS PV2012 recipe fields (P2)
 
 **Outcome:** user-initiated interchange without adjacent XMP becoming a second
@@ -363,7 +370,7 @@ RAW mutation, watcher races, and unsupported fields silently dropped.
 the read-only / new-catalog / structured-report / fail-closed gates
 (`CatalogServiceTest.ForeignCatalog*`, `CliTest.CatalogConvertForeign*`); a
 vendor-format reader still needs its packaging/licence evidence before it may
-ship; keyword merge matrix is explicit; derived-tree backup/restore is on
+ship; keyword/IPTC/location merge matrix is on `main` (ADR-0138); derived-tree backup/restore is on
 `main` (ADR-0136); destination URI rewrite for support-rooted assets remains.
 
 ## PRO-PRESENT — Tether, print, map, slideshow, and publishing

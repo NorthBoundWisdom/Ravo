@@ -69,6 +69,8 @@ struct XmpInterchangeCatalogFingerprint
 {
     std::int64_t recovery_generation = 0;
     std::string recipe_sha256;
+    // ADR-0138: Core + location + sorted keyword display paths.
+    std::string metadata_sha256;
 };
 
 struct XmpInterchangeSidecarFingerprint
@@ -86,6 +88,8 @@ struct XmpInterchangeStatus
     XmpInterchangeConflictClass conflict_class = XmpInterchangeConflictClass::kMissing;
     bool has_baseline = false;
     bool has_edits = false;
+    // True when catalog owns adjacent keyword/Core/location content (ADR-0138).
+    bool has_adjacent_metadata = false;
     XmpInterchangeCatalogFingerprint catalog;
     std::optional<XmpInterchangeSidecarFingerprint> sidecar;
     std::optional<XmpInterchangeCatalogFingerprint> baseline_catalog;
@@ -93,6 +97,8 @@ struct XmpInterchangeStatus
     bool crs_parse_ok = false;
     std::optional<std::string> crs_parse_reason;
     std::vector<CrsOmission> omitted;
+    bool metadata_parse_ok = false;
+    std::optional<std::string> metadata_parse_reason;
 };
 
 struct XmpInterchangeImportResult
@@ -101,6 +107,9 @@ struct XmpInterchangeImportResult
     XmpInterchangeStatus status;
     std::string preset_name;
     std::vector<CrsOmission> omitted;
+    bool applied_crs = false;
+    bool applied_metadata = false;
+    bool applied_keywords = false;
 };
 
 struct XmpInterchangeExportResult

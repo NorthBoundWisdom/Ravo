@@ -8,6 +8,7 @@ target_sources(ravo_adapters
     src/filesystem_preview_cache.cpp
     src/jpeg_encoder.cpp
     src/crs_xmp.cpp
+    src/xmp_adjacent_metadata.cpp
     src/legacy_xmp.cpp
     src/legacy_xmp_balance.cpp
     src/legacy_xmp_color.cpp

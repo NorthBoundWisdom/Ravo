@@ -830,6 +830,17 @@ query predicates, so a scope the library refuses to list is refused here with
 the same reason (for example `invalid_library_capture_date_facet`), and the
 bounded value limit plus `truncated` reporting stay unchanged.
 
+`ravo catalog xmp-status|xmp-import|xmp-export` is the explicit adjacent-XMP
+interchange path (ADR-0120/0138). Conflict classes are
+`missing|identical|catalog-newer|sidecar-newer|both-changed`; import/export
+default to `--resolve abort` and require `catalog` or `sidecar` when the sides
+disagree. Catalog fingerprints cover the CRS recipe **and** catalog-owned IPTC
+Core, location quartet, and hierarchical keyword display paths. Sidecars may
+carry CRS PV2012 looks plus `dc:` / `photoshop:` / `Iptc4xmpCore:` /
+`lr:hierarchicalSubject` packets; unsupported hierarchical keyword shapes fail
+closed. Original media bytes are never rewritten. Capture refresh still leaves
+catalog-owned Core/location/keywords untouched.
+
 `ravo catalog convert-foreign` is the read-only foreign-catalog conversion
 entry point (ADR-0131). It reads a `ravo.foreign-catalog.fixture/v1` document,
 never opens or migrates a vendor catalog in place, and writes only into a

@@ -14,6 +14,7 @@
 
 #include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/text_file.h"
+#include "ravo/adapters/xmp_adjacent_metadata.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/json.h"
 #include "ravo/recipe/develop.h"
@@ -103,6 +104,11 @@ struct ExchangeBaseline
     std::string sidecar_path;
 };
 
+[[nodiscard]] std::string empty_metadata_fingerprint()
+{
+    return xmp_adjacent_metadata_fingerprint_sha256(WritableMetadata{}, {});
+}
+
 [[nodiscard]] Result<std::optional<ExchangeBaseline>>
 load_exchange_baseline(const std::string_view database_path, const std::string_view asset_id)
 {
@@ -132,11 +138,13 @@ load_exchange_baseline(const std::string_view database_path, const std::string_v
                           {{"path", path}, {"reason", "invalid_xmp_exchange_baseline"}});
     }
     const auto *version = parsed.value().find("version");
-    if (version == nullptr || version->number_if() == nullptr || version->number_if()->text != "1")
+    if (version == nullptr || version->number_if() == nullptr ||
+        (version->number_if()->text != "1" && version->number_if()->text != "2"))
     {
         return make_error(ErrorCode::kValidation, "XMP exchange baseline version is unsupported",
                           {{"path", path}, {"reason", "unsupported_xmp_exchange_baseline"}});
     }
+    const bool version2 = version->number_if()->text == "2";
     ExchangeBaseline baseline;
     const auto *generation = parsed.value().find("catalog_generation");
     const auto *recipe_sha = parsed.value().find("recipe_sha256");
@@ -156,6 +164,21 @@ load_exchange_baseline(const std::string_view database_path, const std::string_v
     }
     baseline.catalog.recovery_generation = std::stoll(generation->number_if()->text);
     baseline.catalog.recipe_sha256 = *recipe_sha->string_if();
+    if (version2)
+    {
+        const auto *metadata_sha = parsed.value().find("metadata_sha256");
+        if (metadata_sha == nullptr || metadata_sha->string_if() == nullptr)
+        {
+            return make_error(ErrorCode::kValidation, "XMP exchange baseline is incomplete",
+                              {{"path", path}, {"reason", "invalid_xmp_exchange_baseline"}});
+        }
+        baseline.catalog.metadata_sha256 = *metadata_sha->string_if();
+    }
+    else
+    {
+        // ADR-0138: v1 baselines predate metadata fingerprints.
+        baseline.catalog.metadata_sha256 = empty_metadata_fingerprint();
+    }
     baseline.sidecar.sha256 = *sidecar_sha->string_if();
     baseline.sidecar.size_bytes =
         static_cast<std::uint64_t>(std::stoull(sidecar_size->number_if()->text));
@@ -179,11 +202,12 @@ load_exchange_baseline(const std::string_view database_path, const std::string_v
                            {"detail", error.message()}});
     }
     JsonValue::Object object{
-        {"version", JsonValue::number("1")},
+        {"version", JsonValue::number("2")},
         {"asset_id", std::string(asset_id)},
         {"catalog_generation",
          JsonValue::number(std::to_string(baseline.catalog.recovery_generation))},
         {"recipe_sha256", baseline.catalog.recipe_sha256},
+        {"metadata_sha256", baseline.catalog.metadata_sha256},
         {"sidecar_path", baseline.sidecar_path},
         {"sidecar_sha256", baseline.sidecar.sha256},
         {"sidecar_size_bytes", JsonValue::number(std::to_string(baseline.sidecar.size_bytes))},
@@ -199,7 +223,8 @@ load_exchange_baseline(const std::string_view database_path, const std::string_v
                                       const XmpInterchangeCatalogFingerprint &right) noexcept
 {
     return left.recovery_generation == right.recovery_generation &&
-           left.recipe_sha256 == right.recipe_sha256;
+           left.recipe_sha256 == right.recipe_sha256 &&
+           left.metadata_sha256 == right.metadata_sha256;
 }
 
 [[nodiscard]] bool fingerprints_equal(const XmpInterchangeSidecarFingerprint &left,
@@ -210,15 +235,15 @@ load_exchange_baseline(const std::string_view database_path, const std::string_v
 }
 
 [[nodiscard]] XmpInterchangeConflictClass
-classify_conflict(const bool has_sidecar, const bool has_baseline, const bool has_edits,
+classify_conflict(const bool has_sidecar, const bool has_baseline, const bool catalog_has_content,
                   const bool catalog_changed, const bool sidecar_changed) noexcept
 {
     if (!has_sidecar)
         return XmpInterchangeConflictClass::kMissing;
     if (!has_baseline)
     {
-        return has_edits ? XmpInterchangeConflictClass::kBothChanged :
-                           XmpInterchangeConflictClass::kSidecarNewer;
+        return catalog_has_content ? XmpInterchangeConflictClass::kBothChanged :
+                                     XmpInterchangeConflictClass::kSidecarNewer;
     }
     if (!catalog_changed && !sidecar_changed)
         return XmpInterchangeConflictClass::kIdentical;
@@ -227,6 +252,53 @@ classify_conflict(const bool has_sidecar, const bool has_baseline, const bool ha
     if (!catalog_changed && sidecar_changed)
         return XmpInterchangeConflictClass::kSidecarNewer;
     return XmpInterchangeConflictClass::kBothChanged;
+}
+
+[[nodiscard]] WritableMetadataPatch
+writable_patch_from_present_fields(const WritableMetadata &sidecar)
+{
+    WritableMetadataPatch patch;
+    if (sidecar.title)
+    {
+        patch.update_title = true;
+        patch.title = sidecar.title;
+    }
+    if (sidecar.description)
+    {
+        patch.update_description = true;
+        patch.description = sidecar.description;
+    }
+    if (sidecar.creator)
+    {
+        patch.update_creator = true;
+        patch.creator = sidecar.creator;
+    }
+    if (sidecar.copyright)
+    {
+        patch.update_copyright = true;
+        patch.copyright = sidecar.copyright;
+    }
+    if (sidecar.country)
+    {
+        patch.update_country = true;
+        patch.country = sidecar.country;
+    }
+    if (sidecar.province_state)
+    {
+        patch.update_province_state = true;
+        patch.province_state = sidecar.province_state;
+    }
+    if (sidecar.city)
+    {
+        patch.update_city = true;
+        patch.city = sidecar.city;
+    }
+    if (sidecar.sublocation)
+    {
+        patch.update_sublocation = true;
+        patch.sublocation = sidecar.sublocation;
+    }
+    return patch;
 }
 
 } // namespace
@@ -278,8 +350,12 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
     status.asset_id = asset.value()->id;
     status.original_path = location.value().path;
     status.has_edits = has_edits.value();
+    status.has_adjacent_metadata =
+        xmp_adjacent_metadata_catalog_has_content(asset.value()->metadata, asset.value()->tags);
     status.catalog.recovery_generation = recovery.value().generation;
     status.catalog.recipe_sha256 = sha256_utf8_hex(recipe_text);
+    status.catalog.metadata_sha256 =
+        xmp_adjacent_metadata_fingerprint_sha256(asset.value()->metadata, asset.value()->tags);
 
     std::optional<std::string> resolved_sidecar;
     if (sidecar_path && !sidecar_path->empty())
@@ -307,10 +383,20 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
         auto text = read_utf8_text_file(*resolved_sidecar);
         if (!text)
             return text.error();
+
+        const auto metadata = parse_xmp_adjacent_metadata(text.value());
+        status.metadata_parse_ok = metadata.parse_ok;
+        status.metadata_parse_reason = metadata.parse_reason;
+
         if (!is_crs_xmp_document(text.value()))
         {
             status.crs_parse_ok = false;
-            status.crs_parse_reason = "unsupported_xmp_dialect";
+            // Metadata-only sidecars are allowed (ADR-0138); CRS absence is not
+            // an error by itself.
+            if (metadata.metadata.has_any_writable_element || metadata.metadata.keyword_paths)
+                status.crs_parse_reason = "missing_crs_namespace";
+            else
+                status.crs_parse_reason = "unsupported_xmp_dialect";
         }
         else
         {
@@ -331,6 +417,10 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
             }
         }
     }
+    else
+    {
+        status.metadata_parse_ok = true;
+    }
 
     auto baseline = load_exchange_baseline(snapshot.value().database_path, asset_id);
     if (!baseline)
@@ -348,8 +438,10 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
         else
             sidecar_changed = true;
     }
-    status.conflict_class = classify_conflict(status.sidecar_path.has_value(), status.has_baseline,
-                                              status.has_edits, catalog_changed, sidecar_changed);
+    const bool catalog_has_content = status.has_edits || status.has_adjacent_metadata;
+    status.conflict_class =
+        classify_conflict(status.sidecar_path.has_value(), status.has_baseline, catalog_has_content,
+                          catalog_changed, sidecar_changed);
     return status;
 }
 
@@ -369,12 +461,50 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
                            {"conflict_class", std::string(xmp_interchange_conflict_class_name(
                                                   status.value().conflict_class))}});
     }
-    if (!status.value().crs_parse_ok)
+    if (!status.value().metadata_parse_ok)
     {
+        return make_error(ErrorCode::kUnsupported, "XMP sidecar adjacent metadata is unsupported",
+                          {{"asset_id", std::string(asset_id)},
+                           {"path", *status.value().sidecar_path},
+                           {"reason", status.value().metadata_parse_reason.value_or(
+                                          "unsupported_hierarchical_keyword_shape")},
+                           {"conflict_class", std::string(xmp_interchange_conflict_class_name(
+                                                  status.value().conflict_class))}});
+    }
+
+    auto text = read_utf8_text_file(*status.value().sidecar_path);
+    if (!text)
+        return text.error();
+    const auto adjacent = parse_xmp_adjacent_metadata(text.value());
+    if (!adjacent.parse_ok)
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "XMP sidecar adjacent metadata is unsupported",
+            {{"asset_id", std::string(asset_id)},
+             {"path", *status.value().sidecar_path},
+             {"reason", adjacent.parse_reason.value_or("unsupported_hierarchical_keyword_shape")}});
+    }
+
+    const bool has_crs_namespace = is_crs_xmp_document(text.value());
+    if (has_crs_namespace && !status.value().crs_parse_ok)
+    {
+        // CRS present but unsupported: never partially apply metadata (ADR-0120).
         return make_error(ErrorCode::kUnsupported, "XMP sidecar is not a supported CRS document",
                           {{"asset_id", std::string(asset_id)},
                            {"path", *status.value().sidecar_path},
                            {"reason", status.value().crs_parse_reason.value_or("unsupported_crs")},
+                           {"conflict_class", std::string(xmp_interchange_conflict_class_name(
+                                                  status.value().conflict_class))}});
+    }
+
+    const bool has_metadata_payload =
+        adjacent.metadata.has_any_writable_element || adjacent.metadata.keyword_paths.has_value();
+    if (!status.value().crs_parse_ok && !has_metadata_payload)
+    {
+        return make_error(ErrorCode::kUnsupported, "XMP sidecar has no supported CRS or metadata",
+                          {{"asset_id", std::string(asset_id)},
+                           {"path", *status.value().sidecar_path},
+                           {"reason", status.value().crs_parse_reason.value_or("unsupported_xmp")},
                            {"conflict_class", std::string(xmp_interchange_conflict_class_name(
                                                   status.value().conflict_class))}});
     }
@@ -409,28 +539,58 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
         return result;
     }
 
-    auto text = read_utf8_text_file(*status.value().sidecar_path);
-    if (!text)
-        return text.error();
     auto asset = repository_->find_asset_by_id(asset_id);
     if (!asset || !asset.value())
         return make_error(ErrorCode::kNotFound, "Catalog asset was not found",
                           {{"asset_id", std::string(asset_id)}});
-    auto loaded = load_recipe(asset_id);
-    if (!loaded)
-        return loaded.error();
-    auto params = develop_from_recipe(loaded.value());
-    if (!params)
-        return params.error();
-    AssetDescriptor descriptor{asset.value()->id, asset.value()->normalized_uri,
-                               asset.value()->content_fingerprint};
-    auto imported = import_crs_xmp({text.value(), descriptor});
-    if (!imported)
-        return imported.error();
-    apply_crs_look(params.value(), imported.value().look, imported.value().mask);
-    auto saved = save_develop(asset_id, params.value());
-    if (!saved)
-        return saved.error();
+
+    XmpInterchangeImportResult result;
+    result.omitted = status.value().omitted;
+    AssetRecord latest = *asset.value();
+
+    if (status.value().crs_parse_ok)
+    {
+        auto loaded = load_recipe(asset_id);
+        if (!loaded)
+            return loaded.error();
+        auto params = develop_from_recipe(loaded.value());
+        if (!params)
+            return params.error();
+        AssetDescriptor descriptor{asset.value()->id, asset.value()->normalized_uri,
+                                   asset.value()->content_fingerprint};
+        auto imported = import_crs_xmp({text.value(), descriptor});
+        if (!imported)
+            return imported.error();
+        apply_crs_look(params.value(), imported.value().look, imported.value().mask);
+        auto saved = save_develop(asset_id, params.value());
+        if (!saved)
+            return saved.error();
+        latest = std::move(saved).value();
+        result.preset_name = imported.value().name;
+        result.omitted = imported.value().omitted;
+        result.applied_crs = true;
+    }
+
+    const auto patch = writable_patch_from_present_fields(adjacent.metadata.writable);
+    if (!patch.empty())
+    {
+        auto mutated =
+            set_writable_metadata_selection({std::string(asset_id)}, patch, std::nullopt);
+        if (!mutated)
+            return mutated.error();
+        if (!mutated.value().assets.empty())
+            latest = mutated.value().assets.front();
+        result.applied_metadata = true;
+    }
+
+    if (adjacent.metadata.keyword_paths)
+    {
+        auto tagged = set_tags(asset_id, *adjacent.metadata.keyword_paths);
+        if (!tagged)
+            return tagged.error();
+        latest = std::move(tagged).value();
+        result.applied_keywords = true;
+    }
 
     auto snapshot = repository_->snapshot();
     if (!snapshot)
@@ -454,11 +614,8 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
     if (!refreshed)
         return refreshed.error();
 
-    XmpInterchangeImportResult result;
-    result.asset = std::move(saved).value();
+    result.asset = std::move(latest);
     result.status = std::move(refreshed).value();
-    result.preset_name = imported.value().name;
-    result.omitted = imported.value().omitted;
     return result;
 }
 
@@ -509,6 +666,8 @@ CatalogService::xmp_interchange_export(const std::string_view asset_id,
             status.value().crs_parse_ok = false;
             status.value().crs_parse_reason.reset();
             status.value().omitted.clear();
+            status.value().metadata_parse_ok = true;
+            status.value().metadata_parse_reason.reset();
         }
     }
 
@@ -531,13 +690,19 @@ CatalogService::xmp_interchange_export(const std::string_view asset_id,
              {"reason", "xmp_export_conflict"}});
     }
 
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset || !asset.value())
+        return make_error(ErrorCode::kNotFound, "Catalog asset was not found",
+                          {{"asset_id", std::string(asset_id)}});
+
     auto loaded = load_recipe(asset_id);
     if (!loaded)
         return loaded.error();
     auto params = develop_from_recipe(loaded.value());
     if (!params)
         return params.error();
-    auto exported = export_crs_xmp({params.value(), "Ravo"});
+    auto exported = export_xmp_adjacent_interchange(
+        {params.value(), "Ravo", asset.value()->metadata, asset.value()->tags});
     if (!exported)
         return exported.error();
 
@@ -578,7 +743,7 @@ CatalogService::xmp_interchange_export(const std::string_view asset_id,
     if (!refreshed)
         return refreshed.error();
 
-    auto asset = repository_->find_asset_by_id(asset_id);
+    asset = repository_->find_asset_by_id(asset_id);
     if (!asset || !asset.value())
         return make_error(ErrorCode::kNotFound, "Catalog asset was not found",
                           {{"asset_id", std::string(asset_id)}});

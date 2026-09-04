@@ -145,3 +145,4 @@ supersession relationship when direction changes.
 | [0135](0135-exif-lens-name-library-facet.md) | Accepted | Exif LensMake/LensModel capture columns + lens-name facet; keep focal-length proxy; schema v14 |
 | [0136](0136-derived-tree-backup-restore.md) | Accepted | Verified backup/restore packages `{catalog}.ravo/derived/` + `external-editor/` (format v2); originals still excluded |
 | [0137](0137-shoot-consistency-batch-proposals.md) | Accepted | AI-03 shoot-consistency: one proposal per destination; stub copies WB/exposure/tone/colour from reference |
+| [0138](0138-xmp-adjacent-keyword-iptc-location-merge.md) | Accepted | Adjacent XMP keyword/IPTC Core/location merge under ADR-0120 conflict matrix |
