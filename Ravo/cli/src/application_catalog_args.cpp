@@ -15,6 +15,7 @@
 #include <ostream>
 #include <set>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <variant>
@@ -517,36 +518,31 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "--roi was specified more than once");
             }
+            const auto owned = std::string(value);
             PreviewNormRect roi;
-            const char *begin = value.data();
-            const char *const end = value.data() + value.size();
             double *fields[4] = {&roi.x, &roi.y, &roi.width, &roi.height};
+            std::size_t begin = 0;
             for (std::size_t field = 0; field < 4U; ++field)
             {
-                auto parsed = std::from_chars(begin, end, *fields[field]);
-                if (parsed.ec != std::errc{} || parsed.ptr == begin)
+                const auto comma = owned.find(',', begin);
+                const bool last = field + 1U == 4U;
+                if (last ? comma != std::string::npos : comma == std::string::npos)
                 {
                     return make_error(
                         ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
-                        {{"value", std::string(value)}, {"reason", "invalid_preview_roi"}});
+                        {{"value", owned}, {"reason", "invalid_preview_roi"}});
                 }
-                begin = parsed.ptr;
-                if (field + 1U < 4U)
+                const auto end = last ? owned.size() : comma;
+                auto parsed = parse_double_flag(std::string_view(owned).substr(begin, end - begin),
+                                                "--roi");
+                if (!parsed)
                 {
-                    if (begin == end || *begin != ',')
-                    {
-                        return make_error(
-                            ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
-                            {{"value", std::string(value)}, {"reason", "invalid_preview_roi"}});
-                    }
-                    ++begin;
+                    return make_error(
+                        ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
+                        {{"value", owned}, {"reason", "invalid_preview_roi"}});
                 }
-            }
-            if (begin != end)
-            {
-                return make_error(
-                    ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
-                    {{"value", std::string(value)}, {"reason", "invalid_preview_roi"}});
+                *fields[field] = parsed.value();
+                begin = end + 1U;
             }
             result.roi = roi;
         }

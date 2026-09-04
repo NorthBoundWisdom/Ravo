@@ -45,6 +45,14 @@ namespace
     return input;
 }
 
+[[nodiscard]] Result<RenderedImage> render_interactive(const EngineFacade &engine,
+                                                       const LinearWorkingBuffer &working,
+                                                       const Recipe &recipe)
+{
+    InteractivePreviewRenderCache cache;
+    return engine.render_interactive_linear_working(working, recipe, cache, CancellationToken{});
+}
+
 TEST(EngineFacadeTest, GpuAdapterDoesNotFailCpuCreate)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -256,7 +264,11 @@ TEST(EngineFacadeTest, GpuPreviewRenderReportsBackendForAdmissibleRecipe)
     recipe.operations.push_back(default_sigmoid_operation());
     recipe.operations.push_back({"ravo.color.output", 1, "output", true,
                                  output_color_to_parameters(OutputColorParams{}), std::nullopt});
-    const auto rendered = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    const auto persist = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    ASSERT_EQ(persist.value().rgb.size(), 3U);
+    EXPECT_TRUE(persist.value().gpu_backend.empty());
+    const auto rendered = render_interactive(engine.value(), input, recipe);
     ASSERT_TRUE(rendered) << rendered.error().message;
     ASSERT_EQ(rendered.value().rgb.size(), 3U);
     if (gpu_available(engine.value()))
@@ -290,7 +302,10 @@ TEST(EngineFacadeTest, GpuPreviewLeavesContrastOnlyRecipesOnCpu)
                                  std::nullopt});
     recipe.operations.push_back({"ravo.color.output", 1, "output", true,
                                  output_color_to_parameters(OutputColorParams{}), std::nullopt});
-    const auto rendered = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    const auto persist = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    EXPECT_TRUE(persist.value().gpu_backend.empty());
+    const auto rendered = render_interactive(engine.value(), input, recipe);
     ASSERT_TRUE(rendered) << rendered.error().message;
     EXPECT_TRUE(rendered.value().gpu_backend.empty());
 }
@@ -323,7 +338,10 @@ TEST(EngineFacadeTest, GpuPreviewAppliesSigmoidOnGpuAfterCpuOps)
     {
         EXPECT_NEAR(mixed.value().rgb[index], cpu.value().rgb[index], 2.0e-3) << index;
     }
-    const auto rendered = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    const auto persist = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    EXPECT_TRUE(persist.value().gpu_backend.empty());
+    const auto rendered = render_interactive(engine.value(), input, recipe);
     ASSERT_TRUE(rendered) << rendered.error().message;
     if (gpu_available(engine.value()))
     {
@@ -357,8 +375,11 @@ TEST(EngineFacadeTest, GpuPreviewDefaultRawBaselineReportsBackend)
     {
         EXPECT_NEAR(mixed.value().rgb[index], cpu.value().rgb[index], 2.0e-3) << index;
     }
-    const auto rendered =
+    const auto persist =
         engine.value().render_linear_working(input, recipe.value(), CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    EXPECT_TRUE(persist.value().gpu_backend.empty());
+    const auto rendered = render_interactive(engine.value(), input, recipe.value());
     ASSERT_TRUE(rendered) << rendered.error().message;
     if (gpu_available(engine.value()))
     {

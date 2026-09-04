@@ -229,8 +229,8 @@ process-wide adapter reuses grow-only SSBOs, keeps the current CFA-window or
 interactive-prefix RGB resident as a GPU source so RGB sliders copy+apply
 without a CPU upload, and on macOS packs display sRGB into an IOSurface that
 Qt Quick samples. Catalog copies only the generation and native-surface token;
-it does not hold device objects. CLI PNG and gold tests still download CPU
-pixels. Masked ops, other RGB kernels, and export stay on CPU. Failures are
+it does not hold device objects. Persist preview, CLI PNG, and gold tests still
+download CPU pixels. Masked ops, other RGB kernels, and export stay on CPU. Failures are
 fail-closed. Recipe, Catalog, CLI, and QML do not hold device objects.
 `catalog probe --json` reports `gpu_backend`.
 For an ordinary commit whose parameters are not

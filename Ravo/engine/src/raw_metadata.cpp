@@ -886,14 +886,16 @@ void extract_ascii(const Exiv2::ExifData &exif, AsciiTag &tag, const char *key,
     {
         value.copy(reinterpret_cast<Exiv2::byte *>(raw.data()), Exiv2::littleEndian);
     }
-    if (!raw.empty() && raw.back() == '\0')
+    // Exif ASCII is NUL-terminated and writers pad the field with extra NULs.
+    while (!raw.empty() && raw.back() == '\0')
     {
         raw.pop_back();
     }
-    if (raw.find('\0') != std::string::npos)
+    const auto interior = raw.find('\0');
+    if (interior != std::string::npos)
     {
         tag.status = AsciiTagStatus::kContainsNul;
-        tag.value = raw.substr(0, raw.find('\0'));
+        tag.value = raw.substr(0, interior);
         return;
     }
     tag.status = AsciiTagStatus::kPresent;

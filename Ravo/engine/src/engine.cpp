@@ -918,7 +918,8 @@ render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recip
                                  AlphaPlane *overlay_alpha, std::string *gpu_backend = nullptr,
                                  const bool need_cpu_pixels = true,
                                  const std::uint32_t display_slot = 0,
-                                 const bool prefer_retained_source = false)
+                                 const bool prefer_retained_source = false,
+                                 const bool use_gpu = false)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -1007,11 +1008,16 @@ render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recip
             return transformed.error();
         pending_overlay = std::move(transformed).value();
     }
-    ensure_gpu_adapter();
+    const GpuAdapter *gpu = nullptr;
+    if (use_gpu)
+    {
+        ensure_gpu_adapter();
+        gpu = g_gpu_adapter.get();
+    }
     Result<WorkingImage> adjusted =
         overlay_alpha == nullptr ?
-            apply_preview_rgb(std::move(image), remaining_recipe, g_gpu_adapter.get(), gpu_backend,
-                              cancellation, need_cpu_pixels, display_slot, prefer_retained_source) :
+            apply_preview_rgb(std::move(image), remaining_recipe, gpu, gpu_backend, cancellation,
+                              need_cpu_pixels, display_slot, prefer_retained_source) :
             apply_recipe_ops(std::move(image), remaining_recipe, cancellation);
     if (!adjusted)
     {
@@ -1254,7 +1260,7 @@ render_validated_preview(const LinearWorkingBuffer &working, const Recipe &recip
                          const bool need_cpu_pixels = true,
                          const EngineFacade::GpuDisplayKind display_kind =
                              EngineFacade::GpuDisplayKind::kPreview,
-                         const bool prefer_retained_source = false)
+                         const bool prefer_retained_source = false, const bool use_gpu = false)
 {
     AlphaPlane overlay;
     std::string gpu_backend;
@@ -1263,7 +1269,7 @@ render_validated_preview(const LinearWorkingBuffer &working, const Recipe &recip
     auto output = render_recipe_to_profiled_output(
         working, recipe, cancellation, overlay_mask_id, overlay_mask_id ? &overlay : nullptr,
         overlay_mask_id ? nullptr : &gpu_backend, force_cpu_pixels, display_slot,
-        prefer_retained_source && !overlay_mask_id.has_value());
+        prefer_retained_source && !overlay_mask_id.has_value(), use_gpu);
     if (!output)
     {
         return output.error();
@@ -1418,7 +1424,8 @@ try
             return retained.error();
         }
         return render_validated_preview(working, recipe, cancellation, overlay_mask_id,
-                                        need_cpu_pixels, display_kind, g_gpu_adapter != nullptr);
+                                        need_cpu_pixels, display_kind, g_gpu_adapter != nullptr,
+                                        true);
     }
     auto fingerprint = interactive_prefix_fingerprint(recipe, prefix_count);
     if (!fingerprint)
@@ -1459,7 +1466,7 @@ try
     }
     return render_validated_preview(cache.impl_->prefix->buffer, remaining, cancellation,
                                     overlay_mask_id, need_cpu_pixels, display_kind,
-                                    g_gpu_adapter != nullptr);
+                                    g_gpu_adapter != nullptr, true);
 }
 catch (const std::bad_alloc &)
 {

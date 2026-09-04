@@ -484,7 +484,9 @@ TEST_F(CatalogServiceTest, XTransImportsAndPublishesAnEngineRenderedPreview)
     auto imported = service->import_one(path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     EXPECT_EQ(file_sha256(path), hash);
-    ASSERT_TRUE(imported.value().asset);
+    ASSERT_TRUE(imported.value().asset)
+        << (imported.value().error ? imported.value().error->message : "no item error")
+        << " status=" << static_cast<int>(imported.value().status);
     EXPECT_EQ(imported.value().status, ImportItemStatus::kImported);
     EXPECT_EQ(imported.value().asset->media_type, kMediaTypeRaw);
     ASSERT_TRUE(imported.value().preview_cache_path);

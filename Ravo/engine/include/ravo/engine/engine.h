@@ -587,8 +587,9 @@ public:
                          std::uint32_t height, std::uint32_t original_width,
                          std::uint32_t original_height,
                          const CancellationToken &cancellation) const;
-    // Applies RGB recipe ops onto a copy of `working`. Callers that already baked
-    // `ravo.raw.highlights` into the buffer must disable that operation before calling.
+    // CPU persist/CLI gold. Interactive GPU lives in render_interactive_linear_working.
+    // Callers that already baked `ravo.raw.highlights` into the buffer must disable
+    // that operation before calling.
     [[nodiscard]] Result<RenderedImage>
     render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
                           const CancellationToken &cancellation,

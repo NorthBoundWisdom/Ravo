@@ -673,12 +673,6 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     }
     const bool interactive = !request.persist_preview_record || request.overlay_mask_id.has_value();
     std::string cache_digest = interactive ? "interactive" : edit_digest;
-    if (!interactive && engine_->gpu_backend() != "unavailable")
-    {
-        cache_digest += "_gpu-";
-        cache_digest += engine_->gpu_backend();
-        cache_digest += "-v1";
-    }
     const auto cache_key =
         make_preview_cache_key(asset.id, width, height, fingerprint, cache_digest);
 
@@ -1022,7 +1016,7 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
     std::uint32_t build_width = width;
     std::uint32_t build_height = height;
     std::uint32_t build_edge = max_edge;
-    if (lane == PreviewLane::kForegroundDevelop && max_edge <= kInteractivePreviewMaxEdge)
+    if (lane == PreviewLane::kForegroundDevelop && max_edge == kInteractivePreviewMaxEdge)
     {
         std::uint32_t settled_width = 0U;
         std::uint32_t settled_height = 0U;

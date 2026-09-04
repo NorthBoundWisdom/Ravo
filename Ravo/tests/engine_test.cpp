@@ -893,6 +893,13 @@ TEST(EngineFacadeTest, RejectsMalformedPresentExifFieldsWithoutSilentOmission)
     profile.datetime[10] = '\0';
     expect_reason("embedded-nul.tif", profile, "contains_nul");
     profile = {};
+    profile.lens_make = std::string("Canon");
+    profile.lens_make->append(2, '\0');
+    auto padded = read_bytes("padded-ascii.tif", test_support::make_capture_exif_tiff(profile));
+    ASSERT_TRUE(padded) << padded.error().message;
+    ASSERT_TRUE(padded.value().lens_make);
+    EXPECT_EQ(*padded.value().lens_make, "Canon");
+    profile = {};
     profile.subsecond = "1234567890";
     expect_reason("oversized-subsecond.tif", profile, "invalid_capture_tag_count");
     profile = {};
