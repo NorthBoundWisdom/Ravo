@@ -190,6 +190,22 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.user_initiated = true;
             continue;
         }
+        if (option == "--auto-stack")
+        {
+            if (result.editor_auto_stack)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--auto-stack can only be specified once");
+            result.editor_auto_stack = true;
+            continue;
+        }
+        if (option == "--invoke-os-open")
+        {
+            if (result.editor_invoke_os_open)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--invoke-os-open can only be specified once");
+            result.editor_invoke_os_open = true;
+            continue;
+        }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {
             return make_error(ErrorCode::kInvalidArgument, "Catalog option requires a value",

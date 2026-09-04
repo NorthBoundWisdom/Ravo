@@ -43,6 +43,26 @@ namespace
     return provenance_root(database_path) + "/" + std::string(derived_asset_id) + ".json";
 }
 
+[[nodiscard]] std::string open_intent_root(const std::string_view database_path)
+{
+    return provenance_root(database_path) + "/open-intents";
+}
+
+[[nodiscard]] std::string open_intent_path(const std::string_view database_path,
+                                           const std::string_view intent_id)
+{
+    return open_intent_root(database_path) + "/" + std::string(intent_id) + ".json";
+}
+
+[[nodiscard]] bool path_under_derived_store(const std::string_view database_path,
+                                            const std::string_view absolute_path) noexcept
+{
+    const std::string prefix = std::string(database_path) + ".ravo/derived/";
+    if (absolute_path.size() < prefix.size())
+        return false;
+    return absolute_path.compare(0, prefix.size(), prefix) == 0;
+}
+
 [[nodiscard]] bool safe_path_component(const std::string_view value) noexcept
 {
     if (value.empty() || value.size() > 128U)
@@ -312,6 +332,34 @@ load_provenance(const std::string_view database_path, const std::string_view der
     return provenance;
 }
 
+[[nodiscard]] Result<void> write_open_intent(const std::string_view database_path,
+                                             const ExternalEditorOpenIntent &intent)
+{
+    auto created = ensure_directory(open_intent_root(database_path),
+                                    "external_editor_open_intent_create_failed");
+    if (!created)
+        return created.error();
+
+    JsonValue::Object object{
+        {"schema", intent.schema},
+        {"schema_version", JsonValue::number(std::to_string(intent.schema_version))},
+        {"intent_id", intent.intent_id},
+        {"asset_id", intent.asset_id},
+        {"source_asset_id", intent.source_asset_id},
+        {"open_path", intent.open_path},
+        {"open_uri", intent.open_uri},
+        {"open_kind", std::string(external_editor_open_kind_name(intent.open_kind))},
+        {"recorded_unix_ms", JsonValue::number(std::to_string(intent.recorded_unix_ms))},
+        {"observed_catalog_revision",
+         JsonValue::number(std::to_string(intent.observed_catalog_revision))},
+    };
+    if (intent.editor_id)
+        object.emplace("editor_id", *intent.editor_id);
+
+    const auto path = open_intent_path(database_path, intent.intent_id);
+    return write_utf8_text_file_atomically(path, serialize_json(JsonValue{std::move(object)}));
+}
+
 } // namespace
 
 Result<ExternalEditorRegisterResult>
@@ -551,6 +599,55 @@ CatalogService::register_external_editor_output(const ExternalEditorRegisterRequ
     result.derived_asset = std::move(*imported.value().asset);
     result.provenance = std::move(provenance);
     result.source_original_unchanged = true;
+
+    if (request.auto_stack)
+    {
+        // Re-read source for current stack membership after import revision bump.
+        auto source_after = repository_->find_asset_by_id(request.source_asset_id);
+        if (!source_after)
+            return source_after.error();
+        if (!source_after.value())
+        {
+            return make_error(ErrorCode::kNotFound, "Catalog asset was not found",
+                              {{"asset_id", request.source_asset_id},
+                               {"derived_asset_id", result.derived_asset.id},
+                               {"reason", "editor_auto_stack_conflict"}});
+        }
+        if (source_after.value()->stack_id || result.derived_asset.stack_id)
+        {
+            return make_error(
+                ErrorCode::kConflict,
+                "External-editor auto-stack conflict: an asset already belongs to a stack",
+                {{"asset_id", request.source_asset_id},
+                 {"derived_asset_id", result.derived_asset.id},
+                 {"reason", "editor_auto_stack_conflict"},
+                 {"detail", "asset_already_stacked"}});
+        }
+
+        std::vector<std::string> members{request.source_asset_id, result.derived_asset.id};
+        auto stacked =
+            stack_assets(members, result.derived_asset.id, /*expected_revision=*/std::nullopt);
+        if (!stacked)
+        {
+            const auto &stack_error = stacked.error();
+            const auto detail = stack_error.context.count("reason") != 0 ?
+                                    stack_error.context.at("reason") :
+                                    stack_error.message;
+            return make_error(ErrorCode::kConflict,
+                              "External-editor auto-stack failed after derived publication",
+                              {{"asset_id", request.source_asset_id},
+                               {"derived_asset_id", result.derived_asset.id},
+                               {"reason", "editor_auto_stack_conflict"},
+                               {"detail", detail}});
+        }
+        result.auto_stacked = true;
+        result.stack = std::move(stacked).value();
+        // Refresh derived asset row so stack fields are current for callers.
+        auto refreshed = repository_->find_asset_by_id(result.derived_asset.id);
+        if (refreshed && refreshed.value())
+            result.derived_asset = std::move(*refreshed.value());
+    }
+
     return result;
 }
 
@@ -577,6 +674,125 @@ CatalogService::external_editor_provenance(const std::string_view derived_asset_
                           {{"asset_id", std::string(derived_asset_id)}});
     }
     return load_provenance(snapshot.value().database_path, derived_asset_id);
+}
+
+Result<ExternalEditorOpenResult>
+CatalogService::prepare_external_editor_open(const ExternalEditorOpenRequest &request)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+
+    if (!request.user_initiated)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "External-editor open requires explicit user initiation",
+                          {{"reason", "missing_user_initiated"}});
+    }
+    if (request.asset_id.empty() || !safe_path_component(request.asset_id))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Asset id is invalid",
+                          {{"asset_id", request.asset_id}, {"reason", "invalid_asset_id"}});
+    }
+    if (request.editor_id && !safe_path_component(*request.editor_id))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "External-editor id is invalid",
+                          {{"editor_id", *request.editor_id}, {"reason", "invalid_editor_id"}});
+    }
+
+    auto snapshot = repository_->snapshot();
+    if (!snapshot)
+        return snapshot.error();
+    if (request.expected_catalog_revision &&
+        *request.expected_catalog_revision != snapshot.value().revision)
+    {
+        return make_error(
+            ErrorCode::kConflict, "Catalog revision does not match",
+            {{"expected_revision", std::to_string(*request.expected_catalog_revision)},
+             {"actual_revision", std::to_string(snapshot.value().revision)},
+             {"reason", "stale_catalog_revision"}});
+    }
+
+    auto asset = repository_->find_asset_by_id(request.asset_id);
+    if (!asset)
+        return asset.error();
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Catalog asset was not found",
+                          {{"asset_id", request.asset_id}});
+    }
+
+    auto location = normalize_local_input(asset.value()->normalized_uri);
+    if (!location)
+        return location.error();
+
+    std::error_code status_error;
+    if (!std::filesystem::is_regular_file(utf8_path(location.value().path), status_error))
+    {
+        return make_error(ErrorCode::kNotFound, "Asset file was not found for external-editor open",
+                          {{"asset_id", request.asset_id},
+                           {"path", location.value().path},
+                           {"reason", "open_path_missing"},
+                           {"detail", status_error ? status_error.message() : ""}});
+    }
+
+    ExternalEditorOpenKind open_kind = ExternalEditorOpenKind::kOriginal;
+    std::string open_path = location.value().path;
+    std::string source_asset_id = request.asset_id;
+
+    auto provenance = load_provenance(snapshot.value().database_path, request.asset_id);
+    if (provenance)
+    {
+        open_kind = ExternalEditorOpenKind::kDerivedWorkingCopy;
+        source_asset_id = provenance.value().source_asset_id;
+        if (!provenance.value().derived_path.empty())
+        {
+            std::error_code derived_error;
+            if (std::filesystem::is_regular_file(utf8_path(provenance.value().derived_path),
+                                                 derived_error))
+            {
+                open_path = provenance.value().derived_path;
+            }
+        }
+    }
+    else if (provenance.error().code != ErrorCode::kNotFound)
+    {
+        return provenance.error();
+    }
+    else if (path_under_derived_store(snapshot.value().database_path, open_path))
+    {
+        open_kind = ExternalEditorOpenKind::kDerivedWorkingCopy;
+    }
+
+    cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+
+    auto open_location = normalize_local_input(open_path);
+    if (!open_location)
+        return open_location.error();
+
+    ExternalEditorOpenIntent intent;
+    intent.intent_id = generate_external_editor_open_intent_id();
+    intent.asset_id = request.asset_id;
+    intent.source_asset_id = std::move(source_asset_id);
+    intent.open_path = open_location.value().path;
+    intent.open_uri = open_location.value().uri;
+    intent.open_kind = open_kind;
+    intent.editor_id = request.editor_id;
+    intent.recorded_unix_ms = now_unix_ms();
+    intent.observed_catalog_revision = snapshot.value().revision;
+
+    auto written = write_open_intent(snapshot.value().database_path, intent);
+    if (!written)
+        return written.error();
+
+    ExternalEditorOpenResult result;
+    result.intent = std::move(intent);
+    return result;
 }
 
 } // namespace ravo

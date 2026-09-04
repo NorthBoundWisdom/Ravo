@@ -71,6 +71,8 @@ struct CatalogCliArguments
     std::string_view xmp_resolve;
     std::string_view editor_id;
     std::string_view editor_version;
+    bool editor_auto_stack = false;
+    bool editor_invoke_os_open = false;
     std::string_view foreign_source;
     std::string_view foreign_source_kind;
     std::string_view from_asset;

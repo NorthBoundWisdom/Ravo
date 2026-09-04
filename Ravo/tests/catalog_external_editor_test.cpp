@@ -277,4 +277,117 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesDerivedAndExternalEditorTrees)
     EXPECT_EQ(sha256_file_hex(original).value(), original_sha.value());
 }
 
+TEST_F(CatalogServiceTest, ExternalEditorOpenRecordsIntentForOriginalAndDerived)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "open-source.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(30, 60, 90)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, source_id);
+    ASSERT_FALSE(original.empty());
+
+    ExternalEditorOpenRequest blocked;
+    blocked.asset_id = source_id;
+    blocked.user_initiated = false;
+    auto missing_flag = service->prepare_external_editor_open(blocked);
+    ASSERT_FALSE(missing_flag);
+    EXPECT_EQ(missing_flag.error().code, ErrorCode::kInvalidArgument);
+    EXPECT_EQ(missing_flag.error().context.at("reason"), "missing_user_initiated");
+
+    ExternalEditorOpenRequest open_original;
+    open_original.asset_id = source_id;
+    open_original.user_initiated = true;
+    open_original.editor_id = "photoshop";
+    auto opened = service->prepare_external_editor_open(open_original);
+    ASSERT_TRUE(opened) << opened.error().message;
+    EXPECT_EQ(opened.value().intent.open_kind, ExternalEditorOpenKind::kOriginal);
+    {
+        std::error_code equivalent_error;
+        EXPECT_TRUE(std::filesystem::equivalent(opened.value().intent.open_path, original,
+                                                equivalent_error))
+            << opened.value().intent.open_path << " vs " << original;
+    }
+    EXPECT_EQ(opened.value().intent.source_asset_id, source_id);
+    EXPECT_EQ(opened.value().intent.editor_id, std::optional<std::string>{"photoshop"});
+    EXPECT_FALSE(opened.value().intent.open_uri.empty());
+    const auto intent_path =
+        std::filesystem::path(database_path + ".ravo/external-editor/open-intents") /
+        (opened.value().intent.intent_id + ".json");
+    EXPECT_TRUE(std::filesystem::is_regular_file(intent_path)) << intent_path.string();
+
+    const auto editor_out = root / "open-editor-out.jpg";
+    ASSERT_TRUE(write_jpeg(editor_out, QColor(220, 20, 20)));
+    ExternalEditorRegisterRequest request;
+    request.source_asset_id = source_id;
+    request.editor_output_path = editor_out.string();
+    request.editor_id = "photoshop";
+    auto registered = service->register_external_editor_output(request);
+    ASSERT_TRUE(registered) << registered.error().message;
+    const auto derived_id = registered.value().derived_asset.id;
+
+    ExternalEditorOpenRequest open_derived;
+    open_derived.asset_id = derived_id;
+    open_derived.user_initiated = true;
+    auto opened_derived = service->prepare_external_editor_open(open_derived);
+    ASSERT_TRUE(opened_derived) << opened_derived.error().message;
+    EXPECT_EQ(opened_derived.value().intent.open_kind, ExternalEditorOpenKind::kDerivedWorkingCopy);
+    EXPECT_EQ(opened_derived.value().intent.source_asset_id, source_id);
+    {
+        std::error_code equivalent_error;
+        EXPECT_TRUE(std::filesystem::equivalent(opened_derived.value().intent.open_path,
+                                                registered.value().provenance.derived_path,
+                                                equivalent_error))
+            << opened_derived.value().intent.open_path << " vs "
+            << registered.value().provenance.derived_path
+            << " err=" << (equivalent_error ? equivalent_error.message() : "");
+    }
+    EXPECT_NE(opened_derived.value().intent.open_path, original);
+}
+
+TEST_F(CatalogServiceTest, ExternalEditorRegisterAutoStacksDerivedPair)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "stack-source.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(15, 25, 35)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+
+    const auto editor_out = root / "stack-editor-out.jpg";
+    ASSERT_TRUE(write_jpeg(editor_out, QColor(250, 5, 5)));
+    ExternalEditorRegisterRequest request;
+    request.source_asset_id = source_id;
+    request.editor_output_path = editor_out.string();
+    request.editor_id = "affinity";
+    request.auto_stack = true;
+    auto registered = service->register_external_editor_output(request);
+    ASSERT_TRUE(registered) << registered.error().message;
+    EXPECT_TRUE(registered.value().auto_stacked);
+    ASSERT_TRUE(registered.value().stack);
+    EXPECT_EQ(registered.value().stack->stack.pick_asset_id, registered.value().derived_asset.id);
+    ASSERT_EQ(registered.value().stack->stack.member_ids.size(), 2U);
+    EXPECT_EQ(registered.value().derived_asset.stack_pick, true);
+    EXPECT_TRUE(registered.value().derived_asset.stack_id.has_value());
+
+    // Second derived with auto-stack fails closed on conflict; first derived remains.
+    const auto editor_out2 = root / "stack-editor-out-2.jpg";
+    ASSERT_TRUE(write_jpeg(editor_out2, QColor(5, 250, 5)));
+    ExternalEditorRegisterRequest again;
+    again.source_asset_id = source_id;
+    again.editor_output_path = editor_out2.string();
+    again.editor_id = "affinity";
+    again.auto_stack = true;
+    auto conflict = service->register_external_editor_output(again);
+    ASSERT_FALSE(conflict);
+    EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(conflict.error().context.at("reason"), "editor_auto_stack_conflict");
+    ASSERT_TRUE(conflict.error().context.count("derived_asset_id") != 0);
+    const auto orphan_derived = conflict.error().context.at("derived_asset_id");
+    auto shown = service->external_editor_provenance(orphan_derived);
+    ASSERT_TRUE(shown) << shown.error().message;
+    EXPECT_EQ(shown.value().source_asset_id, source_id);
+}
+
 } // namespace ravo

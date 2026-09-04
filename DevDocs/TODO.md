@@ -305,8 +305,9 @@ rewrite, and exact preset apply after reopen.
 **Status:** P1 / Partial — ADR-0120 (XMP conflict matrix), ADR-0122
 (external-editor derived assets), ADR-0131 (read-only foreign catalog
 conversion contract), ADR-0136 (derived/external-editor backup packaging),
-and ADR-0138 (adjacent keyword/IPTC/location merge) accepted. First Ready
-slices landed for XMP (CRS + metadata), external-editor, foreign-catalog
+ADR-0138 (adjacent keyword/IPTC/location merge), and ADR-0139 (external-editor
+OS open-with + derived-pair auto-stack) accepted. First Ready slices landed for
+XMP (CRS + metadata), external-editor open/register/stack, foreign-catalog
 conversion, and verified derived-tree backup/restore.
 
 **Done (XMP slice):** `catalog xmp-status|xmp-import|xmp-export` with CRS
@@ -329,6 +330,16 @@ imports a new catalog asset, writes provenance
 verifies source original SHA-256/size/mtime unchanged, never launches an
 editor/renderer, fail-closed on conflict/cancel/stale revision.
 
+**Done (external-editor OS open + auto-stack):** ADR-0139.
+`catalog editor-open --user-initiated` records
+`ravo.external-editor.open-intent/v1` and returns an OS open payload (original
+path or derived working copy under `{catalog}.ravo/derived/`); platform
+open-with runs only with explicit `--invoke-os-open` / Studio user action.
+`editor-register --auto-stack` stacks source+derived (pick=derived) via
+existing stack APIs and fail-closes on stack conflict while retaining the
+derived asset; user may `unstack`. No proprietary editor scripting; no
+watch-folder auto-import.
+
 **Done (foreign conversion first tranche):** ADR-0131. `catalog convert-foreign
 --foreign-source <doc> [--source-kind lightroom-classic|capture-one]` converts a
 read-only `ravo.foreign-catalog.fixture/v1` document into a user-created **empty**
@@ -349,8 +360,9 @@ trees atomically with the support root; originals/previews remain excluded; v1
 backups stay readable for catalog+sidecars only.
 
 **Still open:**
-- launching/scripting external editors; Gallery auto-stack UX for derived pairs
-  (P2 / Decision required)
+- richer Studio “Edit in …” chrome beyond the ADR-0139 service/CLI payload
+  (optional; service contract is on `main`)
+- proprietary editor scripting (rejected); watch-folder auto-import (rejected)
 - rewrite catalog absolute URIs that still name the source `{catalog}.ravo/`
   prefix onto the restored destination path (ADR-0136 residual)
 - **Foreign conversion residuals:** real `.lrcat` SQLite and Capture One
@@ -371,7 +383,8 @@ the read-only / new-catalog / structured-report / fail-closed gates
 (`CatalogServiceTest.ForeignCatalog*`, `CliTest.CatalogConvertForeign*`); a
 vendor-format reader still needs its packaging/licence evidence before it may
 ship; keyword/IPTC/location merge matrix is on `main` (ADR-0138); derived-tree backup/restore is on
-`main` (ADR-0136); destination URI rewrite for support-rooted assets remains.
+`main` (ADR-0136); external-editor OS open + auto-stack is on `main` (ADR-0139);
+destination URI rewrite for support-rooted assets remains.
 
 ## PRO-PRESENT — Tether, print, map, slideshow, and publishing
 

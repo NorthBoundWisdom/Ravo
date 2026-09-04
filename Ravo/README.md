@@ -792,6 +792,11 @@ ravo catalog refresh-metadata --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog xmp-status --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] --json
 ravo catalog xmp-import --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] [--resolve abort|sidecar|catalog] --json
 ravo catalog xmp-export --catalog <library.sqlite> --asset-id <id> [--xmp <path.xmp>] [--resolve abort|catalog|sidecar] --json
+ravo catalog editor-open --catalog <library.sqlite> --asset-id <id> --user-initiated \
+  [--editor <id>] [--invoke-os-open] [--revision N] --json
+ravo catalog editor-register --catalog <library.sqlite> --asset-id <source-id> --input <editor-output> \
+  --editor <id> [--editor-version <ver>] [--destination <dir>] [--auto-stack] [--revision N] --json
+ravo catalog editor-show --catalog <library.sqlite> --asset-id <derived-id> --json
 ravo catalog convert-foreign --catalog <new-empty-library.sqlite> \
   --foreign-source <fixture-catalog.json> [--source-kind lightroom-classic|capture-one] --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--from-xmp <preset.xmp>] [--set <field>=<number>]... [--set-text <field>=<text>]... [--exposure-ev N] [--watermark-text <text>] --json
@@ -840,6 +845,17 @@ carry CRS PV2012 looks plus `dc:` / `photoshop:` / `Iptc4xmpCore:` /
 `lr:hierarchicalSubject` packets; unsupported hierarchical keyword shapes fail
 closed. Original media bytes are never rewritten. Capture refresh still leaves
 catalog-owned Core/location/keywords untouched.
+
+`ravo catalog editor-open|editor-register|editor-show` is the explicit
+external-editor round-trip (ADR-0122/0139). `editor-open` requires
+`--user-initiated`, records an open-intent under
+`{catalog}.ravo/external-editor/open-intents/`, and returns `open_path` /
+`open_uri` / `open_kind` (`original` or `derived_working_copy`) without
+mutating originals or scripting editors; `--invoke-os-open` is the only CLI
+path that may call platform `open`/`xdg-open` after that explicit flag.
+`editor-register` copies editor output into `{catalog}.ravo/derived/`, writes
+provenance, and optionally `--auto-stack`s source+derived (pick=derived),
+fail-closing on stack conflict while retaining the derived asset.
 
 `ravo catalog convert-foreign` is the read-only foreign-catalog conversion
 entry point (ADR-0131). It reads a `ravo.foreign-catalog.fixture/v1` document,

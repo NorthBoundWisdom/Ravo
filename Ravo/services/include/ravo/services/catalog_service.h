@@ -328,12 +328,17 @@ public:
     xmp_interchange_export(std::string_view asset_id, XmpInterchangeResolve resolve,
                            std::optional<std::string_view> sidecar_path = std::nullopt);
 
-    // ADR-0122: register external-editor output as a new derived asset with
+    // ADR-0122/0139: register external-editor output as a new derived asset with
     // provenance. Never mutates the source original; never launches an editor.
+    // Optional auto_stack stacks source+derived (pick=derived) fail-closed.
     [[nodiscard]] Result<ExternalEditorRegisterResult>
     register_external_editor_output(const ExternalEditorRegisterRequest &request);
     [[nodiscard]] Result<ExternalEditorProvenance>
     external_editor_provenance(std::string_view derived_asset_id) const;
+    // ADR-0139: record open intent and return OS open payload. Never invokes
+    // platform open-with; callers do that only after explicit user action.
+    [[nodiscard]] Result<ExternalEditorOpenResult>
+    prepare_external_editor_open(const ExternalEditorOpenRequest &request);
 
     // ADR-0131: read-only foreign catalog conversion into this NEW/empty Ravo
     // catalog. Never opens or migrates the source in place; originals stay

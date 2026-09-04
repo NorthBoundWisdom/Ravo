@@ -1100,4 +1100,74 @@ TEST_F(CliTest, CatalogImportProjectsRenameAndVerifiedSecondCopyJson)
 }
 
 } // namespace
+
+TEST_F(CliTest, CatalogEditorOpenAndAutoStack)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-editor-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
+                      "frozen" / "0000-nop" / "expected.png")
+                         .generic_u8string();
+    const std::string png_path(png.begin(), png.end());
+    const auto editor_out = (root / "edited.png").string();
+    std::filesystem::copy_file(png_path, editor_out);
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", png_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    const auto *asset = items->array_if()->front().find("asset");
+    const auto id = *asset->find("id")->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "editor-open", "--catalog", catalog, "--asset-id", id,
+                  "--user-initiated", "--editor", "photoshop", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto opened = parse_json(stdout_stream.str());
+    ASSERT_TRUE(opened) << opened.error().message;
+    const auto *open_data = opened.value().find("data");
+    ASSERT_NE(open_data, nullptr);
+    ASSERT_NE(open_data->find("open_kind"), nullptr);
+    EXPECT_EQ(*open_data->find("open_kind")->string_if(), "original");
+    ASSERT_NE(open_data->find("os_open_invoked")->boolean_if(), nullptr);
+    EXPECT_FALSE(*open_data->find("os_open_invoked")->boolean_if());
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "editor-register", "--catalog", catalog, "--asset-id", id, "--input",
+                  editor_out, "--editor", "photoshop", "--auto-stack", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto registered = parse_json(stdout_stream.str());
+    ASSERT_TRUE(registered) << registered.error().message;
+    const auto *reg = registered.value().find("data");
+    ASSERT_NE(reg, nullptr);
+    ASSERT_NE(reg->find("auto_stacked"), nullptr);
+    ASSERT_NE(reg->find("auto_stacked")->boolean_if(), nullptr);
+    EXPECT_TRUE(*reg->find("auto_stacked")->boolean_if());
+    ASSERT_NE(reg->find("stack"), nullptr);
+}
+
 } // namespace ravo
