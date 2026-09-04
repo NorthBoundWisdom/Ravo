@@ -486,16 +486,10 @@ ApplicationWindow {
         backupScheduleDialog.openForPolicy(studio.backupScheduleStatus);
     }
 
-    function openEditInDialog() {
+    function openSelectedAssetDialog(dialog) {
         if (!studio.selectedAssetId.length)
             return;
-        editInDialog.openForSelection();
-    }
-
-    function openAiProposalDialog() {
-        if (!studio.selectedAssetId.length)
-            return;
-        aiProposalDialog.openForSelection();
+        dialog.openForSelection();
     }
 
     function openFolderRelinkDialog(folderId) {
@@ -686,9 +680,11 @@ ApplicationWindow {
             else if (id === ids.libraryExport)
                 openExportDialog();
             else if (id === ids.photoEditIn)
-                openEditInDialog();
+                openSelectedAssetDialog(editInDialog);
+            else if (id === ids.photoOfflineEdit)
+                studioActions.openOfflineEditDialog();
             else if (id === ids.photoAiProposal)
-                openAiProposalDialog();
+                openSelectedAssetDialog(aiProposalDialog);
             else if (id === ids.libraryBackupCreate)
                 openBackupCreateDialog();
             else if (id === ids.libraryBackupVerify)

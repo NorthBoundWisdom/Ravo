@@ -389,8 +389,9 @@ public:
     ensure_smart_preview(const SmartPreviewEnsureRequest &request);
 
     // ADR-0146: offline-edit proxy (distinct from ADR-0141 Smart Preview).
-    // Create/list/verify; Develop/history while originals offline; export
-    // fail-closed without original; reconnect verifies source hash.
+    // Create/list/verify/pin/delete/evict; Develop/history while originals
+    // offline; export fail-closed without original; reconnect verifies source
+    // hash and may clear the proxy.
     [[nodiscard]] Result<OfflineEditProxyCreateResult>
     create_offline_edit_proxy(const OfflineEditProxyCreateRequest &request);
     [[nodiscard]] Result<OfflineEditProxyListReport> list_offline_edit_proxies() const;
@@ -400,6 +401,12 @@ public:
     offline_edit_media_status(std::string_view asset_id) const;
     [[nodiscard]] Result<OfflineEditProxyReconnectResult>
     reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequest &request);
+    [[nodiscard]] Result<OfflineEditProxyDeleteResult>
+    delete_offline_edit_proxy(const OfflineEditProxyDeleteRequest &request);
+    [[nodiscard]] Result<OfflineEditProxyPinResult>
+    pin_offline_edit_proxy(const OfflineEditProxyPinRequest &request);
+    [[nodiscard]] Result<OfflineEditProxyEvictResult>
+    evict_offline_edit_proxies(const OfflineEditProxyEvictRequest &request);
 
     // ADR-0147: exact-duplicate hash groups + burst proposals (no auto-delete).
     [[nodiscard]] Result<ExactDuplicateReport>

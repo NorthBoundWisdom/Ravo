@@ -23,9 +23,10 @@ namespace ravo
 namespace
 {
 
-[[nodiscard]] bool write_jpeg(const std::filesystem::path &path, const QColor &color)
+[[nodiscard]] bool write_jpeg(const std::filesystem::path &path, const QColor &color,
+                              const int width = 64, const int height = 48)
 {
-    QImage image(64, 48, QImage::Format_RGB888);
+    QImage image(width, height, QImage::Format_RGB888);
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(color);
     return image.save(QString::fromStdString(path.string()), "JPEG", 90);
@@ -503,6 +504,164 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyPublishInjectRetainsPrior)
     ASSERT_TRUE(status.value().manifest);
     EXPECT_EQ(status.value().manifest->proxy_sha256, first_sha);
     EXPECT_TRUE(status.value().proxy_verified);
+}
+
+TEST_F(CatalogServiceTest, OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfterAndReconnect)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "offline-baked.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(16, 32, 64), 320, 240));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, asset_id);
+    ASSERT_FALSE(original.empty());
+
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto params = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(params) << params.error().message;
+    params.value().exposure_ev = 0.4;
+    auto saved = service->save_develop(asset_id, params.value());
+    ASSERT_TRUE(saved) << saved.error().message;
+
+    OfflineEditProxyCreateRequest create;
+    create.asset_id = asset_id;
+    create.user_initiated = true;
+    create.max_edge = 32;
+    auto created = service->create_offline_edit_proxy(create);
+    ASSERT_TRUE(created) << created.error().message;
+    EXPECT_EQ(created.value().manifest.pixel_provenance,
+              kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8);
+    EXPECT_FALSE(created.value().manifest.pinned);
+
+    const auto stashed = root / "stashed-baked-original.jpg";
+    std::error_code ec;
+    std::filesystem::rename(original, stashed, ec);
+    ASSERT_FALSE(ec) << ec.message();
+
+    PreviewRequest after;
+    after.asset_id = asset_id;
+    after.max_edge = 64;
+    after.purpose = PreviewPurpose::kDevelop;
+    after.prefer_embedded_preview = false;
+    DevelopParams live;
+    live.exposure_ev = 1.75;
+    auto live_preview = service->request_preview(after, live);
+    ASSERT_TRUE(live_preview) << live_preview.error().message;
+    EXPECT_EQ(live_preview.value().media_state, "proxy");
+    EXPECT_EQ(live_preview.value().preview_apply_mode, kOfflineEditPreviewApplyIdentityBaked);
+    EXPECT_EQ(live_preview.value().pixel_provenance,
+              kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8);
+
+    PreviewRequest before = after;
+    before.ignore_edits = true;
+    auto before_preview = service->request_preview(before);
+    ASSERT_TRUE(before_preview) << before_preview.error().message;
+    EXPECT_EQ(before_preview.value().media_state, "proxy");
+    EXPECT_EQ(before_preview.value().preview_apply_mode, kOfflineEditPreviewApplyIdentityBaked);
+    EXPECT_EQ(before_preview.value().cache_key, live_preview.value().cache_key);
+    const auto live_sha = sha256_file_hex(live_preview.value().cache_path);
+    const auto before_sha = sha256_file_hex(before_preview.value().cache_path);
+    ASSERT_TRUE(live_sha) << live_sha.error().message;
+    ASSERT_TRUE(before_sha) << before_sha.error().message;
+    EXPECT_EQ(live_sha.value(), before_sha.value());
+
+    PreviewRequest interactive = after;
+    interactive.persist_preview_record = false;
+    auto scope_source = service->request_preview(interactive);
+    ASSERT_TRUE(scope_source) << scope_source.error().message;
+    EXPECT_EQ(scope_source.value().media_state, "proxy");
+    EXPECT_EQ(scope_source.value().preview_apply_mode, kOfflineEditPreviewApplyIdentityBaked);
+
+    params.value().exposure_ev = 1.2;
+    auto saved_offline = service->save_develop(asset_id, params.value());
+    ASSERT_TRUE(saved_offline) << saved_offline.error().message;
+
+    std::filesystem::rename(stashed, original, ec);
+    ASSERT_FALSE(ec) << ec.message();
+
+    OfflineEditProxyReconnectRequest reconnect;
+    reconnect.asset_id = asset_id;
+    reconnect.user_initiated = true;
+    reconnect.clear_proxy = true;
+    auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
+    ASSERT_TRUE(reconnected) << reconnected.error().message;
+    EXPECT_TRUE(reconnected.value().source_hash_matched);
+    EXPECT_TRUE(reconnected.value().offline_states_cleared);
+    EXPECT_TRUE(reconnected.value().proxy_cleared);
+    EXPECT_EQ(reconnected.value().status.media_state, OfflineEditMediaState::kOriginal);
+    EXPECT_FALSE(reconnected.value().status.proxy_present);
+
+    PreviewRequest original_preview = after;
+    original_preview.max_edge = 256;
+    auto restored = service->request_preview(original_preview);
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().media_state, "original");
+    EXPECT_FALSE(restored.value().original_missing);
+    EXPECT_EQ(restored.value().preview_apply_mode, kOfflineEditPreviewApplyCatalogRecipe);
+    EXPECT_GT(restored.value().width, live_preview.value().width);
+    EXPECT_NE(restored.value().cache_key, live_preview.value().cache_key);
+    const auto restored_sha = sha256_file_hex(restored.value().cache_path);
+    ASSERT_TRUE(restored_sha) << restored_sha.error().message;
+    EXPECT_NE(restored_sha.value(), live_sha.value());
+}
+
+TEST_F(CatalogServiceTest, OfflineEditProxyPinDeleteAndPinnedSurvivesEvict)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto keep_path = root / "offline-keep.jpg";
+    const auto drop_path = root / "offline-drop.jpg";
+    ASSERT_TRUE(write_jpeg(keep_path, QColor(10, 20, 30)));
+    ASSERT_TRUE(write_jpeg(drop_path, QColor(200, 10, 10)));
+    auto keep_imported = service->import_one(keep_path.string(), CancellationToken{});
+    auto drop_imported = service->import_one(drop_path.string(), CancellationToken{});
+    ASSERT_TRUE(keep_imported) << keep_imported.error().message;
+    ASSERT_TRUE(drop_imported) << drop_imported.error().message;
+    const auto keep_id = keep_imported.value().asset->id;
+    const auto drop_id = drop_imported.value().asset->id;
+
+    OfflineEditProxyCreateRequest create;
+    create.user_initiated = true;
+    create.max_edge = 32;
+    create.asset_id = keep_id;
+    ASSERT_TRUE(service->create_offline_edit_proxy(create)) << "keep create";
+    create.asset_id = drop_id;
+    ASSERT_TRUE(service->create_offline_edit_proxy(create)) << "drop create";
+
+    OfflineEditProxyPinRequest pin;
+    pin.asset_id = keep_id;
+    pin.user_initiated = true;
+    pin.pinned = true;
+    auto pinned = service->pin_offline_edit_proxy(pin);
+    ASSERT_TRUE(pinned) << pinned.error().message;
+    EXPECT_TRUE(pinned.value().manifest.pinned);
+
+    OfflineEditProxyDeleteRequest blocked;
+    blocked.asset_id = keep_id;
+    blocked.user_initiated = true;
+    auto refuse = service->delete_offline_edit_proxy(blocked);
+    ASSERT_FALSE(refuse);
+    EXPECT_EQ(refuse.error().context.at("reason"), "proxy_pinned");
+
+    OfflineEditProxyEvictRequest evict;
+    evict.user_initiated = true;
+    evict.max_total_bytes = 1;
+    auto evicted = service->evict_offline_edit_proxies(evict);
+    ASSERT_TRUE(evicted) << evicted.error().message;
+    EXPECT_GE(evicted.value().evicted, 1U);
+    EXPECT_EQ(evicted.value().retained_pinned, 1U);
+    ASSERT_FALSE(evicted.value().retained_pinned_asset_ids.empty());
+    EXPECT_EQ(evicted.value().retained_pinned_asset_ids.front(), keep_id);
+
+    auto keep_status = service->verify_offline_edit_proxy(keep_id);
+    ASSERT_TRUE(keep_status) << keep_status.error().message;
+    EXPECT_TRUE(keep_status.value().proxy_verified);
+    EXPECT_TRUE(keep_status.value().manifest->pinned);
+
+    auto drop_status = service->verify_offline_edit_proxy(drop_id);
+    ASSERT_TRUE(drop_status) << drop_status.error().message;
+    EXPECT_FALSE(drop_status.value().proxy_present);
 }
 
 } // namespace ravo

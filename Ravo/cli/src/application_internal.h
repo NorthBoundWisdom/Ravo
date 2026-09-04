@@ -159,6 +159,10 @@ struct CatalogCliArguments
     std::string_view reference_asset;
     std::vector<std::string_view> destination_assets;
     bool user_initiated = false;
+    bool force = false;
+    bool unpin = false;
+    bool clear_proxy = false;
+    std::optional<std::uint64_t> max_total_bytes;
     std::string_view ingest_transport;
     std::string_view resume_batch_id;
     std::optional<std::int64_t> expected_revision;

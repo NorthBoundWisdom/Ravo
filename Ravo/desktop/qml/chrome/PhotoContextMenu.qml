@@ -107,6 +107,11 @@ StudioContextMenu {
         displayText: qsTr("Edit in…")
     }
     StudioContextMenuItem {
+        objectName: "offlineEditMenuItem"
+        action: root.commands.offlineEdit
+        displayText: qsTr("Offline-edit proxies…")
+    }
+    StudioContextMenuItem {
         objectName: "aiProposalMenuItem"
         action: root.commands.aiProposal
         displayText: qsTr("Inspect AI Proposal…")

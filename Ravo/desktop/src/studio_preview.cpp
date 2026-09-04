@@ -842,10 +842,14 @@ void StudioPresenter::startThumbnailRequest(std::string id)
                     }
                     if (preview)
                     {
+                        const QString thumb_state =
+                            preview.value().media_state == "proxy" ?
+                                QStringLiteral("proxy") :
+                                (preview.value().original_missing ? QStringLiteral("missing") :
+                                                                    QStringLiteral("ready"));
                         assets_.setThumbnail(
                             id, QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path)),
-                            preview.value().original_missing ? QStringLiteral("missing") :
-                                                               QStringLiteral("ready"));
+                            thumb_state);
                         if (utf8_from_qstring(selected_asset_id_) == id)
                         {
                             emit thumbnailsChanged();

@@ -343,6 +343,8 @@ class StudioPresenter final : public QObject
                    externalEditorSessionChanged)
     Q_PROPERTY(QVariantMap offlineEditMediaStatus READ offlineEditMediaStatus NOTIFY
                    offlineEditMediaStatusChanged)
+    Q_PROPERTY(QVariantList offlineEditProxyList READ offlineEditProxyList NOTIFY
+                   offlineEditProxyListChanged)
     Q_PROPERTY(
         QVariantMap selectedAiProposal READ selectedAiProposal NOTIFY selectedAiProposalChanged)
     Q_PROPERTY(QVariantList aiProposals READ aiProposals NOTIFY aiProposalsChanged)
@@ -737,8 +739,14 @@ public:
     Q_INVOKABLE void
     refreshExternalEditorWorkingCopyStatus(const QString &working_copy_id = QString());
     Q_INVOKABLE QVariantMap offlineEditMediaStatus() const;
+    Q_INVOKABLE QVariantList offlineEditProxyList() const;
     Q_INVOKABLE void refreshOfflineEditMediaStatus();
-    Q_INVOKABLE void reconnectOfflineEditProxy();
+    Q_INVOKABLE void refreshOfflineEditProxyList();
+    Q_INVOKABLE void createOfflineEditProxy(unsigned int max_edge = 0);
+    Q_INVOKABLE void reconnectOfflineEditProxy(bool clear_proxy = false);
+    Q_INVOKABLE void deleteOfflineEditProxy(bool force = false);
+    Q_INVOKABLE void pinOfflineEditProxy(bool pinned = true);
+    Q_INVOKABLE void evictOfflineEditProxies(qulonglong max_total_bytes);
     Q_INVOKABLE QVariantMap selectedAiProposal() const;
     Q_INVOKABLE QVariantList aiProposals() const;
     Q_INVOKABLE void refreshAiProposals();
@@ -932,6 +940,7 @@ signals:
     void libraryWorkChanged();
     void externalEditorSessionChanged();
     void offlineEditMediaStatusChanged();
+    void offlineEditProxyListChanged();
     void selectedAiProposalChanged();
     void aiProposalsChanged();
     void thumbnailsChanged();
@@ -1194,6 +1203,7 @@ private:
     int thumbnail_size_ = 180;
     QVariantMap external_editor_session_;
     QVariantMap offline_edit_media_status_;
+    QVariantList offline_edit_proxy_list_;
     QVariantMap selected_ai_proposal_;
     QVariantList ai_proposals_;
     bool busy_ = false;

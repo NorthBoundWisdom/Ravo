@@ -189,6 +189,30 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.user_initiated = true;
             continue;
         }
+        if (option == "--force")
+        {
+            if (result.force)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--force can only be specified once");
+            result.force = true;
+            continue;
+        }
+        if (option == "--unpin")
+        {
+            if (result.unpin)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--unpin can only be specified once");
+            result.unpin = true;
+            continue;
+        }
+        if (option == "--clear-proxy")
+        {
+            if (result.clear_proxy)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--clear-proxy can only be specified once");
+            result.clear_proxy = true;
+            continue;
+        }
         if (option == "--pick")
         {
             if (result.cull_pick)
@@ -556,6 +580,21 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return dimension.error();
             }
             result.max_edge = dimension.value();
+        }
+        else if (option == "--max-total-bytes")
+        {
+            if (result.max_total_bytes)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--max-total-bytes was specified twice");
+            auto parsed = parse_int_flag(value, option);
+            if (!parsed)
+                return parsed.error();
+            if (parsed.value() <= 0)
+            {
+                return make_error(ErrorCode::kInvalidArgument, "--max-total-bytes must be positive",
+                                  {{"value", std::string(value)}});
+            }
+            result.max_total_bytes = static_cast<std::uint64_t>(parsed.value());
         }
         else if (option == "--max-width")
         {

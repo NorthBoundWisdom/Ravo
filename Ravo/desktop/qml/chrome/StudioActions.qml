@@ -38,6 +38,11 @@ Item {
         root.run(root.ids.photoSelect, assetId);
         root.trigger(root.ids.viewLoupe);
     }
+    function openOfflineEditDialog() {
+        if (!root.hasSelection)
+            return;
+        offlineEditDialog.openForSelection();
+    }
     function openGallery(preferredMode) {
         if (preferredMode === "survey" && root.presenter && root.presenter.selectedCount >= 2) {
             root.trigger(root.ids.viewSurvey);
@@ -285,6 +290,7 @@ Item {
     property alias copyPhotoParameters: copyPhotoParametersAction
     property alias revealInFileManager: revealInFileManagerAction
     property alias editIn: editInAction
+    property alias offlineEdit: offlineEditAction
     property alias aiProposal: aiProposalAction
     property alias cropTool: cropToolAction
     property alias rotateLeft: rotateLeftAction
@@ -432,6 +438,10 @@ Item {
         actionId: root.ids.photoEditIn || ""
     }
     RegisteredAction {
+        id: offlineEditAction
+        actionId: root.ids.photoOfflineEdit || ""
+    }
+    RegisteredAction {
         id: aiProposalAction
         actionId: root.ids.photoAiProposal || ""
     }
@@ -514,5 +524,12 @@ Item {
     RegisteredAction {
         id: removeFromDiskAction
         actionId: root.ids.photoRemoveFromDisk || ""
+    }
+
+    OfflineEditDialog {
+        id: offlineEditDialog
+        parentItem: root.windowHost ? root.windowHost.contentItem : root
+        presenter: root.presenter
+        commands: root
     }
 }

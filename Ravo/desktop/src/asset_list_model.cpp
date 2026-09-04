@@ -357,7 +357,8 @@ void AssetListModel::markOriginalMissing(const std::string &asset_id)
         return;
     auto found = assets_.find(row);
     found->second.import_state = std::string(kImportStateMissing);
-    thumbnail_states_[asset_id] = QStringLiteral("missing");
+    if (thumbnail_states_[asset_id] != QStringLiteral("proxy"))
+        thumbnail_states_[asset_id] = QStringLiteral("missing");
     const auto model_index = index(row, 0);
     emit dataChanged(model_index, model_index, {ImportStateRole, ThumbnailStateRole});
 }

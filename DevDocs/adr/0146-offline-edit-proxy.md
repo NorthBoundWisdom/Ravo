@@ -41,11 +41,14 @@ Each proxy directory holds at least:
   - `max_edge`, `profile` (e.g. `srgb`)
   - `proxy_sha256`, `width`, `height`
   - `created_unix_ms`
+  - `pixel_provenance` (`recipe_baked_srgb8`)
+  - `pinned` (optional boolean; default false)
 
 ### Lifecycle (first Ready)
 
-- **Create / list / verify** for explicit assets only (user-initiated; no
-  background quota/eviction policy in this tranche).
+- **Create / list / verify / pin / delete** for explicit assets only
+  (user-initiated). User-initiated eviction honors pin and requires
+  `max_total_bytes`; no background quota policy in this tranche.
 - **Develop / history / metadata** while the original is offline: recipe writes
   stay on the catalog; Develop render may consume the offline-edit proxy when
   the original file is absent.
@@ -60,11 +63,16 @@ Each proxy directory holds at least:
 
 Create-time proxies are **8-bit sRGB TIFF presentation rasters** with the
 then-current recipe already baked (`pixel_provenance=recipe_baked_srgb8`). While
-`media_state=proxy`, Develop/Loupe `request_preview` applies an **identity**
-recipe to those pixels so the catalog recipe is not double-applied. Recipes
-remain catalog-owned and re-render from the original after verified reconnect.
-Further offline delta-preview on top of a baked proxy is deferred to OFFLINE-01
-C2.
+`media_state=proxy`, Develop/Loupe/Before-After/scopes `request_preview` applies
+an **identity** recipe (`preview_apply_mode=identity_baked`) so the catalog
+recipe is not double-applied. Live Develop parameter changes still persist as
+canonical catalog recipes; they do not mutate proxy pixels. Recipes re-render
+from the verified original after reconnect (`preview_apply_mode=catalog_recipe`).
+Delta-preview (applying recipe deltas on baked proxy pixels) remains deferred.
+
+Create/list/verify/pin/delete and user-initiated eviction (skip pinned) are
+supported. Reconnect may optionally clear the proxy tree unless it is pinned.
+Background quota policy is not in this tranche.
 
 Publication builds into a unique staging tree, verifies bytes/manifest, then
 atomically replaces the previous good proxy directory. Manifest parsing uses
@@ -76,7 +84,7 @@ fail-closed. Corrupt manifests surface in list/status results.
 
 - Using Smart Previews for Develop/export.
 - Silent full-resolution export from a proxy.
-- Background generation, quota, pinning, or eviction policy (later Ready).
+- Background generation or automatic quota/eviction (later Ready). User-initiated pin/delete/evict is in.
 - Replacing originals with proxies.
 
 ## Consequences

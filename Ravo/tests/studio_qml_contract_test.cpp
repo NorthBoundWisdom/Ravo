@@ -1687,7 +1687,7 @@ TEST(StudioQmlContract, EditInDialogExposesWorkingCopyChrome)
         << main_qml.errorString().toStdString();
     const auto main_source = QString::fromUtf8(main_qml.readAll());
     EXPECT_TRUE(main_source.contains(QStringLiteral("EditInDialog")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("openEditInDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("openSelectedAssetDialog")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.photoEditIn")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInPrepare")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInCheckReturned")));
@@ -1767,7 +1767,7 @@ TEST(StudioQmlContract, AiProposalDialogExposesInspectApplyRejectChrome)
         << main_qml.errorString().toStdString();
     const auto main_source = QString::fromUtf8(main_qml.readAll());
     EXPECT_TRUE(main_source.contains(QStringLiteral("AiProposalDialog")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("openAiProposalDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("openSelectedAssetDialog")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.photoAiProposal")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("photoAiPropose")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("photoAiProposalApply")));

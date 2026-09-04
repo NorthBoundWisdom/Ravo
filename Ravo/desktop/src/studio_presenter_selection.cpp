@@ -78,6 +78,7 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
     emit thumbnailsChanged();
     emit editChanged();
     requestPreviewForSelection();
+    refreshOfflineEditMediaStatus();
 }
 
 std::vector<std::string> StudioPresenter::selected_asset_ids() const

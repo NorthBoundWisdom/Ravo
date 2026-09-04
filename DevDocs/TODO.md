@@ -2,12 +2,12 @@
 
 > **Status:** ordered residual queue
 >
-> **Updated:** 2026-09-04
+> **Updated:** 2026-09-05
 >
-> **Review basis:** `main` through LOCAL-01 C2 and EDITIN-01 C2 Studio
-> round-trip evidence (working-copy prepare/return/auto-stack/reopen/abandon,
-> backup/restore session relocation, TIFF/service conflict coverage) atop
-> COR-01 residuals + DISPLAY-01 / OFFLINE-01 proxy consume. The next free ADR
+> **Review basis:** `main` through LOCAL-01 C2, EDITIN-01 C2, CULL-01 keyboard
+> C2, and OFFLINE-01 C2 Studio proxy create/manage + baked identity consume
+> (Before/After/scopes, reconnect re-render/clear, pin/evict) atop COR-01
+> residuals + DISPLAY-01. The next free ADR
 > number is **0157**, but new product ADRs are frozen by the work-in-progress
 > rule below.
 
@@ -74,8 +74,8 @@ resource defect preempts both streams.
 
 LOCAL-01 and EDITIN-01 Studio C2 evidence are on `main`. Recent work on
 CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
-moves in the intended direction. DISPLAY-01 macOS screen-move owner and OFFLINE-01 Loupe/Develop proxy
-consume landed on `main`; remaining DISPLAY/OFFLINE work is still below C2. AI proposal chrome, display/native
+moves in the intended direction. DISPLAY-01 macOS screen-move owner and OFFLINE-01 C2 Studio proxy
+create/manage + baked consume landed on `main`; remaining DISPLAY work is still below C2. AI proposal chrome, display/native
 transport stubs, and the tethered-studio probe do not count as product progress.
 
 ### Release and correctness lane
@@ -99,7 +99,7 @@ the next one.
 | 1 | LOCAL-01 | P1 | C2 Studio multi-instance local adjustments/masks; GPU residual after PERF-01 |
 | 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; package TIFF matrix residual |
 | 3 | CULL-01 | P1 | Keyboard C2; finish evaluated assistance (analysis C1+) |
-| 4 | OFFLINE-01 | P1 | Make verified proxies usable for actual Loupe/Develop work |
+| 4 | OFFLINE-01 | P1 | C2 Studio offline-edit proxies; C3 quota/corpus residual |
 | 5 | DISPLAY-01 | P1 | Finish per-display ICC presentation on supported hosts and views |
 | 6 | INGEST-01 | P1 | Replace transport stubs with packaged native adapters and hardware evidence |
 | 7 | IQ-01 | P1 | Establish camera/profile and denoise quality admission |
@@ -446,32 +446,41 @@ partial (deterministic cancel/restart/corrupt/stale/bound); metrics open.
 
 ## OFFLINE-01 — Offline-original editing
 
-**Maturity:** C1+. Status/reconnect plus Loupe/Develop `request_preview`
-consumption of a verified offline-edit proxy when the original is absent
-(`media_state=proxy`, `original_missing=true`) are on `main`. Export remains
-fail-closed (`proxy_export_forbidden`); ROI inspect while offline stays
-fail-closed (`offline_proxy_roi_unsupported`). Thin Studio status/reconnect
-remain. Not yet C2 (Studio create/manage UI, baseline-vs-baked semantics,
-scopes/Before-After parity, quotas).
+**Maturity:** C2 on `main` for Studio create/list/pin/delete/status/reconnect
+and baked-proxy consume. Verified proxies feed Loupe/Develop/Before-After/scopes
+with explicit `media_state=proxy` and `preview_apply_mode=identity_baked`
+(`pixel_provenance=recipe_baked_srgb8`); catalog recipes stay canonical and are
+not double-applied. Reconnect re-renders from the verified original
+(`catalog_recipe`) and may clear the proxy unless pinned. User-initiated
+eviction skips pinned proxies. Export remains fail-closed
+(`proxy_export_forbidden`); ROI inspect while offline stays fail-closed
+(`offline_proxy_roi_unsupported`). Residual toward C3: background quota policy,
+collection generation, disk-full/cleanup automation, backup/restore corpus
+(REL-01), and deferred delta-preview on baked pixels.
 
 **Remaining work:**
 
-- close all manifest/publication findings in COR-01;
-- define baseline-vs-recipe-baked proxy semantics so Develop cannot double-apply
-  recipe operations atop a baked create-time raster;
-- extend verified-proxy consume to Before/After and scopes under explicit media
-  state;
-- re-render from the verified original after reconnect and compare
-  resolution-dependent results;
-- add Studio create/delete/pin/storage/corruption management;
-- define explicit asset/collection generation, cancellation, byte quota,
-  pinning, eviction, disk-full, cleanup, backup/restore, and relocation;
-- retain fail-closed full-resolution export while the original is unavailable.
+- [done] COR-01 manifest/publication residuals;
+- [done] baseline-vs-baked: identity consume while `media_state=proxy`; tests
+  prove live Develop params cannot double-grade baked pixels
+  (`OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfterAndReconnect`);
+- [done] Before/After (`ignore_edits`) and interactive/scope preview consume the
+  verified proxy under `media_state=proxy`;
+- [done] reconnect re-renders from original, compares resolution-dependent
+  cache keys/pixels, optional `--clear-proxy`;
+- [done] Studio create/list/pin/delete/status/reconnect chrome in
+  `OfflineEditDialog.qml` (no Main.qml growth);
+- [done] user-initiated pin + evict (`max_total_bytes`, skip pinned);
+- retain fail-closed full-resolution export while the original is unavailable;
+- background quota/collection generation, disk-full automation, and
+  backup/restore corpus remain REL-01 / C3;
+- delta-preview on baked proxy pixels remains deferred.
 
 **Acceptance gate:** an offline original can be viewed, graded, saved, reopened,
 and compared in Studio; edits remain canonical recipes; reconnect returns to
 original authority; stale/corrupt proxies are explicit; pinned data survives
-eviction; source bytes remain unchanged.
+eviction; source bytes remain unchanged. Met on `main` via service/Studio
+contract tests. C3 corpus/package evidence remains open.
 
 ## DISPLAY-01 — Per-display ICC presentation
 

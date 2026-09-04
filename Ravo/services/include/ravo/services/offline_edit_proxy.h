@@ -21,6 +21,8 @@ inline constexpr std::uint32_t kOfflineEditProxyDefaultMaxEdge = 2048;
 // double-grade) while media_state=proxy for this provenance.
 inline constexpr std::string_view kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8 =
     "recipe_baked_srgb8";
+inline constexpr std::string_view kOfflineEditPreviewApplyIdentityBaked = "identity_baked";
+inline constexpr std::string_view kOfflineEditPreviewApplyCatalogRecipe = "catalog_recipe";
 
 enum class OfflineEditMediaState : std::uint8_t
 {
@@ -65,6 +67,7 @@ struct OfflineEditProxyManifest
     std::int64_t created_unix_ms = 0;
     // "recipe_baked_srgb8" => presentation pixels; Develop uses identity recipe.
     std::string pixel_provenance{std::string(kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8)};
+    bool pinned = false;
 };
 
 struct OfflineEditProxyCreateRequest
@@ -112,6 +115,7 @@ struct OfflineEditProxyReconnectRequest
 {
     std::string asset_id;
     bool user_initiated = false;
+    bool clear_proxy = false;
     CancellationToken cancellation{};
 };
 
@@ -121,6 +125,51 @@ struct OfflineEditProxyReconnectResult
     bool source_hash_matched = false;
     bool originals_unchanged = true;
     bool offline_states_cleared = false;
+    bool proxy_cleared = false;
+};
+
+struct OfflineEditProxyDeleteRequest
+{
+    std::string asset_id;
+    bool user_initiated = false;
+    bool force = false;
+    CancellationToken cancellation{};
+};
+
+struct OfflineEditProxyDeleteResult
+{
+    bool deleted = false;
+    bool originals_unchanged = true;
+    std::string reason;
+};
+
+struct OfflineEditProxyPinRequest
+{
+    std::string asset_id;
+    bool pinned = true;
+    bool user_initiated = false;
+    CancellationToken cancellation{};
+};
+
+struct OfflineEditProxyPinResult
+{
+    OfflineEditProxyManifest manifest;
+};
+
+struct OfflineEditProxyEvictRequest
+{
+    bool user_initiated = false;
+    std::uint64_t max_total_bytes = 0;
+    CancellationToken cancellation{};
+};
+
+struct OfflineEditProxyEvictResult
+{
+    std::size_t evicted = 0;
+    std::size_t retained_pinned = 0;
+    std::uint64_t bytes_retained = 0;
+    std::vector<std::string> evicted_asset_ids;
+    std::vector<std::string> retained_pinned_asset_ids;
 };
 
 } // namespace ravo

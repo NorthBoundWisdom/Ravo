@@ -1088,6 +1088,10 @@ struct PreviewResult
     bool original_missing = false;
     // ADR-0146 machine-visible preview source: original | proxy | missing
     std::string media_state{"original"};
+    // Empty unless media_state=proxy. recipe_baked_srgb8 => identity consume.
+    std::string pixel_provenance;
+    // identity_baked (proxy, no double-grade) | catalog_recipe (original authority)
+    std::string preview_apply_mode{"catalog_recipe"};
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
     std::vector<float> mask_alpha;

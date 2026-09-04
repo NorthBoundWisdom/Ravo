@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|editor-working-copy-status|editor-working-copy-list|editor-abandon-working-copy|editor-reopen-working-copy|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-burst-compare|cull-near-duplicates|cull-review|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|editor-working-copy-status|editor-working-copy-list|editor-abandon-working-copy|editor-reopen-working-copy|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-burst-compare|cull-near-duplicates|cull-review|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|offline-proxy-delete|offline-proxy-pin|offline-proxy-evict|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -188,7 +188,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand == "convert-foreign" || subcommand == "dng-convert" ||
         subcommand == "smart-preview" || subcommand == "offline-proxy-create" ||
         subcommand == "offline-proxy-list" || subcommand == "offline-proxy-verify" ||
-        subcommand == "offline-proxy-status" || subcommand == "offline-proxy-reconnect";
+        subcommand == "offline-proxy-status" || subcommand == "offline-proxy-reconnect" ||
+        subcommand == "offline-proxy-delete" || subcommand == "offline-proxy-pin" ||
+        subcommand == "offline-proxy-evict";
     if ((!flags.value().foreign_source.empty() || !flags.value().foreign_source_kind.empty()) &&
         subcommand != "convert-foreign")
         return make_error(
@@ -231,12 +233,27 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand != "editor-open" && subcommand != "editor-prepare-working-copy" &&
         subcommand != "editor-abandon-working-copy" && subcommand != "editor-reopen-working-copy" &&
         subcommand != "offline-proxy-create" && subcommand != "offline-proxy-reconnect" &&
-        subcommand != "cull-burst-accept")
+        subcommand != "offline-proxy-delete" && subcommand != "offline-proxy-pin" &&
+        subcommand != "offline-proxy-evict" && subcommand != "cull-burst-accept")
         return make_error(ErrorCode::kInvalidArgument,
                           "--user-initiated is only valid for catalog ai-propose, ai-suggest, "
                           "editor-open, editor-prepare-working-copy, "
                           "editor-abandon-working-copy, editor-reopen-working-copy, "
-                          "offline-proxy-create, offline-proxy-reconnect, or cull-burst-accept");
+                          "offline-proxy-create, offline-proxy-reconnect, "
+                          "offline-proxy-delete, offline-proxy-pin, offline-proxy-evict, "
+                          "or cull-burst-accept");
+    if (flags.value().force && subcommand != "offline-proxy-delete")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--force is only valid for catalog offline-proxy-delete");
+    if (flags.value().unpin && subcommand != "offline-proxy-pin")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--unpin is only valid for catalog offline-proxy-pin");
+    if (flags.value().clear_proxy && subcommand != "offline-proxy-reconnect")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--clear-proxy is only valid for catalog offline-proxy-reconnect");
+    if (flags.value().max_total_bytes && subcommand != "offline-proxy-evict")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--max-total-bytes is only valid for catalog offline-proxy-evict");
     if (!flags.value().working_copy_id.empty() && subcommand != "editor-check-returned" &&
         subcommand != "editor-working-copy-status" && subcommand != "editor-abandon-working-copy" &&
         subcommand != "editor-reopen-working-copy")
@@ -982,6 +999,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"height", JsonValue::number(std::to_string(previewed.value().height))},
             {"original_missing", previewed.value().original_missing},
             {"media_state", previewed.value().media_state},
+            {"pixel_provenance", previewed.value().pixel_provenance},
+            {"preview_apply_mode", previewed.value().preview_apply_mode},
             {"width", JsonValue::number(std::to_string(previewed.value().width))},
         };
         if (flags.value().roi.has_value())
@@ -1108,6 +1127,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"iq_consistency", iq_consistency_policy_json()},
             {"original_missing", previewed.value().original_missing},
             {"media_state", previewed.value().media_state},
+            {"pixel_provenance", previewed.value().pixel_provenance},
+            {"preview_apply_mode", previewed.value().preview_apply_mode},
             {"overrides", std::move(overrides)},
             {"preview_records_unchanged", true},
             {"recipe_unchanged", true},

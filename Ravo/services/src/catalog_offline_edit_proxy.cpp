@@ -2,6 +2,7 @@
 
 #include "catalog_internal.h"
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <filesystem>
@@ -197,9 +198,11 @@ void best_effort_remove_tree(const std::string_view path_utf8)
         {"height", JsonValue::number(std::to_string(manifest.height))},
         {"created_unix_ms", JsonValue::number(std::to_string(manifest.created_unix_ms))},
         {"pixel_provenance", manifest.pixel_provenance},
+        {"pinned", manifest.pinned},
     };
     const auto path = offline_edit_proxy_manifest_path(root.generic_string());
-    return write_utf8_text_file_atomically(path, serialize_json(JsonValue{std::move(object)}));
+    return write_utf8_text_file_replace_atomically(path,
+                                                   serialize_json(JsonValue{std::move(object)}));
 }
 
 [[nodiscard]] Result<OfflineEditProxyManifest> load_manifest(const std::string_view root)
@@ -376,6 +379,16 @@ void best_effort_remove_tree(const std::string_view path_utf8)
                           {{"path", path},
                            {"pixel_provenance", manifest.pixel_provenance},
                            {"reason", "invalid_offline_edit_proxy_pixel_provenance"}});
+    }
+    const auto *pinned = parsed.value().find("pinned");
+    if (pinned != nullptr)
+    {
+        if (pinned->boolean_if() == nullptr)
+        {
+            return make_error(ErrorCode::kValidation, "Offline-edit proxy pinned flag is invalid",
+                              {{"path", path}, {"reason", "invalid_offline_edit_proxy_pinned"}});
+        }
+        manifest.pinned = *pinned->boolean_if();
     }
     (void)fingerprint_fields;
     return manifest;
@@ -594,6 +607,7 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
         {"height", JsonValue::number(std::to_string(manifest.height))},
         {"created_unix_ms", JsonValue::number(std::to_string(manifest.created_unix_ms))},
         {"pixel_provenance", manifest.pixel_provenance},
+        {"pinned", manifest.pinned},
     };
     auto written = write_utf8_text_file_atomically(offline_edit_proxy_manifest_path(staging_root),
                                                    serialize_json(JsonValue{std::move(object)}));
@@ -934,6 +948,284 @@ CatalogService::reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequ
     // not keep machine-visible offline/export-blocked signals.
     result.offline_states_cleared = true;
     result.status = std::move(refreshed).value();
+    if (request.clear_proxy)
+    {
+        if (result.status.manifest && result.status.manifest->pinned)
+        {
+            result.proxy_cleared = false;
+            result.status.reason = "reconnect_verified_proxy_pinned";
+        }
+        else
+        {
+            OfflineEditProxyDeleteRequest del;
+            del.asset_id = request.asset_id;
+            del.user_initiated = true;
+            del.force = false;
+            auto cleared = delete_offline_edit_proxy(del);
+            if (!cleared)
+                return cleared.error();
+            result.proxy_cleared = cleared.value().deleted;
+            auto after = verify_offline_edit_proxy(request.asset_id);
+            if (!after)
+                return after.error();
+            after.value().media_state = OfflineEditMediaState::kOriginal;
+            after.value().reason =
+                result.proxy_cleared ? "reconnect_verified_proxy_cleared" : "reconnect_verified";
+            after.value().usable_for_export = true;
+            result.status = std::move(after).value();
+        }
+    }
+    return result;
+}
+
+Result<OfflineEditProxyDeleteResult>
+CatalogService::delete_offline_edit_proxy(const OfflineEditProxyDeleteRequest &request)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Catalog is not open",
+                          {{"reason", "catalog_not_open"}});
+    }
+    if (!request.user_initiated)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Offline-edit proxy delete requires --user-initiated",
+                          {{"reason", "missing_user_initiated"}});
+    }
+    if (request.asset_id.empty() || !safe_path_component(request.asset_id))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Offline-edit proxy requires an asset id",
+                          {{"reason", "missing_asset_id"}});
+    }
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+
+    auto snapshot = repository_->snapshot();
+    if (!snapshot)
+        return snapshot.error();
+    const auto root = offline_edit_proxy_root(snapshot.value().database_path, request.asset_id);
+
+    OfflineEditProxyDeleteResult result;
+    result.originals_unchanged = true;
+    auto loaded = load_manifest(root);
+    if (!loaded)
+    {
+        if (loaded.error().code == ErrorCode::kNotFound || loaded.error().code == ErrorCode::kIo)
+        {
+            result.deleted = false;
+            result.reason = "proxy_absent";
+            return result;
+        }
+        return loaded.error();
+    }
+    if (loaded.value().pinned && !request.force)
+    {
+        return make_error(ErrorCode::kConflict, "Offline-edit proxy is pinned",
+                          {{"asset_id", request.asset_id}, {"reason", "proxy_pinned"}});
+    }
+    std::error_code error;
+    std::filesystem::remove_all(utf8_path(root), error);
+    if (error)
+    {
+        return make_error(ErrorCode::kIo, "Unable to delete offline-edit proxy",
+                          {{"path", root},
+                           {"asset_id", request.asset_id},
+                           {"reason", "offline_edit_proxy_delete_failed"},
+                           {"detail", error.message()}});
+    }
+    result.deleted = true;
+    result.reason = loaded.value().pinned ? "proxy_force_deleted" : "proxy_deleted";
+    return result;
+}
+
+Result<OfflineEditProxyPinResult>
+CatalogService::pin_offline_edit_proxy(const OfflineEditProxyPinRequest &request)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Catalog is not open",
+                          {{"reason", "catalog_not_open"}});
+    }
+    if (!request.user_initiated)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Offline-edit proxy pin requires --user-initiated",
+                          {{"reason", "missing_user_initiated"}});
+    }
+    if (request.asset_id.empty() || !safe_path_component(request.asset_id))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Offline-edit proxy requires an asset id",
+                          {{"reason", "missing_asset_id"}});
+    }
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+
+    auto status = verify_offline_edit_proxy(request.asset_id);
+    if (!status)
+        return status.error();
+    if (!status.value().proxy_verified || !status.value().manifest)
+    {
+        return make_error(
+            ErrorCode::kNotFound, "Offline-edit proxy is not verified",
+            {{"asset_id", request.asset_id},
+             {"reason", status.value().reason.empty() ? "proxy_absent" : status.value().reason}});
+    }
+    OfflineEditProxyManifest manifest = *status.value().manifest;
+    if (manifest.pinned == request.pinned)
+    {
+        OfflineEditProxyPinResult result;
+        result.manifest = std::move(manifest);
+        return result;
+    }
+    manifest.pinned = request.pinned;
+    auto written = write_manifest(manifest);
+    if (!written)
+        return written.error();
+    OfflineEditProxyPinResult result;
+    result.manifest = std::move(manifest);
+    return result;
+}
+
+Result<OfflineEditProxyEvictResult>
+CatalogService::evict_offline_edit_proxies(const OfflineEditProxyEvictRequest &request)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Catalog is not open",
+                          {{"reason", "catalog_not_open"}});
+    }
+    if (!request.user_initiated)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Offline-edit proxy evict requires --user-initiated",
+                          {{"reason", "missing_user_initiated"}});
+    }
+    if (request.max_total_bytes == 0)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Offline-edit proxy evict requires max_total_bytes > 0",
+                          {{"reason", "missing_max_total_bytes"}});
+    }
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+
+    auto listed = list_offline_edit_proxies();
+    if (!listed)
+        return listed.error();
+
+    auto snapshot = repository_->snapshot();
+    if (!snapshot)
+        return snapshot.error();
+
+    struct Candidate
+    {
+        std::string asset_id;
+        std::uint64_t bytes = 0;
+        std::int64_t created_unix_ms = 0;
+        bool pinned = false;
+        bool corrupt = false;
+    };
+    std::vector<Candidate> candidates;
+    std::uint64_t total_bytes = 0;
+    const auto add_bytes = [&](const std::string &root) -> std::uint64_t
+    {
+        std::uint64_t bytes = 0;
+        std::error_code error;
+        if (!std::filesystem::exists(utf8_path(root), error) || error)
+            return 0;
+        for (const auto &entry :
+             std::filesystem::recursive_directory_iterator(utf8_path(root), error))
+        {
+            if (error)
+                break;
+            if (!entry.is_regular_file(error) || error)
+                continue;
+            bytes += static_cast<std::uint64_t>(entry.file_size(error));
+            if (error)
+                error.clear();
+        }
+        return bytes;
+    };
+
+    for (const auto &manifest : listed.value().manifests)
+    {
+        Candidate row;
+        row.asset_id = manifest.asset_id;
+        row.created_unix_ms = manifest.created_unix_ms;
+        row.pinned = manifest.pinned;
+        const auto root =
+            offline_edit_proxy_root(snapshot.value().database_path, manifest.asset_id);
+        row.bytes = add_bytes(root);
+        total_bytes += row.bytes;
+        candidates.push_back(std::move(row));
+    }
+    for (const auto &corrupt : listed.value().corrupt)
+    {
+        Candidate row;
+        row.asset_id = corrupt.asset_id;
+        row.corrupt = true;
+        if (safe_path_component(corrupt.asset_id))
+        {
+            const auto root =
+                offline_edit_proxy_root(snapshot.value().database_path, corrupt.asset_id);
+            row.bytes = add_bytes(root);
+            total_bytes += row.bytes;
+        }
+        candidates.push_back(std::move(row));
+    }
+
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate &left, const Candidate &right)
+              {
+                  if (left.pinned != right.pinned)
+                      return !left.pinned && right.pinned;
+                  if (left.corrupt != right.corrupt)
+                      return left.corrupt && !right.corrupt;
+                  return left.created_unix_ms < right.created_unix_ms;
+              });
+
+    OfflineEditProxyEvictResult result;
+    for (const auto &row : candidates)
+    {
+        if (row.pinned)
+        {
+            ++result.retained_pinned;
+            result.retained_pinned_asset_ids.push_back(row.asset_id);
+            result.bytes_retained += row.bytes;
+            continue;
+        }
+        if (total_bytes <= request.max_total_bytes)
+        {
+            result.bytes_retained += row.bytes;
+            continue;
+        }
+        cancelled = request.cancellation.check();
+        if (!cancelled)
+            return cancelled.error();
+        OfflineEditProxyDeleteRequest del;
+        del.asset_id = row.asset_id;
+        del.user_initiated = true;
+        del.force = row.corrupt;
+        auto deleted = delete_offline_edit_proxy(del);
+        if (!deleted)
+            return deleted.error();
+        if (deleted.value().deleted)
+        {
+            ++result.evicted;
+            result.evicted_asset_ids.push_back(row.asset_id);
+            if (total_bytes >= row.bytes)
+                total_bytes -= row.bytes;
+            else
+                total_bytes = 0;
+        }
+        else
+        {
+            result.bytes_retained += row.bytes;
+        }
+    }
     return result;
 }
 

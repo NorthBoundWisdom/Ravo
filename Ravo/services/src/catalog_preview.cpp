@@ -479,6 +479,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     std::string render_path = location.value().path;
     bool using_offline_proxy = false;
     std::string offline_proxy_cache_tag;
+    std::string proxy_pixel_provenance;
     std::string preview_media_state =
         original_exists ?
             std::string(offline_edit_media_state_name(OfflineEditMediaState::kOriginal)) :
@@ -491,6 +492,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             render_path = offline.value().manifest->proxy_path;
             using_offline_proxy = true;
             offline_proxy_cache_tag = "offline_proxy:" + offline.value().manifest->proxy_sha256;
+            proxy_pixel_provenance = offline.value().manifest->pixel_provenance;
             preview_media_state =
                 std::string(offline_edit_media_state_name(OfflineEditMediaState::kProxy));
             // Proxy is a bounded sRGB TIFF stand-in; never re-enter RAW demosaic.
@@ -733,6 +735,10 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     result.cache_key = cache_key;
     result.original_missing = !original_exists;
     result.media_state = preview_media_state;
+    result.pixel_provenance = proxy_pixel_provenance;
+    result.preview_apply_mode = using_offline_proxy ?
+                                    std::string(kOfflineEditPreviewApplyIdentityBaked) :
+                                    std::string(kOfflineEditPreviewApplyCatalogRecipe);
 
     if (!interactive)
     {

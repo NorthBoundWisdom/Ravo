@@ -203,8 +203,14 @@ QStringList command_ids()
             QLatin1String(command::kPhotoEditInAbandon),
             QLatin1String(command::kPhotoEditInReopen),
             QLatin1String(command::kPhotoEditInRefreshStatus),
+            QLatin1String(command::kPhotoOfflineEdit),
             QLatin1String(command::kPhotoOfflineEditRefreshStatus),
             QLatin1String(command::kPhotoOfflineEditReconnect),
+            QLatin1String(command::kPhotoOfflineEditCreate),
+            QLatin1String(command::kPhotoOfflineEditDelete),
+            QLatin1String(command::kPhotoOfflineEditPin),
+            QLatin1String(command::kPhotoOfflineEditEvict),
+            QLatin1String(command::kPhotoOfflineEditList),
             QLatin1String(command::kPhotoAiProposal),
             QLatin1String(command::kPhotoAiPropose),
             QLatin1String(command::kPhotoAiProposalSelect),
@@ -610,6 +616,22 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Refresh External Edit Status")),
         photo, {QStringLiteral("external"), QStringLiteral("status"), QStringLiteral("conflict")},
         QStringLiteral("photo.review"), 44, true);
+    add(command::kPhotoOfflineEdit, command::kPhotoOfflineEdit,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Offline-edit proxies...")), photo,
+        {QStringLiteral("offline"), QStringLiteral("proxy"), QStringLiteral("reconnect")},
+        QStringLiteral("photo.review"), 45, true);
+    add(command::kPhotoOfflineEditCreate, command::kPhotoOfflineEditCreate,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Create Offline-edit Proxy")), photo,
+        {QStringLiteral("offline"), QStringLiteral("proxy"), QStringLiteral("create")},
+        QStringLiteral("photo.review"), 46, true);
+    add(command::kPhotoOfflineEditReconnect, command::kPhotoOfflineEditReconnect,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reconnect Original")), photo,
+        {QStringLiteral("offline"), QStringLiteral("reconnect"), QStringLiteral("original")},
+        QStringLiteral("photo.review"), 47, true);
+    add(command::kPhotoOfflineEditDelete, command::kPhotoOfflineEditDelete,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Delete Offline-edit Proxy")), photo,
+        {QStringLiteral("offline"), QStringLiteral("delete"), QStringLiteral("proxy")},
+        QStringLiteral("photo.review"), 48, true);
     add(command::kPhotoAiProposal, command::kPhotoAiProposal,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Inspect AI Proposal...")), photo,
         {QStringLiteral("ai"), QStringLiteral("proposal"), QStringLiteral("stub")},

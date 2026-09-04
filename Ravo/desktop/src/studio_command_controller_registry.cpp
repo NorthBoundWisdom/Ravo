@@ -991,10 +991,98 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             presenter_.refreshExternalEditorWorkingCopyStatus(
                 fields.value(QStringLiteral("workingCopyId")).toString());
         });
+    add(command::kPhotoOfflineEdit, Condition::kReadySelection, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kPhotoOfflineEdit, argument); });
     add(command::kPhotoOfflineEditRefreshStatus, Condition::kReadySelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.refreshOfflineEditMediaStatus(); });
-    add(command::kPhotoOfflineEditReconnect, Condition::kReadySelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.reconnectOfflineEditProxy(); });
+    add(command::kPhotoOfflineEditList, Condition::kCatalogOpen, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.refreshOfflineEditProxyList(); });
+    add(
+        command::kPhotoOfflineEditCreate, Condition::kReadySelection,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.createOfflineEditProxy(fields.value(QStringLiteral("maxEdge")).toUInt());
+        });
+    add(
+        command::kPhotoOfflineEditReconnect, Condition::kReadySelection,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.reconnectOfflineEditProxy(
+                fields.value(QStringLiteral("clearProxy")).toBool());
+        });
+    add(
+        command::kPhotoOfflineEditDelete, Condition::kReadySelection,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.deleteOfflineEditProxy(fields.value(QStringLiteral("force")).toBool());
+        });
+    add(
+        command::kPhotoOfflineEditPin, Condition::kReadySelection,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            const bool pinned = fields.contains(QStringLiteral("pinned")) ?
+                                    fields.value(QStringLiteral("pinned")).toBool() :
+                                    true;
+            presenter_.pinOfflineEditProxy(pinned);
+        });
+    add(
+        command::kPhotoOfflineEditEvict, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.evictOfflineEditProxies(
+                fields.value(QStringLiteral("maxTotalBytes")).toULongLong());
+        });
 
     add(command::kPhotoAiProposal, Condition::kReadySelection, no_argument,
         [present](const QVariant &argument, const QString &)

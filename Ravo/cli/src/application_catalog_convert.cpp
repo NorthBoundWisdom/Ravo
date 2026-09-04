@@ -95,6 +95,7 @@ namespace
         {"height", JsonValue::number(std::to_string(manifest.height))},
         {"created_unix_ms", JsonValue::number(std::to_string(manifest.created_unix_ms))},
         {"pixel_provenance", manifest.pixel_provenance},
+        {"pinned", manifest.pinned},
     }};
 }
 
@@ -266,6 +267,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         OfflineEditProxyReconnectRequest request;
         request.asset_id = std::string(flags.asset_id);
         request.user_initiated = true;
+        request.clear_proxy = flags.clear_proxy;
         auto reconnected = service.reconnect_offline_edit_proxy(request);
         if (!reconnected)
             return reconnected.error();
@@ -274,6 +276,92 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
             {"source_hash_matched", reconnected.value().source_hash_matched},
             {"originals_unchanged", reconnected.value().originals_unchanged},
             {"offline_states_cleared", reconnected.value().offline_states_cleared},
+            {"proxy_cleared", reconnected.value().proxy_cleared},
+        }};
+    }
+    if (subcommand == "offline-proxy-delete")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-delete requires --asset-id");
+        }
+        if (!flags.user_initiated)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-delete requires --user-initiated",
+                              {{"reason", "missing_user_initiated"}});
+        }
+        OfflineEditProxyDeleteRequest request;
+        request.asset_id = std::string(flags.asset_id);
+        request.user_initiated = true;
+        request.force = flags.force;
+        auto deleted = service.delete_offline_edit_proxy(request);
+        if (!deleted)
+            return deleted.error();
+        return JsonValue{JsonValue::Object{
+            {"deleted", deleted.value().deleted},
+            {"originals_unchanged", deleted.value().originals_unchanged},
+            {"reason", deleted.value().reason},
+        }};
+    }
+    if (subcommand == "offline-proxy-pin")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-pin requires --asset-id");
+        }
+        if (!flags.user_initiated)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-pin requires --user-initiated",
+                              {{"reason", "missing_user_initiated"}});
+        }
+        OfflineEditProxyPinRequest request;
+        request.asset_id = std::string(flags.asset_id);
+        request.user_initiated = true;
+        request.pinned = !flags.unpin;
+        auto pinned = service.pin_offline_edit_proxy(request);
+        if (!pinned)
+            return pinned.error();
+        return JsonValue{JsonValue::Object{
+            {"manifest", offline_proxy_manifest_json(pinned.value().manifest)},
+            {"pinned", pinned.value().manifest.pinned},
+        }};
+    }
+    if (subcommand == "offline-proxy-evict")
+    {
+        if (!flags.user_initiated)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-evict requires --user-initiated",
+                              {{"reason", "missing_user_initiated"}});
+        }
+        if (!flags.max_total_bytes)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-evict requires --max-total-bytes",
+                              {{"reason", "missing_max_total_bytes"}});
+        }
+        OfflineEditProxyEvictRequest request;
+        request.user_initiated = true;
+        request.max_total_bytes = *flags.max_total_bytes;
+        auto evicted = service.evict_offline_edit_proxies(request);
+        if (!evicted)
+            return evicted.error();
+        JsonValue::Array evicted_ids;
+        for (const auto &id : evicted.value().evicted_asset_ids)
+            evicted_ids.push_back(JsonValue{id});
+        JsonValue::Array pinned_ids;
+        for (const auto &id : evicted.value().retained_pinned_asset_ids)
+            pinned_ids.push_back(JsonValue{id});
+        return JsonValue{JsonValue::Object{
+            {"evicted", JsonValue::number(std::to_string(evicted.value().evicted))},
+            {"retained_pinned", JsonValue::number(std::to_string(evicted.value().retained_pinned))},
+            {"bytes_retained", JsonValue::number(std::to_string(evicted.value().bytes_retained))},
+            {"evicted_asset_ids", std::move(evicted_ids)},
+            {"retained_pinned_asset_ids", std::move(pinned_ids)},
         }};
     }
     if (subcommand != "convert-foreign")

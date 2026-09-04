@@ -217,6 +217,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/FolderDialogPage.qml
     qml/chrome/BackupScheduleDialog.qml
     qml/chrome/EditInDialog.qml
+    qml/chrome/OfflineEditDialog.qml
     qml/chrome/AiProposalDialog.qml
     qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
