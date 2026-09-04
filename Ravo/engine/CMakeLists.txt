@@ -55,6 +55,7 @@ target_sources(ravo_engine
     src/monochrome.cpp
     src/monochrome.h
     src/noise_calibration.cpp
+    src/iq_quality_evaluation.cpp
     src/output_color.h
     src/output_dither.cpp
     src/output_dither.h

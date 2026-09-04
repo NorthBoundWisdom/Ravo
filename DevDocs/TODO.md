@@ -4,8 +4,8 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0151 (IQ-00 CPU gold) plus Studio Edit-in chrome and
-> display discovery stubs; next free ADR **0152**.
+> **Review basis:** `main` through ADR-0152 (IQ-01 corpus/denoise probe) plus Studio Edit-in
+> chrome; next free ADR **0153**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -529,14 +529,17 @@ No real native adapter has shipped.
 
 ## IQ-01 — Camera/profile and denoise quality admission
 
-**Status:** Begins after IQ-00 supplies the regression harness.
+**Status:** ADR-0152 evaluation-corpus contract plus CPU denoise / camera-profile
+probes (fail-closed without corpus; fixture-backed first Ready) are on `main`.
+Full licensed corpus matrix and learned denoise admission remain open.
 
 **Remaining work:**
 
 - licensed redistributable quality corpus plus private-camera extension set for
   skin, saturated fabrics, foliage, tungsten/LED, underexposure, clipped
   highlights, high ISO, moiré, hot pixels, and lens extremes;
-- camera model/firmware/lens/illuminant/exposure/profile provenance;
+- camera model/firmware/lens/illuminant/exposure/profile provenance depth beyond
+  the fixture probe;
 - repeatable colour accuracy, hue stability, highlight recovery, noise/detail,
   halo, false-colour, and scaling metrics plus blinded human review;
 - camera input/profile and lens-database update workflows;
