@@ -346,10 +346,13 @@ geometry/composition evidence and chrome polish below.
 
 - COR-01 LOCAL residuals closed (id high-water, owned-mask GC, revision-bound saves);
 - keep bounded instance counts / last-instance Studio Delete gate as documented;
-- finish Add/Subtract/Intersect/Invert, opacity, overlay visibility, feather,
-  and accepted brush flow/density UX through one C++-owned mask DAG;
-- prove one coordinate path through orientation, lens, Perspective, crop,
-  Canvas, preview scaling, 1:1 ROI, and export;
+- [partial] Exposure instance group Add/Union/Difference + opacity authoring
+  round-trips with crop/perspective fields (LOCAL-01 C2 slice test);
+  remaining: Invert/Intersect UX polish, overlay visibility, feather, brush
+  flow/density through the same C++-owned mask DAG;
+- prove remaining coordinate path legs: orientation, lens, Canvas, preview
+  scaling, 1:1 ROI, and export (crop/perspective fields already carried with
+  instance group masks);
 - complete snapshot/reopen and failure-injection depth for instance vectors and
   masks; retain existing history/undo/style/copy/batch/virtual-copy contracts;
 - add GPU evaluation only after CPU equality and PERF-01 evidence;

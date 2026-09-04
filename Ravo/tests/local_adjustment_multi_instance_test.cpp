@@ -959,6 +959,81 @@ TEST(LocalAdjustmentMultiInstanceTest, Cor01MaskCloneRollsBackOnCycleOrMissingCh
     EXPECT_EQ(params.masks.size(), cycle_before);
 }
 
+TEST(LocalAdjustmentMultiInstanceTest, Local01GroupCompositionOnExposureSurvivesGeometryRecipe)
+{
+    // LOCAL-01 C2 vertical slice: Add/Union/Difference composition authored onto
+    // a selected Exposure instance, with crop/perspective geometry fields, must
+    // round-trip through recipe JSON without QML-owned state.
+    DevelopParams develop;
+    ASSERT_TRUE(add_exposure_instance(develop));
+    ASSERT_EQ(develop.exposure_instances.size(), 2U);
+    load_exposure_instance_into_legacy(develop, 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskKind", 6.0)); // group
+    auto group_state = develop_mask_editor_state(develop, DevelopMaskTarget::kExposure);
+    EXPECT_TRUE(group_state.editable);
+    EXPECT_EQ(group_state.kind_name, "group");
+    EXPECT_EQ(group_state.child_count, 1);
+
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskAddChild", 3.0)); // circle
+    EXPECT_EQ(develop_mask_editor_state(develop, DevelopMaskTarget::kExposure).child_count, 2);
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskChildIndex", 1.0));
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(develop, "exposureMaskChildOperator", 3.0)); // Difference
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskChildOpacity", 0.75));
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskCenterX", 0.55));
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskCenterY", 0.45));
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskRadius", 0.22));
+
+    mirror_legacy_exposure_into_instance(develop, 1);
+    ASSERT_TRUE(develop.exposure_instances[1].mask_id.has_value());
+    const auto group_id = *develop.exposure_instances[1].mask_id;
+
+    develop.straighten_degrees = 3.0;
+    develop.perspective_vertical = 0.12;
+    develop.perspective_horizontal = -0.08;
+    develop.crop_x = 0.05;
+    develop.crop_y = 0.04;
+    develop.crop_width = 0.9;
+    develop.crop_height = 0.88;
+
+    const AssetDescriptor asset{"asset-local01-c2", "file:///fixture.raw", std::nullopt};
+    auto recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto json = serialize_recipe(recipe.value());
+    ASSERT_TRUE(json) << json.error().message;
+    auto parsed = parse_recipe_json(json.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    auto restored = develop_from_recipe(parsed.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+
+    ASSERT_EQ(restored.value().exposure_instances.size(), 2U);
+    ASSERT_TRUE(restored.value().exposure_instances[1].mask_id.has_value());
+    EXPECT_EQ(*restored.value().exposure_instances[1].mask_id, group_id);
+    EXPECT_NEAR(restored.value().straighten_degrees, 3.0, 1e-9);
+    EXPECT_NEAR(restored.value().perspective_vertical, 0.12, 1e-9);
+    EXPECT_NEAR(restored.value().crop_width, 0.9, 1e-9);
+
+    const Mask *group = nullptr;
+    for (const auto &mask : restored.value().masks)
+    {
+        if (mask.id == group_id)
+            group = &mask;
+    }
+    ASSERT_NE(group, nullptr);
+    EXPECT_EQ(group->kind, MaskKind::kGroup);
+    const auto *payload = std::get_if<MaskGroup>(&group->payload);
+    ASSERT_NE(payload, nullptr);
+    ASSERT_EQ(payload->children.size(), 2U);
+    EXPECT_EQ(payload->children[1].operation, MaskGroupOperator::kDifference);
+    EXPECT_NEAR(payload->children[1].opacity, 0.75, 1e-9);
+
+    load_exposure_instance_into_legacy(restored.value(), 1);
+    auto restored_state = develop_mask_editor_state(restored.value(), DevelopMaskTarget::kExposure);
+    EXPECT_TRUE(restored_state.editable);
+    EXPECT_EQ(restored_state.kind_name, "group");
+    EXPECT_EQ(restored_state.child_count, 2);
+}
+
 } // namespace
 
 } // namespace ravo
