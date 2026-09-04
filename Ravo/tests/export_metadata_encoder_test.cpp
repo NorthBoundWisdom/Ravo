@@ -244,6 +244,46 @@ TEST(ExportMetadataEncoderTest, JpegFramingFitsAppMarkerBounds)
     EXPECT_LE(iptc.value().size(), kJpegAppMarkerMaxPayloadBytes);
 }
 
+TEST(ExportMetadataEncoderTest, IptcExtensionFieldsEmbedInXmpAndIim)
+{
+    ExportMetadataSnapshot snapshot;
+    snapshot.writable.headline = "Headline";
+    snapshot.writable.credit = "Credit";
+    snapshot.writable.source = "Source";
+    snapshot.writable.instructions = "Instructions";
+    snapshot.writable.usage_terms = "Usage & Terms";
+    snapshot.writable.job_id = "JOB-1";
+    const auto prepared = detail::prepare_export_metadata(snapshot, 8U, 8U, true, {});
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    const auto xml = as_text(prepared.value().xmp_packet);
+    EXPECT_NE(xml.find("xmlns:xmpRights=\"http://ns.adobe.com/xap/1.0/rights/\""),
+              std::string::npos);
+    EXPECT_NE(xml.find("<photoshop:Headline>Headline</photoshop:Headline>"), std::string::npos);
+    EXPECT_NE(xml.find("<photoshop:Credit>Credit</photoshop:Credit>"), std::string::npos);
+    EXPECT_NE(xml.find("<photoshop:Source>Source</photoshop:Source>"), std::string::npos);
+    EXPECT_NE(xml.find("<photoshop:Instructions>Instructions</photoshop:Instructions>"),
+              std::string::npos);
+    EXPECT_NE(xml.find("<photoshop:TransmissionReference>JOB-1</photoshop:TransmissionReference>"),
+              std::string::npos);
+    EXPECT_NE(xml.find("<xmpRights:UsageTerms>"), std::string::npos);
+    EXPECT_NE(xml.find("Usage &amp; Terms"), std::string::npos);
+    ASSERT_TRUE(prepared.value().iptc_iim);
+    // usage_terms stays XMP-only; IIM still required because other Extension fields exist.
+    const auto &iim = *prepared.value().iptc_iim;
+    const auto iim_text = as_text(iim);
+    EXPECT_NE(iim_text.find("Headline"), std::string::npos);
+    EXPECT_NE(iim_text.find("Credit"), std::string::npos);
+    EXPECT_NE(iim_text.find("JOB-1"), std::string::npos);
+    EXPECT_EQ(iim_text.find("Usage & Terms"), std::string::npos);
+
+    ExportMetadataSnapshot usage_only;
+    usage_only.writable.usage_terms = "XMP only";
+    const auto usage_prepared = detail::prepare_export_metadata(usage_only, 4U, 4U, true, {});
+    ASSERT_TRUE(usage_prepared) << usage_prepared.error().message;
+    EXPECT_FALSE(usage_prepared.value().iptc_iim);
+    EXPECT_NE(as_text(usage_prepared.value().xmp_packet).find("XMP only"), std::string::npos);
+}
+
 TEST(ExportMetadataEncoderTest, RejectsUnsortedTagsAndInvalidIso)
 {
     ExportMetadataSnapshot snapshot;

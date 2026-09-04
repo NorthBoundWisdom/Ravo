@@ -192,6 +192,12 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     sidecar_meta.province_state = "Île-de-France";
     sidecar_meta.city = "Paris";
     sidecar_meta.sublocation = "Louvre";
+    sidecar_meta.headline = "Louvre night";
+    sidecar_meta.credit = "Wire Desk";
+    sidecar_meta.source = "AFP";
+    sidecar_meta.instructions = "No crop";
+    sidecar_meta.usage_terms = "Editorial";
+    sidecar_meta.job_id = "JOB-42";
     const auto sidecar_path = write_adjacent_xmp(
         original, adjacent_metadata_crs_xmp(-0.2, sidecar_meta, {"Nature|Birds", "Archive"}));
 
@@ -225,6 +231,18 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     EXPECT_EQ(*applied.value().asset.metadata.country, "France");
     ASSERT_TRUE(applied.value().asset.metadata.sublocation);
     EXPECT_EQ(*applied.value().asset.metadata.sublocation, "Louvre");
+    ASSERT_TRUE(applied.value().asset.metadata.headline);
+    EXPECT_EQ(*applied.value().asset.metadata.headline, "Louvre night");
+    ASSERT_TRUE(applied.value().asset.metadata.credit);
+    EXPECT_EQ(*applied.value().asset.metadata.credit, "Wire Desk");
+    ASSERT_TRUE(applied.value().asset.metadata.source);
+    EXPECT_EQ(*applied.value().asset.metadata.source, "AFP");
+    ASSERT_TRUE(applied.value().asset.metadata.instructions);
+    EXPECT_EQ(*applied.value().asset.metadata.instructions, "No crop");
+    ASSERT_TRUE(applied.value().asset.metadata.usage_terms);
+    EXPECT_EQ(*applied.value().asset.metadata.usage_terms, "Editorial");
+    ASSERT_TRUE(applied.value().asset.metadata.job_id);
+    EXPECT_EQ(*applied.value().asset.metadata.job_id, "JOB-42");
     ASSERT_EQ(applied.value().asset.tags.size(), 2U);
     EXPECT_EQ(applied.value().asset.tags[0], "Archive");
     EXPECT_EQ(applied.value().asset.tags[1], "Nature|Birds");
@@ -253,6 +271,9 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     EXPECT_NE(exported_text.value().find("Catalog Title"), std::string::npos);
     EXPECT_NE(exported_text.value().find("Nature|Birds"), std::string::npos);
     EXPECT_NE(exported_text.value().find("photoshop:Country"), std::string::npos);
+    EXPECT_NE(exported_text.value().find("photoshop:Headline"), std::string::npos);
+    EXPECT_NE(exported_text.value().find("xmpRights:UsageTerms"), std::string::npos);
+    EXPECT_NE(exported_text.value().find("photoshop:TransmissionReference"), std::string::npos);
 
     // Keyword-only catalog change also participates.
     ASSERT_TRUE(service->set_tags(asset_id, {"Nature|Birds", "Archive", "Travel"}));

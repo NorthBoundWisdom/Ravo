@@ -1255,8 +1255,7 @@ bool export_iptc_should_omit(const ExportMetadataSnapshot &metadata) noexcept
            !metadata.writable.country && !metadata.writable.province_state &&
            !metadata.writable.city && !metadata.writable.sublocation &&
            !metadata.writable.headline && !metadata.writable.credit && !metadata.writable.source &&
-           !metadata.writable.instructions && !metadata.writable.usage_terms &&
-           !metadata.writable.job_id && metadata.tags.empty();
+           !metadata.writable.instructions && !metadata.writable.job_id && metadata.tags.empty();
 }
 
 std::string export_rational_xmp_text(const ExportUnsignedRational value)

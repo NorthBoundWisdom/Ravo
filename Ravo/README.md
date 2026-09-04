@@ -840,11 +840,13 @@ interchange path (ADR-0120/0138). Conflict classes are
 `missing|identical|catalog-newer|sidecar-newer|both-changed`; import/export
 default to `--resolve abort` and require `catalog` or `sidecar` when the sides
 disagree. Catalog fingerprints cover the CRS recipe **and** catalog-owned IPTC
-Core, location quartet, and hierarchical keyword display paths. Sidecars may
-carry CRS PV2012 looks plus `dc:` / `photoshop:` / `Iptc4xmpCore:` /
+Core, location quartet, ADR-0140 Extension/additional Core writables
+(`headline`/`credit`/`source`/`instructions`/`usage_terms`/`job_id`), and
+hierarchical keyword display paths. Sidecars may carry CRS PV2012 looks plus
+`dc:` / `photoshop:` / `Iptc4xmpCore:` / `xmpRights:` /
 `lr:hierarchicalSubject` packets; unsupported hierarchical keyword shapes fail
 closed. Original media bytes are never rewritten. Capture refresh still leaves
-catalog-owned Core/location/keywords untouched.
+catalog-owned Core/location/Extension/keywords untouched.
 
 `ravo catalog editor-open|editor-register|editor-show` is the explicit
 external-editor round-trip (ADR-0122/0139). `editor-open` requires
@@ -870,8 +872,9 @@ ships in the default package. Every run returns a structured report counting
 `imported`, `skipped`, `unsupported`, and `failed` items with per-item
 `mapped_fields`, `unsupported_fields`, and reasons; mapped fields cover the
 original plus rating, colour label, reject flag, IPTC Core/location text,
-keyword paths, and ADR-0086 CRS recipe fields, and unsupported foreign adjusts
-are counted rather than silently dropped.
+ADR-0140 Extension writables when present in the fixture, keyword paths, and
+ADR-0086 CRS recipe fields, and unsupported foreign adjusts are counted rather
+than silently dropped.
 
 An existing output path returns structured `conflict`; it is never overwritten
 implicitly. Catalog commands call the same services as Studio and serve as the
