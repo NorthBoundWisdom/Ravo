@@ -445,6 +445,10 @@ JsonValue ai_proposal_to_json(const AiProposal &proposal)
         object.emplace("semantic_label", *proposal.semantic_label);
     else
         object.emplace("semantic_label", nullptr);
+    if (proposal.reference_asset_id)
+        object.emplace("reference_asset_id", *proposal.reference_asset_id);
+    else
+        object.emplace("reference_asset_id", nullptr);
     if (proposal.applied_history_id)
         object.emplace("applied_history_id",
                        JsonValue::number(std::to_string(*proposal.applied_history_id)));

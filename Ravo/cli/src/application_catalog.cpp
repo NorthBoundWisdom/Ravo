@@ -204,10 +204,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand != "ai-propose")
         return make_error(ErrorCode::kInvalidArgument,
                           "--provider/--model are only valid for catalog ai-propose");
-    if ((!flags.value().proposal_kind.empty() || !flags.value().semantic_label.empty()) &&
+    if ((!flags.value().proposal_kind.empty() || !flags.value().semantic_label.empty() ||
+         !flags.value().reference_asset.empty() || !flags.value().destination_assets.empty()) &&
         subcommand != "ai-propose")
         return make_error(ErrorCode::kInvalidArgument,
-                          "--proposal-kind/--semantic-label are only valid for catalog ai-propose");
+                          "--proposal-kind/--semantic-label/--reference-asset/"
+                          "--destination-assets are only valid for catalog ai-propose");
     if (!flags.value().from_asset.empty() && !develop_apply_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--from-asset is only valid for catalog develop-apply");
@@ -1690,6 +1692,52 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
 
     if (subcommand == "ai-propose")
     {
+        AiProposalKind kind = AiProposalKind::kGlobal;
+        if (!flags.value().proposal_kind.empty())
+        {
+            auto parsed = parse_ai_proposal_kind(flags.value().proposal_kind);
+            if (!parsed)
+                return parsed.error();
+            kind = parsed.value();
+        }
+        if (kind == AiProposalKind::kShootConsistency)
+        {
+            if (flags.value().reference_asset.empty())
+                return make_error(
+                    ErrorCode::kInvalidArgument,
+                    "catalog ai-propose shoot-consistency requires --reference-asset");
+            if (flags.value().destination_assets.empty())
+                return make_error(
+                    ErrorCode::kInvalidArgument,
+                    "catalog ai-propose shoot-consistency requires --destination-assets");
+            if (!flags.value().asset_id.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "shoot-consistency uses --reference-asset/--destination-assets, "
+                                  "not --asset-id");
+            AiShootConsistencyRequest request;
+            request.reference_asset_id = std::string(flags.value().reference_asset);
+            request.destination_asset_ids.reserve(flags.value().destination_assets.size());
+            for (const auto destination : flags.value().destination_assets)
+                request.destination_asset_ids.emplace_back(destination);
+            request.user_initiated = flags.value().user_initiated;
+            request.expected_catalog_revision = flags.value().expected_revision;
+            if (!flags.value().provider_id.empty())
+                request.provider_id = std::string(flags.value().provider_id);
+            if (!flags.value().model_id.empty())
+                request.model_id = std::string(flags.value().model_id);
+            auto created = service.create_shoot_consistency_proposals(request);
+            if (!created)
+                return created.error();
+            JsonValue::Array rows;
+            rows.reserve(created.value().size());
+            for (const auto &proposal : created.value())
+                rows.push_back(ai_proposal_to_json(proposal));
+            return JsonValue{JsonValue::Object{
+                {"kind", "shoot-consistency"},
+                {"proposals", std::move(rows)},
+                {"reference_asset_id", request.reference_asset_id},
+            }};
+        }
         if (flags.value().asset_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-propose requires --asset-id");
@@ -1697,13 +1745,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         request.asset_id = std::string(flags.value().asset_id);
         request.user_initiated = flags.value().user_initiated;
         request.expected_catalog_revision = flags.value().expected_revision;
-        if (!flags.value().proposal_kind.empty())
-        {
-            auto kind = parse_ai_proposal_kind(flags.value().proposal_kind);
-            if (!kind)
-                return kind.error();
-            request.kind = kind.value();
-        }
+        request.kind = kind;
         if (!flags.value().semantic_label.empty())
             request.semantic_label = std::string(flags.value().semantic_label);
         if (!flags.value().provider_id.empty())

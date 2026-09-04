@@ -78,6 +78,31 @@ constexpr auto kSemanticLabels = std::to_array<std::string_view>({
     "object",
 });
 
+// AI-03 v1: WB/exposure/tone/colour only — no crop/straighten/masks (ADR-0137).
+constexpr auto kShootConsistencyAllowedFields = std::to_array<std::string_view>({
+    "exposure",
+    "contrast",
+    "highlights",
+    "shadows",
+    "whites",
+    "blacks",
+    "vibrance",
+    "saturation",
+    "toneEqBlacks",
+    "toneEqShadows",
+    "toneEqMidtones",
+    "toneEqHighlights",
+    "toneEqWhites",
+    "colorBalanceContrast",
+    "colorBalanceVibrance",
+    "colorBalanceSaturationGlobal",
+    "whiteBalanceMode",
+    "whiteBalanceRed",
+    "whiteBalanceGreen",
+    "whiteBalanceBlue",
+    "whiteBalanceFourth",
+});
+
 [[nodiscard]] Result<void> require_stub_provider(const std::string_view provider_id,
                                                  const std::string_view model_id,
                                                  const AiProposalKind kind)
@@ -97,9 +122,11 @@ constexpr auto kSemanticLabels = std::to_array<std::string_view>({
                            {"available_provider", std::string(kAiStubProviderId)}});
     }
     const auto expected_model =
-        kind == AiProposalKind::kSemanticMask ? kAiStubSemanticMaskModelId : kAiStubModelId;
-    if (model_id != expected_model && model_id != kAiStubModelId &&
-        model_id != kAiStubSemanticMaskModelId)
+        kind == AiProposalKind::kSemanticMask     ? kAiStubSemanticMaskModelId :
+        kind == AiProposalKind::kShootConsistency ? kAiStubShootConsistencyModelId :
+                                                    kAiStubModelId;
+    if (model_id != kAiStubModelId && model_id != kAiStubSemanticMaskModelId &&
+        model_id != kAiStubShootConsistencyModelId)
     {
         return make_error(ErrorCode::kUnsupported, "AI model is not packaged",
                           {{"provider_id", std::string(provider_id)},
@@ -114,6 +141,14 @@ constexpr auto kSemanticLabels = std::to_array<std::string_view>({
                           {{"model_id", std::string(model_id)},
                            {"expected_model", std::string(kAiStubSemanticMaskModelId)},
                            {"reason", "ai_semantic_mask_model_mismatch"}});
+    }
+    if (kind == AiProposalKind::kShootConsistency && model_id != kAiStubShootConsistencyModelId)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Shoot-consistency proposals require the shoot stub model",
+                          {{"model_id", std::string(model_id)},
+                           {"expected_model", std::string(kAiStubShootConsistencyModelId)},
+                           {"reason", "ai_shoot_consistency_model_mismatch"}});
     }
     if (kind == AiProposalKind::kGlobal && model_id != kAiStubModelId)
     {
@@ -196,6 +231,10 @@ constexpr auto kSemanticLabels = std::to_array<std::string_view>({
         object.emplace("semantic_label", *proposal.semantic_label);
     else
         object.emplace("semantic_label", nullptr);
+    if (proposal.reference_asset_id)
+        object.emplace("reference_asset_id", *proposal.reference_asset_id);
+    else
+        object.emplace("reference_asset_id", nullptr);
     if (proposal.applied_history_id)
         object.emplace("applied_history_id",
                        JsonValue::number(std::to_string(*proposal.applied_history_id)));
@@ -268,6 +307,9 @@ constexpr auto kSemanticLabels = std::to_array<std::string_view>({
     if (const auto label_it = object->find("semantic_label");
         label_it != object->end() && label_it->second.string_if())
         proposal.semantic_label = std::string(*label_it->second.string_if());
+    if (const auto ref_it = object->find("reference_asset_id");
+        ref_it != object->end() && ref_it->second.string_if())
+        proposal.reference_asset_id = std::string(*ref_it->second.string_if());
     auto created = require_ai_json_number(*object, "created_unix_ms");
     if (!created)
         return created.error();
@@ -392,6 +434,8 @@ Result<AiProposalKind> parse_ai_proposal_kind(const std::string_view text)
         return AiProposalKind::kGlobal;
     if (text == "semantic-mask")
         return AiProposalKind::kSemanticMask;
+    if (text == "shoot-consistency")
+        return AiProposalKind::kShootConsistency;
     return make_error(ErrorCode::kInvalidArgument, "AI proposal kind is unsupported",
                       {{"kind", std::string(text)}, {"reason", "unsupported_ai_proposal_kind"}});
 }
@@ -428,11 +472,25 @@ bool is_ai_semantic_mask_allowed_field(const std::string_view field) noexcept
            kSemanticMaskAllowedFields.end();
 }
 
+std::span<const std::string_view> ai_shoot_consistency_allowed_fields() noexcept
+{
+    return kShootConsistencyAllowedFields;
+}
+
+bool is_ai_shoot_consistency_allowed_field(const std::string_view field) noexcept
+{
+    return std::find(kShootConsistencyAllowedFields.begin(), kShootConsistencyAllowedFields.end(),
+                     field) != kShootConsistencyAllowedFields.end();
+}
+
 [[nodiscard]] bool field_allowed_for_kind(const std::string_view field,
                                           const AiProposalKind kind) noexcept
 {
-    return kind == AiProposalKind::kSemanticMask ? is_ai_semantic_mask_allowed_field(field) :
-                                                   is_ai_proposal_allowed_field(field);
+    if (kind == AiProposalKind::kSemanticMask)
+        return is_ai_semantic_mask_allowed_field(field);
+    if (kind == AiProposalKind::kShootConsistency)
+        return is_ai_shoot_consistency_allowed_field(field);
+    return is_ai_proposal_allowed_field(field);
 }
 
 [[nodiscard]] int ai_field_apply_rank(const std::string_view field) noexcept
@@ -493,9 +551,10 @@ Result<void> validate_ai_proposal_fields(const std::vector<AiProposalFieldChange
         return make_error(ErrorCode::kValidation, "AI proposal fields are empty",
                           {{"reason", "empty_ai_proposal_fields"}});
     }
-    const auto max_fields = kind == AiProposalKind::kSemanticMask ?
-                                kSemanticMaskAllowedFields.size() :
-                                kAllowedFields.size();
+    const auto max_fields =
+        kind == AiProposalKind::kSemanticMask     ? kSemanticMaskAllowedFields.size() :
+        kind == AiProposalKind::kShootConsistency ? kShootConsistencyAllowedFields.size() :
+                                                    kAllowedFields.size();
     if (fields.size() > max_fields)
     {
         return make_error(ErrorCode::kValidation, "AI proposal field count exceeds allowlist",
@@ -540,6 +599,50 @@ Result<DevelopParams> apply_ai_proposal_fields(DevelopParams params,
             return applied.error();
     }
     return params;
+}
+
+Result<std::vector<AiProposalFieldChange>>
+build_shoot_consistency_proposal_fields(const DevelopParams &reference)
+{
+    auto push = [](std::vector<AiProposalFieldChange> &out, const std::string_view name,
+                   const double value) { out.push_back({std::string(name), value, 0.95}); };
+    std::vector<AiProposalFieldChange> fields;
+    fields.reserve(kShootConsistencyAllowedFields.size());
+    push(fields, "exposure", reference.exposure_ev);
+    push(fields, "contrast", reference.contrast);
+    push(fields, "highlights", reference.highlights);
+    push(fields, "shadows", reference.shadows);
+    push(fields, "whites", reference.whites);
+    push(fields, "blacks", reference.blacks);
+    push(fields, "vibrance", reference.vibrance);
+    push(fields, "saturation", reference.saturation);
+    push(fields, "toneEqBlacks", reference.tone_eq_blacks);
+    push(fields, "toneEqShadows", reference.tone_eq_shadows);
+    push(fields, "toneEqMidtones", reference.tone_eq_midtones);
+    push(fields, "toneEqHighlights", reference.tone_eq_highlights);
+    push(fields, "toneEqWhites", reference.tone_eq_whites);
+    push(fields, "colorBalanceContrast", reference.color_balance_rgb.contrast);
+    push(fields, "colorBalanceVibrance", reference.color_balance_rgb.vibrance);
+    push(fields, "colorBalanceSaturationGlobal", reference.color_balance_rgb.saturation_global);
+    double mode = 0.0;
+    if (reference.temperature.mode == kTemperatureModeCameraReference)
+        mode = 1.0;
+    else if (reference.temperature.mode == kTemperatureModeAsShotToReference)
+        mode = 2.0;
+    else if (reference.temperature.mode == kTemperatureModeManual)
+        mode = 3.0;
+    push(fields, "whiteBalanceMode", mode);
+    const auto coeffs = reference.temperature.coefficients ?
+                            *reference.temperature.coefficients :
+                            std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
+    push(fields, "whiteBalanceRed", coeffs[0]);
+    push(fields, "whiteBalanceGreen", coeffs[1]);
+    push(fields, "whiteBalanceBlue", coeffs[2]);
+    push(fields, "whiteBalanceFourth", coeffs[3]);
+    auto valid = validate_ai_proposal_fields(fields, AiProposalKind::kShootConsistency);
+    if (!valid)
+        return valid.error();
+    return fields;
 }
 
 Result<std::vector<AiProposalFieldChange>>
@@ -770,6 +873,12 @@ Result<AiProposal> CatalogService::create_ai_proposal(const AiProposalCreateRequ
     {
         return make_error(ErrorCode::kValidation, "AI proposal requires explicit user initiation",
                           {{"reason", "ai_proposal_not_user_initiated"}});
+    }
+    if (request.kind == AiProposalKind::kShootConsistency)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Shoot-consistency requires create_shoot_consistency_proposals",
+                          {{"reason", "use_shoot_consistency_batch_api"}});
     }
     if (request.asset_id.empty())
     {
@@ -1088,6 +1197,221 @@ CatalogService::apply_ai_proposal(const std::string_view proposal_id,
     result.revision = saved.value().revision;
     result.history_id = saved.value().history_id;
     return result;
+}
+
+Result<std::vector<AiProposal>>
+CatalogService::create_shoot_consistency_proposals(const AiShootConsistencyRequest &request)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto loaded = ensure_ai_proposals_loaded();
+    if (!loaded)
+        return loaded.error();
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+    if (!request.user_initiated)
+    {
+        return make_error(ErrorCode::kValidation, "AI proposal requires explicit user initiation",
+                          {{"reason", "ai_proposal_not_user_initiated"}});
+    }
+    if (request.reference_asset_id.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Shoot-consistency requires a reference asset",
+                          {{"reason", "missing_reference_asset_id"}});
+    }
+    if (request.destination_asset_ids.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Shoot-consistency requires at least one destination asset",
+                          {{"reason", "missing_destination_asset_ids"}});
+    }
+    std::string model_id = request.model_id;
+    if (model_id.empty() || model_id == kAiStubModelId || model_id == kAiStubSemanticMaskModelId)
+        model_id = std::string(kAiStubShootConsistencyModelId);
+    auto provider_ok =
+        require_stub_provider(request.provider_id, model_id, AiProposalKind::kShootConsistency);
+    if (!provider_ok)
+        return provider_ok.error();
+
+    std::set<std::string, std::less<>> unique_destinations;
+    for (const auto &destination : request.destination_asset_ids)
+    {
+        if (destination.empty())
+            return make_error(ErrorCode::kInvalidArgument, "Destination asset id is empty",
+                              {{"reason", "empty_destination_asset_id"}});
+        if (destination == request.reference_asset_id)
+            return make_error(
+                ErrorCode::kValidation, "Destination asset must not be the reference asset",
+                {{"asset_id", destination}, {"reason", "destination_is_reference_asset"}});
+        if (!unique_destinations.insert(destination).second)
+            return make_error(
+                ErrorCode::kValidation, "Destination asset ids must be unique",
+                {{"asset_id", destination}, {"reason", "duplicate_destination_asset_id"}});
+    }
+
+    std::size_t pending_count = 0;
+    for (const auto &[id, existing] : ai_proposals_)
+    {
+        (void)id;
+        if (existing.status == AiProposalStatus::kPending)
+            ++pending_count;
+    }
+    if (pending_count + unique_destinations.size() > kAiProposalSessionLimit)
+    {
+        return make_error(ErrorCode::kValidation, "AI proposal session limit reached",
+                          {{"reason", "ai_proposal_session_limit"},
+                           {"limit", std::to_string(kAiProposalSessionLimit)},
+                           {"pending", std::to_string(pending_count)},
+                           {"requested", std::to_string(unique_destinations.size())}});
+    }
+
+    auto reference_asset = repository_->find_asset_by_id(request.reference_asset_id);
+    if (!reference_asset)
+        return reference_asset.error();
+    if (!reference_asset.value())
+        return make_error(ErrorCode::kNotFound, "Reference asset does not exist",
+                          {{"asset_id", request.reference_asset_id}});
+    auto snapshot = this->snapshot();
+    if (!snapshot)
+        return snapshot.error();
+    if (request.expected_catalog_revision &&
+        *request.expected_catalog_revision != snapshot.value().revision)
+    {
+        return make_error(
+            ErrorCode::kConflict, "Catalog revision is stale",
+            {{"reason", "stale_catalog_revision"},
+             {"expected_revision", std::to_string(*request.expected_catalog_revision)},
+             {"revision", std::to_string(snapshot.value().revision)}});
+    }
+    auto reference_recipe = load_recipe(request.reference_asset_id);
+    if (!reference_recipe)
+        return reference_recipe.error();
+    auto reference_develop = develop_from_recipe(reference_recipe.value());
+    if (!reference_develop)
+        return reference_develop.error();
+    auto fields = build_shoot_consistency_proposal_fields(reference_develop.value());
+    if (!fields)
+        return fields.error();
+
+    std::vector<AiProposal> created;
+    created.reserve(request.destination_asset_ids.size());
+    std::vector<std::string> published_ids;
+    auto directory = ai_proposals_directory();
+    if (!directory)
+        return directory.error();
+
+    for (const auto &destination : request.destination_asset_ids)
+    {
+        cancelled = request.cancellation.check();
+        if (!cancelled)
+        {
+            for (const auto &id : published_ids)
+            {
+                ai_proposals_.erase(id);
+                std::error_code ignored;
+                std::filesystem::remove(directory.value() / (id + ".json"), ignored);
+            }
+            return cancelled.error();
+        }
+        auto asset = repository_->find_asset_by_id(destination);
+        if (!asset || !asset.value())
+        {
+            for (const auto &id : published_ids)
+            {
+                ai_proposals_.erase(id);
+                std::error_code ignored;
+                std::filesystem::remove(directory.value() / (id + ".json"), ignored);
+            }
+            if (!asset)
+                return asset.error();
+            return make_error(ErrorCode::kNotFound, "Destination asset does not exist",
+                              {{"asset_id", destination}});
+        }
+        auto recovery = recovery_state(destination);
+        if (!recovery)
+        {
+            for (const auto &id : published_ids)
+            {
+                ai_proposals_.erase(id);
+                std::error_code ignored;
+                std::filesystem::remove(directory.value() / (id + ".json"), ignored);
+            }
+            return recovery.error();
+        }
+        auto recipe = load_recipe(destination);
+        if (!recipe)
+        {
+            for (const auto &id : published_ids)
+            {
+                ai_proposals_.erase(id);
+                std::error_code ignored;
+                std::filesystem::remove(directory.value() / (id + ".json"), ignored);
+            }
+            return recipe.error();
+        }
+        auto current = develop_from_recipe(recipe.value());
+        if (!current)
+        {
+            for (const auto &id : published_ids)
+            {
+                ai_proposals_.erase(id);
+                std::error_code ignored;
+                std::filesystem::remove(directory.value() / (id + ".json"), ignored);
+            }
+            return current.error();
+        }
+        auto proposed = apply_ai_proposal_fields(current.value(), fields.value(),
+                                                 AiProposalKind::kShootConsistency);
+        if (!proposed)
+        {
+            for (const auto &id : published_ids)
+            {
+                ai_proposals_.erase(id);
+                std::error_code ignored;
+                std::filesystem::remove(directory.value() / (id + ".json"), ignored);
+            }
+            return proposed.error();
+        }
+
+        AiProposal proposal;
+        proposal.id = generate_ai_proposal_id();
+        proposal.contract_version = std::string(kAiProposalContractVersion);
+        proposal.kind = AiProposalKind::kShootConsistency;
+        proposal.reference_asset_id = request.reference_asset_id;
+        proposal.created_unix_ms = now_unix_ms();
+        proposal.asset_id = destination;
+        proposal.observed_catalog_revision = snapshot.value().revision;
+        proposal.observed_recovery_generation = recovery.value().generation;
+        proposal.provider.provider_id = std::string(kAiStubProviderId);
+        proposal.provider.model_id = std::string(kAiStubShootConsistencyModelId);
+        proposal.provider.model_version = std::string(kAiStubModelVersion);
+        proposal.provider.weight_content_hash = std::string(kAiStubWeightContentHash);
+        proposal.provider.parameters = {{"kind", "deterministic_shoot_consistency_stub"},
+                                        {"network", "never"},
+                                        {"training", "never"},
+                                        {"reference_asset_id", request.reference_asset_id}};
+        proposal.fields = fields.value();
+        proposal.field_diff = develop_change_summary(current.value(), proposed.value());
+        proposal.status = AiProposalStatus::kPending;
+        ai_proposals_.insert_or_assign(proposal.id, proposal);
+        auto persisted = persist_ai_proposal(proposal);
+        if (!persisted)
+        {
+            ai_proposals_.erase(proposal.id);
+            for (const auto &id : published_ids)
+            {
+                ai_proposals_.erase(id);
+                std::error_code ignored;
+                std::filesystem::remove(directory.value() / (id + ".json"), ignored);
+            }
+            return persisted.error();
+        }
+        published_ids.push_back(proposal.id);
+        created.push_back(std::move(proposal));
+    }
+    return created;
 }
 
 } // namespace ravo

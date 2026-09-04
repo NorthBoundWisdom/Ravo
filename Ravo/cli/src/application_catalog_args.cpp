@@ -848,6 +848,17 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                                   "--proposal-kind was specified twice");
             result.proposal_kind = value;
         }
+        else if (option == "--reference-asset")
+        {
+            if (!result.reference_asset.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--reference-asset was specified twice");
+            result.reference_asset = value;
+        }
+        else if (option == "--destination-assets")
+        {
+            result.destination_assets.push_back(value);
+        }
         else if (option == "--semantic-label")
         {
             if (!result.semantic_label.empty())

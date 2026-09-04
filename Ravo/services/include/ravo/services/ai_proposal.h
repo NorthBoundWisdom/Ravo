@@ -25,6 +25,8 @@ inline constexpr std::string_view kAiProposalContractVersion = "ravo.ai.proposal
 inline constexpr std::string_view kAiStubProviderId = "ravo.local.stub";
 inline constexpr std::string_view kAiStubModelId = "deterministic-global-v1";
 inline constexpr std::string_view kAiStubSemanticMaskModelId = "deterministic-semantic-mask-v1";
+inline constexpr std::string_view kAiStubShootConsistencyModelId =
+    "deterministic-shoot-consistency-v1";
 inline constexpr std::string_view kAiStubModelVersion = "1.0.0";
 inline constexpr std::string_view kAiStubWeightContentHash = "stub:no-weights";
 inline constexpr std::size_t kAiProposalSessionLimit = 64;
@@ -33,6 +35,7 @@ enum class AiProposalKind : std::uint8_t
 {
     kGlobal = 0,
     kSemanticMask = 1,
+    kShootConsistency = 2,
 };
 
 [[nodiscard]] constexpr std::string_view ai_proposal_kind_name(AiProposalKind kind) noexcept
@@ -43,6 +46,8 @@ enum class AiProposalKind : std::uint8_t
         return "global";
     case AiProposalKind::kSemanticMask:
         return "semantic-mask";
+    case AiProposalKind::kShootConsistency:
+        return "shoot-consistency";
     }
     return "global";
 }
@@ -102,6 +107,7 @@ struct AiProposal
     std::string contract_version{std::string(kAiProposalContractVersion)};
     AiProposalKind kind = AiProposalKind::kGlobal;
     std::optional<std::string> semantic_label;
+    std::optional<std::string> reference_asset_id;
     std::int64_t created_unix_ms = 0;
     std::string asset_id;
     std::int64_t observed_catalog_revision = 0;
@@ -128,6 +134,17 @@ struct AiProposalCreateRequest
     CancellationToken cancellation;
 };
 
+struct AiShootConsistencyRequest
+{
+    std::string reference_asset_id;
+    std::vector<std::string> destination_asset_ids;
+    bool user_initiated = false;
+    std::optional<std::int64_t> expected_catalog_revision;
+    std::string provider_id{std::string(kAiStubProviderId)};
+    std::string model_id{std::string(kAiStubShootConsistencyModelId)};
+    CancellationToken cancellation;
+};
+
 struct AiProposalApplyResult
 {
     AiProposal proposal;
@@ -138,8 +155,10 @@ struct AiProposalApplyResult
 
 [[nodiscard]] std::span<const std::string_view> ai_proposal_allowed_fields() noexcept;
 [[nodiscard]] std::span<const std::string_view> ai_semantic_mask_allowed_fields() noexcept;
+[[nodiscard]] std::span<const std::string_view> ai_shoot_consistency_allowed_fields() noexcept;
 [[nodiscard]] bool is_ai_proposal_allowed_field(std::string_view field) noexcept;
 [[nodiscard]] bool is_ai_semantic_mask_allowed_field(std::string_view field) noexcept;
+[[nodiscard]] bool is_ai_shoot_consistency_allowed_field(std::string_view field) noexcept;
 [[nodiscard]] Result<void>
 validate_ai_proposal_fields(const std::vector<AiProposalFieldChange> &fields,
                             AiProposalKind kind = AiProposalKind::kGlobal);
@@ -151,6 +170,8 @@ build_stub_ai_proposal_fields(std::string_view asset_id);
 [[nodiscard]] Result<std::vector<AiProposalFieldChange>>
 build_stub_semantic_mask_proposal_fields(std::string_view asset_id,
                                          std::string_view semantic_label);
+[[nodiscard]] Result<std::vector<AiProposalFieldChange>>
+build_shoot_consistency_proposal_fields(const DevelopParams &reference);
 [[nodiscard]] Result<void> validate_ai_semantic_label(std::string_view label);
 [[nodiscard]] Result<std::vector<AiProposalAlternative>>
 build_stub_ai_proposal_alternatives(std::string_view asset_id);

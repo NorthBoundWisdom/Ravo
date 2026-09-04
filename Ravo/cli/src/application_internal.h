@@ -134,6 +134,8 @@ struct CatalogCliArguments
     std::string_view model_id;
     std::string_view proposal_kind;
     std::string_view semantic_label;
+    std::string_view reference_asset;
+    std::vector<std::string_view> destination_assets;
     bool user_initiated = false;
     std::optional<std::int64_t> expected_revision;
     std::optional<std::int64_t> history_id;

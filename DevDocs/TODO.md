@@ -381,7 +381,8 @@ ADR-0121 accepts AI architecture/privacy/provenance. AI-01 first ship is on
 `main`: versioned `ravo.ai.proposal/v1` proposals with a local deterministic
 stub provider, CLI/service create/show/apply/reject/cancel, and fail-closed
 validation. AI-02 first ship (stub semantic-mask proposals) is also on `main`.
-AI-03…AI-05 remain blocked on their stated dependencies. Real third-party
+AI-03 first ship (stub shoot-consistency batch proposals) is on `main`.
+AI-04…AI-05 remain blocked on their stated dependencies. Real third-party
 weights remain residual Packaging/Dependency work; the Studio chat assistant
 still does not authorize network inference or upload.
 
@@ -475,18 +476,31 @@ residual.
 
 ## AI-03 — Shoot-level consistency and batch assistance
 
-**Status:** blocked pending a dated shoot-consistency proposal/batch contract
-ADR (AI-01/AI-02 stubs are on `main` but do not yet authorize multi-destination
-reference-grade proposals). Prefer that ADR + fixture stub over further docs.
+**Status:** P1 / First ship on main (stub provider). Residual: real
+reference-grade model/weights, crop-when-identical-aspect, Studio batch surface,
+evaluation corpus.
 
 **Outcome:** use an explicit reference image or accepted style to propose a
 consistent grade across a selected shoot while preserving per-image exposure,
 white balance, and exceptions.
 
+**Shipped (bounded):**
+- ADR-0137 proposal kind `shoot-consistency`; one durable proposal per
+  destination; reference asset required; destinations must be explicit/unique
+  and not the reference;
+- stub model `deterministic-shoot-consistency-v1` copies allowlisted
+  WB/exposure/tone/colour fields from the reference recipe (no crop/masks/network
+  /weights/auto-apply);
+- apply/reject/cancel per destination via AI-01 APIs; cancel mid-batch leaves
+  applied destinations applied and other pending proposals untouched;
+- CLI: `catalog ai-propose --proposal-kind shoot-consistency --reference-asset
+  <id> --destination-assets <id>… --user-initiated`.
+
 **Acceptance gate:** the user selects every destination; preflight binds the
 observed catalog and asset revisions; partial completion and cancellation follow
 the existing multi-selection contract; each image records its own proposal/apply
-history and can be independently reverted.
+history and can be independently reverted. Stub ship satisfies contract/lifecycle
+gates; model quality remains residual.
 
 ## AI-04 — Metadata, culling, and similarity suggestions
 

@@ -344,6 +344,8 @@ public:
     // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
     // applied; reject/cancel never mutate recipe/history.
     [[nodiscard]] Result<AiProposal> create_ai_proposal(const AiProposalCreateRequest &request);
+    [[nodiscard]] Result<std::vector<AiProposal>>
+    create_shoot_consistency_proposals(const AiShootConsistencyRequest &request);
     [[nodiscard]] Result<AiProposal> get_ai_proposal(std::string_view proposal_id) const;
     [[nodiscard]] Result<std::vector<AiProposal>>
     list_ai_proposals(std::optional<std::string_view> asset_id = std::nullopt) const;

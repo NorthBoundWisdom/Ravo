@@ -281,4 +281,77 @@ TEST_F(CatalogServiceTest, AiSemanticMaskProposalFailsClosedWithoutLabelOrUnknow
     EXPECT_EQ(mismatched.error().context.at("reason"), "ai_semantic_label_without_mask_kind");
 }
 
+TEST_F(CatalogServiceTest, ShootConsistencyCreatesOneProposalPerDestinationAndApplyIsIndependent)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto ref_path = root / "ai03-ref.jpg";
+    const auto a_path = root / "ai03-a.jpg";
+    const auto b_path = root / "ai03-b.jpg";
+    ASSERT_TRUE(write_jpeg(ref_path, QColor(10, 20, 30)));
+    ASSERT_TRUE(write_jpeg(a_path, QColor(40, 50, 60)));
+    ASSERT_TRUE(write_jpeg(b_path, QColor(70, 80, 90)));
+    auto ref = service->import_one(ref_path.string(), CancellationToken{});
+    auto a = service->import_one(a_path.string(), CancellationToken{});
+    auto b = service->import_one(b_path.string(), CancellationToken{});
+    ASSERT_TRUE(ref) << ref.error().message;
+    ASSERT_TRUE(a) << a.error().message;
+    ASSERT_TRUE(b) << b.error().message;
+    const auto ref_id = ref.value().asset->id;
+    const auto a_id = a.value().asset->id;
+    const auto b_id = b.value().asset->id;
+
+    DevelopParams grade;
+    grade.exposure_ev = 0.55;
+    grade.contrast = 0.12;
+    grade.saturation = 0.08;
+    ASSERT_TRUE(service->save_develop(ref_id, grade));
+
+    AiShootConsistencyRequest request;
+    request.reference_asset_id = ref_id;
+    request.destination_asset_ids = {a_id, b_id};
+    request.user_initiated = true;
+    auto created = service->create_shoot_consistency_proposals(request);
+    ASSERT_TRUE(created) << created.error().message;
+    ASSERT_EQ(created.value().size(), 2U);
+    EXPECT_EQ(created.value()[0].kind, AiProposalKind::kShootConsistency);
+    EXPECT_EQ(created.value()[0].provider.model_id, kAiStubShootConsistencyModelId);
+    EXPECT_EQ(created.value()[0].reference_asset_id, ref_id);
+    EXPECT_EQ(created.value()[0].asset_id, a_id);
+    EXPECT_EQ(created.value()[1].asset_id, b_id);
+    EXPECT_FALSE(created.value()[0].fields.empty());
+    for (const auto &change : created.value()[0].fields)
+        EXPECT_TRUE(is_ai_shoot_consistency_allowed_field(change.field));
+
+    auto applied_a = service->apply_ai_proposal(created.value()[0].id);
+    ASSERT_TRUE(applied_a) << applied_a.error().message;
+    auto recipe_a = service->load_recipe(a_id);
+    ASSERT_TRUE(recipe_a) << recipe_a.error().message;
+    auto params_a = develop_from_recipe(recipe_a.value());
+    ASSERT_TRUE(params_a) << params_a.error().message;
+    EXPECT_NEAR(params_a.value().exposure_ev, 0.55, 1e-9);
+
+    auto cancelled_b = service->cancel_ai_proposal(created.value()[1].id);
+    ASSERT_TRUE(cancelled_b) << cancelled_b.error().message;
+    EXPECT_EQ(cancelled_b.value().status, AiProposalStatus::kCancelled);
+    auto recipe_b = service->load_recipe(b_id);
+    ASSERT_TRUE(recipe_b) << recipe_b.error().message;
+    auto params_b = develop_from_recipe(recipe_b.value());
+    ASSERT_TRUE(params_b) << params_b.error().message;
+    EXPECT_NEAR(params_b.value().exposure_ev, 0.0, 1e-9);
+
+    // Self-as-destination fails closed.
+    AiShootConsistencyRequest bad = request;
+    bad.destination_asset_ids = {ref_id};
+    auto rejected = service->create_shoot_consistency_proposals(bad);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "destination_is_reference_asset");
+
+    AiShootConsistencyRequest uninitiated = request;
+    uninitiated.user_initiated = false;
+    uninitiated.destination_asset_ids = {a_id};
+    auto denied = service->create_shoot_consistency_proposals(uninitiated);
+    ASSERT_FALSE(denied);
+    EXPECT_EQ(denied.error().context.at("reason"), "ai_proposal_not_user_initiated");
+}
+
 } // namespace ravo
