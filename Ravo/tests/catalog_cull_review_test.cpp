@@ -207,4 +207,148 @@ TEST_F(CatalogServiceTest, Cor01SetPickedUsesTransactionalCommit)
     EXPECT_FALSE(listed.value().front().review.picked);
 }
 
+TEST_F(CatalogServiceTest, Cull01ReviewUnderPagingCollapsedStacksFiltersAndRestart)
+{
+    ASSERT_TRUE(open_service(true));
+    std::vector<std::string> ids;
+    for (int index = 0; index < 5; ++index)
+    {
+        const auto path = root / ("page-" + std::to_string(index) + ".jpg");
+        ASSERT_TRUE(write_jpeg(path, QColor(20 + index * 30, 40, 50)));
+        auto imported = service->import_one(path.string(), CancellationToken{});
+        ASSERT_TRUE(imported) << imported.error().message;
+        ids.push_back(imported.value().asset->id);
+    }
+
+    // Collapse three members into one stack pick; library list hides the rest.
+    auto stacked = service->stack_assets({ids[1], ids[2], ids[3]}, ids[1], {});
+    ASSERT_TRUE(stacked) << stacked.error().message;
+
+    LibraryPageRequest page;
+    page.limit = 2;
+    page.collapse_stacks = true;
+    auto first_page = service->list_assets_page(page);
+    ASSERT_TRUE(first_page) << first_page.error().message;
+    ASSERT_EQ(first_page.value().assets.size(), 2U);
+    EXPECT_TRUE(first_page.value().has_more);
+
+    // Auto-advance uses collapsed library order when selection ids omitted.
+    CullReviewRequest pick;
+    pick.asset_id = first_page.value().assets.front().id;
+    pick.flag_action = CullReviewFlagAction::kPick;
+    pick.rating = 3;
+    pick.color_label = ColorLabel::kBlue;
+    pick.auto_advance = true;
+    auto advanced = service->apply_cull_review(pick);
+    ASSERT_TRUE(advanced) << advanced.error().message;
+    ASSERT_TRUE(advanced.value().next_asset_id);
+    EXPECT_EQ(*advanced.value().next_asset_id, first_page.value().assets[1].id);
+
+    // Page-scoped selection: next stays inside the loaded page ids.
+    CullReviewRequest page_advance;
+    page_advance.asset_id = first_page.value().assets[0].id;
+    page_advance.flag_action = CullReviewFlagAction::kReject;
+    page_advance.auto_advance = true;
+    page_advance.selection_asset_ids = {first_page.value().assets[0].id,
+                                        first_page.value().assets[1].id};
+    auto page_next = service->apply_cull_review(page_advance);
+    ASSERT_TRUE(page_next) << page_next.error().message;
+    ASSERT_TRUE(page_next.value().next_asset_id);
+    EXPECT_EQ(*page_next.value().next_asset_id, first_page.value().assets[1].id);
+
+    // Filters: picked / rejected / unreviewed.
+    LibraryQuery picked_query;
+    picked_query.cull_flag_filter = CullFlagFilter::kPicked;
+    auto picked_rows = service->list_assets(picked_query, true);
+    ASSERT_TRUE(picked_rows);
+    // Reject flipped the first page asset off pick; may still have picks from earlier.
+    LibraryQuery rejected_query;
+    rejected_query.cull_flag_filter = CullFlagFilter::kRejected;
+    auto rejected_rows = service->list_assets(rejected_query, true);
+    ASSERT_TRUE(rejected_rows);
+    ASSERT_FALSE(rejected_rows.value().empty());
+    EXPECT_TRUE(rejected_rows.value().front().review.rejected);
+
+    LibraryQuery unreviewed_query;
+    unreviewed_query.cull_flag_filter = CullFlagFilter::kUnreviewed;
+    auto unreviewed_rows = service->list_assets(unreviewed_query, true);
+    ASSERT_TRUE(unreviewed_rows);
+
+    // Survey compare still resolves for a non-pick stacked member while list is collapsed.
+    BurstCompareRequest compare;
+    compare.asset_id = ids[2];
+    compare.step = BurstCompareStep::kCurrent;
+    auto pair = service->resolve_burst_compare_pair(compare);
+    ASSERT_TRUE(pair) << pair.error().message;
+    EXPECT_EQ(pair.value().member_ids.size(), 3U);
+
+    // Restart: reopen catalog; review chips and previous_review undo remain deterministic.
+    const auto previous = page_next.value().previous_review;
+    const auto mutated_id = page_advance.asset_id;
+    service.reset();
+    sqlite_repository = nullptr;
+    ASSERT_TRUE(open_service(false));
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    bool found_rejected = false;
+    for (const auto &asset : listed.value())
+    {
+        if (asset.id == mutated_id)
+        {
+            found_rejected = asset.review.rejected;
+            break;
+        }
+    }
+    EXPECT_TRUE(found_rejected);
+
+    CullReviewRequest undo;
+    undo.asset_id = mutated_id;
+    undo.flag_action = previous.picked   ? CullReviewFlagAction::kPick :
+                       previous.rejected ? CullReviewFlagAction::kReject :
+                                           CullReviewFlagAction::kUnflag;
+    undo.rating = previous.rating;
+    undo.color_label = previous.color_label;
+    auto undone = service->apply_cull_review(undo);
+    ASSERT_TRUE(undone) << undone.error().message;
+    EXPECT_EQ(undone.value().review.picked, previous.picked);
+    EXPECT_EQ(undone.value().review.rejected, previous.rejected);
+    EXPECT_EQ(undone.value().review.rating, previous.rating);
+    EXPECT_EQ(undone.value().review.color_label, previous.color_label);
+
+    // Missing asset fails closed.
+    CullReviewRequest missing;
+    missing.asset_id = "ast_missing_cull";
+    missing.flag_action = CullReviewFlagAction::kPick;
+    auto absent = service->apply_cull_review(missing);
+    ASSERT_FALSE(absent);
+}
+
+TEST_F(CatalogServiceTest, Cull01UnflagColourAndCommittedMutationNeverReportedFailed)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto path = root / "flag-colour.jpg";
+    ASSERT_TRUE(write_jpeg(path, QColor(8, 9, 10)));
+    auto imported = service->import_one(path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+
+    CullReviewRequest pick;
+    pick.asset_id = imported.value().asset->id;
+    pick.flag_action = CullReviewFlagAction::kPick;
+    pick.color_label = ColorLabel::kRed;
+    pick.rating = 2;
+    auto picked = service->apply_cull_review(pick);
+    ASSERT_TRUE(picked) << picked.error().message;
+    EXPECT_TRUE(picked.value().catalog_mutated);
+    EXPECT_TRUE(picked.value().review.picked);
+    EXPECT_EQ(picked.value().review.color_label, ColorLabel::kRed);
+
+    CullReviewRequest unflag;
+    unflag.asset_id = imported.value().asset->id;
+    unflag.flag_action = CullReviewFlagAction::kUnflag;
+    auto cleared = service->apply_cull_review(unflag);
+    ASSERT_TRUE(cleared) << cleared.error().message;
+    EXPECT_FALSE(cleared.value().review.picked);
+    EXPECT_FALSE(cleared.value().review.rejected);
+    EXPECT_TRUE(cleared.value().catalog_mutated);
+}
 } // namespace ravo

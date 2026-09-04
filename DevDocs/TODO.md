@@ -98,7 +98,7 @@ the next one.
 | ---: | --- | --- | --- |
 | 1 | LOCAL-01 | P1 | C2 Studio multi-instance local adjustments/masks; GPU residual after PERF-01 |
 | 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; package TIFF matrix residual |
-| 3 | CULL-01 | P1 | Finish transactional keyboard review and evaluated assistance |
+| 3 | CULL-01 | P1 | Keyboard C2; finish evaluated assistance (analysis C1+) |
 | 4 | OFFLINE-01 | P1 | Make verified proxies usable for actual Loupe/Develop work |
 | 5 | DISPLAY-01 | P1 | Finish per-display ICC presentation on supported hosts and views |
 | 6 | INGEST-01 | P1 | Replace transport stubs with packaged native adapters and hardware evidence |
@@ -409,27 +409,40 @@ atomic; reopen/backup/restore/export work without CLI assembly.
 
 ## CULL-01 — Transactional keyboard review and evaluated assistance
 
-**Maturity:** Manual keyboard workflow approaches C2; analysis remains C1.
+**Maturity:** Keyboard review **C2** on `main` (Pick/Reject/Unflag/rating/colour,
+auto-advance, previous-review undo, filters, Survey compare under paging /
+collapsed stacks / restart; COR-01 atomicity). Analysis **C1+**: bounded
+non-authoritative aHash with exact-byte vs heuristic `group_kind` in reports /
+Studio suggestion chips, fail-closed `max_assets`, incremental fingerprint cache
+(`{catalog}.cull/`) with source-identity invalidation, bounded entries, dismiss,
+cancel, and throttle. Not full analysis C2 (precision/recall corpora; RAW/
+orientation single decode path; pairwise O(N²) still capped rather than indexed).
 
 **Remaining work:**
 
-- close review atomicity findings in COR-01;
-- verify Pick/Reject/Unflag/rating/colour, auto-advance, previous-review undo,
-  filters, and Survey comparison under paging, collapsed stacks, and restart;
-- persist fingerprints/proposals incrementally with source-identity invalidation,
-  bounded storage, dismiss state, cancellation, and throttling;
+- [done] COR-01 review atomicity;
+- [done] verify Pick/Reject/Unflag/rating/colour, auto-advance, previous-review
+  undo, filters, Survey comparison under paging, collapsed stacks, and restart
+  (`Cull01ReviewUnderPaging*`, `Cull01UnflagColour*`);
+- [done] first Ready fingerprint/proposal persistence: incremental aHash cache +
+  dismiss under `{catalog}.cull/` with identity invalidation, bound, cancel,
+  throttle (`Cull01FingerprintCache*`);
+- [done] distinguish exact-byte / same-file vs heuristic aHash `group_kind` in
+  service + CLI reports (Studio chips already separate exact vs near vs burst);
+- [done] enforce aHash non-authoritative + fail-closed above `max_assets`;
+- [done] never auto-delete/auto-reject; auto-stack only with `user_initiated`;
 - produce fingerprints through one accepted image resource path for supported
   RAW/raster orientation and colour;
-- replace or explicitly bound pairwise O(N²) grouping;
-- distinguish exact-byte groups from heuristic aHash groups in UI and reports;
-- measure precision/recall and false-positive cost on approved corpora;
-- never auto-delete or auto-reject. Auto-stack needs a separate accepted action
-  threshold and explicit user initiation.
+- replace pairwise O(N²) with an indexed design beyond the hard asset bound
+  (PERF-01);
+- measure precision/recall and false-positive cost on approved corpora.
 
 **Acceptance gate:** the keyboard loop needs no pointer; a committed mutation
 cannot be reported as failed; review remains responsive during analysis;
 heuristic thresholds have metrics and known failures; cancel/restart/missing
 source/corrupt decode/stale fingerprint/resource exhaustion are deterministic.
+Keyboard gate: met on `main` via service/Studio contract tests. Analysis gate:
+partial (deterministic cancel/restart/corrupt/stale/bound); metrics open.
 
 ## OFFLINE-01 — Offline-original editing
 

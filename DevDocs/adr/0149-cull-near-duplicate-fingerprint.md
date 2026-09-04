@@ -49,3 +49,20 @@ without packaging model weights or inventing delete semantics.
 - Embedding-only near-dup as the first Ready.
 - Auto-stacking or auto-rejecting near-dup members.
 - Using `content_fingerprint` (size+mtime) as visual similarity.
+
+### Incremental fingerprint cache (CULL-01 first Ready)
+
+- Persist aHash rows under `{catalog}.cull/fingerprint_cache.v1.json` with schema
+  `ravo.cull.fingerprint-cache/v1` and algorithm `ahash_v1`.
+- Key by asset id; invalidate when source identity
+  (`size|mtime|content_fingerprint|uri`) changes.
+- Bound cache entries (default aligned with `max_assets`); LRU by access time.
+- Persist incrementally during a scan; cancel remains fail-closed before further
+  decode.
+- Optional throttle reuses a complete fresh cache without re-decode.
+- Dismissals for exact/near/burst suggestion keys live in the same document and
+  are omitted from near-dup reports when requested.
+- Corrupt/missing cache rebuilds empty (deterministic); aHash groups remain
+  `group_kind=heuristic_ahash` and `non_authoritative=true`. Exact-byte groups
+  keep `group_kind=exact_byte|same_file` under ADR-0147.
+

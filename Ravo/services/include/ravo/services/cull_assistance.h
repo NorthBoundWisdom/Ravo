@@ -15,6 +15,19 @@ namespace ravo
 
 // ADR-0147/0149/0150: deterministic exact-duplicate, burst, near-duplicate
 // fingerprint proposals, and keyboard cull review mutations (no auto-delete).
+// ADR-0149 / CULL-01: rebuildable aHash cache + dismissals under {catalog}.cull/.
+inline constexpr std::string_view kCullFingerprintCacheContractVersion =
+    "ravo.cull.fingerprint-cache/v1";
+inline constexpr std::string_view kCullNearDupFingerprintAlgorithm = "ahash_v1";
+inline constexpr std::string_view kCullGroupKindExactByte = "exact_byte";
+inline constexpr std::string_view kCullGroupKindSameFile = "same_file";
+inline constexpr std::string_view kCullGroupKindHeuristicAHash = "heuristic_ahash";
+inline constexpr std::string_view kCullGroupKindBurstProposal = "burst_proposal";
+// Default throttle: skip a full recompute pass when the cache is complete and
+// younger than this window (identity mismatches still recompute).
+inline constexpr std::int64_t kCullFingerprintDefaultThrottleMs = 250;
+inline constexpr std::size_t kCullFingerprintIncrementalPersistEvery = 32;
+
 inline constexpr std::string_view kCullExactDuplicateContractVersion =
     "ravo.cull.exact-duplicate/v1";
 inline constexpr std::int64_t kCullExactDuplicateSchemaVersion = 1;
@@ -56,6 +69,8 @@ struct ExactDuplicateGroup
     std::int64_t schema_version = kCullExactDuplicateSchemaVersion;
     std::string sha256;
     ExactDuplicateOutcome outcome = ExactDuplicateOutcome::kSameBytes;
+    // Distinguishes exact-byte / same-file authority from heuristic aHash groups.
+    std::string group_kind{std::string(kCullGroupKindExactByte)};
     std::vector<ExactDuplicateMember> members;
 };
 
@@ -147,6 +162,9 @@ struct NearDuplicateGroup
     std::int64_t schema_version = kCullNearDuplicateSchemaVersion;
     std::string fingerprint_hex;
     int max_hamming_in_group = 0;
+    // Explicitly heuristic; never delete/reject/stack authority (ADR-0149).
+    std::string group_kind{std::string(kCullGroupKindHeuristicAHash)};
+    bool non_authoritative = true;
     std::vector<NearDuplicateMember> members;
 };
 
@@ -168,6 +186,12 @@ struct NearDuplicateReport
     std::vector<NearDuplicateSkip> skipped;
     std::size_t assets_considered = 0;
     std::size_t assets_fingerprinted = 0;
+    std::size_t assets_from_cache = 0;
+    std::size_t assets_computed = 0;
+    std::size_t cache_entries = 0;
+    std::size_t dismissed_groups_omitted = 0;
+    bool cache_used = false;
+    bool throttled = false;
     // Heuristic only: never authoritative for delete/reject/stack.
     bool non_authoritative = true;
 };
@@ -177,7 +201,62 @@ struct NearDuplicateRequest
     int max_hamming = kCullNearDupDefaultMaxHamming;
     std::size_t max_groups = kCullNearDupDefaultMaxGroups;
     std::size_t max_assets = kCullNearDupDefaultMaxAssets;
+    // 0 disables throttle; otherwise reuses a complete fresh cache without decode.
+    std::int64_t throttle_ms = kCullFingerprintDefaultThrottleMs;
+    bool persist_cache = true;
+    bool omit_dismissed = true;
     CancellationToken cancellation{};
+};
+
+enum class CullSuggestionKind : std::uint8_t
+{
+    kExactDuplicate = 0,
+    kNearDuplicate = 1,
+    kBurst = 2,
+};
+
+[[nodiscard]] inline std::string_view
+cull_suggestion_kind_name(const CullSuggestionKind kind) noexcept
+{
+    switch (kind)
+    {
+    case CullSuggestionKind::kExactDuplicate:
+        return "exact_duplicate";
+    case CullSuggestionKind::kNearDuplicate:
+        return "near_duplicate";
+    case CullSuggestionKind::kBurst:
+        return "burst";
+    }
+    return "near_duplicate";
+}
+
+[[nodiscard]] inline std::optional<CullSuggestionKind>
+parse_cull_suggestion_kind(const std::string_view name) noexcept
+{
+    if (name == "exact_duplicate")
+        return CullSuggestionKind::kExactDuplicate;
+    if (name == "near_duplicate")
+        return CullSuggestionKind::kNearDuplicate;
+    if (name == "burst")
+        return CullSuggestionKind::kBurst;
+    return std::nullopt;
+}
+
+struct CullSuggestionDismissRequest
+{
+    CullSuggestionKind kind = CullSuggestionKind::kNearDuplicate;
+    // Stable key: exact sha256, near-dup sorted fingerprint pair, or burst proposal_id.
+    std::string key;
+    CancellationToken cancellation{};
+};
+
+struct CullSuggestionDismissResult
+{
+    std::string schema{std::string(kCullFingerprintCacheContractVersion)};
+    CullSuggestionKind kind = CullSuggestionKind::kNearDuplicate;
+    std::string key;
+    bool dismissed = true;
+    std::int64_t dismissed_unix_ms = 0;
 };
 
 struct BurstAcceptResult

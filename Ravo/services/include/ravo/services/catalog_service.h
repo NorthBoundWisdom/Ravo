@@ -413,6 +413,12 @@ public:
     // ADR-0155: Survey/1:1 compare pair inside a durable stack (no mutation).
     [[nodiscard]] Result<BurstComparePair>
     resolve_burst_compare_pair(const BurstCompareRequest &request) const;
+    // CULL-01: persist dismissals for exact/near/burst suggestions (rebuildable
+    // under {catalog}.cull/). Never auto-delete/auto-reject.
+    [[nodiscard]] Result<CullSuggestionDismissResult>
+    dismiss_cull_suggestion(const CullSuggestionDismissRequest &request);
+    [[nodiscard]] Result<bool> is_cull_suggestion_dismissed(CullSuggestionKind kind,
+                                                            std::string_view key) const;
 
     // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
     // applied; reject/cancel never mutate recipe/history.

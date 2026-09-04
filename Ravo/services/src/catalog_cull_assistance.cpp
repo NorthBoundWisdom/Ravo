@@ -1,6 +1,7 @@
 #include "ravo/services/catalog_service.h"
 
 #include "catalog_internal.h"
+#include "catalog_cull_fingerprint_store.h"
 
 #include <algorithm>
 #include <array>
@@ -153,6 +154,7 @@ CatalogService::find_exact_duplicate_groups(const ExactDuplicateRequest &request
                 ExactDuplicateGroup group;
                 group.sha256 = bucket.sha256;
                 group.outcome = ExactDuplicateOutcome::kSameFile;
+                group.group_kind = std::string(kCullGroupKindSameFile);
                 group.members = uri_members;
                 report.groups.push_back(std::move(group));
             }
@@ -163,6 +165,7 @@ CatalogService::find_exact_duplicate_groups(const ExactDuplicateRequest &request
             ExactDuplicateGroup group;
             group.sha256 = bucket.sha256;
             group.outcome = ExactDuplicateOutcome::kSameBytes;
+            group.group_kind = std::string(kCullGroupKindExactByte);
             group.members = std::move(same_bytes_reps);
             std::sort(group.members.begin(), group.members.end(),
                       [](const ExactDuplicateMember &a, const ExactDuplicateMember &b)
@@ -411,6 +414,16 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
              {"reason", "near_dup_asset_bound_exceeded"}});
     }
 
+    auto snap = snapshot();
+    if (!snap)
+        return snap.error();
+    auto store = cull_fingerprint_store::load_or_empty(snap.value().database_path);
+    if (!store)
+        return store.error();
+    store.value().max_entries = std::min(store.value().max_entries, request.max_assets);
+    report.cache_used = true;
+    report.cache_entries = store.value().entries.size();
+
     struct Fingerprinted
     {
         NearDuplicateMember member;
@@ -442,6 +455,25 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
         }
         return out;
     };
+    const auto hex_to_hash = [](const std::string_view hex) -> std::optional<std::uint64_t>
+    {
+        if (hex.size() != 16U)
+            return std::nullopt;
+        std::uint64_t value = 0;
+        for (const char ch : hex)
+        {
+            value <<= 4U;
+            if (ch >= '0' && ch <= '9')
+                value |= static_cast<std::uint64_t>(ch - '0');
+            else if (ch >= 'a' && ch <= 'f')
+                value |= static_cast<std::uint64_t>(ch - 'a' + 10);
+            else if (ch >= 'A' && ch <= 'F')
+                value |= static_cast<std::uint64_t>(ch - 'A' + 10);
+            else
+                return std::nullopt;
+        }
+        return value;
+    };
     const auto average_hash_raster = [&](const RasterBuffer &raster) -> Result<std::uint64_t>
     {
         if (raster.width == 0U || raster.height == 0U ||
@@ -450,7 +482,6 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
             return make_error(ErrorCode::kUnsupported, "Raster is empty for near-duplicate hash",
                               {{"reason", "near_dup_empty_raster"}});
         }
-        // Box-sample to 8x8 grayscale using integer means.
         std::array<std::uint64_t, 64> sums{};
         std::array<std::uint32_t, 64> counts{};
         for (std::uint32_t y = 0; y < raster.height; ++y)
@@ -463,7 +494,6 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
                 const auto r = raster.srgb[index];
                 const auto g = raster.srgb[index + 1U];
                 const auto b = raster.srgb[index + 2U];
-                // Rec.709-ish integer luma.
                 const auto luma =
                     (static_cast<std::uint32_t>(r) * 54U + static_cast<std::uint32_t>(g) * 183U +
                      static_cast<std::uint32_t>(b) * 19U) /
@@ -493,11 +523,41 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
         return hash;
     };
 
+    const auto now = now_unix_ms();
+    std::size_t computed_since_persist = 0;
+    bool all_identities_cached = true;
+
     for (const auto &asset : assets.value())
     {
         cancelled = request.cancellation.check();
         if (!cancelled)
             return cancelled.error();
+
+        const auto identity = cull_fingerprint_store::source_identity_for_asset(
+            asset.size_bytes, asset.mtime_unix_ms, asset.normalized_uri,
+            asset.content_fingerprint ?
+                std::optional<std::string_view>{*asset.content_fingerprint} :
+                std::nullopt);
+
+        if (const auto cached = store.value().entries.find(asset.id);
+            cached != store.value().entries.end() && cached->second.source_identity == identity)
+        {
+            auto hash = hex_to_hash(cached->second.fingerprint_hex);
+            if (hash)
+            {
+                NearDuplicateMember member;
+                member.asset_id = asset.id;
+                member.normalized_uri = asset.normalized_uri;
+                member.fingerprint_hex = cached->second.fingerprint_hex;
+                member.version_ordinal = asset.version_ordinal;
+                member.source_asset_id = asset.source_asset_id;
+                fingerprinted.push_back(Fingerprinted{std::move(member), *hash});
+                cull_fingerprint_store::touch_access(store.value(), asset.id, now);
+                ++report.assets_from_cache;
+                continue;
+            }
+        }
+        all_identities_cached = false;
 
         auto location = normalize_local_input(asset.normalized_uri);
         if (!location)
@@ -547,11 +607,46 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
         member.fingerprint_hex = hash_to_hex(hash.value());
         member.version_ordinal = asset.version_ordinal;
         member.source_asset_id = asset.source_asset_id;
+        if (request.persist_cache)
+        {
+            cull_fingerprint_store::upsert_fingerprint(store.value(), asset.id,
+                                                       member.fingerprint_hex, identity, now);
+            ++computed_since_persist;
+            if (computed_since_persist >= kCullFingerprintIncrementalPersistEvery)
+            {
+                auto saved =
+                    cull_fingerprint_store::save(snap.value().database_path, store.value());
+                if (!saved)
+                    return saved.error();
+                computed_since_persist = 0;
+            }
+        }
         fingerprinted.push_back(Fingerprinted{std::move(member), hash.value()});
+        ++report.assets_computed;
     }
     report.assets_fingerprinted = fingerprinted.size();
+    report.cache_entries = store.value().entries.size();
+
+    // Throttle: when every listed asset hit a valid cache entry and the last scan
+    // is inside the throttle window, report throttled (decode skipped).
+    if (request.throttle_ms > 0 && all_identities_cached && report.assets_computed == 0U &&
+        store.value().last_scan_unix_ms > 0 &&
+        now - store.value().last_scan_unix_ms <= request.throttle_ms)
+    {
+        report.throttled = true;
+    }
+
     if (fingerprinted.size() < 2U)
+    {
+        if (request.persist_cache && store.value().dirty)
+        {
+            store.value().last_scan_unix_ms = now;
+            auto saved = cull_fingerprint_store::save(snap.value().database_path, store.value());
+            if (!saved)
+                return saved.error();
+        }
         return report;
+    }
 
     // Non-transitive max-edge groups: emit only direct pairs within Hamming.
     // Union-find transitive merges are intentionally avoided (COR-01 / ADR-0149).
@@ -569,6 +664,8 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
                 break;
             NearDuplicateGroup group;
             group.max_hamming_in_group = distance;
+            group.group_kind = std::string(kCullGroupKindHeuristicAHash);
+            group.non_authoritative = true;
             group.members.push_back(fingerprinted[i].member);
             group.members.push_back(fingerprinted[j].member);
             std::sort(group.members.begin(), group.members.end(),
@@ -578,6 +675,15 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
                 group.members[0].fingerprint_hex < group.members[1].fingerprint_hex ?
                     group.members[0].fingerprint_hex :
                     group.members[1].fingerprint_hex;
+            const auto dismiss_key = cull_fingerprint_store::near_dup_group_dismiss_key(
+                group.members[0].fingerprint_hex, group.members[1].fingerprint_hex);
+            if (request.omit_dismissed &&
+                cull_fingerprint_store::is_dismissed(
+                    store.value(), CullSuggestionKind::kNearDuplicate, dismiss_key))
+            {
+                ++report.dismissed_groups_omitted;
+                continue;
+            }
             report.groups.push_back(std::move(group));
         }
         if (report.groups.size() >= request.max_groups)
@@ -591,6 +697,16 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
                       return left.fingerprint_hex < right.fingerprint_hex;
                   return left.members.front().asset_id < right.members.front().asset_id;
               });
+
+    if (request.persist_cache)
+    {
+        store.value().last_scan_unix_ms = now;
+        store.value().dirty = true;
+        auto saved = cull_fingerprint_store::save(snap.value().database_path, store.value());
+        if (!saved)
+            return saved.error();
+    }
+    report.cache_entries = store.value().entries.size();
     return report;
 }
 
@@ -703,6 +819,54 @@ CatalogService::resolve_burst_compare_pair(const BurstCompareRequest &request) c
             {{"reason", "burst_compare_stack_missing"}, {"stack_id", *asset.value()->stack_id}});
     }
     return ::ravo::resolve_burst_compare_pair(*stack.value(), request.asset_id, request.step);
+}
+
+Result<CullSuggestionDismissResult>
+CatalogService::dismiss_cull_suggestion(const CullSuggestionDismissRequest &request)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+    if (request.key.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Cull suggestion dismiss requires a key",
+                          {{"reason", "cull_dismiss_key_required"}});
+    }
+    auto snap = snapshot();
+    if (!snap)
+        return snap.error();
+    auto store = cull_fingerprint_store::load_or_empty(snap.value().database_path);
+    if (!store)
+        return store.error();
+    const auto now = now_unix_ms();
+    cull_fingerprint_store::dismiss(store.value(), request.kind, request.key, now);
+    auto saved = cull_fingerprint_store::save(snap.value().database_path, store.value());
+    if (!saved)
+        return saved.error();
+    CullSuggestionDismissResult result;
+    result.kind = request.kind;
+    result.key = request.key;
+    result.dismissed = true;
+    result.dismissed_unix_ms = now;
+    return result;
+}
+
+Result<bool> CatalogService::is_cull_suggestion_dismissed(const CullSuggestionKind kind,
+                                                          const std::string_view key) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    if (key.empty())
+        return false;
+    auto snap = snapshot();
+    if (!snap)
+        return snap.error();
+    auto store = cull_fingerprint_store::load_or_empty(snap.value().database_path);
+    if (!store)
+        return store.error();
+    return cull_fingerprint_store::is_dismissed(store.value(), kind, key);
 }
 
 } // namespace ravo
