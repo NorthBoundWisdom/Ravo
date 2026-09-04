@@ -8,7 +8,6 @@
 
 #include "ravo/foundation/error.h"
 #include "ravo/domain/types.h"
-#include "ravo/adapters/crs_xmp.h"
 #include "ravo/recipe/crs_types.h"
 
 namespace ravo
