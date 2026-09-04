@@ -25,6 +25,7 @@
 #include "ravo/services/xmp_interchange.h"
 #include "ravo/services/external_editor.h"
 #include "ravo/services/foreign_catalog.h"
+#include "ravo/services/dng_smart_preview.h"
 #include "ravo/services/ingest_transport.h"
 
 namespace ravo
@@ -345,6 +346,15 @@ public:
     // byte-identical; unsupported schema/version fails closed.
     [[nodiscard]] Result<ForeignCatalogConversionReport>
     convert_foreign_catalog(const ForeignCatalogConversionRequest &request);
+
+    // ADR-0141: optional Copy-mode DNG conversion + browse-only Smart Preview.
+    // Fail-closed without packaged converter/encoder; never replaces originals;
+    // Smart Preview never feeds Develop.
+    [[nodiscard]] Result<DngConversionResult>
+    convert_asset_to_dng(const DngConversionRequest &request);
+    [[nodiscard]] Result<SmartPreviewStatus> smart_preview_status(std::string_view asset_id) const;
+    [[nodiscard]] Result<SmartPreviewStatus>
+    ensure_smart_preview(const SmartPreviewEnsureRequest &request);
 
     // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
     // applied; reject/cancel never mutate recipe/history.

@@ -3,6 +3,7 @@
 #include <string>
 #include <utility>
 
+#include "ravo/services/dng_smart_preview.h"
 #include "ravo/services/foreign_catalog.h"
 
 namespace ravo::cli_internal
@@ -77,10 +78,77 @@ namespace
 
 } // namespace
 
+[[nodiscard]] JsonValue smart_preview_status_json(const SmartPreviewStatus &status)
+{
+    JsonValue::Object object{
+        {"schema", status.schema},
+        {"asset_id", status.asset_id},
+        {"encoder_available", status.encoder_available},
+        {"present", status.present},
+        {"develop_fallback", status.develop_fallback},
+        {"reason", status.reason},
+    };
+    if (status.path)
+        object.emplace("path", *status.path);
+    return JsonValue{std::move(object)};
+}
+
 Result<JsonValue> run_catalog_convert_command(CatalogService &service,
                                               const std::string_view subcommand,
                                               const CatalogCliArguments &flags)
 {
+    if (subcommand == "dng-convert")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog dng-convert requires --asset-id");
+        }
+        DngConversionRequest request;
+        request.asset_id = std::string(flags.asset_id);
+        if (!flags.output.empty())
+            request.output_path = std::string(flags.output);
+        auto converted = service.convert_asset_to_dng(request);
+        if (!converted)
+            return converted.error();
+        return JsonValue{JsonValue::Object{
+            {"schema", converted.value().schema},
+            {"asset_id", converted.value().asset_id},
+            {"source_path", converted.value().source_path},
+            {"originals_unchanged", converted.value().originals_unchanged},
+            {"converter_available", converted.value().converter_available},
+            {"reason", converted.value().reason},
+        }};
+    }
+    if (subcommand == "dng-status")
+    {
+        return JsonValue{JsonValue::Object{
+            {"converter_available", dng_converter_is_packaged()},
+            {"reason",
+             dng_converter_is_packaged() ? "dng_converter_packaged" : "dng_converter_unavailable"},
+        }};
+    }
+    if (subcommand == "smart-preview")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog smart-preview requires --asset-id");
+        }
+        if (flags.ensure)
+        {
+            SmartPreviewEnsureRequest request;
+            request.asset_id = std::string(flags.asset_id);
+            auto ensured = service.ensure_smart_preview(request);
+            if (!ensured)
+                return ensured.error();
+            return smart_preview_status_json(ensured.value());
+        }
+        auto status = service.smart_preview_status(flags.asset_id);
+        if (!status)
+            return status.error();
+        return smart_preview_status_json(status.value());
+    }
     if (subcommand != "convert-foreign")
     {
         return make_error(ErrorCode::kInvalidArgument, "Unknown catalog conversion subcommand",

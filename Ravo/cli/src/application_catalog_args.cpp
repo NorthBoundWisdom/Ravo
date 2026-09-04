@@ -207,6 +207,13 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.editor_invoke_os_open = true;
             continue;
         }
+        if (option == "--ensure")
+        {
+            if (result.ensure)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--ensure can only be specified once");
+            result.ensure = true;
+        }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {
             return make_error(ErrorCode::kInvalidArgument, "Catalog option requires a value",

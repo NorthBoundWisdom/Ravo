@@ -148,3 +148,4 @@ supersession relationship when direction changes.
 | [0138](0138-xmp-adjacent-keyword-iptc-location-merge.md) | Accepted | Adjacent XMP keyword/IPTC Core/location merge under ADR-0120 conflict matrix |
 | [0139](0139-external-editor-os-open-and-derived-stack.md) | Accepted | External-editor OS open-with payload + derived-pair auto-stack on register |
 | [0140](0140-iptc-extension-core-subset.md) | Accepted | Bounded IPTC Extension / additional Core writables (schema v15) |
+| [0141](0141-dng-conversion-smart-preview-policy.md) | Accepted | DNG Copy-mode side conversion + Smart Preview browse-only; fail-closed without packaged converter |

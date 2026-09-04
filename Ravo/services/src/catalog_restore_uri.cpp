@@ -16,7 +16,8 @@ namespace
 {
 
 constexpr std::string_view kSupportMarker = ".ravo/";
-constexpr const char *kKnownSupportPrefixes[] = {"derived/", "external-editor/", "sidecars/"};
+constexpr const char *kKnownSupportPrefixes[] = {"derived/", "external-editor/", "sidecars/",
+                                                 "dng-conversion/", "smart-previews/"};
 
 [[nodiscard]] TaskError uri_error(const ErrorCode code, std::string message, std::string reason,
                                   std::string path = {}, std::string detail = {})

@@ -18,7 +18,7 @@ class RecoveryStore;
 // Rewrite absolute paths/URIs that still name a source `{catalog}.ravo/` prefix
 // onto destination_support_root (ADR-0136 residual). Fail-closed when a value
 // contains `.ravo/` but the suffix is outside known support trees
-// (derived/, external-editor/, sidecars/).
+// (derived/, external-editor/, sidecars/, dng-conversion/, smart-previews/).
 [[nodiscard]] Result<std::string>
 catalog_restore_rewrite_support_rooted_value(std::string_view value,
                                              std::string_view destination_support_root);

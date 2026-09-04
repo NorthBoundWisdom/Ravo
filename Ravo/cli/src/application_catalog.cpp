@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|convert-foreign|"
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|convert-foreign|dng-convert|dng-status|smart-preview|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -171,12 +171,16 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand == "xmp-status" || subcommand == "xmp-import" || subcommand == "xmp-export";
     const bool editor_command = subcommand == "editor-register" || subcommand == "editor-show" ||
                                 subcommand == "editor-open";
-    const bool convert_command = subcommand == "convert-foreign";
+    const bool convert_command = subcommand == "convert-foreign" || subcommand == "dng-convert" ||
+                                 subcommand == "smart-preview";
     if ((!flags.value().foreign_source.empty() || !flags.value().foreign_source_kind.empty()) &&
-        !convert_command)
+        subcommand != "convert-foreign")
         return make_error(
             ErrorCode::kInvalidArgument,
             "--foreign-source/--source-kind are only valid for catalog convert-foreign");
+    if (flags.value().ensure && subcommand != "smart-preview")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--ensure is only valid for catalog smart-preview");
     if (!flags.value().xmp_path.empty() && !xmp_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--xmp is only valid for catalog xmp-status, xmp-import, or xmp-export");

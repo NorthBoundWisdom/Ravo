@@ -136,6 +136,7 @@ add_executable(ravo_catalog_tests
   catalog_ingest_transport_test.cpp
   catalog_xmp_interchange_test.cpp
   catalog_external_editor_test.cpp
+  catalog_dng_smart_preview_test.cpp
   catalog_foreign_catalog_test.cpp
   catalog_facet_scope_test.cpp
   export_pro_export_test.cpp

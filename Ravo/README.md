@@ -859,6 +859,18 @@ path that may call platform `open`/`xdg-open` after that explicit flag.
 provenance, and optionally `--auto-stack`s source+derived (pick=derived),
 fail-closing on stack conflict while retaining the derived asset.
 
+`ravo catalog dng-status` and `ravo catalog dng-convert --catalog
+<library.sqlite> --asset-id <id> [--output <path>]` are the ADR-0141 Copy-mode
+DNG conversion stubs. Without a Packaging-recorded converter, `dng-convert`
+returns `converter_available=false` with reason `dng_converter_unavailable`,
+publishes no derived asset, and leaves the source original byte-identical.
+`ravo catalog smart-preview --catalog <library.sqlite> --asset-id <id>
+[--ensure]` reports browse-only Smart Preview status under
+`{catalog}.ravo/smart-previews/`; `develop_fallback` is always false, and
+`--ensure` reports `smart_preview_encoder_unavailable` until an encoder is
+packaged.
+
+
 `ravo catalog convert-foreign` is the read-only foreign-catalog conversion
 entry point (ADR-0131). It reads a `ravo.foreign-catalog.fixture/v1` document,
 never opens or migrates a vendor catalog in place, and writes only into a

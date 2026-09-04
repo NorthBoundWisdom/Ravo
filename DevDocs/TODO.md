@@ -382,6 +382,16 @@ one-off masked fields.
 Define a Ravo-owned proxy contract independent of adjacent XMP and independent
 of destructive DNG conversion.
 
+**Residual from ADR-0141 / backup v3:** dated Copy-mode side-conversion + Smart
+Preview browse-only policy and fail-closed service/CLI stubs
+(`catalog dng-convert`, `catalog smart-preview`) when no packaged
+converter/encoder is recorded. Smart Previews remain browse-only under
+`{catalog}.ravo/smart-previews/` and never Develop fallbacks; originals are
+never replaced. ADR-0136 backup format v3 packages `dng-conversion/` and
+`smart-previews/` with SHA-256 manifests. Full offline-original editing,
+generation policy, quota/eviction, and packaged converters remain unfinished
+here.
+
 **Decision required:**
 
 - proxy format, bit depth, colour/profile identity, maximum dimensions,
@@ -667,10 +677,19 @@ inspectable.
 
 **Blocked by:** AI-00 and CULL-01.
 
+**Residual from ADR-0142:** stub keyword/caption/focus/duplicate suggestions ship
+under `{catalog}.ai_suggestions/` via provider `ravo.local.stub` /
+`deterministic-suggestion-v1`, with explicit accept/reject/cancel CLI
+(`ai-suggest`, `ai-suggestion(s)`, `ai-suggestion-accept|reject|cancel`).
+Accept maps keyword→`set_tags` merge and caption→writable description/headline;
+focus/duplicate acknowledge only and never delete peers. Stub ship satisfies
+contract/lifecycle only.
+
 Keyword/caption, focus/exposure, duplicate, and near-duplicate suggestions remain
 separate from catalog facts. They never auto-reject, delete, publish, or write
 identity-sensitive metadata. Acceptance is transactional or reports exact
-partial state.
+partial state. Real model quality, batch accept beyond single-id, people/face
+policy, and Studio surfaces remain unfinished.
 
 ## AI-05 — Retouch and generated-pixel results
 
