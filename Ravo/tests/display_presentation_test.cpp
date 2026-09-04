@@ -160,5 +160,28 @@ TEST(DisplayPresentationTest, StateJsonExposesMachineVisibleFields)
     EXPECT_TRUE(*valid->boolean_if());
 }
 
+TEST(DisplayPresentationTest, NonAppleHostDiscoveryFailsClosedToSrgb)
+{
+#if defined(__APPLE__)
+    GTEST_SKIP() << "macOS owns CoreGraphics discovery; Win/Linux stub is residual";
+#else
+    auto state = discover_monitor_presentation("primary");
+    ASSERT_TRUE(state) << state.error().message;
+    EXPECT_EQ(state.value().source, DisplayProfileSource::kFallbackSrgb);
+    EXPECT_TRUE(state.value().valid);
+#if defined(_WIN32)
+    EXPECT_EQ(state.value().reason, "windows_monitor_discovery_unavailable");
+#elif defined(__linux__)
+    EXPECT_EQ(state.value().reason, "linux_monitor_discovery_unavailable");
+#else
+    EXPECT_EQ(state.value().reason, "host_monitor_discovery_unavailable");
+#endif
+    EXPECT_EQ(state.value().monitor_profile.identifier.find("srgb") != std::string::npos ||
+                  state.value().monitor_profile.identifier.find("sRGB") != std::string::npos ||
+                  !state.value().monitor_profile.identifier.empty(),
+              true);
+#endif
+}
+
 } // namespace
 } // namespace ravo

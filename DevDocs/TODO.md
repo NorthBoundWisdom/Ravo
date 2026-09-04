@@ -366,11 +366,15 @@ incomplete.
 
 **Status:** ADR-0144 macOS discovery, explicit sRGB fallback, synthetic CPU
 transform references, presenter/service contract, and CLI status are on `main`;
-cross-platform Studio presentation is incomplete.
+Win/Linux discovery remains fail-closed to `fallback_srgb` with platform
+reasons (`windows_monitor_discovery_unavailable` /
+`linux_monitor_discovery_unavailable`). Cross-platform Studio presentation is
+incomplete.
 
 **Remaining work:**
 
-- Windows and Linux monitor discovery and profile-change lifecycle;
+- Real Windows and Linux monitor discovery and profile-change lifecycle (replace
+  fail-closed stub reasons with system ICC bytes);
 - bind Studio window/screen changes to one C++ presentation owner;
 - apply the transform consistently to Gallery, Loupe, Develop, Before/After,
   comparison, magnifier, and any view declared display-referred;

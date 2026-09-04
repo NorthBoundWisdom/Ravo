@@ -395,6 +395,14 @@ Result<DisplayPresentationState> discover_monitor_presentation(const std::string
     }
     return finalize_state(std::string(screen_token), DisplayProfileSource::kSystemMonitor,
                           "macos_coregraphics_display_icc", std::move(profile).value());
+#elif defined(_WIN32)
+    // DISPLAY-01 residual: WinRT/ICC discovery not packaged. Fail closed to
+    // explicit sRGB rather than inventing a silent host transform.
+    return fallback_srgb_state(std::string(screen_token), "windows_monitor_discovery_unavailable",
+                               std::move(srgb).value());
+#elif defined(__linux__)
+    return fallback_srgb_state(std::string(screen_token), "linux_monitor_discovery_unavailable",
+                               std::move(srgb).value());
 #else
     return fallback_srgb_state(std::string(screen_token), "host_monitor_discovery_unavailable",
                                std::move(srgb).value());
