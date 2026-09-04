@@ -103,7 +103,7 @@ target_include_directories(ravo_engine
     "${CMAKE_BINARY_DIR}")
 
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
-find_package(Qt6 6.11 REQUIRED COMPONENTS GuiPrivate)
+find_package(Qt6 6.11 REQUIRED COMPONENTS GuiPrivate ShaderTools)
 target_link_libraries(ravo_engine
   PUBLIC ravo_recipe Qt6::Gui
   PRIVATE Exiv2::exiv2lib Qt6::Core Qt6::GuiPrivate PNG::PNG ZLIB::ZLIB lcms2 ravo_libraw)
@@ -112,7 +112,11 @@ if(NOT Python3_Interpreter_FOUND)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
 endif()
 get_filename_component(_ravo_qt_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
-find_program(RAVO_QSB_EXECUTABLE qsb HINTS "${_ravo_qt_prefix}/bin" REQUIRED)
+set(_ravo_qsb_hints "${_ravo_qt_prefix}/bin" "${_ravo_qt_prefix}/libexec")
+if(DEFINED ENV{QT_ROOT_DIR} AND NOT "$ENV{QT_ROOT_DIR}" STREQUAL "")
+  list(APPEND _ravo_qsb_hints "$ENV{QT_ROOT_DIR}/bin" "$ENV{QT_ROOT_DIR}/libexec")
+endif()
+find_program(RAVO_QSB_EXECUTABLE NAMES qsb qsb.exe HINTS ${_ravo_qsb_hints} REQUIRED)
 set(_ravo_gpu_shader_dir "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 function(ravo_embed_gpu_shader shader_name)
   set(_src "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${shader_name}.comp")

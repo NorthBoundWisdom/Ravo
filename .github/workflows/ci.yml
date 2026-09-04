@@ -141,9 +141,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
-          modules: qtimageformats
+          modules: qtimageformats qtshadertools
           cache: true
-          cache-key-prefix: qt-imageformats-${{ env.QT_VERSION }}-${{ runner.os }}
+          cache-key-prefix: qt-imageformats-shadertools-${{ env.QT_VERSION }}-${{ runner.os }}
           setup-python: false
           install-deps: true
           # PyPI aqt 3.3.0 cannot resolve the Qt 6.11 Windows repository layout.
@@ -410,9 +410,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
-          modules: qtimageformats
+          modules: qtimageformats qtshadertools
           cache: true
-          cache-key-prefix: qt-imageformats-${{ env.QT_VERSION }}-${{ runner.os }}
+          cache-key-prefix: qt-imageformats-shadertools-${{ env.QT_VERSION }}-${{ runner.os }}
           setup-python: false
           install-deps: true
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e

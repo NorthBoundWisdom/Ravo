@@ -110,7 +110,9 @@ define unfinished execution work.
   `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts` imports may only be
   used by desktop and its tests. Qt Sql/QSQLITE may only live in the private
   SQLite adapter; Qt Gui may be used in the private raster adapter for
-  `QImageReader` and in the Engine QRhi GPU adapter. The first version introduces neither Qt Widgets nor a second
+  `QImageReader` and in the Engine QRhi GPU adapter. Desktop may link
+  GuiPrivate only to sample an Engine IOSurface through QQuickWindow RHI
+  native handles. The first version introduces neither Qt Widgets nor a second
   UI architecture. QML may display state and forward intents only; SQL, codecs,
   image algorithms, business state, and task owners stay in C++
   domain/services/engine/adapters.

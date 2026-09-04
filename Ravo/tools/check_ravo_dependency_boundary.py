@@ -102,6 +102,7 @@ ALLOWED_QT_COMPONENTS = {
         {
             "Core",
             "Gui",
+            "GuiPrivate",
             "Network",
             "Qml",
             "Quick",
