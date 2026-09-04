@@ -224,8 +224,13 @@ working is retained across RGB-only edits so sliders do not remosaic. Lens,
 perspective, and full-frame ROIs reject and keep the 1600 preview. GPU is an
 Engine-owned QRhi adapter (ADR-0133/0134): one process-wide device. Unmasked
 Exposure, light controls, Lab USM Sharpen, and Sigmoid run on the GPU during
-preview in one SSBO session, interleaved with remaining CPU RGB ops. Masked
-ops, other RGB kernels, and export stay on CPU. Failures are
+preview in one SSBO session, interleaved with remaining CPU RGB ops. The
+process-wide adapter reuses grow-only SSBOs, keeps the current CFA-window or
+interactive-prefix RGB resident as a GPU source so RGB sliders copy+apply
+without a CPU upload, and on macOS packs display sRGB into an IOSurface that
+Qt Quick samples. Catalog copies only the generation and native-surface token;
+it does not hold device objects. CLI PNG and gold tests still download CPU
+pixels. Masked ops, other RGB kernels, and export stay on CPU. Failures are
 fail-closed. Recipe, Catalog, CLI, and QML do not hold device objects.
 `catalog probe --json` reports `gpu_backend`.
 For an ordinary commit whose parameters are not
@@ -1509,7 +1514,9 @@ CLI and Studio project that contract without expanding paths themselves. See
   reference. Preview keeps unmasked Exposure, light controls, Lab USM, and
   Sigmoid on one GPU SSBO session; other RGB ops stay CPU. Bayer window RCD
   for ROI 1:1 is GPU when a compute backend exists; PPG and export stay CPU.
-  Do not reuse 0.9 OpenCL or add a silent CPU fallback.
+  Interactive Studio may sample an Engine-published IOSurface instead of a
+  CPU `QImage`; missing display transport downloads pixels rather than
+  changing the algorithm. Do not reuse 0.9 OpenCL or add a silent CPU fallback.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
   query language without consumers.
 - Do not modify frozen 0.9 to call Ravo or let Ravo production call the frozen

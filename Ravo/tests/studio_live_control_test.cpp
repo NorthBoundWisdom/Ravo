@@ -242,6 +242,7 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("function onZoomChanged()")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onEditChanged()")));
     EXPECT_TRUE(source.contains(QStringLiteral("inspectRoiDebounce.restart()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("StudioGpuPreviewItem")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onBrowseModeChanged()")));
     EXPECT_TRUE(source.contains(QStringLiteral("scroller.contentX = maxX / 2")));
     EXPECT_TRUE(source.contains(QStringLiteral("scroller.contentY = maxY / 2")));
@@ -261,7 +262,7 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("previewPlaceholderReady")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: previewPlaceholderImage")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedThumbnailUrl")));
-    EXPECT_TRUE(source.contains(QStringLiteral("source: studio.previewUrl")));
+    EXPECT_TRUE(source.contains(QStringLiteral("source: visible ? studio.previewUrl : \"\"")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitWidth")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("function beginInspectZoomAnimation()")));
@@ -471,6 +472,9 @@ TEST(StudioQmlContract, LibrarySidePanelExposesNamedLibrarySets)
     EXPECT_TRUE(source.contains(QStringLiteral("Layout.minimumHeight: Fonts.scaledUiSize(200)")));
     EXPECT_TRUE(source.contains(QStringLiteral("Layout.maximumHeight: Fonts.scaledUiSize(200)")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: navHeldImage")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: navGpu")));
+    EXPECT_TRUE(source.contains(QStringLiteral("StudioGpuPreviewItem")));
+    EXPECT_TRUE(source.contains(QStringLiteral("navigator.gpuLive")));
     EXPECT_FALSE(source.contains(QStringLiteral("navImage.implicitWidth")));
 }
 

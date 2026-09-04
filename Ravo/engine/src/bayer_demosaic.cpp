@@ -1115,20 +1115,29 @@ Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uin
         make_error(ErrorCode::kInternal, "Bayer window demosaic path was not selected");
     if (gpu != nullptr && mode == BayerDemosaicMode::kRcd)
     {
+        const std::uint32_t crop_x = origin_x - x0;
+        const std::uint32_t crop_y = origin_y - y0;
         WorkingImage gpu_image;
-        gpu_image.width = prepared.value().width;
-        gpu_image.height = prepared.value().height;
+        gpu_image.width = width;
+        gpu_image.height = height;
         gpu_image.color_profile = raw.color_profile;
-        gpu_image.rgb.resize(static_cast<std::size_t>(prepared.value().width) *
-                             prepared.value().height * 3U);
-        auto applied =
-            gpu->demosaic_rcd(prepared.value().samples, gpu_image.rgb, prepared.value().width,
-                              prepared.value().height, prepared.value().cfa, cancellation);
+        gpu_image.rgb.resize(static_cast<std::size_t>(width) * height * 3U);
+        auto applied = gpu->demosaic_rcd(prepared.value().samples, gpu_image.rgb,
+                                         prepared.value().width, prepared.value().height,
+                                         prepared.value().cfa, crop_x, crop_y, width, height,
+                                         cancellation);
         if (!applied)
         {
             return applied.error();
         }
-        expanded = std::move(gpu_image);
+        if (std::any_of(gpu_image.rgb.begin(), gpu_image.rgb.end(),
+                        [](const float sample) { return !std::isfinite(sample); }))
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Bayer window demosaic produced a non-finite sample",
+                              {{"reason", "non_finite_demosaic_output"}});
+        }
+        return gpu_image;
     }
     else
     {
@@ -1162,6 +1171,14 @@ Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uin
         return make_error(ErrorCode::kValidation,
                           "Bayer window demosaic produced a non-finite sample",
                           {{"reason", "non_finite_demosaic_output"}});
+    }
+    if (gpu != nullptr)
+    {
+        auto retained = gpu->retain_source_rgb(output.rgb, width, height, cancellation);
+        if (!retained)
+        {
+            return retained.error();
+        }
     }
     return output;
 }

@@ -68,6 +68,14 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double inspectRoiY READ inspectRoiY NOTIFY inspectRoiChanged)
     Q_PROPERTY(double inspectRoiWidth READ inspectRoiWidth NOTIFY inspectRoiChanged)
     Q_PROPERTY(double inspectRoiHeight READ inspectRoiHeight NOTIFY inspectRoiChanged)
+    Q_PROPERTY(quint64 gpuPreviewGeneration READ gpuPreviewGeneration NOTIFY previewChanged)
+    Q_PROPERTY(quint64 gpuPreviewNativeSurface READ gpuPreviewNativeSurface NOTIFY previewChanged)
+    Q_PROPERTY(int gpuPreviewWidth READ gpuPreviewWidth NOTIFY previewChanged)
+    Q_PROPERTY(int gpuPreviewHeight READ gpuPreviewHeight NOTIFY previewChanged)
+    Q_PROPERTY(quint64 gpuRoiGeneration READ gpuRoiGeneration NOTIFY inspectRoiChanged)
+    Q_PROPERTY(quint64 gpuRoiNativeSurface READ gpuRoiNativeSurface NOTIFY inspectRoiChanged)
+    Q_PROPERTY(int gpuRoiWidth READ gpuRoiWidth NOTIFY inspectRoiChanged)
+    Q_PROPERTY(int gpuRoiHeight READ gpuRoiHeight NOTIFY inspectRoiChanged)
     Q_PROPERTY(QUrl comparisonBeforeUrl READ comparisonBeforeUrl NOTIFY previewChanged)
     Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
     Q_PROPERTY(QString scopeMode READ scopeMode WRITE setScopeMode NOTIFY scopesChanged)
@@ -392,6 +400,14 @@ public:
     [[nodiscard]] double inspectRoiY() const noexcept;
     [[nodiscard]] double inspectRoiWidth() const noexcept;
     [[nodiscard]] double inspectRoiHeight() const noexcept;
+    [[nodiscard]] quint64 gpuPreviewGeneration() const noexcept;
+    [[nodiscard]] quint64 gpuPreviewNativeSurface() const noexcept;
+    [[nodiscard]] int gpuPreviewWidth() const noexcept;
+    [[nodiscard]] int gpuPreviewHeight() const noexcept;
+    [[nodiscard]] quint64 gpuRoiGeneration() const noexcept;
+    [[nodiscard]] quint64 gpuRoiNativeSurface() const noexcept;
+    [[nodiscard]] int gpuRoiWidth() const noexcept;
+    [[nodiscard]] int gpuRoiHeight() const noexcept;
     [[nodiscard]] QImage previewImage() const;
     [[nodiscard]] QUrl comparisonBeforeUrl() const;
     [[nodiscard]] QImage comparisonBeforeImage() const;
@@ -1075,6 +1091,14 @@ private:
     double inspect_roi_y_ = 0.0;
     double inspect_roi_width_ = 0.0;
     double inspect_roi_height_ = 0.0;
+    quint64 gpu_preview_generation_ = 0;
+    quint64 gpu_preview_native_surface_ = 0;
+    int gpu_preview_width_ = 0;
+    int gpu_preview_height_ = 0;
+    quint64 gpu_roi_generation_ = 0;
+    quint64 gpu_roi_native_surface_ = 0;
+    int gpu_roi_width_ = 0;
+    int gpu_roi_height_ = 0;
     void clear_inspect_roi();
     void refresh_inspect_roi();
     PreviewRequestOwner preview_analysis_owner_;

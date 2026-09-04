@@ -144,8 +144,15 @@ ravo_embed_gpu_shader(sigmoid_rgb)
 ravo_embed_gpu_shader(light_controls)
 ravo_embed_gpu_shader(sharpen_lab)
 ravo_embed_gpu_shader(rcd_demosaic)
+ravo_embed_gpu_shader(copy_rgb)
+ravo_embed_gpu_shader(pack_rgba8)
 target_sources(ravo_engine PRIVATE
   src/gpu_adapter_rhi.cpp
   src/gpu_preview.cpp)
+if(APPLE)
+  target_sources(ravo_engine PRIVATE src/gpu_display_metal.mm src/gpu_display_metal.h)
+  target_link_libraries(ravo_engine PRIVATE "-framework Metal" "-framework IOSurface"
+                                            "-framework CoreFoundation")
+endif()
 
 ravo_configure_target(ravo_engine)

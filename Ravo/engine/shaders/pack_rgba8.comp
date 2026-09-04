@@ -1,0 +1,32 @@
+#version 440
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, binding = 0) readonly buffer Rgb {
+    float rgb[];
+};
+
+layout(rgba8, binding = 1) uniform writeonly image2D dest;
+
+layout(std140, binding = 2) uniform Params {
+    uvec4 header;
+};
+
+float display_srgb_encode(float linear)
+{
+    const float value = max(linear, 0.0);
+    return value <= 0.0031308 ? 12.92 * value : 1.055 * pow(value, 1.0 / 2.4) - 0.055;
+}
+
+void main()
+{
+    const uint x = gl_GlobalInvocationID.x;
+    const uint y = gl_GlobalInvocationID.y;
+    const uint width = header.x;
+    const uint height = header.y;
+    if (x >= width || y >= height)
+        return;
+    const uint base = (y * width + x) * 3u;
+    const vec3 encoded = vec3(display_srgb_encode(rgb[base]), display_srgb_encode(rgb[base + 1u]),
+                              display_srgb_encode(rgb[base + 2u]));
+    imageStore(dest, ivec2(int(x), int(y)), vec4(clamp(encoded, 0.0, 1.0), 1.0));
+}

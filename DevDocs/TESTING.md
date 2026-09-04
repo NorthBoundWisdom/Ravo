@@ -151,7 +151,10 @@ bit-exact and Exposure affine RGB, unmasked light controls, Lab USM Sharpen,
 and default Sigmoid are RMSE-gated against the CPU gold. `render_linear_working`
 reports `gpu_backend` when those GPU RGB passes ran, including the default RAW
 baseline that now keeps Sharpen and Sigmoid on the GPU. Recipes without those
-ops stay on CPU. Hosts without compute or
+ops stay on CPU. A later smaller upload must not over-read a grow-only SSBO.
+Retained-source RGB apply matches the uploaded path. Interactive skip-download
+on Metal publishes a non-zero display generation and native surface with empty
+CPU RGB. Hosts without compute or
 buffer readback return `gpu_unavailable`. Bayer window RCD is RMSE-gated
 against the CPU gold when the adapter is present; PPG and hosts without
 compute stay on CPU. Export stays on the CPU path.

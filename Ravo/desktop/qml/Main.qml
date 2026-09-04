@@ -1144,12 +1144,25 @@ ApplicationWindow {
                                         x: window.comparisonReady ? parent.width / 2 : 0
                                         width: window.comparisonReady ? parent.width / 2 : parent.width
                                         height: parent.height
+                                        visible: studio.gpuPreviewGeneration === 0 || window.comparisonReady
                                         asynchronous: false
                                         cache: false
-                                        source: studio.previewUrl
+                                        source: visible ? studio.previewUrl : ""
                                         fillMode: Image.Stretch
                                         smooth: true
                                         antialiasing: true
+                                    }
+
+                                    StudioGpuPreviewItem {
+                                        x: previewImage.x
+                                        width: previewImage.width
+                                        height: previewImage.height
+                                        visible: studio.gpuPreviewGeneration > 0 && !window.comparisonReady
+                                        generation: studio.gpuPreviewGeneration
+                                        nativeSurface: studio.gpuPreviewNativeSurface
+                                        sourceWidth: studio.gpuPreviewWidth
+                                        sourceHeight: studio.gpuPreviewHeight
+                                        smooth: true
                                     }
 
                                     Image {
@@ -1158,13 +1171,26 @@ ApplicationWindow {
                                         y: studio.inspectRoiY * parent.height
                                         width: Math.max(1, studio.inspectRoiWidth * parent.width)
                                         height: Math.max(1, studio.inspectRoiHeight * parent.height)
-                                        visible: studio.zoomMode === "actual" && studio.inspectRoiUrl.toString().length > 0 && !window.comparisonReady
+                                        visible: studio.zoomMode === "actual" && studio.inspectRoiUrl.toString().length > 0 && !window.comparisonReady && studio.gpuRoiGeneration === 0
                                         asynchronous: false
                                         cache: false
                                         source: studio.inspectRoiUrl
                                         fillMode: Image.Stretch
                                         smooth: false
                                         antialiasing: false
+                                    }
+
+                                    StudioGpuPreviewItem {
+                                        x: inspectRoiImage.x
+                                        y: inspectRoiImage.y
+                                        width: inspectRoiImage.width
+                                        height: inspectRoiImage.height
+                                        visible: studio.zoomMode === "actual" && studio.gpuRoiGeneration > 0 && !window.comparisonReady
+                                        generation: studio.gpuRoiGeneration
+                                        nativeSurface: studio.gpuRoiNativeSurface
+                                        sourceWidth: studio.gpuRoiWidth
+                                        sourceHeight: studio.gpuRoiHeight
+                                        smooth: false
                                     }
 
                                     Rectangle {

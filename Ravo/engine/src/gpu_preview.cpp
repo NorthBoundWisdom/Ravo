@@ -346,7 +346,8 @@ gpu_preview_rgb_passes(const LinearWorkingBuffer &working, const Recipe &recipe,
 Result<LinearWorkingBuffer> apply_gpu_preview_rgb(const LinearWorkingBuffer &working,
                                                   const std::span<const GpuRgbPass> passes,
                                                   const GpuAdapter &gpu,
-                                                  const CancellationToken &cancellation)
+                                                  const CancellationToken &cancellation,
+                                                  GpuRgbApplyOptions options)
 {
     LinearWorkingBuffer output;
     output.width = working.width;
@@ -355,24 +356,35 @@ Result<LinearWorkingBuffer> apply_gpu_preview_rgb(const LinearWorkingBuffer &wor
     output.exposure_analysis = working.exposure_analysis;
     output.canonical_roi_scale = working.canonical_roi_scale;
     output.mask_attached_frame = working.mask_attached_frame;
-    output.rgb.resize(working.rgb.size());
+    if (options.download)
+    {
+        output.rgb.resize(working.rgb.size());
+    }
     if (passes.empty())
     {
-        output.rgb = working.rgb;
+        if (options.download)
+        {
+            output.rgb = working.rgb;
+        }
         return output;
     }
-    auto applied = gpu.apply_rgb_passes(working.rgb, output.rgb, passes, cancellation);
+    options.width = working.width;
+    options.height = working.height;
+    auto applied = gpu.apply_rgb_passes(working.rgb, output.rgb, passes, options, cancellation);
     if (!applied)
     {
         return applied.error();
     }
-    for (std::size_t index = 0; index < output.rgb.size(); ++index)
+    if (options.download)
     {
-        if (!std::isfinite(output.rgb[index]))
+        for (std::size_t index = 0; index < output.rgb.size(); ++index)
         {
-            return make_error(
-                ErrorCode::kValidation, "GPU preview produced a non-finite sample",
-                {{"reason", "gpu_pipeline_failed"}, {"sample_index", std::to_string(index)}});
+            if (!std::isfinite(output.rgb[index]))
+            {
+                return make_error(
+                    ErrorCode::kValidation, "GPU preview produced a non-finite sample",
+                    {{"reason", "gpu_pipeline_failed"}, {"sample_index", std::to_string(index)}});
+            }
         }
     }
     return output;
@@ -380,7 +392,10 @@ Result<LinearWorkingBuffer> apply_gpu_preview_rgb(const LinearWorkingBuffer &wor
 
 Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const Recipe &recipe,
                                               const GpuAdapter *gpu, std::string *gpu_backend,
-                                              const CancellationToken &cancellation)
+                                              const CancellationToken &cancellation,
+                                              const bool need_cpu_pixels,
+                                              const std::uint32_t display_slot,
+                                              const bool prefer_retained_source)
 {
     if (gpu_backend != nullptr)
     {
@@ -407,6 +422,7 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
 
     Recipe remaining = recipe;
     std::size_t index = 0U;
+    bool allow_retained = prefer_retained_source;
     while (index < remaining.operations.size())
     {
         cancelled = cancellation.check();
@@ -454,12 +470,41 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
                 remaining.operations[cursor].enabled = false;
                 ++cursor;
             }
-            auto gpu_image = apply_gpu_preview_rgb(working, batch, *gpu, cancellation);
+            bool cpu_after = false;
+            for (std::size_t look = cursor; look < remaining.operations.size(); ++look)
+            {
+                auto later = classify_preview_operation(working, remaining.operations[look]);
+                if (!later)
+                {
+                    return later.error();
+                }
+                if (later.value() == PreviewOpClass::Cpu)
+                {
+                    cpu_after = true;
+                    break;
+                }
+            }
+            GpuRgbApplyOptions gpu_options;
+#if defined(__APPLE__)
+            const bool can_publish = true;
+#else
+            const bool can_publish = false;
+#endif
+            gpu_options.publish_display = !need_cpu_pixels && !cpu_after && can_publish;
+            gpu_options.download = need_cpu_pixels || cpu_after || !gpu_options.publish_display;
+            gpu_options.from_retained_source =
+                allow_retained && gpu->has_retained_source(working.width, working.height);
+            gpu_options.width = working.width;
+            gpu_options.height = working.height;
+            gpu_options.display_slot = display_slot;
+            auto gpu_image =
+                apply_gpu_preview_rgb(working, batch, *gpu, cancellation, gpu_options);
             if (!gpu_image)
             {
                 return gpu_image.error();
             }
             working = std::move(gpu_image).value();
+            allow_retained = false;
             if (gpu_backend != nullptr)
             {
                 *gpu_backend = std::string(gpu->backend_id());
@@ -501,6 +546,7 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
             return cpu_image.error();
         }
         working = std::move(cpu_image).value();
+        allow_retained = false;
         for (std::size_t op_index = index; op_index < cursor; ++op_index)
         {
             remaining.operations[op_index].enabled = false;

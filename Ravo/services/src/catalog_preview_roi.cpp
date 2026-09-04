@@ -316,7 +316,8 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     disable_raw_preprocess(rgb_recipe);
     auto applied = engine_->render_interactive_linear_working(
         linear.value()->buffer, rgb_recipe, linear.value()->interactive_render_cache,
-        request.cancellation, request.overlay_mask_id);
+        request.cancellation, request.overlay_mask_id, request.need_cpu_pixels,
+        EngineFacade::GpuDisplayKind::kRoi);
     if (!applied)
     {
         return applied.error();
@@ -333,6 +334,17 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     result.color_profile = std::move(applied.value().color_profile);
     result.mask_alpha = std::move(applied.value().mask_alpha);
     result.gpu_backend = applied.value().gpu_backend;
+    result.gpu_display_generation = applied.value().gpu_display_generation;
+    if (applied.value().gpu_display_generation != 0U)
+    {
+        const auto frame = engine_->gpu_display_frame(EngineFacade::GpuDisplayKind::kRoi);
+        if (frame.generation == applied.value().gpu_display_generation)
+        {
+            result.gpu_display_width = frame.width;
+            result.gpu_display_height = frame.height;
+            result.gpu_display_native_surface = frame.native_surface;
+        }
+    }
     result.original_missing = false;
     return result;
 }

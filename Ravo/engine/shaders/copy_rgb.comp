@@ -1,0 +1,33 @@
+#version 440
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) readonly buffer Source {
+    float source[];
+};
+
+layout(std430, binding = 1) buffer Destination {
+    float destination[];
+};
+
+layout(std140, binding = 2) uniform Params {
+    uvec4 header;
+    uvec4 origin;
+};
+
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+    const uint dst_width = header.z;
+    const uint dst_height = header.w;
+    const uint count = dst_width * dst_height;
+    if (index >= count || dst_width == 0u)
+        return;
+    const uint x = index % dst_width;
+    const uint y = index / dst_width;
+    const uint src_width = header.x;
+    const uint src = ((origin.y + y) * src_width + origin.x + x) * 3u;
+    const uint dst = index * 3u;
+    destination[dst] = source[src];
+    destination[dst + 1u] = source[src + 1u];
+    destination[dst + 2u] = source[src + 2u];
+}

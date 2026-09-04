@@ -330,6 +330,10 @@ void StudioPresenter::clear_displayed_preview()
     live_preview_color_profile_id_.clear();
     live_preview_pixel_sha256_.clear();
     displayed_develop_.reset();
+    gpu_preview_generation_ = 0;
+    gpu_preview_native_surface_ = 0;
+    gpu_preview_width_ = 0;
+    gpu_preview_height_ = 0;
     clear_scopes();
 }
 
@@ -552,6 +556,32 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
                                           const std::uint64_t revision,
                                           const bool preserve_viewport_extent)
 {
+    gpu_preview_generation_ = preview.gpu_display_generation;
+    gpu_preview_native_surface_ = preview.gpu_display_native_surface;
+    gpu_preview_width_ = static_cast<int>(preview.gpu_display_width);
+    gpu_preview_height_ = static_cast<int>(preview.gpu_display_height);
+    if (preview.gpu_display_generation != 0U && preview.rgb.empty())
+    {
+        if (preview.gpu_display_native_surface == 0U || preview.gpu_display_width == 0U ||
+            preview.gpu_display_height == 0U)
+        {
+            setError(QStringLiteral("GPU preview display is missing"));
+            return;
+        }
+        const QSize displayed(static_cast<int>(preview.gpu_display_width),
+                              static_cast<int>(preview.gpu_display_height));
+        const QSize viewport_size =
+            stable_preview_viewport_size(QSize(preview_viewport_width_, preview_viewport_height_),
+                                         displayed, preserve_viewport_extent);
+        preview_viewport_width_ = viewport_size.width();
+        preview_viewport_height_ = viewport_size.height();
+        live_preview_revision_ = revision;
+        live_preview_width_ = preview.gpu_display_width;
+        live_preview_height_ = preview.gpu_display_height;
+        live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
+        live_preview_pixel_sha256_.clear();
+        return;
+    }
     auto prepared = preview_result_image(preview);
     if (!prepared)
     {
@@ -1019,6 +1049,46 @@ double StudioPresenter::inspectRoiHeight() const noexcept
     return inspect_roi_height_;
 }
 
+quint64 StudioPresenter::gpuPreviewGeneration() const noexcept
+{
+    return gpu_preview_generation_;
+}
+
+quint64 StudioPresenter::gpuPreviewNativeSurface() const noexcept
+{
+    return gpu_preview_native_surface_;
+}
+
+int StudioPresenter::gpuPreviewWidth() const noexcept
+{
+    return gpu_preview_width_;
+}
+
+int StudioPresenter::gpuPreviewHeight() const noexcept
+{
+    return gpu_preview_height_;
+}
+
+quint64 StudioPresenter::gpuRoiGeneration() const noexcept
+{
+    return gpu_roi_generation_;
+}
+
+quint64 StudioPresenter::gpuRoiNativeSurface() const noexcept
+{
+    return gpu_roi_native_surface_;
+}
+
+int StudioPresenter::gpuRoiWidth() const noexcept
+{
+    return gpu_roi_width_;
+}
+
+int StudioPresenter::gpuRoiHeight() const noexcept
+{
+    return gpu_roi_height_;
+}
+
 void StudioPresenter::refresh_inspect_roi()
 {
     if (zoom_mode_ != QLatin1String("actual") || selected_asset_id_.isEmpty() ||
@@ -1045,6 +1115,10 @@ void StudioPresenter::clear_inspect_roi()
     inspect_roi_y_ = 0.0;
     inspect_roi_width_ = 0.0;
     inspect_roi_height_ = 0.0;
+    gpu_roi_generation_ = 0;
+    gpu_roi_native_surface_ = 0;
+    gpu_roi_width_ = 0;
+    gpu_roi_height_ = 0;
     emit inspectRoiChanged();
 }
 
@@ -1072,6 +1146,7 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
             request.prefer_embedded_preview = false;
             request.request_revision = revision;
             request.cancellation = cancellation;
+            request.need_cpu_pixels = false;
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
@@ -1105,13 +1180,26 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
                         }
                         return;
                     }
-                    auto prepared = preview_result_image(preview.value());
-                    if (!prepared)
+                    gpu_roi_generation_ = preview.value().gpu_display_generation;
+                    gpu_roi_native_surface_ = preview.value().gpu_display_native_surface;
+                    gpu_roi_width_ = static_cast<int>(preview.value().gpu_display_width);
+                    gpu_roi_height_ = static_cast<int>(preview.value().gpu_display_height);
+                    if (preview.value().gpu_display_generation != 0U && preview.value().rgb.empty())
                     {
-                        setError(qstring_from_utf8(prepared.error().message));
-                        return;
+                        if (preview.value().gpu_display_native_surface == 0U)
+                        {
+                            setError(QStringLiteral("GPU inspect display is missing"));
+                            return;
+                        }
                     }
+                    else
                     {
+                        auto prepared = preview_result_image(preview.value());
+                        if (!prepared)
+                        {
+                            setError(qstring_from_utf8(prepared.error().message));
+                            return;
+                        }
                         const QMutexLocker lock(&preview_image_mutex_);
                         inspect_roi_image_ = std::move(prepared).value();
                     }

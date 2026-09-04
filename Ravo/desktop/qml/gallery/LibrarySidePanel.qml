@@ -245,15 +245,46 @@ Rectangle {
             clip: true
 
             readonly property bool hasSelectedPhoto: root.presenter && root.presenter.selectedAssetId.length > 0
+            readonly property bool gpuLive: root.presenter && root.presenter.gpuPreviewGeneration > 0
             readonly property url liveSource: {
-                if (!root.presenter)
+                if (!root.presenter || navigator.gpuLive)
                     return "";
                 if (root.presenter.previewUrl.toString().length)
                     return root.presenter.previewUrl;
                 return root.presenter.selectedThumbnailUrl;
             }
             property url heldSource: ""
-            readonly property Item shownImage: navImage.status === Image.Ready ? navImage : navHeldImage
+            readonly property Item shownImage: navigator.gpuLive ?
+                                                   navGpu :
+                                                   (navImage.status === Image.Ready ? navImage : navHeldImage)
+            function contentX(item) {
+                if (!item)
+                    return 0;
+                if (item === navGpu)
+                    return item.x;
+                return (item.width - item.paintedWidth) / 2;
+            }
+            function contentY(item) {
+                if (!item)
+                    return 0;
+                if (item === navGpu)
+                    return item.y;
+                return (item.height - item.paintedHeight) / 2;
+            }
+            function contentW(item) {
+                if (!item)
+                    return 0;
+                if (item === navGpu)
+                    return item.width;
+                return item.paintedWidth;
+            }
+            function contentH(item) {
+                if (!item)
+                    return 0;
+                if (item === navGpu)
+                    return item.height;
+                return item.paintedHeight;
+            }
 
             onHasSelectedPhotoChanged: {
                 if (!hasSelectedPhoto)
@@ -276,7 +307,7 @@ Rectangle {
                 asynchronous: true
                 cache: false
                 source: navigator.heldSource
-                visible: navigator.heldSource.toString().length > 0 && navImage.status !== Image.Ready
+                visible: !navigator.gpuLive && navigator.heldSource.toString().length > 0 && navImage.status !== Image.Ready
             }
 
             Image {
@@ -287,11 +318,28 @@ Rectangle {
                 asynchronous: true
                 cache: false
                 source: navigator.liveSource
-                visible: status === Image.Ready
+                visible: !navigator.gpuLive && status === Image.Ready
                 onStatusChanged: {
                     if (status === Image.Ready)
                         navigator.heldSource = source;
                 }
+            }
+
+            StudioGpuPreviewItem {
+                id: navGpu
+                visible: navigator.gpuLive
+                readonly property real srcW: Math.max(1, root.presenter ? root.presenter.gpuPreviewWidth : 1)
+                readonly property real srcH: Math.max(1, root.presenter ? root.presenter.gpuPreviewHeight : 1)
+                readonly property real fit: Math.min((parent.width - 2) / srcW, (parent.height - 2) / srcH)
+                width: srcW * fit
+                height: srcH * fit
+                x: (parent.width - width) / 2
+                y: (parent.height - height) / 2
+                generation: root.presenter ? root.presenter.gpuPreviewGeneration : 0
+                nativeSurface: root.presenter ? root.presenter.gpuPreviewNativeSurface : 0
+                sourceWidth: root.presenter ? root.presenter.gpuPreviewWidth : 0
+                sourceHeight: root.presenter ? root.presenter.gpuPreviewHeight : 0
+                smooth: true
             }
 
             CustomLabel {
@@ -304,13 +352,15 @@ Rectangle {
 
             Rectangle {
                 id: viewBox
-                readonly property real imgX: (navigator.shownImage.width - navigator.shownImage.paintedWidth) / 2
-                readonly property real imgY: (navigator.shownImage.height - navigator.shownImage.paintedHeight) / 2
-                visible: navigator.shownImage.status === Image.Ready && navigator.shownImage.paintedWidth > 1 && navigator.shownImage.paintedHeight > 1
-                x: viewBox.imgX + root.viewRectX * navigator.shownImage.paintedWidth
-                y: viewBox.imgY + root.viewRectY * navigator.shownImage.paintedHeight
-                width: Math.max(6, root.viewRectW * navigator.shownImage.paintedWidth)
-                height: Math.max(6, root.viewRectH * navigator.shownImage.paintedHeight)
+                readonly property real imgX: navigator.contentX(navigator.shownImage)
+                readonly property real imgY: navigator.contentY(navigator.shownImage)
+                readonly property real imgW: navigator.contentW(navigator.shownImage)
+                readonly property real imgH: navigator.contentH(navigator.shownImage)
+                visible: viewBox.imgW > 1 && viewBox.imgH > 1
+                x: viewBox.imgX + root.viewRectX * viewBox.imgW
+                y: viewBox.imgY + root.viewRectY * viewBox.imgH
+                width: Math.max(6, root.viewRectW * viewBox.imgW)
+                height: Math.max(6, root.viewRectH * viewBox.imgH)
                 color: "transparent"
                 border.width: 1
                 border.color: "#f4f4f4"
@@ -319,14 +369,15 @@ Rectangle {
 
             MouseArea {
                 anchors.fill: parent
-                enabled: navigator.shownImage.status === Image.Ready && root.presenter && root.presenter.browseMode !== "grid"
+                enabled: viewBox.visible && root.presenter && root.presenter.browseMode !== "grid"
                 cursorShape: enabled ? Qt.OpenHandCursor : Qt.ArrowCursor
                 function seekTo(px, py) {
-                    const img = navigator.shownImage;
-                    const imgX = (img.width - img.paintedWidth) / 2;
-                    const imgY = (img.height - img.paintedHeight) / 2;
-                    const fx = img.paintedWidth > 0 ? (px - imgX) / img.paintedWidth : 0;
-                    const fy = img.paintedHeight > 0 ? (py - imgY) / img.paintedHeight : 0;
+                    const imgX = navigator.contentX(navigator.shownImage);
+                    const imgY = navigator.contentY(navigator.shownImage);
+                    const imgW = navigator.contentW(navigator.shownImage);
+                    const imgH = navigator.contentH(navigator.shownImage);
+                    const fx = imgW > 0 ? (px - imgX) / imgW : 0;
+                    const fy = imgH > 0 ? (py - imgY) / imgH : 0;
                     root.viewportSeeked(fx - root.viewRectW / 2, fy - root.viewRectH / 2);
                 }
                 onPressed: function (mouse) {

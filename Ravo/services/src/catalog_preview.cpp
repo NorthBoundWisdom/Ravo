@@ -739,7 +739,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                     request.max_edge <= kInteractivePreviewMaxEdge ?
                 engine_->render_interactive_linear_working(
                     linear.value()->buffer, rgb_recipe, linear.value()->interactive_render_cache,
-                    request.cancellation, request.overlay_mask_id) :
+                    request.cancellation, request.overlay_mask_id, request.need_cpu_pixels) :
                 engine_->render_linear_working(linear.value()->buffer, rgb_recipe,
                                                request.cancellation, request.overlay_mask_id);
         if (!applied)
@@ -761,7 +761,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                     request.max_edge <= kInteractivePreviewMaxEdge ?
                 engine_->render_interactive_linear_working(
                     linear.value()->buffer, edit_recipe, linear.value()->interactive_render_cache,
-                    request.cancellation, request.overlay_mask_id) :
+                    request.cancellation, request.overlay_mask_id, request.need_cpu_pixels) :
                 engine_->render_linear_working(linear.value()->buffer, edit_recipe,
                                                request.cancellation, request.overlay_mask_id);
         if (!applied)
@@ -780,6 +780,17 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     result.width = rendered.width;
     result.height = rendered.height;
     result.gpu_backend = rendered.gpu_backend;
+    result.gpu_display_generation = rendered.gpu_display_generation;
+    if (rendered.gpu_display_generation != 0U)
+    {
+        const auto frame = engine_->gpu_display_frame(EngineFacade::GpuDisplayKind::kPreview);
+        if (frame.generation == rendered.gpu_display_generation)
+        {
+            result.gpu_display_width = frame.width;
+            result.gpu_display_height = frame.height;
+            result.gpu_display_native_surface = frame.native_surface;
+        }
+    }
     if (interactive)
     {
         result.rgb = std::move(rendered.rgb);

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -65,6 +66,26 @@ struct GpuRgbPass
     GpuSharpenRgbParams sharpen;
 };
 
+struct GpuRgbApplyOptions
+{
+    bool from_retained_source = false;
+    bool download = true;
+    bool publish_display = false;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t display_slot = 0;
+    std::string retained_key;
+};
+
+struct GpuDisplayFrame
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint64_t generation = 0;
+    std::string_view backend = {};
+    std::uint64_t native_surface = 0;
+};
+
 class GpuAdapter
 {
 public:
@@ -85,10 +106,28 @@ public:
                                                 std::span<float> output,
                                                 std::span<const GpuRgbPass> passes,
                                                 const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<void> apply_rgb_passes(std::span<const float> input,
+                                                std::span<float> output,
+                                                std::span<const GpuRgbPass> passes,
+                                                GpuRgbApplyOptions options,
+                                                const CancellationToken &cancellation) const;
     [[nodiscard]] Result<void> demosaic_rcd(std::span<const float> cfa, std::span<float> rgb,
                                             std::uint32_t width, std::uint32_t height,
                                             std::array<std::uint8_t, 4> pattern,
                                             const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<void> demosaic_rcd(std::span<const float> cfa, std::span<float> rgb,
+                                            std::uint32_t width, std::uint32_t height,
+                                            std::array<std::uint8_t, 4> pattern,
+                                            std::uint32_t crop_x, std::uint32_t crop_y,
+                                            std::uint32_t crop_width, std::uint32_t crop_height,
+                                            const CancellationToken &cancellation) const;
+    [[nodiscard]] bool has_retained_source(std::uint32_t width, std::uint32_t height) const noexcept;
+    [[nodiscard]] std::string_view retained_source_key() const noexcept;
+    [[nodiscard]] Result<void> retain_source_rgb(std::span<const float> rgb, std::uint32_t width,
+                                                 std::uint32_t height,
+                                                 const CancellationToken &cancellation,
+                                                 std::string_view key = {}) const;
+    [[nodiscard]] GpuDisplayFrame display_frame(std::uint32_t slot = 0) const noexcept;
 
 private:
     struct Impl;

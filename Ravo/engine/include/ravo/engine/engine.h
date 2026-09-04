@@ -121,6 +121,7 @@ struct RenderedImage
     ColorProfileState color_profile;
     std::vector<float> mask_alpha;
     std::string gpu_backend;
+    std::uint64_t gpu_display_generation = 0;
 };
 
 enum class RenderSampleKind : std::uint8_t
@@ -523,6 +524,21 @@ public:
     [[nodiscard]] const std::vector<OperationDescriptor> &operations() const noexcept;
     // Engine-owned GPU adapter. CPU remains the default preview/export path.
     [[nodiscard]] std::string_view gpu_backend() const;
+    enum class GpuDisplayKind : std::uint8_t
+    {
+        kPreview = 0,
+        kRoi = 1,
+    };
+    struct GpuDisplayFrame
+    {
+        std::uint32_t width = 0;
+        std::uint32_t height = 0;
+        std::uint64_t generation = 0;
+        std::string backend;
+        std::uint64_t native_surface = 0;
+    };
+    [[nodiscard]] GpuDisplayFrame gpu_display_frame(
+        GpuDisplayKind kind = GpuDisplayKind::kPreview) const;
     [[nodiscard]] Result<void> gpu_copy_rgb(std::span<const float> input, std::span<float> output,
                                             const CancellationToken &cancellation) const;
     [[nodiscard]] Result<LinearWorkingBuffer>
@@ -584,7 +600,9 @@ public:
     render_interactive_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
                                       InteractivePreviewRenderCache &cache,
                                       const CancellationToken &cancellation,
-                                      std::optional<std::string> overlay_mask_id = {}) const;
+                                      std::optional<std::string> overlay_mask_id = {},
+                                      bool need_cpu_pixels = true,
+                                      GpuDisplayKind display_kind = GpuDisplayKind::kPreview) const;
     // Same recipe/output-colour stage as render_linear_working; packs the owned
     // ProfiledOutputBuffer to the requested sample kind. Preview callers stay on
     // the RGB8 APIs above.

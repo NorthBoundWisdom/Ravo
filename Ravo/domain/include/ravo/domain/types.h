@@ -994,6 +994,9 @@ struct PreviewRequest
     CancellationToken cancellation{};
     std::string correlation_id;
     std::optional<std::string> overlay_mask_id;
+    // CLI, PNG cache, gold tests, and overlay compositing keep true. Studio
+    // interactive GPU display sets false so the Engine can skip CPU readback.
+    bool need_cpu_pixels = true;
 };
 
 struct PreviewResult
@@ -1009,6 +1012,10 @@ struct PreviewResult
     ColorProfileState color_profile;
     std::vector<float> mask_alpha;
     std::string gpu_backend;
+    std::uint64_t gpu_display_generation = 0;
+    std::uint32_t gpu_display_width = 0;
+    std::uint32_t gpu_display_height = 0;
+    std::uint64_t gpu_display_native_surface = 0;
 };
 
 struct PreviewRebuildItemResult

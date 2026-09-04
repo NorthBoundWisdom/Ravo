@@ -30,7 +30,8 @@ constraint.
   (`../DevDocs/MIGRATION.md`). Preview keeps unmasked Exposure, light
   controls, Lab USM, and Sigmoid on one GPU SSBO session; remaining RGB ops
   stay CPU. Bayer window RCD for ROI 1:1 is GPU when admitted; PPG and export
-  stay CPU.
+  stay CPU. Interactive Studio may sample an Engine IOSurface; CLI/PNG gold
+  paths still download CPU pixels.
 - The `ravo` CLI and Ravo Studio are both supported clients. Algorithms belong
   in the engine; catalog/import/preview orchestration belongs in services; CLI
   and UI are limited to input/output, progress, selection, and error

@@ -486,6 +486,8 @@ void StudioPresenter::kick_develop_work()
                     request.persist_preview_record =
                         job.comparison_before ? false : !job.interactive;
                     request.cancellation = cancellation;
+                    request.need_cpu_pixels =
+                        !job.interactive || job.comparison_before || job.overlay_mask_id.has_value();
                     if (job.overlay_mask_id)
                     {
                         request.overlay_mask_id = job.overlay_mask_id;

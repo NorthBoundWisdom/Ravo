@@ -27,6 +27,14 @@ extern unsigned char const ravo_gpu_sharpen_lab_qsb[];
 extern unsigned long long const ravo_gpu_sharpen_lab_qsb_size;
 extern unsigned char const ravo_gpu_rcd_demosaic_qsb[];
 extern unsigned long long const ravo_gpu_rcd_demosaic_qsb_size;
+extern unsigned char const ravo_gpu_copy_rgb_qsb[];
+extern unsigned long long const ravo_gpu_copy_rgb_qsb_size;
+extern unsigned char const ravo_gpu_pack_rgba8_qsb[];
+extern unsigned long long const ravo_gpu_pack_rgba8_qsb_size;
+
+#if defined(Q_OS_MACOS)
+#include "gpu_display_metal.h"
+#endif
 
 namespace ravo
 {
@@ -127,6 +135,34 @@ struct RcdUniforms
     quint32 pattern[4] = {};
 };
 
+struct CopyUniforms
+{
+    quint32 src_width = 0;
+    quint32 src_height = 0;
+    quint32 dst_width = 0;
+    quint32 dst_height = 0;
+    quint32 origin_x = 0;
+    quint32 origin_y = 0;
+    quint32 pad0[2] = {};
+};
+
+struct PackUniforms
+{
+    quint32 width = 0;
+    quint32 height = 0;
+    quint32 pad0[2] = {};
+};
+
+void upload_storage(QRhiResourceUpdateBatch *updates, QRhiBuffer *buffer, const void *data,
+                    const quint32 bytes)
+{
+    if (updates == nullptr || buffer == nullptr || data == nullptr || bytes == 0U)
+    {
+        return;
+    }
+    updates->uploadStaticBuffer(buffer, 0, bytes, data);
+}
+
 [[nodiscard]] Result<QShader> load_shader(const unsigned char *bytes, const unsigned long long size)
 {
     if (bytes == nullptr || size == 0ULL ||
@@ -158,28 +194,101 @@ struct GpuAdapter::Impl
     std::unique_ptr<QRhiBuffer> light_uniforms[4];
     std::unique_ptr<QRhiBuffer> sharpen_uniforms[4];
     std::unique_ptr<QRhiBuffer> rcd_uniforms[9];
+    std::unique_ptr<QRhiBuffer> copy_uniforms;
+    std::unique_ptr<QRhiBuffer> pack_uniforms;
     std::unique_ptr<QRhiShaderResourceBindings> layout_bindings;
     std::unique_ptr<QRhiShaderResourceBindings> sharpen_layout;
     std::unique_ptr<QRhiShaderResourceBindings> rcd_layout;
+    std::unique_ptr<QRhiShaderResourceBindings> copy_layout;
+    std::unique_ptr<QRhiShaderResourceBindings> pack_layout;
     std::unique_ptr<QRhiComputePipeline> affine_pipeline;
     std::unique_ptr<QRhiComputePipeline> sigmoid_pipeline;
     std::unique_ptr<QRhiComputePipeline> light_pipeline;
     std::unique_ptr<QRhiComputePipeline> sharpen_pipeline;
     std::unique_ptr<QRhiComputePipeline> rcd_pipeline;
+    std::unique_ptr<QRhiComputePipeline> copy_pipeline;
+    std::unique_ptr<QRhiComputePipeline> pack_pipeline;
     std::string_view backend;
     mutable std::mutex mutex;
+    mutable std::unique_ptr<QRhiBuffer> rgb_source;
+    mutable quint32 rgb_source_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> rgb_working;
+    mutable quint32 rgb_working_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> lab_storage;
+    mutable quint32 lab_storage_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> blur_storage;
+    mutable quint32 blur_storage_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> rcd_cfa;
+    mutable quint32 rcd_cfa_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> rcd_rgb;
+    mutable quint32 rcd_rgb_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> rcd_vh;
+    mutable quint32 rcd_vh_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> rcd_pq;
+    mutable quint32 rcd_pq_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> rcd_p_high;
+    mutable quint32 rcd_p_high_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> rcd_q_high;
+    mutable quint32 rcd_q_high_bytes = 0;
+    mutable std::unique_ptr<QRhiBuffer> rcd_out;
+    mutable quint32 rcd_out_bytes = 0;
+    mutable std::unique_ptr<QRhiTexture> pack_texture;
+    mutable quint32 pack_texture_width = 0;
+    mutable quint32 pack_texture_height = 0;
+    mutable std::uint32_t retained_width = 0;
+    mutable std::uint32_t retained_height = 0;
+    mutable std::string retained_key;
+    static constexpr std::uint32_t kDisplaySlots = 2;
+    static constexpr std::uint32_t kDisplayBuffers = 2;
+    mutable std::uint64_t display_generation[kDisplaySlots] = {};
+    mutable std::uint32_t display_width[kDisplaySlots] = {};
+    mutable std::uint32_t display_height[kDisplaySlots] = {};
+    mutable std::uint32_t display_write[kDisplaySlots] = {};
+    mutable std::uint32_t display_read[kDisplaySlots] = {};
+    mutable void *display_surface[kDisplaySlots][kDisplayBuffers] = {};
+    mutable void *display_metal_texture[kDisplaySlots][kDisplayBuffers] = {};
 
+    ~Impl();
     [[nodiscard]] Result<void> open();
     [[nodiscard]] Result<std::unique_ptr<QRhiComputePipeline>>
     make_pipeline(const QShader &shader, QRhiShaderResourceBindings *bindings);
+    [[nodiscard]] Result<QRhiBuffer *> ensure_storage(std::unique_ptr<QRhiBuffer> &slot,
+                                                      quint32 &slot_bytes, quint32 bytes) const;
     [[nodiscard]] Result<void> apply_passes(std::span<const float> input, std::span<float> output,
                                             std::span<const GpuRgbPass> passes,
+                                            GpuRgbApplyOptions options,
                                             const CancellationToken &cancellation) const;
     [[nodiscard]] Result<void> demosaic_rcd(std::span<const float> cfa, std::span<float> rgb,
                                             std::uint32_t width, std::uint32_t height,
                                             std::array<std::uint8_t, 4> pattern,
+                                            std::uint32_t crop_x, std::uint32_t crop_y,
+                                            std::uint32_t crop_width, std::uint32_t crop_height,
                                             const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<void> copy_rgb_window(QRhiCommandBuffer *command,
+                                               QRhiResourceUpdateBatch *updates, QRhiBuffer *source,
+                                               QRhiBuffer *destination, quint32 src_width,
+                                               quint32 src_height, quint32 origin_x,
+                                               quint32 origin_y, quint32 dst_width,
+                                               quint32 dst_height) const;
+    [[nodiscard]] Result<void> publish_display(QRhiCommandBuffer *command, QRhiBuffer *rgb,
+                                               quint32 width, quint32 height, bool last) const;
 };
+
+GpuAdapter::Impl::~Impl()
+{
+#if defined(Q_OS_MACOS)
+    for (std::uint32_t slot = 0; slot < kDisplaySlots; ++slot)
+    {
+        for (std::uint32_t buffer = 0; buffer < kDisplayBuffers; ++buffer)
+        {
+            gpu_metal::release_texture(display_metal_texture[slot][buffer]);
+            gpu_metal::release_iosurface(display_surface[slot][buffer]);
+            display_metal_texture[slot][buffer] = nullptr;
+            display_surface[slot][buffer] = nullptr;
+        }
+    }
+#endif
+}
 
 Result<std::unique_ptr<QRhiComputePipeline>>
 GpuAdapter::Impl::make_pipeline(const QShader &shader, QRhiShaderResourceBindings *bindings)
@@ -198,6 +307,154 @@ GpuAdapter::Impl::make_pipeline(const QShader &shader, QRhiShaderResourceBinding
                           {{"reason", "gpu_pipeline_failed"}});
     }
     return pipeline;
+}
+
+Result<QRhiBuffer *> GpuAdapter::Impl::ensure_storage(std::unique_ptr<QRhiBuffer> &slot,
+                                                      quint32 &slot_bytes, const quint32 bytes) const
+{
+    if (bytes == 0U)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "GPU buffer is too large",
+                          {{"reason", "gpu_copy_size_mismatch"}});
+    }
+    if (slot != nullptr && slot_bytes >= bytes)
+    {
+        return slot.get();
+    }
+    slot.reset(rhi->newBuffer(QRhiBuffer::Static, QRhiBuffer::StorageBuffer, bytes));
+    if (slot == nullptr || !slot->create())
+    {
+        slot.reset();
+        slot_bytes = 0;
+        return make_error(ErrorCode::kIo, "GPU buffer allocation failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    slot_bytes = bytes;
+    return slot.get();
+}
+
+Result<void> GpuAdapter::Impl::copy_rgb_window(
+    QRhiCommandBuffer *command, QRhiResourceUpdateBatch *updates, QRhiBuffer *source,
+    QRhiBuffer *destination, const quint32 src_width, const quint32 src_height,
+    const quint32 origin_x, const quint32 origin_y, const quint32 dst_width,
+    const quint32 dst_height) const
+{
+    if (command == nullptr || source == nullptr || destination == nullptr || copy_pipeline == nullptr ||
+        copy_uniforms == nullptr || dst_width == 0U || dst_height == 0U)
+    {
+        rhi->endOffscreenFrame();
+        return make_error(ErrorCode::kIo, "GPU copy dispatch failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    CopyUniforms params;
+    params.src_width = src_width;
+    params.src_height = src_height;
+    params.dst_width = dst_width;
+    params.dst_height = dst_height;
+    params.origin_x = origin_x;
+    params.origin_y = origin_y;
+    if (updates == nullptr)
+    {
+        updates = rhi->nextResourceUpdateBatch();
+    }
+    updates->updateDynamicBuffer(copy_uniforms.get(), 0, sizeof(params), &params);
+    std::unique_ptr<QRhiShaderResourceBindings> bindings(rhi->newShaderResourceBindings());
+    if (bindings == nullptr)
+    {
+        rhi->endOffscreenFrame();
+        return make_error(ErrorCode::kIo, "GPU resource bindings failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    bindings->setBindings({
+        QRhiShaderResourceBinding::bufferLoad(0, QRhiShaderResourceBinding::ComputeStage, source),
+        QRhiShaderResourceBinding::bufferLoadStore(1, QRhiShaderResourceBinding::ComputeStage,
+                                                   destination),
+        QRhiShaderResourceBinding::uniformBuffer(2, QRhiShaderResourceBinding::ComputeStage,
+                                                 copy_uniforms.get()),
+    });
+    if (!bindings->create())
+    {
+        rhi->endOffscreenFrame();
+        return make_error(ErrorCode::kIo, "GPU resource bindings failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    const auto groups = (dst_width * dst_height + kWorkgroup - 1U) / kWorkgroup;
+    if (groups == 0U || groups > static_cast<quint32>(std::numeric_limits<int>::max()))
+    {
+        rhi->endOffscreenFrame();
+        return make_error(ErrorCode::kInvalidArgument, "GPU dispatch is too large",
+                          {{"reason", "gpu_copy_size_mismatch"}});
+    }
+    command->beginComputePass(updates);
+    command->setComputePipeline(copy_pipeline.get());
+    command->setShaderResources(bindings.get());
+    command->dispatch(static_cast<int>(groups), 1, 1);
+    command->endComputePass();
+    return {};
+}
+
+Result<void> GpuAdapter::Impl::publish_display(QRhiCommandBuffer *command, QRhiBuffer *rgb,
+                                               const quint32 width, const quint32 height,
+                                               const bool last) const
+{
+    if (command == nullptr || rgb == nullptr || pack_pipeline == nullptr || pack_uniforms == nullptr ||
+        width == 0U || height == 0U)
+    {
+        rhi->endOffscreenFrame();
+        return make_error(ErrorCode::kIo, "GPU display pack failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    if (pack_texture == nullptr || pack_texture_width != width || pack_texture_height != height)
+    {
+        pack_texture.reset(rhi->newTexture(QRhiTexture::RGBA8, QSize(static_cast<int>(width),
+                                                                     static_cast<int>(height)),
+                                           1, QRhiTexture::UsedWithLoadStore));
+        if (pack_texture == nullptr || !pack_texture->create())
+        {
+            pack_texture.reset();
+            pack_texture_width = 0;
+            pack_texture_height = 0;
+            rhi->endOffscreenFrame();
+            return make_error(ErrorCode::kIo, "GPU display texture allocation failed",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        pack_texture_width = width;
+        pack_texture_height = height;
+    }
+    PackUniforms params;
+    params.width = width;
+    params.height = height;
+    QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
+    updates->updateDynamicBuffer(pack_uniforms.get(), 0, sizeof(params), &params);
+    std::unique_ptr<QRhiShaderResourceBindings> bindings(rhi->newShaderResourceBindings());
+    if (bindings == nullptr)
+    {
+        rhi->endOffscreenFrame();
+        return make_error(ErrorCode::kIo, "GPU resource bindings failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    bindings->setBindings({
+        QRhiShaderResourceBinding::bufferLoad(0, QRhiShaderResourceBinding::ComputeStage, rgb),
+        QRhiShaderResourceBinding::imageStore(1, QRhiShaderResourceBinding::ComputeStage,
+                                              pack_texture.get(), 0),
+        QRhiShaderResourceBinding::uniformBuffer(2, QRhiShaderResourceBinding::ComputeStage,
+                                                 pack_uniforms.get()),
+    });
+    if (!bindings->create())
+    {
+        rhi->endOffscreenFrame();
+        return make_error(ErrorCode::kIo, "GPU resource bindings failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    const auto groups_x = (width + kDemosaicGroup - 1U) / kDemosaicGroup;
+    const auto groups_y = (height + kDemosaicGroup - 1U) / kDemosaicGroup;
+    command->beginComputePass(updates);
+    command->setComputePipeline(pack_pipeline.get());
+    command->setShaderResources(bindings.get());
+    command->dispatch(static_cast<int>(groups_x), static_cast<int>(groups_y), 1);
+    command->endComputePass();
+    static_cast<void>(last);
+    return {};
 }
 
 Result<void> GpuAdapter::Impl::open()
@@ -357,6 +614,64 @@ Result<void> GpuAdapter::Impl::open()
     sigmoid_pipeline = std::move(sigmoid).value();
     light_pipeline = std::move(light).value();
     sharpen_pipeline = std::move(sharpen).value();
+    auto copy_shader = load_shader(ravo_gpu_copy_rgb_qsb, ravo_gpu_copy_rgb_qsb_size);
+    if (!copy_shader)
+    {
+        return copy_shader.error();
+    }
+    auto pack_shader = load_shader(ravo_gpu_pack_rgba8_qsb, ravo_gpu_pack_rgba8_qsb_size);
+    if (!pack_shader)
+    {
+        return pack_shader.error();
+    }
+    copy_uniforms.reset(
+        rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
+    pack_uniforms.reset(
+        rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
+    copy_layout.reset(rhi->newShaderResourceBindings());
+    pack_layout.reset(rhi->newShaderResourceBindings());
+    if (copy_uniforms == nullptr || pack_uniforms == nullptr || copy_layout == nullptr ||
+        pack_layout == nullptr || !copy_uniforms->create() || !pack_uniforms->create())
+    {
+        return make_error(ErrorCode::kIo, "GPU pipeline allocation failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    copy_layout->setBindings({
+        QRhiShaderResourceBinding::bufferLoad(0, QRhiShaderResourceBinding::ComputeStage, nullptr),
+        QRhiShaderResourceBinding::bufferLoadStore(1, QRhiShaderResourceBinding::ComputeStage,
+                                                   nullptr),
+        QRhiShaderResourceBinding::uniformBuffer(2, QRhiShaderResourceBinding::ComputeStage,
+                                                 copy_uniforms.get()),
+    });
+    if (!copy_layout->create())
+    {
+        return make_error(ErrorCode::kIo, "GPU resource layout failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    pack_layout->setBindings({
+        QRhiShaderResourceBinding::bufferLoad(0, QRhiShaderResourceBinding::ComputeStage, nullptr),
+        QRhiShaderResourceBinding::imageStore(1, QRhiShaderResourceBinding::ComputeStage, nullptr,
+                                              0),
+        QRhiShaderResourceBinding::uniformBuffer(2, QRhiShaderResourceBinding::ComputeStage,
+                                                 pack_uniforms.get()),
+    });
+    if (!pack_layout->create())
+    {
+        return make_error(ErrorCode::kIo, "GPU resource layout failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    auto copy = make_pipeline(copy_shader.value(), copy_layout.get());
+    if (!copy)
+    {
+        return copy.error();
+    }
+    auto pack = make_pipeline(pack_shader.value(), pack_layout.get());
+    if (!pack)
+    {
+        return pack.error();
+    }
+    copy_pipeline = std::move(copy).value();
+    pack_pipeline = std::move(pack).value();
     auto rcd_shader = load_shader(ravo_gpu_rcd_demosaic_qsb, ravo_gpu_rcd_demosaic_qsb_size);
     if (rcd_shader)
     {
@@ -409,6 +724,7 @@ Result<void> GpuAdapter::Impl::open()
 Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                                             const std::span<float> output,
                                             const std::span<const GpuRgbPass> passes,
+                                            const GpuRgbApplyOptions options,
                                             const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
@@ -428,7 +744,7 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         return make_error(ErrorCode::kInvalidArgument, "GPU RGB pass list is empty",
                           {{"reason", "gpu_copy_size_mismatch"}});
     }
-    if (input.size() == 0U || input.size() != output.size())
+    if (input.size() == 0U || (options.download && input.size() != output.size()))
     {
         return make_error(ErrorCode::kInvalidArgument, "GPU buffers must be the same size",
                           {{"reason", "gpu_copy_size_mismatch"}});
@@ -479,19 +795,25 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         return make_error(ErrorCode::kIo, "GPU device was lost",
                           {{"reason", "gpu_pipeline_failed"}});
     }
-    const auto make_storage = [&](const quint32 size) -> std::unique_ptr<QRhiBuffer>
+    if (options.from_retained_source &&
+        (retained_width == 0U ||
+         static_cast<std::size_t>(retained_width) * retained_height * 3U != input.size()))
     {
-        std::unique_ptr<QRhiBuffer> created(
-            rhi->newBuffer(QRhiBuffer::Static, QRhiBuffer::StorageBuffer, size));
-        if (created == nullptr || !created->create())
-        {
-            return nullptr;
-        }
-        return created;
-    };
-    auto rgb_buffer = make_storage(bytes);
-    std::unique_ptr<QRhiBuffer> lab_buffer;
-    std::unique_ptr<QRhiBuffer> blur_buffer;
+        return make_error(ErrorCode::kInvalidArgument, "GPU retained source does not match input",
+                          {{"reason", "gpu_copy_size_mismatch"}});
+    }
+    auto source = ensure_storage(rgb_source, rgb_source_bytes, bytes);
+    if (!source)
+    {
+        return source.error();
+    }
+    auto working = ensure_storage(rgb_working, rgb_working_bytes, bytes);
+    if (!working)
+    {
+        return working.error();
+    }
+    QRhiBuffer *lab_buffer = nullptr;
+    QRhiBuffer *blur_buffer = nullptr;
     if (needs_sharpen)
     {
         if (pixels == 0U)
@@ -499,14 +821,21 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             return make_error(ErrorCode::kInvalidArgument, "GPU RGB buffers must be packed RGB",
                               {{"reason", "gpu_copy_size_mismatch"}});
         }
-        lab_buffer = make_storage(lab_bytes);
-        blur_buffer = make_storage(std::max(blur_bytes, 4U));
+        auto lab = ensure_storage(lab_storage, lab_storage_bytes, lab_bytes);
+        if (!lab)
+        {
+            return lab.error();
+        }
+        auto blur = ensure_storage(blur_storage, blur_storage_bytes, std::max(blur_bytes, 4U));
+        if (!blur)
+        {
+            return blur.error();
+        }
+        lab_buffer = lab.value();
+        blur_buffer = blur.value();
     }
-    if (rgb_buffer == nullptr || (needs_sharpen && (lab_buffer == nullptr || blur_buffer == nullptr)))
-    {
-        return make_error(ErrorCode::kIo, "GPU buffer allocation failed",
-                          {{"reason", "gpu_pipeline_failed"}});
-    }
+    QRhiBuffer *const rgb_buffer = working.value();
+    QRhiBuffer *const source_buffer = source.value();
     QRhiCommandBuffer *command = nullptr;
     const auto began = rhi->beginOffscreenFrame(&command);
     if (began != QRhi::FrameOpSuccess || command == nullptr)
@@ -536,7 +865,7 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         }
         bindings->setBindings({
             QRhiShaderResourceBinding::bufferLoadStore(0, QRhiShaderResourceBinding::ComputeStage,
-                                                       rgb_buffer.get()),
+                                                       rgb_buffer),
             QRhiShaderResourceBinding::uniformBuffer(1, QRhiShaderResourceBinding::ComputeStage,
                                                      ubo),
         });
@@ -559,18 +888,45 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         command->setComputePipeline(pipeline);
         command->setShaderResources(bindings);
         command->dispatch(static_cast<int>(groups), 1, 1);
-        if (last)
+        command->endComputePass();
+        static_cast<void>(last);
+        return {};
+    };
+    QRhiResourceUpdateBatch *seed = rhi->nextResourceUpdateBatch();
+    const bool rgb_shaped = options.width != 0U && options.height != 0U &&
+                            static_cast<std::uint64_t>(options.width) * options.height == pixels;
+    if (!options.from_retained_source)
+    {
+        upload_storage(seed, source_buffer, input.data(), bytes);
+        if (rgb_shaped)
         {
-            QRhiResourceUpdateBatch *download = rhi->nextResourceUpdateBatch();
-            download->readBackBuffer(rgb_buffer.get(), 0, bytes, &readback);
-            command->endComputePass(download);
+            retained_width = options.width;
+            retained_height = options.height;
         }
         else
         {
-            command->endComputePass();
+            retained_width = pixels;
+            retained_height = 1U;
         }
-        return {};
-    };
+        retained_key = options.retained_key;
+    }
+    QRhiResourceUpdateBatch *pending_updates = nullptr;
+    if (options.from_retained_source || needs_pixels || rgb_shaped)
+    {
+        const auto copy_width = rgb_shaped ? options.width : pixels;
+        const auto copy_height = rgb_shaped ? options.height : 1U;
+        auto copied = copy_rgb_window(command, seed, source_buffer, rgb_buffer, copy_width,
+                                      copy_height, 0U, 0U, copy_width, copy_height);
+        if (!copied)
+        {
+            return copied.error();
+        }
+    }
+    else
+    {
+        upload_storage(seed, rgb_buffer, input.data(), bytes);
+        pending_updates = seed;
+    }
     const auto pixel_groups = (pixels + kWorkgroup - 1U) / kWorkgroup;
     const auto sample_groups = (count + kWorkgroup - 1U) / kWorkgroup;
     quint32 light_slot = 0;
@@ -614,11 +970,9 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                 params.threshold = pass.sharpen.threshold;
                 std::memcpy(params.kernel, pass.sharpen.kernel.data(),
                             pass.sharpen.kernel.size() * sizeof(float));
-                QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
-                if (pass_index == 0U && stage_index == 0U)
-                {
-                    updates->uploadStaticBuffer(rgb_buffer.get(), input.data());
-                }
+                QRhiResourceUpdateBatch *updates =
+                    pending_updates != nullptr ? pending_updates : rhi->nextResourceUpdateBatch();
+                pending_updates = nullptr;
                 updates->updateDynamicBuffer(sharpen_uniforms[stage].get(), 0, sizeof(params),
                                              &params);
                 std::unique_ptr<QRhiShaderResourceBindings> bindings(
@@ -629,11 +983,11 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                 }
                 bindings->setBindings({
                     QRhiShaderResourceBinding::bufferLoadStore(
-                        0, QRhiShaderResourceBinding::ComputeStage, rgb_buffer.get()),
+                        0, QRhiShaderResourceBinding::ComputeStage, rgb_buffer),
                     QRhiShaderResourceBinding::bufferLoadStore(
-                        1, QRhiShaderResourceBinding::ComputeStage, lab_buffer.get()),
+                        1, QRhiShaderResourceBinding::ComputeStage, lab_buffer),
                     QRhiShaderResourceBinding::bufferLoadStore(
-                        2, QRhiShaderResourceBinding::ComputeStage, blur_buffer.get()),
+                        2, QRhiShaderResourceBinding::ComputeStage, blur_buffer),
                     QRhiShaderResourceBinding::uniformBuffer(
                         3, QRhiShaderResourceBinding::ComputeStage, sharpen_uniforms[stage].get()),
                 });
@@ -652,11 +1006,9 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             continue;
         }
 
-        QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
-        if (pass_index == 0U)
-        {
-            updates->uploadStaticBuffer(rgb_buffer.get(), input.data());
-        }
+        QRhiResourceUpdateBatch *updates =
+            pending_updates != nullptr ? pending_updates : rhi->nextResourceUpdateBatch();
+        pending_updates = nullptr;
         QRhiComputePipeline *pipeline = nullptr;
         QRhiBuffer *ubo = nullptr;
         quint32 groups = 0;
@@ -722,11 +1074,34 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         {
             return fail_bindings();
         }
-        auto dispatched = dispatch(updates, pipeline, bindings.get(), groups, last_pass);
+        auto dispatched = dispatch(updates, pipeline, bindings.get(), groups, false);
         if (!dispatched)
         {
             return dispatched.error();
         }
+    }
+    if (options.publish_display)
+    {
+        const auto display_w = options.width != 0U ? options.width : pixels;
+        const auto display_h = options.height != 0U ? options.height : 1U;
+        if (static_cast<std::uint64_t>(display_w) * display_h != pixels)
+        {
+            rhi->endOffscreenFrame();
+            return make_error(ErrorCode::kInvalidArgument, "GPU display size does not match pixels",
+                              {{"reason", "gpu_copy_size_mismatch"}});
+        }
+        auto published = publish_display(command, rgb_buffer, display_w, display_h, !options.download);
+        if (!published)
+        {
+            return published.error();
+        }
+    }
+    if (options.download)
+    {
+        QRhiResourceUpdateBatch *download = rhi->nextResourceUpdateBatch();
+        download->readBackBuffer(rgb_buffer, 0, bytes, &readback);
+        command->beginComputePass();
+        command->endComputePass(download);
     }
     const auto ended = rhi->endOffscreenFrame();
     cancelled = cancellation.check();
@@ -739,12 +1114,73 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         return make_error(ErrorCode::kIo, "GPU frame end failed",
                           {{"reason", "gpu_pipeline_failed"}});
     }
-    if (static_cast<quint32>(readback.data.size()) != bytes)
+#if defined(Q_OS_MACOS)
+    if (options.publish_display && pack_texture != nullptr)
     {
-        return make_error(ErrorCode::kIo, "GPU readback size mismatch",
-                          {{"reason", "gpu_pipeline_failed"}});
+        if (options.display_slot >= kDisplaySlots)
+        {
+            return make_error(ErrorCode::kInvalidArgument, "GPU display slot is invalid",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        const auto *metal = static_cast<const QRhiMetalNativeHandles *>(rhi->nativeHandles());
+        const auto native = pack_texture->nativeTexture();
+        if (metal == nullptr || metal->dev == nullptr || native.object == 0)
+        {
+            return make_error(ErrorCode::kIo, "GPU display native texture is unavailable",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        const auto display_w = options.width != 0U ? options.width : pixels;
+        const auto display_h = options.height != 0U ? options.height : 1U;
+        const auto slot = options.display_slot;
+        if (display_width[slot] != display_w || display_height[slot] != display_h)
+        {
+            for (std::uint32_t buffer = 0; buffer < kDisplayBuffers; ++buffer)
+            {
+                gpu_metal::release_texture(display_metal_texture[slot][buffer]);
+                gpu_metal::release_iosurface(display_surface[slot][buffer]);
+                display_metal_texture[slot][buffer] = nullptr;
+                display_surface[slot][buffer] = nullptr;
+            }
+            display_write[slot] = 0;
+            display_read[slot] = 0;
+            display_width[slot] = display_w;
+            display_height[slot] = display_h;
+        }
+        const auto write = display_write[slot] % kDisplayBuffers;
+        if (display_surface[slot][write] == nullptr)
+        {
+            display_surface[slot][write] = gpu_metal::create_iosurface(display_w, display_h);
+            display_metal_texture[slot][write] = gpu_metal::texture_from_iosurface(
+                metal->dev, display_surface[slot][write], display_w, display_h);
+        }
+        if (display_surface[slot][write] == nullptr || display_metal_texture[slot][write] == nullptr ||
+            !gpu_metal::blit_texture(metal->dev, metal->cmdQueue,
+                                     reinterpret_cast<void *>(native.object),
+                                     display_metal_texture[slot][write], display_w, display_h))
+        {
+            return make_error(ErrorCode::kIo, "GPU display blit failed",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        display_read[slot] = write;
+        display_write[slot] = 1U - write;
+        ++display_generation[slot];
     }
-    std::memcpy(output.data(), readback.data.constData(), bytes);
+#else
+    if (options.publish_display)
+    {
+        return make_error(ErrorCode::kUnsupported, "GPU display transport is unavailable",
+                          {{"reason", "gpu_unavailable"}});
+    }
+#endif
+    if (options.download)
+    {
+        if (static_cast<quint32>(readback.data.size()) != bytes)
+        {
+            return make_error(ErrorCode::kIo, "GPU readback size mismatch",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        std::memcpy(output.data(), readback.data.constData(), bytes);
+    }
     return {};
 }
 
@@ -752,6 +1188,9 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
                                             const std::span<float> rgb, const std::uint32_t width,
                                             const std::uint32_t height,
                                             const std::array<std::uint8_t, 4> pattern,
+                                            const std::uint32_t crop_x, const std::uint32_t crop_y,
+                                            const std::uint32_t crop_width,
+                                            const std::uint32_t crop_height,
                                             const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
@@ -769,8 +1208,17 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
         return make_error(ErrorCode::kInvalidArgument, "GPU Bayer window is invalid",
                           {{"reason", "invalid_bayer_window"}});
     }
+    const auto out_width = crop_width == 0U ? width : crop_width;
+    const auto out_height = crop_height == 0U ? height : crop_height;
+    if (crop_x > width || crop_y > height || out_width > width - crop_x ||
+        out_height > height - crop_y)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "GPU Bayer crop is outside the window",
+                          {{"reason", "invalid_bayer_window"}});
+    }
     const auto pixels = static_cast<std::size_t>(width) * height;
-    if (cfa.size() != pixels || rgb.size() != pixels * 3U)
+    const auto out_pixels = static_cast<std::size_t>(out_width) * out_height;
+    if (cfa.size() != pixels || rgb.size() != out_pixels * 3U)
     {
         return make_error(ErrorCode::kInvalidArgument, "GPU Bayer buffers must match the window",
                           {{"reason", "gpu_copy_size_mismatch"}});
@@ -794,29 +1242,35 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
         return make_error(ErrorCode::kIo, "GPU device was lost",
                           {{"reason", "gpu_pipeline_failed"}});
     }
-    const auto make_storage = [&](const quint32 bytes) -> std::unique_ptr<QRhiBuffer>
+    auto cfa_ok = ensure_storage(rcd_cfa, rcd_cfa_bytes, cfa_bytes);
+    auto rgb_ok = ensure_storage(rcd_rgb, rcd_rgb_bytes, rgb_bytes);
+    auto vh_ok = ensure_storage(rcd_vh, rcd_vh_bytes, cfa_bytes);
+    auto pq_ok = ensure_storage(rcd_pq, rcd_pq_bytes, cfa_bytes);
+    auto p_high_ok = ensure_storage(rcd_p_high, rcd_p_high_bytes, cfa_bytes);
+    auto q_high_ok = ensure_storage(rcd_q_high, rcd_q_high_bytes, cfa_bytes);
+    auto out_ok = ensure_storage(rcd_out, rcd_out_bytes, rgb_bytes);
+    if (!cfa_ok || !rgb_ok || !vh_ok || !pq_ok || !p_high_ok || !q_high_ok || !out_ok)
     {
-        std::unique_ptr<QRhiBuffer> buffer(
-            rhi->newBuffer(QRhiBuffer::Static, QRhiBuffer::StorageBuffer, bytes));
-        if (buffer == nullptr || !buffer->create())
-        {
-            return nullptr;
-        }
-        return buffer;
-    };
-    auto cfa_buffer = make_storage(cfa_bytes);
-    auto rgb_buffer = make_storage(rgb_bytes);
-    auto vh_buffer = make_storage(cfa_bytes);
-    auto pq_buffer = make_storage(cfa_bytes);
-    auto p_high_buffer = make_storage(cfa_bytes);
-    auto q_high_buffer = make_storage(cfa_bytes);
-    auto out_buffer = make_storage(rgb_bytes);
-    if (cfa_buffer == nullptr || rgb_buffer == nullptr || vh_buffer == nullptr ||
-        pq_buffer == nullptr || p_high_buffer == nullptr || q_high_buffer == nullptr ||
-        out_buffer == nullptr)
+        return !cfa_ok       ? cfa_ok.error() :
+               !rgb_ok       ? rgb_ok.error() :
+               !vh_ok        ? vh_ok.error() :
+               !pq_ok        ? pq_ok.error() :
+               !p_high_ok    ? p_high_ok.error() :
+               !q_high_ok    ? q_high_ok.error() :
+                               out_ok.error();
+    }
+    QRhiBuffer *const cfa_buffer = cfa_ok.value();
+    QRhiBuffer *const rgb_buffer = rgb_ok.value();
+    QRhiBuffer *const vh_buffer = vh_ok.value();
+    QRhiBuffer *const pq_buffer = pq_ok.value();
+    QRhiBuffer *const p_high_buffer = p_high_ok.value();
+    QRhiBuffer *const q_high_buffer = q_high_ok.value();
+    QRhiBuffer *const out_buffer = out_ok.value();
+    auto source_ok = ensure_storage(rgb_source, rgb_source_bytes,
+                                    static_cast<quint32>(out_pixels * sizeof(float) * 3U));
+    if (!source_ok)
     {
-        return make_error(ErrorCode::kIo, "GPU demosaic buffer allocation failed",
-                          {{"reason", "gpu_pipeline_failed"}});
+        return source_ok.error();
     }
     QRhiCommandBuffer *command = nullptr;
     const auto began = rhi->beginOffscreenFrame(&command);
@@ -855,7 +1309,7 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
         QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
         if (stage == 0U)
         {
-            updates->uploadStaticBuffer(cfa_buffer.get(), cfa.data());
+            upload_storage(updates, cfa_buffer, cfa.data(), cfa_bytes);
         }
         updates->updateDynamicBuffer(rcd_uniforms[stage].get(), 0, sizeof(params), &params);
         std::unique_ptr<QRhiShaderResourceBindings> bindings(rhi->newShaderResourceBindings());
@@ -867,19 +1321,19 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
         }
         bindings->setBindings({
             QRhiShaderResourceBinding::bufferLoadStore(0, QRhiShaderResourceBinding::ComputeStage,
-                                                       cfa_buffer.get()),
+                                                       cfa_buffer),
             QRhiShaderResourceBinding::bufferLoadStore(1, QRhiShaderResourceBinding::ComputeStage,
-                                                       rgb_buffer.get()),
+                                                       rgb_buffer),
             QRhiShaderResourceBinding::bufferLoadStore(2, QRhiShaderResourceBinding::ComputeStage,
-                                                       vh_buffer.get()),
+                                                       vh_buffer),
             QRhiShaderResourceBinding::bufferLoadStore(3, QRhiShaderResourceBinding::ComputeStage,
-                                                       pq_buffer.get()),
+                                                       pq_buffer),
             QRhiShaderResourceBinding::bufferLoadStore(4, QRhiShaderResourceBinding::ComputeStage,
-                                                       p_high_buffer.get()),
+                                                       p_high_buffer),
             QRhiShaderResourceBinding::bufferLoadStore(5, QRhiShaderResourceBinding::ComputeStage,
-                                                       q_high_buffer.get()),
+                                                       q_high_buffer),
             QRhiShaderResourceBinding::bufferLoadStore(6, QRhiShaderResourceBinding::ComputeStage,
-                                                       out_buffer.get()),
+                                                       out_buffer),
             QRhiShaderResourceBinding::uniformBuffer(7, QRhiShaderResourceBinding::ComputeStage,
                                                      rcd_uniforms[stage].get()),
         });
@@ -893,17 +1347,23 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
         command->setComputePipeline(rcd_pipeline.get());
         command->setShaderResources(bindings.get());
         command->dispatch(static_cast<int>(groups_x), static_cast<int>(groups_y), 1);
-        if (stage == 8U)
-        {
-            QRhiResourceUpdateBatch *download = rhi->nextResourceUpdateBatch();
-            download->readBackBuffer(out_buffer.get(), 0, rgb_bytes, &readback);
-            command->endComputePass(download);
-        }
-        else
-        {
-            command->endComputePass();
-        }
+        command->endComputePass();
     }
+    auto copied =
+        copy_rgb_window(command, nullptr, out_buffer, source_ok.value(), width, height, crop_x,
+                        crop_y, out_width, out_height);
+    if (!copied)
+    {
+        return copied.error();
+    }
+    const auto out_bytes = static_cast<quint32>(out_pixels * sizeof(float) * 3U);
+    QRhiResourceUpdateBatch *download = rhi->nextResourceUpdateBatch();
+    download->readBackBuffer(source_ok.value(), 0, out_bytes, &readback);
+    command->beginComputePass();
+    command->endComputePass(download);
+    retained_width = out_width;
+    retained_height = out_height;
+    retained_key = "rcd";
     const auto ended = rhi->endOffscreenFrame();
     cancelled = cancellation.check();
     if (!cancelled)
@@ -915,12 +1375,12 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
         return make_error(ErrorCode::kIo, "GPU frame end failed",
                           {{"reason", "gpu_pipeline_failed"}});
     }
-    if (static_cast<quint32>(readback.data.size()) != rgb_bytes)
+    if (static_cast<quint32>(readback.data.size()) != out_bytes)
     {
         return make_error(ErrorCode::kIo, "GPU readback size mismatch",
                           {{"reason", "gpu_pipeline_failed"}});
     }
-    std::memcpy(rgb.data(), readback.data.constData(), rgb_bytes);
+    std::memcpy(rgb.data(), readback.data.constData(), out_bytes);
     return {};
 }
 
@@ -975,12 +1435,21 @@ Result<void> GpuAdapter::apply_rgb_passes(const std::span<const float> input,
                                           const std::span<const GpuRgbPass> passes,
                                           const CancellationToken &cancellation) const
 {
+    return apply_rgb_passes(input, output, passes, GpuRgbApplyOptions{}, cancellation);
+}
+
+Result<void> GpuAdapter::apply_rgb_passes(const std::span<const float> input,
+                                          const std::span<float> output,
+                                          const std::span<const GpuRgbPass> passes,
+                                          const GpuRgbApplyOptions options,
+                                          const CancellationToken &cancellation) const
+{
     if (impl_ == nullptr)
     {
         return make_error(ErrorCode::kUnsupported, "GPU adapter is not initialized",
                           {{"reason", "gpu_unavailable"}});
     }
-    return impl_->apply_passes(input, output, passes, cancellation);
+    return impl_->apply_passes(input, output, passes, options, cancellation);
 }
 
 Result<void> GpuAdapter::demosaic_rcd(const std::span<const float> cfa, const std::span<float> rgb,
@@ -988,12 +1457,86 @@ Result<void> GpuAdapter::demosaic_rcd(const std::span<const float> cfa, const st
                                       const std::array<std::uint8_t, 4> pattern,
                                       const CancellationToken &cancellation) const
 {
+    return demosaic_rcd(cfa, rgb, width, height, pattern, 0U, 0U, width, height, cancellation);
+}
+
+Result<void> GpuAdapter::demosaic_rcd(const std::span<const float> cfa, const std::span<float> rgb,
+                                      const std::uint32_t width, const std::uint32_t height,
+                                      const std::array<std::uint8_t, 4> pattern,
+                                      const std::uint32_t crop_x, const std::uint32_t crop_y,
+                                      const std::uint32_t crop_width,
+                                      const std::uint32_t crop_height,
+                                      const CancellationToken &cancellation) const
+{
     if (impl_ == nullptr)
     {
         return make_error(ErrorCode::kUnsupported, "GPU adapter is not initialized",
                           {{"reason", "gpu_unavailable"}});
     }
-    return impl_->demosaic_rcd(cfa, rgb, width, height, pattern, cancellation);
+    return impl_->demosaic_rcd(cfa, rgb, width, height, pattern, crop_x, crop_y, crop_width,
+                               crop_height, cancellation);
+}
+
+bool GpuAdapter::has_retained_source(const std::uint32_t width, const std::uint32_t height) const noexcept
+{
+    if (impl_ == nullptr)
+    {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->retained_width != 0U && impl_->retained_height != 0U &&
+           static_cast<std::uint64_t>(impl_->retained_width) * impl_->retained_height ==
+               static_cast<std::uint64_t>(width) * height;
+}
+
+std::string_view GpuAdapter::retained_source_key() const noexcept
+{
+    if (impl_ == nullptr)
+    {
+        return {};
+    }
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->retained_key;
+}
+
+Result<void> GpuAdapter::retain_source_rgb(const std::span<const float> rgb, const std::uint32_t width,
+                                           const std::uint32_t height,
+                                           const CancellationToken &cancellation,
+                                           const std::string_view key) const
+{
+    GpuRgbApplyOptions options;
+    options.from_retained_source = false;
+    options.download = false;
+    options.publish_display = false;
+    options.width = width;
+    options.height = height;
+    options.retained_key = std::string(key);
+    std::vector<float> ignored;
+    GpuRgbPass pass;
+    pass.kind = GpuRgbPass::Kind::kAffine;
+    pass.affine.scale = 1.0F;
+    pass.affine.black = 0.0F;
+    return apply_rgb_passes(rgb, ignored, std::span<const GpuRgbPass>(&pass, 1U), options,
+                            cancellation);
+}
+
+GpuDisplayFrame GpuAdapter::display_frame(const std::uint32_t slot) const noexcept
+{
+    GpuDisplayFrame frame;
+    if (impl_ == nullptr || slot >= Impl::kDisplaySlots)
+    {
+        return frame;
+    }
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    frame.width = impl_->display_width[slot];
+    frame.height = impl_->display_height[slot];
+    frame.generation = impl_->display_generation[slot];
+    frame.backend = impl_->backend;
+#if defined(Q_OS_MACOS)
+    const auto read = impl_->display_read[slot] % Impl::kDisplayBuffers;
+    frame.native_surface = reinterpret_cast<std::uint64_t>(impl_->display_surface[slot][read]);
+#endif
+    return frame;
 }
 
 } // namespace ravo

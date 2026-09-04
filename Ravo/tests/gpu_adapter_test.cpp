@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <span>
 #include <string>
 #include <vector>
 
@@ -489,6 +490,118 @@ TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
     else
     {
         EXPECT_TRUE(gpu_backend.empty());
+    }
+}
+
+TEST(EngineFacadeTest, GpuRetainedSourceMatchesUploadedPassesWhenAvailable)
+{
+    auto gpu = GpuAdapter::try_create();
+    if (!gpu)
+    {
+        GTEST_SKIP() << "GPU adapter is unavailable";
+    }
+    const auto input = make_preview_working(8, 8);
+    GpuRgbPass pass;
+    pass.kind = GpuRgbPass::Kind::kAffine;
+    pass.affine.scale = 1.25F;
+    pass.affine.black = 0.01F;
+    std::vector<float> uploaded(input.rgb.size(), 0.0F);
+    std::vector<float> retained(input.rgb.size(), 0.0F);
+    GpuRgbApplyOptions upload_options;
+    upload_options.download = true;
+    upload_options.width = input.width;
+    upload_options.height = input.height;
+    auto first = gpu.value()->apply_rgb_passes(input.rgb, uploaded, std::span<const GpuRgbPass>(&pass, 1U),
+                                               upload_options, CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    auto stored = gpu.value()->retain_source_rgb(input.rgb, input.width, input.height,
+                                                 CancellationToken{}, "test-retained");
+    ASSERT_TRUE(stored) << stored.error().message;
+    EXPECT_TRUE(gpu.value()->has_retained_source(input.width, input.height));
+    EXPECT_EQ(gpu.value()->retained_source_key(), "test-retained");
+    GpuRgbApplyOptions retained_options;
+    retained_options.from_retained_source = true;
+    retained_options.download = true;
+    retained_options.width = input.width;
+    retained_options.height = input.height;
+    auto second = gpu.value()->apply_rgb_passes(input.rgb, retained,
+                                                std::span<const GpuRgbPass>(&pass, 1U),
+                                                retained_options, CancellationToken{});
+    ASSERT_TRUE(second) << second.error().message;
+    ASSERT_EQ(uploaded.size(), retained.size());
+    for (std::size_t index = 0; index < uploaded.size(); ++index)
+    {
+        EXPECT_NEAR(uploaded[index], retained[index], 2.0e-3F) << index;
+    }
+}
+
+TEST(EngineFacadeTest, GpuGrowOnlySmallerUploadDoesNotOverreadWhenAvailable)
+{
+    auto gpu = GpuAdapter::try_create();
+    if (!gpu)
+    {
+        GTEST_SKIP() << "GPU adapter is unavailable";
+    }
+    const auto large = make_preview_working(64, 64);
+    const auto small = make_preview_working(8, 8);
+    GpuRgbPass pass;
+    pass.kind = GpuRgbPass::Kind::kAffine;
+    pass.affine.scale = 1.5F;
+    pass.affine.black = 0.0F;
+    std::vector<float> large_out(large.rgb.size(), 0.0F);
+    std::vector<float> small_out(small.rgb.size(), 0.0F);
+    GpuRgbApplyOptions large_options;
+    large_options.download = true;
+    large_options.width = large.width;
+    large_options.height = large.height;
+    auto first = gpu.value()->apply_rgb_passes(large.rgb, large_out, std::span<const GpuRgbPass>(&pass, 1U),
+                                               large_options, CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    GpuRgbApplyOptions small_options;
+    small_options.download = true;
+    small_options.width = small.width;
+    small_options.height = small.height;
+    auto second = gpu.value()->apply_rgb_passes(small.rgb, small_out,
+                                                std::span<const GpuRgbPass>(&pass, 1U),
+                                                small_options, CancellationToken{});
+    ASSERT_TRUE(second) << second.error().message;
+    ASSERT_EQ(small_out.size(), small.rgb.size());
+    for (std::size_t index = 0; index < small.rgb.size(); ++index)
+    {
+        EXPECT_NEAR(small_out[index], small.rgb[index] * 1.5F, 2.0e-3F) << index;
+    }
+}
+
+TEST(EngineFacadeTest, GpuInteractiveSkipDownloadPublishesDisplayWhenAvailable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto input = make_preview_working(8, 8);
+    Recipe recipe;
+    recipe.asset = {"gpu-display", "memory:gpu-display", std::nullopt};
+    recipe.operations.push_back(default_sigmoid_operation());
+    recipe.operations.push_back({"ravo.color.output", 1, "output", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
+    InteractivePreviewRenderCache cache;
+    const auto rendered = engine.value().render_interactive_linear_working(
+        input, recipe, cache, CancellationToken{}, std::nullopt, false);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    EXPECT_EQ(rendered.value().width, 8U);
+    EXPECT_EQ(rendered.value().height, 8U);
+    if (engine.value().gpu_backend() == "metal")
+    {
+        EXPECT_TRUE(rendered.value().rgb.empty());
+        EXPECT_GT(rendered.value().gpu_display_generation, 0U);
+        const auto frame = engine.value().gpu_display_frame();
+        EXPECT_EQ(frame.generation, rendered.value().gpu_display_generation);
+        EXPECT_NE(frame.native_surface, 0U);
+        EXPECT_EQ(frame.width, 8U);
+        EXPECT_EQ(frame.height, 8U);
+    }
+    else
+    {
+        EXPECT_FALSE(rendered.value().rgb.empty());
+        EXPECT_EQ(rendered.value().gpu_display_generation, 0U);
     }
 }
 

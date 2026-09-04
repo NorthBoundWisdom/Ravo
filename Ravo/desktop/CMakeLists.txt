@@ -104,16 +104,27 @@ elseif(WIN32)
 endif()
 
 add_executable(ravo_studio ${RAVO_STUDIO_SOURCES})
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+find_package(Qt6 6.11 REQUIRED COMPONENTS GuiPrivate)
 target_link_libraries(ravo_studio
   PRIVATE
     ravo_desktop
     GeoControls::AppShell
     Qt6::Gui
+    Qt6::GuiPrivate
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::QuickDialogs2
     Qt6::QuickLayouts)
+target_include_directories(ravo_studio PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+if(APPLE)
+  target_sources(ravo_studio PRIVATE
+    src/studio_gpu_preview_metal.mm
+    src/studio_gpu_preview_metal.h)
+  target_link_libraries(ravo_studio PRIVATE
+    "-framework Metal" "-framework IOSurface" "-framework CoreFoundation")
+endif()
 
 set_target_properties(ravo_studio PROPERTIES AUTOMOC ON)
 if(APPLE)
@@ -149,6 +160,9 @@ qt_add_qml_module(ravo_studio
   DEPENDENCIES
     GeoControls
     GeoControls.AppShell
+  SOURCES
+    src/studio_gpu_preview_item.cpp
+    src/studio_gpu_preview_item.h
   QML_FILES
     qml/Main.qml
     qml/theme/DarkThemePalette.qml
