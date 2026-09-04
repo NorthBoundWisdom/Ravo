@@ -134,18 +134,54 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       std::move(canvas).value(), kCanvasOperationSchemaVersion, std::nullopt,
                       clamped.geometry_effect_enabled && clamped.canvas_enabled);
     }
-    const ExposureParams exposure{clamped.exposure_mode,
-                                  clamped.exposure_black,
-                                  clamped.exposure_ev,
-                                  clamped.exposure_deflicker_percentile,
-                                  clamped.exposure_deflicker_target_ev,
-                                  clamped.exposure_compensate_exposure_bias,
-                                  clamped.exposure_compensate_highlight_preservation};
-    if (!exposure.is_identity() || clamped.exposure_mask_id.has_value())
+    if (!clamped.exposure_instances.empty())
     {
-        add_operation(recipe, std::string(kExposureOperationId), "exposure-1",
-                      exposure_to_parameters(exposure), kExposureOperationSchemaVersion,
-                      clamped.exposure_mask_id, clamped.light_effect_enabled);
+        for (const auto &instance : clamped.exposure_instances)
+        {
+            const ExposureParams exposure{instance.mode,
+                                          instance.black,
+                                          instance.exposure_ev,
+                                          instance.deflicker_percentile,
+                                          instance.deflicker_target_ev,
+                                          instance.compensate_exposure_bias,
+                                          instance.compensate_highlight_preservation};
+            const bool emit = !exposure.is_identity() || instance.mask_id.has_value() ||
+                              !instance.name.empty() || instance.bypass ||
+                              clamped.exposure_instances.size() > 1U;
+            if (!emit)
+            {
+                continue;
+            }
+            OperationInstance operation{std::string(kExposureOperationId),
+                                        kExposureOperationSchemaVersion,
+                                        instance.instance_id.empty() ? "exposure-1" :
+                                                                       instance.instance_id,
+                                        instance.enabled && clamped.light_effect_enabled,
+                                        exposure_to_parameters(exposure),
+                                        instance.mask_id};
+            if (!instance.name.empty())
+            {
+                operation.name = instance.name;
+            }
+            operation.bypass = instance.bypass;
+            recipe.operations.push_back(std::move(operation));
+        }
+    }
+    else
+    {
+        const ExposureParams exposure{clamped.exposure_mode,
+                                      clamped.exposure_black,
+                                      clamped.exposure_ev,
+                                      clamped.exposure_deflicker_percentile,
+                                      clamped.exposure_deflicker_target_ev,
+                                      clamped.exposure_compensate_exposure_bias,
+                                      clamped.exposure_compensate_highlight_preservation};
+        if (!exposure.is_identity() || clamped.exposure_mask_id.has_value())
+        {
+            add_operation(recipe, std::string(kExposureOperationId), "exposure-1",
+                          exposure_to_parameters(exposure), kExposureOperationSchemaVersion,
+                          clamped.exposure_mask_id, clamped.light_effect_enabled);
+        }
     }
     if (!near(clamped.tone_eq_blacks, 0.0) || !near(clamped.tone_eq_shadows, 0.0) ||
         !near(clamped.tone_eq_midtones, 0.0) || !near(clamped.tone_eq_highlights, 0.0) ||
@@ -237,9 +273,9 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     }
     const bool has_rgb_curve =
         !clamped.rgb_curve.is_identity() || clamped.rgb_curve_mask_id.has_value();
-    const bool display_rgb_curve = !clamped.rgb_curve.is_identity() &&
-                                   clamped.rgb_curve.application_space ==
-                                       kRgbCurveApplicationSpaceDisplaySrgb;
+    const bool display_rgb_curve =
+        !clamped.rgb_curve.is_identity() &&
+        clamped.rgb_curve.application_space == kRgbCurveApplicationSpaceDisplaySrgb;
     if (has_rgb_curve && !display_rgb_curve)
     {
         add_operation(recipe, "ravo.color.rgbcurve", "rgbcurve-1",

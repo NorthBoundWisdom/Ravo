@@ -67,7 +67,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             return cancelled.error();
         }
-        if (!operation.enabled || absorbed_operation(operation.id))
+        if (!operation.enabled || operation.bypass || absorbed_operation(operation.id))
         {
             continue;
         }
@@ -135,8 +135,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             if (operation.mask_id.has_value())
             {
-                auto adjusted = apply_masked_light_control(std::move(image), recipe, operation,
-                                                           cancellation);
+                auto adjusted =
+                    apply_masked_light_control(std::move(image), recipe, operation, cancellation);
                 if (!adjusted)
                     return adjusted.error();
                 image = std::move(adjusted).value();
@@ -305,8 +305,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             if (operation.mask_id.has_value())
             {
-                auto curved = apply_masked_rgb_curve(std::move(image), recipe, operation,
-                                                     cancellation);
+                auto curved =
+                    apply_masked_rgb_curve(std::move(image), recipe, operation, cancellation);
                 if (!curved)
                     return curved.error();
                 image = std::move(curved).value();
@@ -323,8 +323,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             if (operation.mask_id.has_value())
             {
-                auto curved = apply_masked_tone_curve(std::move(image), recipe, operation,
-                                                      cancellation);
+                auto curved =
+                    apply_masked_tone_curve(std::move(image), recipe, operation, cancellation);
                 if (!curved)
                     return curved.error();
                 image = std::move(curved).value();

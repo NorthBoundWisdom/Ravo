@@ -38,6 +38,8 @@
 #include "ravo/foundation/json.h"
 #include "ravo/engine/noise_calibration.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/mask.h"
+#include "ravo/recipe/operation.h"
 #include "ravo/recipe/style.h"
 #include "ravo/services/catalog_service.h"
 #include "ravo/services/artifact_publication.h"
@@ -406,6 +408,63 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
                         {"schema_version",
                          JsonValue::number(std::to_string(recipe.value().schema_version))}}},
                     json);
+    }
+    if (positional.size() == 3 && positional[0] == "recipe" && positional[1] == "inspect")
+    {
+        auto text = read_utf8_text_file(positional[2]);
+        if (!text)
+        {
+            return emit(text.error(), json);
+        }
+        auto recipe = parse_recipe_json(text.value());
+        if (!recipe)
+        {
+            return emit(recipe.error(), json);
+        }
+        auto valid = engine_.validate(recipe.value());
+        if (!valid)
+        {
+            return emit(valid.error(), json);
+        }
+        JsonValue::Array operations;
+        std::size_t exposure_count = 0;
+        for (const auto &operation : recipe.value().operations)
+        {
+            if (operation.id == std::string(kExposureOperationId))
+            {
+                ++exposure_count;
+            }
+            JsonValue::Object entry{
+                {"bypass", operation.bypass},
+                {"enabled", operation.enabled},
+                {"id", operation.id},
+                {"instance_id", operation.instance_id},
+                {"schema_version", JsonValue::number(std::to_string(operation.schema_version))}};
+            if (operation.name.has_value())
+            {
+                entry.emplace("name", *operation.name);
+            }
+            if (operation.mask_id.has_value())
+            {
+                entry.emplace("mask_id", *operation.mask_id);
+            }
+            operations.push_back(std::move(entry));
+        }
+        JsonValue::Array masks;
+        for (const auto &mask : recipe.value().masks)
+        {
+            masks.push_back(JsonValue::Object{{"id", mask.id},
+                                              {"kind", std::string(mask_kind_name(mask.kind))}});
+        }
+        return emit(
+            JsonValue{JsonValue::Object{
+                {"asset_id", recipe.value().asset.id},
+                {"exposure_instance_count", JsonValue::number(std::to_string(exposure_count))},
+                {"masks", std::move(masks)},
+                {"operations", std::move(operations)},
+                {"schema_version",
+                 JsonValue::number(std::to_string(recipe.value().schema_version))}}},
+            json);
     }
     if (positional.size() == 9 && positional[0] == "recipe" && positional[1] == "import-xmp" &&
         positional[3] == "--asset-id" && positional[5] == "--input" && positional[7] == "--output")

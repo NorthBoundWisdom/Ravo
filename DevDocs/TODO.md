@@ -364,36 +364,33 @@ catalog revision.
 
 ## LOCAL-01 — Multi-instance local adjustments and professional masks
 
-**Status:** Highest-priority product decision and implementation after P0.
+**Status:** P1; ADR-0145 accepted. First Ready on `main`: multi-instance
+Exposure recipe/Develop serialization + CLI `recipe inspect` with
+gradient/radial/parametric masks. Color Balance RGB instances and Studio chrome
+remain residual.
 
 Existing canonical masks and single-mask everyday consumers are foundations.
 The remaining product gap is a coherent local-adjustment system rather than more
 one-off masked fields.
 
-**Decision required:** accept a dated ADR defining:
+**Accepted (ADR-0145):**
 
-- whether a Develop operation can have multiple ordered instances and how each
-  instance is identified, named, enabled, bypassed, copied, reordered, removed,
-  serialized, and imported;
-- canonical brush/path stroke data, coordinate frame, pressure/flow/density,
-  feather, refinement, size limits, and cancellation;
-- ordered mask composition with Add, Subtract, Intersect, Invert, opacity, and
-  group semantics;
-- coordinate mapping through orientation, lens geometry, Perspective, crop,
-  Canvas, preview scaling, 1:1 ROI, and export;
-- history, undo/redo, preset/style, selective copy/paste, virtual-copy, batch,
-  and XMP fail-closed behavior;
-- CPU evaluation ownership and any later GPU adapter boundary.
+- Ordered multi-instance Develop ops; first consumers Exposure + Color Balance
+  RGB (Ready ships Exposure; Color Balance residual).
+- Instance `instance_id`, optional `name`, `enabled`, `bypass`, reorder via
+  recipe order, serialize on `OperationInstance` / `exposure_instances`.
+- C++-owned mask leaves reuse ADR-0043/0116 (brush/path/linear/radial +
+  luminance/colour parametric); group Add/Subtract/Intersect/Invert + opacity.
+- Legacy/CRS unsupported multi-instance forms stay fail-closed (no approximation).
+- Empty `exposure_instances` preserves legacy single-Exposure Develop fields.
 
-**First bounded tranche:**
+**Residual:**
 
-- multi-instance Exposure and Color Balance RGB;
-- brush, path, linear gradient, radial/ellipse, luminance range, and colour range
-  leaves;
-- Add/Subtract/Intersect/Invert groups;
-- editable mask names, visibility, overlay, feather, opacity, duplicate, and
-  delete in Studio;
-- canonical serialization and CLI inspection/apply before desktop polish.
+- Multi-instance Color Balance RGB Develop/CLI/Studio parity;
+- Studio instance list chrome (name/bypass/reorder/duplicate/delete) beyond thin
+  hooks;
+- history/undo/style/selective copy completeness for instance vectors;
+- GPU adapter boundary for masked multi-instance evaluation if needed.
 
 **Acceptance gate:**
 

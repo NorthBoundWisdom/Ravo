@@ -51,6 +51,9 @@ struct OperationInstance
     bool enabled = true;
     std::map<std::string, ParameterValue, std::less<>> parameters;
     std::optional<std::string> mask_id;
+    // ADR-0145: optional display name + bypass (skip eval, keep serialized).
+    std::optional<std::string> name;
+    bool bypass = false;
 };
 
 struct Recipe

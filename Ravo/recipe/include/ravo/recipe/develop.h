@@ -261,6 +261,25 @@ struct RgbCurveParams
     [[nodiscard]] bool operator==(const RgbCurveParams &) const noexcept = default;
 };
 
+// ADR-0145: ordered Exposure instances. Empty => legacy single exposure_* fields.
+struct DevelopExposureInstance
+{
+    std::string instance_id{"exposure-1"};
+    std::string name;
+    bool enabled = true;
+    bool bypass = false;
+    std::string mode{std::string(kExposureModeManual)};
+    double black = 0.0;
+    double exposure_ev = 0.0;
+    double deflicker_percentile = kExposureDeflickerPercentileDefault;
+    double deflicker_target_ev = kExposureDeflickerTargetEvDefault;
+    bool compensate_exposure_bias = false;
+    bool compensate_highlight_preservation = false;
+    std::optional<std::string> mask_id;
+
+    [[nodiscard]] bool operator==(const DevelopExposureInstance &) const noexcept = default;
+};
+
 struct DevelopParams
 {
     // Canonical graph/attachment state is typed Develop state. S3.2's recipe
@@ -288,6 +307,8 @@ struct DevelopParams
     std::optional<std::string> exposure_mask_id;
     std::int64_t exposure_mask_child_index = 0;
     std::int64_t exposure_mask_point_index = 0;
+    // When non-empty, ordered Exposure authority (mirrors front() into fields above).
+    std::vector<DevelopExposureInstance> exposure_instances;
     double contrast = 0.0;
     double highlights = 0.0;
     std::optional<std::string> highlights_mask_id;

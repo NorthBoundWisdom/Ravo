@@ -136,6 +136,41 @@ void clamp_develop(DevelopParams &params) noexcept
             params.exposure_black = std::max(kExposureBlackMin, white - 0.01);
         }
     }
+    for (auto &instance : params.exposure_instances)
+    {
+        if (instance.mode != kExposureModeManual && instance.mode != kExposureModeDeflicker)
+        {
+            instance.mode = std::string(kExposureModeManual);
+        }
+        instance.black = clamp_value(instance.black, kExposureBlackMin, kExposureBlackMax);
+        instance.exposure_ev = clamp_value(instance.exposure_ev, kExposureEvMin, kExposureEvMax);
+        instance.deflicker_percentile =
+            clamp_value(instance.deflicker_percentile, kExposureDeflickerPercentileMin,
+                        kExposureDeflickerPercentileMax);
+        instance.deflicker_target_ev =
+            clamp_value(instance.deflicker_target_ev, kExposureDeflickerTargetEvMin,
+                        kExposureDeflickerTargetEvMax);
+        if (instance.mode == kExposureModeManual)
+        {
+            const double white = std::exp2(-instance.exposure_ev);
+            if (instance.black >= white)
+            {
+                instance.black = std::max(kExposureBlackMin, white - 0.01);
+            }
+        }
+    }
+    if (!params.exposure_instances.empty())
+    {
+        const auto &front = params.exposure_instances.front();
+        params.exposure_mode = front.mode;
+        params.exposure_black = front.black;
+        params.exposure_ev = front.exposure_ev;
+        params.exposure_deflicker_percentile = front.deflicker_percentile;
+        params.exposure_deflicker_target_ev = front.deflicker_target_ev;
+        params.exposure_compensate_exposure_bias = front.compensate_exposure_bias;
+        params.exposure_compensate_highlight_preservation = front.compensate_highlight_preservation;
+        params.exposure_mask_id = front.mask_id;
+    }
     params.contrast = clamp_value(params.contrast, -1.0, 1.0);
     params.highlights = clamp_value(params.highlights, -1.0, 1.0);
     params.shadows = clamp_value(params.shadows, -1.0, 1.0);
@@ -417,13 +452,12 @@ bool DevelopParams::is_identity() const noexcept
            near(exposure_deflicker_percentile, kExposureDeflickerPercentileDefault) &&
            near(exposure_deflicker_target_ev, kExposureDeflickerTargetEvDefault) &&
            !exposure_compensate_exposure_bias && !exposure_compensate_highlight_preservation &&
-           !exposure_mask_id.has_value() &&
-           near(contrast, 0.0) && near(highlights, 0.0) && !highlights_mask_id.has_value() &&
-           near(shadows, 0.0) && !shadows_mask_id.has_value() && near(whites, 0.0) &&
-           !whites_mask_id.has_value() && near(blacks, 0.0) && !blacks_mask_id.has_value() &&
-           near(vibrance, 0.0) && near(saturation, 0.0) &&
-           rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&
-           near(straighten_degrees, 0.0) && near(perspective_vertical, 0.0) &&
+           !exposure_mask_id.has_value() && exposure_instances.empty() && near(contrast, 0.0) &&
+           near(highlights, 0.0) && !highlights_mask_id.has_value() && near(shadows, 0.0) &&
+           !shadows_mask_id.has_value() && near(whites, 0.0) && !whites_mask_id.has_value() &&
+           near(blacks, 0.0) && !blacks_mask_id.has_value() && near(vibrance, 0.0) &&
+           near(saturation, 0.0) && rotate_quarters % 4 == 0 && flip_horizontal == 0 &&
+           flip_vertical == 0 && near(straighten_degrees, 0.0) && near(perspective_vertical, 0.0) &&
            near(perspective_horizontal, 0.0) && near(perspective_shear, 0.0) && near(crop_x, 0.0) &&
            near(crop_y, 0.0) && near(crop_width, 1.0) && near(crop_height, 1.0) &&
            !canvas_present && !canvas_enabled && near(sharpen, 0.0) && near(sharpen_radius, 2.0) &&
@@ -436,20 +470,19 @@ bool DevelopParams::is_identity() const noexcept
            !watermark_enabled && !velvia_present && !velvia_enabled &&
            !velvia_mask_id.has_value() && !lut3d_present && !lut3d_enabled &&
            !color_balance_enabled && !color_checker_enabled && color_balance_rgb.is_identity() &&
-           !color_balance_rgb_mask_id.has_value() &&
-           !color_correction_enabled && !color_contrast_enabled && !color_reconstruction_enabled &&
-           !color_zones_present && !color_zones_enabled && !color_zones_mask_id.has_value() &&
-           !color_harmonizer_enabled && !monochrome_present && !monochrome_enabled &&
-           !monochrome_mask_id.has_value() && !split_toning_present && !split_toning_enabled &&
-           !split_toning_mask_id.has_value() && near(gamma, kDevelopGammaDefault) &&
-           rgb_levels.is_identity() && rgb_curve.is_identity() &&
-           !rgb_curve_mask_id.has_value() && !tone_curve_mask_id.has_value() &&
-           tone_curve_is_identity(tone_curve) && tone_curve_is_identity(tone_curve_a) &&
-           tone_curve_is_identity(tone_curve_b) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
-           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
-           near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) && near(lens_k1, 0.0) &&
-           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
-           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           !color_balance_rgb_mask_id.has_value() && !color_correction_enabled &&
+           !color_contrast_enabled && !color_reconstruction_enabled && !color_zones_present &&
+           !color_zones_enabled && !color_zones_mask_id.has_value() && !color_harmonizer_enabled &&
+           !monochrome_present && !monochrome_enabled && !monochrome_mask_id.has_value() &&
+           !split_toning_present && !split_toning_enabled && !split_toning_mask_id.has_value() &&
+           near(gamma, kDevelopGammaDefault) && rgb_levels.is_identity() &&
+           rgb_curve.is_identity() && !rgb_curve_mask_id.has_value() &&
+           !tone_curve_mask_id.has_value() && tone_curve_is_identity(tone_curve) &&
+           tone_curve_is_identity(tone_curve_a) && tone_curve_is_identity(tone_curve_b) &&
+           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
+           raw_ca_iterations == 0 && near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) &&
+           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
+           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&

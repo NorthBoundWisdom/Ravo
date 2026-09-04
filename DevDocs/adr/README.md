@@ -152,3 +152,4 @@ supersession relationship when direction changes.
 | [0142](0142-ai-metadata-culling-suggestions.md) | Accepted | AI-04 stub keyword/caption/focus/duplicate suggestions; explicit accept; never auto-reject/delete |
 | [0143](0143-crs-process-version-matrix.md) | Accepted | CRS ProcessVersion supported vs fail-closed matrix; xmp-status reports version class |
 | [0144](0144-per-display-icc-presentation.md) | Accepted | Per-display ICC is presentation-only; C++ owns preview→monitor; sRGB fallback; synthetic test profiles |
+| [0145](0145-multi-instance-local-adjustments.md) | Accepted | Multi-instance Exposure/Color Balance RGB; name/bypass/reorder; mask leaves reuse ADR-0043/0116; XMP fail-closed |

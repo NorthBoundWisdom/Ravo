@@ -212,16 +212,38 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             {
                 return exposure.error();
             }
-            params.exposure_mode = exposure.value().mode;
-            params.exposure_black = exposure.value().black;
-            params.exposure_ev = exposure.value().exposure_ev;
-            params.exposure_deflicker_percentile = exposure.value().deflicker_percentile;
-            params.exposure_deflicker_target_ev = exposure.value().deflicker_target_ev;
-            params.exposure_compensate_exposure_bias = exposure.value().compensate_exposure_bias;
-            params.exposure_compensate_highlight_preservation =
+            DevelopExposureInstance instance;
+            instance.instance_id = operation.instance_id;
+            if (operation.name.has_value())
+            {
+                instance.name = *operation.name;
+            }
+            instance.enabled = operation.enabled;
+            instance.bypass = operation.bypass;
+            instance.mode = exposure.value().mode;
+            instance.black = exposure.value().black;
+            instance.exposure_ev = exposure.value().exposure_ev;
+            instance.deflicker_percentile = exposure.value().deflicker_percentile;
+            instance.deflicker_target_ev = exposure.value().deflicker_target_ev;
+            instance.compensate_exposure_bias = exposure.value().compensate_exposure_bias;
+            instance.compensate_highlight_preservation =
                 exposure.value().compensate_highlight_preservation;
-            params.exposure_mask_id = operation.mask_id;
-            note_section("light", operation.enabled);
+            instance.mask_id = operation.mask_id;
+            params.exposure_instances.push_back(instance);
+            // Legacy single fields mirror the first Exposure instance.
+            if (params.exposure_instances.size() == 1U)
+            {
+                params.exposure_mode = instance.mode;
+                params.exposure_black = instance.black;
+                params.exposure_ev = instance.exposure_ev;
+                params.exposure_deflicker_percentile = instance.deflicker_percentile;
+                params.exposure_deflicker_target_ev = instance.deflicker_target_ev;
+                params.exposure_compensate_exposure_bias = instance.compensate_exposure_bias;
+                params.exposure_compensate_highlight_preservation =
+                    instance.compensate_highlight_preservation;
+                params.exposure_mask_id = instance.mask_id;
+            }
+            note_section("light", operation.enabled && !operation.bypass);
         }
         else if (operation.id == kColorCheckerOperationId)
         {

@@ -283,9 +283,10 @@ required_field(const JsonObject &object, const std::string_view name, const std:
     {
         return object.error();
     }
-    auto fields = reject_unknown_fields(
-        *object.value(),
-        {"enabled", "id", "instance_id", "mask_id", "parameters", "schema_version"}, path);
+    auto fields = reject_unknown_fields(*object.value(),
+                                        {"bypass", "enabled", "id", "instance_id", "mask_id",
+                                         "name", "parameters", "schema_version"},
+                                        path);
     if (!fields)
     {
         return fields.error();
@@ -344,6 +345,26 @@ required_field(const JsonObject &object, const std::string_view name, const std:
             return parsed_mask.error();
         }
         operation.mask_id = std::move(parsed_mask).value();
+    }
+    const auto name = object.value()->find("name");
+    if (name != object.value()->end())
+    {
+        auto parsed_name = string_at(name->second, std::string(path) + ".name");
+        if (!parsed_name)
+        {
+            return parsed_name.error();
+        }
+        operation.name = std::move(parsed_name).value();
+    }
+    const auto bypass = object.value()->find("bypass");
+    if (bypass != object.value()->end())
+    {
+        auto parsed_bypass = boolean_at(bypass->second, std::string(path) + ".bypass");
+        if (!parsed_bypass)
+        {
+            return parsed_bypass.error();
+        }
+        operation.bypass = parsed_bypass.value();
     }
     return operation;
 }
@@ -768,6 +789,14 @@ Result<JsonValue> recipe_to_json(const Recipe &recipe)
         if (operation.mask_id.has_value())
         {
             entry.emplace("mask_id", *operation.mask_id);
+        }
+        if (operation.name.has_value())
+        {
+            entry.emplace("name", *operation.name);
+        }
+        if (operation.bypass)
+        {
+            entry.emplace("bypass", true);
         }
         operations.emplace_back(std::move(entry));
     }

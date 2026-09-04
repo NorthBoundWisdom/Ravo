@@ -151,6 +151,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.exposure_compensate_highlight_preservation =
             source.exposure_compensate_highlight_preservation;
         destination.exposure_mask_id = source.exposure_mask_id;
+        destination.exposure_instances = source.exposure_instances;
     }
     else if (field == "contrast")
     {

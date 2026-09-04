@@ -23,7 +23,8 @@ add_executable(ravo_unit_tests
   foundation_test.cpp
   recipe_test.cpp
   recipe_develop_test.cpp
-  recipe_style_test.cpp)
+  recipe_style_test.cpp
+  local_adjustment_multi_instance_test.cpp)
 target_link_libraries(ravo_unit_tests PRIVATE GTest::gtest_main ravo_domain ravo_recipe)
 target_include_directories(ravo_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 ravo_configure_target(ravo_unit_tests)
