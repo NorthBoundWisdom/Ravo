@@ -138,6 +138,7 @@ add_executable(ravo_catalog_tests
   catalog_ai_proposal_test.cpp
   catalog_ai_suggestion_test.cpp
   display_presentation_test.cpp
+  tethered_studio_test.cpp
   catalog_capture_test.cpp
   catalog_import_test.cpp
   catalog_ingest_transport_test.cpp

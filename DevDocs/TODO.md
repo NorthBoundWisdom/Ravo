@@ -4,8 +4,8 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0152 (IQ-01 corpus/denoise probe) plus Studio Edit-in
-> chrome; next free ADR **0153**.
+> **Review basis:** `main` through ADR-0153 (SPECIALIZE tethered deferred) plus ADR-0152 and
+> Studio Edit-in chrome; next free ADR **0154**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -608,12 +608,14 @@ job rather than mutating Develop.
 
 ## SPECIALIZE-01 — Select one cohort-backed vertical
 
-**Status:** Deferred; no preferred track is authorized.
+**Status:** ADR-0153 records tethered-studio as the deferred P2 candidate with a
+fail-closed probe stub. HDR/Panorama stays unselected. No cohort evidence yet;
+real adapter work remains blocked.
 
-Do not preselect tethered-studio or HDR/Panorama from implementation momentum.
-Choose only after an external photographer cohort, representative workflow,
-hardware/corpus availability, and measurable product advantage are recorded in
-a dated ADR.
+Do not promote tethered-studio from the stub. Choose implementation only after
+an external photographer cohort, representative workflow, hardware/corpus
+availability, and measurable product advantage are recorded in a later dated
+ADR.
 
 - **HDR/Panorama:** source grouping, alignment, projection, ghost handling,
   exposure merge, colour space, memory/cancellation, crop, provenance, rebuild,
