@@ -593,6 +593,45 @@ TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
     EXPECT_TRUE(errors.isEmpty()) << errors.join(QLatin1Char('\n')).toStdString();
 }
 
+TEST(StudioCommands, MenuEntriesExposeTitledRowsForMenuBarPaths)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    const QStringList paths = {QStringLiteral("file.library"),
+                               QStringLiteral("file.transfer"),
+                               QStringLiteral("file.recovery"),
+                               QStringLiteral("file.window"),
+                               QStringLiteral("edit.history"),
+                               QStringLiteral("edit.reset"),
+                               QStringLiteral("view.mode"),
+                               QStringLiteral("view.zoom"),
+                               QStringLiteral("view.compare"),
+                               QStringLiteral("view.commands"),
+                               QStringLiteral("photo.navigate"),
+                               QStringLiteral("photo.transform"),
+                               QStringLiteral("photo.rating"),
+                               QStringLiteral("photo.color"),
+                               QStringLiteral("photo.review"),
+                               QStringLiteral("photo.delete"),
+                               QStringLiteral("help.about")};
+    for (const auto &path : paths)
+    {
+        const auto entries = controller.menuEntries(path);
+        ASSERT_FALSE(entries.isEmpty()) << path.toStdString();
+        for (const auto &entry : entries)
+        {
+            const auto map = entry.toMap();
+            EXPECT_FALSE(map.value(QStringLiteral("actionId")).toString().isEmpty())
+                << path.toStdString();
+            EXPECT_FALSE(map.value(QStringLiteral("title")).toString().isEmpty())
+                << path.toStdString() << " "
+                << map.value(QStringLiteral("actionId")).toString().toStdString();
+        }
+    }
+    EXPECT_GE(controller.menuEntries(QStringLiteral("file.recovery")).size(), 11);
+}
+
 TEST(StudioCommands, CopyDebugTextRequiresSelectionOrPresetPath)
 {
     ensure_qt_core();

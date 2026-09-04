@@ -863,6 +863,28 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
     EXPECT_TRUE(action_source.contains(QStringLiteral("revealInFileManager")));
 }
 
+TEST(StudioQmlContract, CommandMenuItemsKeepNativeMenuIdentityStable)
+{
+    QFile items(QStringLiteral(RAVO_REPOSITORY_ROOT
+                               "/Ravo/desktop/qml/chrome/StudioCommandMenuItems.qml"));
+    ASSERT_TRUE(items.open(QIODevice::ReadOnly | QIODevice::Text))
+        << items.errorString().toStdString();
+    const auto source = QString::fromUtf8(items.readAll());
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("model: root.controller ? root.controller.menuEntries(root.menuPath) : []")));
+    EXPECT_FALSE(source.contains(QStringLiteral("const ignoredRevision = root.controller.revision;\n        return root.controller.menuEntries")));
+    EXPECT_TRUE(source.contains(QStringLiteral("return root.controller.action(modelData.actionId);")));
+    EXPECT_TRUE(source.contains(QStringLiteral("title + \"\\t\" + shortcut")));
+
+    QFile bar(QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/chrome/StudioMenuBar.qml"));
+    ASSERT_TRUE(bar.open(QIODevice::ReadOnly | QIODevice::Text)) << bar.errorString().toStdString();
+    const auto bar_source = QString::fromUtf8(bar.readAll());
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("menuPath: \"file.library\"")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("menuPath: \"file.transfer\"")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("menuPath: \"file.recovery\"")));
+    EXPECT_TRUE(bar_source.contains(QStringLiteral("menuPath: \"file.window\"")));
+}
+
 TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)
 {
     QFile panel(QStringLiteral(RAVO_STUDIO_SCOPE_PANEL_QML));
