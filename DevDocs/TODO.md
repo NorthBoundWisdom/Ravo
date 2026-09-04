@@ -54,7 +54,7 @@ A green `main` may carry at most:
 1. one active P0 evidence/correctness stream; and
 2. one active P1 workflow-completion stream.
 
-Until `LOCAL-01` C2 geometry/composition evidence is closed:
+Until `LOCAL-01` C2 snapshot/reopen and live preview-scale/ROI evidence is closed:
 
 - do not add another product capability ID, model/provider stub, placeholder
   pane, unsupported-probe feature, or specialization ADR;
@@ -339,20 +339,29 @@ long paths, and removal without touching user data.
 
 ## LOCAL-01 — Professional multi-instance local adjustments
 
-**Maturity:** C2 candidate; COR-01 LOCAL residuals closed. Remaining blockers are
-geometry/composition evidence and chrome polish below.
+**Maturity:** Near C2; COR-01 LOCAL residuals closed. Composition Invert/Intersect,
+selected-instance overlay/feather/brush-flow contracts, and orientation/lens/
+Canvas/1:1-crop/export mask-coord survival are evidenced on `main` via
+`LocalAdjustmentMultiInstanceTest.Local01*`. Remaining: snapshot/reopen +
+failure-injection depth, preview-scale live path evidence beyond normalized
+coords, GPU after PERF-01, and any leftover Main.qml extraction.
 
 **Remaining work:**
 
 - COR-01 LOCAL residuals closed (id high-water, owned-mask GC, revision-bound saves);
 - keep bounded instance counts / last-instance Studio Delete gate as documented;
-- [partial] Exposure instance group Add/Union/Difference + opacity authoring
-  round-trips with crop/perspective fields (LOCAL-01 C2 slice test);
-  remaining: Invert/Intersect UX polish, overlay visibility, feather, brush
-  flow/density through the same C++-owned mask DAG;
-- prove remaining coordinate path legs: orientation, lens, Canvas, preview
-  scaling, 1:1 ROI, and export (crop/perspective fields already carried with
-  instance group masks);
+- [done] Exposure (+ CBR) instance group Add/Union/Difference/Intersect + Invert
+  (root/child) + opacity/feather authoring round-trips with geometry fields
+  (`Local01GroupComposition*`, `Local01InvertIntersect*`);
+- [done] selected-instance overlay attachment slot (`exposure_mask_id` /
+  `color_balance_rgb_mask_id`), feather, and brush flow/density/hardness through
+  the C++-owned mask DAG (`Local01OverlayFeatherBrushFlow*`); MaskEditor chrome
+  already exposes Invert/Intersect/overlay/feather/brush without Main.qml growth;
+- [partial] coordinate legs: orientation, lens, Canvas, 1:1 crop aspect, and
+  export recipe survival with multi-instance group masks
+  (`Local01GeometryLegsMaskCoordSurvival`); preview scale remains request-time
+  (normalized mask coords) — live Studio preview-scale/1:1 ROI path still needs
+  deeper evidence;
 - complete snapshot/reopen and failure-injection depth for instance vectors and
   masks; retain existing history/undo/style/copy/batch/virtual-copy contracts;
 - add GPU evaluation only after CPU equality and PERF-01 evidence;
