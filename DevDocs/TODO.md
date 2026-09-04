@@ -137,7 +137,8 @@ Debug matrix alone is not a release gate.
 
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
-**Status:** Active release evidence.
+**Status:** Active release evidence. Host-local report:
+`/Users/ethan/Documents/RavoEvidence/reports/20260904_191808/` (not in git).
 
 **Dependency:** an explicit read-only mixed RAW/raster tree in
 `RAVO_PHOTO_CORPUS`; a Release build; all generated state under a unique
