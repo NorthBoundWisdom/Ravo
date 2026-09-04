@@ -41,6 +41,7 @@
 #include "ravo/recipe/style.h"
 #include "ravo/services/catalog_service.h"
 #include "ravo/services/artifact_publication.h"
+#include "ravo/services/display_presentation.h"
 
 namespace ravo
 {
@@ -298,6 +299,54 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
             operations.push_back(std::move(operation).value());
         }
         return emit(JsonValue{JsonValue::Object{{"operations", std::move(operations)}}}, json);
+    }
+    if (positional.front() == "display-profile")
+    {
+        if (positional.size() < 2 || positional[1] != "status")
+        {
+            return emit(
+                make_error(
+                    ErrorCode::kInvalidArgument,
+                    "Usage: ravo display-profile status [--profile <icc>] [--screen <token>]"),
+                json);
+        }
+        std::string_view profile_path;
+        std::string_view screen = "primary";
+        for (std::size_t index = 2; index < positional.size(); ++index)
+        {
+            const auto argument = positional[index];
+            if (argument == "--profile")
+            {
+                if (index + 1 >= positional.size())
+                {
+                    return emit(
+                        make_error(ErrorCode::kInvalidArgument, "--profile requires a path"), json);
+                }
+                profile_path = positional[++index];
+                continue;
+            }
+            if (argument == "--screen")
+            {
+                if (index + 1 >= positional.size())
+                {
+                    return emit(
+                        make_error(ErrorCode::kInvalidArgument, "--screen requires a token"), json);
+                }
+                screen = positional[++index];
+                continue;
+            }
+            return emit(make_error(ErrorCode::kInvalidArgument, "Unknown display-profile option",
+                                   {{"option", std::string(argument)}}),
+                        json);
+        }
+        Result<DisplayPresentationState> state =
+            profile_path.empty() ? discover_monitor_presentation(screen) :
+                                   inject_monitor_presentation_from_icc_path(profile_path, screen);
+        if (!state)
+        {
+            return emit(state.error(), json);
+        }
+        return emit(display_presentation_state_to_json(state.value()), json);
     }
     if (positional.front() == "perspective")
     {

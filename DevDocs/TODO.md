@@ -314,27 +314,40 @@ evidence.
 
 ## DISPLAY-01 — Per-display ICC colour management
 
-**Status:** P1 decision required; required before claiming a colour-critical
-grading workflow.
+**Status:** P1; ADR-0144 accepted. First Ready tranche on `main` (service /
+presenter contract + tests + CLI status). Residual OS/Studio/GPU work remains.
 
 Ravo already owns input/output ICC transforms and soft-proof state. On-screen
-monitor conversion must be a separate presentation contract: it must not mutate
-the canonical recipe, settled preview authority, export profile, history, or
+monitor conversion is a separate presentation contract: it must not mutate the
+canonical recipe, settled preview authority, export profile, history, or
 catalog revision.
 
-**Decision required:**
+**Accepted (ADR-0144):**
 
-- operating-system monitor-profile discovery and profile-change lifecycle on
-  macOS, Windows, and Linux;
-- profile identity for each screen, window movement between screens, primary
-  display changes, missing/corrupt profiles, and headless sessions;
-- SDR versus HDR display policy and the supported first-version boundary;
-- one C++/Engine or display-adapter owner for the final preview-to-monitor
-  transform; QML remains a pixel presenter;
-- interaction with soft proof, gamut warning, before/after, comparison, scopes,
-  magnifier, 1:1 ROI, and native GPU surfaces;
-- explicit user-selected fallback when no valid monitor profile exists; never a
-  silent assumed transform.
+- Monitor ICC is presentation-only; never mutates recipe JSON, history, catalog
+  revision, settled preview authority, or export profile.
+- C++ display-presentation owner applies preview→monitor after soft-proof;
+  QML only presents pixels.
+- First Ready: macOS CoreGraphics discovery + change lifecycle; explicit
+  **sRGB** fallback when missing/corrupt (`source=fallback_srgb`); injectable
+  ICC path; synthetic matrix/LUT CPU reference paths; CLI
+  `display-profile status`.
+- Soft-proof remains recipe-owned and inspectable; display transform is
+  on-screen only.
+- Window/screen token refresh does not change recipe.
+- Headless/tests inject profiles; never silent assumed transform without
+  machine-visible state.
+
+**Residual:**
+
+- Windows/Linux monitor discovery and profile-change lifecycle;
+- Studio window-move wiring to refresh presentation across Gallery/Loupe/
+  Develop/Before/After/comparison/magnifier/scopes with explicit pixel-kind
+  declarations;
+- GPU presentation-path parity with CPU synthetic matrix/LUT references;
+- SDR versus HDR display policy and first-version HDR boundary;
+- validation corpus comparing owned transform output (not screenshots) across
+  hosts.
 
 **Acceptance gate:**
 

@@ -293,7 +293,7 @@ Current implementation status:
   ICC state. CLI PNG emits standard sRGB metadata or `iCCP`, Catalog PNG/JPEG/
   TIFF embeds the same declared profile, and missing/corrupt profiles fail
   before atomic publish. Studio presents the engine-owned result through Output
-  & Soft Proof controls; it never infers a monitor profile or performs a QML
+  & Soft Proof controls; it never infers a monitor profile or performs a QML ADR-0144 adds a separate C++ display-presentation contract (monitor ICC after soft-proof, sRGB fallback, injectable/synthetic test profiles) that never mutates recipe or export colour.
   colour transform.
 - JPEG export uses the pinned private libjpeg-turbo encoder and one typed
   quality/subsampling request. Quality defaults to 95 within the frozen 5–100

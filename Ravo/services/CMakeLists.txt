@@ -15,6 +15,7 @@ target_sources(ravo_services
     src/catalog_external_editor.cpp
     src/catalog_foreign_catalog.cpp
     src/catalog_dng_smart_preview.cpp
+    src/display_presentation.cpp
     src/catalog_internal.cpp
     src/catalog_import.cpp
     src/catalog_ingest_transport.cpp
@@ -40,5 +41,9 @@ target_include_directories(ravo_services
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 target_link_libraries(ravo_services PUBLIC ravo_domain ravo_engine ravo_adapters)
+target_link_libraries(ravo_services PRIVATE lcms2)
+if(APPLE)
+  target_link_libraries(ravo_services PRIVATE "-framework CoreGraphics" "-framework CoreFoundation")
+endif()
 
 ravo_configure_target(ravo_services)
