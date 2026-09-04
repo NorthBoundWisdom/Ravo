@@ -11,6 +11,7 @@ target_sources(ravo_cli
     src/application_catalog_ai_suggestion.cpp
     src/application_catalog_convert.cpp
     src/application_catalog_cull.cpp
+    src/application_catalog_ingest.cpp
     src/application_catalog_facets.cpp
     src/application_studio.cpp)
 

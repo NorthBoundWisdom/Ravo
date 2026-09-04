@@ -203,6 +203,7 @@ enum class ImportItemStatus
     kDuplicate,
     kUnsupported,
     kFailed,
+    kSkipped, // resume already-completed / explicit skip (ADR-0148)
 };
 
 enum class ImportTransferMode
@@ -997,6 +998,7 @@ struct ImportBatchResult
     std::size_t duplicates = 0U;
     std::size_t unsupported = 0U;
     std::size_t failed = 0U;
+    std::size_t skipped = 0U;
     std::size_t source_cleanup_failed = 0U;
     std::size_t verified_second_copies = 0U;
 };

@@ -286,12 +286,18 @@ public:
     execute_import(const ImportRequest &request,
                    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
                        &progress = {});
-    // ADR-0125: filesystem-card (DCIM/mount) ingest with disconnect/cancel
-    // reporting. Rejects Move; feeds the existing Add/Copy planner.
+    // ADR-0125/0148: filesystem-card, fail-closed native PTP/MTP, and ptp-stub
+    // fixture ingest. Rejects Move; feeds the existing Add/Copy planner.
+    // Supports resume checkpoints under {catalog}.ravo/ingest-resume/.
     [[nodiscard]] Result<ImportBatchResult>
     execute_ingest(const IngestRequest &request,
                    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
                        &progress = {});
+    [[nodiscard]] Result<IngestBatchResult> execute_ingest_detailed(
+        const IngestRequest &request,
+        const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress =
+            {});
+    [[nodiscard]] Result<NativeIngestPlatformSupport> probe_ingest_native_support() const;
     [[nodiscard]] Result<PreviewResult> build_import_preview(std::string_view asset_id,
                                                              ImportPreviewPolicy policy,
                                                              const CancellationToken &cancellation);

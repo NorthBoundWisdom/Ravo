@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -179,6 +179,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool cull_command = subcommand == "cull-exact-duplicates" ||
                               subcommand == "cull-burst-propose" ||
                               subcommand == "cull-burst-accept";
+    const bool ingest_command = subcommand == "ingest-probe" || subcommand == "ingest";
     const bool convert_command =
         subcommand == "convert-foreign" || subcommand == "dng-convert" ||
         subcommand == "smart-preview" || subcommand == "offline-proxy-create" ||
@@ -241,6 +242,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (flags.value().burst_window_seconds && subcommand != "cull-burst-propose")
         return make_error(ErrorCode::kInvalidArgument,
                           "--burst-window-seconds is only valid for catalog cull-burst-propose");
+    if (!flags.value().ingest_transport.empty() && subcommand != "ingest")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--transport is only valid for catalog ingest");
+    if (!flags.value().resume_batch_id.empty() && subcommand != "ingest")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--resume-batch-id is only valid for catalog ingest");
 
     if (!flags.value().proposal_id.empty() && subcommand != "ai-proposal" &&
         subcommand != "ai-proposal-apply" && subcommand != "ai-proposal-reject" &&
@@ -319,7 +326,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
         !flags.value().import_filename_template.empty() ||
         !flags.value().import_second_copy.empty() || !flags.value().import_recursive;
-    if (has_import_options && subcommand != "import" && subcommand != "editor-register")
+    if (has_import_options && subcommand != "import" && subcommand != "editor-register" &&
+        subcommand != "ingest")
         return make_error(ErrorCode::kInvalidArgument,
                           "Import options are only valid for catalog import or editor-register");
     if (subcommand == "editor-register" &&
@@ -813,6 +821,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                  std::string(item.status == ImportItemStatus::kImported    ? "imported" :
                              item.status == ImportItemStatus::kDuplicate   ? "duplicate" :
                              item.status == ImportItemStatus::kUnsupported ? "unsupported" :
+                             item.status == ImportItemStatus::kSkipped     ? "skipped" :
                                                                              "failed")}};
             if (item.asset)
             {
@@ -1697,6 +1706,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return run_catalog_editor_command(service, subcommand, flags.value());
     if (cull_command)
         return run_catalog_cull_command(service, subcommand, flags.value());
+    if (ingest_command)
+        return run_catalog_ingest_command(service, subcommand, flags.value());
     if (convert_command)
         return run_catalog_convert_command(service, subcommand, flags.value());
     if (subcommand == "keywords")

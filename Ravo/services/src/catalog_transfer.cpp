@@ -407,6 +407,8 @@ Result<std::vector<ImportItemResult>> CatalogService::import_inputs(
             case ImportItemStatus::kUnsupported:
                 ++unsupported_count;
                 break;
+            case ImportItemStatus::kSkipped:
+                break;
             case ImportItemStatus::kFailed:
                 ++failed_count;
                 break;

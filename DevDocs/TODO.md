@@ -460,39 +460,35 @@ exact hash groups, burst propose/accept stack, and no auto-delete.
 
 ## INGEST-01 — Native PTP/MTP and resumable verified camera ingest
 
-**Status:** P1, dependent on the existing ADR-0125 ingest URI/lifecycle.
+**Status:** P1 first Ready landed (ADR-0148). Residuals remain.
 
-The filesystem-card/DCIM adapter remains the first transport. Add one native
-device transport without creating a second import planner.
+The filesystem-card/DCIM adapter remains the first transport. Native PTP/MTP
+plugs into the same URI + Copy planner without a second catalog authority.
 
-**Decision required:**
+**Closed in this tranche (local `main`):**
 
-- PTP/MTP session enumeration, device identity, object identity, disconnect,
-  reconnect, permission, timeout, and cancellation semantics;
-- per-object resume checkpoints without treating an incomplete copy as
-  published;
-- idempotent repeated ingest and already-imported detection;
-- read-only source policy, destination/second-copy preflight, and device-safe
-  deletion policy;
-- package dependencies and three-platform support matrix.
+- ADR-0148 accepts session identity (`ptp-usb` / `mtp` URIs), three-platform
+  support matrix, fail-closed probe when adapter is not packaged, resume
+  checkpoints under `{catalog}.ravo/ingest-resume/`, and fixture `ptp-stub`.
+- Service/CLI: `probe_ingest_native_support` / `catalog ingest-probe`;
+  `execute_ingest_detailed` / `catalog ingest` with `--transport` and
+  `--resume-batch-id`; Copy-only; Move rejected; no camera delete.
+- Resume skips completed objects (`ImportItemStatus::kSkipped`, reason
+  `ingest_resume_already_completed`) after reconnect; structured per-item
+  imported/duplicate/skipped/unsupported/failed report.
+- Live `ptp-usb`/`mtp` report `native_ingest_adapter_not_packaged` with
+  platform machine state rather than pretending a filesystem mount is native.
 
-**First bounded tranche:**
+**Still open:**
 
-- enumerate one selected device/session;
-- Copy-only ingest through the existing rename/organization/second-copy planner;
-- resume verified incomplete batches after reconnect;
-- structured per-item imported/skipped/unsupported/cancelled/failed report;
-- Studio source selector and progress surface backed by the same service.
+- Packaged ImageCaptureCore / WinRT / libmtp adapters and real device
+  enumeration;
+- Studio source selector and progress chrome;
+- Permission/timeout UX polish; durable dismiss of abandoned checkpoints.
 
-**Acceptance gate:**
-
-- no Move or camera deletion occurs in the first tranche;
-- every published primary and second copy verifies against the device object;
-- disconnect or cancellation leaves reusable transport/session state;
-- destination conflicts are resolved before publication;
-- repeated ingest does not create accidental duplicate catalog rows;
-- absent platform support reports `unsupported` rather than pretending a
-  filesystem mount is a native session.
+**Acceptance gate:** unchanged for remaining residuals; first Ready proves
+fail-closed native probe, resume contract (stubbed), Copy-only planner path,
+and structured per-item reports.
 
 ## IQ-01 — Camera/profile quality and denoise evaluation
 

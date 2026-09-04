@@ -63,9 +63,9 @@ namespace ravo
     return points;
 }
 
-[[nodiscard]] inline QVariantList tone_curve_sample_list(const std::vector<ToneCurvePoint> &points,
-                                                        const std::string_view interpolation =
-                                                            kToneCurveInterpolationMonotoneHermite)
+[[nodiscard]] inline QVariantList tone_curve_sample_list(
+    const std::vector<ToneCurvePoint> &points,
+    const std::string_view interpolation = kToneCurveInterpolationMonotoneHermite)
 {
     constexpr int kSamples = 65;
     QVariantList samples;
@@ -125,6 +125,8 @@ namespace ravo
             break;
         case ImportItemStatus::kUnsupported:
             ++unsupported;
+            break;
+        case ImportItemStatus::kSkipped:
             break;
         case ImportItemStatus::kFailed:
             ++failed;

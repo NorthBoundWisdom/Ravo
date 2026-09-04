@@ -50,12 +50,35 @@ TEST(IngestTransportUri, FormatsAndParsesFilesystemCard)
     EXPECT_EQ(parsed.value().uri, uri);
 }
 
-TEST(IngestTransportUri, RejectsUnimplementedPtpUsb)
+TEST(IngestTransportUri, RejectsUnpackagedPtpUsbWithPlatformState)
 {
-    auto parsed = parse_ingest_source_uri("ravo-ingest:ptp-usb:device/abc");
+    auto parsed = parse_ingest_source_uri("ravo-ingest:ptp-usb:04a9:31f2:serial1");
     ASSERT_FALSE(parsed);
     EXPECT_EQ(parsed.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(reason_of(parsed.error()), "ingest_transport_ptp_usb_unimplemented");
+    EXPECT_EQ(reason_of(parsed.error()), "native_ingest_adapter_not_packaged");
+    EXPECT_FALSE(parsed.error().context.at("platform").empty());
+    EXPECT_EQ(parsed.error().context.at("adapter_packaged"), "false");
+}
+
+TEST(IngestTransportUri, RejectsUnpackagedMtpWithPlatformState)
+{
+    auto parsed = parse_ingest_source_uri("ravo-ingest:mtp:18d1:4ee1:serial2");
+    ASSERT_FALSE(parsed);
+    EXPECT_EQ(parsed.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(reason_of(parsed.error()), "native_ingest_adapter_not_packaged");
+}
+
+TEST(NativeIngestProbe, ReportsUnsupportedUntilPackaged)
+{
+    const auto support = probe_native_ingest_support();
+    EXPECT_EQ(support.schema, kNativeIngestContractVersion);
+    EXPECT_FALSE(support.adapter_packaged);
+    EXPECT_FALSE(native_ingest_adapter_is_packaged());
+    EXPECT_EQ(support.ptp_usb, NativeIngestSupportState::kUnsupported);
+    EXPECT_EQ(support.mtp, NativeIngestSupportState::kUnsupported);
+    EXPECT_EQ(support.reason, "native_ingest_adapter_not_packaged");
+    EXPECT_FALSE(support.platform.empty());
+    EXPECT_FALSE(support.ptp_planned_stack.empty());
 }
 
 TEST_F(CatalogServiceTest, FilesystemCardIngestPrefersDcimAndPreservesSource)
@@ -257,6 +280,151 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestUnresolvedConflictPublishesNoCata
     ASSERT_TRUE(assets);
     EXPECT_TRUE(assets.value().empty());
     EXPECT_TRUE(std::filesystem::exists(card / "same.jpg"));
+}
+
+TEST_F(CatalogServiceTest, NativePtpUsbIngestFailsClosedWithMachineState)
+{
+    ASSERT_TRUE(open_service(true));
+    IngestRequest request;
+    request.transport = "ptp-usb";
+    request.session_vendor_id = "04a9";
+    request.session_product_id = "31f2";
+    request.session_serial = "abc";
+    request.source_root = (root / "unused").string();
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = (root / "dest").string();
+    std::filesystem::create_directories(root / "dest");
+    auto batch = service->execute_ingest_detailed(request);
+    ASSERT_FALSE(batch);
+    EXPECT_EQ(reason_of(batch.error()), "native_ingest_adapter_not_packaged");
+    EXPECT_EQ(batch.error().context.at("adapter_packaged"), "false");
+    EXPECT_FALSE(batch.error().context.at("platform").empty());
+}
+
+TEST_F(CatalogServiceTest, PtpStubIngestCopiesThroughPlannerAndRejectsMove)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto fixture = root / "ptp-fixture" / "DCIM" / "100RAVO";
+    const auto destination = root / "ptp-dest";
+    const auto second = root / "ptp-second";
+    std::filesystem::create_directories(fixture);
+    std::filesystem::create_directories(destination);
+    std::filesystem::create_directories(second);
+    ASSERT_TRUE(write_jpeg(fixture / "IMG_0001.jpg", QColor(12, 34, 56)));
+    ASSERT_TRUE(write_jpeg(fixture / "IMG_0002.jpg", QColor(65, 43, 21)));
+
+    auto snapshot = open_ptp_stub_ingest((root / "ptp-fixture").string(), CancellationToken{});
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().source.transport, IngestTransportKind::kPtpStub);
+    ASSERT_EQ(snapshot.value().objects.size(), 2U);
+    EXPECT_EQ(snapshot.value().objects.front().relative_path.rfind("storage/0001/", 0), 0U);
+    EXPECT_TRUE(snapshot.value().source.session.has_value());
+
+    IngestRequest move_request;
+    move_request.transport = "ptp-stub";
+    move_request.source_root = (root / "ptp-fixture").string();
+    move_request.mode = ImportTransferMode::kMove;
+    move_request.destination_directory = destination.string();
+    auto moved = service->execute_ingest(move_request);
+    ASSERT_FALSE(moved);
+    EXPECT_EQ(reason_of(moved.error()), "ingest_move_unsupported");
+
+    IngestRequest request;
+    request.transport = "ptp-stub";
+    request.source_root = (root / "ptp-fixture").string();
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.second_copy_directory = second.string();
+    request.filename_template = "cam-{sequence}-{stem}{ext}";
+    request.preview = ImportPreviewPolicy::kMinimal;
+    request.defer_previews = true;
+    auto detailed = service->execute_ingest_detailed(request);
+    ASSERT_TRUE(detailed) << detailed.error().message;
+    EXPECT_EQ(detailed.value().transport, "ptp-stub");
+    EXPECT_EQ(detailed.value().import.imported, 2U);
+    EXPECT_EQ(detailed.value().import.verified_second_copies, 2U);
+    EXPECT_TRUE(detailed.value().resume_checkpoint_cleared);
+    EXPECT_TRUE(std::filesystem::exists(fixture / "IMG_0001.jpg"));
+    EXPECT_TRUE(std::filesystem::exists(fixture / "IMG_0002.jpg"));
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets);
+    EXPECT_EQ(assets.value().size(), 2U);
+}
+
+TEST_F(CatalogServiceTest, PtpStubIngestResumesIncompleteBatchAfterReconnect)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto fixture = root / "resume-fixture" / "DCIM";
+    const auto destination = root / "resume-dest";
+    std::filesystem::create_directories(fixture);
+    std::filesystem::create_directories(destination);
+    ASSERT_TRUE(write_jpeg(fixture / "a.jpg", QColor(1, 2, 3)));
+    ASSERT_TRUE(write_jpeg(fixture / "b.jpg", QColor(4, 5, 6)));
+    ASSERT_TRUE(write_jpeg(fixture / "c.jpg", QColor(7, 8, 9)));
+
+    IngestRequest request;
+    request.transport = "ptp-stub";
+    request.source_root = (root / "resume-fixture").string();
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.preview = ImportPreviewPolicy::kMinimal;
+    request.defer_previews = true;
+
+    std::size_t imported_progress = 0;
+    std::optional<std::string> batch_id;
+    auto first = service->execute_ingest_detailed(
+        request,
+        [&](std::size_t, std::size_t, const ImportItemResult *item)
+        {
+            if (item && item->status == ImportItemStatus::kImported)
+            {
+                ++imported_progress;
+                if (imported_progress == 1U)
+                {
+                    std::error_code error;
+                    std::filesystem::remove_all(root / "resume-fixture", error);
+                    EXPECT_FALSE(error) << error.message();
+                }
+            }
+        });
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(first.value().resume_batch_id);
+    batch_id = first.value().resume_batch_id;
+    EXPECT_EQ(first.value().import.imported, 1U);
+    EXPECT_GE(first.value().import.failed, 1U);
+    EXPECT_FALSE(first.value().resume_checkpoint_cleared);
+
+    auto catalog = service->snapshot();
+    ASSERT_TRUE(catalog);
+    auto checkpoint = load_ingest_resume_checkpoint(catalog.value().database_path, *batch_id);
+    ASSERT_TRUE(checkpoint) << checkpoint.error().message;
+    EXPECT_EQ(checkpoint.value().completed_relative_paths.size(), 1U);
+
+    // Reconnect: restore fixture bytes for remaining objects.
+    std::filesystem::create_directories(fixture);
+    ASSERT_TRUE(write_jpeg(fixture / "a.jpg", QColor(1, 2, 3)));
+    ASSERT_TRUE(write_jpeg(fixture / "b.jpg", QColor(4, 5, 6)));
+    ASSERT_TRUE(write_jpeg(fixture / "c.jpg", QColor(7, 8, 9)));
+
+    IngestRequest resume = request;
+    resume.resume_batch_id = batch_id;
+    auto second = service->execute_ingest_detailed(resume);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_EQ(second.value().import.skipped, 1U);
+    EXPECT_EQ(second.value().import.imported, 2U);
+    EXPECT_EQ(second.value().import.failed, 0U);
+    EXPECT_TRUE(second.value().resume_checkpoint_cleared);
+    for (const auto &item : second.value().import.items)
+    {
+        if (item.status == ImportItemStatus::kSkipped)
+            EXPECT_EQ(reason_of(*item.error), "ingest_resume_already_completed");
+    }
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets);
+    EXPECT_EQ(assets.value().size(), 3U);
+    auto cleared = load_ingest_resume_checkpoint(catalog.value().database_path, *batch_id);
+    EXPECT_FALSE(cleared);
+    EXPECT_EQ(cleared.error().code, ErrorCode::kNotFound);
 }
 
 } // namespace ravo

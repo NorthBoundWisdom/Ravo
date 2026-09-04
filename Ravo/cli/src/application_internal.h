@@ -151,6 +151,8 @@ struct CatalogCliArguments
     std::string_view reference_asset;
     std::vector<std::string_view> destination_assets;
     bool user_initiated = false;
+    std::string_view ingest_transport;
+    std::string_view resume_batch_id;
     std::optional<std::int64_t> expected_revision;
     std::optional<std::int64_t> history_id;
 };
@@ -210,6 +212,9 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
                                                            const CatalogCliArguments &flags);
 [[nodiscard]] Result<LibraryQuery> build_library_query(const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue> run_catalog_facets_command(CatalogService &service,
+                                                           const CatalogCliArguments &flags);
+[[nodiscard]] Result<JsonValue> run_catalog_ingest_command(CatalogService &service,
+                                                           std::string_view subcommand,
                                                            const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue> run_catalog_cull_command(CatalogService &service,
                                                          std::string_view subcommand,

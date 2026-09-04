@@ -885,6 +885,9 @@ Result<ImportBatchResult> CatalogService::execute_import(
         case ImportItemStatus::kUnsupported:
             ++batch.unsupported;
             break;
+        case ImportItemStatus::kSkipped:
+            ++batch.skipped;
+            break;
         case ImportItemStatus::kFailed:
             ++batch.failed;
             break;

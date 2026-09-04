@@ -453,6 +453,19 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "--source-kind was specified twice");
             result.foreign_source_kind = value;
         }
+        else if (option == "--transport")
+        {
+            if (!result.ingest_transport.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--transport was specified twice");
+            result.ingest_transport = value;
+        }
+        else if (option == "--resume-batch-id")
+        {
+            if (!result.resume_batch_id.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--resume-batch-id was specified twice");
+            result.resume_batch_id = value;
+        }
         else if (option == "--burst-window-seconds")
         {
             if (result.burst_window_seconds)
