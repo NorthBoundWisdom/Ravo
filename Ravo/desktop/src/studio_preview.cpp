@@ -270,6 +270,85 @@ prepare_preview_analysis(const QImage &identity_image, const QImage &scope_sourc
 
 } // namespace
 
+#if defined(Q_OS_MACOS)
+void StudioPresenter::release_gpu_preview_presented_surface()
+{
+    if (gpu_preview_presented_surface_ != 0U)
+    {
+        studio_metal::release_iosurface(gpu_preview_presented_surface_);
+        gpu_preview_presented_surface_ = 0U;
+    }
+}
+
+void StudioPresenter::release_gpu_roi_presented_surface()
+{
+    if (gpu_roi_presented_surface_ != 0U)
+    {
+        studio_metal::release_iosurface(gpu_roi_presented_surface_);
+        gpu_roi_presented_surface_ = 0U;
+    }
+}
+
+bool StudioPresenter::publish_gpu_preview_presented_surface(const QImage &presented)
+{
+    if (presented.isNull() || presented.width() <= 0 || presented.height() <= 0)
+        return false;
+    auto created =
+        studio_metal::create_iosurface_rgba8(static_cast<std::uint32_t>(presented.width()),
+                                             static_cast<std::uint32_t>(presented.height()));
+    if (!created)
+        return false;
+    if (!studio_metal::write_rgb8_to_iosurface(created.value(), presented))
+    {
+        studio_metal::release_iosurface(created.value());
+        return false;
+    }
+    release_gpu_preview_presented_surface();
+    gpu_preview_presented_surface_ = created.value();
+    gpu_preview_native_surface_ = gpu_preview_presented_surface_;
+    gpu_preview_width_ = presented.width();
+    gpu_preview_height_ = presented.height();
+    return true;
+}
+
+bool StudioPresenter::publish_gpu_roi_presented_surface(const QImage &presented)
+{
+    if (presented.isNull() || presented.width() <= 0 || presented.height() <= 0)
+        return false;
+    auto created =
+        studio_metal::create_iosurface_rgba8(static_cast<std::uint32_t>(presented.width()),
+                                             static_cast<std::uint32_t>(presented.height()));
+    if (!created)
+        return false;
+    if (!studio_metal::write_rgb8_to_iosurface(created.value(), presented))
+    {
+        studio_metal::release_iosurface(created.value());
+        return false;
+    }
+    release_gpu_roi_presented_surface();
+    gpu_roi_presented_surface_ = created.value();
+    gpu_roi_native_surface_ = gpu_roi_presented_surface_;
+    gpu_roi_width_ = presented.width();
+    gpu_roi_height_ = presented.height();
+    return true;
+}
+#else
+void StudioPresenter::release_gpu_preview_presented_surface()
+{
+}
+void StudioPresenter::release_gpu_roi_presented_surface()
+{
+}
+bool StudioPresenter::publish_gpu_preview_presented_surface(const QImage &)
+{
+    return false;
+}
+bool StudioPresenter::publish_gpu_roi_presented_surface(const QImage &)
+{
+    return false;
+}
+#endif
+
 QImage
 StudioPresenter::apply_display_presentation_image(const QImage &output_referred,
                                                   const ColorProfileState &source_profile) const
@@ -354,9 +433,14 @@ void StudioPresenter::reapply_display_presentation_to_cached_previews()
             const QMutexLocker lock(&preview_image_mutex_);
             if (presented.cacheKey() != preview_image_.cacheKey())
             {
-                preview_image_ = std::move(presented);
+                preview_image_ = presented;
                 changed = true;
             }
+        }
+        if (gpu_preview_generation_ != 0U && publish_gpu_preview_presented_surface(presented))
+        {
+            ++gpu_preview_generation_;
+            changed = true;
         }
     }
     if (!comparison_before_base_image_.isNull())
@@ -544,6 +628,7 @@ void StudioPresenter::clear_displayed_preview()
     displayed_develop_.reset();
     gpu_preview_generation_ = 0;
     gpu_preview_native_surface_ = 0;
+    release_gpu_preview_presented_surface();
     gpu_preview_width_ = 0;
     gpu_preview_height_ = 0;
     clear_scopes();
@@ -855,6 +940,25 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
     {
         const QMutexLocker lock(&preview_image_mutex_);
         preview_image_ = presented;
+    }
+    // DISPLAY-01: never expose Engine IOSurface to QML; publish C++-presented RGB8.
+    if (gpu_preview_generation_ != 0U)
+    {
+        if (!publish_gpu_preview_presented_surface(presented))
+        {
+            release_gpu_preview_presented_surface();
+            gpu_preview_generation_ = 0;
+            gpu_preview_native_surface_ = 0;
+            gpu_preview_width_ = 0;
+            gpu_preview_height_ = 0;
+        }
+    }
+    else
+    {
+        release_gpu_preview_presented_surface();
+        gpu_preview_native_surface_ = 0;
+        gpu_preview_width_ = 0;
+        gpu_preview_height_ = 0;
     }
     const QSize viewport_size =
         stable_preview_viewport_size(QSize(preview_viewport_width_, preview_viewport_height_),
@@ -1354,10 +1458,9 @@ void StudioPresenter::clear_inspect_roi()
         const QMutexLocker lock(&preview_image_mutex_);
         inspect_roi_image_ = {};
     }
-    if (inspect_roi_url_.isEmpty() && inspect_roi_width_ == 0.0 && inspect_roi_height_ == 0.0)
-    {
-        return;
-    }
+    const bool had_roi = !inspect_roi_url_.isEmpty() || inspect_roi_width_ != 0.0 ||
+                         inspect_roi_height_ != 0.0 || gpu_roi_generation_ != 0U ||
+                         gpu_roi_presented_surface_ != 0U;
     inspect_roi_url_.clear();
     inspect_roi_x_ = 0.0;
     inspect_roi_y_ = 0.0;
@@ -1365,9 +1468,11 @@ void StudioPresenter::clear_inspect_roi()
     inspect_roi_height_ = 0.0;
     gpu_roi_generation_ = 0;
     gpu_roi_native_surface_ = 0;
+    release_gpu_roi_presented_surface();
     gpu_roi_width_ = 0;
     gpu_roi_height_ = 0;
-    emit inspectRoiChanged();
+    if (had_roi)
+        emit inspectRoiChanged();
 }
 
 void StudioPresenter::requestInspectRoi(const double x, const double y, const double width,
@@ -1429,9 +1534,10 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
                         return;
                     }
                     gpu_roi_generation_ = preview.value().gpu_display_generation;
-                    gpu_roi_native_surface_ = preview.value().gpu_display_native_surface;
+                    gpu_roi_native_surface_ = 0;
                     gpu_roi_width_ = static_cast<int>(preview.value().gpu_display_width);
                     gpu_roi_height_ = static_cast<int>(preview.value().gpu_display_height);
+                    QImage roi_base;
                     if (preview.value().gpu_display_generation != 0U && preview.value().rgb.empty())
                     {
                         if (preview.value().gpu_display_native_surface == 0U)
@@ -1439,6 +1545,21 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
                             setError(QStringLiteral("GPU inspect display is missing"));
                             return;
                         }
+#if defined(Q_OS_MACOS)
+                        auto snapshot = studio_metal::snapshot_iosurface_rgb8(
+                            preview.value().gpu_display_native_surface,
+                            preview.value().gpu_display_width, preview.value().gpu_display_height);
+                        if (!snapshot)
+                        {
+                            setError(qstring_from_utf8(snapshot.error().message));
+                            return;
+                        }
+                        roi_base = std::move(snapshot).value();
+#else
+                        setError(QStringLiteral(
+                            "GPU inspect display cannot be captured on this platform"));
+                        return;
+#endif
                     }
                     else
                     {
@@ -1448,8 +1569,28 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
                             setError(qstring_from_utf8(prepared.error().message));
                             return;
                         }
+                        roi_base = std::move(prepared).value();
                         const QMutexLocker lock(&preview_image_mutex_);
-                        inspect_roi_image_ = std::move(prepared).value();
+                        inspect_roi_image_ = roi_base;
+                    }
+                    if (gpu_roi_generation_ != 0U)
+                    {
+                        QImage presented_roi = apply_display_presentation_image(
+                            roi_base, preview.value().color_profile);
+                        if (!publish_gpu_roi_presented_surface(presented_roi))
+                        {
+                            release_gpu_roi_presented_surface();
+                            gpu_roi_generation_ = 0;
+                            gpu_roi_native_surface_ = 0;
+                            gpu_roi_width_ = 0;
+                            gpu_roi_height_ = 0;
+                            setError(QStringLiteral("GPU inspect presentation publish failed"));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        release_gpu_roi_presented_surface();
                     }
                     inspect_roi_x_ = roi.x;
                     inspect_roi_y_ = roi.y;

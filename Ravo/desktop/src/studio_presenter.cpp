@@ -198,6 +198,8 @@ StudioPresenter::StudioPresenter(QObject *parent)
 
 StudioPresenter::~StudioPresenter()
 {
+    release_gpu_preview_presented_surface();
+    release_gpu_roi_presented_surface();
     if (catalog_revision_timer_ != nullptr)
     {
         catalog_revision_timer_->stop();

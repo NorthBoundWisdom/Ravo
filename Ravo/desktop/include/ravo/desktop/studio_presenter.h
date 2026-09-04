@@ -1052,6 +1052,10 @@ private:
     void handle_display_presentation_changed();
     void reapply_display_presentation_to_cached_previews();
     void reapply_display_presentation_to_cached_thumbnails();
+    void release_gpu_preview_presented_surface();
+    void release_gpu_roi_presented_surface();
+    [[nodiscard]] bool publish_gpu_preview_presented_surface(const QImage &presented);
+    [[nodiscard]] bool publish_gpu_roi_presented_surface(const QImage &presented);
     void clear_thumbnail_presentation_cache();
     [[nodiscard]] QUrl present_gallery_thumbnail_url(const std::string &asset_id,
                                                      const QString &base_path,
@@ -1260,10 +1264,12 @@ private:
     double inspect_roi_height_ = 0.0;
     quint64 gpu_preview_generation_ = 0;
     quint64 gpu_preview_native_surface_ = 0;
+    quint64 gpu_preview_presented_surface_ = 0;
     int gpu_preview_width_ = 0;
     int gpu_preview_height_ = 0;
     quint64 gpu_roi_generation_ = 0;
     quint64 gpu_roi_native_surface_ = 0;
+    quint64 gpu_roi_presented_surface_ = 0;
     int gpu_roi_width_ = 0;
     int gpu_roi_height_ = 0;
     void clear_inspect_roi();

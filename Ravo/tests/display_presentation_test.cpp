@@ -264,7 +264,8 @@ TEST(DisplayPresentationTest, ViewContractsDeclarePixelKindsAndSoftProofOrder)
         EXPECT_EQ(entry.soft_proof_interaction, "after_soft_proof_display_only");
         if (entry.view_id == "loupe_preview" || entry.view_id == "develop_preview" ||
             entry.view_id == "before_after" || entry.view_id == "comparison" ||
-            entry.view_id == "magnifier" || entry.view_id == "gallery_thumbnail")
+            entry.view_id == "magnifier" || entry.view_id == "gallery_thumbnail" ||
+            entry.view_id == "gpu_native_preview")
         {
             EXPECT_EQ(entry.pixel_kind, DisplayViewPixelKind::kDisplayTransformed);
             saw_loupe = saw_loupe || entry.view_id == "loupe_preview";
@@ -277,7 +278,7 @@ TEST(DisplayPresentationTest, ViewContractsDeclarePixelKindsAndSoftProofOrder)
         }
         if (entry.view_id == "gpu_native_preview")
         {
-            EXPECT_EQ(entry.pixel_kind, DisplayViewPixelKind::kOutputReferred);
+            EXPECT_EQ(entry.pixel_kind, DisplayViewPixelKind::kDisplayTransformed);
         }
     }
     EXPECT_TRUE(saw_loupe);

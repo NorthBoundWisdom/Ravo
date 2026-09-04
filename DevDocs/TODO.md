@@ -84,7 +84,8 @@ resource defect preempts both streams.
 LOCAL-01 and EDITIN-01 Studio C2 evidence are on `main`. Recent work on
 CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
 moves in the intended direction. DISPLAY-01 is C2 with Gallery thumbnail
-monitor convert landed; GPU native + Linux discovery residuals remain;
+monitor convert + macOS GPU native owned-pixel presentation publish landed;
+interactive IQ GPU packed-delta + Linux discovery residuals remain;
 OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
 INGEST-01 is C2 for Studio filesystem-card + ptp-stub Copy ingest with fail-
 closed native probe (packaged ImageCapture/WinRT/libmtp residual is C3). AI
@@ -112,7 +113,7 @@ the next one.
 | 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; Win/Linux package TIFF residual |
 | 3 | CULL-01 | P1 | Keyboard C2; analysis C1+ decode-path/Exact-Near; corpora/index residual |
 | 4 | OFFLINE-01 | P1 | C2 Studio offline-edit proxies; C3 quota/corpus residual |
-| 5 | DISPLAY-01 | P1 | C2 + Gallery thumb convert; GPU native / Linux discovery residual |
+| 5 | DISPLAY-01 | P1 | C2 + Gallery/GPU owned present; Linux discovery / HDR residual |
 | 6 | INGEST-01 | P1 | C2 Studio filesystem-card + stub ingest; C3 packaged native adapters/hardware |
 | 7 | IQ-01 | P1 | C2 fixture evaluation workflow; C3 licensed corpus/human review/learned denoise |
 
@@ -288,8 +289,11 @@ admit. Documented observation ceilings from that host-local note (same SHA,
 adjacent revisit P90 ≤50 ms, loupe→Develop first-frame P90 ≤30 ms, warm preview
 P90 ≤5 ms, page P90 ≤2000 µs. Cold gallery→loupe (~6.7 s) and cold settled
 preview (~3.8 s P90) remain separately characterized. Large-library / Release
-same-corpus freeze and cross-host evidence remain open. Do not start PERF-02
-optimization work yet.
+same-corpus freeze and cross-host evidence remain open. Harness expand:
+`LargeLibrarySyntheticPageObservation` seeds synthetic N metadata assets
+(default 1000, override `RAVO_PERF01_LARGE_LIBRARY_N`) and emits observation-only
+`large_library_page_first` samples — **not** a budget admit and **not** PERF-02.
+Do not start PERF-02 optimization work yet.
 
 Measure complete user-visible paths with two warmups and at least eight recorded
 samples:
@@ -579,16 +583,26 @@ visible.
   scopes); view contract `gallery_thumbnail` is `display_transformed`; owned-
   pixel contract on synthetic matrix inject
   (`GalleryThumbnailAppliesMonitorPresentation`);
-- GPU native preview presentation parity (still declared `output_referred`;
-  CPU Loupe/Develop path remains display-transformed; Win/Linux discovery
-  residual honest);
+- [done] macOS GPU native preview presentation parity (owned-pixel): Studio
+  snapshots Engine IOSurface, applies the same `apply_display_presentation_rgb8`
+  contract, and publishes a Studio-owned presented IOSurface to QML (Engine
+  token never exposed). View contract `gpu_native_preview` is
+  `display_transformed`. Contract
+  `GpuNativeOwnedSurfaceAppliesMonitorPresentation` proves synthetic-matrix
+  pixel change + recipe JSON unchanged. Screen-move reapply republishes the
+  presented surface. ROI GPU path uses the same publish helper.
+- Residual: interactive Develop GPU **packed-delta vs CPU gold** remains an
+  IQ-00 residual (presentation now matches Loupe/Develop owned-pixel contract;
+  edit-math GPU delta is separate). Linux/non-Metal GPU publish, packaged Linux
+  monitor discovery, multi-display performance, and SDR/HDR policy stay residual.
 - Linux packaged monitor discovery (or keep fallback claim);
 - CPU/GPU matrix/LUT parity evidence, multi-display performance, SDR/HDR policy.
 
 **Acceptance gate:** display movement changes presentation only; recipe/history/
 catalog/export remain unchanged; every view declares pixel kind; transformed
 pixels are compared directly; unsupported states are visible. Met for C2 Studio
-CPU preview surfaces; residuals above remain for C3/host breadth.
+CPU + macOS GPU owned-pixel presentation surfaces; residuals above remain for
+C3/host breadth.
 
 ## INGEST-01 — Packaged native camera transport
 

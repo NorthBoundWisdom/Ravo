@@ -1,3 +1,7 @@
+#include <algorithm>
+#include <cstdint>
+#include <vector>
+
 #include <QColor>
 #include <QColorSpace>
 #include <QCoreApplication>
@@ -11,10 +15,15 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/domain/types.h"
 #include "ravo/domain/uri.h"
+#include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 #include "studio_test_support.h"
+#if defined(Q_OS_MACOS)
+#include "studio_iosurface_snapshot.h"
+#include "ravo/services/display_presentation.h"
+#endif
 
 namespace ravo
 {
@@ -207,6 +216,85 @@ TEST(StudioDisplayPresentationTest, GalleryThumbnailAppliesMonitorPresentation)
     }
     EXPECT_TRUE(saw_gallery);
 }
+
+#if defined(Q_OS_MACOS)
+TEST(StudioDisplayPresentationTest, GpuNativeOwnedSurfaceAppliesMonitorPresentation)
+{
+    ensure_qt_core();
+    auto created = studio_metal::create_iosurface_rgba8(32U, 24U);
+    ASSERT_TRUE(created) << created.error().message;
+    QImage source(32, 24, QImage::Format_RGB888);
+    source.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    source.fill(QColor(200, 40, 40));
+    ASSERT_TRUE(studio_metal::write_rgb8_to_iosurface(created.value(), source));
+
+    auto snap = studio_metal::snapshot_iosurface_rgb8(created.value(), 32U, 24U);
+    ASSERT_TRUE(snap) << snap.error().message;
+    EXPECT_EQ(snap.value().pixel(16, 12), source.pixel(16, 12));
+
+    auto presentation = make_synthetic_matrix_monitor_presentation(
+        {1.25f, 0.0f, 0.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f}, "gpu-native-matrix");
+    ASSERT_TRUE(presentation) << presentation.error().message;
+
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(32 * 24 * 3));
+    for (int y = 0; y < 24; ++y)
+    {
+        std::copy_n(source.constScanLine(y), 32U * 3U,
+                    pixels.begin() + static_cast<std::ptrdiff_t>(y * 32 * 3));
+    }
+    ColorProfileState srgb;
+    srgb.identifier = "srgb";
+    auto converted = apply_display_presentation_rgb8(pixels, 32U, 24U, srgb, presentation.value(),
+                                                     CancellationToken{});
+    ASSERT_TRUE(converted) << converted.error().message;
+    QImage presented(32, 24, QImage::Format_RGB888);
+    for (int y = 0; y < 24; ++y)
+    {
+        std::copy_n(converted.value().rgb8.data() + static_cast<std::ptrdiff_t>(y * 32 * 3),
+                    32U * 3U, presented.scanLine(y));
+    }
+    ASSERT_TRUE(studio_metal::write_rgb8_to_iosurface(created.value(), presented));
+    auto presented_snap = studio_metal::snapshot_iosurface_rgb8(created.value(), 32U, 24U);
+    ASSERT_TRUE(presented_snap) << presented_snap.error().message;
+    const QRgb out = presented_snap.value().pixel(16, 12);
+    EXPECT_NE(qRed(out), 200);
+    EXPECT_NE(qGreen(out), 40);
+    EXPECT_EQ(out, presented.pixel(16, 12));
+
+    DevelopParams develop;
+    develop.exposure_ev = 0.25;
+    const AssetDescriptor asset{"asset-gpu-present", "file:///fixture.raw", std::nullopt};
+    auto before_recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(before_recipe) << before_recipe.error().message;
+    auto before_json = serialize_recipe(before_recipe.value());
+    ASSERT_TRUE(before_json) << before_json.error().message;
+
+    StudioDisplayPresentation owner;
+    ASSERT_TRUE(owner.injectSyntheticMatrixForTesting());
+    ASSERT_TRUE(owner.applyScreenTokenForTesting(QStringLiteral("gpu-present-screen-b")));
+
+    auto after_recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(after_recipe) << after_recipe.error().message;
+    auto after_json = serialize_recipe(after_recipe.value());
+    ASSERT_TRUE(after_json) << after_json.error().message;
+    EXPECT_EQ(after_json.value(), before_json.value());
+    EXPECT_EQ(develop.exposure_ev, 0.25);
+
+    bool saw_gpu = false;
+    for (const auto &entry : owner.viewContracts())
+    {
+        const auto map = entry.toMap();
+        if (map.value(QStringLiteral("viewId")).toString() == QStringLiteral("gpu_native_preview"))
+        {
+            EXPECT_EQ(map.value(QStringLiteral("pixelKind")).toString(),
+                      QStringLiteral("display_transformed"));
+            saw_gpu = true;
+        }
+    }
+    EXPECT_TRUE(saw_gpu);
+    studio_metal::release_iosurface(created.value());
+}
+#endif
 
 } // namespace
 } // namespace ravo

@@ -18,7 +18,9 @@
 #include <QTimer>
 #include <QUrl>
 
+#include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/domain/types.h"
 #include "ravo/foundation/log.h"
 
 #include "interactive_perf_report.h"
@@ -393,6 +395,77 @@ TEST(StudioGalleryViewerDevelopPerformanceProbe, MeasuresGallerySelectLoupeDevel
                 });
         },
         "warm");
+}
+
+TEST(StudioGalleryViewerDevelopPerformanceProbe, LargeLibrarySyntheticPageObservation)
+{
+    // PERF-01 observation expand only — synthetic N assets, no budget admit / no PERF-02.
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-perf01-large-library");
+    std::size_t n = 1000U;
+    if (const char *raw = std::getenv("RAVO_PERF01_LARGE_LIBRARY_N"))
+    {
+        const auto parsed = std::strtoull(raw, nullptr, 10);
+        if (parsed >= 200ULL && parsed <= 20000ULL)
+            n = static_cast<std::size_t>(parsed);
+    }
+
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString catalog = directory.filePath(QStringLiteral("large-library.sqlite"));
+    auto repository = SqliteCatalogRepository::create(catalog.toStdString());
+    ASSERT_TRUE(repository) << repository.error().message;
+    for (std::size_t index = 0; index < n; ++index)
+    {
+        AssetRecord asset;
+        asset.id = "ast_perf01_" + std::to_string(index);
+        asset.normalized_uri = "file:///synthetic/perf01/photo-" + std::to_string(index) + ".jpg";
+        asset.media_type = "image/jpeg";
+        asset.size_bytes = static_cast<std::uint64_t>(1000U + index);
+        asset.mtime_unix_ms = static_cast<std::int64_t>(20'000U + index);
+        asset.width = 64U;
+        asset.height = 48U;
+        asset.created_unix_ms = static_cast<std::int64_t>(30'000U + index);
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset)) << index;
+    }
+    ASSERT_TRUE(repository.value()->close());
+    repository.value().reset();
+
+    const std::size_t warmups = warmups_from_env();
+    const std::size_t recorded = recorded_samples_from_env();
+    std::vector<std::int64_t> samples;
+    samples.reserve(recorded);
+    for (std::size_t i = 0; i < warmups + recorded; ++i)
+    {
+        auto open = SqliteCatalogRepository::open(catalog.toStdString());
+        ASSERT_TRUE(open) << open.error().message;
+        LibraryPageRequest request;
+        request.limit = kLibraryPageDefaultSize;
+        QElapsedTimer timer;
+        timer.start();
+        auto page = open.value()->list_assets_page(request);
+        const auto elapsed_us = timer.nsecsElapsed() / 1000;
+        ASSERT_TRUE(page) << page.error().message;
+        EXPECT_EQ(page.value().total, n);
+        EXPECT_LE(page.value().materialized_rows, kLibraryPageDefaultSize);
+        ASSERT_TRUE(open.value()->close());
+        if (i >= warmups)
+            samples.push_back(elapsed_us);
+    }
+    ASSERT_FALSE(samples.empty());
+    CaseMeta meta;
+    meta.case_id = "large_library_page_first";
+    meta.path = "large_library";
+    meta.unit = "us";
+    meta.cache_state = "warm";
+    meta.source_kind = "synthetic_metadata";
+    meta.file_count = n;
+    meta.warmups = warmups;
+    meta.recorded_samples = recorded;
+    meta.catalog_path = catalog.toStdString();
+    emit_case(meta, samples);
+    // Observation only: never admit a product budget here.
+    EXPECT_GT(samples.front(), 0);
 }
 
 } // namespace ravo

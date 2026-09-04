@@ -724,9 +724,10 @@ std::vector<DisplayViewPixelContract> display_presentation_view_contracts()
          "Magnifier zooms the active Loupe/Develop display-transformed pixels."},
         {"scopes", DisplayViewPixelKind::kAnalysisDiagnostic, "after_soft_proof_display_only",
          "Scopes analyze output-referred pixels; not monitor-converted."},
-        {"gpu_native_preview", DisplayViewPixelKind::kOutputReferred,
+        {"gpu_native_preview", DisplayViewPixelKind::kDisplayTransformed,
          "after_soft_proof_display_only",
-         "GPU native surfaces remain output-referred until GPU presentation parity."},
+         "Studio publishes C++-presented IOSurface RGB8 via apply_display_presentation_rgb8; "
+         "Engine GPU token is never QML-exposed. Linux/non-Metal publish residual."},
     };
 }
 
