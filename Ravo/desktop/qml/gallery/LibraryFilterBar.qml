@@ -62,6 +62,10 @@ Item {
             return root.presenter.colorFilters.length > 0;
         if (id === "rejected")
             return root.presenter.rejectFilter !== "include";
+        if (id === "cullFlag")
+            return root.presenter.cullFlagFilter !== "any";
+        if (id === "cullSuggestion")
+            return root.presenter.cullSuggestionFilter !== "none";
         if (id === "camera")
             return root.presenter.cameraFilter.length > 0;
         if (id === "lens")
@@ -95,6 +99,10 @@ Item {
             root.commands.setEditFilter("any");
         else if (id === "rejected")
             root.commands.run(root.commands.ids.librarySetRejectFilter, "include");
+        else if (id === "cullFlag" && root.hasPresenter)
+            root.presenter.setCullFlagFilter("any");
+        else if (id === "cullSuggestion" && root.hasPresenter)
+            root.presenter.setCullSuggestionFilter("none");
         else if (id === "camera")
             root.commands.setCameraFacetFilter("", "");
         else if (id === "lens")
@@ -352,6 +360,52 @@ Item {
                 }
 
                 RowLayout {
+                    objectName: "cullFlagFilterChips"
+                    visible: root.extraOpen("cullFlag")
+                    spacing: Fonts.size2
+                    Layout.alignment: Qt.AlignVCenter
+                    CustomComboBox {
+                        objectName: "cullFlagFilterCombo"
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 140
+                        model: [qsTr("Any review"), qsTr("Picked"), qsTr("Rejected"), qsTr("Unreviewed")]
+                        currentIndex: root.hasPresenter && root.presenter.cullFlagFilter === "picked" ? 1 : root.hasPresenter && root.presenter.cullFlagFilter === "rejected" ? 2 : root.hasPresenter && root.presenter.cullFlagFilter === "unreviewed" ? 3 : 0
+                        onActivated: function (index) {
+                            if (!root.hasPresenter)
+                                return;
+                            const mode = index === 1 ? "picked" : index === 2 ? "rejected" : index === 3 ? "unreviewed" : "any";
+                            root.presenter.setCullFlagFilter(mode);
+                        }
+                    }
+                    FilterCloseButton {
+                        onClicked: root.removeExtra("cullFlag")
+                    }
+                }
+
+                RowLayout {
+                    objectName: "cullSuggestionFilterChips"
+                    visible: root.extraOpen("cullSuggestion")
+                    spacing: Fonts.size2
+                    Layout.alignment: Qt.AlignVCenter
+                    CustomComboBox {
+                        objectName: "cullSuggestionFilterCombo"
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 170
+                        model: [qsTr("No suggestion"), qsTr("Exact duplicate"), qsTr("Near duplicate"), qsTr("Burst")]
+                        currentIndex: root.hasPresenter && root.presenter.cullSuggestionFilter === "exact_duplicate" ? 1 : root.hasPresenter && root.presenter.cullSuggestionFilter === "near_duplicate" ? 2 : root.hasPresenter && root.presenter.cullSuggestionFilter === "burst" ? 3 : 0
+                        onActivated: function (index) {
+                            if (!root.hasPresenter)
+                                return;
+                            const mode = index === 1 ? "exact_duplicate" : index === 2 ? "near_duplicate" : index === 3 ? "burst" : "none";
+                            root.presenter.setCullSuggestionFilter(mode);
+                        }
+                    }
+                    FilterCloseButton {
+                        onClicked: root.removeExtra("cullSuggestion")
+                    }
+                }
+
+                RowLayout {
                     visible: root.extraOpen("camera")
                     spacing: Fonts.size2
                     Layout.alignment: Qt.AlignVCenter
@@ -565,7 +619,7 @@ Item {
                     display: AbstractButton.IconOnly
                     icon.source: "qrc:/GeoControls/icons/Plus.svg"
                     tooltipText: qsTr("Add filter")
-                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected") || !root.extraOpen("camera") || !root.extraOpen("lens") || !root.extraOpen("lensName") || !root.extraOpen("captureDate") || !root.extraOpen("location")
+                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected") || !root.extraOpen("cullFlag") || !root.extraOpen("cullSuggestion") || !root.extraOpen("camera") || !root.extraOpen("lens") || !root.extraOpen("lensName") || !root.extraOpen("captureDate") || !root.extraOpen("location")
                     implicitWidth: Fonts.iconButtonSize
                     implicitHeight: Fonts.iconButtonSize
                     Layout.preferredWidth: implicitWidth

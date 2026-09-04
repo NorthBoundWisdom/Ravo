@@ -893,6 +893,7 @@ void StudioPresenter::previewDevelopNumber(const QString &name, const double val
 {
     DevelopParams next = develop_;
     const auto field = utf8_from_qstring(name);
+    capture_instance_front_for_field(next, field);
     if (is_develop_mask_field(field))
     {
         auto applied = apply_develop_field_strict(next, field, value);
@@ -911,6 +912,7 @@ void StudioPresenter::previewDevelopNumber(const QString &name, const double val
     {
         return;
     }
+    retarget_instance_edit_after_field(next, field);
     if (name == QLatin1String("straighten"))
     {
         if (crop_tool_active_)
@@ -1068,6 +1070,7 @@ void StudioPresenter::resetControl(const QString &name)
 {
     DevelopParams next = develop_;
     const auto field = utf8_from_qstring(name);
+    capture_instance_front_for_field(next, field);
     if (is_develop_mask_field(field))
     {
         auto reset = reset_develop_mask_field(next, field);
@@ -1086,6 +1089,7 @@ void StudioPresenter::resetControl(const QString &name)
     {
         return;
     }
+    retarget_instance_edit_after_field(next, field);
     mutate_develop(std::move(next), DevelopEdit::Commit, true, field);
 }
 

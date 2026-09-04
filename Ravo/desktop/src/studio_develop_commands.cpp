@@ -41,6 +41,7 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
 {
     DevelopParams next = develop_;
     const auto field = utf8_from_qstring(name);
+    capture_instance_front_for_field(next, field);
     if (is_develop_mask_field(field))
     {
         auto applied = apply_develop_field_strict(next, field, value);
@@ -59,6 +60,7 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     {
         return;
     }
+    retarget_instance_edit_after_field(next, field);
     const bool keep_crop_guide =
         crop_tool_active_ && crop_guide_ready_ &&
         (name == QLatin1String("straighten") || name.startsWith(QLatin1String("perspective")));

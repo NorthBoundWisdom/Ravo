@@ -106,12 +106,8 @@ void clamp_develop(DevelopParams &params) noexcept
     {
         clamp_color_balance(instance.params);
     }
-    if (!params.color_balance_rgb_instances.empty())
-    {
-        const auto &front = params.color_balance_rgb_instances.front();
-        params.color_balance_rgb = front.params;
-        params.color_balance_rgb_mask_id = front.mask_id;
-    }
+    // ADR-0145: do not overwrite the Color Balance RGB edit buffer from front().
+    // Studio keeps legacy fields on the selected instance; evaluation uses the vector.
     clamp_color_correction(params.color_correction);
     clamp_color_contrast(params.color_contrast);
     clamp_color_reconstruction(params.color_reconstruction);
@@ -169,18 +165,8 @@ void clamp_develop(DevelopParams &params) noexcept
             }
         }
     }
-    if (!params.exposure_instances.empty())
-    {
-        const auto &front = params.exposure_instances.front();
-        params.exposure_mode = front.mode;
-        params.exposure_black = front.black;
-        params.exposure_ev = front.exposure_ev;
-        params.exposure_deflicker_percentile = front.deflicker_percentile;
-        params.exposure_deflicker_target_ev = front.deflicker_target_ev;
-        params.exposure_compensate_exposure_bias = front.compensate_exposure_bias;
-        params.exposure_compensate_highlight_preservation = front.compensate_highlight_preservation;
-        params.exposure_mask_id = front.mask_id;
-    }
+    // ADR-0145: do not overwrite the Exposure edit buffer from front().
+    // Studio keeps legacy fields on the selected instance; evaluation uses the vector.
     params.contrast = clamp_value(params.contrast, -1.0, 1.0);
     params.highlights = clamp_value(params.highlights, -1.0, 1.0);
     params.shadows = clamp_value(params.shadows, -1.0, 1.0);

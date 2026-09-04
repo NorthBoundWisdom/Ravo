@@ -1720,5 +1720,39 @@ TEST(StudioCommands, EditInCommandsExposePrepareAndCheckReturned)
     EXPECT_TRUE(presenter.externalEditorSession().isEmpty());
 }
 
+TEST(StudioQmlContract, LibraryFilterBarExposesCullReviewAndSuggestionChips)
+{
+    QFile bar(QStringLiteral(RAVO_STUDIO_LIBRARY_FILTER_BAR_QML));
+    ASSERT_TRUE(bar.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto source = QString::fromUtf8(bar.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"cullFlagFilterChips\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"cullSuggestionFilterChips\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setCullFlagFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setCullSuggestionFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("unreviewed")));
+    EXPECT_TRUE(source.contains(QStringLiteral("near_duplicate")));
+    EXPECT_TRUE(source.contains(QStringLiteral("burst")));
+}
+
+TEST(StudioQmlContract, ExposureAndColorBalanceInstanceChrome)
+{
+    const auto source = combined_develop_qml_source();
+    ASSERT_FALSE(source.isEmpty());
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exposureInstanceChrome\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceRgbInstanceChrome\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("operation: \"exposure\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("operation: \"colorBalanceRgb\"")));
+
+    QFile chrome(QStringLiteral(RAVO_STUDIO_DEVELOP_INSTANCE_CHROME_QML));
+    ASSERT_TRUE(chrome.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto chrome_source = QString::fromUtf8(chrome.readAll());
+    EXPECT_TRUE(chrome_source.contains(QStringLiteral("addExposureInstance")));
+    EXPECT_TRUE(chrome_source.contains(QStringLiteral("addColorBalanceRgbInstance")));
+    EXPECT_TRUE(chrome_source.contains(QStringLiteral("setExposureInstanceBypass")));
+    EXPECT_TRUE(chrome_source.contains(QStringLiteral("reorderExposureInstance")));
+    EXPECT_TRUE(chrome_source.contains(QStringLiteral("deleteExposureInstance")));
+    EXPECT_TRUE(chrome_source.contains(QStringLiteral("renameExposureInstance")));
+}
+
 } // namespace
 } // namespace ravo

@@ -963,6 +963,133 @@ void StudioPresenter::setRejectFilter(const QString &mode)
     reloadVisibleAssets();
 }
 
+void StudioPresenter::setPickFilter(const QString &mode)
+{
+    PickFilter next = PickFilter::kInclude;
+    if (mode == QStringLiteral("exclude"))
+    {
+        next = PickFilter::kExclude;
+    }
+    else if (mode == QStringLiteral("only"))
+    {
+        next = PickFilter::kOnly;
+    }
+    if (query_.pick_filter == next)
+    {
+        return;
+    }
+    query_.pick_filter = next;
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
+void StudioPresenter::setCullFlagFilter(const QString &mode)
+{
+    CullFlagFilter next = CullFlagFilter::kAny;
+    if (mode == QStringLiteral("picked"))
+    {
+        next = CullFlagFilter::kPicked;
+    }
+    else if (mode == QStringLiteral("rejected"))
+    {
+        next = CullFlagFilter::kRejected;
+    }
+    else if (mode == QStringLiteral("unreviewed"))
+    {
+        next = CullFlagFilter::kUnreviewed;
+    }
+    else if (mode != QStringLiteral("any") && !mode.isEmpty())
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "Cull flag filter must be any, picked, rejected, or unreviewed."));
+        return;
+    }
+    if (query_.cull_flag_filter == next)
+    {
+        return;
+    }
+    query_.cull_flag_filter = next;
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
+void StudioPresenter::setCullSuggestionFilter(const QString &mode)
+{
+    const QString normalized = mode.trimmed().isEmpty() ? QStringLiteral("none") : mode.trimmed();
+    if (normalized != QStringLiteral("none") && normalized != QStringLiteral("exact_duplicate") &&
+        normalized != QStringLiteral("near_duplicate") && normalized != QStringLiteral("burst"))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter",
+            "Cull suggestion filter must be none, exact_duplicate, near_duplicate, or burst."));
+        return;
+    }
+    cull_suggestion_filter_ = normalized;
+    cull_suggestion_asset_ids_.clear();
+    if (!service_ || normalized == QStringLiteral("none"))
+    {
+        emit filterChanged();
+        reloadVisibleAssets();
+        return;
+    }
+    if (normalized == QStringLiteral("exact_duplicate"))
+    {
+        auto report = service_->find_exact_duplicate_groups({});
+        if (!report)
+        {
+            setError(qstring_from_utf8(report.error().message));
+            cull_suggestion_filter_ = QStringLiteral("none");
+            emit filterChanged();
+            return;
+        }
+        for (const auto &group : report.value().groups)
+        {
+            for (const auto &member : group.members)
+            {
+                cull_suggestion_asset_ids_.insert(member.asset_id);
+            }
+        }
+    }
+    else if (normalized == QStringLiteral("near_duplicate"))
+    {
+        auto report = service_->find_near_duplicate_groups({});
+        if (!report)
+        {
+            setError(qstring_from_utf8(report.error().message));
+            cull_suggestion_filter_ = QStringLiteral("none");
+            emit filterChanged();
+            return;
+        }
+        for (const auto &group : report.value().groups)
+        {
+            for (const auto &member : group.members)
+            {
+                cull_suggestion_asset_ids_.insert(member.asset_id);
+            }
+        }
+    }
+    else if (normalized == QStringLiteral("burst"))
+    {
+        auto report = service_->propose_burst_groups({});
+        if (!report)
+        {
+            setError(qstring_from_utf8(report.error().message));
+            cull_suggestion_filter_ = QStringLiteral("none");
+            emit filterChanged();
+            return;
+        }
+        for (const auto &proposal : report.value().proposals)
+        {
+            for (const auto &member : proposal.members)
+            {
+                cull_suggestion_asset_ids_.insert(member.asset_id);
+            }
+        }
+    }
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
 void StudioPresenter::setFilterText(const QString &text)
 {
     LibraryQuery next = query_;

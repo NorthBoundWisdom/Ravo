@@ -200,6 +200,12 @@ DevelopSection {
             text: qsTr("Hue")
             font.bold: true
         }
+        DevelopInstanceChrome {
+            objectName: "colorBalanceRgbInstanceChrome"
+            panel: sectionRoot.panel
+            operation: "colorBalanceRgb"
+            Layout.fillWidth: true
+        }
         DevelopColorSlider {
             objectName: "colorHueRotation"
             title: qsTr("Hue")

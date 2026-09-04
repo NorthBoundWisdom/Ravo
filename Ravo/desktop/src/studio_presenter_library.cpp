@@ -127,6 +127,41 @@ QString StudioPresenter::rejectFilter() const
     return reject_filter_name(query_.reject_filter);
 }
 
+QString StudioPresenter::pickFilter() const
+{
+    switch (query_.pick_filter)
+    {
+    case PickFilter::kExclude:
+        return QStringLiteral("exclude");
+    case PickFilter::kOnly:
+        return QStringLiteral("only");
+    case PickFilter::kInclude:
+        return QStringLiteral("include");
+    }
+    return QStringLiteral("include");
+}
+
+QString StudioPresenter::cullFlagFilter() const
+{
+    switch (query_.cull_flag_filter)
+    {
+    case CullFlagFilter::kPicked:
+        return QStringLiteral("picked");
+    case CullFlagFilter::kRejected:
+        return QStringLiteral("rejected");
+    case CullFlagFilter::kUnreviewed:
+        return QStringLiteral("unreviewed");
+    case CullFlagFilter::kAny:
+        return QStringLiteral("any");
+    }
+    return QStringLiteral("any");
+}
+
+QString StudioPresenter::cullSuggestionFilter() const
+{
+    return cull_suggestion_filter_;
+}
+
 QString StudioPresenter::filterText() const
 {
     return qstring_from_utf8(query_.text);
@@ -277,7 +312,10 @@ int StudioPresenter::visibleCount() const
 bool StudioPresenter::filtersActive() const noexcept
 {
     return query_.rating_mode != RatingFilterMode::kAny || !query_.color_labels.empty() ||
-           query_.reject_filter != RejectFilter::kInclude || !query_.tag.empty() ||
+           query_.reject_filter != RejectFilter::kInclude ||
+           query_.pick_filter != PickFilter::kInclude ||
+           query_.cull_flag_filter != CullFlagFilter::kAny ||
+           cull_suggestion_filter_ != QStringLiteral("none") || !query_.tag.empty() ||
            !query_.text.empty() || !query_.media_types.empty() ||
            query_.edit_filter != EditFilter::kAny || !query_.camera.empty() ||
            query_.camera_make_equals || query_.camera_model_equals || query_.lens_make_equals ||

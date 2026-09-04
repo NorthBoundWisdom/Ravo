@@ -12,6 +12,12 @@ DevelopSection {
     ColumnLayout {
         Layout.fillWidth: true
         width: parent.width
+        DevelopInstanceChrome {
+            objectName: "exposureInstanceChrome"
+            panel: sectionRoot.panel
+            operation: "exposure"
+            Layout.fillWidth: true
+        }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Exposure")

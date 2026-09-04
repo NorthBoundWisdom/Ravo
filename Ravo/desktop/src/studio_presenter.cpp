@@ -1009,9 +1009,25 @@ void StudioPresenter::reloadVisibleAssets()
                     if (listing.capture_facets && listing.location_facets)
                         applyFacets(std::move(listing.capture_facets).value(),
                                     std::move(listing.location_facets).value());
-                    applyAssets(
-                        std::move(listing.assets).value(), true, std::move(listing.thumbnail_urls),
-                        std::move(listing.thumbnail_states), listing.total, listing.has_more);
+                    auto assets = std::move(listing.assets).value();
+                    if (cull_suggestion_filter_ != QStringLiteral("none"))
+                    {
+                        std::vector<AssetRecord> filtered;
+                        filtered.reserve(assets.size());
+                        for (auto &asset : assets)
+                        {
+                            if (cull_suggestion_asset_ids_.count(asset.id) > 0U)
+                            {
+                                filtered.push_back(std::move(asset));
+                            }
+                        }
+                        listing.total = filtered.size();
+                        listing.has_more = false;
+                        assets = std::move(filtered);
+                    }
+                    applyAssets(std::move(assets), true, std::move(listing.thumbnail_urls),
+                                std::move(listing.thumbnail_states), listing.total,
+                                listing.has_more);
                 },
                 Qt::QueuedConnection);
         });

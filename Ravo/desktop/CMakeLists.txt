@@ -41,6 +41,7 @@ target_sources(ravo_desktop
     src/studio_develop_color_properties.cpp
     src/studio_develop_commands.cpp
     src/studio_develop_history.cpp
+    src/studio_develop_instances.cpp
     src/studio_develop_internal.cpp
     src/studio_develop_properties.cpp
     src/studio_develop_raw_properties.cpp
@@ -185,6 +186,7 @@ qt_add_qml_module(ravo_studio
     qml/inspect/MaskEditor.qml
     qml/inspect/ColorCheckerNumberField.qml
     qml/inspect/ColorContrastOffsetField.qml
+    qml/inspect/DevelopInstanceChrome.qml
     qml/inspect/DevelopLightSection.qml
     qml/inspect/DevelopCurvesSection.qml
     qml/inspect/DevelopColorCoreSection.qml

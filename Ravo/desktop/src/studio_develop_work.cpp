@@ -109,6 +109,9 @@ void StudioPresenter::load_develop_for_selection()
                         return;
                     }
                     develop_ = params.value();
+                    selected_exposure_instance_index_ = 0;
+                    selected_color_balance_rgb_instance_index_ = 0;
+                    sync_selected_instance_edit_buffers(develop_);
                     saved_develop_ = develop_;
                     develop_loaded_ = true;
                     develop_load_error_.clear();
@@ -303,6 +306,7 @@ bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
                                      std::optional<std::string> history_coalesce_key)
 {
     clamp_develop(next);
+    sync_selected_instance_edit_buffers(next);
     switch (edit)
     {
     case DevelopEdit::Overlay:

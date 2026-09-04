@@ -480,6 +480,27 @@ TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)
     EXPECT_EQ(filtered[0].id, "ast_a");
     EXPECT_EQ(filtered[1].id, "ast_c");
 
+    first.review.picked = true;
+    second.review.rejected = true;
+    second.review.picked = false;
+    third.review.picked = false;
+    third.review.rejected = false;
+    LibraryQuery only_picked;
+    only_picked.cull_flag_filter = CullFlagFilter::kPicked;
+    filtered = filter_and_sort_assets({first, second, third}, only_picked);
+    ASSERT_EQ(filtered.size(), 1U);
+    EXPECT_EQ(filtered[0].id, "ast_a");
+    LibraryQuery unreviewed;
+    unreviewed.cull_flag_filter = CullFlagFilter::kUnreviewed;
+    filtered = filter_and_sort_assets({first, second, third}, unreviewed);
+    ASSERT_EQ(filtered.size(), 1U);
+    EXPECT_EQ(filtered[0].id, "ast_c");
+    LibraryQuery only_pick_filter;
+    only_pick_filter.pick_filter = PickFilter::kOnly;
+    filtered = filter_and_sort_assets({first, second, third}, only_pick_filter);
+    ASSERT_EQ(filtered.size(), 1U);
+    EXPECT_EQ(filtered[0].id, "ast_a");
+
     LibraryQuery colors;
     colors.color_labels = {ColorLabel::kBlue};
     filtered = filter_and_sort_assets({first, second, third}, colors);

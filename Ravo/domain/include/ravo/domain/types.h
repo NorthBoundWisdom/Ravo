@@ -105,7 +105,7 @@ inline constexpr std::size_t kExportFilenameTemplateMaxBytes = 512U;
 inline constexpr std::size_t kExportFilenameMaxBytes = 240U;
 inline constexpr std::size_t kLibraryPageDefaultSize = 200U;
 inline constexpr std::size_t kLibraryPageMaximumSize = 512U;
-inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 4;
+inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersion = 5;
 inline constexpr std::int64_t kLibraryQueryDocumentSchemaVersionMin = 1;
 inline constexpr std::size_t kLibraryFacetMaximumValues = 2048U;
 inline constexpr std::size_t kLibrarySetNameMaxLength = 128;
@@ -252,6 +252,22 @@ enum class RejectFilter
     kOnly,
 };
 
+enum class PickFilter
+{
+    kInclude,
+    kExclude,
+    kOnly,
+};
+
+// ADR-0150/CULL-01: mutually exclusive review chips (any | picked | rejected | unreviewed).
+enum class CullFlagFilter
+{
+    kAny,
+    kPicked,
+    kRejected,
+    kUnreviewed,
+};
+
 enum class AssetSortField
 {
     kImportTime,
@@ -378,6 +394,8 @@ struct LibraryQuery
     int rating_value = 0;
     std::vector<ColorLabel> color_labels;
     RejectFilter reject_filter = RejectFilter::kInclude;
+    PickFilter pick_filter = PickFilter::kInclude;
+    CullFlagFilter cull_flag_filter = CullFlagFilter::kAny;
     AssetSortField sort_field = AssetSortField::kImportTime;
     SortDirection sort_direction = SortDirection::kDescending;
     std::string folder_uri;

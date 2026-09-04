@@ -100,6 +100,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(int ratingFilterValue READ ratingFilterValue NOTIFY filterChanged)
     Q_PROPERTY(QStringList colorFilters READ colorFilters NOTIFY filterChanged)
     Q_PROPERTY(QString rejectFilter READ rejectFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString pickFilter READ pickFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString cullFlagFilter READ cullFlagFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString cullSuggestionFilter READ cullSuggestionFilter NOTIFY filterChanged)
     Q_PROPERTY(QString filterText READ filterText NOTIFY filterChanged)
     Q_PROPERTY(QString mediaFilter READ mediaFilter NOTIFY filterChanged)
     Q_PROPERTY(QString editFilter READ editFilter NOTIFY filterChanged)
@@ -154,6 +157,13 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editChannelMixerBG READ editChannelMixerBG NOTIFY editChanged)
     Q_PROPERTY(double editChannelMixerBB READ editChannelMixerBB NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editExposureParams READ editExposureParams NOTIFY editChanged)
+    Q_PROPERTY(QVariantList exposureInstances READ exposureInstances NOTIFY editChanged)
+    Q_PROPERTY(
+        QString selectedExposureInstanceId READ selectedExposureInstanceId NOTIFY editChanged)
+    Q_PROPERTY(
+        QVariantList colorBalanceRgbInstances READ colorBalanceRgbInstances NOTIFY editChanged)
+    Q_PROPERTY(QString selectedColorBalanceRgbInstanceId READ selectedColorBalanceRgbInstanceId
+                   NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editExposureMask READ editExposureMask NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editHighlightsMask READ editHighlightsMask NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editShadowsMask READ editShadowsMask NOTIFY editChanged)
@@ -730,6 +740,22 @@ public:
     Q_INVOKABLE void setSelectedStackPick();
     Q_INVOKABLE void setCollapseStacks(bool collapse);
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
+    [[nodiscard]] QVariantList exposureInstances() const;
+    [[nodiscard]] QString selectedExposureInstanceId() const;
+    [[nodiscard]] QVariantList colorBalanceRgbInstances() const;
+    [[nodiscard]] QString selectedColorBalanceRgbInstanceId() const;
+    Q_INVOKABLE void selectExposureInstance(const QString &instanceId);
+    Q_INVOKABLE void selectColorBalanceRgbInstance(const QString &instanceId);
+    Q_INVOKABLE void addExposureInstance();
+    Q_INVOKABLE void addColorBalanceRgbInstance();
+    Q_INVOKABLE void deleteExposureInstance(const QString &instanceId);
+    Q_INVOKABLE void deleteColorBalanceRgbInstance(const QString &instanceId);
+    Q_INVOKABLE void renameExposureInstance(const QString &instanceId, const QString &name);
+    Q_INVOKABLE void renameColorBalanceRgbInstance(const QString &instanceId, const QString &name);
+    Q_INVOKABLE void setExposureInstanceBypass(const QString &instanceId, bool bypass);
+    Q_INVOKABLE void setColorBalanceRgbInstanceBypass(const QString &instanceId, bool bypass);
+    Q_INVOKABLE void reorderExposureInstance(int from, int to);
+    Q_INVOKABLE void reorderColorBalanceRgbInstance(int from, int to);
     Q_INVOKABLE void setDevelopText(const QString &name, const QString &value);
     Q_INVOKABLE void addRetouchRegion(const QVariantMap &region);
     Q_INVOKABLE void removeRetouchRegion(int index);
@@ -814,6 +840,12 @@ public:
     Q_INVOKABLE void setRatingFilter(const QString &mode, int value);
     Q_INVOKABLE void toggleColorFilter(const QString &label);
     Q_INVOKABLE void setRejectFilter(const QString &mode);
+    Q_INVOKABLE void setPickFilter(const QString &mode);
+    Q_INVOKABLE void setCullFlagFilter(const QString &mode);
+    Q_INVOKABLE void setCullSuggestionFilter(const QString &mode);
+    [[nodiscard]] QString pickFilter() const;
+    [[nodiscard]] QString cullFlagFilter() const;
+    [[nodiscard]] QString cullSuggestionFilter() const;
     Q_INVOKABLE void setFilterText(const QString &text);
     Q_INVOKABLE void setMediaFilter(const QString &mode);
     Q_INVOKABLE void setEditFilter(const QString &mode);
@@ -1010,6 +1042,8 @@ private:
     FilesystemBrowserModel import_source_folders_;
     FilesystemBrowserModel import_destination_folders_;
     LibraryQuery query_;
+    QString cull_suggestion_filter_{QStringLiteral("none")};
+    std::unordered_set<std::string> cull_suggestion_asset_ids_;
     LibraryCaptureFacets capture_facets_;
     LibraryLocationFacets location_facets_;
     QString catalog_path_;
@@ -1141,7 +1175,15 @@ private:
                             DevelopEdit edit);
     void sync_curve_ui_from_develop();
 
+    void capture_instance_front_for_field(const DevelopParams &params, std::string_view field);
+    void retarget_instance_edit_after_field(DevelopParams &params, std::string_view field);
+    void sync_selected_instance_edit_buffers(DevelopParams &params);
+
     DevelopParams develop_{};
+    std::size_t selected_exposure_instance_index_ = 0;
+    std::size_t selected_color_balance_rgb_instance_index_ = 0;
+    std::optional<DevelopExposureInstance> exposure_front_restore_;
+    std::optional<DevelopColorBalanceRgbInstance> color_balance_rgb_front_restore_;
     bool develop_loaded_ = false;
     QString develop_load_error_;
     int curve_family_ = 0;

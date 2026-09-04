@@ -292,5 +292,55 @@ TEST(LocalAdjustmentMultiInstanceTest, LegacySingleColorBalanceRgbUnchangedWhenI
     EXPECT_DOUBLE_EQ(back.value().color_balance_rgb.contrast, 0.3);
 }
 
+TEST(LocalAdjustmentMultiInstanceTest, StudioInstanceHelpersAddReorderBypassDelete)
+{
+    DevelopParams develop;
+    develop.exposure_ev = 0.2;
+    auto added = add_exposure_instance(develop);
+    ASSERT_TRUE(added) << added.error().message;
+    ASSERT_EQ(develop.exposure_instances.size(), 2U);
+    EXPECT_DOUBLE_EQ(develop.exposure_instances.front().exposure_ev, 0.2);
+    const auto second_id = develop.exposure_instances[1].instance_id;
+    ASSERT_TRUE(rename_exposure_instance(develop, second_id, "Dodge"));
+    ASSERT_TRUE(set_exposure_instance_bypass(develop, second_id, true));
+    EXPECT_TRUE(develop.exposure_instances[1].bypass);
+    ASSERT_TRUE(reorder_exposure_instance(develop, 1, 0));
+    EXPECT_EQ(develop.exposure_instances.front().instance_id, second_id);
+    ASSERT_TRUE(delete_exposure_instance(develop, second_id));
+    ASSERT_EQ(develop.exposure_instances.size(), 1U);
+
+    DevelopParams color;
+    auto color_added = add_color_balance_rgb_instance(color);
+    ASSERT_TRUE(color_added) << color_added.error().message;
+    ASSERT_EQ(color.color_balance_rgb_instances.size(), 2U);
+    const auto color_id = color.color_balance_rgb_instances[1].instance_id;
+    ASSERT_TRUE(set_color_balance_rgb_instance_bypass(color, color_id, true));
+    ASSERT_TRUE(reorder_color_balance_rgb_instance(color, 1, 0));
+    EXPECT_EQ(color.color_balance_rgb_instances.front().instance_id, color_id);
+    ASSERT_TRUE(delete_color_balance_rgb_instance(color, color_id));
+    ASSERT_EQ(color.color_balance_rgb_instances.size(), 1U);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, SelectedInstanceEditBufferSurvivesClamp)
+{
+    DevelopParams develop;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-global";
+    global.exposure_ev = 0.1;
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-local";
+    local.exposure_ev = 0.5;
+    develop.exposure_instances = {global, local};
+    load_exposure_instance_into_legacy(develop, 1);
+    EXPECT_DOUBLE_EQ(develop.exposure_ev, 0.5);
+    develop.exposure_ev = -0.25;
+    mirror_legacy_exposure_into_instance(develop, 1);
+    clamp_develop(develop);
+    load_exposure_instance_into_legacy(develop, 1);
+    EXPECT_DOUBLE_EQ(develop.exposure_ev, -0.25);
+    EXPECT_DOUBLE_EQ(develop.exposure_instances[0].exposure_ev, 0.1);
+    EXPECT_DOUBLE_EQ(develop.exposure_instances[1].exposure_ev, -0.25);
+}
+
 } // namespace
 } // namespace ravo

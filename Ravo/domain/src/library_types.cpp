@@ -358,6 +358,48 @@ bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
         }
         break;
     }
+
+    switch (query.pick_filter)
+    {
+    case PickFilter::kInclude:
+        break;
+    case PickFilter::kExclude:
+        if (asset.review.picked)
+        {
+            return false;
+        }
+        break;
+    case PickFilter::kOnly:
+        if (!asset.review.picked)
+        {
+            return false;
+        }
+        break;
+    }
+
+    switch (query.cull_flag_filter)
+    {
+    case CullFlagFilter::kAny:
+        break;
+    case CullFlagFilter::kPicked:
+        if (!asset.review.picked)
+        {
+            return false;
+        }
+        break;
+    case CullFlagFilter::kRejected:
+        if (!asset.review.rejected)
+        {
+            return false;
+        }
+        break;
+    case CullFlagFilter::kUnreviewed:
+        if (asset.review.picked || asset.review.rejected)
+        {
+            return false;
+        }
+        break;
+    }
     if (!asset_in_folder(asset, query.folder_uri))
     {
         return false;
@@ -1094,6 +1136,63 @@ namespace
                       {{"reject_filter", std::string(name)}, {"reason", "invalid_library_query"}});
 }
 
+[[nodiscard]] const char *pick_filter_name(const PickFilter mode) noexcept
+{
+    switch (mode)
+    {
+    case PickFilter::kInclude:
+        return "include";
+    case PickFilter::kExclude:
+        return "exclude";
+    case PickFilter::kOnly:
+        return "only";
+    }
+    return "include";
+}
+
+[[nodiscard]] Result<PickFilter> parse_pick_filter_name(const std::string_view name)
+{
+    if (name == "include")
+        return PickFilter::kInclude;
+    if (name == "exclude")
+        return PickFilter::kExclude;
+    if (name == "only")
+        return PickFilter::kOnly;
+    return make_error(ErrorCode::kValidation, "Library pick filter is invalid",
+                      {{"pick_filter", std::string(name)}, {"reason", "invalid_library_query"}});
+}
+
+[[nodiscard]] const char *cull_flag_filter_name(const CullFlagFilter mode) noexcept
+{
+    switch (mode)
+    {
+    case CullFlagFilter::kAny:
+        return "any";
+    case CullFlagFilter::kPicked:
+        return "picked";
+    case CullFlagFilter::kRejected:
+        return "rejected";
+    case CullFlagFilter::kUnreviewed:
+        return "unreviewed";
+    }
+    return "any";
+}
+
+[[nodiscard]] Result<CullFlagFilter> parse_cull_flag_filter_name(const std::string_view name)
+{
+    if (name == "any")
+        return CullFlagFilter::kAny;
+    if (name == "picked")
+        return CullFlagFilter::kPicked;
+    if (name == "rejected")
+        return CullFlagFilter::kRejected;
+    if (name == "unreviewed")
+        return CullFlagFilter::kUnreviewed;
+    return make_error(
+        ErrorCode::kValidation, "Library cull flag filter is invalid",
+        {{"cull_flag_filter", std::string(name)}, {"reason", "invalid_library_query"}});
+}
+
 [[nodiscard]] const char *edit_filter_name(const EditFilter mode) noexcept
 {
     switch (mode)
@@ -1298,6 +1397,8 @@ Result<std::string> serialize_library_query_document(const LibraryQuery &query)
         {"rating_value", JsonValue::number(std::to_string(query.rating_value))},
         {"color_labels", std::move(colors)},
         {"reject_filter", reject_filter_name(query.reject_filter)},
+        {"pick_filter", pick_filter_name(query.pick_filter)},
+        {"cull_flag_filter", cull_flag_filter_name(query.cull_flag_filter)},
         {"sort_field", sort_field_name(query.sort_field)},
         {"sort_direction", query.sort_direction == SortDirection::kAscending ? "asc" : "desc"},
         {"folder_uri", query.folder_uri},
@@ -1352,11 +1453,13 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
         return make_error(ErrorCode::kValidation, "Library query document must be an object",
                           {{"reason", "invalid_library_query"}});
     }
-    static constexpr std::array<std::string_view, 32> kKeys{"schema_version",
+    static constexpr std::array<std::string_view, 34> kKeys{"schema_version",
                                                             "rating_mode",
                                                             "rating_value",
                                                             "color_labels",
                                                             "reject_filter",
+                                                            "pick_filter",
+                                                            "cull_flag_filter",
                                                             "sort_field",
                                                             "sort_direction",
                                                             "folder_uri",
@@ -1415,6 +1518,7 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
     const bool schema_v2 = *schema_version.value() >= 2;
     const bool schema_v3 = *schema_version.value() >= 3;
     const bool schema_v4 = *schema_version.value() >= 4;
+    const bool schema_v5 = *schema_version.value() >= 5;
     LibraryQuery query;
     auto rating_mode = required_string(parsed.value(), "rating_mode");
     if (!rating_mode)
@@ -1463,6 +1567,31 @@ Result<LibraryQuery> parse_library_query_document(const std::string_view json)
     if (!parsed_reject)
         return parsed_reject.error();
     query.reject_filter = parsed_reject.value();
+    if (schema_v5)
+    {
+        auto pick = required_string(parsed.value(), "pick_filter");
+        if (!pick)
+        {
+            return pick.error();
+        }
+        auto parsed_pick = parse_pick_filter_name(pick.value());
+        if (!parsed_pick)
+        {
+            return parsed_pick.error();
+        }
+        query.pick_filter = parsed_pick.value();
+        auto cull_flag = required_string(parsed.value(), "cull_flag_filter");
+        if (!cull_flag)
+        {
+            return cull_flag.error();
+        }
+        auto parsed_cull = parse_cull_flag_filter_name(cull_flag.value());
+        if (!parsed_cull)
+        {
+            return parsed_cull.error();
+        }
+        query.cull_flag_filter = parsed_cull.value();
+    }
     auto sort_field = required_string(parsed.value(), "sort_field");
     if (!sort_field)
         return sort_field.error();

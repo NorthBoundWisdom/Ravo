@@ -5,7 +5,7 @@
 > **Updated:** 2026-09-04
 >
 > **Review basis:** `main` through ADR-0153 (SPECIALIZE tethered deferred) plus ADR-0152 and
-> Studio Edit-in chrome; next free ADR **0154**.
+> Studio multi-instance chrome + cull filter chips; next free ADR **0154**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -327,14 +327,13 @@ workflow before admitting another product area.
 
 ## LOCAL-01 — Professional multi-instance local adjustments
 
-**Status:** ADR-0145 and first Exposure/Color Balance RGB multi-instance
-serialization/inspection slices are on `main`; the photographer workflow is
-incomplete.
+**Status:** ADR-0145 serialization/inspection plus Studio Exposure/Color Balance
+RGB instance chrome (list/select/name/bypass/reorder/add/delete) are on `main`;
+mask authoring completeness and history/style/batch still residual.
 
 **Remaining work:**
 
-- Studio instance list with create, name, select, bypass, enable, reorder,
-  duplicate, and delete;
+- enable toggle polish and duplicate-instance action if still needed beyond add;
 - complete brush/path/linear/radial/parametric authoring, overlay visibility,
   feather, flow/density where accepted, opacity, and
   Add/Subtract/Intersect/Invert composition;
@@ -429,10 +428,9 @@ Loupe/Develop do not consume the proxy while the original is absent.
 
 ## CULL-01 — Keyboard-first review and evaluated assistance
 
-**Status:** ADR-0147 exact-byte groups and burst propose/accept plus ADR-0149
-64-bit average-hash groups plus ADR-0150 keyboard cull-review (`picked` /
-`apply_cull_review` / CLI `cull-review`) are on `main`. These remain
-service/CLI foundations, not a complete Studio culling workflow.
+**Status:** ADR-0147/0149/0150 service/CLI foundations plus Studio Library filter
+chips for picked/rejected/unreviewed and optional exact/near-dup/burst
+suggestion groups are on `main`. Full keyboard chrome and Survey compare remain.
 
 **Correction:** ADR-0149 aHash is a bounded visual heuristic. It is not a
 quality-complete near-duplicate classifier, does not currently cover every RAW
@@ -447,8 +445,9 @@ no auto-delete.
 
 - Studio keyboard chrome / visible shortcut state for the ADR-0150 service;
 - synchronized 1:1/focus inspection for burst members and fast Survey compare;
-- Library filters for unreviewed, picked, rejected, exact duplicate, heuristic
-  similar, and burst groups;
+- Library filter chips for picked/rejected/unreviewed and optional
+  exact/near-dup/burst suggestion groups landed; deepen persistent fingerprint
+  lifecycle, dismiss state, and corpus precision/recall next;
 - persistent/incremental fingerprint and proposal lifecycle with invalidation on
   source identity changes, bounded storage, dismiss state, and cancellation;
 - produce fingerprints through an accepted Ravo image resource path, including

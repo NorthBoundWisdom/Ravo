@@ -640,6 +640,47 @@ rgb_curve_to_parameters(const RgbCurveParams &params);
 [[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
 raw_denoise_to_parameters(double threshold, const std::array<std::array<double, 5>, 4> &bands);
 
+// ADR-0145 Studio multi-instance edit buffer helpers. When an instance vector is
+// non-empty it is evaluation authority; legacy Exposure / Color Balance RGB
+// fields are the selected-instance edit buffer for thin Studio bindings.
+void mirror_legacy_exposure_into_instance(DevelopParams &params, std::size_t index) noexcept;
+void load_exposure_instance_into_legacy(DevelopParams &params, std::size_t index) noexcept;
+void mirror_legacy_color_balance_rgb_into_instance(DevelopParams &params,
+                                                   std::size_t index) noexcept;
+void load_color_balance_rgb_instance_into_legacy(DevelopParams &params, std::size_t index) noexcept;
+[[nodiscard]] std::size_t ensure_exposure_instances(DevelopParams &params);
+[[nodiscard]] std::size_t ensure_color_balance_rgb_instances(DevelopParams &params);
+[[nodiscard]] Result<std::string> add_exposure_instance(DevelopParams &params);
+[[nodiscard]] Result<std::string> add_color_balance_rgb_instance(DevelopParams &params);
+[[nodiscard]] Result<void> delete_exposure_instance(DevelopParams &params,
+                                                    std::string_view instance_id);
+[[nodiscard]] Result<void> delete_color_balance_rgb_instance(DevelopParams &params,
+                                                             std::string_view instance_id);
+[[nodiscard]] Result<void> rename_exposure_instance(DevelopParams &params,
+                                                    std::string_view instance_id,
+                                                    std::string_view name);
+[[nodiscard]] Result<void> rename_color_balance_rgb_instance(DevelopParams &params,
+                                                             std::string_view instance_id,
+                                                             std::string_view name);
+[[nodiscard]] Result<void> set_exposure_instance_bypass(DevelopParams &params,
+                                                        std::string_view instance_id, bool bypass);
+[[nodiscard]] Result<void> set_color_balance_rgb_instance_bypass(DevelopParams &params,
+                                                                 std::string_view instance_id,
+                                                                 bool bypass);
+[[nodiscard]] Result<void>
+set_exposure_instance_enabled(DevelopParams &params, std::string_view instance_id, bool enabled);
+[[nodiscard]] Result<void> set_color_balance_rgb_instance_enabled(DevelopParams &params,
+                                                                  std::string_view instance_id,
+                                                                  bool enabled);
+[[nodiscard]] Result<void> reorder_exposure_instance(DevelopParams &params, std::size_t from,
+                                                     std::size_t to);
+[[nodiscard]] Result<void> reorder_color_balance_rgb_instance(DevelopParams &params,
+                                                              std::size_t from, std::size_t to);
+[[nodiscard]] std::optional<std::size_t> find_exposure_instance_index(const DevelopParams &params,
+                                                                      std::string_view instance_id);
+[[nodiscard]] std::optional<std::size_t>
+find_color_balance_rgb_instance_index(const DevelopParams &params, std::string_view instance_id);
+
 void clamp_develop(DevelopParams &params) noexcept;
 enum class DevelopSetFieldKind : std::uint8_t
 {
