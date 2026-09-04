@@ -868,7 +868,7 @@ publishes no derived asset, and leaves the source original byte-identical.
 [--ensure]` reports browse-only Smart Preview status under
 `{catalog}.ravo/smart-previews/`; `develop_fallback` is always false, and
 `--ensure` reports `smart_preview_encoder_unavailable` until an encoder is
-packaged.
+packaged. ADR-0146 adds offline-edit proxies under `{catalog}.ravo/offline-edit-proxies/` via `catalog offline-proxy-create|list|verify|reconnect` (export fail-closed with `proxy_export_forbidden` when originals are offline).
 
 `ravo catalog ai-suggest --catalog <library.sqlite> --asset-id <id>
 --suggestion-kind keyword|caption|focus|duplicate --user-initiated` creates an

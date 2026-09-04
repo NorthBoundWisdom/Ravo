@@ -153,3 +153,4 @@ supersession relationship when direction changes.
 | [0143](0143-crs-process-version-matrix.md) | Accepted | CRS ProcessVersion supported vs fail-closed matrix; xmp-status reports version class |
 | [0144](0144-per-display-icc-presentation.md) | Accepted | Per-display ICC is presentation-only; C++ owns preview→monitor; sRGB fallback; synthetic test profiles |
 | [0145](0145-multi-instance-local-adjustments.md) | Accepted | Multi-instance Exposure/Color Balance RGB; name/bypass/reorder; mask leaves reuse ADR-0043/0116; XMP fail-closed |
+| [0146](0146-offline-edit-proxy.md) | Accepted | Offline-edit proxy class distinct from browse-only Smart Preview; export fail-closed without original |

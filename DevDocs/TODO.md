@@ -403,53 +403,32 @@ one-off masked fields.
 
 ## OFFLINE-01 — Smart Preview and offline-original editing
 
-**Status:** P1 decision required.
+**Status:** P1 first Ready landed (ADR-0146). Residuals remain.
 
-Define a Ravo-owned proxy contract independent of adjacent XMP and independent
-of destructive DNG conversion.
+**Closed in this tranche (local `main`):**
 
-**Residual from ADR-0141 / backup v3:** dated Copy-mode side-conversion + Smart
-Preview browse-only policy and fail-closed service/CLI stubs
-(`catalog dng-convert`, `catalog smart-preview`) when no packaged
-converter/encoder is recorded. Smart Previews remain browse-only under
-`{catalog}.ravo/smart-previews/` and never Develop fallbacks; originals are
-never replaced. ADR-0136 backup format v3 packages `dng-conversion/` and
-`smart-previews/` with SHA-256 manifests. Full offline-original editing,
-generation policy, quota/eviction, and packaged converters remain unfinished
-here.
+- ADR-0146 accepts an explicit **offline-edit proxy** class under
+  `{catalog}.ravo/offline-edit-proxies/` (distinct from ADR-0141 browse-only
+  Smart Preview).
+- Service/CLI: `offline-proxy-create|list|verify|status|reconnect` with
+  source hash + recipe cache key + max edge + `srgb` profile; machine states
+  `original|proxy|placeholder|missing`.
+- Offline Develop recipe apply while original is stashed; export fail-closed
+  with `proxy_export_forbidden` (v1: no proxy export); reconnect verifies
+  source SHA-256 then returns to original-backed export.
 
-**Decision required:**
+**Still open:**
 
-- proxy format, bit depth, colour/profile identity, maximum dimensions,
-  compression, source hash/revision, recipe/cache key, and storage root;
-- whether proxies are rebuildable cache, retained derived resources, or a
-  separate class with explicit backup policy;
-- generation on import, on selection, by collection, and on demand;
-- byte quota, eviction, pinning, cancellation, corruption, and disk-full
-  behavior;
-- source-offline browse/develop semantics and explicit export restrictions;
-- reconnect/relink verification and re-render from the original;
-- UI and machine state that distinguishes original, proxy, embedded placeholder,
-  and missing media.
+- delete/pin/quota/eviction and background generation policy;
+- Studio status/storage chrome;
+- Develop/loupe render path consuming the offline-edit proxy when original is
+  offline (recipe writes already work);
+- backup/restore packaging of `offline-edit-proxies/` (ADR-0136 extension);
+- packaged Smart Preview / DNG converter enablement (ADR-0141 residual).
 
-**First bounded tranche:**
-
-- create/delete/list/verify proxies for explicit assets;
-- edit, history, metadata, culling, collections, and reopen while originals are
-  offline;
-- automatic return to original-backed rendering after verified reconnect;
-- Studio status and storage management;
-- CLI/service tests before background generation policy.
-
-**Acceptance gate:**
-
-- originals remain byte-identical and the proxy never becomes edit authority;
-- offline edits are ordinary canonical recipes and re-render identically after
-  reconnect within the accepted source-resolution contract;
-- no full-resolution export silently uses a proxy;
-- missing/corrupt/stale proxies have explicit recoverable states;
-- quota and eviction are byte-bounded and never delete a pinned resource;
-- backup/restore and catalog relocation behavior are explicitly tested.
+**Acceptance gate:** unchanged for remaining residuals; first Ready proves
+create/verify, offline develop apply, export rejection, and reconnect hash
+check with originals byte-identical.
 
 ## CULL-01 — High-throughput review, burst grouping, and duplicate assistance
 

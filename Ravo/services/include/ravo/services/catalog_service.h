@@ -27,6 +27,7 @@
 #include "ravo/services/external_editor.h"
 #include "ravo/services/foreign_catalog.h"
 #include "ravo/services/dng_smart_preview.h"
+#include "ravo/services/offline_edit_proxy.h"
 #include "ravo/services/ingest_transport.h"
 
 namespace ravo
@@ -356,6 +357,19 @@ public:
     [[nodiscard]] Result<SmartPreviewStatus> smart_preview_status(std::string_view asset_id) const;
     [[nodiscard]] Result<SmartPreviewStatus>
     ensure_smart_preview(const SmartPreviewEnsureRequest &request);
+
+    // ADR-0146: offline-edit proxy (distinct from ADR-0141 Smart Preview).
+    // Create/list/verify; Develop/history while originals offline; export
+    // fail-closed without original; reconnect verifies source hash.
+    [[nodiscard]] Result<OfflineEditProxyCreateResult>
+    create_offline_edit_proxy(const OfflineEditProxyCreateRequest &request);
+    [[nodiscard]] Result<std::vector<OfflineEditProxyManifest>> list_offline_edit_proxies() const;
+    [[nodiscard]] Result<OfflineEditProxyStatus>
+    verify_offline_edit_proxy(std::string_view asset_id) const;
+    [[nodiscard]] Result<OfflineEditProxyStatus>
+    offline_edit_media_status(std::string_view asset_id) const;
+    [[nodiscard]] Result<OfflineEditProxyReconnectResult>
+    reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequest &request);
 
     // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
     // applied; reject/cancel never mutate recipe/history.

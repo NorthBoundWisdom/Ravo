@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "ravo/services/dng_smart_preview.h"
+#include "ravo/services/offline_edit_proxy.h"
 #include "ravo/services/foreign_catalog.h"
 
 namespace ravo::cli_internal
@@ -73,6 +74,43 @@ namespace
     for (const auto &item : report.items)
         items.push_back(item_json(item));
     object.emplace("items", std::move(items));
+    return JsonValue{std::move(object)};
+}
+
+[[nodiscard]] JsonValue offline_proxy_manifest_json(const OfflineEditProxyManifest &manifest)
+{
+    return JsonValue{JsonValue::Object{
+        {"schema", manifest.schema},
+        {"schema_version", JsonValue::number(std::to_string(manifest.schema_version))},
+        {"asset_id", manifest.asset_id},
+        {"source_sha256", manifest.source_sha256},
+        {"source_size_bytes", JsonValue::number(std::to_string(manifest.source_size_bytes))},
+        {"source_mtime_unix_ms", JsonValue::number(std::to_string(manifest.source_mtime_unix_ms))},
+        {"recipe_cache_key", manifest.recipe_cache_key},
+        {"max_edge", JsonValue::number(std::to_string(manifest.max_edge))},
+        {"profile", manifest.profile},
+        {"proxy_path", manifest.proxy_path},
+        {"proxy_sha256", manifest.proxy_sha256},
+        {"width", JsonValue::number(std::to_string(manifest.width))},
+        {"height", JsonValue::number(std::to_string(manifest.height))},
+        {"created_unix_ms", JsonValue::number(std::to_string(manifest.created_unix_ms))},
+    }};
+}
+
+[[nodiscard]] JsonValue offline_proxy_status_json(const OfflineEditProxyStatus &status)
+{
+    JsonValue::Object object{
+        {"schema", status.schema},
+        {"asset_id", status.asset_id},
+        {"media_state", std::string(offline_edit_media_state_name(status.media_state))},
+        {"proxy_present", status.proxy_present},
+        {"proxy_verified", status.proxy_verified},
+        {"usable_for_develop", status.usable_for_develop},
+        {"usable_for_export", status.usable_for_export},
+        {"reason", status.reason},
+    };
+    if (status.manifest)
+        object.emplace("manifest", offline_proxy_manifest_json(*status.manifest));
     return JsonValue{std::move(object)};
 }
 
@@ -148,6 +186,82 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         if (!status)
             return status.error();
         return smart_preview_status_json(status.value());
+    }
+
+    if (subcommand == "offline-proxy-create")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-create requires --asset-id");
+        }
+        if (!flags.user_initiated)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-create requires --user-initiated",
+                              {{"reason", "missing_user_initiated"}});
+        }
+        OfflineEditProxyCreateRequest request;
+        request.asset_id = std::string(flags.asset_id);
+        request.user_initiated = true;
+        if (flags.max_edge)
+            request.max_edge = *flags.max_edge;
+        // v1 profile is fixed to srgb (ADR-0146); do not reuse export delivery flags.
+        auto created = service.create_offline_edit_proxy(request);
+        if (!created)
+            return created.error();
+        return JsonValue{JsonValue::Object{
+            {"manifest", offline_proxy_manifest_json(created.value().manifest)},
+            {"originals_unchanged", created.value().originals_unchanged},
+        }};
+    }
+    if (subcommand == "offline-proxy-list")
+    {
+        auto listed = service.list_offline_edit_proxies();
+        if (!listed)
+            return listed.error();
+        JsonValue::Array items;
+        items.reserve(listed.value().size());
+        for (const auto &manifest : listed.value())
+            items.push_back(offline_proxy_manifest_json(manifest));
+        return JsonValue{JsonValue::Object{{"proxies", std::move(items)}}};
+    }
+    if (subcommand == "offline-proxy-verify" || subcommand == "offline-proxy-status")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-verify requires --asset-id");
+        }
+        auto status = service.verify_offline_edit_proxy(flags.asset_id);
+        if (!status)
+            return status.error();
+        return offline_proxy_status_json(status.value());
+    }
+    if (subcommand == "offline-proxy-reconnect")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-reconnect requires --asset-id");
+        }
+        if (!flags.user_initiated)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog offline-proxy-reconnect requires --user-initiated",
+                              {{"reason", "missing_user_initiated"}});
+        }
+        OfflineEditProxyReconnectRequest request;
+        request.asset_id = std::string(flags.asset_id);
+        request.user_initiated = true;
+        auto reconnected = service.reconnect_offline_edit_proxy(request);
+        if (!reconnected)
+            return reconnected.error();
+        return JsonValue{JsonValue::Object{
+            {"status", offline_proxy_status_json(reconnected.value().status)},
+            {"source_hash_matched", reconnected.value().source_hash_matched},
+            {"originals_unchanged", reconnected.value().originals_unchanged},
+        }};
     }
     if (subcommand != "convert-foreign")
     {

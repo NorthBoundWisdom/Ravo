@@ -723,8 +723,21 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         !exists_error;
     if (!original_exists)
     {
-        return make_error(ErrorCode::kNotFound, "Original file is missing",
-                          {{"asset_id", request.asset_id}, {"path", location.value().path}});
+        bool proxy_present = false;
+        auto snapshot = repository_->snapshot();
+        if (snapshot)
+        {
+            const auto proxy_root = snapshot.value().database_path + ".ravo/offline-edit-proxies/" +
+                                    request.asset_id + "/proxy.tif";
+            std::error_code proxy_error;
+            proxy_present = std::filesystem::is_regular_file(utf8_path(proxy_root), proxy_error) &&
+                            !proxy_error;
+        }
+        return make_error(
+            ErrorCode::kNotFound, "Original file is missing; export refuses offline-edit proxy",
+            {{"asset_id", request.asset_id},
+             {"path", location.value().path},
+             {"reason", proxy_present ? "proxy_export_forbidden" : "original_missing"}});
     }
 
     auto baseline_recipe = baseline_recipe_for(*asset.value(), location.value().path);
