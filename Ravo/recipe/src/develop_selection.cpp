@@ -636,7 +636,6 @@ std::vector<DevelopChange> develop_modified_fields(const DevelopParams &before,
 {
     std::vector<DevelopChange> changes;
     changes.reserve(kDevelopSelectableFields.size());
-    DevelopParams candidate = before;
     for (const auto field : kDevelopSelectableFields)
     {
         if (field == "masks")
@@ -645,9 +644,9 @@ std::vector<DevelopChange> develop_modified_fields(const DevelopParams &before,
                 changes.push_back({std::string(field), {}});
             continue;
         }
+        DevelopParams candidate = before;
         if (copy_develop_selected_field(candidate, after, field) && candidate != before)
             changes.push_back({std::string(field), {}});
-        static_cast<void>(copy_develop_selected_field(candidate, before, field));
     }
     return changes;
 }

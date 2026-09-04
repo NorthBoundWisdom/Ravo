@@ -542,6 +542,7 @@ TEST(RecipeStyleTest, SelectivePresetInventoryRejectsEmptyUnknownAndDuplicateFie
     DevelopParams baseline;
     DevelopParams edited;
     edited.exposure_ev = 0.5;
+    edited.exposure_instance_id_high_water = 7;
     edited.color_correction_enabled = true;
     edited.color_correction.highlight_a = 4.0;
     edited.demosaic_mode = std::string(kDemosaicModePpg);
