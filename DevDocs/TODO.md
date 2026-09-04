@@ -5,12 +5,13 @@
 > **Updated:** 2026-09-05
 >
 > **Review basis:** `main` through LOCAL-01 C2, EDITIN-01 C2, CULL-01 keyboard
-> C2, OFFLINE-01 C2, DISPLAY-01 C2, INGEST-01 C2 Studio filesystem-card +
-> ptp-stub ingest (native adapters residual), and IQ-01 C2 fixture evaluation.
-> REL-01 has macOS desensitized evidence on `07dbb9ef` (report
-> `20260905_020736`); Windows/Linux and full scenario matrix remain open. The
-> next free ADR number is **0157**, but new product ADRs are frozen by the
-> work-in-progress rule below.
+> C2 + analysis decode-path residual, OFFLINE-01 C2, DISPLAY-01 C2, INGEST-01 C2
+> Studio filesystem-card + ptp-stub ingest (native adapters residual), IQ-01 C2
+> fixture evaluation, and IQ-00 macOS contract expansions (CPU gold + GPU live
+> residual documented; Win/Linux not claimed). REL-01 has macOS desensitized
+> evidence on `07dbb9ef` (report `20260905_020736`); Windows/Linux and full
+> scenario matrix remain open. The next free ADR number is **0157**, but new
+> product ADRs are frozen by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -101,7 +102,7 @@ the next one.
 | ---: | --- | --- | --- |
 | 1 | LOCAL-01 | P1 | C2 Studio multi-instance local adjustments/masks; GPU residual after PERF-01 |
 | 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; package TIFF matrix residual |
-| 3 | CULL-01 | P1 | Keyboard C2; finish evaluated assistance (analysis C1+) |
+| 3 | CULL-01 | P1 | Keyboard C2; analysis C1+ decode-path; corpora/index residual |
 | 4 | OFFLINE-01 | P1 | C2 Studio offline-edit proxies; C3 quota/corpus residual |
 | 5 | DISPLAY-01 | P1 | Finish per-display ICC presentation on supported hosts and views |
 | 6 | INGEST-01 | P1 | C2 Studio filesystem-card + stub ingest; C3 packaged native adapters/hardware |
@@ -259,9 +260,15 @@ Do not commit absolute developer-machine paths as evidence.
 
 **Status:** Measurement harness exists. Host-local Gallery→viewer→Develop
 samples for SHA `07dbb9ef4aad…` are filed with REL-01 report
-`20260905_020736` (`PERF-01-host-local-budget-notes.json`) — observation only,
-not admitted product budgets. Large-library / Release same-corpus freeze and
-cross-host evidence remain open. Do not start PERF-02 optimization work yet.
+`20260905_020736` (`PERF-01-host-local-budget-notes.json`) — **observation-only
+machine-local Debug notes**, not admitted product budgets and **not** a PERF-02
+admit. Documented observation ceilings from that host-local note (same SHA,
+`mac_clang_debug`, warmups=2 / n=8 where recorded): warm gallery→loupe P90 ≤50 ms,
+adjacent revisit P90 ≤50 ms, loupe→Develop first-frame P90 ≤30 ms, warm preview
+P90 ≤5 ms, page P90 ≤2000 µs. Cold gallery→loupe (~6.7 s) and cold settled
+preview (~3.8 s P90) remain separately characterized. Large-library / Release
+same-corpus freeze and cross-host evidence remain open. Do not start PERF-02
+optimization work yet.
 
 Measure complete user-visible paths with two warmups and at least eight recorded
 samples:
@@ -306,8 +313,15 @@ package-size, or CPU-reference regression.
 
 ## IQ-00 — Rendering and colour consistency gate
 
-**Status:** ADR-0151 establishes CPU-gold policy; full corpus coverage remains
-open.
+**Status:** ADR-0151 CPU-gold policy plus macOS Debug/Release **contract**
+expansions on `main`: persist preview ↔ export RGB8 bit-exact + ICC identity,
+packed ROI crop reopen/export equality, interactive GPU packed-delta residual
+(with persist remaining CPU gold), and `catalog probe` `iq_consistency` policy
+JSON documenting host_scope=`macos_debug_release_contract`,
+`win_linux_hosts_claimed=false`, and GPU live residual (interactive develop +
+RAW viewport ROI). Catalog probe `Iq00RawRoiLiveVersusCpuExportDocumentsResidual`
+records that settled/reopen stay CPU gold while ROI may report GPU. **Not** a
+full corpus / Win/Linux / proof-monitor / multi-instance matrix closure.
 
 Complete a matrix across raster, Bayer, and X-Trans inputs; representative
 global and multi-instance edits; masks and geometry; built-in/file ICC input and
@@ -423,12 +437,14 @@ atomic; reopen/backup/restore/export work without CLI assembly.
 
 **Maturity:** Keyboard review **C2** on `main` (Pick/Reject/Unflag/rating/colour,
 auto-advance, previous-review undo, filters, Survey compare under paging /
-collapsed stacks / restart; COR-01 atomicity). Analysis **C1+**: bounded
-non-authoritative aHash with exact-byte vs heuristic `group_kind` in reports /
-Studio suggestion chips, fail-closed `max_assets`, incremental fingerprint cache
-(`{catalog}.cull/`) with source-identity invalidation, bounded entries, dismiss,
-cancel, and throttle. Not full analysis C2 (precision/recall corpora; RAW/
-orientation single decode path; pairwise O(N²) still capped rather than indexed).
+collapsed stacks / restart; COR-01 atomicity). Analysis **C1+** toward C2:
+bounded non-authoritative aHash with exact-byte vs heuristic `group_kind` in
+reports / Studio suggestion chips (Exact byte duplicate vs Near duplicate
+(heuristic)), one accepted RAW/raster fingerprint decode path, fail-closed
+`max_assets`, incremental fingerprint cache (`{catalog}.cull/`) with
+source-identity invalidation, bounded entries, dismiss-across-reopen, cancel,
+and throttle. Not full analysis C2 (precision/recall corpora; pairwise O(N²)
+still capped rather than indexed).
 
 **Remaining work:**
 
@@ -443,8 +459,11 @@ orientation single decode path; pairwise O(N²) still capped rather than indexed
   service + CLI reports (Studio chips already separate exact vs near vs burst);
 - [done] enforce aHash non-authoritative + fail-closed above `max_assets`;
 - [done] never auto-delete/auto-reject; auto-stack only with `user_initiated`;
-- produce fingerprints through one accepted image resource path for supported
-  RAW/raster orientation and colour;
+- [done] produce fingerprints through one accepted image resource path for
+  supported RAW/raster orientation and colour
+  (`decode_cull_fingerprint_raster` → `decode_import_candidate_thumbnail`;
+  report `fingerprint_decode_path`; Studio chips label Exact byte vs Near
+  (heuristic); dismiss persists across catalog reopen);
 - replace pairwise O(N²) with an indexed design beyond the hard asset bound
   (PERF-01);
 - measure precision/recall and false-positive cost on approved corpora.
