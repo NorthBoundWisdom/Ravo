@@ -7,7 +7,8 @@ target_sources(ravo_foundation
     src/error.cpp
     src/executor.cpp
     src/json.cpp
-    src/log.cpp)
+    src/log.cpp
+    src/parse_number.cpp)
 
 target_include_directories(ravo_foundation
   PUBLIC

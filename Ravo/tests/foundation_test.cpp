@@ -1,4 +1,5 @@
 #include <chrono>
+#include <clocale>
 #include <future>
 #include <string>
 #include <vector>
@@ -9,6 +10,7 @@
 #include "ravo/foundation/color.h"
 #include "ravo/foundation/executor.h"
 #include "ravo/foundation/json.h"
+#include "ravo/foundation/parse_number.h"
 
 namespace ravo
 {
@@ -143,6 +145,72 @@ TEST(SerialExecutorTest, WorkerStackIsLargeEnoughForRawImport)
             marker = static_cast<int>(pad[0]) + static_cast<int>(pad[sizeof(pad) - 1U]);
         });
     EXPECT_EQ(marker, 3);
+}
+
+TEST(ParseAsciiDoubleTest, AcceptsBoundaryFiniteTokens)
+{
+    double value = 0.0;
+    ASSERT_TRUE(parse_ascii_double("0", value));
+    EXPECT_DOUBLE_EQ(value, 0.0);
+    ASSERT_TRUE(parse_ascii_double("-0.0", value));
+    EXPECT_DOUBLE_EQ(value, 0.0);
+    ASSERT_TRUE(parse_ascii_double("+1.5", value));
+    EXPECT_DOUBLE_EQ(value, 1.5);
+    ASSERT_TRUE(parse_ascii_double("1e-3", value));
+    EXPECT_DOUBLE_EQ(value, 0.001);
+    ASSERT_TRUE(parse_ascii_double("2.5E2", value));
+    EXPECT_DOUBLE_EQ(value, 250.0);
+}
+
+TEST(ParseAsciiDoubleTest, RejectsMalformedAndNonFiniteTokens)
+{
+    double value = 99.0;
+    EXPECT_FALSE(parse_ascii_double("", value));
+    EXPECT_FALSE(parse_ascii_double(" ", value));
+    EXPECT_FALSE(parse_ascii_double("1.2.3", value));
+    EXPECT_FALSE(parse_ascii_double("12abc", value));
+    EXPECT_FALSE(parse_ascii_double("abc", value));
+    EXPECT_FALSE(parse_ascii_double("1,5", value));
+    EXPECT_FALSE(parse_ascii_double("nan", value));
+    EXPECT_FALSE(parse_ascii_double("NaN", value));
+    EXPECT_FALSE(parse_ascii_double("inf", value));
+    EXPECT_FALSE(parse_ascii_double("+inf", value));
+    EXPECT_FALSE(parse_ascii_double("-infinity", value));
+    EXPECT_FALSE(parse_ascii_double("0x10", value));
+    EXPECT_FALSE(parse_ascii_double(std::string(65, '1'), value));
+    EXPECT_DOUBLE_EQ(value, 99.0);
+}
+
+TEST(ParseAsciiDoubleTest, RemainsDotDecimalUnderCommaProcessLocale)
+{
+    const char *previous = std::setlocale(LC_NUMERIC, nullptr);
+    ASSERT_NE(previous, nullptr);
+    const std::string saved(previous);
+    const char *comma_locales[] = {"de_DE.UTF-8", "de_DE.utf8", "fr_FR.UTF-8", "fr_FR.utf8",
+                                   "de_DE",       "fr_FR",      "nl_NL.UTF-8"};
+    bool switched = false;
+    for (const char *candidate : comma_locales)
+    {
+        if (std::setlocale(LC_NUMERIC, candidate) != nullptr)
+        {
+            switched = true;
+            break;
+        }
+    }
+    if (!switched)
+    {
+        GTEST_SKIP() << "No comma-decimal LC_NUMERIC locale is installed";
+    }
+
+    double value = 0.0;
+    EXPECT_TRUE(parse_ascii_double("1.25", value));
+    EXPECT_DOUBLE_EQ(value, 1.25);
+    EXPECT_FALSE(parse_ascii_double("1,25", value));
+    // Bare strtod would follow the process locale; the owner must not.
+    EXPECT_TRUE(parse_ascii_double("3.1415", value));
+    EXPECT_DOUBLE_EQ(value, 3.1415);
+
+    std::setlocale(LC_NUMERIC, saved.c_str());
 }
 
 } // namespace

@@ -72,23 +72,38 @@ security issue preempts it:
 
 ## CI-01 — Restore green main and enforce the gate
 
-**Status:** Active blocker.
+**Status:** Active blocker (portable CLI float parser landed locally; three-platform
+green and merge gate still open).
 
 The pre-reorder `main` head `98026410f90bc99c116c3910abb5ccab63cb0976`
-has a failed CI run. Static checks passed, while the macOS build and Windows /
-Linux test jobs did not all pass. The macOS failure includes non-portable
-floating-point parsing through `std::from_chars` in
-`Ravo/cli/src/application_catalog_args.cpp`; the other failed jobs need exact
-test-level triage from the same run.
+failed CI run `33843178641` (Static checks green). Triage from that run:
 
-**Immediate work:**
+- **macOS (`mac_clang_debug`):** compile failure —
+  floating `std::from_chars` for `--roi` in
+  `Ravo/cli/src/application_catalog_args.cpp` (Apple libc++ deletes/omits the
+  floating overload).
+- **Windows / Linux:** build succeeded; product/test failures included GPU
+  adapter tests returning `gpu_pipeline_failed` while `gpu_available` was true,
+  many `CatalogServiceTest.*PersistsReopensAndExports*Pixels` exact-pixel
+  mismatches, `XTransImportsAndPublishesAnEngineRenderedPreview`,
+  `BackupRestorePreservesDerivedAndExternalEditorTrees`,
+  `ravo_test_split_inventory` / inventory checker, and related catalog reopen
+  pixel gates. These remain residual until fixed with regressions on those hosts
+  (this tranche did not claim Windows/Linux green).
 
-- replace the non-portable floating parser with one bounded, locale-independent
-  owner used consistently by the CLI argument path;
-- identify every Windows and Linux failure from the same workflow run and add a
-  regression for each product defect rather than weakening or skipping tests;
-- rerun static checks and the macOS, Windows, and Linux Debug matrix on one
-  commit;
+**Closed in this tranche (local `main`, mac verified):**
+
+- one foundation owner `ravo::parse_ascii_double` (classic-locale, complete
+  consumption, finite) used by CLI `parse_double_flag`, `--roi`, sharpen /
+  watermark / frame export doubles; integer `from_chars` kept;
+- unit + CLI coverage for boundary, malformed, locale (dot accepted / comma
+  rejected under comma `LC_NUMERIC`), and duplicate `--exposure-ev` / `--roi`.
+
+**Still open:**
+
+- fix or correctly classify every Windows/Linux failure from run `33843178641`
+  (and re-verify on current `main`) with regressions — do not skip/weaken tests;
+- rerun static + macOS/Windows/Linux Debug on one pushed SHA;
 - add a Release or RelWithDebInfo compile/smoke gate so Debug-only success cannot
   authorize a release;
 - configure a repository ruleset or equivalent merge policy requiring the
@@ -106,7 +121,8 @@ test-level triage from the same run.
 - the next ordinary commit cannot silently bypass the required checks.
 
 **Risk:** a documentation-only green run does not close a code or test failure;
-all required targets must execute on the same resolved source roots.
+all required targets must execute on the same resolved source roots. Local mac
+parser verification alone does not authorize a three-platform green claim.
 
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
@@ -597,6 +613,8 @@ source-preservation tests before the other track enters implementation.
 
 **Status:** P2 unless a journalism, sports, agency, or archive cohort makes it a
 P1 requirement.
+
+**Residual from ADR-0140 Studio chrome:** headline/credit/source/instructions/usage_terms/job_id (plus description) are already exposed in Studio PhotoInfo via selection metadata patches on `main`.
 
 **Residual from ADR-0143:** CRS `ProcessVersion` matrix is accepted on `main`.
 `catalog xmp-status` / import report `crs_version_class` /

@@ -5,10 +5,8 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
-#include <cmath>
 #include <chrono>
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -38,6 +36,7 @@
 #include "ravo/adapters/text_file.h"
 #include "ravo/control/live_control.h"
 #include "ravo/foundation/json.h"
+#include "ravo/foundation/parse_number.h"
 #include "ravo/engine/noise_calibration.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/style.h"
@@ -99,10 +98,8 @@ namespace ravo::cli_internal
 [[nodiscard]] Result<double> parse_double_flag(const std::string_view text,
                                                const std::string_view option)
 {
-    const std::string owned(text);
-    char *end = nullptr;
-    const double value = std::strtod(owned.c_str(), &end);
-    if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+    double value = 0.0;
+    if (!parse_ascii_double(text, value))
     {
         return make_error(ErrorCode::kInvalidArgument, "Option requires a finite number",
                           {{"option", std::string(option)}, {"value", std::string(text)}});
@@ -299,6 +296,11 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
         else if (option == "--exposure-ev")
         {
+            if (result.exposure_ev.has_value())
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--exposure-ev was specified more than once");
+            }
             auto parsed = parse_double_flag(value, option);
             if (!parsed)
             {
@@ -308,6 +310,11 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
         else if (option == "--saturation")
         {
+            if (result.saturation.has_value())
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--saturation was specified more than once");
+            }
             auto parsed = parse_double_flag(value, option);
             if (!parsed)
             {
@@ -317,6 +324,11 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
         else if (option == "--contrast")
         {
+            if (result.contrast.has_value())
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--contrast was specified more than once");
+            }
             auto parsed = parse_double_flag(value, option);
             if (!parsed)
             {
@@ -1147,39 +1159,37 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         !flags.sharpen_threshold.empty())
     {
         request.output_sharpen.enabled = true;
-        auto parse_double = [](const std::string_view text,
-                               const std::string_view option) -> Result<double>
+        auto parse_sharpen = [](const std::string_view text,
+                                const std::string_view option) -> Result<double>
         {
             if (text.empty())
                 return make_error(ErrorCode::kInvalidArgument, "Missing export sharpen value",
                                   {{"option", std::string(option)}});
-            char *end = nullptr;
-            const std::string owned(text);
-            const double value = std::strtod(owned.c_str(), &end);
-            if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+            auto parsed = parse_double_flag(text, option);
+            if (!parsed)
             {
                 return make_error(ErrorCode::kInvalidArgument, "Invalid export sharpen value",
-                                  {{"option", std::string(option)}, {"value", owned}});
+                                  {{"option", std::string(option)}, {"value", std::string(text)}});
             }
-            return value;
+            return parsed.value();
         };
         if (!flags.sharpen_amount.empty())
         {
-            auto amount = parse_double(flags.sharpen_amount, "--sharpen-amount");
+            auto amount = parse_sharpen(flags.sharpen_amount, "--sharpen-amount");
             if (!amount)
                 return amount.error();
             request.output_sharpen.amount = amount.value();
         }
         if (!flags.sharpen_radius.empty())
         {
-            auto radius = parse_double(flags.sharpen_radius, "--sharpen-radius");
+            auto radius = parse_sharpen(flags.sharpen_radius, "--sharpen-radius");
             if (!radius)
                 return radius.error();
             request.output_sharpen.radius = radius.value();
         }
         if (!flags.sharpen_threshold.empty())
         {
-            auto threshold = parse_double(flags.sharpen_threshold, "--sharpen-threshold");
+            auto threshold = parse_sharpen(flags.sharpen_threshold, "--sharpen-threshold");
             if (!threshold)
                 return threshold.error();
             request.output_sharpen.threshold = threshold.value();
@@ -1198,15 +1208,13 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             if (text.empty())
                 return make_error(ErrorCode::kInvalidArgument, "Missing delivery watermark value",
                                   {{"option", std::string(option)}});
-            char *end = nullptr;
-            const std::string owned(text);
-            const double value = std::strtod(owned.c_str(), &end);
-            if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+            auto parsed = parse_double_flag(text, option);
+            if (!parsed)
             {
                 return make_error(ErrorCode::kInvalidArgument, "Invalid delivery watermark value",
-                                  {{"option", std::string(option)}, {"value", owned}});
+                                  {{"option", std::string(option)}, {"value", std::string(text)}});
             }
-            return value;
+            return parsed.value();
         };
         if (!flags.delivery_watermark_opacity.empty())
         {
@@ -1239,15 +1247,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         request.frame.enabled = true;
         if (!flags.delivery_frame_size.empty())
         {
-            char *end = nullptr;
-            const std::string owned(flags.delivery_frame_size);
-            const double value = std::strtod(owned.c_str(), &end);
-            if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+            auto parsed = parse_double_flag(flags.delivery_frame_size, "--delivery-frame-size");
+            if (!parsed)
             {
                 return make_error(ErrorCode::kInvalidArgument, "Invalid delivery frame size",
-                                  {{"option", "--delivery-frame-size"}, {"value", owned}});
+                                  {{"option", "--delivery-frame-size"},
+                                   {"value", std::string(flags.delivery_frame_size)}});
             }
-            request.frame.size = value;
+            request.frame.size = parsed.value();
         }
     }
     if (flags.delivery_color || !flags.delivery_output_profile.empty() ||

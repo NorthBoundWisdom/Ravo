@@ -2,6 +2,7 @@
 #include <array>
 #include <bit>
 #include <cstdint>
+#include <clocale>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -1279,6 +1280,86 @@ TEST_F(CliTest, CatalogEditorOpenAndAutoStack)
     ASSERT_NE(reg->find("auto_stacked")->boolean_if(), nullptr);
     EXPECT_TRUE(*reg->find("auto_stacked")->boolean_if());
     ASSERT_NE(reg->find("stack"), nullptr);
+}
+
+TEST_F(CliTest, CatalogCliFloatParsingRejectsMalformedLocaleAndDuplicateOptions)
+{
+    const auto root = std::filesystem::temp_directory_path() / "ravo-cli-float-parse";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    auto expect_invalid =
+        [&](const std::vector<std::string_view> &arguments, const std::string_view needle)
+    {
+        stdout_stream.str({});
+        stdout_stream.clear();
+        stderr_stream.str({});
+        stderr_stream.clear();
+        EXPECT_EQ(application.run(arguments), 2) << stdout_stream.str() << stderr_stream.str();
+        const auto body = stdout_stream.str() + stderr_stream.str();
+        EXPECT_NE(body.find(needle), std::string::npos) << body;
+    };
+
+    expect_invalid({"catalog", "develop", "--catalog", catalog, "--asset-id", "missing",
+                    "--exposure-ev", "1,5", "--json"},
+                   "Option requires a finite number");
+    expect_invalid({"catalog", "develop", "--catalog", catalog, "--asset-id", "missing",
+                    "--exposure-ev", "1.5x", "--json"},
+                   "Option requires a finite number");
+    expect_invalid({"catalog", "develop", "--catalog", catalog, "--asset-id", "missing",
+                    "--exposure-ev", "nan", "--json"},
+                   "Option requires a finite number");
+    expect_invalid({"catalog", "develop", "--catalog", catalog, "--asset-id", "missing",
+                    "--exposure-ev", "0.5", "--exposure-ev", "1.0", "--json"},
+                   "--exposure-ev was specified more than once");
+    expect_invalid({"catalog", "preview", "--catalog", catalog, "--asset-id", "missing", "--roi",
+                    "0,0,1", "--json"},
+                   "invalid_preview_roi");
+    expect_invalid({"catalog", "preview", "--catalog", catalog, "--asset-id", "missing", "--roi",
+                    "0,0,1,1,0", "--json"},
+                   "invalid_preview_roi");
+    expect_invalid({"catalog", "preview", "--catalog", catalog, "--asset-id", "missing", "--roi",
+                    "0,0,1,abc", "--json"},
+                   "invalid_preview_roi");
+    expect_invalid({"catalog", "preview", "--catalog", catalog, "--asset-id", "missing", "--roi",
+                    "0,0,1,1", "--roi", "0.1,0.1,0.5,0.5", "--json"},
+                   "--roi was specified more than once");
+
+    // Dot-decimal must remain accepted even when the process locale uses commas.
+    const char *previous = std::setlocale(LC_NUMERIC, nullptr);
+    ASSERT_NE(previous, nullptr);
+    const std::string saved(previous);
+    bool switched = false;
+    for (const char *candidate :
+         {"de_DE.UTF-8", "de_DE.utf8", "fr_FR.UTF-8", "fr_FR.utf8", "de_DE", "fr_FR"})
+    {
+        if (std::setlocale(LC_NUMERIC, candidate) != nullptr)
+        {
+            switched = true;
+            break;
+        }
+    }
+    if (switched)
+    {
+        stdout_stream.str({});
+        stdout_stream.clear();
+        // Argument parsing succeeds past the float token; missing asset fails later with a
+        // non-parse exit. Exit code 2 would mean the float parser rejected a valid '.' token.
+        const int code = application.run(
+            std::vector<std::string_view>{"catalog", "develop", "--catalog", catalog, "--asset-id",
+                                          "missing-asset", "--exposure-ev", "1.25", "--json"});
+        EXPECT_NE(code, 2) << stdout_stream.str();
+        std::setlocale(LC_NUMERIC, saved.c_str());
+    }
 }
 
 } // namespace ravo
