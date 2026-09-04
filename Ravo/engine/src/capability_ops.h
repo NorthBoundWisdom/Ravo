@@ -10,6 +10,7 @@ namespace ravo
 [[nodiscard]] Result<void> apply_raw_hotpixels(DecodedRaw &raw, const OperationInstance &operation,
                                                const CancellationToken &cancellation);
 [[nodiscard]] Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &operation,
+                                                const std::array<float, 4> &white_balance,
                                                 const CancellationToken &cancellation);
 [[nodiscard]] Result<void> apply_denoise_profile(WorkingImage &image,
                                                  const OperationInstance &operation,

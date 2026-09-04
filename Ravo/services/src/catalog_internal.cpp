@@ -287,10 +287,11 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 
 [[nodiscard]] DevelopParams baseline_develop_for(const AssetRecord &asset)
 {
-    // RAW import colour calibration: as-shot WB (default temperature), the
-    // file's camera matrix via input profile `source`, and Sigmoid. RAW also
-    // enables the accepted Lab USM at SharpenParams defaults (amount 0.5,
-    // radius 2, threshold 0.5). Later Develop edits stack on this baseline.
+    // RAW import colour calibration: opposed highlight reconstruction, as-shot
+    // WB (default temperature), the file's camera matrix via input profile
+    // `source`, and Sigmoid. RAW also enables the accepted Lab USM at
+    // SharpenParams defaults (amount 0.5, radius 2, threshold 0.5). Later
+    // Develop edits stack on this baseline.
     // Adobe DCP is not used. JPEG/PNG/TIFF stay identity.
     if (is_raw_media_type(asset.media_type))
         return develop_raw_import_baseline();
@@ -322,6 +323,46 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
                      { return operation.id == "ravo.color.input"; });
     operations.insert(input, std::move(temperature));
     return recipe;
+}
+
+[[nodiscard]] Result<void> merge_missing_raw_baseline_operations(const Recipe &baseline,
+                                                                 Recipe &recipe)
+{
+    if (std::any_of(recipe.operations.begin(), recipe.operations.end(),
+                    [](const OperationInstance &operation)
+                    { return operation.id == "ravo.raw.highlights"; }))
+    {
+        return {};
+    }
+    const auto default_highlights = std::find_if(
+        baseline.operations.begin(), baseline.operations.end(),
+        [](const OperationInstance &operation) { return operation.id == "ravo.raw.highlights"; });
+    if (default_highlights == baseline.operations.end())
+    {
+        return {};
+    }
+    if (std::any_of(recipe.operations.begin(), recipe.operations.end(),
+                    [&](const OperationInstance &operation)
+                    { return operation.instance_id == default_highlights->instance_id; }))
+    {
+        return make_error(ErrorCode::kConflict, "RAW baseline operation instance is already in use",
+                          {{"instance_id", default_highlights->instance_id},
+                           {"reason", "raw_highlight_baseline_instance_conflict"}});
+    }
+    static constexpr std::array<std::string_view, 7> kBeforeHighlights{
+        "ravo.raw.demosaic",  "ravo.color.temperature", "ravo.color.profilegamma",
+        "ravo.color.input",   "ravo.color.primaries",   "ravo.color.channelmixerrgb",
+        "ravo.raw.hotpixels",
+    };
+    auto position = recipe.operations.begin();
+    while (position != recipe.operations.end() &&
+           std::find(kBeforeHighlights.begin(), kBeforeHighlights.end(), position->id) !=
+               kBeforeHighlights.end())
+    {
+        ++position;
+    }
+    recipe.operations.insert(position, *default_highlights);
+    return {};
 }
 
 [[nodiscard]] bool matches_develop_baseline(const AssetRecord &asset, DevelopParams params)

@@ -567,7 +567,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto baseline = service->load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_EQ(baseline.value().operations.size(), 5U);
+    ASSERT_EQ(baseline.value().operations.size(), 6U);
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == "ravo.color.temperature"; }),
@@ -588,6 +588,10 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
                            [](const OperationInstance &operation)
                            { return operation.id == std::string(kSharpenOperationId); }),
               baseline.value().operations.end());
+    EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == "ravo.raw.highlights"; }),
+              baseline.value().operations.end());
     auto baseline_params = develop_from_recipe(baseline.value());
     ASSERT_TRUE(baseline_params) << baseline_params.error().message;
     EXPECT_TRUE(baseline_params.value().sigmoid_enabled);
@@ -595,9 +599,58 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     EXPECT_NEAR(baseline_params.value().sharpen, SharpenParams{}.amount, 1e-9);
     EXPECT_NEAR(baseline_params.value().sharpen_radius, SharpenParams{}.radius, 1e-9);
     EXPECT_NEAR(baseline_params.value().sharpen_threshold, SharpenParams{}.threshold, 1e-9);
+    EXPECT_DOUBLE_EQ(baseline_params.value().raw_highlights, 1.0);
+    EXPECT_DOUBLE_EQ(baseline_params.value().raw_highlights_clip, 1.0);
+    EXPECT_EQ(baseline_params.value().raw_highlights_mode, kRawHighlightsModeOpposed);
     auto baseline_has_edits = service->asset_has_edits(asset_id);
     ASSERT_TRUE(baseline_has_edits) << baseline_has_edits.error().message;
     EXPECT_FALSE(baseline_has_edits.value());
+
+    Recipe prior_baseline = baseline.value();
+    prior_baseline.operations.erase(
+        std::remove_if(prior_baseline.operations.begin(), prior_baseline.operations.end(),
+                       [](const OperationInstance &operation)
+                       { return operation.id == "ravo.raw.highlights"; }),
+        prior_baseline.operations.end());
+    const auto prior_sigmoid = std::find_if(
+        prior_baseline.operations.begin(), prior_baseline.operations.end(),
+        [](const OperationInstance &operation) { return operation.id == "ravo.display.sigmoid"; });
+    ASSERT_NE(prior_sigmoid, prior_baseline.operations.end());
+    prior_sigmoid->parameters["contrast_skewness"] = ParameterValue{-0.2};
+    auto prior_saved = service->save_recipe(asset_id, prior_baseline);
+    ASSERT_TRUE(prior_saved) << prior_saved.error().message;
+    auto prior_effective = service->load_recipe(asset_id);
+    ASSERT_TRUE(prior_effective) << prior_effective.error().message;
+    EXPECT_NE(std::find_if(prior_effective.value().operations.begin(),
+                           prior_effective.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == "ravo.raw.highlights"; }),
+              prior_effective.value().operations.end());
+    PreviewRequest prior_preview;
+    prior_preview.asset_id = asset_id;
+    prior_preview.max_edge = 64U;
+    prior_preview.persist_preview_record = false;
+    auto prior_previewed = service->request_preview(prior_preview);
+    ASSERT_TRUE(prior_previewed) << prior_previewed.error().message;
+    EXPECT_FALSE(prior_previewed.value().rgb.empty());
+    ExportRequest prior_export;
+    prior_export.asset_id = asset_id;
+    prior_export.output_path = (root / "prior-baseline.png").string();
+    prior_export.format = ExportFormat::kPng;
+    prior_export.max_edge = 64U;
+    auto prior_exported = service->export_asset(prior_export);
+    ASSERT_TRUE(prior_exported) << prior_exported.error().message;
+    EXPECT_TRUE(std::filesystem::is_regular_file(prior_export.output_path));
+    auto prior_persisted = sqlite_repository->load_recipe_json(asset_id);
+    ASSERT_TRUE(prior_persisted) << prior_persisted.error().message;
+    ASSERT_TRUE(prior_persisted.value());
+    auto prior_parsed = parse_recipe_json(*prior_persisted.value());
+    ASSERT_TRUE(prior_parsed) << prior_parsed.error().message;
+    EXPECT_EQ(std::find_if(prior_parsed.value().operations.begin(),
+                           prior_parsed.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == "ravo.raw.highlights"; }),
+              prior_parsed.value().operations.end());
 
     auto adjusted = baseline_params.value();
     adjusted.sigmoid_skew = -0.35;
@@ -625,6 +678,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     EXPECT_TRUE(reset_params.value().sigmoid_enabled);
     EXPECT_NEAR(reset_params.value().sigmoid_skew, kSigmoidSkewDefault, 1e-9);
     EXPECT_NEAR(reset_params.value().sharpen, SharpenParams{}.amount, 1e-9);
+    EXPECT_DOUBLE_EQ(reset_params.value().raw_highlights, 1.0);
 }
 
 TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)

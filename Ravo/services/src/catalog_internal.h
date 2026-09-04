@@ -86,6 +86,8 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 [[nodiscard]] Recipe identity_recipe_for(const AssetRecord &asset, const std::string &path);
 [[nodiscard]] DevelopParams baseline_develop_for(const AssetRecord &asset);
 [[nodiscard]] Result<Recipe> baseline_recipe_for(const AssetRecord &asset, const std::string &path);
+[[nodiscard]] Result<void> merge_missing_raw_baseline_operations(const Recipe &baseline,
+                                                                 Recipe &recipe);
 [[nodiscard]] bool matches_develop_baseline(const AssetRecord &asset, DevelopParams params);
 [[nodiscard]] std::string parameter_key_part(const ParameterValue &value);
 [[nodiscard]] std::string input_color_preprocess_key(const Recipe &recipe);

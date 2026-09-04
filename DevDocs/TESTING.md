@@ -436,7 +436,15 @@ unsupported/duplicate state, source immutability and quantized goldens from
 Markesteijn 1/3-pass smooth-field accuracy, same-CFA preview reduction,
 sensor/mode mismatch, cancellation/memory, source immutability and a quantized
 golden from `mire1-xtrans.raf`. Recipe/CLI/Catalog/Studio persistence is tested
-independently. Leftover
+independently. RAW highlight coverage additionally pins a synthetic neutral
+highlight whose green photosites reach a declared linear-response limit before
+red/blue: the default opposed baseline evaluates in as-shot white-balance scale,
+restores neutral channel agreement, accounts for its RAW/float/mask peak, leaves
+the source immutable, and rejects an out-of-range nonzero limit. Real X-Trans
+import proves that the shared opposed baseline renders without selecting a
+Bayer-only reconstruction fallback. A stored pre-baseline RAW recipe is
+augmented only for effective load/preview/export and retains explicit highlight state.
+Leftover
 flip v2 orientation bits 1–7 map to canonical rotate-then-flip; `NULL`/`NONE`
 stay identity because camera EXIF is applied at decode. Leftover crop v1–v3
 left/top/right/bottom maps to canonical x/y/width/height; full-frame 0,0,1,1
@@ -644,8 +652,8 @@ gated (ADR-0096).
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
 - RAW preview contract v10 validates complete decode, explicit input/output
-  profiles, and default Sigmoid; the raster baseline must not receive a second
-  display transform. Sigmoid requires
+  profiles, default opposed highlight reconstruction, and default Sigmoid; the
+  raster baseline must not receive a second display transform. Sigmoid requires
   at least schema round-trip, synthetic colour patches, `mire1.cr2`
   channel-sum reference, and catalog reset/reopen.
 - Profile Denoise tests require deterministic MAD calibration to reduce flat

@@ -121,8 +121,12 @@ parameter_band_array(const OperationInstance &operation, std::string_view name);
 [[nodiscard]] Result<void> blur_plane(std::vector<float> &plane, std::uint32_t width,
                                       std::uint32_t height, float sigma,
                                       const CancellationToken &cancellation);
-[[nodiscard]] Result<std::vector<float>> raw_to_float(const DecodedRaw &raw);
-void float_to_raw(DecodedRaw &raw, const std::vector<float> &buffer, double amount);
+[[nodiscard]] Result<std::vector<float>> raw_to_float(const DecodedRaw &raw,
+                                                      const std::array<float, 4> &white_balance,
+                                                      const CancellationToken &cancellation);
+[[nodiscard]] Result<void> float_to_raw(DecodedRaw &raw, const std::vector<float> &buffer,
+                                        const std::array<float, 4> &white_balance, double amount,
+                                        const CancellationToken &cancellation);
 void process_highlights_clip(std::vector<float> &buffer, const DecodedRaw &raw,
                              const std::array<float, 3> &clips);
 void process_highlights_lch(std::vector<float> &buffer, const DecodedRaw &raw, float clip);

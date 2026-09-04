@@ -612,7 +612,7 @@ TEST(ExposureAnalysisTest, MemoryEstimateIncludesHistogramContextAndOwnedFailure
     recipe.operations.push_back({"ravo.raw.highlights", 1, "highlights-1", true, {}, std::nullopt});
     const std::uint64_t with_raw_copy = estimate_raw_render_memory(raw, recipe, 2U, 2U);
     EXPECT_EQ(with_raw_copy - with_detail,
-              raw.pixels.size() * sizeof(std::uint16_t) + failure_capacity + 1U);
+              raw.pixels.size() * (sizeof(std::uint16_t) + sizeof(float)) + failure_capacity + 1U);
 }
 
 TEST(ColorCheckerTest, MemoryEstimateIncludesTypedParamsFitAndLinearSolveScratch)

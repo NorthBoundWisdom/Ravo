@@ -527,6 +527,8 @@ struct DevelopParams
     DevelopParams params;
     params.sigmoid_enabled = true;
     params.sharpen = SharpenParams{}.amount;
+    params.raw_highlights = 1.0;
+    params.raw_highlights_clip = 1.0;
     return params;
 }
 

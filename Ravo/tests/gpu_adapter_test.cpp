@@ -371,8 +371,9 @@ TEST(EngineFacadeTest, GpuPreviewDefaultRawBaselineReportsBackend)
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
     const auto input = make_preview_working(32, 32);
-    auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt},
-                                      develop_raw_import_baseline());
+    auto develop = develop_raw_import_baseline();
+    develop.raw_highlights = 0.0;
+    auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto gpu = GpuAdapter::try_create();
     std::string gpu_backend;
@@ -456,8 +457,9 @@ TEST(EngineFacadeTest, GpuPreviewSharpenMatchesCpuGoldWhenAvailable)
         GTEST_SKIP() << "GPU adapter is unavailable";
     }
     const auto input = make_preview_working(32, 32);
-    auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt},
-                                      develop_raw_import_baseline());
+    auto develop = develop_raw_import_baseline();
+    develop.raw_highlights = 0.0;
+    auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto passes = gpu_preview_rgb_passes(input, recipe.value(), CancellationToken{});
     ASSERT_TRUE(passes) << passes.error().message;
@@ -491,6 +493,7 @@ TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
     ASSERT_TRUE(engine) << engine.error().message;
     const auto input = make_preview_working(32, 32);
     DevelopParams develop = develop_raw_import_baseline();
+    develop.raw_highlights = 0.0;
     develop.exposure_ev = 0.847;
     develop.shadows = 0.214;
     auto recipe =

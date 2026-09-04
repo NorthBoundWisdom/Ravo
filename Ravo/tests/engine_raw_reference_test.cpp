@@ -108,6 +108,68 @@ TEST(EngineFacadeTest, RawHighlightReconstructionChangesMire1)
     auto cancelled = engine.value().render_to_image(request);
     ASSERT_FALSE(cancelled);
     EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+
+    DecodedRaw clipped;
+    clipped.width = 24U;
+    clipped.height = 24U;
+    clipped.cfa_width = 2U;
+    clipped.cfa_height = 2U;
+    clipped.black_level = 100;
+    clipped.white_level = 1100U;
+    clipped.linear_response_limits.fill(900U);
+    clipped.as_shot_white_balance = {2.0F, 1.0F, 1.5F, 1.0F};
+    clipped.has_as_shot_white_balance = true;
+    clipped.cfa_channels = {0U, 1U, 1U, 2U};
+    clipped.pixels.resize(static_cast<std::size_t>(clipped.width) * clipped.height);
+    declare_linear_srgb_matrix(clipped);
+    for (std::uint32_t row = 0U; row < clipped.height; ++row)
+    {
+        for (std::uint32_t col = 0U; col < clipped.width; ++col)
+        {
+            const std::uint8_t channel = clipped.cfa_channels[(row % 2U) * 2U + (col % 2U)];
+            clipped.pixels[static_cast<std::size_t>(row) * clipped.width + col] =
+                channel == 0U ? 550U :
+                channel == 2U ? 700U :
+                                900U;
+        }
+    }
+    const auto clipped_source = clipped.pixels;
+    auto baseline_recipe = recipe_from_develop(
+        {"synthetic-linear-limit", "memory:raw", std::nullopt}, develop_raw_import_baseline());
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    auto no_reconstruction = develop_raw_import_baseline();
+    no_reconstruction.raw_highlights = 0.0;
+    auto no_reconstruction_recipe = recipe_from_develop(
+        {"synthetic-linear-limit", "memory:raw", std::nullopt}, no_reconstruction);
+    ASSERT_TRUE(no_reconstruction_recipe) << no_reconstruction_recipe.error().message;
+    const auto baseline_bytes =
+        estimate_raw_render_memory(clipped, baseline_recipe.value(), clipped.width, clipped.height);
+    const auto no_reconstruction_bytes = estimate_raw_render_memory(
+        clipped, no_reconstruction_recipe.value(), clipped.width, clipped.height);
+    EXPECT_GE(baseline_bytes, no_reconstruction_bytes +
+                                  clipped.pixels.size() * (sizeof(std::uint16_t) + sizeof(float)));
+    auto without_limit = clipped;
+    without_limit.linear_response_limits.fill(0U);
+    auto unrecovered = engine.value().linear_working_from_raw(
+        without_limit, baseline_recipe.value(), clipped.width, clipped.height, CancellationToken{});
+    auto recovered = engine.value().linear_working_from_raw(
+        clipped, baseline_recipe.value(), clipped.width, clipped.height, CancellationToken{});
+    ASSERT_TRUE(unrecovered) << unrecovered.error().message;
+    ASSERT_TRUE(recovered) << recovered.error().message;
+    const std::size_t center =
+        (static_cast<std::size_t>(clipped.height / 2U) * clipped.width + clipped.width / 2U) * 3U;
+    EXPECT_GT(unrecovered.value().rgb[center] - unrecovered.value().rgb[center + 1U], 0.05F);
+    EXPECT_NEAR(recovered.value().rgb[center], recovered.value().rgb[center + 1U], 2.0e-3F);
+    EXPECT_NEAR(recovered.value().rgb[center + 1U], recovered.value().rgb[center + 2U], 2.0e-3F);
+    EXPECT_EQ(clipped.pixels, clipped_source);
+
+    auto invalid_limit = clipped;
+    invalid_limit.linear_response_limits[0] = invalid_limit.white_level + 1U;
+    auto rejected = engine.value().linear_working_from_raw(
+        invalid_limit, baseline_recipe.value(), clipped.width, clipped.height, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_raw_linear_response_limit");
 }
 
 [[nodiscard]] ParameterValue tone_curve_points(const std::vector<ToneCurvePoint> &points)

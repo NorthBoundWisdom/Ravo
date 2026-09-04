@@ -630,7 +630,8 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
         }
         else if (operation.id == "ravo.raw.highlights")
         {
-            applied = apply_raw_highlights(prepared, operation, cancellation);
+            applied = apply_raw_highlights(prepared, operation, temperature.value().coefficients,
+                                           cancellation);
         }
         else if (operation.id == "ravo.raw.cacorrect")
         {
@@ -782,7 +783,8 @@ Result<LinearWorkingBuffer> EngineFacade::linear_working_from_raw_window(
         }
         else if (operation.id == "ravo.raw.highlights")
         {
-            applied = apply_raw_highlights(prepared, operation, cancellation);
+            applied = apply_raw_highlights(prepared, operation, temperature.value().coefficients,
+                                           cancellation);
         }
         else if (operation.id == "ravo.raw.cacorrect")
         {

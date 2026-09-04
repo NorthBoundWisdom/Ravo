@@ -40,6 +40,7 @@
 
 #include "ravo/recipe/color_checker.h"
 #include "ravo/recipe/color_harmonizer.h"
+#include "ravo/recipe/develop.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/profile_gamma.h"
 
@@ -855,6 +856,16 @@ try
     result.black_level = static_cast<std::int32_t>(
         std::min(raw.color.black, static_cast<unsigned>(std::numeric_limits<std::int32_t>::max())));
     result.white_level = raw.color.maximum > 0 ? raw.color.maximum : 65535U;
+    std::copy(std::begin(raw.rawdata.color.linear_max), std::end(raw.rawdata.color.linear_max),
+              result.linear_response_limits.begin());
+    if (result.linear_response_limits[3] != 0U)
+    {
+        result.linear_response_limits[1] =
+            result.linear_response_limits[1] == 0U ?
+                result.linear_response_limits[3] :
+                std::min(result.linear_response_limits[1], result.linear_response_limits[3]);
+        result.linear_response_limits[3] = result.linear_response_limits[1];
+    }
     result.make = raw.idata.make;
     result.model = raw.idata.model;
     result.dng_opcodes = std::move(dng_opcodes).value();
@@ -1093,6 +1104,25 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         if (operation.id == "ravo.raw.hotpixels")
         {
             add_working_bytes(raw_bytes);
+        }
+        if (operation.id == "ravo.raw.highlights")
+        {
+            add_working_bytes(saturating_multiply(raw_pixels, sizeof(float)));
+            const auto mode = operation.parameters.find("mode");
+            const auto *name = mode == operation.parameters.end() ?
+                                   nullptr :
+                                   std::get_if<std::string>(&mode->second.value);
+            if (name != nullptr &&
+                (*name == kRawHighlightsModeInpaint || *name == kRawHighlightsModeLch))
+            {
+                add_working_bytes(saturating_multiply(raw_pixels, sizeof(float)));
+            }
+            else if ((name == nullptr || *name == kRawHighlightsModeOpposed) &&
+                     raw.width / 3U > 7U && raw.height / 3U > 7U)
+            {
+                const auto mask_pixels = saturating_multiply(raw.width / 3U, raw.height / 3U);
+                add_working_bytes(saturating_multiply(mask_pixels, 6U));
+            }
         }
         if (operation.id == "ravo.raw.denoise")
         {

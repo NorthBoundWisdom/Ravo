@@ -343,6 +343,10 @@ struct DecodedRaw
     std::uint32_t cfa_height = 0;
     std::int32_t black_level = 0;
     std::uint32_t white_level = 65535;
+    // Per-channel sensor code values up to which the RAW metadata declares a
+    // linear response. Zero means that the source did not declare a limit.
+    // Values are stored before black subtraction, matching LibRaw.
+    std::array<std::uint32_t, 4> linear_response_limits{};
     std::string make;
     std::string model;
     std::array<float, 4> as_shot_white_balance{1.0F, 1.0F, 1.0F, 1.0F};

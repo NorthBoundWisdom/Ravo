@@ -14,7 +14,7 @@ private by default, and reproducible enough to audit.
 
 | Document | Owns | Does not own |
 | --- | --- | --- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Current target boundaries, ownership, lifecycle, threads, data, and failure behavior | Future work or run diaries |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Current target boundaries, image-pipeline defaults, ownership, lifecycle, threads, data, and failure behavior | Future work or run diaries |
 | [MIGRATION.md](MIGRATION.md) | Accepted capability history, removed leftovers, and retirement decisions | Product backlog |
 | [ProductRoadmap.md](ProductRoadmap.md) | Outcome order, product principles, and cross-layer decisions not ready for execution | Task-level status |
 | [TODO.md](TODO.md) | Product execution queue: corpus/latency, Gallery evidence, professional workflow, and AI | Completed behavior, durable decisions, or package closeout |

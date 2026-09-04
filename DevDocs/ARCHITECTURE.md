@@ -509,12 +509,22 @@ that browse thumbnail; Standard/1:1 import drain does not replace it with
 processed RAW. Loupe, Develop, scopes, export, and `request_preview` with
 `prefer_embedded_preview=false` use preview contract v10: full CPU
 decode/render of the RAW. Import writes a colour-calibration baseline for RAW:
-as-shot white balance from LibRaw `cam_mul`, the camera input matrix
-(`enhanced_matrix` via input profile `source`), `ravo.display.sigmoid`, and
-`ravo.detail.sharpen` at the accepted Lab USM defaults (amount 0.5, radius 2,
-threshold 0.5). Later Develop edits stack on that baseline. This is Ravo's analogue of a
-Lightroom camera profile; Adobe DCP / Adobe Color / Adobe Standard are not
-shipped (ADR-0085/0088). As-shot white balance prefers `cam_mul` even when
+opposed highlight reconstruction, as-shot white balance from LibRaw `cam_mul`,
+the camera input matrix (`enhanced_matrix` via input profile `source`),
+`ravo.display.sigmoid`, and `ravo.detail.sharpen` at the accepted Lab USM
+defaults (amount 0.5, radius 2, threshold 0.5). Opposed reconstruction evaluates
+the CFA in the resolved white-balance scale and bounds each clip threshold by
+LibRaw's optional per-channel, pre-black `linear_max`; zero means absent, while
+a nonzero value outside the black/white sensor range fails structurally. Opposed
+and clip accept the supported Bayer and X-Trans RGB CFAs; reconstruct-color and
+LCh remain Bayer-only and never fall back. An older stored RAW recipe which
+lacks the new baseline operation receives it in the effective
+load/preview/export recipe without rewriting history; an explicit highlight
+operation wins. The effective recipe digest invalidates the prior
+processed-preview cache. Later Develop edits stack on that baseline. This is
+Ravo's analogue of a Lightroom camera profile; Adobe DCP / Adobe Color /
+Adobe Standard are not shipped (ADR-0085/0088). As-shot white balance prefers
+`cam_mul` even when
 `as_shot_wb_applied` is set. The cache types
 must not share a digest. Without
 embedded JPEG, browse fails open to full decode and never writes an empty image.

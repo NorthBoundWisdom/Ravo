@@ -1157,7 +1157,9 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
     }
 }
 
-[[nodiscard]] Result<std::vector<float>> raw_to_float(const DecodedRaw &raw)
+[[nodiscard]] Result<std::vector<float>> raw_to_float(const DecodedRaw &raw,
+                                                      const std::array<float, 4> &white_balance,
+                                                      const CancellationToken &cancellation)
 {
     const std::size_t count = static_cast<std::size_t>(raw.width) * raw.height;
     if (raw.pixels.size() < count)
@@ -1168,25 +1170,47 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
     const float black = static_cast<float>(std::max(0, raw.black_level));
     const float scale = 1.0F / std::max(1.0F, static_cast<float>(raw.white_level) - black);
     std::vector<float> buffer(count);
-    for (std::size_t index = 0; index < count; ++index)
+    const auto rows = for_each_row(raw.height, cancellation,
+                                   [&](const std::uint32_t row)
+                                   {
+                                       for (std::uint32_t col = 0U; col < raw.width; ++col)
+                                       {
+                                           const std::size_t index =
+                                               static_cast<std::size_t>(row) * raw.width + col;
+                                           const auto channel = cfa_channel(raw, col, row);
+                                           buffer[index] =
+                                               (static_cast<float>(raw.pixels[index]) - black) *
+                                               scale * white_balance[channel];
+                                       }
+                                   });
+    if (!rows)
     {
-        buffer[index] = (static_cast<float>(raw.pixels[index]) - black) * scale;
+        return rows.error();
     }
     return buffer;
 }
 
-void float_to_raw(DecodedRaw &raw, const std::vector<float> &buffer, const double amount)
+[[nodiscard]] Result<void> float_to_raw(DecodedRaw &raw, const std::vector<float> &buffer,
+                                        const std::array<float, 4> &white_balance,
+                                        const double amount, const CancellationToken &cancellation)
 {
     const float black = static_cast<float>(std::max(0, raw.black_level));
     const float range = std::max(1.0F, static_cast<float>(raw.white_level) - black);
-    const std::size_t count = buffer.size();
-    for (std::size_t index = 0; index < count; ++index)
-    {
-        const float restored = buffer[index] * range + black;
-        const double mixed = static_cast<double>(raw.pixels[index]) * (1.0 - amount) +
-                             static_cast<double>(restored) * amount;
-        raw.pixels[index] = static_cast<std::uint16_t>(std::clamp(std::lround(mixed), 0L, 65535L));
-    }
+    return for_each_row(
+        raw.height, cancellation,
+        [&](const std::uint32_t row)
+        {
+            for (std::uint32_t col = 0U; col < raw.width; ++col)
+            {
+                const std::size_t index = static_cast<std::size_t>(row) * raw.width + col;
+                const auto channel = cfa_channel(raw, col, row);
+                const float restored = buffer[index] / white_balance[channel] * range + black;
+                const double mixed = static_cast<double>(raw.pixels[index]) * (1.0 - amount) +
+                                     static_cast<double>(restored) * amount;
+                raw.pixels[index] =
+                    static_cast<std::uint16_t>(std::clamp(std::lround(mixed), 0L, 65535L));
+            }
+        });
 }
 
 Result<void> eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &input,

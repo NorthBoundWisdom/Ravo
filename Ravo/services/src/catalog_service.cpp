@@ -1023,6 +1023,11 @@ Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) cons
         return parsed.error();
     }
     parsed.value().asset = baseline.value().asset;
+    auto merged = merge_missing_raw_baseline_operations(baseline.value(), parsed.value());
+    if (!merged)
+    {
+        return merged.error();
+    }
     auto valid = engine_->validate(parsed.value());
     if (!valid)
     {

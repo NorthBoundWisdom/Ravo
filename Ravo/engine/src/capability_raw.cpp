@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <new>
 #include <numbers>
 #include <string>
 #include <string_view>
@@ -128,14 +129,24 @@ Result<void> apply_raw_hotpixels(DecodedRaw &raw, const OperationInstance &opera
 }
 
 Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &operation,
+                                  const std::array<float, 4> &white_balance,
                                   const CancellationToken &cancellation)
+try
 {
-    if (raw.cfa_width != 2 || raw.cfa_height != 2 || raw.cfa_channels.size() != 4U)
+    const bool bayer = raw.cfa_width == 2U && raw.cfa_height == 2U && raw.cfa_channels.size() == 4U;
+    const bool xtrans =
+        raw.cfa_width == 6U && raw.cfa_height == 6U && raw.cfa_channels.size() == 36U;
+    if ((!bayer && !xtrans) || raw.width == 0U || raw.height == 0U ||
+        raw.width > std::numeric_limits<std::size_t>::max() / raw.height ||
+        std::any_of(raw.cfa_channels.begin(), raw.cfa_channels.end(),
+                    [](const std::uint8_t channel) { return channel > 2U; }) ||
+        raw.pixels.size() != static_cast<std::size_t>(raw.width) * raw.height)
     {
-        return make_error(ErrorCode::kUnsupported,
-                          "RAW highlight reconstruction supports Bayer 2x2 CFA only",
-                          {{"cfa_width", std::to_string(raw.cfa_width)},
-                           {"cfa_height", std::to_string(raw.cfa_height)}});
+        return make_error(
+            ErrorCode::kUnsupported,
+            "RAW highlight reconstruction requires a complete RGB Bayer or X-Trans CFA",
+            {{"cfa_width", std::to_string(raw.cfa_width)},
+             {"cfa_height", std::to_string(raw.cfa_height)}});
     }
     const std::string mode =
         parameter_string(operation, "mode", std::string(kRawHighlightsModeOpposed));
@@ -144,6 +155,36 @@ Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &oper
     {
         return make_error(ErrorCode::kUnsupported,
                           "RAW highlight reconstruction mode is unsupported", {{"mode", mode}});
+    }
+    if (!bayer && mode != kRawHighlightsModeClip && mode != kRawHighlightsModeOpposed)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "RAW highlight reconstruction mode requires a Bayer 2x2 CFA",
+                          {{"mode", mode}, {"sensor", "xtrans"}});
+    }
+    if (std::any_of(white_balance.begin(), white_balance.end(), [](const float coefficient)
+                    { return !std::isfinite(coefficient) || coefficient <= 0.0F; }))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "RAW highlight reconstruction requires finite positive white balance");
+    }
+    const std::int64_t black_code = std::max<std::int64_t>(raw.black_level, 0);
+    if (raw.white_level <= static_cast<std::uint64_t>(black_code))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "RAW highlight reconstruction requires white above black");
+    }
+    for (std::size_t channel = 0U; channel < 3U; ++channel)
+    {
+        const std::uint32_t limit = raw.linear_response_limits[channel];
+        if (limit != 0U &&
+            (limit <= static_cast<std::uint64_t>(black_code) || limit > raw.white_level))
+        {
+            return make_error(ErrorCode::kValidation,
+                              "RAW linear response limit is outside the sensor range",
+                              {{"channel", std::to_string(channel)},
+                               {"reason", "invalid_raw_linear_response_limit"}});
+        }
     }
     const double amount = std::clamp(parameter(operation, "amount", 1.0), 0.0, 1.0);
     const double clip = std::clamp(parameter(operation, "clip", 1.0), 0.0, 2.0);
@@ -156,7 +197,10 @@ Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &oper
     {
         return cancelled.error();
     }
-    auto converted = raw_to_float(raw);
+    const std::array<float, 4> identity_balance{1.0F, 1.0F, 1.0F, 1.0F};
+    const auto &processing_balance =
+        mode == kRawHighlightsModeOpposed ? white_balance : identity_balance;
+    auto converted = raw_to_float(raw, processing_balance, cancellation);
     if (!converted)
     {
         return converted.error();
@@ -168,7 +212,19 @@ Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &oper
         magic = 0.987F;
     }
     const float clipper = static_cast<float>(clip) * magic;
-    const std::array<float, 3> clips{clipper, clipper, clipper};
+    std::array<float, 3> clips{};
+    const float black = static_cast<float>(black_code);
+    const float range = std::max(1.0F, static_cast<float>(raw.white_level) - black);
+    for (std::size_t channel = 0U; channel < clips.size(); ++channel)
+    {
+        float sensor_clip = clipper;
+        const std::uint32_t linear_limit = raw.linear_response_limits[channel];
+        if (mode == kRawHighlightsModeOpposed && linear_limit != 0U)
+        {
+            sensor_clip = std::min(sensor_clip, (static_cast<float>(linear_limit) - black) / range);
+        }
+        clips[channel] = sensor_clip * processing_balance[channel];
+    }
     if (mode == kRawHighlightsModeClip)
     {
         process_highlights_clip(buffer, raw, clips);
@@ -185,8 +241,17 @@ Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &oper
     {
         process_highlights_opposed(buffer, raw, clips);
     }
-    float_to_raw(raw, buffer, amount);
-    return {};
+    cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    return float_to_raw(raw, buffer, processing_balance, amount, cancellation);
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "RAW highlight reconstruction allocation failed",
+                      {{"reason", "allocation_failed"}});
 }
 
 Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance &operation,

@@ -144,9 +144,10 @@ Current implementation status:
   stay desktop-only. The separate Qt local-control socket exposes neither.
 - Basic Develop uses the current catalog schema v11 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
-  highlight reconstruction (opposed by default), adaptive Y0U0V0 edge-aware
-  wavelet denoising, lensfun poly3/vignette, dt UCS `colorequal`, graduated
-  filter, and nine-band toneequal with a scale-stable log-EV guided mask. Its
+  highlight reconstruction (white-balance-aware opposed by default, bounded by
+  per-channel sensor linearity metadata when present), adaptive Y0U0V0
+  edge-aware wavelet denoising, lensfun poly3/vignette, dt UCS `colorequal`,
+  graduated filter, and nine-band toneequal with a scale-stable log-EV guided mask. Its
   five photographic controls drive all nine one-stop bands without the former
   sparse inverse; low-contrast texture is retained while strong subject/
   background edges do not leak correction halos (ADR-0092). Studio provides
@@ -600,7 +601,8 @@ Current implementation status:
   shared DWT/heal/bilateral and historic mask/order consumers remain.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
-  the default baseline is not marked as a user edit. RAW baseline also enables
+  the default baseline is not marked as a user edit. The RAW baseline runs
+  opposed highlight reconstruction before demosaic and also enables
   `ravo.detail.sharpen` at amount 0.5, radius 2, and threshold 0.5. Gallery embedded-JPEG
   thumbnails and inspect dimensions are corrected to camera orientation.
   Configure requires JPEG/GIF/WebP/TIFF imageformat plugins and the QSQLITE

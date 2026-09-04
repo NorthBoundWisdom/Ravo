@@ -667,6 +667,11 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                     return parsed.error();
                 }
                 parsed.value().asset = edit_recipe.asset;
+                auto merged = merge_missing_raw_baseline_operations(edit_recipe, parsed.value());
+                if (!merged)
+                {
+                    return merged.error();
+                }
                 auto valid = engine_->validate(parsed.value());
                 if (!valid)
                 {
