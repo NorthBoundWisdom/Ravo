@@ -31,15 +31,19 @@ from backup silently loses derived assets after restore.
 - **Originals are never copied** as a side effect of derived packaging. Excludes
   remain `originals` and `previews`.
 
-### Manifest format version 2
+### Manifest format version 2 / 3
 
-- Bump `kCatalogBackupFormatVersion` to **2**.
-- Manifest root keys add required arrays `derived` and `external_editor`
-  (may be empty). Each entry is `{file, bytes, sha256}` where `file` is a
-  relative POSIX path under that tree (no `..`, no absolute paths).
+- ADR-0136 originally bumped `kCatalogBackupFormatVersion` to **2** with
+  required arrays `derived` and `external_editor` (may be empty). Each entry is
+  `{file, bytes, sha256}` where `file` is a relative POSIX path under that tree
+  (no `..`, no absolute paths).
+- **Format version 3** (same ADR packaging rule, extended by ADR-0141 support
+  trees) additionally packages `{catalog}.ravo/dng-conversion/` and
+  `{catalog}.ravo/smart-previews/` as required arrays `dng_conversion` and
+  `smart_previews` (may be empty). New backups always write v3.
 - Version 1 backups remain **readable for verify/restore of catalog+sidecars
-  only**; opening a v1 backup does not invent derived trees. New backups always
-  write v2.
+  only**. Version 2 remains readable for catalog+sidecars+derived+external-editor
+  only; opening older backups does not invent newer trees.
 
 ### Content-address verification
 
@@ -52,9 +56,10 @@ from backup silently loses derived assets after restore.
 
 - Restore restores derived and external-editor trees **atomically with** the
   catalog support root (support-first / catalog-last, ADR-0099).
-- Destination `{dest}.ravo/` may contain `sidecars/`, `derived/`, and
-  `external-editor/` after restore. Layout verification allows exactly those
-  known directories when present.
+- Destination `{dest}.ravo/` may contain `sidecars/`, `derived/`,
+  `external-editor/`, and (format ≥3) `dng-conversion/` / `smart-previews/`
+  after restore. Layout verification allows exactly those known directories when
+  present for the backup format version.
 - If a listed derived/provenance file is missing from the backup package,
   restore/verify reports the path and fails closed — it must not invent pixels
   or skip silently while claiming success.
@@ -81,7 +86,8 @@ Before publish, restore rewrites absolute URIs/paths that still name a source
 `{catalog}.ravo/` prefix (derived asset rows, recovery sidecars, external-editor
 provenance, and open-intents) onto the destination `{dest}.ravo/` prefix and
 fail-closes when a `.ravo/` value lies outside known support trees
-(`derived/`, `external-editor/`, `sidecars/`). Provenance JSON checksums are
+(`derived/`, `external-editor/`, `sidecars/`, `dng-conversion/`,
+`smart-previews/`). Provenance JSON checksums are
 recomputed after rewrite; recovery generation is not bumped.
 
 ## Rejected alternatives

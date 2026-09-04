@@ -19,7 +19,7 @@ namespace ravo
 inline constexpr std::int64_t kCatalogSchemaVersion = 15;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
-inline constexpr std::int64_t kCatalogBackupFormatVersion = 2;
+inline constexpr std::int64_t kCatalogBackupFormatVersion = 3;
 inline constexpr std::uintmax_t kRecoverySidecarMaximumBytes = 16U * 1024U * 1024U;
 inline constexpr std::size_t kRecoveryHistoryMaximumEntries = 10'000U;
 inline constexpr std::size_t kRecoveryTagMaximumEntries = 10'000U;
@@ -29,6 +29,8 @@ inline constexpr std::string_view kCatalogBackupManifestFilename = "manifest.jso
 inline constexpr std::string_view kCatalogBackupSidecarDirectory = "sidecars";
 inline constexpr std::string_view kCatalogBackupDerivedDirectory = "derived";
 inline constexpr std::string_view kCatalogBackupExternalEditorDirectory = "external-editor";
+inline constexpr std::string_view kCatalogBackupDngConversionDirectory = "dng-conversion";
+inline constexpr std::string_view kCatalogBackupSmartPreviewsDirectory = "smart-previews";
 inline constexpr std::int64_t kCatalogBackupFormatVersionMin = 1;
 inline constexpr std::string_view kRecipeHistoryKindHistory = "history";
 inline constexpr std::string_view kRecipeHistoryKindSnapshot = "snapshot";
@@ -867,6 +869,10 @@ struct CatalogBackupArtifact
     std::uint64_t derived_bytes = 0;
     std::size_t external_editor_count = 0;
     std::uint64_t external_editor_bytes = 0;
+    std::size_t dng_conversion_count = 0;
+    std::uint64_t dng_conversion_bytes = 0;
+    std::size_t smart_previews_count = 0;
+    std::uint64_t smart_previews_bytes = 0;
 };
 
 struct CatalogBackupVerification

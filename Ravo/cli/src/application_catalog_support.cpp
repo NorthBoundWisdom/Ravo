@@ -211,6 +211,8 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"created_unix_ms", JsonValue::number(std::to_string(artifact.created_unix_ms))},
         {"derived_bytes", JsonValue::number(std::to_string(artifact.derived_bytes))},
         {"derived_count", JsonValue::number(std::to_string(artifact.derived_count))},
+        {"dng_conversion_bytes", JsonValue::number(std::to_string(artifact.dng_conversion_bytes))},
+        {"dng_conversion_count", JsonValue::number(std::to_string(artifact.dng_conversion_count))},
         {"excludes", JsonValue::Array{JsonValue{"originals"}, JsonValue{"previews"}}},
         {"external_editor_bytes",
          JsonValue::number(std::to_string(artifact.external_editor_bytes))},
@@ -221,6 +223,8 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"path", artifact.path},
         {"sidecar_bytes", JsonValue::number(std::to_string(artifact.sidecar_bytes))},
         {"sidecar_count", JsonValue::number(std::to_string(artifact.sidecar_count))},
+        {"smart_previews_bytes", JsonValue::number(std::to_string(artifact.smart_previews_bytes))},
+        {"smart_previews_count", JsonValue::number(std::to_string(artifact.smart_previews_count))},
         {"verified", verified},
     };
 }

@@ -164,6 +164,8 @@ struct ParsedBackupManifest
     std::vector<RecoveryArtifact> sidecars;
     std::vector<CatalogBackupTreeFile> derived;
     std::vector<CatalogBackupTreeFile> external_editor;
+    std::vector<CatalogBackupTreeFile> dng_conversion;
+    std::vector<CatalogBackupTreeFile> smart_previews;
 };
 
 [[nodiscard]] Result<std::string> read_backup_manifest(const std::filesystem::path &path,
@@ -252,11 +254,21 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
         if (!root_keys)
             return root_keys.error();
     }
-    else
+    else if (version.value() == 2)
     {
         auto root_keys = expect_exact_keys(*root.value(),
                                            {"catalog", "created_unix_ms", "derived", "excludes",
                                             "external_editor", "schema", "sidecars", "version"},
+                                           "root");
+        if (!root_keys)
+            return root_keys.error();
+    }
+    else
+    {
+        auto root_keys = expect_exact_keys(*root.value(),
+                                           {"catalog", "created_unix_ms", "derived",
+                                            "dng_conversion", "excludes", "external_editor",
+                                            "schema", "sidecars", "smart_previews", "version"},
                                            "root");
         if (!root_keys)
             return root_keys.error();
@@ -386,6 +398,25 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
         manifest.derived = std::move(derived_files).value();
         manifest.external_editor = std::move(external_files).value();
     }
+    if (version.value() >= 3)
+    {
+        auto dng = require_array(parsed.value().find("dng_conversion"), "dng_conversion");
+        if (!dng)
+            return dng.error();
+        auto smart = require_array(parsed.value().find("smart_previews"), "smart_previews");
+        if (!smart)
+            return smart.error();
+        auto dng_files = catalog_backup_parse_tree_files(
+            *dng.value(), kCatalogBackupDngConversionDirectory, backup_root);
+        if (!dng_files)
+            return dng_files.error();
+        auto smart_files = catalog_backup_parse_tree_files(
+            *smart.value(), kCatalogBackupSmartPreviewsDirectory, backup_root);
+        if (!smart_files)
+            return smart_files.error();
+        manifest.dng_conversion = std::move(dng_files).value();
+        manifest.smart_previews = std::move(smart_files).value();
+    }
     return manifest;
 }
 
@@ -404,6 +435,11 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
     {
         expected_root.insert(std::string(kCatalogBackupDerivedDirectory));
         expected_root.insert(std::string(kCatalogBackupExternalEditorDirectory));
+    }
+    if (manifest.format_version >= 3)
+    {
+        expected_root.insert(std::string(kCatalogBackupDngConversionDirectory));
+        expected_root.insert(std::string(kCatalogBackupSmartPreviewsDirectory));
     }
     std::set<std::string, std::less<>> actual_root;
     for (std::filesystem::directory_iterator iterator(root, error), end; iterator != end;
@@ -464,13 +500,26 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
         if (!external_layout)
             return external_layout.error();
     }
+    if (manifest.format_version >= 3)
+    {
+        auto dng_layout = catalog_backup_verify_tree_layout(
+            root / path_from_utf8(kCatalogBackupDngConversionDirectory), manifest.dng_conversion);
+        if (!dng_layout)
+            return dng_layout.error();
+        auto smart_layout = catalog_backup_verify_tree_layout(
+            root / path_from_utf8(kCatalogBackupSmartPreviewsDirectory), manifest.smart_previews);
+        if (!smart_layout)
+            return smart_layout.error();
+    }
     return {};
 }
 
 [[nodiscard]] JsonValue backup_manifest_json(
     const CatalogDatabaseArtifact &catalog, const std::vector<RecoveryArtifact> &sidecars,
     const std::vector<CatalogBackupTreeFile> &derived,
-    const std::vector<CatalogBackupTreeFile> &external_editor, const std::int64_t created_unix_ms)
+    const std::vector<CatalogBackupTreeFile> &external_editor,
+    const std::vector<CatalogBackupTreeFile> &dng_conversion,
+    const std::vector<CatalogBackupTreeFile> &smart_previews, const std::int64_t created_unix_ms)
 {
     JsonValue::Array sidecar_array;
     sidecar_array.reserve(sidecars.size());
@@ -497,11 +546,15 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
          }},
         {"created_unix_ms", JsonValue::number(std::to_string(created_unix_ms))},
         {"derived", catalog_backup_tree_files_json(derived, kCatalogBackupDerivedDirectory)},
+        {"dng_conversion",
+         catalog_backup_tree_files_json(dng_conversion, kCatalogBackupDngConversionDirectory)},
         {"excludes", JsonValue::Array{JsonValue{"originals"}, JsonValue{"previews"}}},
         {"external_editor",
          catalog_backup_tree_files_json(external_editor, kCatalogBackupExternalEditorDirectory)},
         {"schema", "ravo-catalog-backup"},
         {"sidecars", std::move(sidecar_array)},
+        {"smart_previews",
+         catalog_backup_tree_files_json(smart_previews, kCatalogBackupSmartPreviewsDirectory)},
         {"version", JsonValue::number(std::to_string(kCatalogBackupFormatVersion))},
     };
 }
@@ -694,6 +747,24 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
     ready = checkpoint("external_editor_tree_copied", path_utf8(stage_external));
     if (!ready)
         return fail(ready.error());
+    const auto stage_dng = stage.path() / path_from_utf8(kCatalogBackupDngConversionDirectory);
+    auto copied_dng = catalog_backup_copy_tree(
+        live_support / path_from_utf8(kCatalogBackupDngConversionDirectory), stage_dng,
+        cancellation);
+    if (!copied_dng)
+        return fail(copied_dng.error());
+    ready = checkpoint("dng_conversion_tree_copied", path_utf8(stage_dng));
+    if (!ready)
+        return fail(ready.error());
+    const auto stage_smart = stage.path() / path_from_utf8(kCatalogBackupSmartPreviewsDirectory);
+    auto copied_smart = catalog_backup_copy_tree(
+        live_support / path_from_utf8(kCatalogBackupSmartPreviewsDirectory), stage_smart,
+        cancellation);
+    if (!copied_smart)
+        return fail(copied_smart.error());
+    ready = checkpoint("smart_previews_tree_copied", path_utf8(stage_smart));
+    if (!ready)
+        return fail(ready.error());
 
     auto after = repository_->snapshot();
     if (!after)
@@ -713,9 +784,9 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
 
     const auto created_unix_ms = now_unix_ms();
     const auto manifest_path = stage.path() / path_from_utf8(kCatalogBackupManifestFilename);
-    const auto manifest = serialize_json(
-        backup_manifest_json(catalog.value(), copied_sidecars, copied_derived.value(),
-                             copied_external.value(), created_unix_ms));
+    const auto manifest = serialize_json(backup_manifest_json(
+        catalog.value(), copied_sidecars, copied_derived.value(), copied_external.value(),
+        copied_dng.value(), copied_smart.value(), created_unix_ms));
     if (manifest.size() > kCatalogBackupManifestMaximumBytes)
         return fail(backup_error(ErrorCode::kValidation, "Backup manifest exceeds its byte limit",
                                  "backup_manifest_too_large", path_utf8(manifest_path)));
@@ -816,6 +887,14 @@ Result<CatalogBackupVerification> verify_catalog_backup(
         catalog_backup_verify_tree_checksums(manifest.value().external_editor, cancellation);
     if (!external_bytes)
         return external_bytes.error();
+    auto dng_bytes =
+        catalog_backup_verify_tree_checksums(manifest.value().dng_conversion, cancellation);
+    if (!dng_bytes)
+        return dng_bytes.error();
+    auto smart_bytes =
+        catalog_backup_verify_tree_checksums(manifest.value().smart_previews, cancellation);
+    if (!smart_bytes)
+        return smart_bytes.error();
     active = cancellation.check();
     if (!active)
         return active.error();
@@ -833,6 +912,10 @@ Result<CatalogBackupVerification> verify_catalog_backup(
     verification.artifact.derived_bytes = derived_bytes.value();
     verification.artifact.external_editor_count = manifest.value().external_editor.size();
     verification.artifact.external_editor_bytes = external_bytes.value();
+    verification.artifact.dng_conversion_count = manifest.value().dng_conversion.size();
+    verification.artifact.dng_conversion_bytes = dng_bytes.value();
+    verification.artifact.smart_previews_count = manifest.value().smart_previews.size();
+    verification.artifact.smart_previews_bytes = smart_bytes.value();
     verification.originals_included = false;
     verification.previews_included = false;
     return verification;

@@ -119,8 +119,10 @@ verify_support_root(const std::filesystem::path &support_root,
                     const std::vector<RecoveryArtifact> &expected,
                     const std::vector<CatalogBackupTreeFile> &expected_derived,
                     const std::vector<CatalogBackupTreeFile> &expected_external_editor,
-                    const bool expect_support_trees, const RecoveryStore &recovery_verifier,
-                    const CancellationToken &cancellation)
+                    const std::vector<CatalogBackupTreeFile> &expected_dng_conversion,
+                    const std::vector<CatalogBackupTreeFile> &expected_smart_previews,
+                    const bool expect_support_trees, const bool expect_ingest_trees,
+                    const RecoveryStore &recovery_verifier, const CancellationToken &cancellation)
 {
     std::error_code error;
     const auto root_status = std::filesystem::symlink_status(support_root, error);
@@ -133,6 +135,11 @@ verify_support_root(const std::filesystem::path &support_root,
     {
         allowed_root.insert(std::string(kCatalogBackupDerivedDirectory));
         allowed_root.insert(std::string(kCatalogBackupExternalEditorDirectory));
+    }
+    if (expect_ingest_trees)
+    {
+        allowed_root.insert(std::string(kCatalogBackupDngConversionDirectory));
+        allowed_root.insert(std::string(kCatalogBackupSmartPreviewsDirectory));
     }
     std::set<std::string, std::less<>> root_entries;
     for (std::filesystem::directory_iterator iterator(support_root, error), end; iterator != end;
@@ -219,18 +226,48 @@ verify_support_root(const std::filesystem::path &support_root,
         if (!external_bytes)
             return external_bytes.error();
     }
+    if (expect_ingest_trees)
+    {
+        std::vector<CatalogBackupTreeFile> dng_at_root = expected_dng_conversion;
+        for (auto &entry : dng_at_root)
+            entry.path = path_utf8(support_root / kCatalogBackupDngConversionDirectory /
+                                   path_from_utf8(entry.relative_path));
+        auto dng_layout = catalog_backup_verify_tree_layout(
+            support_root / kCatalogBackupDngConversionDirectory, dng_at_root);
+        if (!dng_layout)
+            return dng_layout.error();
+        auto dng_bytes = catalog_backup_verify_tree_checksums(dng_at_root, cancellation);
+        if (!dng_bytes)
+            return dng_bytes.error();
+        std::vector<CatalogBackupTreeFile> smart_at_root = expected_smart_previews;
+        for (auto &entry : smart_at_root)
+            entry.path = path_utf8(support_root / kCatalogBackupSmartPreviewsDirectory /
+                                   path_from_utf8(entry.relative_path));
+        auto smart_layout = catalog_backup_verify_tree_layout(
+            support_root / kCatalogBackupSmartPreviewsDirectory, smart_at_root);
+        if (!smart_layout)
+            return smart_layout.error();
+        auto smart_bytes = catalog_backup_verify_tree_checksums(smart_at_root, cancellation);
+        if (!smart_bytes)
+            return smart_bytes.error();
+    }
     return {};
 }
 
-[[nodiscard]] Result<void> remove_verified_support(
-    const std::filesystem::path &support_root, const std::vector<RecoveryArtifact> &expected,
-    const std::vector<CatalogBackupTreeFile> &expected_derived,
-    const std::vector<CatalogBackupTreeFile> &expected_external_editor,
-    const bool expect_support_trees, const RecoveryStore &recovery_verifier, TaskError &primary)
+[[nodiscard]] Result<void>
+remove_verified_support(const std::filesystem::path &support_root,
+                        const std::vector<RecoveryArtifact> &expected,
+                        const std::vector<CatalogBackupTreeFile> &expected_derived,
+                        const std::vector<CatalogBackupTreeFile> &expected_external_editor,
+                        const std::vector<CatalogBackupTreeFile> &expected_dng_conversion,
+                        const std::vector<CatalogBackupTreeFile> &expected_smart_previews,
+                        const bool expect_support_trees, const bool expect_ingest_trees,
+                        const RecoveryStore &recovery_verifier, TaskError &primary)
 {
     auto still_owned =
         verify_support_root(support_root, expected, expected_derived, expected_external_editor,
-                            expect_support_trees, recovery_verifier, CancellationToken{});
+                            expected_dng_conversion, expected_smart_previews, expect_support_trees,
+                            expect_ingest_trees, recovery_verifier, CancellationToken{});
     if (!still_owned)
     {
         primary.context.insert_or_assign("restore_support_retained", "true");
@@ -321,8 +358,11 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
         source_sidecars.push_back(std::move(artifact).value());
     }
     const bool expect_support_trees = source.value().artifact.format_version >= 2;
+    const bool expect_ingest_trees = source.value().artifact.format_version >= 3;
     std::vector<CatalogBackupTreeFile> source_derived;
     std::vector<CatalogBackupTreeFile> source_external_editor;
+    std::vector<CatalogBackupTreeFile> source_dng_conversion;
+    std::vector<CatalogBackupTreeFile> source_smart_previews;
     if (expect_support_trees)
     {
         auto derived = catalog_backup_enumerate_tree(backup_path / kCatalogBackupDerivedDirectory,
@@ -340,6 +380,24 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
                                  "restore_support_tree_count_mismatch", request.backup_directory);
         source_derived = std::move(derived).value();
         source_external_editor = std::move(external).value();
+    }
+    if (expect_ingest_trees)
+    {
+        auto dng = catalog_backup_enumerate_tree(backup_path / kCatalogBackupDngConversionDirectory,
+                                                 request.cancellation);
+        if (!dng)
+            return dng.error();
+        auto smart = catalog_backup_enumerate_tree(
+            backup_path / kCatalogBackupSmartPreviewsDirectory, request.cancellation);
+        if (!smart)
+            return smart.error();
+        if (dng.value().size() != source.value().artifact.dng_conversion_count ||
+            smart.value().size() != source.value().artifact.smart_previews_count)
+            return restore_error(ErrorCode::kValidation,
+                                 "Backup ingest trees do not match verified counts",
+                                 "restore_ingest_tree_count_mismatch", request.backup_directory);
+        source_dng_conversion = std::move(dng).value();
+        source_smart_previews = std::move(smart).value();
     }
 
     atomic_publication_internal::OwnedTemporaryDirectory stage;
@@ -428,6 +486,21 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
             return fail(staged_external.error());
         source_external_editor = std::move(staged_external).value();
     }
+    if (expect_ingest_trees)
+    {
+        auto staged_dng = catalog_backup_copy_tree(
+            backup_path / kCatalogBackupDngConversionDirectory,
+            stage_support / kCatalogBackupDngConversionDirectory, request.cancellation);
+        if (!staged_dng)
+            return fail(staged_dng.error());
+        source_dng_conversion = std::move(staged_dng).value();
+        auto staged_smart = catalog_backup_copy_tree(
+            backup_path / kCatalogBackupSmartPreviewsDirectory,
+            stage_support / kCatalogBackupSmartPreviewsDirectory, request.cancellation);
+        if (!staged_smart)
+            return fail(staged_smart.error());
+        source_smart_previews = std::move(staged_smart).value();
+    }
 
     progress_result = report_progress(
         progress, request.cancellation, CatalogRestoreStage::kVerifyStaging, source_sidecars.size(),
@@ -446,7 +519,8 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
                                   "restore_catalog_identity_mismatch", path_utf8(stage_catalog)));
     auto staged_support =
         verify_support_root(stage_support, source_sidecars, source_derived, source_external_editor,
-                            expect_support_trees, recovery_verifier, request.cancellation);
+                            source_dng_conversion, source_smart_previews, expect_support_trees,
+                            expect_ingest_trees, recovery_verifier, request.cancellation);
     if (!staged_support)
         return fail(staged_support.error());
 
@@ -480,17 +554,19 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
         if (!restaged_external)
             return fail(restaged_external.error());
         source_external_editor = std::move(restaged_external).value();
-        auto restaged_support = verify_support_root(stage_support, source_sidecars, source_derived,
-                                                    source_external_editor, expect_support_trees,
-                                                    recovery_verifier, request.cancellation);
+        auto restaged_support = verify_support_root(
+            stage_support, source_sidecars, source_derived, source_external_editor,
+            source_dng_conversion, source_smart_previews, expect_support_trees, expect_ingest_trees,
+            recovery_verifier, request.cancellation);
         if (!restaged_support)
             return fail(restaged_support.error());
     }
     else if (rewritten_sidecars.value() > 0U)
     {
-        auto restaged_support = verify_support_root(stage_support, source_sidecars, source_derived,
-                                                    source_external_editor, expect_support_trees,
-                                                    recovery_verifier, request.cancellation);
+        auto restaged_support = verify_support_root(
+            stage_support, source_sidecars, source_derived, source_external_editor,
+            source_dng_conversion, source_smart_previews, expect_support_trees, expect_ingest_trees,
+            recovery_verifier, request.cancellation);
         if (!restaged_support)
             return fail(restaged_support.error());
     }
@@ -522,8 +598,9 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
     {
         auto error = progress_result.error();
         static_cast<void>(remove_verified_support(support_path, source_sidecars, source_derived,
-                                                  source_external_editor, expect_support_trees,
-                                                  recovery_verifier, error));
+                                                  source_external_editor, source_dng_conversion,
+                                                  source_smart_previews, expect_support_trees,
+                                                  expect_ingest_trees, recovery_verifier, error));
         return fail(std::move(error));
     }
     const auto catalog_publish_error =
@@ -537,8 +614,9 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
                                                                   "restore_catalog_publish_failed",
                                    request.destination_catalog, catalog_publish_error.message());
         static_cast<void>(remove_verified_support(support_path, source_sidecars, source_derived,
-                                                  source_external_editor, expect_support_trees,
-                                                  recovery_verifier, error));
+                                                  source_external_editor, source_dng_conversion,
+                                                  source_smart_previews, expect_support_trees,
+                                                  expect_ingest_trees, recovery_verifier, error));
         return fail(std::move(error));
     }
 
@@ -567,7 +645,8 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
     }
     auto final_support =
         verify_support_root(support_path, source_sidecars, source_derived, source_external_editor,
-                            expect_support_trees, recovery_verifier, CancellationToken{});
+                            source_dng_conversion, source_smart_previews, expect_support_trees,
+                            expect_ingest_trees, recovery_verifier, CancellationToken{});
     if (!final_support)
     {
         auto error = final_support.error();

@@ -65,7 +65,9 @@ fail-closed stub rather than a half-working encoder.
   generator; status JSON states `develop_fallback=false` /
   `usable_for_develop=false` permanently.
 - Restore URI known-support prefixes include `dng-conversion/` and
-  `smart-previews/` (ADR-0136 packaging of those trees remains residual).
+  `smart-previews/`.
+- Verified backup format **v3** packages those trees with SHA-256 manifests
+  (ADR-0136 extension).
 - Studio chrome is optional and out of this tranche.
 
 ## Non-goals (explicit)
