@@ -15,11 +15,29 @@ namespace ravo
 
 // ADR-0151: IQ-00 CPU gold / GPU consistency contract (first Ready).
 inline constexpr std::string_view kIqConsistencyContractVersion = "ravo.iq.consistency/v1";
-inline constexpr std::int64_t kIqConsistencySchemaVersion = 1;
+inline constexpr std::int64_t kIqConsistencySchemaVersion = 2;
 
 // Per-channel absolute tolerance for admitted interactive GPU RGB batches
 // versus CPU gold linear working (Exposure / light / Lab USM / Sigmoid).
 inline constexpr float kIqGpuCpuWorkingAbsTolerance = 2.0e-3F;
+
+// Interactive Metal GPU edit-math stages admitted under the packed-RGB8
+// contract on macOS Debug/Release. Non-listed ops stay on the interactive
+// CPU hybrid (not a silent algorithm downgrade; persist/export remain CPU
+// gold). Masked instances, non-linear-Rec709 sharpen, and non-linear-sRGB
+// sigmoid working spaces are also CPU on the interactive path.
+inline constexpr std::string_view kIqGpuAdmittedInteractiveStages[] = {
+    "ravo.core.exposure", "ravo.core.highlights", "ravo.core.shadows",    "ravo.core.whites",
+    "ravo.core.blacks",   "ravo.detail.sharpen",  "ravo.display.sigmoid",
+};
+
+// Machine-visible residual after admitted-stage packed contracts: full
+// corpus / Win-Linux / proof-monitor / multi-instance GPU / RAW ROI size
+// mismatch vs export remain open. Non-admitted interactive ops run CPU.
+inline constexpr std::string_view kIqGpuInteractiveNonAdmittedPolicy =
+    "non_admitted_ops_run_cpu_on_interactive_hybrid; masked_ops_cpu; "
+    "non_linear_rec709_sharpen_cpu; non_linear_srgb_sigmoid_working_space_cpu; "
+    "gpu_batch_fail_closes_on_pipeline_error";
 
 [[nodiscard]] inline bool is_cpu_gold_backend(const std::string_view gpu_backend) noexcept
 {
@@ -100,9 +118,29 @@ crop_packed_rgb8(const std::vector<std::uint8_t> &rgb, const std::uint32_t width
     return out;
 }
 
+// Max observed abs channel delta helper for packed RGB8 diagnostics.
+[[nodiscard]] inline int max_packed_rgb8_abs_delta(const std::vector<std::uint8_t> &left,
+                                                   const std::vector<std::uint8_t> &right) noexcept
+{
+    if (left.size() != right.size())
+        return -1;
+    int max_delta = 0;
+    for (std::size_t index = 0; index < left.size(); ++index)
+    {
+        const int delta = std::abs(static_cast<int>(left[index]) - static_cast<int>(right[index]));
+        if (delta > max_delta)
+            max_delta = delta;
+    }
+    return max_delta;
+}
+
 // Host evidence scope for IQ-00 contract probes on this tree (honest residual).
 inline constexpr std::string_view kIqConsistencyHostScope = "macos_debug_release_contract";
+// Admitted interactive stages carry packed-RGB8 abs-delta contracts on macOS
+// Metal; RAW viewport ROI may still report GPU; persist/export/reopen stay CPU.
 inline constexpr std::string_view kIqConsistencyGpuLiveResidual =
-    "interactive_develop_preview_and_raw_roi_may_use_gpu; persist_export_reopen_cpu_gold";
+    "admitted_interactive_develop_stages_packed_delta_contracted_macos_metal; "
+    "raw_viewport_roi_may_use_gpu; non_admitted_interactive_ops_cpu_hybrid; "
+    "persist_export_reopen_cpu_gold; win_linux_and_full_corpus_open";
 
 } // namespace ravo

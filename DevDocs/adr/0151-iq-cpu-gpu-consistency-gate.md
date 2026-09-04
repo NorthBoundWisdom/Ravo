@@ -58,6 +58,17 @@ hooks dated without claiming the full corpus matrix is closed.
 - `catalog probe --json` reports an `iq_consistency` object describing the
   gold policy and residual GPU live path.
 
+### macOS Metal admitted-stage packed RGB8 (follow-on)
+
+- Schema version **2** lists `gpu_admitted_interactive_stages` (Exposure,
+  highlights/shadows/whites/blacks, Lab USM sharpen, linear-sRGB Sigmoid) and
+  `non_admitted_interactive_policy`.
+- Owned-pixel interactive vs CPU-gold packed RGB8 stays within
+  `kIqGpuCpuPackedRgb8AbsDelta` for those stages (and an admitted develop
+  stack) on macOS Metal; non-admitted ops (e.g. contrast-only) remain CPU
+  gold bit-exact on the interactive hybrid. Persist/export/reopen stay CPU
+  gold. Win/Linux hosts are not claimed.
+
 ### Explicit residuals
 
 - Full IQ-00 matrix (RAW corpus, ICC/proof, multi-instance locals, denoise,
@@ -67,6 +78,8 @@ hooks dated without claiming the full corpus matrix is closed.
   only; never mutates recipe/export).
 - Expanding GPU batches beyond the current admitted RGB ops requires new
   dated tolerances before they may leave the interactive path.
+- RAW viewport ROI may still report GPU; size-matched packed comparison vs
+  export remains an evidence residual.
 
 ## Consequences
 

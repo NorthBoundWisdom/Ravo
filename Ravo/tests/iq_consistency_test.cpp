@@ -11,6 +11,8 @@
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/mask.h"
+#include "ravo/recipe/sharpen.h"
 
 namespace ravo
 {
@@ -53,13 +55,124 @@ namespace
             std::nullopt};
 }
 
+[[nodiscard]] OperationInstance output_operation()
+{
+    return {"ravo.color.output", 1, "output", true, output_color_to_parameters(OutputColorParams{}),
+            std::nullopt};
+}
+
 [[nodiscard]] Recipe make_sigmoid_recipe()
 {
     Recipe recipe;
     recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
     recipe.operations.push_back(default_sigmoid_operation());
-    recipe.operations.push_back({"ravo.color.output", 1, "output", true,
-                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Recipe make_exposure_sigmoid_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    ExposureParams exposure;
+    exposure.exposure_ev = 0.75;
+    recipe.operations.push_back({std::string(kExposureOperationId), kExposureOperationSchemaVersion,
+                                 "exposure-1", true, exposure_to_parameters(exposure),
+                                 std::nullopt});
+    recipe.operations.push_back(default_sigmoid_operation());
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Recipe make_light_sigmoid_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    recipe.operations.push_back({"ravo.core.shadows",
+                                 1,
+                                 "shadows-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.214}}},
+                                 std::nullopt});
+    recipe.operations.push_back({"ravo.core.highlights",
+                                 1,
+                                 "highlights-1",
+                                 true,
+                                 {{"amount", ParameterValue{-0.35}}},
+                                 std::nullopt});
+    recipe.operations.push_back(default_sigmoid_operation());
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Result<Recipe> make_sharpen_sigmoid_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    SharpenParams sharpen;
+    sharpen.radius = 1.5;
+    sharpen.amount = 0.6;
+    sharpen.threshold = 0.25;
+    auto params = sharpen_to_parameters(sharpen);
+    if (!params)
+        return params.error();
+    recipe.operations.push_back({std::string(kSharpenOperationId), kSharpenOperationSchemaVersion,
+                                 "sharpen-1", true, params.value(), std::nullopt});
+    recipe.operations.push_back(default_sigmoid_operation());
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Result<Recipe> make_admitted_develop_stack_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    ExposureParams exposure;
+    exposure.exposure_ev = 0.5;
+    recipe.operations.push_back({std::string(kExposureOperationId), kExposureOperationSchemaVersion,
+                                 "exposure-1", true, exposure_to_parameters(exposure),
+                                 std::nullopt});
+    recipe.operations.push_back({"ravo.core.shadows",
+                                 1,
+                                 "shadows-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.18}}},
+                                 std::nullopt});
+    SharpenParams sharpen;
+    sharpen.radius = 1.0;
+    sharpen.amount = 0.45;
+    sharpen.threshold = 0.2;
+    auto params = sharpen_to_parameters(sharpen);
+    if (!params)
+        return params.error();
+    recipe.operations.push_back({std::string(kSharpenOperationId), kSharpenOperationSchemaVersion,
+                                 "sharpen-1", true, params.value(), std::nullopt});
+    recipe.operations.push_back(default_sigmoid_operation());
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Recipe make_contrast_only_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    recipe.operations.push_back({"ravo.core.contrast",
+                                 1,
+                                 "contrast-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.4}}},
+                                 std::nullopt});
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Recipe make_masked_exposure_sigmoid_recipe()
+{
+    Recipe recipe = make_exposure_sigmoid_recipe();
+    Mask all{"all", kCanonicalMaskSchemaVersion, MaskKind::kAll};
+    all.payload = AllMask{};
+    recipe.masks.push_back(std::move(all));
+    recipe.operations.front().mask_id = std::string("all");
     return recipe;
 }
 
@@ -67,6 +180,43 @@ namespace
 export_rgb8(const RenderedExportImage &image) noexcept
 {
     return std::get_if<std::vector<std::uint8_t>>(&image.samples);
+}
+
+void expect_interactive_packed_within_contract(const EngineFacade &engine,
+                                               const LinearWorkingBuffer &working,
+                                               const Recipe &recipe)
+{
+    const auto cpu = engine.render_linear_working(working, recipe, CancellationToken{});
+    ASSERT_TRUE(cpu) << cpu.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(cpu.value().gpu_backend, "cpu_reference"));
+
+    InteractivePreviewRenderCache cache;
+    const auto interactive = engine.render_interactive_linear_working(
+        working, recipe, cache, CancellationToken{}, std::nullopt, true);
+    ASSERT_TRUE(interactive) << interactive.error().message;
+    ASSERT_EQ(interactive.value().rgb.size(), cpu.value().rgb.size());
+    ASSERT_EQ(interactive.value().width, cpu.value().width);
+    ASSERT_EQ(interactive.value().height, cpu.value().height);
+
+    if (interactive.value().gpu_backend.empty())
+    {
+        EXPECT_TRUE(rgb8_buffers_equal(interactive.value().rgb, cpu.value().rgb));
+    }
+    else
+    {
+        EXPECT_EQ(interactive.value().gpu_backend, engine.gpu_backend());
+        EXPECT_FALSE(is_cpu_gold_backend(interactive.value().gpu_backend));
+        const int max_delta = max_packed_rgb8_abs_delta(interactive.value().rgb, cpu.value().rgb);
+        EXPECT_GE(max_delta, 0);
+        EXPECT_LE(max_delta, kIqGpuCpuPackedRgb8AbsDelta) << "max_packed_abs_delta=" << max_delta;
+        EXPECT_TRUE(packed_rgb8_within_abs_delta(interactive.value().rgb, cpu.value().rgb,
+                                                 kIqGpuCpuPackedRgb8AbsDelta));
+    }
+
+    const auto persist = engine.render_linear_working(working, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(persist.value().gpu_backend, "persist_after_gpu"));
+    EXPECT_TRUE(rgb8_buffers_equal(persist.value().rgb, cpu.value().rgb));
 }
 
 } // namespace
@@ -226,8 +376,50 @@ TEST(IqConsistencyTest, InteractiveGpuResidualStaysWithinDocumentedPackedDelta)
 {
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8),
+                                              make_sigmoid_recipe());
+}
+
+TEST(IqConsistencyTest, InteractiveGpuExposurePackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8),
+                                              make_exposure_sigmoid_recipe());
+}
+
+TEST(IqConsistencyTest, InteractiveGpuLightControlsPackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8),
+                                              make_light_sigmoid_recipe());
+}
+
+TEST(IqConsistencyTest, InteractiveGpuSharpenPackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto recipe = make_sharpen_sigmoid_recipe();
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(16, 16), recipe.value());
+}
+
+TEST(IqConsistencyTest, InteractiveGpuAdmittedDevelopStackPackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto recipe = make_admitted_develop_stack_recipe();
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(16, 16), recipe.value());
+}
+
+TEST(IqConsistencyTest, InteractiveNonAdmittedContrastStaysCpuGoldBitExact)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
     const auto working = make_working(8, 8);
-    const auto recipe = make_sigmoid_recipe();
+    const auto recipe = make_contrast_only_recipe();
 
     const auto cpu = engine.value().render_linear_working(working, recipe, CancellationToken{});
     ASSERT_TRUE(cpu) << cpu.error().message;
@@ -237,22 +429,67 @@ TEST(IqConsistencyTest, InteractiveGpuResidualStaysWithinDocumentedPackedDelta)
     const auto interactive = engine.value().render_interactive_linear_working(
         working, recipe, cache, CancellationToken{}, std::nullopt, true);
     ASSERT_TRUE(interactive) << interactive.error().message;
-    ASSERT_EQ(interactive.value().rgb.size(), cpu.value().rgb.size());
+    // Contrast is not an admitted GPU stage: interactive must stay CPU gold and
+    // bit-exact (machine-visible: empty gpu_backend), not a silent GPU path.
+    EXPECT_TRUE(interactive.value().gpu_backend.empty());
+    EXPECT_TRUE(is_cpu_gold_backend(interactive.value().gpu_backend));
+    EXPECT_TRUE(rgb8_buffers_equal(interactive.value().rgb, cpu.value().rgb));
+}
 
+TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto working = make_working(8, 8);
+    const auto recipe = make_masked_exposure_sigmoid_recipe();
+
+    const auto cpu = engine.value().render_linear_working(working, recipe, CancellationToken{});
+    ASSERT_TRUE(cpu) << cpu.error().message;
+    ASSERT_TRUE(require_cpu_gold_backend(cpu.value().gpu_backend, "cpu_reference"));
+
+    InteractivePreviewRenderCache cache;
+    const auto interactive = engine.value().render_interactive_linear_working(
+        working, recipe, cache, CancellationToken{}, std::nullopt, true);
+    ASSERT_TRUE(interactive) << interactive.error().message;
+    // Masked exposure is CPU on the interactive path; sigmoid after a CPU prefix
+    // may still report GPU. Persist remains CPU gold either way.
+    ASSERT_EQ(interactive.value().rgb.size(), cpu.value().rgb.size());
     if (interactive.value().gpu_backend.empty())
     {
         EXPECT_TRUE(rgb8_buffers_equal(interactive.value().rgb, cpu.value().rgb));
     }
     else
     {
-        EXPECT_FALSE(is_cpu_gold_backend(interactive.value().gpu_backend));
         EXPECT_TRUE(packed_rgb8_within_abs_delta(interactive.value().rgb, cpu.value().rgb,
                                                  kIqGpuCpuPackedRgb8AbsDelta));
     }
     const auto persist = engine.value().render_linear_working(working, recipe, CancellationToken{});
     ASSERT_TRUE(persist) << persist.error().message;
-    ASSERT_TRUE(require_cpu_gold_backend(persist.value().gpu_backend, "persist_after_gpu"));
+    ASSERT_TRUE(require_cpu_gold_backend(persist.value().gpu_backend, "persist_after_masked"));
     EXPECT_TRUE(rgb8_buffers_equal(persist.value().rgb, cpu.value().rgb));
+}
+
+TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
+{
+    EXPECT_EQ(kIqConsistencySchemaVersion, 2);
+    EXPECT_FALSE(std::string(kIqGpuInteractiveNonAdmittedPolicy).empty());
+    EXPECT_NE(std::string(kIqConsistencyGpuLiveResidual).find("admitted_interactive"),
+              std::string::npos);
+    bool saw_exposure = false;
+    bool saw_sigmoid = false;
+    bool saw_sharpen = false;
+    for (const auto stage : kIqGpuAdmittedInteractiveStages)
+    {
+        if (stage == "ravo.core.exposure")
+            saw_exposure = true;
+        if (stage == "ravo.display.sigmoid")
+            saw_sigmoid = true;
+        if (stage == "ravo.detail.sharpen")
+            saw_sharpen = true;
+    }
+    EXPECT_TRUE(saw_exposure);
+    EXPECT_TRUE(saw_sigmoid);
+    EXPECT_TRUE(saw_sharpen);
 }
 
 } // namespace ravo

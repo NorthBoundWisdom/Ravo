@@ -530,6 +530,9 @@ JsonValue keyword_mutation_to_json(const KeywordMutation &mutation)
 
 [[nodiscard]] JsonValue iq_consistency_policy_json()
 {
+    JsonValue::Array admitted;
+    for (const auto stage : kIqGpuAdmittedInteractiveStages)
+        admitted.push_back(std::string(stage));
     return JsonValue::Object{
         {"contract", std::string(kIqConsistencyContractVersion)},
         {"schema_version", JsonValue::number(std::to_string(kIqConsistencySchemaVersion))},
@@ -537,12 +540,14 @@ JsonValue keyword_mutation_to_json(const KeywordMutation &mutation)
          JsonValue::Array{"persist_preview", "settled_preview", "export", "cli_png", "reopen"}},
         {"gpu_live_path", "interactive_develop_preview"},
         {"gpu_live_also_includes", JsonValue::Array{"raw_viewport_roi_preview"}},
+        {"gpu_admitted_interactive_stages", std::move(admitted)},
         {"gpu_cpu_working_abs_tolerance",
          JsonValue::number(std::to_string(kIqGpuCpuWorkingAbsTolerance))},
         {"gpu_cpu_packed_rgb8_abs_delta",
          JsonValue::number(std::to_string(kIqGpuCpuPackedRgb8AbsDelta))},
         {"persist_export_fail_closed_to_cpu", true},
         {"silent_gpu_fallback_forbidden", true},
+        {"non_admitted_interactive_policy", std::string(kIqGpuInteractiveNonAdmittedPolicy)},
         {"host_scope", std::string(kIqConsistencyHostScope)},
         {"gpu_live_residual", std::string(kIqConsistencyGpuLiveResidual)},
         {"win_linux_hosts_claimed", false},
