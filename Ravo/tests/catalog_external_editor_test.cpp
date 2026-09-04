@@ -570,4 +570,129 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyRejectsUnsupportedProfile)
     EXPECT_EQ(failed.error().context.at("reason"), "unsupported_working_copy_profile");
 }
 
+TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyStatusAbandonAndReopen)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "wc-status.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(11, 22, 33)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, source_id);
+    ASSERT_FALSE(original.empty());
+    const auto before_sha = sha256_file_hex(original);
+    ASSERT_TRUE(before_sha) << before_sha.error().message;
+
+    ExternalEditorWorkingCopyRequest request;
+    request.asset_id = source_id;
+    request.editor_id = "photoshop";
+    request.user_initiated = true;
+    request.max_edge = 48U;
+    auto prepared = service->create_external_editor_working_copy(request);
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    const auto working_id = prepared.value().session.working_copy_id;
+
+    auto pending = service->external_editor_working_copy_status(working_id);
+    ASSERT_TRUE(pending) << pending.error().message;
+    EXPECT_EQ(pending.value().machine_state, ExternalEditorWorkingCopyMachineState::kPending);
+    EXPECT_EQ(pending.value().reason, "pending");
+    EXPECT_TRUE(pending.value().working_copy_present);
+    EXPECT_FALSE(pending.value().working_copy_modified);
+    EXPECT_TRUE(pending.value().source_original_unchanged);
+    EXPECT_TRUE(pending.value().catalog_revision_current);
+
+    // Modify working TIFF bytes so status becomes modified.
+    ASSERT_TRUE(write_jpeg(prepared.value().session.working_path, QColor(200, 10, 10)));
+    auto modified = service->external_editor_working_copy_status(working_id);
+    ASSERT_TRUE(modified) << modified.error().message;
+    EXPECT_EQ(modified.value().machine_state, ExternalEditorWorkingCopyMachineState::kModified);
+    EXPECT_EQ(modified.value().reason, "modified");
+    EXPECT_TRUE(modified.value().working_copy_modified);
+
+    auto listed = service->list_external_editor_working_copies(source_id);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().working_copy_id, working_id);
+
+    ExternalEditorReopenRequest reopen_req;
+    reopen_req.working_copy_id = working_id;
+    reopen_req.user_initiated = true;
+    auto reopened = service->reopen_external_editor_working_copy(reopen_req);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    EXPECT_EQ(reopened.value().status.machine_state,
+              ExternalEditorWorkingCopyMachineState::kModified);
+
+    ExternalEditorAbandonRequest blocked;
+    blocked.working_copy_id = working_id;
+    blocked.user_initiated = false;
+    auto missing_flag = service->abandon_external_editor_working_copy(blocked);
+    ASSERT_FALSE(missing_flag);
+    EXPECT_EQ(missing_flag.error().context.at("reason"), "missing_user_initiated");
+
+    ExternalEditorAbandonRequest abandon;
+    abandon.working_copy_id = working_id;
+    abandon.user_initiated = true;
+    auto abandoned = service->abandon_external_editor_working_copy(abandon);
+    ASSERT_TRUE(abandoned) << abandoned.error().message;
+    EXPECT_TRUE(abandoned.value().session_removed);
+    EXPECT_TRUE(abandoned.value().originals_unchanged);
+    EXPECT_FALSE(std::filesystem::exists(prepared.value().session.working_path));
+
+    auto missing = service->external_editor_working_copy_status(working_id);
+    ASSERT_FALSE(missing);
+
+    auto listed_after = service->list_external_editor_working_copies(source_id);
+    ASSERT_TRUE(listed_after) << listed_after.error().message;
+    EXPECT_TRUE(listed_after.value().empty());
+
+    const auto after_sha = sha256_file_hex(original);
+    ASSERT_TRUE(after_sha) << after_sha.error().message;
+    EXPECT_EQ(after_sha.value(), before_sha.value());
+}
+
+TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyMissingAndStaleStates)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "wc-missing.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(5, 5, 5)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+
+    ExternalEditorWorkingCopyRequest request;
+    request.asset_id = imported.value().asset->id;
+    request.editor_id = "gimp";
+    request.user_initiated = true;
+    request.max_edge = 32U;
+    auto prepared = service->create_external_editor_working_copy(request);
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    const auto working_id = prepared.value().session.working_copy_id;
+    const auto working_path = prepared.value().session.working_path;
+
+    std::error_code error;
+    std::filesystem::remove(working_path, error);
+    ASSERT_FALSE(error) << error.message();
+    auto missing = service->external_editor_working_copy_status(working_id);
+    ASSERT_TRUE(missing) << missing.error().message;
+    EXPECT_EQ(missing.value().machine_state,
+              ExternalEditorWorkingCopyMachineState::kMissingWorkingCopy);
+    EXPECT_EQ(missing.value().reason, "missing_working_copy");
+
+    // Recreate a session and force stale revision via expected_revision on abandon.
+    ExternalEditorWorkingCopyRequest again;
+    again.asset_id = imported.value().asset->id;
+    again.editor_id = "gimp";
+    again.user_initiated = true;
+    again.max_edge = 32U;
+    auto prepared2 = service->create_external_editor_working_copy(again);
+    ASSERT_TRUE(prepared2) << prepared2.error().message;
+    ExternalEditorAbandonRequest stale;
+    stale.working_copy_id = prepared2.value().session.working_copy_id;
+    stale.user_initiated = true;
+    stale.expected_catalog_revision = prepared2.value().session.observed_catalog_revision - 1;
+    auto stale_blocked = service->abandon_external_editor_working_copy(stale);
+    ASSERT_FALSE(stale_blocked);
+    EXPECT_EQ(stale_blocked.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(stale_blocked.error().context.at("reason"), "stale_catalog_revision");
+}
+
 } // namespace ravo

@@ -33,6 +33,9 @@ DialogShell {
 
     signal prepareAccepted(var options)
     signal checkReturnedAccepted(string workingCopyId)
+    signal abandonAccepted(string workingCopyId)
+    signal reopenAccepted(string workingCopyId)
+    signal refreshStatusAccepted(string workingCopyId)
     signal dialogCanceled
 
     function sampleTypeIndex(value) {
@@ -91,6 +94,26 @@ DialogShell {
         const workingCopyId = session && session.workingCopyId ? String(session.workingCopyId) : "";
         close();
         checkReturnedAccepted(workingCopyId);
+    }
+
+    function acceptAbandon() {
+        const session = root.presenter ? root.presenter.externalEditorSession : ({});
+        const workingCopyId = session && session.workingCopyId ? String(session.workingCopyId) : "";
+        close();
+        abandonAccepted(workingCopyId);
+    }
+
+    function acceptReopen() {
+        const session = root.presenter ? root.presenter.externalEditorSession : ({});
+        const workingCopyId = session && session.workingCopyId ? String(session.workingCopyId) : "";
+        close();
+        reopenAccepted(workingCopyId);
+    }
+
+    function acceptRefreshStatus() {
+        const session = root.presenter ? root.presenter.externalEditorSession : ({});
+        const workingCopyId = session && session.workingCopyId ? String(session.workingCopyId) : "";
+        refreshStatusAccepted(workingCopyId);
     }
 
     function cancelDialog() {
@@ -247,8 +270,11 @@ DialogShell {
                 const session = root.presenter ? root.presenter.externalEditorSession : ({});
                 if (!session || !session.workingCopyId)
                     return "";
-                const registered = session.registered ? qsTr("registered") : qsTr("pending return");
-                return qsTr("Session %1 (%2)").arg(session.workingCopyId).arg(registered);
+                if (session.registered)
+                    return qsTr("Session %1 (registered)").arg(session.workingCopyId);
+                const state = session.machineState ? String(session.machineState) : qsTr("pending");
+                const reason = session.reason ? String(session.reason) : state;
+                return qsTr("Session %1 — %2").arg(session.workingCopyId).arg(reason);
             }
         }
     }
@@ -263,6 +289,24 @@ DialogShell {
             objectName: "editInCancel"
             text: qsTr("Cancel")
             onClicked: root.cancelDialog()
+        }
+        CustomButton {
+            objectName: "editInAbandon"
+            text: qsTr("Abandon")
+            enabled: root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered
+            onClicked: root.acceptAbandon()
+        }
+        CustomButton {
+            objectName: "editInReopen"
+            text: qsTr("Reopen")
+            enabled: root.presenter && ((root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered) || (root.presenter.selectedAssetId && root.presenter.selectedAssetId.length))
+            onClicked: root.acceptReopen()
+        }
+        CustomButton {
+            objectName: "editInRefreshStatus"
+            text: qsTr("Refresh Status")
+            enabled: root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered
+            onClicked: root.acceptRefreshStatus()
         }
         CustomButton {
             objectName: "editInCheckReturned"

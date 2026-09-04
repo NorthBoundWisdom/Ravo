@@ -1685,6 +1685,9 @@ TEST(StudioQmlContract, EditInDialogExposesWorkingCopyChrome)
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.photoEditIn")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInPrepare")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInCheckReturned")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInAbandon")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInReopen")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInRefreshStatus")));
 }
 
 TEST(StudioCommands, EditInCommandsExposePrepareAndCheckReturned)
@@ -1701,6 +1704,12 @@ TEST(StudioCommands, EditInCommandsExposePrepareAndCheckReturned)
               QStringLiteral("studio.photo.edit_in_check_returned"));
     EXPECT_EQ(ids.value(QStringLiteral("photoEditInClearSession")).toString(),
               QStringLiteral("studio.photo.edit_in_clear_session"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoEditInAbandon")).toString(),
+              QStringLiteral("studio.photo.edit_in_abandon"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoEditInReopen")).toString(),
+              QStringLiteral("studio.photo.edit_in_reopen"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoEditInRefreshStatus")).toString(),
+              QStringLiteral("studio.photo.edit_in_refresh_status"));
 
     const auto edit_in = ids.value(QStringLiteral("photoEditIn")).toString();
     const auto edit_action = controller.action(edit_in);

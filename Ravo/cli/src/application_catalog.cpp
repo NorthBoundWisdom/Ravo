@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-near-duplicates|cull-review|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|editor-working-copy-status|editor-working-copy-list|editor-abandon-working-copy|editor-reopen-working-copy|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-near-duplicates|cull-review|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -173,10 +173,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand == "ai-suggestion-cancel";
     const bool xmp_command =
         subcommand == "xmp-status" || subcommand == "xmp-import" || subcommand == "xmp-export";
-    const bool editor_command = subcommand == "editor-register" || subcommand == "editor-show" ||
-                                subcommand == "editor-open" ||
-                                subcommand == "editor-prepare-working-copy" ||
-                                subcommand == "editor-check-returned";
+    const bool editor_command =
+        subcommand == "editor-register" || subcommand == "editor-show" ||
+        subcommand == "editor-open" || subcommand == "editor-prepare-working-copy" ||
+        subcommand == "editor-check-returned" || subcommand == "editor-working-copy-status" ||
+        subcommand == "editor-working-copy-list" || subcommand == "editor-abandon-working-copy" ||
+        subcommand == "editor-reopen-working-copy";
     const bool cull_command = subcommand == "cull-exact-duplicates" ||
                               subcommand == "cull-burst-propose" ||
                               subcommand == "cull-burst-accept" ||
@@ -214,10 +216,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "--auto-stack is only valid for catalog editor-register or "
                           "editor-prepare-working-copy");
     if (flags.value().editor_invoke_os_open && subcommand != "editor-open" &&
-        subcommand != "editor-prepare-working-copy")
+        subcommand != "editor-prepare-working-copy" && subcommand != "editor-reopen-working-copy")
         return make_error(ErrorCode::kInvalidArgument,
-                          "--invoke-os-open is only valid for catalog editor-open or "
-                          "editor-prepare-working-copy");
+                          "--invoke-os-open is only valid for catalog editor-open, "
+                          "editor-prepare-working-copy, or editor-reopen-working-copy");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
         !develop_apply_command && !keyword_command && !ai_command && !editor_command &&
         !cull_command)
@@ -227,19 +229,27 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "commands");
     if (flags.value().user_initiated && subcommand != "ai-propose" && subcommand != "ai-suggest" &&
         subcommand != "editor-open" && subcommand != "editor-prepare-working-copy" &&
+        subcommand != "editor-abandon-working-copy" && subcommand != "editor-reopen-working-copy" &&
         subcommand != "offline-proxy-create" && subcommand != "offline-proxy-reconnect" &&
         subcommand != "cull-burst-accept")
         return make_error(ErrorCode::kInvalidArgument,
                           "--user-initiated is only valid for catalog ai-propose, ai-suggest, "
-                          "editor-open, editor-prepare-working-copy, offline-proxy-create, "
-                          "offline-proxy-reconnect, or cull-burst-accept");
-    if (!flags.value().working_copy_id.empty() && subcommand != "editor-check-returned")
+                          "editor-open, editor-prepare-working-copy, "
+                          "editor-abandon-working-copy, editor-reopen-working-copy, "
+                          "offline-proxy-create, offline-proxy-reconnect, or cull-burst-accept");
+    if (!flags.value().working_copy_id.empty() && subcommand != "editor-check-returned" &&
+        subcommand != "editor-working-copy-status" && subcommand != "editor-abandon-working-copy" &&
+        subcommand != "editor-reopen-working-copy")
         return make_error(ErrorCode::kInvalidArgument,
-                          "--working-copy-id is only valid for catalog editor-check-returned");
-    if (!flags.value().application_path.empty() && subcommand != "editor-prepare-working-copy")
+                          "--working-copy-id is only valid for catalog editor-check-returned, "
+                          "editor-working-copy-status, editor-abandon-working-copy, or "
+                          "editor-reopen-working-copy");
+    if (!flags.value().application_path.empty() && subcommand != "editor-prepare-working-copy" &&
+        subcommand != "editor-reopen-working-copy")
         return make_error(
             ErrorCode::kInvalidArgument,
-            "--application-path is only valid for catalog editor-prepare-working-copy");
+            "--application-path is only valid for catalog editor-prepare-working-copy or "
+            "editor-reopen-working-copy");
 
     if (flags.value().burst_window_seconds && subcommand != "cull-burst-propose")
         return make_error(ErrorCode::kInvalidArgument,

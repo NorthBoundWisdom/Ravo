@@ -179,4 +179,74 @@ struct ExternalEditorCheckReturnedResult
     ExternalEditorWorkingCopySession session;
 };
 
+// ADR-0154: reopen / abandon / conflict machine states for working-copy sessions.
+enum class ExternalEditorWorkingCopyMachineState : std::uint8_t
+{
+    kPending = 0,
+    kModified = 1,
+    kMissingWorkingCopy = 2,
+    kSourceConflict = 3,
+    kStaleCatalog = 4,
+};
+
+[[nodiscard]] inline std::string_view external_editor_working_copy_machine_state_name(
+    const ExternalEditorWorkingCopyMachineState state) noexcept
+{
+    switch (state)
+    {
+    case ExternalEditorWorkingCopyMachineState::kPending:
+        return "pending";
+    case ExternalEditorWorkingCopyMachineState::kModified:
+        return "modified";
+    case ExternalEditorWorkingCopyMachineState::kMissingWorkingCopy:
+        return "missing_working_copy";
+    case ExternalEditorWorkingCopyMachineState::kSourceConflict:
+        return "source_conflict";
+    case ExternalEditorWorkingCopyMachineState::kStaleCatalog:
+        return "stale_catalog";
+    }
+    return "pending";
+}
+
+struct ExternalEditorWorkingCopyStatus
+{
+    std::string schema{std::string(kExternalEditorWorkingCopyContractVersion)};
+    ExternalEditorWorkingCopySession session;
+    ExternalEditorWorkingCopyMachineState machine_state =
+        ExternalEditorWorkingCopyMachineState::kPending;
+    bool working_copy_present = false;
+    bool working_copy_modified = false;
+    bool source_original_unchanged = true;
+    bool catalog_revision_current = true;
+    std::string reason{"pending"};
+};
+
+struct ExternalEditorAbandonRequest
+{
+    std::string working_copy_id;
+    bool user_initiated = false;
+    std::optional<std::int64_t> expected_catalog_revision;
+    CancellationToken cancellation{};
+};
+
+struct ExternalEditorAbandonResult
+{
+    std::string working_copy_id;
+    bool session_removed = false;
+    bool working_copy_removed = false;
+    bool originals_unchanged = true;
+};
+
+struct ExternalEditorReopenRequest
+{
+    std::string working_copy_id;
+    bool user_initiated = false;
+    CancellationToken cancellation{};
+};
+
+struct ExternalEditorReopenResult
+{
+    ExternalEditorWorkingCopyStatus status;
+};
+
 } // namespace ravo

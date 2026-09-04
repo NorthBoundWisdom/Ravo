@@ -1783,6 +1783,22 @@ ApplicationWindow {
                 "workingCopyId": workingCopyId
             });
         }
+        onAbandonAccepted: function (workingCopyId) {
+            studioActions.run(studioActions.ids.photoEditInAbandon, {
+                "workingCopyId": workingCopyId
+            });
+        }
+        onReopenAccepted: function (workingCopyId) {
+            studioActions.run(studioActions.ids.photoEditInReopen, {
+                "workingCopyId": workingCopyId,
+                "openAfterReopen": true
+            });
+        }
+        onRefreshStatusAccepted: function (workingCopyId) {
+            studioActions.run(studioActions.ids.photoEditInRefreshStatus, {
+                "workingCopyId": workingCopyId
+            });
+        }
     }
 
     BackupScheduleDialog {

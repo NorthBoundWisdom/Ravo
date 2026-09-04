@@ -475,13 +475,13 @@ no auto-delete.
 
 ## EDITIN-01 — Studio external-editor round trip
 
-**Status:** ADR-0122/0136/0139 service/CLI path plus Studio `Edit in…` chrome
-(prepare working copy / OS open / check-returned / session map) are on `main`.
-Full reopen/abandon/conflict and package-host matrix remain open.
+**Status:** ADR-0122/0136/0139/0154 service/CLI/Studio path covers prepare,
+check-returned, durable abandon, reopen after restart, and conflict machine
+states (`pending` / `modified` / `missing_working_copy` / `source_conflict` /
+`stale_catalog`). Package-host matrix and Gallery polish remain open.
 
 **Remaining work:**
 
-- reopen, abandon, retry, remove, and conflict UX beyond the active session map;
 - derived-pair Gallery/stack presentation polish;
 - profile/bit-depth equality and package smoke on each host;
 - naming templates beyond default working-copy paths;

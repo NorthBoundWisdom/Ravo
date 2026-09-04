@@ -197,6 +197,9 @@ QStringList command_ids()
             QLatin1String(command::kPhotoEditInPrepare),
             QLatin1String(command::kPhotoEditInCheckReturned),
             QLatin1String(command::kPhotoEditInClearSession),
+            QLatin1String(command::kPhotoEditInAbandon),
+            QLatin1String(command::kPhotoEditInReopen),
+            QLatin1String(command::kPhotoEditInRefreshStatus),
             QLatin1String(command::kPhotoCreateVersion),
             QLatin1String(command::kPhotoStackSelection),
             QLatin1String(command::kPhotoUnstack),
@@ -557,6 +560,18 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Check Returned External Edit")),
         photo, {QStringLiteral("external"), QStringLiteral("register"), QStringLiteral("derived")},
         QStringLiteral("photo.review"), 41, true);
+    add(command::kPhotoEditInAbandon, command::kPhotoEditInAbandon,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Abandon External Edit Session")),
+        photo, {QStringLiteral("external"), QStringLiteral("abandon"), QStringLiteral("cancel")},
+        QStringLiteral("photo.review"), 42, true);
+    add(command::kPhotoEditInReopen, command::kPhotoEditInReopen,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reopen External Edit Session")),
+        photo, {QStringLiteral("external"), QStringLiteral("reopen"), QStringLiteral("resume")},
+        QStringLiteral("photo.review"), 43, true);
+    add(command::kPhotoEditInRefreshStatus, command::kPhotoEditInRefreshStatus,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Refresh External Edit Status")),
+        photo, {QStringLiteral("external"), QStringLiteral("status"), QStringLiteral("conflict")},
+        QStringLiteral("photo.review"), 44, true);
     add(command::kPhotoRequestRemove, command::kPhotoRequestRemove,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Remove from Catalog...")), photo,
         {QStringLiteral("library"), QStringLiteral("delete")}, QStringLiteral("photo.delete"), 10,

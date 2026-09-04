@@ -121,6 +121,21 @@ namespace
     return JsonValue{std::move(object)};
 }
 
+[[nodiscard]] JsonValue working_copy_status_json(const ExternalEditorWorkingCopyStatus &status)
+{
+    return JsonValue{JsonValue::Object{
+        {"schema", status.schema},
+        {"machine_state",
+         std::string(external_editor_working_copy_machine_state_name(status.machine_state))},
+        {"working_copy_present", status.working_copy_present},
+        {"working_copy_modified", status.working_copy_modified},
+        {"source_original_unchanged", status.source_original_unchanged},
+        {"catalog_revision_current", status.catalog_revision_current},
+        {"reason", status.reason},
+        {"session", working_copy_session_json(status.session)},
+    }};
+}
+
 } // namespace
 
 Result<JsonValue> run_catalog_editor_command(CatalogService &service,
@@ -299,6 +314,110 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
             object.emplace("stack",
                            library_stack_mutation_to_json(*checked.value().registration.stack));
         object.emplace("session", working_copy_session_json(checked.value().session));
+        return JsonValue{std::move(object)};
+    }
+    if (subcommand == "editor-working-copy-status")
+    {
+        if (flags.working_copy_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-working-copy-status requires --working-copy-id");
+        }
+        auto status = service.external_editor_working_copy_status(flags.working_copy_id);
+        if (!status)
+            return status.error();
+        return working_copy_status_json(status.value());
+    }
+    if (subcommand == "editor-working-copy-list")
+    {
+        std::optional<std::string_view> asset_filter;
+        if (!flags.asset_id.empty())
+            asset_filter = flags.asset_id;
+        auto listed = service.list_external_editor_working_copies(asset_filter);
+        if (!listed)
+            return listed.error();
+        JsonValue::Array items;
+        items.reserve(listed.value().size());
+        for (const auto &session : listed.value())
+            items.push_back(working_copy_session_json(session));
+        const auto count = items.size();
+        return JsonValue{JsonValue::Object{
+            {"sessions", JsonValue{std::move(items)}},
+            {"count", JsonValue::number(std::to_string(count))},
+        }};
+    }
+    if (subcommand == "editor-abandon-working-copy")
+    {
+        if (flags.working_copy_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-abandon-working-copy requires --working-copy-id");
+        }
+        if (!flags.user_initiated)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-abandon-working-copy requires --user-initiated",
+                              {{"reason", "missing_user_initiated"}});
+        }
+        ExternalEditorAbandonRequest request;
+        request.working_copy_id = std::string(flags.working_copy_id);
+        request.user_initiated = true;
+        request.expected_catalog_revision = flags.expected_revision;
+        auto abandoned = service.abandon_external_editor_working_copy(request);
+        if (!abandoned)
+            return abandoned.error();
+        return JsonValue{JsonValue::Object{
+            {"working_copy_id", abandoned.value().working_copy_id},
+            {"session_removed", abandoned.value().session_removed},
+            {"working_copy_removed", abandoned.value().working_copy_removed},
+            {"originals_unchanged", abandoned.value().originals_unchanged},
+        }};
+    }
+    if (subcommand == "editor-reopen-working-copy")
+    {
+        if (flags.working_copy_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-reopen-working-copy requires --working-copy-id");
+        }
+        if (!flags.user_initiated)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-reopen-working-copy requires --user-initiated",
+                              {{"reason", "missing_user_initiated"}});
+        }
+        ExternalEditorReopenRequest request;
+        request.working_copy_id = std::string(flags.working_copy_id);
+        request.user_initiated = true;
+        auto reopened = service.reopen_external_editor_working_copy(request);
+        if (!reopened)
+            return reopened.error();
+        bool os_open_invoked = false;
+        const auto state = reopened.value().status.machine_state;
+        const bool openable = state == ExternalEditorWorkingCopyMachineState::kPending ||
+                              state == ExternalEditorWorkingCopyMachineState::kModified ||
+                              state == ExternalEditorWorkingCopyMachineState::kStaleCatalog;
+        if (flags.editor_invoke_os_open)
+        {
+            if (!openable || !reopened.value().status.working_copy_present)
+            {
+                return make_error(
+                    ErrorCode::kConflict,
+                    "Working copy cannot be reopened in the current machine state",
+                    {{"working_copy_id", request.working_copy_id},
+                     {"reason", reopened.value().status.reason},
+                     {"machine_state",
+                      std::string(external_editor_working_copy_machine_state_name(state))}});
+            }
+            auto invoked = invoke_platform_os_open(reopened.value().status.session.working_path);
+            if (!invoked)
+                return invoked.error();
+            os_open_invoked = true;
+        }
+        auto status_json = working_copy_status_json(reopened.value().status);
+        JsonValue::Object object =
+            status_json.object_if() != nullptr ? *status_json.object_if() : JsonValue::Object{};
+        object.emplace("os_open_invoked", os_open_invoked);
         return JsonValue{std::move(object)};
     }
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog editor subcommand",

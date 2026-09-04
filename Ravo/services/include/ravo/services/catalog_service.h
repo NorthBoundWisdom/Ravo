@@ -353,11 +353,20 @@ public:
     [[nodiscard]] Result<ExternalEditorOpenResult>
     prepare_external_editor_open(const ExternalEditorOpenRequest &request);
 
-    // EDITIN-01: create TIFF working copy + check-returned (no watch-folder).
+    // EDITIN-01 / ADR-0154: TIFF working copy + check-returned + reopen/abandon.
     [[nodiscard]] Result<ExternalEditorWorkingCopyResult>
     create_external_editor_working_copy(const ExternalEditorWorkingCopyRequest &request);
     [[nodiscard]] Result<ExternalEditorWorkingCopySession>
     external_editor_working_copy_session(std::string_view working_copy_id) const;
+    [[nodiscard]] Result<ExternalEditorWorkingCopyStatus>
+    external_editor_working_copy_status(std::string_view working_copy_id) const;
+    [[nodiscard]] Result<std::vector<ExternalEditorWorkingCopySession>>
+    list_external_editor_working_copies(
+        std::optional<std::string_view> source_asset_id = std::nullopt) const;
+    [[nodiscard]] Result<ExternalEditorAbandonResult>
+    abandon_external_editor_working_copy(const ExternalEditorAbandonRequest &request);
+    [[nodiscard]] Result<ExternalEditorReopenResult>
+    reopen_external_editor_working_copy(const ExternalEditorReopenRequest &request);
     [[nodiscard]] Result<ExternalEditorCheckReturnedResult>
     check_external_editor_returned(const ExternalEditorCheckReturnedRequest &request);
 

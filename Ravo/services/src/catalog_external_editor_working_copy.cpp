@@ -9,6 +9,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include "ravo/adapters/text_file.h"
 #include "ravo/domain/types.h"
@@ -574,6 +575,41 @@ CatalogService::check_external_editor_returned(const ExternalEditorCheckReturned
     if (!session)
         return session.error();
 
+    auto source_asset = repository_->find_asset_by_id(session.value().source_asset_id);
+    if (!source_asset)
+        return source_asset.error();
+    if (!source_asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Working-copy source asset was not found",
+                          {{"asset_id", session.value().source_asset_id},
+                           {"working_copy_id", request.working_copy_id},
+                           {"reason", "source_asset_missing"}});
+    }
+    auto source_location = normalize_local_input(source_asset.value()->normalized_uri);
+    if (!source_location)
+        return source_location.error();
+    if (!file_is_regular(source_location.value().path))
+    {
+        return make_error(ErrorCode::kConflict, "Source original is missing during return",
+                          {{"asset_id", session.value().source_asset_id},
+                           {"path", source_location.value().path},
+                           {"working_copy_id", request.working_copy_id},
+                           {"reason", "source_conflict"}});
+    }
+    auto source_fp = fingerprint_file(source_location.value().path);
+    if (!source_fp)
+        return source_fp.error();
+    if (source_fp.value().sha256 != session.value().source_original.sha256 ||
+        source_fp.value().size_bytes != session.value().source_original.size_bytes)
+    {
+        return make_error(ErrorCode::kConflict,
+                          "Source original changed during external-editor return",
+                          {{"asset_id", session.value().source_asset_id},
+                           {"path", source_location.value().path},
+                           {"working_copy_id", request.working_copy_id},
+                           {"reason", "source_mutated_during_return"}});
+    }
+
     std::string returned_path = request.returned_path.value_or(session.value().working_path);
     auto returned_location = normalize_local_input(returned_path);
     if (!returned_location)
@@ -614,6 +650,240 @@ CatalogService::check_external_editor_returned(const ExternalEditorCheckReturned
     ExternalEditorCheckReturnedResult result;
     result.registration = std::move(registered).value();
     result.session = std::move(session).value();
+    return result;
+}
+
+Result<ExternalEditorWorkingCopyStatus>
+CatalogService::external_editor_working_copy_status(const std::string_view working_copy_id) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    if (working_copy_id.empty() || !safe_path_component(working_copy_id))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Working-copy id is invalid",
+                          {{"working_copy_id", std::string(working_copy_id)},
+                           {"reason", "invalid_working_copy_id"}});
+    }
+    auto snapshot = repository_->snapshot();
+    if (!snapshot)
+        return snapshot.error();
+    auto session = load_session(snapshot.value().database_path, working_copy_id);
+    if (!session)
+        return session.error();
+
+    ExternalEditorWorkingCopyStatus status;
+    status.session = session.value();
+    status.working_copy_present = file_is_regular(session.value().working_path);
+    status.catalog_revision_current =
+        snapshot.value().revision == session.value().observed_catalog_revision;
+    status.source_original_unchanged = true;
+    status.working_copy_modified = false;
+
+    auto source_asset = repository_->find_asset_by_id(session.value().source_asset_id);
+    if (!source_asset)
+        return source_asset.error();
+    if (source_asset.value())
+    {
+        auto source_location = normalize_local_input(source_asset.value()->normalized_uri);
+        if (source_location && file_is_regular(source_location.value().path))
+        {
+            auto source_fp = fingerprint_file(source_location.value().path);
+            if (!source_fp)
+                return source_fp.error();
+            status.source_original_unchanged =
+                source_fp.value().sha256 == session.value().source_original.sha256 &&
+                source_fp.value().size_bytes == session.value().source_original.size_bytes;
+        }
+        else
+        {
+            status.source_original_unchanged = false;
+        }
+    }
+    else
+    {
+        status.source_original_unchanged = false;
+    }
+
+    if (status.working_copy_present)
+    {
+        auto working_fp = fingerprint_file(session.value().working_path);
+        if (!working_fp)
+            return working_fp.error();
+        status.working_copy_modified =
+            working_fp.value().sha256 != session.value().working_copy.sha256 ||
+            working_fp.value().size_bytes != session.value().working_copy.size_bytes;
+    }
+
+    if (!status.source_original_unchanged)
+    {
+        status.machine_state = ExternalEditorWorkingCopyMachineState::kSourceConflict;
+        status.reason = "source_conflict";
+    }
+    else if (!status.working_copy_present)
+    {
+        status.machine_state = ExternalEditorWorkingCopyMachineState::kMissingWorkingCopy;
+        status.reason = "missing_working_copy";
+    }
+    else if (!status.catalog_revision_current)
+    {
+        status.machine_state = ExternalEditorWorkingCopyMachineState::kStaleCatalog;
+        status.reason = "stale_catalog";
+    }
+    else if (status.working_copy_modified)
+    {
+        status.machine_state = ExternalEditorWorkingCopyMachineState::kModified;
+        status.reason = "modified";
+    }
+    else
+    {
+        status.machine_state = ExternalEditorWorkingCopyMachineState::kPending;
+        status.reason = "pending";
+    }
+    return status;
+}
+
+Result<std::vector<ExternalEditorWorkingCopySession>>
+CatalogService::list_external_editor_working_copies(
+    const std::optional<std::string_view> source_asset_id) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto snapshot = repository_->snapshot();
+    if (!snapshot)
+        return snapshot.error();
+    const auto root = working_copy_root(snapshot.value().database_path);
+    std::vector<ExternalEditorWorkingCopySession> sessions;
+    std::error_code error;
+    if (!std::filesystem::is_directory(utf8_path(root), error) || error)
+        return sessions;
+    for (const auto &entry : std::filesystem::directory_iterator(utf8_path(root), error))
+    {
+        if (error)
+            break;
+        if (!entry.is_directory(error) || error)
+            continue;
+        const auto id = entry.path().filename().generic_string();
+        if (id.empty() || !safe_path_component(id))
+            continue;
+        auto session = load_session(snapshot.value().database_path, id);
+        if (!session)
+            continue;
+        if (source_asset_id && session.value().source_asset_id != *source_asset_id)
+            continue;
+        sessions.push_back(std::move(session).value());
+    }
+    return sessions;
+}
+
+Result<ExternalEditorAbandonResult>
+CatalogService::abandon_external_editor_working_copy(const ExternalEditorAbandonRequest &request)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+
+    if (!request.user_initiated)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "External-editor working-copy abandon requires explicit user initiation",
+                          {{"reason", "missing_user_initiated"}});
+    }
+    if (request.working_copy_id.empty() || !safe_path_component(request.working_copy_id))
+    {
+        return make_error(
+            ErrorCode::kInvalidArgument, "Working-copy id is invalid",
+            {{"working_copy_id", request.working_copy_id}, {"reason", "invalid_working_copy_id"}});
+    }
+
+    auto snapshot = repository_->snapshot();
+    if (!snapshot)
+        return snapshot.error();
+    if (request.expected_catalog_revision &&
+        *request.expected_catalog_revision != snapshot.value().revision)
+    {
+        return make_error(
+            ErrorCode::kConflict, "Catalog revision does not match",
+            {{"expected_revision", std::to_string(*request.expected_catalog_revision)},
+             {"actual_revision", std::to_string(snapshot.value().revision)},
+             {"reason", "stale_catalog_revision"}});
+    }
+
+    auto session = load_session(snapshot.value().database_path, request.working_copy_id);
+    if (!session)
+        return session.error();
+
+    bool originals_unchanged = true;
+    auto source_asset = repository_->find_asset_by_id(session.value().source_asset_id);
+    if (source_asset && source_asset.value())
+    {
+        auto source_location = normalize_local_input(source_asset.value()->normalized_uri);
+        if (source_location && file_is_regular(source_location.value().path))
+        {
+            auto source_fp = fingerprint_file(source_location.value().path);
+            if (source_fp)
+            {
+                originals_unchanged =
+                    source_fp.value().sha256 == session.value().source_original.sha256 &&
+                    source_fp.value().size_bytes == session.value().source_original.size_bytes &&
+                    source_fp.value().mtime_unix_ms ==
+                        session.value().source_original.mtime_unix_ms;
+            }
+        }
+    }
+
+    const bool working_present_before = file_is_regular(session.value().working_path);
+    const auto dir = working_copy_dir(snapshot.value().database_path, request.working_copy_id);
+    best_effort_remove_tree(dir);
+    if (file_is_regular(
+            working_copy_session_path(snapshot.value().database_path, request.working_copy_id)))
+    {
+        return make_error(ErrorCode::kIo, "Unable to remove working-copy session",
+                          {{"working_copy_id", request.working_copy_id},
+                           {"path", dir},
+                           {"reason", "abandon_remove_failed"}});
+    }
+
+    ExternalEditorAbandonResult result;
+    result.working_copy_id = request.working_copy_id;
+    result.session_removed = true;
+    result.working_copy_removed =
+        !working_present_before || !file_is_regular(session.value().working_path);
+    result.originals_unchanged = originals_unchanged;
+    return result;
+}
+
+Result<ExternalEditorReopenResult>
+CatalogService::reopen_external_editor_working_copy(const ExternalEditorReopenRequest &request)
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+
+    if (!request.user_initiated)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "External-editor working-copy reopen requires explicit user initiation",
+                          {{"reason", "missing_user_initiated"}});
+    }
+    if (request.working_copy_id.empty() || !safe_path_component(request.working_copy_id))
+    {
+        return make_error(
+            ErrorCode::kInvalidArgument, "Working-copy id is invalid",
+            {{"working_copy_id", request.working_copy_id}, {"reason", "invalid_working_copy_id"}});
+    }
+
+    auto status = external_editor_working_copy_status(request.working_copy_id);
+    if (!status)
+        return status.error();
+
+    ExternalEditorReopenResult result;
+    result.status = std::move(status).value();
     return result;
 }
 

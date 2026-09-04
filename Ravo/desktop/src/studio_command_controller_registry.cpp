@@ -933,6 +933,59 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     add(command::kPhotoEditInClearSession, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.clearExternalEditorSession(); });
+    add(
+        command::kPhotoEditInAbandon, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.abandonExternalEditorWorkingCopy(
+                fields.value(QStringLiteral("workingCopyId")).toString());
+        });
+    add(
+        command::kPhotoEditInReopen, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            const bool open_after = fields.value(QStringLiteral("openAfterReopen"), true).toBool();
+            presenter_.reopenExternalEditorWorkingCopy(
+                fields.value(QStringLiteral("workingCopyId")).toString(), open_after,
+                fields.value(QStringLiteral("applicationPath")).toString());
+        });
+    add(
+        command::kPhotoEditInRefreshStatus, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.refreshExternalEditorWorkingCopyStatus(
+                fields.value(QStringLiteral("workingCopyId")).toString());
+        });
     add(command::kPhotoRequestRemove, Condition::kSelection, no_argument,
         [request_confirmation](const QVariant &, const QString &)
         { request_confirmation(command::kPhotoRequestRemove, command::kPhotoRemove); });

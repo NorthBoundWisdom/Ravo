@@ -60,6 +60,21 @@ namespace
     return map;
 }
 
+[[nodiscard]] QVariantMap status_session_map(const ExternalEditorWorkingCopyStatus &status)
+{
+    QVariantMap map = session_map(status.session);
+    map.insert(
+        QStringLiteral("machineState"),
+        qstring_from_utf8(external_editor_working_copy_machine_state_name(status.machine_state)));
+    map.insert(QStringLiteral("workingCopyPresent"), status.working_copy_present);
+    map.insert(QStringLiteral("workingCopyModified"), status.working_copy_modified);
+    map.insert(QStringLiteral("sourceOriginalUnchanged"), status.source_original_unchanged);
+    map.insert(QStringLiteral("catalogRevisionCurrent"), status.catalog_revision_current);
+    map.insert(QStringLiteral("reason"), qstring_from_utf8(status.reason));
+    map.insert(QStringLiteral("registered"), false);
+    return map;
+}
+
 [[nodiscard]] Result<TiffSampleType> sample_type_from_options(const QVariantMap &options)
 {
     const auto raw = options.value(QStringLiteral("tiffSampleType"), QStringLiteral("uint16"))
@@ -175,6 +190,11 @@ void StudioPresenter::prepareExternalEditorWorkingCopy(const QVariantMap &option
                         return;
                     }
                     external_editor_session_ = session_map(prepared.value().session);
+                    external_editor_session_.insert(QStringLiteral("machineState"),
+                                                    QStringLiteral("pending"));
+                    external_editor_session_.insert(QStringLiteral("reason"),
+                                                    QStringLiteral("pending"));
+                    external_editor_session_.insert(QStringLiteral("registered"), false);
                     emit externalEditorSessionChanged();
                     setStatus(
                         QCoreApplication::translate("StudioPresenter",
@@ -272,6 +292,210 @@ void StudioPresenter::checkExternalEditorReturned(const QString &working_copy_id
                                                     "Registered returned editor output as %1")
                             .arg(qstring_from_utf8(checked.value().registration.derived_asset.id)));
                     reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::abandonExternalEditorWorkingCopy(const QString &working_copy_id)
+{
+    if (busy_ || catalog_path_.isEmpty())
+        return;
+    QString id = working_copy_id.trimmed();
+    if (id.isEmpty())
+        id = external_editor_session_.value(QStringLiteral("workingCopyId")).toString().trimmed();
+    if (id.isEmpty())
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "No Edit in… working-copy session is active."));
+        return;
+    }
+
+    ExternalEditorAbandonRequest request;
+    request.working_copy_id = utf8_from_qstring(id);
+    request.user_initiated = true;
+    if (observed_catalog_revision_ >= 0)
+        request.expected_catalog_revision = observed_catalog_revision_;
+    request.cancellation = shutdown_.token();
+
+    setBusy(true);
+    setError({});
+    setStatus(QCoreApplication::translate("StudioPresenter", "Abandoning Edit in… session…"));
+    executor_.post(
+        [this, request = std::move(request)]() mutable
+        {
+            Result<ExternalEditorAbandonResult> abandoned =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                abandoned = service_->abandon_external_editor_working_copy(request);
+            QMetaObject::invokeMethod(
+                this,
+                [this, abandoned = std::move(abandoned)]() mutable
+                {
+                    setBusy(false);
+                    if (!abandoned)
+                    {
+                        setError(qstring_from_utf8(abandoned.error().message));
+                        setStatus(QCoreApplication::translate("StudioPresenter",
+                                                              "Edit in… abandon failed."));
+                        return;
+                    }
+                    external_editor_session_.clear();
+                    emit externalEditorSessionChanged();
+                    setStatus(QCoreApplication::translate(
+                        "StudioPresenter", "Abandoned Edit in… working-copy session."));
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::reopenExternalEditorWorkingCopy(const QString &working_copy_id,
+                                                      const bool open_after,
+                                                      const QString &application_path)
+{
+    if (busy_ || catalog_path_.isEmpty())
+        return;
+    QString id = working_copy_id.trimmed();
+    if (id.isEmpty())
+        id = external_editor_session_.value(QStringLiteral("workingCopyId")).toString().trimmed();
+    if (id.isEmpty() && !selected_asset_id_.isEmpty() && service_ != nullptr)
+    {
+        // Fall through to async list+pick below via empty id signal; resolve on worker.
+    }
+    if (id.isEmpty() && selected_asset_id_.isEmpty())
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "No Edit in… working-copy session is active."));
+        return;
+    }
+
+    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    ExternalEditorReopenRequest request;
+    request.working_copy_id = utf8_from_qstring(id);
+    request.user_initiated = true;
+    request.cancellation = shutdown_.token();
+
+    setBusy(true);
+    setError({});
+    setStatus(QCoreApplication::translate("StudioPresenter", "Reopening Edit in… session…"));
+    executor_.post(
+        [this, request = std::move(request), open_after, application_path, asset_id]() mutable
+        {
+            Result<ExternalEditorReopenResult> reopened =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                if (request.working_copy_id.empty())
+                {
+                    auto listed = service_->list_external_editor_working_copies(asset_id);
+                    if (!listed)
+                    {
+                        reopened = listed.error();
+                    }
+                    else if (listed.value().empty())
+                    {
+                        reopened = make_error(ErrorCode::kNotFound,
+                                              "No Edit in… working-copy session for selection",
+                                              {{"reason", "working_copy_not_found"}});
+                    }
+                    else
+                    {
+                        request.working_copy_id = listed.value().front().working_copy_id;
+                        reopened = service_->reopen_external_editor_working_copy(request);
+                    }
+                }
+                else
+                {
+                    reopened = service_->reopen_external_editor_working_copy(request);
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, reopened = std::move(reopened), open_after, application_path]() mutable
+                {
+                    setBusy(false);
+                    if (!reopened)
+                    {
+                        setError(qstring_from_utf8(reopened.error().message));
+                        setStatus(QCoreApplication::translate("StudioPresenter",
+                                                              "Edit in… reopen failed."));
+                        return;
+                    }
+                    external_editor_session_ = status_session_map(reopened.value().status);
+                    emit externalEditorSessionChanged();
+                    setStatus(QCoreApplication::translate("StudioPresenter",
+                                                          "Reopened Edit in… session (%1)")
+                                  .arg(qstring_from_utf8(reopened.value().status.reason)));
+                    const auto state = reopened.value().status.machine_state;
+                    const bool openable =
+                        reopened.value().status.working_copy_present &&
+                        (state == ExternalEditorWorkingCopyMachineState::kPending ||
+                         state == ExternalEditorWorkingCopyMachineState::kModified ||
+                         state == ExternalEditorWorkingCopyMachineState::kStaleCatalog);
+                    if (open_after && openable)
+                    {
+                        openExternalEditorWorkingCopy(
+                            qstring_from_utf8(reopened.value().status.session.working_path),
+                            application_path);
+                    }
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::refreshExternalEditorWorkingCopyStatus(const QString &working_copy_id)
+{
+    if (busy_ || catalog_path_.isEmpty())
+        return;
+    QString id = working_copy_id.trimmed();
+    if (id.isEmpty())
+        id = external_editor_session_.value(QStringLiteral("workingCopyId")).toString().trimmed();
+    if (id.isEmpty())
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "No Edit in… working-copy session is active."));
+        return;
+    }
+
+    const auto working_id = utf8_from_qstring(id);
+    setBusy(true);
+    setError({});
+    setStatus(QCoreApplication::translate("StudioPresenter", "Refreshing Edit in… status…"));
+    executor_.post(
+        [this, working_id]() mutable
+        {
+            Result<ExternalEditorWorkingCopyStatus> status =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                status = service_->external_editor_working_copy_status(working_id);
+            QMetaObject::invokeMethod(
+                this,
+                [this, status = std::move(status)]() mutable
+                {
+                    setBusy(false);
+                    if (!status)
+                    {
+                        setError(qstring_from_utf8(status.error().message));
+                        setStatus(QCoreApplication::translate("StudioPresenter",
+                                                              "Edit in… status refresh failed."));
+                        return;
+                    }
+                    const bool registered =
+                        external_editor_session_.value(QStringLiteral("registered")).toBool();
+                    const auto derived =
+                        external_editor_session_.value(QStringLiteral("derivedAssetId"));
+                    external_editor_session_ = status_session_map(status.value());
+                    if (registered)
+                    {
+                        external_editor_session_.insert(QStringLiteral("registered"), true);
+                        if (derived.isValid())
+                            external_editor_session_.insert(QStringLiteral("derivedAssetId"),
+                                                            derived);
+                    }
+                    emit externalEditorSessionChanged();
+                    setStatus(QCoreApplication::translate("StudioPresenter",
+                                                          "Edit in… session status: %1")
+                                  .arg(qstring_from_utf8(status.value().reason)));
                 },
                 Qt::QueuedConnection);
         });

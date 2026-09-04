@@ -161,3 +161,4 @@ supersession relationship when direction changes.
 | [0151](0151-iq-cpu-gpu-consistency-gate.md) | Accepted | IQ-00 CPU gold for persist/export/reopen; GPU interactive within tolerances or fail-closed; first Ready hooks |
 | [0152](0152-iq-denoise-evaluation-corpus.md) | Accepted | IQ-01 evaluation corpus contract; CPU denoise/camera-profile probes fail-closed without corpus |
 | [0153](0153-specialize-tethered-studio-deferred.md) | Accepted | SPECIALIZE-01: tethered-studio deferred P2 candidate; fail-closed probe stub; HDR/Pano unselected |
+| [0154](0154-external-editor-working-copy-reopen-abandon.md) | Accepted | EDITIN-01 working-copy reopen/abandon + conflict machine states |

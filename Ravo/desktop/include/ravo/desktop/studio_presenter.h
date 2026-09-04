@@ -722,6 +722,12 @@ public:
     Q_INVOKABLE void checkExternalEditorReturned(const QString &working_copy_id = QString(),
                                                  const QString &returned_path = QString());
     Q_INVOKABLE void clearExternalEditorSession();
+    Q_INVOKABLE void abandonExternalEditorWorkingCopy(const QString &working_copy_id = QString());
+    Q_INVOKABLE void reopenExternalEditorWorkingCopy(const QString &working_copy_id = QString(),
+                                                     bool open_after = true,
+                                                     const QString &application_path = QString());
+    Q_INVOKABLE void
+    refreshExternalEditorWorkingCopyStatus(const QString &working_copy_id = QString());
     Q_INVOKABLE void selectAsset(const QString &asset_id);
     Q_INVOKABLE void selectAssetRange(const QString &asset_id);
     Q_INVOKABLE void toggleAssetSelected(const QString &asset_id);
