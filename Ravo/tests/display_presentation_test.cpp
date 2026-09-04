@@ -183,5 +183,56 @@ TEST(DisplayPresentationTest, NonAppleHostDiscoveryFailsClosedToSrgb)
 #endif
 }
 
+TEST(DisplayPresentationTest, MacosCgScreenTokenRoundTrip)
+{
+    const auto token = make_macos_cg_screen_token(42U);
+    EXPECT_EQ(token, "cg:42");
+    const auto parsed = parse_macos_cg_screen_token(token);
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(*parsed, 42U);
+    EXPECT_FALSE(parse_macos_cg_screen_token("primary").has_value());
+    EXPECT_FALSE(parse_macos_cg_screen_token("cg:").has_value());
+    EXPECT_FALSE(parse_macos_cg_screen_token("cg:12x").has_value());
+}
+
+TEST(DisplayPresentationTest, RefreshSystemPresentationUpdatesScreenTokenWithoutRecipeMutation)
+{
+    DevelopParams develop;
+    develop.exposure_ev = 0.1;
+    develop.output_color.output_profile = "srgb";
+    const AssetDescriptor asset{"asset-display-refresh", "file:///fixture.raw", std::nullopt};
+    auto before_recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(before_recipe) << before_recipe.error().message;
+    auto before_json = serialize_recipe(before_recipe.value());
+    ASSERT_TRUE(before_json) << before_json.error().message;
+
+    auto first = discover_monitor_presentation("primary");
+    ASSERT_TRUE(first) << first.error().message;
+    auto second = refresh_monitor_presentation(first.value(), "screen-moved");
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_FALSE(second.value().screen_token.empty());
+    EXPECT_TRUE(second.value().valid);
+
+    auto after_recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(after_recipe) << after_recipe.error().message;
+    auto after_json = serialize_recipe(after_recipe.value());
+    ASSERT_TRUE(after_json) << after_json.error().message;
+    EXPECT_EQ(after_json.value(), before_json.value());
+}
+
+#if defined(__APPLE__)
+TEST(DisplayPresentationTest, MacosDiscoverHonorsCgScreenToken)
+{
+    const auto token = macos_display_screen_token_for_point(0.0, 0.0);
+    EXPECT_TRUE(token.rfind("cg:", 0) == 0) << token;
+    auto state = discover_monitor_presentation(token);
+    ASSERT_TRUE(state) << state.error().message;
+    EXPECT_TRUE(state.value().valid);
+    EXPECT_EQ(state.value().screen_token, token);
+    EXPECT_TRUE(state.value().source == DisplayProfileSource::kSystemMonitor ||
+                state.value().source == DisplayProfileSource::kFallbackSrgb);
+}
+#endif
+
 } // namespace
 } // namespace ravo

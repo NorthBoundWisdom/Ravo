@@ -211,9 +211,9 @@ fallback_srgb_state(std::string screen_token, std::string reason, ColorProfileSt
 }
 
 #if defined(__APPLE__)
-[[nodiscard]] Result<std::vector<std::uint8_t>> copy_main_display_icc_bytes()
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+copy_display_icc_bytes(const CGDirectDisplayID display)
 {
-    const CGDirectDisplayID display = CGMainDisplayID();
     CGColorSpaceRef space = CGDisplayCopyColorSpace(display);
     if (space == nullptr)
     {
@@ -238,6 +238,15 @@ fallback_srgb_state(std::string screen_token, std::string reason, ColorProfileSt
     std::memcpy(bytes.data(), CFDataGetBytePtr(data), length);
     CFRelease(data);
     return bytes;
+}
+
+[[nodiscard]] CGDirectDisplayID resolve_macos_display_id(const std::string_view screen_token)
+{
+    if (const auto parsed = parse_macos_cg_screen_token(screen_token))
+    {
+        return static_cast<CGDirectDisplayID>(*parsed);
+    }
+    return CGMainDisplayID();
 }
 #endif
 
@@ -366,6 +375,58 @@ apply_synthetic_matrix(const std::vector<std::uint8_t> &source_rgb8, std::uint32
 
 } // namespace
 
+std::string make_macos_cg_screen_token(const std::uint32_t display_id)
+{
+    return "cg:" + std::to_string(display_id);
+}
+
+std::optional<std::uint32_t> parse_macos_cg_screen_token(const std::string_view screen_token)
+{
+    constexpr std::string_view kPrefix = "cg:";
+    if (!screen_token.starts_with(kPrefix))
+    {
+        return std::nullopt;
+    }
+    const auto digits = screen_token.substr(kPrefix.size());
+    if (digits.empty())
+    {
+        return std::nullopt;
+    }
+    std::uint64_t value = 0;
+    for (const char ch : digits)
+    {
+        if (ch < '0' || ch > '9')
+        {
+            return std::nullopt;
+        }
+        value = value * 10U + static_cast<std::uint64_t>(ch - '0');
+        if (value > static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()))
+        {
+            return std::nullopt;
+        }
+    }
+    return static_cast<std::uint32_t>(value);
+}
+
+std::string macos_display_screen_token_for_point(const double global_x, const double global_y)
+{
+#if defined(__APPLE__)
+    const CGPoint point = CGPointMake(global_x, global_y);
+    CGDirectDisplayID matched = kCGNullDirectDisplay;
+    uint32_t count = 0;
+    if (CGGetDisplaysWithPoint(point, 1, &matched, &count) == kCGErrorSuccess && count > 0 &&
+        matched != kCGNullDirectDisplay)
+    {
+        return make_macos_cg_screen_token(static_cast<std::uint32_t>(matched));
+    }
+    return make_macos_cg_screen_token(static_cast<std::uint32_t>(CGMainDisplayID()));
+#else
+    static_cast<void>(global_x);
+    static_cast<void>(global_y);
+    return "primary";
+#endif
+}
+
 Result<DisplayPresentationState> discover_monitor_presentation(const std::string_view screen_token)
 {
     auto srgb = make_srgb_profile_state();
@@ -374,26 +435,31 @@ Result<DisplayPresentationState> discover_monitor_presentation(const std::string
         return srgb.error();
     }
 #if defined(__APPLE__)
-    auto bytes = copy_main_display_icc_bytes();
+    const CGDirectDisplayID display = resolve_macos_display_id(screen_token);
+    const std::string resolved_token =
+        parse_macos_cg_screen_token(screen_token) ?
+            std::string(screen_token) :
+            make_macos_cg_screen_token(static_cast<std::uint32_t>(display));
+    auto bytes = copy_display_icc_bytes(display);
     if (!bytes)
     {
-        return fallback_srgb_state(std::string(screen_token),
+        return fallback_srgb_state(resolved_token,
                                    bytes.error().context.count("reason") ?
                                        bytes.error().context.at("reason") :
                                        "macos_display_icc_unavailable",
                                    std::move(srgb).value());
     }
-    auto profile = profile_from_icc_bytes(std::move(bytes).value(),
-                                          "macos.display." + std::string(screen_token));
+    auto profile =
+        profile_from_icc_bytes(std::move(bytes).value(), "macos.display." + resolved_token);
     if (!profile)
     {
-        return fallback_srgb_state(std::string(screen_token),
+        return fallback_srgb_state(resolved_token,
                                    profile.error().context.count("reason") ?
                                        profile.error().context.at("reason") :
                                        "corrupt_monitor_icc",
                                    std::move(srgb).value());
     }
-    return finalize_state(std::string(screen_token), DisplayProfileSource::kSystemMonitor,
+    return finalize_state(resolved_token, DisplayProfileSource::kSystemMonitor,
                           "macos_coregraphics_display_icc", std::move(profile).value());
 #elif defined(_WIN32)
     // DISPLAY-01 residual: WinRT/ICC discovery not packaged. Fail closed to

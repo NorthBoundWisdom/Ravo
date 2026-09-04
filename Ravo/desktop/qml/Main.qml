@@ -740,6 +740,7 @@ ApplicationWindow {
         applyAppearance();
         if (!studioSmoke) {
             studioWindow.restore(window);
+            studioDisplayPresentation.bindWindow(window);
             visible = true;
         }
         Qt.callLater(startLibrarySession);

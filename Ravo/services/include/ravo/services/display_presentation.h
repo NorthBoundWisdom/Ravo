@@ -70,6 +70,15 @@ struct DisplayPresentationRgb8
 
 // Resolve presentation profile. OS discovery may fall back to sRGB with an
 // explicit reason; injectable/synthetic paths never claim system_monitor.
+// macOS: map a global desktop point to cg:<CGDirectDisplayID>. Other hosts
+// return "primary". Studio uses this when the window's screen changes.
+[[nodiscard]] std::string macos_display_screen_token_for_point(double global_x, double global_y);
+
+[[nodiscard]] std::optional<std::uint32_t>
+parse_macos_cg_screen_token(std::string_view screen_token);
+
+[[nodiscard]] std::string make_macos_cg_screen_token(std::uint32_t display_id);
+
 [[nodiscard]] Result<DisplayPresentationState>
 discover_monitor_presentation(std::string_view screen_token = "primary");
 

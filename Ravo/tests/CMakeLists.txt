@@ -416,6 +416,7 @@ add_executable(ravo_desktop_command_tests
   studio_live_control_test.cpp
   studio_assistant_test.cpp
   studio_window_geometry_test.cpp
+  studio_display_presentation_test.cpp
   export_option_conversion_test.cpp
   filesystem_browser_model_test.cpp)
 target_link_libraries(ravo_desktop_command_tests

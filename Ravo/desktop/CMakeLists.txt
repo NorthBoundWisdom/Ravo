@@ -28,6 +28,7 @@ target_sources(ravo_desktop
     src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
     src/studio_window_geometry.cpp
+    src/studio_display_presentation.cpp
     src/studio_live_session_controller.cpp
     src/studio_presenter.cpp
     src/studio_presenter_library.cpp
@@ -61,6 +62,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/studio_live_session_controller.h
     include/ravo/desktop/studio_presenter.h
     include/ravo/desktop/studio_window_geometry.h
+    include/ravo/desktop/studio_display_presentation.h
     src/studio_language_manager.h)
 
 target_include_directories(ravo_desktop
