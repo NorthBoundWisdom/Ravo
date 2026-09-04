@@ -363,8 +363,9 @@ backups stay readable for catalog+sidecars only.
 - richer Studio “Edit in …” chrome beyond the ADR-0139 service/CLI payload
   (optional; service contract is on `main`)
 - proprietary editor scripting (rejected); watch-folder auto-import (rejected)
-- rewrite catalog absolute URIs that still name the source `{catalog}.ravo/`
-  prefix onto the restored destination path (ADR-0136 residual)
+- ~~rewrite catalog absolute URIs that still name the source `{catalog}.ravo/`
+  prefix onto the restored destination path (ADR-0136 residual)~~ **done on
+  `main`**
 - **Foreign conversion residuals:** real `.lrcat` SQLite and Capture One
   session/catalog readers (needs a dependency/licence/package decision — no
   vendor runtime in the default package today); Copy-mode conversion into a
@@ -384,7 +385,7 @@ the read-only / new-catalog / structured-report / fail-closed gates
 vendor-format reader still needs its packaging/licence evidence before it may
 ship; keyword/IPTC/location merge matrix is on `main` (ADR-0138); derived-tree backup/restore is on
 `main` (ADR-0136); external-editor OS open + auto-stack is on `main` (ADR-0139);
-destination URI rewrite for support-rooted assets remains.
+destination URI rewrite for support-rooted assets is on `main`.
 
 ## PRO-PRESENT — Tether, print, map, slideshow, and publishing
 

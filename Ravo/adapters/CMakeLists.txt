@@ -30,6 +30,7 @@ target_sources(ravo_adapters
     src/sqlite_catalog_keywords.cpp
     src/sqlite_catalog_recipe.cpp
     src/sqlite_catalog_recovery.cpp
+    src/sqlite_catalog_restore_uri.cpp
     src/tiff_encoder.cpp
     src/text_file.cpp)
 

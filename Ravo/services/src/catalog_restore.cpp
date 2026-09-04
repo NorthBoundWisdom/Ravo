@@ -15,6 +15,7 @@
 #include "atomic_publication_internal.h"
 #include "catalog_backup_trees.h"
 #include "catalog_internal.h"
+#include "catalog_restore_uri.h"
 
 namespace ravo
 {
@@ -448,6 +449,53 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
                             expect_support_trees, recovery_verifier, request.cancellation);
     if (!staged_support)
         return fail(staged_support.error());
+
+    // ADR-0136 residual: rewrite source `{catalog}.ravo/` absolute URIs/paths onto
+    // the destination support root before publish so derived assets remain openable
+    // after the source tree is gone. Fail-closed for unknown `.ravo/` trees.
+    const auto destination_support = path_utf8(support_absolute.value());
+    auto rewritten_catalog = catalog_restore_rewrite_catalog_uris(
+        path_utf8(stage_catalog), destination_support, request.cancellation);
+    if (!rewritten_catalog)
+        return fail(rewritten_catalog.error());
+    auto rewritten_json = catalog_restore_rewrite_support_json_tree(
+        stage_support, destination_support, request.cancellation);
+    if (!rewritten_json)
+        return fail(rewritten_json.error());
+    auto rewritten_sidecars = catalog_restore_rewrite_recovery_sidecars(
+        stage_sidecars, destination_support, source_sidecars, recovery_verifier,
+        request.cancellation);
+    if (!rewritten_sidecars)
+        return fail(rewritten_sidecars.error());
+    // Provenance / open-intent JSON bytes change after URI rewrite; re-enumerate
+    // the staged external-editor tree so later checksum verifies match. Derived
+    // pixel files are unchanged.
+    if (expect_support_trees)
+    {
+        for (auto &entry : source_derived)
+            entry.path = path_utf8(stage_support / kCatalogBackupDerivedDirectory /
+                                   path_from_utf8(entry.relative_path));
+        auto restaged_external = catalog_backup_enumerate_tree(
+            stage_support / kCatalogBackupExternalEditorDirectory, request.cancellation);
+        if (!restaged_external)
+            return fail(restaged_external.error());
+        source_external_editor = std::move(restaged_external).value();
+        auto restaged_support = verify_support_root(stage_support, source_sidecars, source_derived,
+                                                    source_external_editor, expect_support_trees,
+                                                    recovery_verifier, request.cancellation);
+        if (!restaged_support)
+            return fail(restaged_support.error());
+    }
+    else if (rewritten_sidecars.value() > 0U)
+    {
+        auto restaged_support = verify_support_root(stage_support, source_sidecars, source_derived,
+                                                    source_external_editor, expect_support_trees,
+                                                    recovery_verifier, request.cancellation);
+        if (!restaged_support)
+            return fail(restaged_support.error());
+    }
+    static_cast<void>(rewritten_catalog);
+    static_cast<void>(rewritten_json);
 
     progress_result =
         report_progress(progress, request.cancellation, CatalogRestoreStage::kPublishSupport,

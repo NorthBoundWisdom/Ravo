@@ -29,7 +29,8 @@ target_sources(ravo_services
     src/catalog_transfer.cpp
     src/catalog_preview.cpp
     src/catalog_preview_roi.cpp
-    src/catalog_restore.cpp)
+    src/catalog_restore.cpp
+    src/catalog_restore_uri.cpp)
 
 target_include_directories(ravo_services
   PUBLIC

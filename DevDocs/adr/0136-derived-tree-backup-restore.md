@@ -76,11 +76,13 @@ path and add tests using a registered derived asset fixture (ADR-0122).
 PRO-INTERCHANGE derived assets survive verified backup/restore. Format v2 is a
 one-way write bump; v1 remains readable for catalog+sidecar recovery. Operators
 must use a Ravo that understands v2 to restore derived trees. Restored
-`{dest}.ravo/derived/` and `external-editor/` trees are byte-identical to the
-backup package; rewriting catalog absolute URIs that still name the *source*
-`{catalog}.ravo/` prefix onto the destination path is a follow-up (assets remain
-openable when the source tree still exists, and trees remain on disk under the
-destination support root regardless).
+`{dest}.ravo/derived/` pixel trees are byte-identical to the backup package.
+Before publish, restore rewrites absolute URIs/paths that still name a source
+`{catalog}.ravo/` prefix (derived asset rows, recovery sidecars, external-editor
+provenance, and open-intents) onto the destination `{dest}.ravo/` prefix and
+fail-closes when a `.ravo/` value lies outside known support trees
+(`derived/`, `external-editor/`, `sidecars/`). Provenance JSON checksums are
+recomputed after rewrite; recovery generation is not bumped.
 
 ## Rejected alternatives
 

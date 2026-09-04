@@ -22,6 +22,13 @@ public:
                             const CancellationToken &cancellation) const override;
 };
 
+// ADR-0136 residual: rewrite support-rooted asset/folder URIs without bumping
+// recovery generation. Fail-closed for unknown `{catalog}.ravo/` trees.
+[[nodiscard]] Result<std::size_t>
+sqlite_rewrite_support_rooted_uris(std::string_view catalog_path,
+                                   std::string_view destination_support_root,
+                                   const CancellationToken &cancellation);
+
 namespace testing
 {
 class SqliteCatalogTestControl;

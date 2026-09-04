@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include "ravo/adapters/text_file.h"
+#include "catalog_restore_uri.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/domain/uri.h"
@@ -258,16 +259,75 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesDerivedAndExternalEditorTrees)
         const auto restored_file =
             std::filesystem::path(restored_path + ".ravo/external-editor") / relative;
         ASSERT_TRUE(std::filesystem::is_regular_file(restored_file)) << restored_file.string();
-        const auto backup_digest = sha256_file_hex(it->path().string());
-        const auto restored_digest = sha256_file_hex(restored_file.string());
-        ASSERT_TRUE(backup_digest) << backup_digest.error().message;
-        ASSERT_TRUE(restored_digest) << restored_digest.error().message;
-        EXPECT_EQ(restored_digest.value(), backup_digest.value());
+        // Provenance / open-intent JSON is rewritten onto the destination support
+        // prefix (ADR-0136 residual); binary payloads stay byte-identical.
+        if (restored_file.extension() == ".json")
+        {
+            auto text = read_utf8_text_file(restored_file.string());
+            ASSERT_TRUE(text) << text.error().message;
+            const auto restored_marker =
+                std::filesystem::path(restored_path).filename().string() + ".ravo/";
+            const auto source_marker =
+                std::filesystem::path(database_path).filename().string() + ".ravo/";
+            EXPECT_NE(text.value().find(restored_marker), std::string::npos)
+                << restored_file.string() << "\n"
+                << text.value();
+            EXPECT_EQ(text.value().find(source_marker), std::string::npos)
+                << restored_file.string() << "\n"
+                << text.value();
+        }
+        else
+        {
+            const auto backup_digest = sha256_file_hex(it->path().string());
+            const auto restored_digest = sha256_file_hex(restored_file.string());
+            ASSERT_TRUE(backup_digest) << backup_digest.error().message;
+            ASSERT_TRUE(restored_digest) << restored_digest.error().message;
+            EXPECT_EQ(restored_digest.value(), backup_digest.value());
+        }
         ++restored_external_files;
     }
     EXPECT_EQ(restored_external_files, backup.value().external_editor_count);
     EXPECT_TRUE(std::filesystem::is_regular_file(restored_path + ".ravo/external-editor/" +
                                                  derived_id + ".json"));
+
+    // Destination catalog URIs for derived assets must name the restored support
+    // root, and remain openable after the source `{catalog}.ravo/` tree is gone.
+    {
+        auto restored_repo = SqliteCatalogRepository::open(restored_path);
+        ASSERT_TRUE(restored_repo) << restored_repo.error().message;
+        auto derived = restored_repo.value()->find_asset_by_id(derived_id);
+        ASSERT_TRUE(derived) << derived.error().message;
+        ASSERT_TRUE(derived.value()) << "missing derived asset";
+        auto restored_derived_location = normalize_local_input(derived.value()->normalized_uri);
+        ASSERT_TRUE(restored_derived_location) << restored_derived_location.error().message;
+        auto restored_support = normalize_local_input(restored_path + ".ravo");
+        ASSERT_TRUE(restored_support) << restored_support.error().message;
+        EXPECT_TRUE(restored_derived_location.value().path.starts_with(
+            restored_support.value().path + "/derived/"))
+            << restored_derived_location.value().path
+            << " prefix=" << restored_support.value().path;
+        EXPECT_TRUE(std::filesystem::is_regular_file(restored_derived_location.value().path));
+        auto provenance_text =
+            read_utf8_text_file(restored_path + ".ravo/external-editor/" + derived_id + ".json");
+        ASSERT_TRUE(provenance_text) << provenance_text.error().message;
+        const auto restored_marker =
+            std::filesystem::path(restored_path).filename().string() + ".ravo/derived/";
+        const auto source_marker =
+            std::filesystem::path(database_path).filename().string() + ".ravo/";
+        EXPECT_NE(provenance_text.value().find(restored_marker), std::string::npos)
+            << provenance_text.value();
+        EXPECT_EQ(provenance_text.value().find(source_marker), std::string::npos)
+            << provenance_text.value();
+        ASSERT_TRUE(restored_repo.value()->close());
+    }
+
+    // Fail-closed: values under an unknown `.ravo/` tree are rejected.
+    {
+        auto rejected = catalog_restore_rewrite_support_rooted_value(
+            database_path + ".ravo/unknown-tree/file.bin", restored_path + ".ravo");
+        ASSERT_FALSE(rejected);
+        EXPECT_EQ(rejected.error().context.at("reason"), "restore_support_uri_outside_known_roots");
+    }
 
     // Removing the source catalog support must not remove restored derived bytes.
     std::error_code remove_error;
@@ -275,6 +335,16 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesDerivedAndExternalEditorTrees)
     ASSERT_FALSE(remove_error) << remove_error.message();
     EXPECT_TRUE(std::filesystem::is_directory(restored_path + ".ravo/derived"));
     EXPECT_EQ(sha256_file_hex(original).value(), original_sha.value());
+    {
+        auto restored_repo = SqliteCatalogRepository::open(restored_path);
+        ASSERT_TRUE(restored_repo) << restored_repo.error().message;
+        auto derived = restored_repo.value()->find_asset_by_id(derived_id);
+        ASSERT_TRUE(derived && derived.value());
+        auto loc = normalize_local_input(derived.value()->normalized_uri);
+        ASSERT_TRUE(loc);
+        EXPECT_TRUE(std::filesystem::is_regular_file(loc.value().path));
+        ASSERT_TRUE(restored_repo.value()->close());
+    }
 }
 
 TEST_F(CatalogServiceTest, ExternalEditorOpenRecordsIntentForOriginalAndDerived)
