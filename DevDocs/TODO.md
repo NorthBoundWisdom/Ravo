@@ -4,9 +4,9 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through LOCAL-01 style/selective-copy/virtual-copy/batch
-> multi-instance Exposure/CBR carry-or-fail-closed + ADR-0156 XMP fail-closed;
-> next free ADR **0157**.
+> **Review basis:** `main` through OFFLINE-01 reconnect UX polish (hash verify +
+> clear offline/export-blocked states; thin Studio/CLI status) and LOCAL-01
+> style/copy/VC/batch multi-instance carry-or-fail-closed; next free ADR **0157**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -419,8 +419,12 @@ incomplete.
 ## OFFLINE-01 — Offline-original editing
 
 **Status:** ADR-0146 manifest/service/CLI create/list/verify/status/reconnect and
-offline recipe writes are on `main`. It is not yet an offline editing workflow:
-Loupe/Develop do not consume the proxy while the original is absent.
+offline recipe writes are on `main`. Reconnect now verifies the restored
+original hash, clears machine-visible offline/missing import state and the
+export-blocked signal (`usable_for_export` when original is present), surfaces
+`offline_states_cleared` on CLI reconnect JSON, and exposes thin Studio
+`offlineEditMediaStatus` / reconnect commands. It is not yet an offline editing
+workflow: Loupe/Develop do not consume the proxy while the original is absent.
 
 **Remaining work:**
 
@@ -428,7 +432,7 @@ Loupe/Develop do not consume the proxy while the original is absent.
   under the explicit media-state contract;
 - re-render from the verified original after reconnect and compare accepted
   resolution-dependent results;
-- Studio media-state, create/delete/pin, storage, corruption, and reconnect UI;
+- richer Studio create/delete/pin, storage, and corruption UI beyond thin status;
 - background generation policy by explicit asset/collection, with cancellation;
 - byte quota, pinning, eviction, disk-full, corruption, and cleanup;
 - backup/restore and catalog-relocation policy for

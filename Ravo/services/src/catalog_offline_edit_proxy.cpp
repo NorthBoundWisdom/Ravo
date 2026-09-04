@@ -482,10 +482,12 @@ CatalogService::verify_offline_edit_proxy(const std::string_view asset_id) const
 
     OfflineEditProxyStatus status;
     status.asset_id = std::string(asset_id);
-    status.usable_for_export = false;
 
     auto original_path = original_path_for_asset(*source.value());
     const bool original_present = original_path && file_is_regular(original_path.value());
+    // Export stays fail-closed only while the original is absent. Once the
+    // original is present again, clear the machine-visible export block.
+    status.usable_for_export = original_present;
 
     const auto root = offline_edit_proxy_root(snapshot.value().database_path, asset_id);
     auto loaded = load_manifest(root);
@@ -596,6 +598,8 @@ CatalogService::reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequ
         result.status = std::move(status).value();
         result.status.media_state = OfflineEditMediaState::kOriginal;
         result.status.reason = "reconnect_without_proxy_manifest";
+        result.status.usable_for_export = true;
+        result.offline_states_cleared = true;
         return result;
     }
 
@@ -633,6 +637,10 @@ CatalogService::reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequ
         return refreshed.error();
     refreshed.value().media_state = OfflineEditMediaState::kOriginal;
     refreshed.value().reason = "reconnect_verified";
+    refreshed.value().usable_for_export = true;
+    // Original is authority again; proxy may remain on disk for reuse but must
+    // not keep machine-visible offline/export-blocked signals.
+    result.offline_states_cleared = true;
     result.status = std::move(refreshed).value();
     return result;
 }

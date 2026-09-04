@@ -33,6 +33,7 @@ target_sources(ravo_desktop
     src/studio_presenter_library.cpp
     src/studio_presenter_export.cpp
     src/studio_presenter_external_editor.cpp
+    src/studio_presenter_offline_edit.cpp
     src/studio_presenter_ai_proposal.cpp
     src/studio_presenter_selection.cpp
     src/studio_import.cpp

@@ -100,6 +100,7 @@ struct OfflineEditProxyReconnectResult
     OfflineEditProxyStatus status;
     bool source_hash_matched = false;
     bool originals_unchanged = true;
+    bool offline_states_cleared = false;
 };
 
 } // namespace ravo

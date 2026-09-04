@@ -991,6 +991,10 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             presenter_.refreshExternalEditorWorkingCopyStatus(
                 fields.value(QStringLiteral("workingCopyId")).toString());
         });
+    add(command::kPhotoOfflineEditRefreshStatus, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.refreshOfflineEditMediaStatus(); });
+    add(command::kPhotoOfflineEditReconnect, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.reconnectOfflineEditProxy(); });
 
     add(command::kPhotoAiProposal, Condition::kReadySelection, no_argument,
         [present](const QVariant &argument, const QString &)

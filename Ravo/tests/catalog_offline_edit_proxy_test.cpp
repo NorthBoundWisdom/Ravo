@@ -93,7 +93,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyCreateVerifyAndDistinctFromSmartPrevi
     EXPECT_TRUE(status.value().proxy_present);
     EXPECT_TRUE(status.value().proxy_verified);
     EXPECT_TRUE(status.value().usable_for_develop);
-    EXPECT_FALSE(status.value().usable_for_export);
+    EXPECT_TRUE(status.value().usable_for_export);
 
     auto listed = service->list_offline_edit_proxies();
     ASSERT_TRUE(listed) << listed.error().message;
@@ -166,8 +166,24 @@ TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)
     auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
     ASSERT_TRUE(reconnected) << reconnected.error().message;
     EXPECT_TRUE(reconnected.value().source_hash_matched);
+    EXPECT_TRUE(reconnected.value().offline_states_cleared);
     EXPECT_EQ(reconnected.value().status.media_state, OfflineEditMediaState::kOriginal);
     EXPECT_EQ(reconnected.value().status.reason, "reconnect_verified");
+    EXPECT_TRUE(reconnected.value().status.usable_for_export);
+
+    auto listed_after = service->list_assets();
+    ASSERT_TRUE(listed_after) << listed_after.error().message;
+    const AssetRecord *after_asset = nullptr;
+    for (const auto &asset : listed_after.value())
+    {
+        if (asset.id == asset_id)
+        {
+            after_asset = &asset;
+            break;
+        }
+    }
+    ASSERT_NE(after_asset, nullptr);
+    EXPECT_EQ(after_asset->import_state, kImportStateImported);
 
     export_request.output_path = (root / "after-reconnect.png").string();
     auto exported_ok = service->export_asset(export_request);
@@ -204,6 +220,78 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectRejectsHashMismatch)
     EXPECT_EQ(reconnected.error().code, ErrorCode::kConflict);
     ASSERT_TRUE(reconnected.error().context.contains("reason"));
     EXPECT_EQ(reconnected.error().context.at("reason"), "source_hash_mismatch");
+}
+
+TEST_F(CatalogServiceTest, OfflineEditProxyReconnectClearsMissingImportState)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "offline-missing-clear.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(30, 60, 90)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, asset_id);
+    ASSERT_FALSE(original.empty());
+
+    OfflineEditProxyCreateRequest create;
+    create.asset_id = asset_id;
+    create.user_initiated = true;
+    create.max_edge = 32;
+    ASSERT_TRUE(service->create_offline_edit_proxy(create));
+
+    const auto stashed = root / "missing-clear-stashed.jpg";
+    std::error_code ec;
+    std::filesystem::rename(original, stashed, ec);
+    ASSERT_FALSE(ec) << ec.message();
+
+    // Preview marks the catalog asset missing when the original disappears.
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 64;
+    preview.persist_preview_record = true;
+    static_cast<void>(service->request_preview(preview));
+    auto listed_missing = service->list_assets();
+    ASSERT_TRUE(listed_missing);
+    bool saw_missing = false;
+    for (const auto &asset : listed_missing.value())
+    {
+        if (asset.id == asset_id && asset.import_state == kImportStateMissing)
+            saw_missing = true;
+    }
+    EXPECT_TRUE(saw_missing);
+
+    std::filesystem::rename(stashed, original, ec);
+    ASSERT_FALSE(ec) << ec.message();
+
+    OfflineEditProxyReconnectRequest reconnect;
+    reconnect.asset_id = asset_id;
+    reconnect.user_initiated = true;
+    auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
+    ASSERT_TRUE(reconnected) << reconnected.error().message;
+    EXPECT_TRUE(reconnected.value().source_hash_matched);
+    EXPECT_TRUE(reconnected.value().offline_states_cleared);
+    EXPECT_EQ(reconnected.value().status.media_state, OfflineEditMediaState::kOriginal);
+    EXPECT_TRUE(reconnected.value().status.usable_for_export);
+
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    bool cleared = false;
+    for (const auto &asset : listed.value())
+    {
+        if (asset.id != asset_id)
+            continue;
+        EXPECT_EQ(asset.import_state, kImportStateImported);
+        EXPECT_FALSE(asset.error_code.has_value());
+        EXPECT_FALSE(asset.error_message.has_value());
+        cleared = true;
+    }
+    EXPECT_TRUE(cleared);
+
+    auto status = service->offline_edit_media_status(asset_id);
+    ASSERT_TRUE(status) << status.error().message;
+    EXPECT_EQ(status.value().media_state, OfflineEditMediaState::kOriginal);
+    EXPECT_TRUE(status.value().usable_for_export);
+    EXPECT_NE(status.value().reason, "proxy_ready");
 }
 
 } // namespace ravo

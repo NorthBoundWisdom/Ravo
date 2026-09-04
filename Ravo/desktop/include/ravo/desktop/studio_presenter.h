@@ -341,6 +341,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap backupScheduleStatus READ backupScheduleStatus NOTIFY libraryWorkChanged)
     Q_PROPERTY(QVariantMap externalEditorSession READ externalEditorSession NOTIFY
                    externalEditorSessionChanged)
+    Q_PROPERTY(QVariantMap offlineEditMediaStatus READ offlineEditMediaStatus NOTIFY
+                   offlineEditMediaStatusChanged)
     Q_PROPERTY(
         QVariantMap selectedAiProposal READ selectedAiProposal NOTIFY selectedAiProposalChanged)
     Q_PROPERTY(QVariantList aiProposals READ aiProposals NOTIFY aiProposalsChanged)
@@ -734,6 +736,9 @@ public:
                                                      const QString &application_path = QString());
     Q_INVOKABLE void
     refreshExternalEditorWorkingCopyStatus(const QString &working_copy_id = QString());
+    Q_INVOKABLE QVariantMap offlineEditMediaStatus() const;
+    Q_INVOKABLE void refreshOfflineEditMediaStatus();
+    Q_INVOKABLE void reconnectOfflineEditProxy();
     Q_INVOKABLE QVariantMap selectedAiProposal() const;
     Q_INVOKABLE QVariantList aiProposals() const;
     Q_INVOKABLE void refreshAiProposals();
@@ -926,6 +931,7 @@ signals:
     void presetsChanged();
     void libraryWorkChanged();
     void externalEditorSessionChanged();
+    void offlineEditMediaStatusChanged();
     void selectedAiProposalChanged();
     void aiProposalsChanged();
     void thumbnailsChanged();
@@ -1186,6 +1192,7 @@ private:
     double last_non_actual_zoom_factor_ = 1.0;
     int thumbnail_size_ = 180;
     QVariantMap external_editor_session_;
+    QVariantMap offline_edit_media_status_;
     QVariantMap selected_ai_proposal_;
     QVariantList ai_proposals_;
     bool busy_ = false;

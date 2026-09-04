@@ -261,6 +261,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
             {"status", offline_proxy_status_json(reconnected.value().status)},
             {"source_hash_matched", reconnected.value().source_hash_matched},
             {"originals_unchanged", reconnected.value().originals_unchanged},
+            {"offline_states_cleared", reconnected.value().offline_states_cleared},
         }};
     }
     if (subcommand != "convert-foreign")
