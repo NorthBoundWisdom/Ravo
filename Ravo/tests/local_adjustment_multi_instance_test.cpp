@@ -5,6 +5,7 @@
 #include <string>
 
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/mask.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/recipe.h"
@@ -380,13 +381,43 @@ TEST(LocalAdjustmentMultiInstanceTest, DuplicatesExposureInstanceWithIndependent
     }
     ASSERT_NE(cloned, nullptr);
     EXPECT_EQ(cloned->kind, MaskKind::kEllipse);
+    EXPECT_TRUE(copy.mask_id->starts_with("ravo.studio.mask.exposure."));
+    const std::string clone_id = *copy.mask_id;
     // Mutating the clone must not change the source mask.
-    auto *ellipse = std::get_if<EllipseMask>(&develop.masks.back().payload);
-    ASSERT_NE(ellipse, nullptr);
-    ellipse->center_x = 0.11;
-    const auto *source = std::get_if<EllipseMask>(&develop.masks.front().payload);
-    ASSERT_NE(source, nullptr);
-    EXPECT_DOUBLE_EQ(source->center_x, 0.6);
+    {
+        auto *ellipse = std::get_if<EllipseMask>(&develop.masks.back().payload);
+        ASSERT_NE(ellipse, nullptr);
+        ellipse->center_x = 0.11;
+    }
+    {
+        const auto *source = std::get_if<EllipseMask>(&develop.masks.front().payload);
+        ASSERT_NE(source, nullptr);
+        EXPECT_DOUBLE_EQ(source->center_x, 0.6);
+    }
+    // Studio-owned clone remains editable through the mask authoring pipeline.
+    load_exposure_instance_into_legacy(develop, 2);
+    auto state = develop_mask_editor_state(develop, DevelopMaskTarget::kExposure);
+    EXPECT_TRUE(state.editable);
+    EXPECT_EQ(state.status, DevelopMaskAttachmentStatus::kEditable);
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskCenterX", 0.42));
+    mirror_legacy_exposure_into_instance(develop, 2);
+    const Mask *clone_after = nullptr;
+    const Mask *source_after = nullptr;
+    for (const auto &mask : develop.masks)
+    {
+        if (mask.id == clone_id)
+        {
+            clone_after = &mask;
+        }
+        if (mask.id == "mask-ellipse")
+        {
+            source_after = &mask;
+        }
+    }
+    ASSERT_NE(clone_after, nullptr);
+    ASSERT_NE(source_after, nullptr);
+    EXPECT_DOUBLE_EQ(std::get<EllipseMask>(clone_after->payload).center_x, 0.42);
+    EXPECT_DOUBLE_EQ(std::get<EllipseMask>(source_after->payload).center_x, 0.6);
 }
 
 TEST(LocalAdjustmentMultiInstanceTest, DuplicatesColorBalanceRgbInstanceWithMask)
@@ -412,7 +443,145 @@ TEST(LocalAdjustmentMultiInstanceTest, DuplicatesColorBalanceRgbInstanceWithMask
     EXPECT_DOUBLE_EQ(copy.params.contrast, 0.45);
     ASSERT_TRUE(copy.mask_id.has_value());
     EXPECT_NE(*copy.mask_id, "mask-gradient");
+    EXPECT_TRUE(copy.mask_id->starts_with("ravo.studio.mask.color_balance_rgb."));
     EXPECT_EQ(develop.masks.size(), 2U);
+    load_color_balance_rgb_instance_into_legacy(develop, 2);
+    auto state = develop_mask_editor_state(develop, DevelopMaskTarget::kColorBalanceRgb);
+    EXPECT_TRUE(state.editable);
+    EXPECT_EQ(state.status, DevelopMaskAttachmentStatus::kEditable);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, AuthorsLeafMasksOntoSelectedExposureInstance)
+{
+    DevelopParams develop;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-1";
+    global.exposure_ev = 0.0;
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-2";
+    local.exposure_ev = 0.4;
+    develop.exposure_instances = {global, local};
+
+    const struct
+    {
+        double kind = 0.0;
+        const char *name = nullptr;
+    } leaves[] = {
+        {2.0, "linear_gradient"}, {3.0, "circle"}, {4.0, "ellipse"},
+        {5.0, "parametric"},      {7.0, "path"},   {8.0, "brush"},
+    };
+
+    for (const auto &leaf : leaves)
+    {
+        load_exposure_instance_into_legacy(develop, 1);
+        // Detach any prior leaf so each kind starts from an empty attachment.
+        if (develop.exposure_mask_id.has_value())
+        {
+            ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskKind", 0.0))
+                << leaf.name;
+        }
+        ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskKind", leaf.kind))
+            << leaf.name;
+        auto state = develop_mask_editor_state(develop, DevelopMaskTarget::kExposure);
+        EXPECT_EQ(state.kind_name, leaf.name) << leaf.name;
+        EXPECT_TRUE(state.editable) << leaf.name;
+        EXPECT_TRUE(state.attached) << leaf.name;
+        ASSERT_TRUE(develop.exposure_mask_id.has_value()) << leaf.name;
+        EXPECT_TRUE(develop.exposure_mask_id->starts_with("ravo.studio.mask.exposure."))
+            << leaf.name;
+        mirror_legacy_exposure_into_instance(develop, 1);
+        ASSERT_TRUE(develop.exposure_instances[1].mask_id.has_value()) << leaf.name;
+        EXPECT_EQ(*develop.exposure_instances[1].mask_id, *develop.exposure_mask_id) << leaf.name;
+        // Master instance must remain unmasked.
+        EXPECT_FALSE(develop.exposure_instances[0].mask_id.has_value()) << leaf.name;
+    }
+
+    // Parametric luminance / colour-range channel remains editable on the local.
+    load_exposure_instance_into_legacy(develop, 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskKind", 5.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskChannel", 2.0)); // green
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskThreshold1", 0.2));
+    mirror_legacy_exposure_into_instance(develop, 1);
+    load_exposure_instance_into_legacy(develop, 1);
+    auto parametric = develop_mask_editor_state(develop, DevelopMaskTarget::kExposure);
+    EXPECT_EQ(parametric.kind_name, "parametric");
+    EXPECT_EQ(parametric.channel_index, 2);
+    EXPECT_DOUBLE_EQ(parametric.threshold1, 0.2);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, AuthorsLeafMasksOntoSelectedColorBalanceRgbInstance)
+{
+    DevelopParams develop;
+    DevelopColorBalanceRgbInstance master;
+    master.instance_id = "colorbalancergb-1";
+    DevelopColorBalanceRgbInstance grade;
+    grade.instance_id = "colorbalancergb-2";
+    develop.color_balance_rgb_instances = {master, grade};
+
+    load_color_balance_rgb_instance_into_legacy(develop, 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "colorBalanceRgbMaskKind", 8.0)); // brush
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "colorBalanceRgbMaskPointRadius", 0.08));
+    mirror_legacy_color_balance_rgb_into_instance(develop, 1);
+    ASSERT_TRUE(develop.color_balance_rgb_instances[1].mask_id.has_value());
+    EXPECT_TRUE(develop.color_balance_rgb_instances[1].mask_id->starts_with(
+        "ravo.studio.mask.color_balance_rgb."));
+    EXPECT_FALSE(develop.color_balance_rgb_instances[0].mask_id.has_value());
+
+    load_color_balance_rgb_instance_into_legacy(develop, 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "colorBalanceRgbMaskKind", 7.0)); // path
+    auto state = develop_mask_editor_state(develop, DevelopMaskTarget::kColorBalanceRgb);
+    EXPECT_EQ(state.kind_name, "path");
+    EXPECT_TRUE(state.editable);
+    EXPECT_GE(state.point_count, 3);
+    mirror_legacy_color_balance_rgb_into_instance(develop, 1);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, FailsClosedExternalAndSharedInstanceMasks)
+{
+    DevelopParams develop;
+    DevelopExposureInstance a;
+    a.instance_id = "exposure-1";
+    a.mask_id = "mask-ellipse";
+    DevelopExposureInstance b;
+    b.instance_id = "exposure-2";
+    b.mask_id = "mask-ellipse"; // shared external
+    develop.exposure_instances = {a, b};
+    develop.masks = {make_ellipse("mask-ellipse")};
+
+    load_exposure_instance_into_legacy(develop, 0);
+    auto external = develop_mask_editor_state(develop, DevelopMaskTarget::kExposure);
+    EXPECT_FALSE(external.editable);
+    EXPECT_EQ(external.status, DevelopMaskAttachmentStatus::kExternalReadOnly);
+    auto rejected = apply_develop_mask_field_strict(develop, "exposureMaskCenterX", 0.1);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "external_read_only");
+
+    // Studio-owned leaf shared across siblings is shared_read_only.
+    DevelopParams shared;
+    DevelopExposureInstance s0;
+    s0.instance_id = "exposure-1";
+    s0.mask_id = "ravo.studio.mask.exposure.1";
+    DevelopExposureInstance s1;
+    s1.instance_id = "exposure-2";
+    s1.mask_id = "ravo.studio.mask.exposure.1";
+    shared.exposure_instances = {s0, s1};
+    Mask studio{"ravo.studio.mask.exposure.1", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    studio.payload = CircleMask{0.5, 0.5, 0.2, 0.0};
+    shared.masks = {studio};
+    load_exposure_instance_into_legacy(shared, 1);
+    auto shared_state = develop_mask_editor_state(shared, DevelopMaskTarget::kExposure);
+    EXPECT_FALSE(shared_state.editable);
+    EXPECT_EQ(shared_state.status, DevelopMaskAttachmentStatus::kSharedReadOnly);
+    auto shared_reject = apply_develop_mask_field_strict(shared, "exposureMaskRadius", 0.3);
+    ASSERT_FALSE(shared_reject);
+    EXPECT_EQ(shared_reject.error().context.at("reason"), "shared_read_only");
+
+    // Detach is allowed and clears only the selected instance attachment.
+    ASSERT_TRUE(apply_develop_mask_field_strict(shared, "exposureMaskKind", 0.0));
+    mirror_legacy_exposure_into_instance(shared, 1);
+    EXPECT_FALSE(shared.exposure_instances[1].mask_id.has_value());
+    EXPECT_EQ(shared.exposure_instances[0].mask_id, "ravo.studio.mask.exposure.1");
+    EXPECT_EQ(shared.masks.size(), 1U);
 }
 
 } // namespace

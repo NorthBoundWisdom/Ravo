@@ -334,6 +334,45 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
     return false;
 }
 
+// Multi-instance Exposure / Color Balance RGB may each reference a mask_id.
+// Sharing one leaf across sibling instances must fail closed for Studio
+// authoring so edits cannot silently rewrite another instance's mask.
+[[nodiscard]] bool is_attached_by_sibling_instance(const DevelopParams &params,
+                                                   const DevelopMaskTarget target,
+                                                   const std::string_view id) noexcept
+{
+    std::size_t refs = 0U;
+    if (target == DevelopMaskTarget::kExposure)
+    {
+        for (const auto &instance : params.exposure_instances)
+        {
+            if (instance.mask_id.has_value() && *instance.mask_id == id)
+            {
+                ++refs;
+                if (refs > 1U)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    else if (target == DevelopMaskTarget::kColorBalanceRgb)
+    {
+        for (const auto &instance : params.color_balance_rgb_instances)
+        {
+            if (instance.mask_id.has_value() && *instance.mask_id == id)
+            {
+                ++refs;
+                if (refs > 1U)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 [[nodiscard]] TaskError mask_edit_error(const ErrorCode code, std::string message,
                                         const std::string_view reason,
                                         const DevelopMaskTarget target,
@@ -1340,6 +1379,7 @@ DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
         result.status = DevelopMaskAttachmentStatus::kExternalReadOnly;
     }
     else if (is_attached_by_other_operation(params, target, mask->id) ||
+             is_attached_by_sibling_instance(params, target, mask->id) ||
              has_group_edge_to(params, mask->id))
     {
         result.editable = false;

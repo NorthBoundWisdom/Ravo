@@ -143,11 +143,16 @@ template <typename T>
     return {};
 }
 
-[[nodiscard]] std::string make_duplicate_mask_id(const DevelopParams &params)
+// Mint Studio-owned IDs so duplicated instance masks remain editable through
+// the existing Exposure / Color Balance RGB authoring pipeline (ADR-0044/0145).
+// Non-studio source masks stay fail-closed on the source instance; the clone
+// becomes an independent authored leaf.
+[[nodiscard]] std::string make_duplicate_mask_id(const DevelopParams &params,
+                                                 const std::string_view prefix)
 {
     for (std::size_t n = 1;; ++n)
     {
-        const std::string id = "mask-dup-" + std::to_string(n);
+        const std::string id = std::string(prefix) + std::to_string(n);
         bool used = false;
         for (const auto &mask : params.masks)
         {
@@ -166,6 +171,7 @@ template <typename T>
 
 [[nodiscard]] Result<std::string> clone_mask_subgraph(DevelopParams &params,
                                                       const std::string_view source_id,
+                                                      const std::string_view id_prefix,
                                                       std::unordered_set<std::string> &visiting)
 {
     if (source_id.empty())
@@ -194,12 +200,12 @@ template <typename T>
                           {{"reason", "duplicate_instance_mask_missing"}, {"mask_id", source_key}});
     }
     Mask cloned = *source;
-    cloned.id = make_duplicate_mask_id(params);
+    cloned.id = make_duplicate_mask_id(params, id_prefix);
     if (auto *group = std::get_if<MaskGroup>(&cloned.payload))
     {
         for (auto &child : group->children)
         {
-            auto child_clone = clone_mask_subgraph(params, child.mask_id, visiting);
+            auto child_clone = clone_mask_subgraph(params, child.mask_id, id_prefix, visiting);
             if (!child_clone)
             {
                 return child_clone.error();
@@ -214,14 +220,15 @@ template <typename T>
 }
 
 [[nodiscard]] Result<std::optional<std::string>>
-duplicate_instance_mask(DevelopParams &params, const std::optional<std::string> &mask_id)
+duplicate_instance_mask(DevelopParams &params, const std::optional<std::string> &mask_id,
+                        const std::string_view id_prefix)
 {
     if (!mask_id.has_value() || mask_id->empty())
     {
         return std::optional<std::string>{};
     }
     std::unordered_set<std::string> visiting;
-    auto cloned = clone_mask_subgraph(params, *mask_id, visiting);
+    auto cloned = clone_mask_subgraph(params, *mask_id, id_prefix, visiting);
     if (!cloned)
     {
         return cloned.error();
@@ -463,7 +470,7 @@ Result<std::string> duplicate_exposure_instance(DevelopParams &params,
                           {{"instance_id", std::string(instance_id)}});
     }
     DevelopExposureInstance copy = params.exposure_instances[*found];
-    auto mask = duplicate_instance_mask(params, copy.mask_id);
+    auto mask = duplicate_instance_mask(params, copy.mask_id, "ravo.studio.mask.exposure.");
     if (!mask)
     {
         return mask.error();
@@ -493,7 +500,8 @@ Result<std::string> duplicate_color_balance_rgb_instance(DevelopParams &params,
                           {{"instance_id", std::string(instance_id)}});
     }
     DevelopColorBalanceRgbInstance copy = params.color_balance_rgb_instances[*found];
-    auto mask = duplicate_instance_mask(params, copy.mask_id);
+    auto mask =
+        duplicate_instance_mask(params, copy.mask_id, "ravo.studio.mask.color_balance_rgb.");
     if (!mask)
     {
         return mask.error();

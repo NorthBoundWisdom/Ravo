@@ -4,8 +4,8 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0153 (SPECIALIZE tethered deferred) plus ADR-0152 and
-> Studio multi-instance chrome + cull filter chips; next free ADR **0154**.
+> **Review basis:** `main` through ADR-0154 plus LOCAL-01 multi-instance mask leaf
+> authoring on selected Exposure/CBR instances; next free ADR **0155**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -330,14 +330,15 @@ workflow before admitting another product area.
 
 **Status:** ADR-0145 serialization/inspection plus Studio Exposure/Color Balance
 RGB instance chrome (list/select/name/enable/bypass/reorder/add/delete/duplicate
-with independent mask clone) are on `main`; mask authoring completeness and
-history/style/batch still residual.
+with independent Studio-owned mask clone) are on `main`; selected-instance leaf
+authoring for brush/path/linear/radial/parametric (luminance/colour range) via
+the existing mask pipeline is on `main` with fail-closed external/shared sibling
+attachments. Overlay/composition polish and history/style/batch still residual.
 
 **Remaining work:**
 
-- complete brush/path/linear/radial/parametric authoring, overlay visibility,
-  feather, flow/density where accepted, opacity, and
-  Add/Subtract/Intersect/Invert composition;
+- deepen overlay visibility, feather, flow/density where accepted, opacity, and
+  Add/Subtract/Intersect/Invert composition UX beyond the existing leaf editor;
 - one canonical coordinate path through orientation, lens, Perspective, crop,
   Canvas, preview scaling, 1:1 ROI, and export;
 - history/undo/redo, snapshots, style/preset, selective copy/paste,
