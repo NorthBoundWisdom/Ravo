@@ -1,0 +1,11 @@
+{
+  "schema": "ravo.camera.noise.calibration/v1",
+  "version": 1,
+  "units": "black_subtracted_uint16",
+  "identity": {
+    "make": "Ravo",
+    "model": "FixtureCam",
+    "iso": 800
+  },
+  "notes": "Deterministic fixture document for IQ-01 camera-profile probe hashing only. Not colour-accuracy evidence."
+}

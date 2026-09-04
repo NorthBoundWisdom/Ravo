@@ -238,6 +238,7 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] Result<JsonValue>
 run_perspective_analysis(const EngineFacade &engine, std::span<const std::string_view> positional);
 [[nodiscard]] Result<JsonValue> run_noise_command(std::span<const std::string_view> positional);
+[[nodiscard]] Result<JsonValue> run_iq_command(std::span<const std::string_view> positional);
 [[nodiscard]] bool ends_with_png(std::string_view path) noexcept;
 [[nodiscard]] Result<JsonValue> run_studio_command(const EngineFacade &engine,
                                                    std::span<const std::string_view> positional);

@@ -42,21 +42,23 @@
         "Ravo/tests/cli_catalog_test.cpp",
         "Ravo/tests/cli_studio_test.cpp",
         "Ravo/tests/cli_lut_test.cpp",
+        "Ravo/tests/cli_iq_test.cpp",
         "Ravo/tests/cli_catalog_args_parse_test.cpp"
       ],
-      "case_count": 74,
-      "case_sha256": "e8bc50555699a654c0803d9e276707282156f40f4976d0ae1f2f4f99cd56a670"
+      "case_count": 76,
+      "case_sha256": "fef78ca048da40b630cce1b917e5e99191c978edb5526d5f3e050f427fb087da"
     },
     {
       "sources": [
         "Ravo/tests/studio_command_test.cpp",
         "Ravo/tests/studio_presenter_test.cpp",
+        "Ravo/tests/studio_iq_quality_test.cpp",
         "Ravo/tests/studio_qml_contract_test.cpp",
         "Ravo/tests/studio_live_control_test.cpp",
         "Ravo/tests/filesystem_browser_model_test.cpp"
       ],
-      "case_count": 122,
-      "case_sha256": "9dd65923675eff042a0b6d38365813ce05133ff2c33bb9a24b2abeda8c625365"
+      "case_count": 126,
+      "case_sha256": "e026ba6297a86574ace03be8491a90703cfd25f8983e01633e2d63fa4c4ae628"
     },
     {
       "sources": [

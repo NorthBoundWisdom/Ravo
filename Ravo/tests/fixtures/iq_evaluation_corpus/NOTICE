@@ -1,0 +1,3 @@
+Synthetic IQ-01 evaluation corpus (ADR-0152).
+License: CC0-1.0. Not a licensed real-photo corpus.
+Learned denoise weights are not admitted by this fixture set.

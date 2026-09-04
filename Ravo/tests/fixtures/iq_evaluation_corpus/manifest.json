@@ -1,0 +1,26 @@
+{
+  "schema": "ravo.iq.evaluation-corpus/v1",
+  "schema_version": 1,
+  "corpus_id": "ravo-iq-fixture-c2",
+  "license": "CC0-1.0",
+  "notice_path": "NOTICE",
+  "cases": [
+    {
+      "case_id": "denoise-synthetic-c2",
+      "kind": "denoise_fixture",
+      "synthetic": true,
+      "notes": "CPU ravo.detail.denoiseprofile fixture for photographer-facing support-claim evidence"
+    },
+    {
+      "case_id": "camera-profile-fixture-c2",
+      "kind": "camera_profile_fixture",
+      "synthetic": false,
+      "relative_path": "cases/camera_noise_calibration_fixture.json",
+      "camera_make": "Ravo",
+      "camera_model": "FixtureCam",
+      "iso": 800,
+      "illuminant": "D65",
+      "notes": "Document presence+SHA-256 probe; colour accuracy remains C3"
+    }
+  ]
+}

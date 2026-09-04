@@ -103,7 +103,7 @@ the next one.
 | 4 | OFFLINE-01 | P1 | C2 Studio offline-edit proxies; C3 quota/corpus residual |
 | 5 | DISPLAY-01 | P1 | Finish per-display ICC presentation on supported hosts and views |
 | 6 | INGEST-01 | P1 | C2 Studio filesystem-card + stub ingest; C3 packaged native adapters/hardware |
-| 7 | IQ-01 | P1 | Establish camera/profile and denoise quality admission |
+| 7 | IQ-01 | P1 | C2 fixture evaluation workflow; C3 licensed corpus/human review/learned denoise |
 
 # P0 — Repository, correctness, and release gates
 
@@ -204,7 +204,9 @@ reopen/backup/restore corpus scenarios under REL-01.
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
 **Status:** Active evidence work. A host-local path alone is not reviewable
-evidence.
+evidence. Desensitized candidate reports live under
+`~/Documents/RavoEvidence/reports/<timestamp>/` tied to an exact SHA (see latest
+`REL-01-evidence-scaffold.md` when present).
 
 Use an explicit read-only mixed RAW/raster corpus in `RAVO_PHOTO_CORPUS`, a
 Release build, and a unique temporary root for every generated catalog,
@@ -536,19 +538,41 @@ filesystem-card + stub; packaged native adapters remain C3.
 
 ## IQ-01 — Camera/profile and denoise quality admission
 
-**Maturity:** C1 fixture probe only.
+**Maturity:** C2 on `main` for fixture evaluation workflow evidence (ADR-0152).
+Photographer-facing support claims can cite deterministic CPU denoise +
+camera-profile probe results via `ravo iq evaluate` / Studio
+`evaluateIqQuality`; missing corpus fail-closes. Aligns with IQ-00 CPU gold
+(`require_cpu_gold_backend` on the denoise path). Learned denoise remains
+blocked. Product camera certification and licensed real corpus = C3 residual.
 
-Build a licensed redistributable corpus plus private extension across skin,
-saturated fabrics, foliage, mixed light, underexposure, clipped highlights, high
-ISO, moiré, hot pixels, and lens extremes. Record provenance and measure colour,
-hue, highlights, detail/noise, halos, false colour, and scaling with blinded
-human review. Define camera/profile/lens update workflows. Admit a real denoise
-provider only after runtime, weights, licence, package, memory, cancellation,
-updates, and no-model behavior are accepted.
+**Done for C2:**
+
+- [done] Engine `evaluate_iq_fixture_support` bundle with
+  `support_claim_status=fixture_evidence_ready`,
+  `camera_product_support_claimed=false`, `learned_denoise_admitted=false`,
+  denoise `mean/max_abs_delta`, camera document SHA-256 + provenance;
+- [done] in-tree synthetic corpus `Ravo/tests/fixtures/iq_evaluation_corpus/`;
+- [done] CLI `ravo iq evaluate [--corpus] [--strength]` fail-closed without corpus;
+- [done] thin Studio `iqQualityPolicy` + `evaluateIqQuality` (no Main.qml growth);
+- [done] contract/CLI/presenter tests for fixture pass and missing-corpus fail-closed.
+
+**Remaining (C3):**
+
+- Build a licensed redistributable corpus plus private extension across skin,
+  saturated fabrics, foliage, mixed light, underexposure, clipped highlights,
+  high ISO, moiré, hot pixels, and lens extremes; record provenance and measure
+  colour/hue/highlights/detail/noise/halos/false colour/scaling with blinded
+  human review;
+- Define camera/profile/lens update workflows that promote fixture evidence to
+  product camera-support claims;
+- Admit a real denoise provider only after runtime, weights, licence, package,
+  memory, cancellation, updates, and no-model behavior are accepted (AI-00).
 
 **Acceptance gate:** camera support means image-quality evidence, not decode
 alone; changes carry before/after results and known failures; preview and native
-export are covered; deterministic defaults never change silently.
+export are covered; deterministic defaults never change silently. C2 satisfies
+the fixture evaluation workflow portion of this gate; C3 closes licensed corpus
++ human review + learned-denoise admission.
 
 # P2 — Frozen important extensions
 

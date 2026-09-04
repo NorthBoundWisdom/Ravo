@@ -63,6 +63,7 @@ add_executable(ravo_contract_tests
   cli_catalog_args_parse_test.cpp
   cli_studio_test.cpp
   cli_lut_test.cpp
+  cli_iq_test.cpp
   crs_xmp_test.cpp
   bayer_demosaic_test.cpp
   canvas_frame_test.cpp
@@ -411,6 +412,7 @@ add_executable(ravo_desktop_command_tests
   studio_test_support.cpp
   studio_command_test.cpp
   studio_presenter_test.cpp
+  studio_iq_quality_test.cpp
   studio_gallery_viewer_develop_perf_test.cpp
   studio_qml_contract_test.cpp
   studio_offline_edit_qml_contract_test.cpp

@@ -369,6 +369,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString importIngestSourceUri READ importIngestSourceUri NOTIFY importPageChanged)
     Q_PROPERTY(QVariantMap importNativeSupport READ importNativeSupport NOTIFY importPageChanged)
     Q_PROPERTY(QVariantMap importIngestReport READ importIngestReport NOTIFY importPageChanged)
+    Q_PROPERTY(QVariantMap iqQualityPolicy READ iqQualityPolicy CONSTANT)
     Q_PROPERTY(QString importResumeBatchId READ importResumeBatchId NOTIFY importPageChanged)
     Q_PROPERTY(ImportCandidateListModel *importCandidates READ importCandidates CONSTANT)
     Q_PROPERTY(FilesystemBrowserModel *importSourceFolders READ importSourceFolders CONSTANT)
@@ -417,6 +418,9 @@ public:
     [[nodiscard]] QString importIngestSourceUri() const;
     [[nodiscard]] QVariantMap importNativeSupport() const;
     [[nodiscard]] QVariantMap importIngestReport() const;
+    [[nodiscard]] QVariantMap iqQualityPolicy() const;
+    Q_INVOKABLE QVariantMap evaluateIqQuality(const QString &corpusRoot = QString(),
+                                              double strength = 0.35) const;
     [[nodiscard]] QString importResumeBatchId() const;
     [[nodiscard]] ImportCandidateListModel *importCandidates() noexcept;
     [[nodiscard]] FilesystemBrowserModel *importSourceFolders() noexcept;

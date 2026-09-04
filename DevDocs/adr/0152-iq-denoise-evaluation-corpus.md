@@ -77,3 +77,27 @@ presence/hash without claiming colour accuracy closure.
 
 IQ-01 gains a testable admission gate scaffold. Expanding the corpus and
 metrics, and admitting a real denoise provider, require further dated ADRs.
+
+## C2 Ready
+
+Expand the fixture evaluation workflow so a photographer-facing **support claim**
+is backed by deterministic Engine evidence (not decode-only):
+
+- `evaluate_iq_fixture_support` bundles CPU denoise + camera-profile probes with
+  explicit `support_claim_status=fixture_evidence_ready`,
+  `camera_product_support_claimed=false`, `learned_denoise_admitted=false`,
+  and `cpu_gold_aligned` via ADR-0151 `require_cpu_gold_backend`.
+- Denoise report adds `max_abs_delta` and claim/residual flags; camera-profile
+  probe hashes present documents (SHA-256) and surfaces provenance fields.
+- CLI: `ravo iq evaluate [--corpus <root>] [--strength <0..1>]` fail-closes with
+  `iq_corpus_unavailable` when corpus is unset/missing.
+- Studio (thin, no Main.qml growth): `iqQualityPolicy` + `evaluateIqQuality`
+  expose the same contract and fail-closed result map.
+- In-tree synthetic corpus: `Ravo/tests/fixtures/iq_evaluation_corpus/`.
+
+### Residual (C3)
+
+- Licensed redistributable + private real-photo corpus with blinded human review.
+- Product camera-support certification from that corpus.
+- Any learned denoise runtime/weights admission (blocked; requires AI-00 + dated ADR).
+

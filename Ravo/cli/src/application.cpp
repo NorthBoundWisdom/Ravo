@@ -354,6 +354,10 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
     {
         return emit(run_perspective_analysis(engine_, positional), json);
     }
+    if (positional.front() == "iq")
+    {
+        return emit(run_iq_command(positional), json);
+    }
     if (positional.front() == "noise")
     {
         return emit(run_noise_command(positional), json);

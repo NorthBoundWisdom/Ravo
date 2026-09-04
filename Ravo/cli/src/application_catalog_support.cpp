@@ -40,6 +40,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/style.h"
 #include "ravo/engine/iq_consistency.h"
+#include "ravo/engine/iq_quality_evaluation.h"
 #include "ravo/services/catalog_service.h"
 #include "ravo/services/artifact_publication.h"
 
@@ -833,6 +834,121 @@ run_perspective_analysis(const EngineFacade &engine,
         {"weighted_r_squared", JsonValue::number(std::to_string(profile.fit.weighted_r_squared))},
         {"weighted_rmse", JsonValue::number(std::to_string(profile.fit.weighted_rmse))},
     };
+}
+
+[[nodiscard]] JsonValue iq_denoise_report_json(const IqDenoiseEvaluationReport &report)
+{
+    return JsonValue::Object{
+        {"schema", report.schema},
+        {"schema_version", JsonValue::number(std::to_string(report.schema_version))},
+        {"corpus_id", report.corpus_id},
+        {"case_id", report.case_id},
+        {"operation_id", report.operation_id},
+        {"backend", report.backend},
+        {"support_claim_status", report.support_claim_status},
+        {"cpu_gold_aligned", report.cpu_gold_aligned},
+        {"learned_denoise_admitted", report.learned_denoise_admitted},
+        {"decode_only", report.decode_only},
+        {"strength", JsonValue::number(std::to_string(report.strength))},
+        {"mean_abs_delta", JsonValue::number(std::to_string(report.mean_abs_delta))},
+        {"max_abs_delta", JsonValue::number(std::to_string(report.max_abs_delta))},
+        {"width", JsonValue::number(std::to_string(report.width))},
+        {"height", JsonValue::number(std::to_string(report.height))},
+        {"finite", report.finite},
+    };
+}
+
+[[nodiscard]] JsonValue iq_camera_profile_report_json(const IqCameraProfileProbeReport &report)
+{
+    JsonValue::Object object{
+        {"schema", report.schema},
+        {"schema_version", JsonValue::number(std::to_string(report.schema_version))},
+        {"corpus_id", report.corpus_id},
+        {"case_id", report.case_id},
+        {"probe", report.probe},
+        {"support_claim_status", report.support_claim_status},
+        {"document_present", report.document_present},
+        {"colour_accuracy_closed", report.colour_accuracy_closed},
+        {"decode_only", report.decode_only},
+    };
+    if (report.document_sha256)
+        object.emplace("document_sha256", *report.document_sha256);
+    if (report.document_bytes)
+        object.emplace("document_bytes", JsonValue::number(std::to_string(*report.document_bytes)));
+    if (report.camera_make)
+        object.emplace("camera_make", *report.camera_make);
+    if (report.camera_model)
+        object.emplace("camera_model", *report.camera_model);
+    if (report.iso)
+        object.emplace("iso", JsonValue::number(std::to_string(*report.iso)));
+    if (report.illuminant)
+        object.emplace("illuminant", *report.illuminant);
+    return object;
+}
+
+[[nodiscard]] JsonValue iq_fixture_support_json(const IqFixtureSupportReport &report)
+{
+    return JsonValue::Object{
+        {"schema", report.schema},
+        {"schema_version", JsonValue::number(std::to_string(report.schema_version))},
+        {"maturity", report.maturity},
+        {"support_claim_status", report.support_claim_status},
+        {"camera_product_support_claimed", report.camera_product_support_claimed},
+        {"learned_denoise_admitted", report.learned_denoise_admitted},
+        {"cpu_gold_aligned", report.cpu_gold_aligned},
+        {"decode_only", report.decode_only},
+        {"residual_c3", report.residual_c3},
+        {"corpus_id", report.corpus_id},
+        {"corpus_license", report.corpus_license},
+        {"denoise", iq_denoise_report_json(report.denoise)},
+        {"camera_profile", iq_camera_profile_report_json(report.camera_profile)},
+    };
+}
+
+[[nodiscard]] Result<JsonValue> run_iq_command(const std::span<const std::string_view> positional)
+{
+    if (positional.size() < 2U || positional[1] != "evaluate")
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Usage: ravo iq evaluate [--corpus <root>] [--strength <0..1>]");
+    }
+    std::optional<std::string> corpus;
+    double strength = 0.35;
+    for (std::size_t index = 2; index < positional.size(); ++index)
+    {
+        const auto option = positional[index];
+        if (option == "--corpus")
+        {
+            if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
+                return make_error(ErrorCode::kInvalidArgument, "--corpus requires a path");
+            if (corpus)
+                return make_error(ErrorCode::kInvalidArgument, "--corpus was specified twice");
+            corpus = std::string(positional[++index]);
+            continue;
+        }
+        if (option == "--strength")
+        {
+            if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
+                return make_error(ErrorCode::kInvalidArgument, "--strength requires a value");
+            auto parsed = parse_double_flag(positional[++index], option);
+            if (!parsed)
+                return parsed.error();
+            if (!(parsed.value() >= 0.0) || !(parsed.value() <= 1.0))
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "IQ denoise strength must be in [0,1]",
+                                  {{"value", std::string(positional[index])}});
+            }
+            strength = parsed.value();
+            continue;
+        }
+        return make_error(ErrorCode::kInvalidArgument, "Unknown iq evaluate option",
+                          {{"option", std::string(option)}});
+    }
+    auto report = evaluate_iq_fixture_support(std::move(corpus), strength, CancellationToken{});
+    if (!report)
+        return report.error();
+    return iq_fixture_support_json(report.value());
 }
 
 [[nodiscard]] Result<JsonValue>
