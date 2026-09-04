@@ -341,6 +341,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap backupScheduleStatus READ backupScheduleStatus NOTIFY libraryWorkChanged)
     Q_PROPERTY(QVariantMap externalEditorSession READ externalEditorSession NOTIFY
                    externalEditorSessionChanged)
+    Q_PROPERTY(
+        QVariantMap selectedAiProposal READ selectedAiProposal NOTIFY selectedAiProposalChanged)
+    Q_PROPERTY(QVariantList aiProposals READ aiProposals NOTIFY aiProposalsChanged)
     Q_PROPERTY(bool importPageOpen READ importPageOpen NOTIFY importPageChanged)
     Q_PROPERTY(bool importScanActive READ importScanActive NOTIFY importPageChanged)
     Q_PROPERTY(bool importPreviewWorkActive READ importPreviewWorkActive NOTIFY libraryWorkChanged)
@@ -731,6 +734,16 @@ public:
                                                      const QString &application_path = QString());
     Q_INVOKABLE void
     refreshExternalEditorWorkingCopyStatus(const QString &working_copy_id = QString());
+    Q_INVOKABLE QVariantMap selectedAiProposal() const;
+    Q_INVOKABLE QVariantList aiProposals() const;
+    Q_INVOKABLE void refreshAiProposals();
+    Q_INVOKABLE void createAiStubProposal(const QString &kind = QStringLiteral("global"),
+                                          const QString &semantic_label = QString());
+    Q_INVOKABLE void selectAiProposal(const QString &proposal_id);
+    Q_INVOKABLE void clearSelectedAiProposal();
+    Q_INVOKABLE void applySelectedAiProposal();
+    Q_INVOKABLE void rejectSelectedAiProposal();
+    Q_INVOKABLE void cancelSelectedAiProposal();
     Q_INVOKABLE void selectAsset(const QString &asset_id);
     Q_INVOKABLE void selectAssetRange(const QString &asset_id);
     Q_INVOKABLE void toggleAssetSelected(const QString &asset_id);
@@ -913,6 +926,8 @@ signals:
     void presetsChanged();
     void libraryWorkChanged();
     void externalEditorSessionChanged();
+    void selectedAiProposalChanged();
+    void aiProposalsChanged();
     void thumbnailsChanged();
     void importPageChanged();
 
@@ -1171,6 +1186,8 @@ private:
     double last_non_actual_zoom_factor_ = 1.0;
     int thumbnail_size_ = 180;
     QVariantMap external_editor_session_;
+    QVariantMap selected_ai_proposal_;
+    QVariantList ai_proposals_;
     bool busy_ = false;
     bool preview_loading_ = false;
     PreviewRequestOwner develop_preview_owner_;

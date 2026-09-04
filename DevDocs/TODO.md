@@ -4,8 +4,9 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0155 (CULL burst/stack Survey compare) plus
-> LOCAL-01 selected-instance mask leaf authoring; next free ADR **0156**.
+> **Review basis:** `main` through ADR-0155 plus PERF-01 Gallery→viewer→Develop
+> measurement harness and AI-01/02 Studio stub proposal inspect/apply/reject chrome;
+> next free ADR **0156**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -675,6 +676,9 @@ thresholds are testable; originals never need to be writable.
 
 **Blocked by:** AI-00 and IQ-01.
 
+**Studio chrome (stub only):** inspect/apply/reject/cancel surface for existing
+deterministic stub proposals is on `main`. Real provider/weights remain blocked.
+
 Proposals remain ordinary validated recipe diffs with exact preview and field
 diff before apply. Reject/cancel changes nothing; apply creates normal
 history/undo. Quality must pass the approved corpus and human review.
@@ -682,6 +686,9 @@ history/undo. Quality must pass the approved corpus and human review.
 ## AI-02 — Real semantic selections
 
 **Blocked by:** AI-00 and LOCAL-01.
+
+**Studio chrome (stub only):** semantic-mask stub create + inspect/apply/reject
+shares the AI proposal dialog. Real segmentation quality remains blocked.
 
 Results must become bounded canonical masks in the accepted coordinate system.
 Uncertain/empty results stay visible. Provider-specific bitmaps cannot become a

@@ -1729,6 +1729,65 @@ TEST(StudioCommands, EditInCommandsExposePrepareAndCheckReturned)
     EXPECT_TRUE(presenter.externalEditorSession().isEmpty());
 }
 
+TEST(StudioQmlContract, AiProposalDialogExposesInspectApplyRejectChrome)
+{
+    QFile dialog(QStringLiteral(RAVO_STUDIO_AI_PROPOSAL_QML));
+    ASSERT_TRUE(dialog.open(QIODevice::ReadOnly | QIODevice::Text))
+        << dialog.errorString().toStdString();
+    const auto dialog_source = QString::fromUtf8(dialog.readAll());
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"AiProposalDialog\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"aiProposalApply\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"aiProposalReject\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"aiProposalCancelAction\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"aiProposalCreate\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"aiProposalInspect\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("Stub proposals only")));
+
+    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
+        << actions.errorString().toStdString();
+    const auto action_source = QString::fromUtf8(actions.readAll());
+    EXPECT_TRUE(action_source.contains(QStringLiteral("root.ids.photoAiProposal")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("property alias aiProposal")));
+
+    QFile menu(QStringLiteral(RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML));
+    ASSERT_TRUE(menu.open(QIODevice::ReadOnly | QIODevice::Text))
+        << menu.errorString().toStdString();
+    const auto menu_source = QString::fromUtf8(menu.readAll());
+    EXPECT_TRUE(menu_source.contains(QStringLiteral("objectName: \"aiProposalMenuItem\"")));
+
+    QFile main_qml(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main_qml.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main_qml.errorString().toStdString();
+    const auto main_source = QString::fromUtf8(main_qml.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("AiProposalDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("openAiProposalDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.photoAiProposal")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("photoAiPropose")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("photoAiProposalApply")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("photoAiProposalReject")));
+}
+
+TEST(StudioCommands, AiProposalCommandsExposeInspectApplyReject)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    const auto ids = commands.ids();
+    EXPECT_EQ(ids.value(QStringLiteral("photoAiProposal")).toString(),
+              QStringLiteral("studio.photo.ai_proposal"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoAiPropose")).toString(),
+              QStringLiteral("studio.photo.ai_propose"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoAiProposalApply")).toString(),
+              QStringLiteral("studio.photo.ai_proposal_apply"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoAiProposalReject")).toString(),
+              QStringLiteral("studio.photo.ai_proposal_reject"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoAiProposalCancel")).toString(),
+              QStringLiteral("studio.photo.ai_proposal_cancel"));
+    EXPECT_TRUE(presenter.selectedAiProposal().isEmpty());
+    EXPECT_TRUE(presenter.aiProposals().isEmpty());
+}
+
 TEST(StudioQmlContract, LibraryFilterBarExposesCullReviewAndSuggestionChips)
 {
     QFile bar(QStringLiteral(RAVO_STUDIO_LIBRARY_FILTER_BAR_QML));

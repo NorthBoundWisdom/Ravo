@@ -492,6 +492,12 @@ ApplicationWindow {
         editInDialog.openForSelection();
     }
 
+    function openAiProposalDialog() {
+        if (!studio.selectedAssetId.length)
+            return;
+        aiProposalDialog.openForSelection();
+    }
+
     function openFolderRelinkDialog(folderId) {
         window.pendingRelinkFolderId = String(folderId || "");
         folderRelinkDialog.currentFolder = studio.defaultCatalogFolder;
@@ -681,6 +687,8 @@ ApplicationWindow {
                 openExportDialog();
             else if (id === ids.photoEditIn)
                 openEditInDialog();
+            else if (id === ids.photoAiProposal)
+                openAiProposalDialog();
             else if (id === ids.libraryBackupCreate)
                 openBackupCreateDialog();
             else if (id === ids.libraryBackupVerify)
@@ -1799,6 +1807,27 @@ ApplicationWindow {
                 "workingCopyId": workingCopyId
             });
         }
+    }
+
+    AiProposalDialog {
+        id: aiProposalDialog
+        parentItem: window.contentItem
+        presenter: studio
+        onProposeAccepted: function (kind, semanticLabel) {
+            studioActions.run(studioActions.ids.photoAiPropose, {
+                "kind": kind,
+                "semanticLabel": semanticLabel
+            });
+        }
+        onSelectAccepted: function (proposalId) {
+            studioActions.run(studioActions.ids.photoAiProposalSelect, {
+                "proposalId": proposalId
+            });
+        }
+        onRefreshAccepted: studioActions.run(studioActions.ids.photoAiProposalRefresh)
+        onApplyAccepted: studioActions.run(studioActions.ids.photoAiProposalApply)
+        onRejectAccepted: studioActions.run(studioActions.ids.photoAiProposalReject)
+        onCancelAccepted: studioActions.run(studioActions.ids.photoAiProposalCancel)
     }
 
     BackupScheduleDialog {

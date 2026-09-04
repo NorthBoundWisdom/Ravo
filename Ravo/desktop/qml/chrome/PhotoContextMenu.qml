@@ -106,6 +106,11 @@ StudioContextMenu {
         action: root.commands.editIn
         displayText: qsTr("Edit in…")
     }
+    StudioContextMenuItem {
+        objectName: "aiProposalMenuItem"
+        action: root.commands.aiProposal
+        displayText: qsTr("Inspect AI Proposal…")
+    }
     StudioContextMenuSeparator {}
     StudioContextMenuItem {
         action: root.commands.exportPhoto

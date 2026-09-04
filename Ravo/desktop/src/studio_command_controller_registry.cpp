@@ -991,6 +991,53 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             presenter_.refreshExternalEditorWorkingCopyStatus(
                 fields.value(QStringLiteral("workingCopyId")).toString());
         });
+
+    add(command::kPhotoAiProposal, Condition::kReadySelection, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kPhotoAiProposal, argument); });
+    add(
+        command::kPhotoAiPropose, Condition::kReadySelection,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::UnknownType)
+                return QString{};
+            if (argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.createAiStubProposal(
+                fields.value(QStringLiteral("kind")).toString(),
+                fields.value(QStringLiteral("semanticLabel")).toString());
+        });
+    add(
+        command::kPhotoAiProposalSelect, Condition::kReadySelection,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required.")));
+            if (argument.toMap().value(QStringLiteral("proposalId")).toString().trimmed().isEmpty())
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "A proposal id is required.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            presenter_.selectAiProposal(
+                argument.toMap().value(QStringLiteral("proposalId")).toString());
+        });
+    add(command::kPhotoAiProposalRefresh, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.refreshAiProposals(); });
+    add(command::kPhotoAiProposalApply, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.applySelectedAiProposal(); });
+    add(command::kPhotoAiProposalReject, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.rejectSelectedAiProposal(); });
+    add(command::kPhotoAiProposalCancel, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.cancelSelectedAiProposal(); });
     add(command::kPhotoRequestRemove, Condition::kSelection, no_argument,
         [request_confirmation](const QVariant &, const QString &)
         { request_confirmation(command::kPhotoRequestRemove, command::kPhotoRemove); });

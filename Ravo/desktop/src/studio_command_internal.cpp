@@ -50,6 +50,7 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "The preset changed after confirmation was requested."),
     QT_TRANSLATE_NOOP("StudioCommands", "Export path must not be empty."),
     QT_TRANSLATE_NOOP("StudioCommands", "External editor id must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "A proposal id is required."),
     QT_TRANSLATE_NOOP("StudioCommands", "Export directory must not be empty."),
     QT_TRANSLATE_NOOP("StudioCommands", "Export filename template must not be empty."),
     QT_TRANSLATE_NOOP("StudioCommands", "Unknown rating filter mode."),
@@ -202,6 +203,13 @@ QStringList command_ids()
             QLatin1String(command::kPhotoEditInAbandon),
             QLatin1String(command::kPhotoEditInReopen),
             QLatin1String(command::kPhotoEditInRefreshStatus),
+            QLatin1String(command::kPhotoAiProposal),
+            QLatin1String(command::kPhotoAiPropose),
+            QLatin1String(command::kPhotoAiProposalSelect),
+            QLatin1String(command::kPhotoAiProposalRefresh),
+            QLatin1String(command::kPhotoAiProposalApply),
+            QLatin1String(command::kPhotoAiProposalReject),
+            QLatin1String(command::kPhotoAiProposalCancel),
             QLatin1String(command::kPhotoCreateVersion),
             QLatin1String(command::kPhotoStackSelection),
             QLatin1String(command::kPhotoUnstack),
@@ -600,6 +608,23 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Refresh External Edit Status")),
         photo, {QStringLiteral("external"), QStringLiteral("status"), QStringLiteral("conflict")},
         QStringLiteral("photo.review"), 44, true);
+    add(command::kPhotoAiProposal, command::kPhotoAiProposal,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Inspect AI Proposal...")), photo,
+        {QStringLiteral("ai"), QStringLiteral("proposal"), QStringLiteral("stub")},
+        QStringLiteral("photo.review"), 50, true);
+    add(command::kPhotoAiPropose, command::kPhotoAiPropose,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Create Stub AI Proposal")), photo,
+        {QStringLiteral("ai"), QStringLiteral("propose"), QStringLiteral("stub")},
+        QStringLiteral("photo.review"), 51, true);
+    add(command::kPhotoAiProposalApply, command::kPhotoAiProposalApply,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Apply AI Proposal")), photo,
+        {QStringLiteral("ai"), QStringLiteral("apply")}, QStringLiteral("photo.review"), 52, true);
+    add(command::kPhotoAiProposalReject, command::kPhotoAiProposalReject,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reject AI Proposal")), photo,
+        {QStringLiteral("ai"), QStringLiteral("reject")}, QStringLiteral("photo.review"), 53, true);
+    add(command::kPhotoAiProposalCancel, command::kPhotoAiProposalCancel,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Cancel AI Proposal")), photo,
+        {QStringLiteral("ai"), QStringLiteral("cancel")}, QStringLiteral("photo.review"), 54, true);
     add(command::kPhotoRequestRemove, command::kPhotoRequestRemove,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Remove from Catalog...")), photo,
         {QStringLiteral("library"), QStringLiteral("delete")}, QStringLiteral("photo.delete"), 10,

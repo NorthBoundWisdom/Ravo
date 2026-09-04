@@ -285,6 +285,7 @@ Item {
     property alias copyPhotoParameters: copyPhotoParametersAction
     property alias revealInFileManager: revealInFileManagerAction
     property alias editIn: editInAction
+    property alias aiProposal: aiProposalAction
     property alias cropTool: cropToolAction
     property alias rotateLeft: rotateLeftAction
     property alias rotateRight: rotateRightAction
@@ -429,6 +430,10 @@ Item {
     RegisteredAction {
         id: editInAction
         actionId: root.ids.photoEditIn || ""
+    }
+    RegisteredAction {
+        id: aiProposalAction
+        actionId: root.ids.photoAiProposal || ""
     }
     RegisteredAction {
         id: cropToolAction
