@@ -141,6 +141,9 @@ struct CatalogCliArguments
     std::string_view provider_id;
     std::string_view model_id;
     std::string_view proposal_kind;
+    std::string_view suggestion_kind;
+    std::string_view suggestion_id;
+    std::string_view peer_asset;
     std::string_view semantic_label;
     std::string_view reference_asset;
     std::vector<std::string_view> destination_assets;
@@ -187,6 +190,10 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] JsonValue keyword_mutation_to_json(const KeywordMutation &mutation);
 [[nodiscard]] JsonValue ai_proposal_to_json(const AiProposal &proposal);
 [[nodiscard]] JsonValue ai_proposal_apply_to_json(const AiProposalApplyResult &result);
+[[nodiscard]] JsonValue ai_suggestion_to_json(const AiSuggestion &suggestion);
+[[nodiscard]] Result<JsonValue> run_catalog_ai_suggestion_command(CatalogService &service,
+                                                                  std::string_view subcommand,
+                                                                  const CatalogCliArguments &flags);
 [[nodiscard]] JsonValue asset_version_mutation_to_json(const AssetVersionMutation &mutation);
 [[nodiscard]] JsonValue folder_relink_to_json(const FolderRelinkResult &result);
 [[nodiscard]] Result<JsonValue> probe_statistics_json(const PreviewResult &preview);

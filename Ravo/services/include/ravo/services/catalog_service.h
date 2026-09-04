@@ -22,6 +22,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/services/ai_proposal.h"
+#include "ravo/services/ai_suggestion.h"
 #include "ravo/services/xmp_interchange.h"
 #include "ravo/services/external_editor.h"
 #include "ravo/services/foreign_catalog.h"
@@ -369,6 +370,18 @@ public:
                       std::optional<std::int64_t> expected_catalog_revision = std::nullopt);
     [[nodiscard]] Result<AiProposal> reject_ai_proposal(std::string_view proposal_id);
     [[nodiscard]] Result<AiProposal> cancel_ai_proposal(std::string_view proposal_id);
+    // AI-04: non-authoritative keyword/caption/focus/duplicate suggestions
+    // (ADR-0142). Never auto-reject/delete/publish; accept uses metadata APIs.
+    [[nodiscard]] Result<AiSuggestion>
+    create_ai_suggestion(const AiSuggestionCreateRequest &request);
+    [[nodiscard]] Result<AiSuggestion> get_ai_suggestion(std::string_view suggestion_id) const;
+    [[nodiscard]] Result<std::vector<AiSuggestion>>
+    list_ai_suggestions(std::optional<std::string_view> asset_id = std::nullopt) const;
+    [[nodiscard]] Result<AiSuggestionAcceptResult>
+    accept_ai_suggestion(std::string_view suggestion_id,
+                         std::optional<std::int64_t> expected_catalog_revision = std::nullopt);
+    [[nodiscard]] Result<AiSuggestion> reject_ai_suggestion(std::string_view suggestion_id);
+    [[nodiscard]] Result<AiSuggestion> cancel_ai_suggestion(std::string_view suggestion_id);
 
     Result<void> close();
 
@@ -492,10 +505,15 @@ private:
     bool ingest_report_remaining_on_stop_ = false;
     mutable std::map<std::string, AiProposal, std::less<>> ai_proposals_;
     mutable bool ai_proposals_loaded_ = false;
+    mutable std::map<std::string, AiSuggestion, std::less<>> ai_suggestions_;
+    mutable bool ai_suggestions_loaded_ = false;
 
     [[nodiscard]] Result<std::filesystem::path> ai_proposals_directory() const;
     [[nodiscard]] Result<void> ensure_ai_proposals_loaded() const;
     [[nodiscard]] Result<void> persist_ai_proposal(const AiProposal &proposal);
+    [[nodiscard]] Result<std::filesystem::path> ai_suggestions_directory() const;
+    [[nodiscard]] Result<void> ensure_ai_suggestions_loaded() const;
+    [[nodiscard]] Result<void> persist_ai_suggestion(const AiSuggestion &suggestion);
 
     friend class testing::CatalogServiceTestControl;
 };

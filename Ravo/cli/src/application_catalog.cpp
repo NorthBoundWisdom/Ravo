@@ -90,7 +90,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
             "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|convert-foreign|dng-convert|dng-status|smart-preview|"
-            "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel> "
+            "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
     const auto subcommand = positional[1];
@@ -163,10 +163,13 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool stack_command =
         subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
     const bool develop_apply_command = subcommand == "develop-apply";
-    const bool ai_command = subcommand == "ai-propose" || subcommand == "ai-proposal" ||
-                            subcommand == "ai-proposals" || subcommand == "ai-proposal-apply" ||
-                            subcommand == "ai-proposal-reject" ||
-                            subcommand == "ai-proposal-cancel";
+    const bool ai_command =
+        subcommand == "ai-propose" || subcommand == "ai-proposal" || subcommand == "ai-proposals" ||
+        subcommand == "ai-proposal-apply" || subcommand == "ai-proposal-reject" ||
+        subcommand == "ai-proposal-cancel" || subcommand == "ai-suggest" ||
+        subcommand == "ai-suggestion" || subcommand == "ai-suggestions" ||
+        subcommand == "ai-suggestion-accept" || subcommand == "ai-suggestion-reject" ||
+        subcommand == "ai-suggestion-cancel";
     const bool xmp_command =
         subcommand == "xmp-status" || subcommand == "xmp-import" || subcommand == "xmp-export";
     const bool editor_command = subcommand == "editor-register" || subcommand == "editor-show" ||
@@ -203,25 +206,40 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         !develop_apply_command && !keyword_command && !ai_command && !editor_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--revision is only valid for catalog set, version, stack, "
-                          "keyword, tag, develop-apply, ai proposal, or editor commands");
-    if (flags.value().user_initiated && subcommand != "ai-propose" && subcommand != "editor-open")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--user-initiated is only valid for catalog ai-propose or editor-open");
+                          "keyword, tag, develop-apply, ai proposal/suggestion, or editor "
+                          "commands");
+    if (flags.value().user_initiated && subcommand != "ai-propose" && subcommand != "ai-suggest" &&
+        subcommand != "editor-open")
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "--user-initiated is only valid for catalog ai-propose, ai-suggest, or editor-open");
     if (!flags.value().proposal_id.empty() && subcommand != "ai-proposal" &&
         subcommand != "ai-proposal-apply" && subcommand != "ai-proposal-reject" &&
         subcommand != "ai-proposal-cancel")
         return make_error(ErrorCode::kInvalidArgument,
                           "--proposal-id is only valid for catalog ai-proposal commands");
+    if (!flags.value().suggestion_id.empty() && subcommand != "ai-suggestion" &&
+        subcommand != "ai-suggestion-accept" && subcommand != "ai-suggestion-reject" &&
+        subcommand != "ai-suggestion-cancel")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--suggestion-id is only valid for catalog ai-suggestion commands");
+    if (!flags.value().suggestion_kind.empty() && subcommand != "ai-suggest")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--suggestion-kind is only valid for catalog ai-suggest");
+    if (!flags.value().peer_asset.empty() && subcommand != "ai-suggest")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--peer-asset is only valid for catalog ai-suggest");
     if ((!flags.value().provider_id.empty() || !flags.value().model_id.empty()) &&
         subcommand != "ai-propose")
         return make_error(ErrorCode::kInvalidArgument,
                           "--provider/--model are only valid for catalog ai-propose");
     if ((!flags.value().proposal_kind.empty() || !flags.value().semantic_label.empty() ||
          !flags.value().reference_asset.empty() || !flags.value().destination_assets.empty()) &&
-        subcommand != "ai-propose")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--proposal-kind/--semantic-label/--reference-asset/"
-                          "--destination-assets are only valid for catalog ai-propose");
+        subcommand != "ai-propose" && subcommand != "ai-suggest")
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "--proposal-kind/--semantic-label/--reference-asset/"
+            "--destination-assets are only valid for catalog ai-propose or ai-suggest");
     if (!flags.value().from_asset.empty() && !develop_apply_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--from-asset is only valid for catalog develop-apply");
@@ -1720,6 +1738,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }};
     }
 
+    const bool suggestion_command =
+        subcommand == "ai-suggest" || subcommand == "ai-suggestion" ||
+        subcommand == "ai-suggestions" || subcommand == "ai-suggestion-accept" ||
+        subcommand == "ai-suggestion-reject" || subcommand == "ai-suggestion-cancel";
+    if (suggestion_command)
+        return run_catalog_ai_suggestion_command(service, subcommand, flags.value());
     if (subcommand == "ai-propose")
     {
         AiProposalKind kind = AiProposalKind::kGlobal;

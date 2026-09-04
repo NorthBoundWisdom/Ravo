@@ -1254,6 +1254,7 @@ struct FileIdentity
 [[nodiscard]] std::string generate_library_stack_id();
 [[nodiscard]] std::string generate_keyword_id();
 [[nodiscard]] std::string generate_ai_proposal_id();
+[[nodiscard]] std::string generate_ai_suggestion_id();
 [[nodiscard]] std::string generate_external_editor_open_intent_id();
 [[nodiscard]] Result<std::string> normalize_keyword_name(std::string_view name);
 [[nodiscard]] Result<std::vector<std::string>> parse_keyword_path(std::string_view path);

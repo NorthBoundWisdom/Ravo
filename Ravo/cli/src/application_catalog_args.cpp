@@ -889,6 +889,33 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                                   "--proposal-kind was specified twice");
             result.proposal_kind = value;
         }
+        else if (option == "--suggestion-kind")
+        {
+            if (!result.suggestion_kind.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--suggestion-kind was specified twice");
+            }
+            result.suggestion_kind = value;
+        }
+        else if (option == "--suggestion-id")
+        {
+            if (!result.suggestion_id.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--suggestion-id was specified twice");
+            }
+            result.suggestion_id = value;
+        }
+        else if (option == "--peer-asset")
+        {
+            if (!result.peer_asset.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "--peer-asset was specified twice");
+            }
+            result.peer_asset = value;
+        }
+
         else if (option == "--reference-asset")
         {
             if (!result.reference_asset.empty())
