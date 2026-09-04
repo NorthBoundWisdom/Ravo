@@ -4,17 +4,21 @@
 >
 > **Updated:** 2026-09-05
 >
-> **Review basis:** `main` through LOCAL-01 C2, EDITIN-01 C2, CULL-01 keyboard
-> C2 + analysis decode-path residual, OFFLINE-01 C2, DISPLAY-01 C2, INGEST-01 C2
-> Studio filesystem-card + ptp-stub ingest (native adapters residual), IQ-01 C2
-> fixture evaluation, and IQ-00 macOS contract expansions (CPU gold + GPU live
-> residual documented; Win/Linux not claimed). REL-01 has macOS desensitized
-> evidence on `07dbb9ef` (report `20260905_020736`) plus packaged-CLI Add/Copy and
-> XMP metadata deepen on `e1a68eeb` (report `20260905_023651`). REL-02 has a
-> macOS Release DMG package-smoke tranche on `e1a68eeb` (same report); Windows
-> ZIP / Linux AppImage+DEB and full REL matrices remain open. The next free ADR
-> number is **0157**, but new product ADRs are frozen by the work-in-progress
-> rule below.
+> **Review basis:** `main` through LOCAL-01 C2, EDITIN-01 C2 (+ macOS installed-
+> package TIFF matrix residual closed on report `20260905_024633`; Win/Linux
+> package matrix still open), CULL-01 keyboard C2 + analysis decode-path residual,
+> OFFLINE-01 C2, DISPLAY-01 C2, INGEST-01 C2 Studio filesystem-card + ptp-stub
+> ingest (native adapters residual), IQ-01 C2 fixture evaluation, and IQ-00 macOS
+> contract expansions (CPU gold + GPU live residual documented; Win/Linux not
+> claimed). REL-01 has macOS desensitized evidence on `07dbb9ef` (report
+> `20260905_020736`), packaged-CLI Add/Copy + XMP deepen on `e1a68eeb` (report
+> `20260905_023651`), plus contract/packaged deepen for disconnect/reconnect,
+> ENOSPC injection harness, Move, missing-volume fail-closed on report
+> `20260905_024633` (PNG/TIFF-in-corpus, rating-via-XMP, X-Trans, Win/Linux still
+> residual; not C3). REL-02 has a macOS Release DMG package-smoke tranche on
+> `e1a68eeb` (report `20260905_023651`); Windows ZIP / Linux AppImage+DEB and full
+> REL matrices remain open. The next free ADR number is **0157**, but new product
+> ADRs are frozen by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -104,7 +108,7 @@ the next one.
 | Order | ID | Priority | Outcome |
 | ---: | --- | --- | --- |
 | 1 | LOCAL-01 | P1 | C2 Studio multi-instance local adjustments/masks; GPU residual after PERF-01 |
-| 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; package TIFF matrix residual |
+| 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; Win/Linux package TIFF residual |
 | 3 | CULL-01 | P1 | Keyboard C2; analysis C1+ decode-path; corpora/index residual |
 | 4 | OFFLINE-01 | P1 | C2 Studio offline-edit proxies; C3 quota/corpus residual |
 | 5 | DISPLAY-01 | P1 | Finish per-display ICC presentation on supported hosts and views |
@@ -219,10 +223,17 @@ packaged-CLI deepen on candidate `e1a68eeb0ebc4f8aafab45287549f5720e8c2580`
 unchanged and copy destination byte-identical; XMP sidecar export/import on a
 writable working copy restores `dc:title`/`dc:creator` with `catalog-newer` →
 sidecar resolve → `identical` (rating-via-XMP still residual; read-only corpus
-dir fail-closes adjacent `.xmp` write). A host path alone is still not
-evidence; Windows/Linux and the full required scenario matrix (X-Trans, PNG/TIFF
-in-corpus, Move, disconnect, disk-full, upgrade, rating-via-XMP, etc.) remain
-open. Do not claim C3.
+dir fail-closes adjacent `.xmp` write). Further host-local deepen on report
+`20260905_024633` (same package binary + Debug contracts): filesystem-card
+disconnect partial + PTP stub reconnect, folder relink, offline missing-volume
+export fail-closed (`original_missing`) with restore-to-original, catalog import
+Move relocates with destination SHA match, filesystem-card ingest Move rejects
+(`ingest_move_unsupported`), and ENOSPC/`disk_full` markers at encoded-
+publication and original-copy publication boundaries via existing injection
+harnesses. Private corpus still has **0 PNG / 0 TIFF** (not invented). A host
+path alone is still not evidence; Windows/Linux and remaining required scenarios
+(X-Trans, PNG/TIFF-in-corpus, rating-via-XMP, live host disk-full, upgrade,
+large-library) remain open. Do not claim C3.
 
 Use an explicit read-only mixed RAW/raster corpus in `RAVO_PHOTO_CORPUS`, a
 Release build, and a unique temporary root for every generated catalog,
@@ -439,14 +450,18 @@ must shrink chrome, not grow it. Full mixed-corpus reopen/backup remains REL-01.
 **Maturity:** C2 on Studio workflow (prepare/return/auto-stack/reopen/abandon,
 backup/restore relocation of working-copy sessions, TIFF sRGB uint8/uint16
 profile/bit-depth/dimensions/naming/conflict service coverage, and clear
-stale/missing/source-conflict Studio states). Residual toward C3: installed
-macOS/Windows/Linux package matrix for TIFF export equality.
+stale/missing/source-conflict Studio states). macOS installed-package TIFF
+matrix closed on report `20260905_024633` using the REL-02 copy-away DMG CLI:
+external-editor working copies + catalog export for sRGB uint8/uint16 with
+matching bit-depth, max-edge dimensions, `working.tif` naming under
+`working-copies/`, session `profile=srgb`, and ICC present (source SHA
+unchanged). Residual toward C3: Windows/Linux installed-package TIFF matrix.
 
 **Remaining work:**
 
 - validate TIFF profile/bit-depth/dimensions/naming equality on installed
-  macOS/Windows/Linux packages (service/CLI coverage is present; package matrix
-  remains residual without Win/Linux host evidence);
+  Windows/Linux packages (macOS package matrix evidenced on `20260905_024633`;
+  service/CLI coverage remains present);
 - keep watch-folder auto-import and proprietary scripting out of scope.
 
 **Acceptance gate:** originals remain byte-identical; unchanged, missing,
