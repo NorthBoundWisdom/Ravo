@@ -741,6 +741,10 @@ public:
     Q_INVOKABLE void openLoupe();
     Q_INVOKABLE void openDevelop();
     Q_INVOKABLE void openSurvey();
+    // ADR-0155: Survey pair from selected asset stack; step previous/next in burst.
+    Q_INVOKABLE void openBurstCompare();
+    Q_INVOKABLE void stepBurstComparePrevious();
+    Q_INVOKABLE void stepBurstCompareNext();
     Q_INVOKABLE void returnToGrid();
     Q_INVOKABLE void selectSurveySlot(const QString &asset_id);
     Q_INVOKABLE void createAssetVersion();
@@ -932,6 +936,7 @@ private:
     void startSurveyPreviewRequest(std::string asset_id);
     void finishSurveyPreviewRequest(bool success);
     void rebuild_survey_slots();
+    void apply_burst_compare_pair(const BurstComparePair &pair, bool preserve_inspect_roi);
     void reloadVisibleAssets();
     void start_catalog_revision_watch(std::int64_t revision);
     void resetThumbnailDemand();
@@ -1154,6 +1159,7 @@ private:
     QString browse_mode_{QStringLiteral("grid")};
     bool collapse_stacks_ = true;
     std::vector<std::string> survey_slot_ids_;
+    std::vector<std::string> burst_compare_slot_ids_;
     std::unordered_map<std::string, QUrl> survey_preview_urls_;
     std::deque<std::string> pending_survey_ids_;
     std::unordered_map<std::string, std::uint64_t> survey_preview_requests_;

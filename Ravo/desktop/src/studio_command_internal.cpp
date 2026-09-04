@@ -210,6 +210,9 @@ QStringList command_ids()
             QLatin1String(command::kViewLoupe),
             QLatin1String(command::kViewDevelop),
             QLatin1String(command::kViewSurvey),
+            QLatin1String(command::kViewBurstCompare),
+            QLatin1String(command::kViewBurstComparePrevious),
+            QLatin1String(command::kViewBurstCompareNext),
             QLatin1String(command::kViewFit),
             QLatin1String(command::kViewFill),
             QLatin1String(command::kViewActual),
@@ -424,6 +427,19 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Survey")), view,
         {QStringLiteral("compare"), QStringLiteral("cull"), QStringLiteral("n-up")},
         QStringLiteral("view.mode"), 40, true, {key(QStringLiteral("N"), true)});
+    add(command::kViewBurstCompare, command::kViewBurstCompare,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Burst Compare")), view,
+        {QStringLiteral("compare"), QStringLiteral("cull"), QStringLiteral("survey"),
+         QStringLiteral("stack"), QStringLiteral("burst")},
+        QStringLiteral("view.compare"), 40, true, {key(QStringLiteral("B"), true)});
+    add(command::kViewBurstComparePrevious, command::kViewBurstComparePrevious,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Burst Compare Previous")), view,
+        {QStringLiteral("compare"), QStringLiteral("cull"), QStringLiteral("burst")},
+        QStringLiteral("view.compare"), 41, true, {key(QStringLiteral("["), true)});
+    add(command::kViewBurstCompareNext, command::kViewBurstCompareNext,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Burst Compare Next")), view,
+        {QStringLiteral("compare"), QStringLiteral("cull"), QStringLiteral("burst")},
+        QStringLiteral("view.compare"), 42, true, {key(QStringLiteral("]"), true)});
     add(command::kViewFit, command::kViewFit,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Fit")), view,
         {QStringLiteral("zoom")}, QStringLiteral("view.zoom"), 10, true,

@@ -625,4 +625,115 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
     return report;
 }
 
+Result<BurstComparePair> resolve_burst_compare_pair(const LibraryStackRecord &stack,
+                                                    const std::string_view focus_asset_id,
+                                                    const BurstCompareStep step)
+{
+    if (stack.id.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Library stack id is empty",
+                          {{"reason", "burst_compare_missing_stack"}});
+    }
+    if (stack.member_ids.size() < 2U)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Burst compare requires a stack with at least two members",
+                          {{"reason", "burst_compare_singleton_stack"},
+                           {"stack_id", stack.id},
+                           {"member_count", std::to_string(stack.member_ids.size())}});
+    }
+    if (focus_asset_id.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Burst compare requires an asset id",
+                          {{"reason", "burst_compare_missing_asset"}});
+    }
+    std::size_t focus_index = stack.member_ids.size();
+    for (std::size_t i = 0; i < stack.member_ids.size(); ++i)
+    {
+        if (stack.member_ids[i] == focus_asset_id)
+        {
+            focus_index = i;
+            break;
+        }
+    }
+    if (focus_index >= stack.member_ids.size())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset is not a member of the library stack",
+                          {{"reason", "burst_compare_asset_not_in_stack"},
+                           {"stack_id", stack.id},
+                           {"asset_id", std::string(focus_asset_id)}});
+    }
+
+    if (step == BurstCompareStep::kPrevious && focus_index > 0U)
+    {
+        --focus_index;
+    }
+    else if (step == BurstCompareStep::kNext && focus_index + 1U < stack.member_ids.size())
+    {
+        ++focus_index;
+    }
+
+    std::size_t compare_index = focus_index;
+    if (step == BurstCompareStep::kPrevious)
+    {
+        compare_index = focus_index > 0U ? focus_index - 1U : focus_index + 1U;
+    }
+    else
+    {
+        // current and next prefer the following member, else the previous.
+        compare_index =
+            focus_index + 1U < stack.member_ids.size() ? focus_index + 1U : focus_index - 1U;
+    }
+
+    BurstComparePair pair;
+    pair.stack_id = stack.id;
+    pair.member_ids = stack.member_ids;
+    pair.focus_index = focus_index;
+    pair.focus_asset_id = stack.member_ids[focus_index];
+    pair.compare_asset_id = stack.member_ids[compare_index];
+    pair.step = step;
+    return pair;
+}
+
+Result<BurstComparePair>
+CatalogService::resolve_burst_compare_pair(const BurstCompareRequest &request) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    if (request.asset_id.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Burst compare requires an asset id",
+                          {{"reason", "burst_compare_missing_asset"}});
+    }
+    auto asset = repository_->find_asset_by_id(request.asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(
+            ErrorCode::kNotFound, "Asset was not found",
+            {{"reason", "burst_compare_asset_missing"}, {"asset_id", request.asset_id}});
+    }
+    if (!asset.value()->stack_id.has_value() || asset.value()->stack_id->empty())
+    {
+        return make_error(
+            ErrorCode::kValidation, "Asset is not in a library stack for burst compare",
+            {{"reason", "burst_compare_not_stacked"}, {"asset_id", request.asset_id}});
+    }
+    auto stack = repository_->find_library_stack(*asset.value()->stack_id);
+    if (!stack)
+    {
+        return stack.error();
+    }
+    if (!stack.value())
+    {
+        return make_error(
+            ErrorCode::kNotFound, "Library stack was not found",
+            {{"reason", "burst_compare_stack_missing"}, {"stack_id", *asset.value()->stack_id}});
+    }
+    return ::ravo::resolve_burst_compare_pair(*stack.value(), request.asset_id, request.step);
+}
+
 } // namespace ravo

@@ -540,6 +540,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.burst_window_seconds = parsed.value();
         }
+        else if (option == "--step")
+        {
+            if (result.compare_step)
+            {
+                return make_error(ErrorCode::kInvalidArgument, "--step was specified twice");
+            }
+            result.compare_step = std::string(value);
+        }
         else if (option == "--max-edge")
         {
             auto dimension = parse_dimension(value, option);

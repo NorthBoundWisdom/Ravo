@@ -179,6 +179,66 @@ struct BurstAcceptResult
     bool catalog_mutated = true;
 };
 
+// ADR-0155: ordered Survey/1:1 compare pair inside a durable library stack
+// (accepted burst or ordinary stack). No mutation; no proposal-id authority.
+inline constexpr std::string_view kCullBurstCompareContractVersion = "ravo.cull.burst-compare/v1";
+inline constexpr std::int64_t kCullBurstCompareSchemaVersion = 1;
+
+enum class BurstCompareStep : std::uint8_t
+{
+    kCurrent = 0,
+    kPrevious = 1,
+    kNext = 2,
+};
+
+[[nodiscard]] inline std::string_view burst_compare_step_name(const BurstCompareStep step) noexcept
+{
+    switch (step)
+    {
+    case BurstCompareStep::kCurrent:
+        return "current";
+    case BurstCompareStep::kPrevious:
+        return "previous";
+    case BurstCompareStep::kNext:
+        return "next";
+    }
+    return "current";
+}
+
+[[nodiscard]] inline std::optional<BurstCompareStep>
+burst_compare_step_from_name(const std::string_view name) noexcept
+{
+    if (name == "current" || name.empty())
+        return BurstCompareStep::kCurrent;
+    if (name == "previous")
+        return BurstCompareStep::kPrevious;
+    if (name == "next")
+        return BurstCompareStep::kNext;
+    return std::nullopt;
+}
+
+struct BurstComparePair
+{
+    std::string schema{std::string(kCullBurstCompareContractVersion)};
+    std::int64_t schema_version = kCullBurstCompareSchemaVersion;
+    std::string stack_id;
+    std::vector<std::string> member_ids;
+    std::size_t focus_index = 0;
+    std::string focus_asset_id;
+    std::string compare_asset_id;
+    BurstCompareStep step = BurstCompareStep::kCurrent;
+};
+
+struct BurstCompareRequest
+{
+    std::string asset_id;
+    BurstCompareStep step = BurstCompareStep::kCurrent;
+};
+
+[[nodiscard]] Result<BurstComparePair>
+resolve_burst_compare_pair(const LibraryStackRecord &stack, std::string_view focus_asset_id,
+                           BurstCompareStep step = BurstCompareStep::kCurrent);
+
 inline constexpr std::string_view kCullReviewContractVersion = "ravo.cull.review/v1";
 inline constexpr std::int64_t kCullReviewSchemaVersion = 1;
 

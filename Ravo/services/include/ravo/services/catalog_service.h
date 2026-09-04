@@ -407,6 +407,9 @@ public:
     propose_burst_groups(const BurstProposeRequest &request = {}) const;
     [[nodiscard]] Result<BurstAcceptResult>
     accept_burst_group_proposal(const BurstAcceptRequest &request);
+    // ADR-0155: Survey/1:1 compare pair inside a durable stack (no mutation).
+    [[nodiscard]] Result<BurstComparePair>
+    resolve_burst_compare_pair(const BurstCompareRequest &request) const;
 
     // AI-01: reviewable global edit proposals (ADR-0121). Session-scoped until
     // applied; reject/cancel never mutate recipe/history.

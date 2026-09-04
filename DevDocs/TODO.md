@@ -4,8 +4,8 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0154 plus LOCAL-01 multi-instance mask leaf
-> authoring on selected Exposure/CBR instances; next free ADR **0155**.
+> **Review basis:** `main` through ADR-0155 (CULL burst/stack Survey compare) plus
+> LOCAL-01 selected-instance mask leaf authoring; next free ADR **0156**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -430,10 +430,10 @@ Loupe/Develop do not consume the proxy while the original is absent.
 
 ## CULL-01 — Keyboard-first review and evaluated assistance
 
-**Status:** ADR-0147/0149/0150 service/CLI foundations plus Studio Library filter
-chips, and Studio keyboard/commands chrome for ADR-0150 `apply_cull_review`
-(Pick `P` / Reject `X` / Unflag `U` / rating / colour with auto-advance) are on
-`main`. Survey compare and evaluated assistance remain.
+**Status:** ADR-0147/0149/0150/0155 service/CLI foundations plus Studio Library
+filter chips, keyboard cull chrome, and ADR-0155 burst/stack Survey compare pair
+(open + previous/next step with optional 1:1 ROI sync) are on `main`. Evaluated
+assistance/fingerprint lifecycle remain.
 
 **Correction:** ADR-0149 aHash is a bounded visual heuristic. It is not a
 quality-complete near-duplicate classifier, does not currently cover every RAW
@@ -452,7 +452,7 @@ auto-advance; `selectedPicked` + asset `picked` role.
 
 - deepen visible shortcut teaching / cull-mode HUD if still needed beyond
   command palette + review bar;
-- synchronized 1:1/focus inspection for burst members and fast Survey compare;
+- deepen Survey burst-compare UX beyond ADR-0155 pair open/step if needed;
 - Library filter chips for picked/rejected/unreviewed and optional
   exact/near-dup/burst suggestion groups landed; deepen persistent fingerprint
   lifecycle, dismiss state, and corpus precision/recall next;

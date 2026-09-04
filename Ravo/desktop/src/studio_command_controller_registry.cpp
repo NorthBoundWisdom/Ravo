@@ -1062,6 +1062,12 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &, const QString &) { presenter_.openDevelop(); });
     add(command::kViewSurvey, Condition::kSurveySelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.openSurvey(); });
+    add(command::kViewBurstCompare, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.openBurstCompare(); });
+    add(command::kViewBurstComparePrevious, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.stepBurstComparePrevious(); });
+    add(command::kViewBurstCompareNext, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.stepBurstCompareNext(); });
     add(command::kViewFit, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
         { presenter_.setZoomMode(QStringLiteral("fit")); });

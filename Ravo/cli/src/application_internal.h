@@ -77,6 +77,7 @@ struct CatalogCliArguments
     std::string_view application_path;
     std::optional<std::int64_t> burst_window_seconds;
     std::optional<int> near_dup_max_hamming;
+    std::optional<std::string> compare_step;
     bool cull_pick = false;
     bool cull_reject_flag = false;
     bool cull_unflag = false;

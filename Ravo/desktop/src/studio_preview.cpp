@@ -924,13 +924,24 @@ void StudioPresenter::requestPreviewForSelection()
 void StudioPresenter::rebuild_survey_slots()
 {
     survey_slot_ids_.clear();
-    const auto ids = selected_asset_ids();
-    std::size_t count = 0U;
-    if (ids.size() >= static_cast<std::size_t>(kSurveySlotMaximum))
-        count = static_cast<std::size_t>(kSurveySlotMaximum);
-    else if (ids.size() >= static_cast<std::size_t>(kSurveySlotMinimum))
-        count = static_cast<std::size_t>(kSurveySlotMinimum);
-    survey_slot_ids_.assign(ids.begin(), ids.begin() + static_cast<std::ptrdiff_t>(count));
+    if (burst_compare_slot_ids_.size() >= static_cast<std::size_t>(kSurveySlotMinimum))
+    {
+        const std::size_t count =
+            std::min(burst_compare_slot_ids_.size(), static_cast<std::size_t>(kSurveySlotMaximum));
+        survey_slot_ids_.assign(burst_compare_slot_ids_.begin(),
+                                burst_compare_slot_ids_.begin() +
+                                    static_cast<std::ptrdiff_t>(count));
+    }
+    else
+    {
+        const auto ids = selected_asset_ids();
+        std::size_t count = 0U;
+        if (ids.size() >= static_cast<std::size_t>(kSurveySlotMaximum))
+            count = static_cast<std::size_t>(kSurveySlotMaximum);
+        else if (ids.size() >= static_cast<std::size_t>(kSurveySlotMinimum))
+            count = static_cast<std::size_t>(kSurveySlotMinimum);
+        survey_slot_ids_.assign(ids.begin(), ids.begin() + static_cast<std::ptrdiff_t>(count));
+    }
     for (auto it = survey_preview_urls_.begin(); it != survey_preview_urls_.end();)
     {
         if (std::find(survey_slot_ids_.begin(), survey_slot_ids_.end(), it->first) ==

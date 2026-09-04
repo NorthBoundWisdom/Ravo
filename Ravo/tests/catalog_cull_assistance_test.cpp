@@ -234,4 +234,92 @@ TEST_F(CatalogServiceTest, CullNearDuplicatesDoesNotMutateCatalog)
     EXPECT_EQ(before.value().revision, after.value().revision);
 }
 
+TEST(BurstComparePairTest, ResolvesAdjacentPairAndClampsAtEnds)
+{
+    LibraryStackRecord stack;
+    stack.id = "stk_1";
+    stack.pick_asset_id = "a";
+    stack.member_ids = {"a", "b", "c"};
+
+    auto current = resolve_burst_compare_pair(stack, "b", BurstCompareStep::kCurrent);
+    ASSERT_TRUE(current) << current.error().message;
+    EXPECT_EQ(current.value().focus_asset_id, "b");
+    EXPECT_EQ(current.value().compare_asset_id, "c");
+    EXPECT_EQ(current.value().focus_index, 1U);
+
+    auto next = resolve_burst_compare_pair(stack, "b", BurstCompareStep::kNext);
+    ASSERT_TRUE(next);
+    EXPECT_EQ(next.value().focus_asset_id, "c");
+    EXPECT_EQ(next.value().compare_asset_id, "b");
+
+    auto next_end = resolve_burst_compare_pair(stack, "c", BurstCompareStep::kNext);
+    ASSERT_TRUE(next_end);
+    EXPECT_EQ(next_end.value().focus_asset_id, "c");
+    EXPECT_EQ(next_end.value().compare_asset_id, "b");
+
+    auto previous = resolve_burst_compare_pair(stack, "b", BurstCompareStep::kPrevious);
+    ASSERT_TRUE(previous);
+    EXPECT_EQ(previous.value().focus_asset_id, "a");
+    EXPECT_EQ(previous.value().compare_asset_id, "b");
+
+    auto previous_start = resolve_burst_compare_pair(stack, "a", BurstCompareStep::kPrevious);
+    ASSERT_TRUE(previous_start);
+    EXPECT_EQ(previous_start.value().focus_asset_id, "a");
+    EXPECT_EQ(previous_start.value().compare_asset_id, "b");
+
+    LibraryStackRecord single;
+    single.id = "s";
+    single.member_ids = {"only"};
+    auto singleton = resolve_burst_compare_pair(single, "only", BurstCompareStep::kCurrent);
+    ASSERT_FALSE(singleton);
+    EXPECT_EQ(singleton.error().context.at("reason"), "burst_compare_singleton_stack");
+}
+
+TEST_F(CatalogServiceTest, CullBurstCompareResolvesSurveyPairAndSteps)
+{
+    {
+        auto repository = SqliteCatalogRepository::create(database_path);
+        ASSERT_TRUE(repository) << repository.error().message;
+        for (int index = 0; index < 3; ++index)
+        {
+            AssetRecord asset;
+            asset.id = "ast_cmp_" + std::to_string(index);
+            asset.normalized_uri = "file:///library/cmp/photo-" + std::to_string(index) + ".jpg";
+            asset.media_type = std::string(kMediaTypeJpeg);
+            asset.size_bytes = 1000U + static_cast<std::uint64_t>(index);
+            asset.mtime_unix_ms = 10'000 + index;
+            asset.created_unix_ms = 20'000 + index;
+            ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+        }
+        ASSERT_TRUE(repository.value()->close());
+    }
+    ASSERT_TRUE(open_service(false));
+    auto stacked = service->stack_assets({"ast_cmp_0", "ast_cmp_1", "ast_cmp_2"}, "ast_cmp_0", {});
+    ASSERT_TRUE(stacked) << stacked.error().message;
+
+    BurstCompareRequest current;
+    current.asset_id = "ast_cmp_1";
+    current.step = BurstCompareStep::kCurrent;
+    auto pair = service->resolve_burst_compare_pair(current);
+    ASSERT_TRUE(pair) << pair.error().message;
+    EXPECT_EQ(pair.value().schema, kCullBurstCompareContractVersion);
+    EXPECT_EQ(pair.value().focus_asset_id, "ast_cmp_1");
+    EXPECT_EQ(pair.value().compare_asset_id, "ast_cmp_2");
+    EXPECT_EQ(pair.value().member_ids.size(), 3U);
+
+    BurstCompareRequest next;
+    next.asset_id = "ast_cmp_1";
+    next.step = BurstCompareStep::kNext;
+    auto stepped = service->resolve_burst_compare_pair(next);
+    ASSERT_TRUE(stepped);
+    EXPECT_EQ(stepped.value().focus_asset_id, "ast_cmp_2");
+    EXPECT_EQ(stepped.value().compare_asset_id, "ast_cmp_1");
+
+    // Fail-closed when not stacked after dissolve.
+    ASSERT_TRUE(service->unstack_assets(stacked.value().stack.id, {}));
+    auto missing = service->resolve_burst_compare_pair(current);
+    ASSERT_FALSE(missing);
+    EXPECT_EQ(missing.error().context.at("reason"), "burst_compare_not_stacked");
+}
+
 } // namespace ravo

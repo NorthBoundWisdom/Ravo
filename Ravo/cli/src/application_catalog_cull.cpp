@@ -294,6 +294,45 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
         return JsonValue{std::move(object)};
     }
 
+    if (subcommand == "cull-burst-compare")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog cull-burst-compare requires --asset-id");
+        }
+        BurstCompareRequest request;
+        request.asset_id = std::string(flags.asset_id);
+        if (flags.compare_step)
+        {
+            auto step = burst_compare_step_from_name(*flags.compare_step);
+            if (!step)
+            {
+                return make_error(
+                    ErrorCode::kInvalidArgument, "--step must be current, previous, or next",
+                    {{"value", *flags.compare_step}, {"reason", "invalid_burst_compare_step"}});
+            }
+            request.step = *step;
+        }
+        auto pair = service.resolve_burst_compare_pair(request);
+        if (!pair)
+            return pair.error();
+        JsonValue::Array members;
+        members.reserve(pair.value().member_ids.size());
+        for (const auto &id : pair.value().member_ids)
+            members.push_back(JsonValue{id});
+        return JsonValue{JsonValue::Object{
+            {"schema", pair.value().schema},
+            {"schema_version", JsonValue::number(std::to_string(pair.value().schema_version))},
+            {"stack_id", pair.value().stack_id},
+            {"member_ids", JsonValue{std::move(members)}},
+            {"focus_index", JsonValue::number(std::to_string(pair.value().focus_index))},
+            {"focus_asset_id", pair.value().focus_asset_id},
+            {"compare_asset_id", pair.value().compare_asset_id},
+            {"step", std::string(burst_compare_step_name(pair.value().step))},
+        }};
+    }
+
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog cull subcommand",
                       {{"subcommand", std::string(subcommand)}});
 }

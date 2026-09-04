@@ -258,6 +258,7 @@ void StudioPresenter::setBrowseMode(const QString &mode)
         pending_survey_ids_.clear();
         survey_preview_requests_.clear();
         survey_preview_in_flight_ = false;
+        burst_compare_slot_ids_.clear();
         emit surveyChanged();
     }
     if (normalized != QLatin1String("grid") &&
@@ -296,7 +297,92 @@ void StudioPresenter::openSurvey()
 {
     if (selected_ids_.size() < static_cast<std::size_t>(kSurveySlotMinimum))
         return;
+    burst_compare_slot_ids_.clear();
     setBrowseMode(QStringLiteral("survey"));
+}
+
+void StudioPresenter::apply_burst_compare_pair(const BurstComparePair &pair,
+                                               const bool preserve_inspect_roi)
+{
+    const double roi_x = inspect_roi_x_;
+    const double roi_y = inspect_roi_y_;
+    const double roi_w = inspect_roi_width_;
+    const double roi_h = inspect_roi_height_;
+    const bool keep_roi = preserve_inspect_roi && roi_w > 0.0 && roi_h > 0.0;
+
+    selected_ids_.clear();
+    selected_ids_.insert(pair.focus_asset_id);
+    selected_ids_.insert(pair.compare_asset_id);
+    burst_compare_slot_ids_ = {pair.focus_asset_id, pair.compare_asset_id};
+    selection_anchor_id_ = qstring_from_utf8(pair.focus_asset_id);
+    activate_primary(qstring_from_utf8(pair.focus_asset_id), true);
+    if (browse_mode_ != QLatin1String("survey"))
+    {
+        setBrowseMode(QStringLiteral("survey"));
+    }
+    else
+    {
+        requestSurveyPreviews();
+    }
+    if (keep_roi)
+    {
+        requestInspectRoi(roi_x, roi_y, roi_w, roi_h);
+    }
+}
+
+void StudioPresenter::openBurstCompare()
+{
+    if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty() || service_ == nullptr)
+    {
+        return;
+    }
+    BurstCompareRequest request;
+    request.asset_id = utf8_from_qstring(selected_asset_id_);
+    request.step = BurstCompareStep::kCurrent;
+    auto pair = service_->resolve_burst_compare_pair(request);
+    if (!pair)
+    {
+        setError(qstring_from_utf8(pair.error().message));
+        return;
+    }
+    apply_burst_compare_pair(pair.value(), false);
+    setStatus(QCoreApplication::translate("StudioPresenter", "Burst compare (Survey pair)."));
+}
+
+void StudioPresenter::stepBurstComparePrevious()
+{
+    if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty() || service_ == nullptr)
+    {
+        return;
+    }
+    BurstCompareRequest request;
+    request.asset_id = utf8_from_qstring(selected_asset_id_);
+    request.step = BurstCompareStep::kPrevious;
+    auto pair = service_->resolve_burst_compare_pair(request);
+    if (!pair)
+    {
+        setError(qstring_from_utf8(pair.error().message));
+        return;
+    }
+    apply_burst_compare_pair(pair.value(), true);
+}
+
+void StudioPresenter::stepBurstCompareNext()
+{
+    if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty() || service_ == nullptr)
+    {
+        return;
+    }
+    BurstCompareRequest request;
+    request.asset_id = utf8_from_qstring(selected_asset_id_);
+    request.step = BurstCompareStep::kNext;
+    auto pair = service_->resolve_burst_compare_pair(request);
+    if (!pair)
+    {
+        setError(qstring_from_utf8(pair.error().message));
+        return;
+    }
+    apply_burst_compare_pair(pair.value(), true);
 }
 
 void StudioPresenter::selectSurveySlot(const QString &asset_id)
