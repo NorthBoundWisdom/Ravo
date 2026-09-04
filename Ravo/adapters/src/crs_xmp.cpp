@@ -1255,8 +1255,24 @@ namespace
 
 } // namespace
 
+std::optional<std::string>
+crs_xmp_unrepresentable_multi_instance_reason(const DevelopParams &look) noexcept
+{
+    if (look.exposure_instances.size() > 1U || look.color_balance_rgb_instances.size() > 1U)
+    {
+        return std::string{"unrepresentable_multi_instance_local_adjustments"};
+    }
+    return std::nullopt;
+}
+
 Result<CrsExportResult> export_crs_xmp(const CrsExportRequest &request)
 {
+    if (const auto reason = crs_xmp_unrepresentable_multi_instance_reason(request.look))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "CRS/XMP cannot represent multi-instance local adjustments",
+                          {{"reason", *reason}});
+    }
     CrsExportResult result;
     const DevelopParams &look = request.look;
     auto omit = [&](const std::string_view field)

@@ -54,6 +54,9 @@ namespace
         object.emplace("crs_process_version", *status.crs_process_version);
     if (status.metadata_parse_reason)
         object.emplace("metadata_parse_reason", *status.metadata_parse_reason);
+    if (status.catalog_crs_unrepresentable_reason)
+        object.emplace("catalog_crs_unrepresentable_reason",
+                       *status.catalog_crs_unrepresentable_reason);
     if (!status.omitted.empty())
         object.emplace("omitted", crs_omissions_json(status.omitted));
     return JsonValue{std::move(object)};

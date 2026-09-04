@@ -388,6 +388,20 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
     status.catalog.metadata_sha256 =
         xmp_adjacent_metadata_fingerprint_sha256(asset.value()->metadata, asset.value()->tags);
 
+    if (!recipe_text.empty())
+    {
+        auto recipe = parse_recipe_json(recipe_text);
+        if (recipe)
+        {
+            auto params = develop_from_recipe(recipe.value());
+            if (params)
+            {
+                status.catalog_crs_unrepresentable_reason =
+                    crs_xmp_unrepresentable_multi_instance_reason(params.value());
+            }
+        }
+    }
+
     std::optional<std::string> resolved_sidecar;
     if (sidecar_path && !sidecar_path->empty())
     {
@@ -625,6 +639,15 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
         auto params = develop_from_recipe(loaded.value());
         if (!params)
             return params.error();
+        if (const auto reason = crs_xmp_unrepresentable_multi_instance_reason(params.value()))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "CRS/XMP import would drop multi-instance local adjustments",
+                              {{"asset_id", std::string(asset_id)},
+                               {"reason", *reason},
+                               {"conflict_class", std::string(xmp_interchange_conflict_class_name(
+                                                      status.value().conflict_class))}});
+        }
         AssetDescriptor descriptor{asset.value()->id, asset.value()->normalized_uri,
                                    asset.value()->content_fingerprint};
         auto imported = import_crs_xmp({text.value(), descriptor});
@@ -763,6 +786,16 @@ CatalogService::xmp_interchange_export(const std::string_view asset_id,
     if (!asset || !asset.value())
         return make_error(ErrorCode::kNotFound, "Catalog asset was not found",
                           {{"asset_id", std::string(asset_id)}});
+
+    if (status.value().catalog_crs_unrepresentable_reason)
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "CRS/XMP cannot represent multi-instance local adjustments",
+            {{"asset_id", std::string(asset_id)},
+             {"reason", *status.value().catalog_crs_unrepresentable_reason},
+             {"conflict_class",
+              std::string(xmp_interchange_conflict_class_name(status.value().conflict_class))}});
+    }
 
     auto loaded = load_recipe(asset_id);
     if (!loaded)

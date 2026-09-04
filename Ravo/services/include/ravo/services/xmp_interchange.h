@@ -102,6 +102,8 @@ struct XmpInterchangeStatus
     std::vector<CrsOmission> omitted;
     bool metadata_parse_ok = false;
     std::optional<std::string> metadata_parse_reason;
+    // ADR-0156: catalog recipe has multi-instance locals CRS/XMP cannot represent.
+    std::optional<std::string> catalog_crs_unrepresentable_reason;
 };
 
 struct XmpInterchangeImportResult

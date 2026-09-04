@@ -163,3 +163,4 @@ supersession relationship when direction changes.
 | [0153](0153-specialize-tethered-studio-deferred.md) | Accepted | SPECIALIZE-01: tethered-studio deferred P2 candidate; fail-closed probe stub; HDR/Pano unselected |
 | [0154](0154-external-editor-working-copy-reopen-abandon.md) | Accepted | EDITIN-01 working-copy reopen/abandon + conflict machine states |
 | [0155](0155-cull-burst-stack-compare-pair.md) | Accepted | CULL-01 burst/stack Survey compare pair + adjacent step |
+| [0156](0156-xmp-fail-closed-unrepresentable-multi-instance.md) | Accepted | XMP/CRS fail-closed for unrepresentable multi-instance locals |

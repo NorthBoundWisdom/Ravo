@@ -77,6 +77,12 @@ struct CrsExportResult
     std::vector<std::string> omitted_catalog_fields;
 };
 
+// ADR-0156: stable reason when CRS/XMP cannot represent Ravo multi-instance
+// Exposure or Color Balance RGB without approximation. Empty / singleton
+// instance vectors are representable as the existing singleton look mapping.
+[[nodiscard]] std::optional<std::string>
+crs_xmp_unrepresentable_multi_instance_reason(const DevelopParams &look) noexcept;
+
 // Serializes the CRS-mapped Develop look subset to a deterministic PV2012 XMP
 // packet. Unmapped catalog features are listed in omitted_catalog_fields; the
 // catalog remains the live authority for those fields.

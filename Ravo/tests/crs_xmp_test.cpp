@@ -335,5 +335,40 @@ TEST(CrsXmpTest, ProcessVersionMatrixReportsSupportedAndFailClosedUnsupported)
     EXPECT_EQ(imported.error().context.at("value"), "5.0");
 }
 
+TEST(CrsXmpTest, FailsClosedExportForMultiInstanceLocals)
+{
+    DevelopParams singleton;
+    DevelopExposureInstance one;
+    one.instance_id = "exposure-1";
+    singleton.exposure_instances = {one};
+    auto ok = export_crs_xmp({singleton, "Singleton"});
+    ASSERT_TRUE(ok) << ok.error().message;
+    EXPECT_FALSE(crs_xmp_unrepresentable_multi_instance_reason(singleton).has_value());
+
+    DevelopParams multi = singleton;
+    DevelopExposureInstance two;
+    two.instance_id = "exposure-2";
+    two.exposure_ev = 0.4;
+    multi.exposure_instances.push_back(two);
+    ASSERT_EQ(crs_xmp_unrepresentable_multi_instance_reason(multi).value_or(""),
+              "unrepresentable_multi_instance_local_adjustments");
+    auto blocked = export_crs_xmp({multi, "Multi"});
+    ASSERT_FALSE(blocked);
+    EXPECT_EQ(blocked.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(blocked.error().context.at("reason"),
+              "unrepresentable_multi_instance_local_adjustments");
+
+    DevelopParams cbr;
+    DevelopColorBalanceRgbInstance c0;
+    c0.instance_id = "colorbalancergb-1";
+    DevelopColorBalanceRgbInstance c1;
+    c1.instance_id = "colorbalancergb-2";
+    cbr.color_balance_rgb_instances = {c0, c1};
+    auto cbr_blocked = export_crs_xmp({cbr, "CBR"});
+    ASSERT_FALSE(cbr_blocked);
+    EXPECT_EQ(cbr_blocked.error().context.at("reason"),
+              "unrepresentable_multi_instance_local_adjustments");
+}
+
 } // namespace
 } // namespace ravo

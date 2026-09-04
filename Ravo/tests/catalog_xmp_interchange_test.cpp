@@ -429,5 +429,65 @@ TEST_F(CatalogServiceTest, XmpStatusReportsCrsProcessVersionClassAndFailClosedUn
     EXPECT_EQ(apply.error().context.at("crs_process_version"), "18.0");
 }
 
+TEST_F(CatalogServiceTest, XmpFailsClosedForUnrepresentableMultiInstance)
+{
+    ASSERT_TRUE(open_service(true)) << "open failed";
+    const auto local_png = (root / "multi-instance-xmp.png").string();
+    std::error_code copy_error;
+    std::filesystem::copy_file(png_fixture_path(), local_png,
+                               std::filesystem::copy_options::overwrite_existing, copy_error);
+    ASSERT_FALSE(copy_error) << copy_error.message();
+    auto imported = service->import_one(local_png, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams multi;
+    DevelopExposureInstance master;
+    master.instance_id = "exposure-1";
+    master.name = "Master";
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-2";
+    local.name = "Dodge";
+    local.exposure_ev = 0.35;
+    multi.exposure_instances = {master, local};
+    auto saved = service->save_develop_with_history(asset_id, multi);
+    ASSERT_TRUE(saved) << saved.error().message;
+
+    auto status = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(status) << status.error().message;
+    ASSERT_TRUE(status.value().catalog_crs_unrepresentable_reason);
+    EXPECT_EQ(*status.value().catalog_crs_unrepresentable_reason,
+              "unrepresentable_multi_instance_local_adjustments");
+
+    auto exported = service->xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
+    ASSERT_FALSE(exported);
+    EXPECT_EQ(exported.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(exported.error().context.at("reason"),
+              "unrepresentable_multi_instance_local_adjustments");
+
+    const auto original = status.value().original_path;
+    const auto sidecar_path = write_adjacent_xmp(original, minimal_crs_xmp(-0.25));
+    auto sidecar_status = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(sidecar_status) << sidecar_status.error().message;
+    ASSERT_TRUE(sidecar_status.value().catalog_crs_unrepresentable_reason);
+    EXPECT_TRUE(sidecar_status.value().crs_parse_ok);
+
+    auto blocked_import =
+        service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    ASSERT_FALSE(blocked_import);
+    EXPECT_EQ(blocked_import.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(blocked_import.error().context.at("reason"),
+              "unrepresentable_multi_instance_local_adjustments");
+
+    // Recipe must remain multi-instance after blocked import.
+    auto loaded = service->load_recipe(asset_id);
+    ASSERT_TRUE(loaded) << loaded.error().message;
+    auto params = develop_from_recipe(loaded.value());
+    ASSERT_TRUE(params) << params.error().message;
+    ASSERT_EQ(params.value().exposure_instances.size(), 2U);
+    static_cast<void>(sidecar_path);
+}
+
 } // namespace
 } // namespace ravo

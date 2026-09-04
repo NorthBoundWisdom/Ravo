@@ -4,7 +4,7 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0155 plus LOCAL-01 history/undo for multi-instance
+> **Review basis:** `main` through ADR-0156 XMP fail-closed multi-instance + LOCAL-01 history/undo
 > measurement harness and AI-01/02 Studio stub proposal inspect/apply/reject chrome;
 > next free ADR **0156**.
 
@@ -350,8 +350,9 @@ authoring for brush/path/linear/radial/parametric (luminance/colour range) via
 the existing mask pipeline is on `main` with fail-closed external/shared sibling
 attachments. Session undo/redo and develop history now keep discrete entries for
 add/duplicate/reorder/bypass/enable/delete and selected-instance mask edits
-(instance vector + masks restore). Overlay/composition polish and style/batch
-still residual.
+(instance vector + masks restore). ADR-0156 fail-closes XMP export/status/import
+when CRS cannot represent multi-instance locals. Overlay/composition polish and
+style/batch still residual.
 
 **Remaining work:**
 
@@ -361,7 +362,6 @@ still residual.
   Canvas, preview scaling, 1:1 ROI, and export;
 - snapshots, style/preset, selective copy/paste, multi-selection batch,
   virtual-copy, and reopen completeness for instance vectors;
-- explicit XMP export/import failure for unrepresentable multi-instance state;
 - GPU parity only after CPU equality and PERF-01 evidence;
 - split oversized Studio owners while implementing the workflow; do not grow
   `Main.qml`.
