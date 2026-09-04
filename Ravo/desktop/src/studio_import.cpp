@@ -10,8 +10,11 @@
 #include <QImage>
 #include <QMetaObject>
 #include <QUrl>
+#include <QVariantList>
+#include <QVariantMap>
 
 #include "ravo/desktop/filesystem_browser_model.h"
+#include "ravo/services/ingest_transport.h"
 #include "studio_qt.h"
 
 namespace ravo
@@ -53,6 +56,77 @@ inline constexpr int kMaximumPendingImportThumbnails = 64;
     return image;
 }
 
+[[nodiscard]] QVariantMap native_support_to_map(const NativeIngestPlatformSupport &support)
+{
+    return QVariantMap{
+        {QStringLiteral("schema"), qstring_from_utf8(support.schema)},
+        {QStringLiteral("platform"), qstring_from_utf8(support.platform)},
+        {QStringLiteral("adapterPackaged"), support.adapter_packaged},
+        {QStringLiteral("ptpUsb"),
+         qstring_from_utf8(std::string(native_ingest_support_state_name(support.ptp_usb)))},
+        {QStringLiteral("mtp"),
+         qstring_from_utf8(std::string(native_ingest_support_state_name(support.mtp)))},
+        {QStringLiteral("reason"), qstring_from_utf8(support.reason)},
+        {QStringLiteral("ptpPlannedStack"), qstring_from_utf8(support.ptp_planned_stack)},
+        {QStringLiteral("mtpPlannedStack"), qstring_from_utf8(support.mtp_planned_stack)},
+    };
+}
+
+[[nodiscard]] QVariantMap ingest_report_to_map(const IngestBatchResult &detailed)
+{
+    const auto &batch = detailed.import;
+    QVariantList items;
+    items.reserve(static_cast<int>(batch.items.size()));
+    for (const auto &item : batch.items)
+    {
+        QVariantMap row{
+            {QStringLiteral("status"),
+             item.status == ImportItemStatus::kImported    ? QStringLiteral("imported") :
+             item.status == ImportItemStatus::kDuplicate   ? QStringLiteral("duplicate") :
+             item.status == ImportItemStatus::kUnsupported ? QStringLiteral("unsupported") :
+             item.status == ImportItemStatus::kSkipped     ? QStringLiteral("skipped") :
+                                                             QStringLiteral("failed")},
+            {QStringLiteral("inputPath"), qstring_from_utf8(item.input_path)},
+            {QStringLiteral("copiesVerified"), item.copies_verified},
+        };
+        if (item.destination_path)
+            row.insert(QStringLiteral("destinationPath"),
+                       qstring_from_utf8(*item.destination_path));
+        if (item.error)
+        {
+            row.insert(QStringLiteral("error"), qstring_from_utf8(item.error->message));
+            const auto reason = item.error->context.find("reason");
+            if (reason != item.error->context.end())
+                row.insert(QStringLiteral("reason"), qstring_from_utf8(reason->second));
+        }
+        items.push_back(row);
+    }
+    return QVariantMap{
+        {QStringLiteral("transport"), qstring_from_utf8(detailed.transport)},
+        {QStringLiteral("sourceUri"), qstring_from_utf8(detailed.source_uri)},
+        {QStringLiteral("imported"), static_cast<int>(batch.imported)},
+        {QStringLiteral("duplicates"), static_cast<int>(batch.duplicates)},
+        {QStringLiteral("unsupported"), static_cast<int>(batch.unsupported)},
+        {QStringLiteral("failed"), static_cast<int>(batch.failed)},
+        {QStringLiteral("skipped"), static_cast<int>(batch.skipped)},
+        {QStringLiteral("verifiedSecondCopies"), static_cast<int>(batch.verified_second_copies)},
+        {QStringLiteral("resumeBatchId"),
+         detailed.resume_batch_id ? qstring_from_utf8(*detailed.resume_batch_id) : QString()},
+        {QStringLiteral("resumeCheckpointCleared"), detailed.resume_checkpoint_cleared},
+        {QStringLiteral("items"), items},
+        {QStringLiteral("nativeSupport"), native_support_to_map(detailed.support)},
+    };
+}
+
+[[nodiscard]] bool uses_ingest_copy_path(const QString &transport, const QString &mode)
+{
+    if (mode != QLatin1String("copy"))
+        return false;
+    return transport == QLatin1String("filesystem-card") ||
+           transport == QLatin1String("ptp-stub") || transport == QLatin1String("ptp-usb") ||
+           transport == QLatin1String("mtp");
+}
+
 [[nodiscard]] ImportPreviewPolicy preview_policy(const QString &value)
 {
     return value == QLatin1String("minimal")    ? ImportPreviewPolicy::kMinimal :
@@ -90,6 +164,40 @@ int StudioPresenter::importPreviewWorkTotal() const noexcept
 QString StudioPresenter::importSourceRoot() const
 {
     return import_source_root_;
+}
+
+QString StudioPresenter::importIngestTransport() const
+{
+    return import_ingest_transport_;
+}
+
+QString StudioPresenter::importIngestSourceUri() const
+{
+    if (import_source_root_.isEmpty())
+        return {};
+    const auto root = utf8_from_qstring(import_source_root_);
+    if (import_ingest_transport_ == QLatin1String("ptp-stub"))
+        return qstring_from_utf8(format_ptp_stub_ingest_uri(root));
+    if (import_ingest_transport_ == QLatin1String("ptp-usb"))
+        return QStringLiteral("ravo-ingest:ptp-usb:… (adapter not packaged)");
+    if (import_ingest_transport_ == QLatin1String("mtp"))
+        return QStringLiteral("ravo-ingest:mtp:… (adapter not packaged)");
+    return qstring_from_utf8(format_filesystem_card_ingest_uri(root));
+}
+
+QVariantMap StudioPresenter::importNativeSupport() const
+{
+    return import_native_support_;
+}
+
+QVariantMap StudioPresenter::importIngestReport() const
+{
+    return import_ingest_report_;
+}
+
+QString StudioPresenter::importResumeBatchId() const
+{
+    return import_resume_batch_id_;
 }
 
 QString StudioPresenter::importDestination() const
@@ -147,6 +255,7 @@ void StudioPresenter::openImportPage()
     if (catalog_path_.isEmpty() || import_work_active_)
         return;
     import_page_open_ = true;
+    refreshImportNativeSupport();
     import_source_folders_.loadMountedVolumes();
     import_destination_folders_.loadMountedVolumes();
     if (!import_source_root_.isEmpty())
@@ -252,6 +361,38 @@ void StudioPresenter::setImportRecursive(const bool recursive)
         rescanImportSource();
 }
 
+void StudioPresenter::setImportIngestTransport(const QString &transport)
+{
+    const QString next = transport.trimmed();
+    if (next != QLatin1String("filesystem-card") && next != QLatin1String("ptp-stub") &&
+        next != QLatin1String("ptp-usb") && next != QLatin1String("mtp"))
+        return;
+    if (import_ingest_transport_ == next)
+        return;
+    import_ingest_transport_ = next;
+    if ((next == QLatin1String("ptp-stub") || next == QLatin1String("ptp-usb") ||
+         next == QLatin1String("mtp")) &&
+        import_mode_ != QLatin1String("copy"))
+        import_mode_ = QStringLiteral("copy");
+    refreshImportNativeSupport();
+    emit importPageChanged();
+}
+
+void StudioPresenter::setImportResumeBatchId(const QString &batch_id)
+{
+    const QString next = batch_id.trimmed();
+    if (import_resume_batch_id_ == next)
+        return;
+    import_resume_batch_id_ = next;
+    emit importPageChanged();
+}
+
+void StudioPresenter::refreshImportNativeSupport()
+{
+    import_native_support_ = native_support_to_map(probe_native_ingest_support());
+    emit importPageChanged();
+}
+
 void StudioPresenter::rescanImportSource()
 {
     if (service_ == nullptr || import_source_root_.isEmpty() || import_work_active_)
@@ -319,8 +460,8 @@ void StudioPresenter::ensureImportThumbnail(const int row)
         row >= import_candidates_.rowCount() || import_candidates_.inspected(row) ||
         !import_candidates_.thumbnail(row).isNull())
         return;
-    const auto existing =
-        std::find(pending_import_thumbnail_rows_.begin(), pending_import_thumbnail_rows_.end(), row);
+    const auto existing = std::find(pending_import_thumbnail_rows_.begin(),
+                                    pending_import_thumbnail_rows_.end(), row);
     if (existing != pending_import_thumbnail_rows_.end())
         pending_import_thumbnail_rows_.erase(existing);
     if (pending_import_thumbnail_rows_.size() >=
@@ -455,9 +596,8 @@ void StudioPresenter::publishImportItem(const ImportItemResult &item, const int 
         const auto created = item.asset->created_unix_ms;
         last_import_after_unix_ms_ =
             last_import_after_unix_ms_ ? std::min(*last_import_after_unix_ms_, created) : created;
-        last_import_before_unix_ms_ = last_import_before_unix_ms_ ?
-                                          std::max(*last_import_before_unix_ms_, created) :
-                                          created;
+        last_import_before_unix_ms_ =
+            last_import_before_unix_ms_ ? std::max(*last_import_before_unix_ms_, created) : created;
         const std::string asset_id = item.asset->id;
         assets_.replaceAssetAt(row, *item.asset);
         if (item.preview_cache_path)
@@ -493,6 +633,33 @@ void StudioPresenter::startPlannedImport()
         setError(QCoreApplication::translate("StudioPresenter", "Choose an import destination."));
         return;
     }
+    if ((import_ingest_transport_ == QLatin1String("filesystem-card") ||
+         import_ingest_transport_ == QLatin1String("ptp-stub") ||
+         import_ingest_transport_ == QLatin1String("ptp-usb") ||
+         import_ingest_transport_ == QLatin1String("mtp")) &&
+        import_mode_ == QLatin1String("move"))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter",
+            "Ingest transports are Copy-only; Move and camera delete stay rejected."));
+        return;
+    }
+    if (import_ingest_transport_ == QLatin1String("ptp-usb") ||
+        import_ingest_transport_ == QLatin1String("mtp"))
+    {
+        refreshImportNativeSupport();
+        const auto reason = import_native_support_.value(QStringLiteral("reason")).toString();
+        setError(QCoreApplication::translate(
+                     "StudioPresenter",
+                     "Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the "
+                     "ptp-stub fixture.")
+                     .arg(reason.isEmpty() ? QStringLiteral("native_ingest_adapter_not_packaged") :
+                                             reason));
+        return;
+    }
+
+    const bool ingest_copy = uses_ingest_copy_path(import_ingest_transport_, import_mode_);
+
     ImportRequest request;
     for (const auto &path : selected)
         request.inputs.push_back(utf8_from_qstring(path));
@@ -500,13 +667,12 @@ void StudioPresenter::startPlannedImport()
     request.mode = import_mode_ == QLatin1String("copy") ? ImportTransferMode::kCopy :
                    import_mode_ == QLatin1String("move") ? ImportTransferMode::kMove :
                                                            ImportTransferMode::kAdd;
-    request.organization = import_organization_ == QLatin1String("hierarchy") ?
-                               ImportOrganization::kPreserveHierarchy :
-                           import_organization_ == QLatin1String("date") ?
-                               ImportOrganization::kCaptureDate :
-                           import_organization_ == QLatin1String("month") ?
-                               ImportOrganization::kCaptureMonth :
-                               ImportOrganization::kSingleFolder;
+    request.organization =
+        import_organization_ == QLatin1String("hierarchy") ?
+            ImportOrganization::kPreserveHierarchy :
+        import_organization_ == QLatin1String("date")  ? ImportOrganization::kCaptureDate :
+        import_organization_ == QLatin1String("month") ? ImportOrganization::kCaptureMonth :
+                                                         ImportOrganization::kSingleFolder;
     request.preview = preview_policy(import_preview_policy_);
     if (request.mode != ImportTransferMode::kAdd)
     {
@@ -526,6 +692,7 @@ void StudioPresenter::startPlannedImport()
     pending_import_preview_policy_ = request.preview;
     import_defer_previews_ = true;
     import_results_.clear();
+    import_ingest_report_ = {};
     import_next_index_ = 0U;
     pending_import_preview_ids_.clear();
     import_preview_operation_ = CancellationSource{};
@@ -539,33 +706,115 @@ void StudioPresenter::startPlannedImport()
         startNextImportItem();
         return;
     }
+    if (ingest_copy)
+    {
+        IngestRequest ingest;
+        ingest.source_root = utf8_from_qstring(import_source_root_);
+        ingest.transport = utf8_from_qstring(import_ingest_transport_);
+        ingest.mode = ImportTransferMode::kCopy;
+        ingest.organization = request.organization;
+        ingest.preview = request.preview;
+        ingest.destination_directory = request.destination_directory;
+        ingest.filename_template = request.filename_template;
+        ingest.second_copy_directory = request.second_copy_directory;
+        ingest.recursive = import_recursive_;
+        ingest.include_xmp_sidecars = true;
+        ingest.defer_previews = true;
+        ingest.selected_paths = request.inputs;
+        ingest.cancellation = request.cancellation;
+        if (!import_resume_batch_id_.isEmpty())
+            ingest.resume_batch_id = utf8_from_qstring(import_resume_batch_id_);
+        executor_.post(
+            [this, ingest = std::move(ingest)]() mutable
+            {
+                auto detailed = service_ == nullptr ?
+                                    Result<IngestBatchResult>{
+                                        make_error(ErrorCode::kIo, "Catalog session is closed")} :
+                                    service_->execute_ingest_detailed(
+                                        ingest,
+                                        [this](const std::size_t completed, const std::size_t total,
+                                               const ImportItemResult *item)
+                                        {
+                                            ImportItemResult copy;
+                                            if (item != nullptr)
+                                                copy = *item;
+                                            QMetaObject::invokeMethod(
+                                                this,
+                                                [this, completed, total, copy = std::move(copy),
+                                                 has_item = item != nullptr]
+                                                {
+                                                    setImportWork(static_cast<int>(completed),
+                                                                  static_cast<int>(total), true);
+                                                    if (has_item)
+                                                        publishImportItem(
+                                                            copy, static_cast<int>(completed) - 1);
+                                                },
+                                                Qt::QueuedConnection);
+                                        });
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, detailed = std::move(detailed)]() mutable
+                    {
+                        if (!detailed)
+                        {
+                            setImportWork(0, 0, false);
+                            import_gallery_placeholders_ = false;
+                            import_defer_previews_ = false;
+                            last_import_selected_ = false;
+                            last_import_count_ = 0U;
+                            last_import_after_unix_ms_.reset();
+                            last_import_before_unix_ms_.reset();
+                            query_ = import_query_snapshot_;
+                            import_ingest_report_ = {};
+                            setError(qstring_from_utf8(detailed.error().message));
+                            setStatus(
+                                QCoreApplication::translate("StudioPresenter", "Ingest failed."));
+                            emit importPageChanged();
+                            reloadVisibleAssets();
+                            return;
+                        }
+                        auto value = std::move(detailed).value();
+                        import_ingest_report_ = ingest_report_to_map(value);
+                        if (value.resume_batch_id && !value.resume_checkpoint_cleared)
+                            import_resume_batch_id_ = qstring_from_utf8(*value.resume_batch_id);
+                        else if (value.resume_checkpoint_cleared)
+                            import_resume_batch_id_.clear();
+                        emit importPageChanged();
+                        import_results_ = std::move(value.import.items);
+                        import_next_index_ = import_results_.size();
+                        finishImportBatch();
+                    },
+                    Qt::QueuedConnection);
+            });
+        return;
+    }
     executor_.post(
         [this, request = std::move(request)]() mutable
         {
-            auto batch = service_ == nullptr ?
-                             Result<ImportBatchResult>{
-                                 make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                             service_->execute_import(
-                                 request,
-                                 [this](const std::size_t completed, const std::size_t total,
-                                        const ImportItemResult *item)
-                                 {
-                                     ImportItemResult copy;
-                                     if (item != nullptr)
-                                         copy = *item;
-                                     QMetaObject::invokeMethod(
-                                         this,
-                                         [this, completed, total, copy = std::move(copy),
-                                          has_item = item != nullptr]
-                                         {
-                                             setImportWork(static_cast<int>(completed),
-                                                           static_cast<int>(total), true);
-                                             if (has_item)
-                                                 publishImportItem(copy,
-                                                                   static_cast<int>(completed) - 1);
-                                         },
-                                         Qt::QueuedConnection);
-                                 });
+            auto batch =
+                service_ == nullptr ?
+                    Result<ImportBatchResult>{
+                        make_error(ErrorCode::kIo, "Catalog session is closed")} :
+                    service_->execute_import(
+                        request,
+                        [this](const std::size_t completed, const std::size_t total,
+                               const ImportItemResult *item)
+                        {
+                            ImportItemResult copy;
+                            if (item != nullptr)
+                                copy = *item;
+                            QMetaObject::invokeMethod(
+                                this,
+                                [this, completed, total, copy = std::move(copy),
+                                 has_item = item != nullptr]
+                                {
+                                    setImportWork(static_cast<int>(completed),
+                                                  static_cast<int>(total), true);
+                                    if (has_item)
+                                        publishImportItem(copy, static_cast<int>(completed) - 1);
+                                },
+                                Qt::QueuedConnection);
+                        });
             QMetaObject::invokeMethod(
                 this,
                 [this, batch = std::move(batch)]() mutable

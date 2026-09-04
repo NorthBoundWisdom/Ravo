@@ -83,7 +83,7 @@ reasons). Batch totals expose `skipped` alongside existing counters.
 ### 6. Out of scope (explicit)
 
 - Shipping libmtp / ImageCaptureCore / WinRT packaging in this tranche.
-- Studio source-selector chrome (service/CLI contracts first; Studio later).
+- Packaged native adapters (Studio source-selector + filesystem-card/stub C2 is in-tree; live USB remains residual).
 - Move mode, camera delete, auto-import watchers, DNG-at-ingest.
 
 ## Consequences

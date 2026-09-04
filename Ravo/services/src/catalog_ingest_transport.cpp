@@ -678,6 +678,45 @@ Result<IngestBatchResult> CatalogService::execute_ingest_detailed(
         return snapshot.error();
 
     detailed.source_uri = snapshot.value().source.uri;
+    if (!request.selected_paths.empty())
+    {
+        std::set<std::string> selected;
+        for (const auto &path : request.selected_paths)
+        {
+            auto normalized = normalize_local_input(path);
+            if (!normalized)
+                return normalized.error();
+            selected.insert(normalized.value().path);
+        }
+        IngestSourceSnapshot filtered = snapshot.value();
+        filtered.objects.clear();
+        filtered.media_paths.clear();
+        for (const auto &object : snapshot.value().objects)
+        {
+            auto object_path = normalize_local_input(object.absolute_path);
+            const std::string key = object_path ? object_path.value().path : object.absolute_path;
+            if (selected.count(key) == 0U)
+                continue;
+            filtered.objects.push_back(object);
+            filtered.media_paths.push_back(object.absolute_path);
+            selected.erase(key);
+        }
+        if (!selected.empty())
+        {
+            return make_error(ErrorCode::kNotFound,
+                              "Selected ingest path is not present in the transport snapshot",
+                              {{"path", *selected.begin()},
+                               {"source_uri", detailed.source_uri},
+                               {"reason", "ingest_selected_path_missing"}});
+        }
+        if (filtered.media_paths.empty())
+        {
+            return make_error(
+                ErrorCode::kNotFound, "Ingest selection matched no media objects",
+                {{"source_uri", detailed.source_uri}, {"reason", "ingest_selection_empty"}});
+        }
+        snapshot = std::move(filtered);
+    }
     auto connected = ensure_ingest_source_connected(snapshot.value().source);
     if (!connected)
         return connected.error();

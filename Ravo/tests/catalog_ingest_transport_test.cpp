@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -425,6 +426,144 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesIncompleteBatchAfterReconnect)
     auto cleared = load_ingest_resume_checkpoint(catalog.value().database_path, *batch_id);
     EXPECT_FALSE(cleared);
     EXPECT_EQ(cleared.error().code, ErrorCode::kNotFound);
+}
+
+TEST_F(CatalogServiceTest, FilesystemCardIngestIdempotentRepeatedImportReportsDuplicates)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto card = root / "idem-card" / "DCIM";
+    const auto destination = root / "idem-dest";
+    std::filesystem::create_directories(card);
+    std::filesystem::create_directories(destination);
+    ASSERT_TRUE(write_jpeg(card / "IMG_0001.JPG", QColor(10, 20, 30)));
+    ASSERT_TRUE(write_jpeg(card / "IMG_0002.JPG", QColor(40, 50, 60)));
+
+    IngestRequest request;
+    request.source_root = (root / "idem-card").string();
+    request.transport = "filesystem-card";
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.preview = ImportPreviewPolicy::kMinimal;
+    request.defer_previews = true;
+
+    auto first = service->execute_ingest_detailed(request);
+    ASSERT_TRUE(first) << first.error().message;
+    EXPECT_EQ(first.value().import.imported, 2U);
+    EXPECT_EQ(first.value().import.duplicates, 0U);
+    EXPECT_TRUE(first.value().resume_checkpoint_cleared);
+
+    auto second = service->execute_ingest_detailed(request);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_EQ(second.value().import.imported, 0U);
+    EXPECT_EQ(second.value().import.duplicates, 2U);
+    EXPECT_EQ(second.value().transport, "filesystem-card");
+    for (const auto &item : second.value().import.items)
+        EXPECT_EQ(item.status, ImportItemStatus::kDuplicate);
+
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets);
+    EXPECT_EQ(assets.value().size(), 2U);
+}
+
+TEST_F(CatalogServiceTest, PtpStubIngestResumesAfterCancelMidBatch)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto fixture = root / "cancel-resume-fixture" / "DCIM";
+    const auto destination = root / "cancel-resume-dest";
+    std::filesystem::create_directories(fixture);
+    std::filesystem::create_directories(destination);
+    ASSERT_TRUE(write_jpeg(fixture / "A.JPG", QColor(1, 2, 3)));
+    ASSERT_TRUE(write_jpeg(fixture / "B.JPG", QColor(4, 5, 6)));
+    ASSERT_TRUE(write_jpeg(fixture / "C.JPG", QColor(7, 8, 9)));
+
+    IngestRequest request;
+    request.source_root = (root / "cancel-resume-fixture").string();
+    request.transport = "ptp-stub";
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.preview = ImportPreviewPolicy::kMinimal;
+    request.defer_previews = true;
+
+    CancellationSource cancellation;
+    request.cancellation = cancellation.token();
+    std::optional<std::string> batch_id;
+    auto first = service->execute_ingest_detailed(
+        request,
+        [&](std::size_t, std::size_t, const ImportItemResult *item)
+        {
+            if (item != nullptr && item->status == ImportItemStatus::kImported)
+                static_cast<void>(cancellation.cancel("ingest-cancel-resume"));
+        });
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(first.value().resume_batch_id);
+    batch_id = first.value().resume_batch_id;
+    EXPECT_GE(first.value().import.imported, 1U);
+    EXPECT_FALSE(first.value().resume_checkpoint_cleared);
+
+    auto catalog = service->snapshot();
+    ASSERT_TRUE(catalog);
+    auto checkpoint = load_ingest_resume_checkpoint(catalog.value().database_path, *batch_id);
+    ASSERT_TRUE(checkpoint) << checkpoint.error().message;
+    EXPECT_FALSE(checkpoint.value().completed_relative_paths.empty());
+
+    IngestRequest resume = request;
+    resume.cancellation = CancellationToken{};
+    resume.resume_batch_id = batch_id;
+    auto second = service->execute_ingest_detailed(resume);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_TRUE(second.value().resume_checkpoint_cleared);
+    EXPECT_GE(second.value().import.skipped, 1U);
+    EXPECT_GE(second.value().import.imported, 1U);
+    for (const auto &item : second.value().import.items)
+    {
+        if (item.status == ImportItemStatus::kSkipped)
+            EXPECT_EQ(reason_of(*item.error), "ingest_resume_already_completed");
+    }
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets);
+    EXPECT_EQ(assets.value().size(), 3U);
+}
+
+TEST_F(CatalogServiceTest, IngestRejectsUnknownTransportName)
+{
+    ASSERT_TRUE(open_service(true));
+    IngestRequest request;
+    request.source_root = root.string();
+    request.transport = "not-a-transport";
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = (root / "out").string();
+    auto batch = service->execute_ingest_detailed(request);
+    ASSERT_FALSE(batch);
+    EXPECT_EQ(reason_of(batch.error()), "ingest_transport_unknown");
+}
+
+TEST_F(CatalogServiceTest, FilesystemCardIngestHonorsSelectedPathsFilter)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto card = root / "select-card" / "DCIM";
+    const auto destination = root / "select-dest";
+    std::filesystem::create_directories(card);
+    std::filesystem::create_directories(destination);
+    ASSERT_TRUE(write_jpeg(card / "KEEP.JPG", QColor(11, 22, 33)));
+    ASSERT_TRUE(write_jpeg(card / "SKIP.JPG", QColor(44, 55, 66)));
+
+    IngestRequest request;
+    request.source_root = (root / "select-card").string();
+    request.transport = "filesystem-card";
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.preview = ImportPreviewPolicy::kMinimal;
+    request.defer_previews = true;
+    request.selected_paths = {(card / "KEEP.JPG").string()};
+
+    auto batch = service->execute_ingest_detailed(request);
+    ASSERT_TRUE(batch) << batch.error().message;
+    EXPECT_EQ(batch.value().import.imported, 1U);
+    EXPECT_EQ(batch.value().import.items.size(), 1U);
+    EXPECT_NE(batch.value().import.items.front().input_path.find("KEEP.JPG"), std::string::npos);
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets);
+    EXPECT_EQ(assets.value().size(), 1U);
 }
 
 } // namespace ravo

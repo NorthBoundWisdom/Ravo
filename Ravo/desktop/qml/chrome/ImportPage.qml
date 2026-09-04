@@ -7,6 +7,22 @@ Rectangle {
     id: root
     property var presenter
     property int selectionAnchor: -1
+    readonly property var nativeSupport: presenter && presenter.importNativeSupport ? presenter.importNativeSupport : ({})
+    readonly property var ingestReport: presenter && presenter.importIngestReport ? presenter.importIngestReport : ({})
+    readonly property int ingestTransportIndex: {
+        const t = presenter ? presenter.importIngestTransport : "filesystem-card";
+        if (t === "ptp-stub")
+            return 1;
+        if (t === "ptp-usb")
+            return 2;
+        if (t === "mtp")
+            return 3;
+        return 0;
+    }
+    readonly property bool nativeTransportSelected: {
+        const t = presenter ? presenter.importIngestTransport : "";
+        return t === "ptp-usb" || t === "mtp";
+    }
     signal chooseSourceRequested
     signal chooseDestinationRequested
     signal chooseSecondCopyRequested
@@ -412,8 +428,21 @@ Rectangle {
                 anchors.leftMargin: Fonts.standardMargin
                 anchors.rightMargin: Fonts.standardMargin
                 CustomLabel {
+                    objectName: "importIngestProgressReport"
                     Layout.fillWidth: true
-                    text: root.presenter.importWorkActive ? qsTr("Importing %1 / %2…").arg(root.presenter.importWorkCompleted).arg(root.presenter.importWorkTotal) : ""
+                    wrapMode: Text.WordWrap
+                    text: {
+                        if (root.presenter.importWorkActive)
+                            return qsTr("Importing %1 / %2…").arg(root.presenter.importWorkCompleted).arg(root.presenter.importWorkTotal);
+                        const r = root.ingestReport;
+                        if (r && r.transport) {
+                            let line = qsTr("Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.").arg(r.transport).arg(r.imported || 0).arg(r.duplicates || 0).arg(r.skipped || 0).arg(r.failed || 0);
+                            if (r.resumeBatchId && !r.resumeCheckpointCleared)
+                                line += " " + qsTr("Resume batch %1.").arg(r.resumeBatchId);
+                            return line;
+                        }
+                        return "";
+                    }
                 }
                 CustomButton {
                     text: qsTr("Cancel")
@@ -422,7 +451,7 @@ Rectangle {
                 }
                 CustomButton {
                     text: qsTr("Import")
-                    enabled: !root.presenter.importWorkActive && !root.presenter.importScanActive && root.presenter.importCandidates.selectedCount > 0 && (root.presenter.importMode === "add" || root.presenter.importDestination.length > 0)
+                    enabled: !root.nativeTransportSelected && !root.presenter.importWorkActive && !root.presenter.importScanActive && root.presenter.importCandidates.selectedCount > 0 && (root.presenter.importMode === "add" || root.presenter.importDestination.length > 0)
                     onClicked: root.presenter.startPlannedImport()
                 }
             }

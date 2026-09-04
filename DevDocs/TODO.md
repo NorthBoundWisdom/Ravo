@@ -5,9 +5,8 @@
 > **Updated:** 2026-09-05
 >
 > **Review basis:** `main` through LOCAL-01 C2, EDITIN-01 C2, CULL-01 keyboard
-> C2, and OFFLINE-01 C2 Studio proxy create/manage + baked identity consume
-> (Before/After/scopes, reconnect re-render/clear, pin/evict) atop COR-01
-> residuals + DISPLAY-01. The next free ADR
+> C2, OFFLINE-01 C2, DISPLAY-01 C2, and INGEST-01 C2 Studio filesystem-card +
+> ptp-stub ingest (native adapters residual). The next free ADR
 > number is **0157**, but new product ADRs are frozen by the work-in-progress
 > rule below.
 
@@ -74,9 +73,11 @@ resource defect preempts both streams.
 
 LOCAL-01 and EDITIN-01 Studio C2 evidence are on `main`. Recent work on
 CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
-moves in the intended direction. DISPLAY-01 Studio view pixel-kind contracts + Loupe/Develop/comparison CPU monitor ICC apply and OFFLINE-01 C2 Studio proxy
-create/manage + baked consume landed on `main`; DISPLAY-01 is C2 with GPU/Linux discovery residuals. AI proposal chrome, display/native
-transport stubs, and the tethered-studio probe do not count as product progress.
+moves in the intended direction. DISPLAY-01 is C2 with GPU/Linux discovery
+residuals; OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
+INGEST-01 is C2 for Studio filesystem-card + ptp-stub Copy ingest with fail-
+closed native probe (packaged ImageCapture/WinRT/libmtp residual is C3). AI
+proposal chrome and the tethered-studio probe do not count as product progress.
 
 ### Release and correctness lane
 
@@ -101,7 +102,7 @@ the next one.
 | 3 | CULL-01 | P1 | Keyboard C2; finish evaluated assistance (analysis C1+) |
 | 4 | OFFLINE-01 | P1 | C2 Studio offline-edit proxies; C3 quota/corpus residual |
 | 5 | DISPLAY-01 | P1 | Finish per-display ICC presentation on supported hosts and views |
-| 6 | INGEST-01 | P1 | Replace transport stubs with packaged native adapters and hardware evidence |
+| 6 | INGEST-01 | P1 | C2 Studio filesystem-card + stub ingest; C3 packaged native adapters/hardware |
 | 7 | IQ-01 | P1 | Establish camera/profile and denoise quality admission |
 
 # P0 — Repository, correctness, and release gates
@@ -510,22 +511,28 @@ CPU preview surfaces; residuals above remain for C3/host breadth.
 
 ## INGEST-01 — Packaged native camera transport
 
-**Maturity:** C1 fixture contract only; no native adapter or hardware evidence.
+**Maturity:** C2 on `main` for Studio + filesystem-card + ptp-stub contract:
+ImportPage transport selector and progress/report chrome (no `Main.qml`
+growth), Copy-only ingest via `execute_ingest_detailed` with selected-path
+filter, structured per-item report (imported/duplicate/skipped/failed), resume
+checkpoint after disconnect/cancel with reconnect tests, idempotent repeated
+ingest reporting duplicates, and fail-closed native PTP/MTP probe
+(`native_ingest_adapter_not_packaged`) so mounts are never mislabeled native.
+Move/camera-delete stay rejected on ingest transports.
 
-**Remaining work:**
+**Remaining work (post-C2 residuals → C3):**
 
-- decide/package ImageCaptureCore, WPD/WinRT, and libgphoto2/libmtp ownership,
-  licence, and support matrix;
-- implement device/session enumeration, permission, timeout, disconnect,
-  reconnect, object identity, cancellation, and restart resume;
-- reuse the verified Copy/second-copy planner; retain Move/camera-delete
-  rejection;
-- finish Studio source/progress/report/retry/permission UX;
-- run real camera/card source-preservation and failure tests.
+- decide/package ImageCaptureCore, WPD/WinRT, and libmtp ownership, licence,
+  notices, and support matrix; flip `native_ingest_adapter_is_packaged()`;
+- live device/session enumeration, permission, timeout, and hardware resume
+  evidence on claimed hosts;
+- Studio retry/permission UX once a packaged adapter exists;
+- real camera/card corpus source-preservation and installed-package smoke.
 
 **Acceptance gate:** each claimed host has a packaged adapter; sessions recover
 from disconnect/cancel/restart; reports are exact; device originals are
-unchanged; filesystem mounts are not mislabeled native.
+unchanged; filesystem mounts are not mislabeled native. Met for C2 Studio
+filesystem-card + stub; packaged native adapters remain C3.
 
 ## IQ-01 — Camera/profile and denoise quality admission
 

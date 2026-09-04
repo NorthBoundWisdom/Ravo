@@ -32,6 +32,8 @@ struct PlannedImport
     std::optional<std::string> second_copy_path;
     std::optional<std::string> second_copy_sidecar;
     std::optional<std::string> second_copy_jpeg;
+    // Destination path already exists and is catalogued (idempotent re-ingest).
+    std::optional<AssetRecord> already_imported;
 };
 
 [[nodiscard]] std::string path_text(const std::filesystem::path &path)
@@ -406,8 +408,14 @@ Result<ImportBatchResult> CatalogService::execute_import(
     std::vector<PlannedImport> plan;
     plan.reserve(paths.value().size());
     std::set<std::string, std::less<>> outputs;
-    const auto preflight_output = [&](const std::string_view source,
-                                      const std::filesystem::path &output) -> Result<std::string>
+    struct PreflightedOutput
+    {
+        std::string path;
+        std::optional<AssetRecord> already_imported;
+    };
+    const auto preflight_output =
+        [&](const std::string_view source,
+            const std::filesystem::path &output) -> Result<PreflightedOutput>
     {
         auto normalized_source = normalize_local_input(source);
         if (!normalized_source)
@@ -430,10 +438,6 @@ Result<ImportBatchResult> CatalogService::execute_import(
         std::error_code target_error;
         const auto status = std::filesystem::symlink_status(
             utf8_path(normalized_output.value().path), target_error);
-        if (!target_error && status.type() != std::filesystem::file_type::not_found)
-            return make_error(ErrorCode::kConflict, "Import destination already exists",
-                              {{"output", normalized_output.value().path},
-                               {"reason", "import_destination_conflict"}});
         if (target_error && target_error != std::errc::no_such_file_or_directory)
             return make_error(ErrorCode::kIo, "Unable to inspect import destination",
                               {{"output", normalized_output.value().path},
@@ -442,12 +446,23 @@ Result<ImportBatchResult> CatalogService::execute_import(
         auto existing = repository_->find_asset_by_uri(normalized_output.value().uri);
         if (!existing)
             return existing.error();
+        const bool path_exists =
+            !target_error && status.type() != std::filesystem::file_type::not_found;
+        if (path_exists && existing.value())
+        {
+            // Idempotent re-ingest: same destination already catalogued.
+            return PreflightedOutput{normalized_output.value().path, *existing.value()};
+        }
+        if (path_exists)
+            return make_error(ErrorCode::kConflict, "Import destination already exists",
+                              {{"output", normalized_output.value().path},
+                               {"reason", "import_destination_conflict"}});
         if (existing.value())
             return make_error(ErrorCode::kConflict,
                               "Import destination is already present in the catalog",
                               {{"output", normalized_output.value().path},
                                {"reason", "import_destination_catalog_conflict"}});
-        return normalized_output.value().path;
+        return PreflightedOutput{normalized_output.value().path, std::nullopt};
     };
     for (std::size_t index = 0U; index < paths.value().size(); ++index)
     {
@@ -527,32 +542,33 @@ Result<ImportBatchResult> CatalogService::execute_import(
                 preflight_output(item.candidate.source_path, destination_root / relative);
             if (!primary)
                 return primary.error();
-            item.import_path = std::move(primary).value();
-            if (item.source_sidecar)
+            item.import_path = std::move(primary.value().path);
+            item.already_imported = std::move(primary.value().already_imported);
+            if (!item.already_imported && item.source_sidecar)
             {
                 auto sidecar_output = utf8_path(item.import_path);
                 sidecar_output.replace_extension(utf8_path(*item.source_sidecar).extension());
                 auto sidecar = preflight_output(*item.source_sidecar, sidecar_output);
                 if (!sidecar)
                     return sidecar.error();
-                item.destination_sidecar = std::move(sidecar).value();
+                item.destination_sidecar = std::move(sidecar.value().path);
             }
-            if (item.source_jpeg)
+            if (!item.already_imported && item.source_jpeg)
             {
                 auto jpeg_output = utf8_path(item.import_path);
                 jpeg_output.replace_extension(utf8_path(*item.source_jpeg).extension());
                 auto jpeg = preflight_output(*item.source_jpeg, jpeg_output);
                 if (!jpeg)
                     return jpeg.error();
-                item.destination_jpeg = std::move(jpeg).value();
+                item.destination_jpeg = std::move(jpeg.value().path);
             }
-            if (second_copy_root)
+            if (!item.already_imported && second_copy_root)
             {
                 auto second =
                     preflight_output(item.candidate.source_path, *second_copy_root / relative);
                 if (!second)
                     return second.error();
-                item.second_copy_path = std::move(second).value();
+                item.second_copy_path = std::move(second.value().path);
                 if (item.source_sidecar)
                 {
                     auto second_sidecar = utf8_path(*item.second_copy_path);
@@ -560,7 +576,7 @@ Result<ImportBatchResult> CatalogService::execute_import(
                     auto sidecar = preflight_output(*item.source_sidecar, second_sidecar);
                     if (!sidecar)
                         return sidecar.error();
-                    item.second_copy_sidecar = std::move(sidecar).value();
+                    item.second_copy_sidecar = std::move(sidecar.value().path);
                 }
                 if (item.source_jpeg)
                 {
@@ -569,7 +585,7 @@ Result<ImportBatchResult> CatalogService::execute_import(
                     auto jpeg = preflight_output(*item.source_jpeg, second_jpeg);
                     if (!jpeg)
                         return jpeg.error();
-                    item.second_copy_jpeg = std::move(jpeg).value();
+                    item.second_copy_jpeg = std::move(jpeg.value().path);
                 }
             }
         }
@@ -626,6 +642,24 @@ Result<ImportBatchResult> CatalogService::execute_import(
             }
         }
         auto &planned = plan[index];
+        if (planned.already_imported)
+        {
+            ImportItemResult duplicate;
+            duplicate.status = ImportItemStatus::kDuplicate;
+            duplicate.input_path = planned.candidate.source_path;
+            duplicate.destination_path = planned.import_path;
+            duplicate.asset = *planned.already_imported;
+            duplicate.error =
+                make_error(ErrorCode::kConflict, "Import destination already catalogued",
+                           {{"output", planned.import_path},
+                            {"asset_id", planned.already_imported->id},
+                            {"reason", "ingest_already_imported"}});
+            ++batch.duplicates;
+            batch.items.push_back(std::move(duplicate));
+            if (progress)
+                progress(index + 1U, plan.size(), &batch.items.back());
+            continue;
+        }
         std::vector<std::string> owned_outputs;
         std::optional<TaskError> transfer_error;
         const auto ensure_parent = [&](const std::string_view output) -> Result<void>

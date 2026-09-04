@@ -365,6 +365,11 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString importOrganization READ importOrganization NOTIFY importPageChanged)
     Q_PROPERTY(QString importPreviewPolicy READ importPreviewPolicy NOTIFY importPageChanged)
     Q_PROPERTY(bool importRecursive READ importRecursive NOTIFY importPageChanged)
+    Q_PROPERTY(QString importIngestTransport READ importIngestTransport NOTIFY importPageChanged)
+    Q_PROPERTY(QString importIngestSourceUri READ importIngestSourceUri NOTIFY importPageChanged)
+    Q_PROPERTY(QVariantMap importNativeSupport READ importNativeSupport NOTIFY importPageChanged)
+    Q_PROPERTY(QVariantMap importIngestReport READ importIngestReport NOTIFY importPageChanged)
+    Q_PROPERTY(QString importResumeBatchId READ importResumeBatchId NOTIFY importPageChanged)
     Q_PROPERTY(ImportCandidateListModel *importCandidates READ importCandidates CONSTANT)
     Q_PROPERTY(FilesystemBrowserModel *importSourceFolders READ importSourceFolders CONSTANT)
     Q_PROPERTY(
@@ -408,6 +413,11 @@ public:
     [[nodiscard]] QString importOrganization() const;
     [[nodiscard]] QString importPreviewPolicy() const;
     [[nodiscard]] bool importRecursive() const noexcept;
+    [[nodiscard]] QString importIngestTransport() const;
+    [[nodiscard]] QString importIngestSourceUri() const;
+    [[nodiscard]] QVariantMap importNativeSupport() const;
+    [[nodiscard]] QVariantMap importIngestReport() const;
+    [[nodiscard]] QString importResumeBatchId() const;
     [[nodiscard]] ImportCandidateListModel *importCandidates() noexcept;
     [[nodiscard]] FilesystemBrowserModel *importSourceFolders() noexcept;
     [[nodiscard]] FilesystemBrowserModel *importDestinationFolders() noexcept;
@@ -691,6 +701,9 @@ public:
     Q_INVOKABLE void setImportOrganization(const QString &organization);
     Q_INVOKABLE void setImportPreviewPolicy(const QString &policy);
     Q_INVOKABLE void setImportRecursive(bool recursive);
+    Q_INVOKABLE void setImportIngestTransport(const QString &transport);
+    Q_INVOKABLE void setImportResumeBatchId(const QString &batch_id);
+    Q_INVOKABLE void refreshImportNativeSupport();
     Q_INVOKABLE void ensureImportThumbnail(int row);
     Q_INVOKABLE void startPlannedImport();
     Q_INVOKABLE void cancelImportPreviews();
@@ -1134,6 +1147,10 @@ private:
     QString import_organization_{QStringLiteral("single")};
     QString import_preview_policy_{QStringLiteral("standard")};
     bool import_recursive_ = true;
+    QString import_ingest_transport_{QStringLiteral("filesystem-card")};
+    QVariantMap import_native_support_;
+    QVariantMap import_ingest_report_;
+    QString import_resume_batch_id_;
     std::uint64_t import_scan_generation_ = 0U;
     std::deque<int> pending_import_thumbnail_rows_;
     bool import_candidate_work_in_flight_ = false;

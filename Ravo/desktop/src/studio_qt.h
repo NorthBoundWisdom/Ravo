@@ -113,6 +113,7 @@ namespace ravo
     int duplicate = 0;
     int unsupported = 0;
     int failed = 0;
+    int skipped = 0;
     for (const auto &item : results)
     {
         switch (item.status)
@@ -127,16 +128,19 @@ namespace ravo
             ++unsupported;
             break;
         case ImportItemStatus::kSkipped:
+            ++skipped;
             break;
         case ImportItemStatus::kFailed:
             ++failed;
             break;
         }
     }
-    return QCoreApplication::translate("StudioPresenter",
-                                       "Imported %1, duplicate %2, unsupported %3, failed %4")
+    return QCoreApplication::translate(
+               "StudioPresenter",
+               "Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5")
         .arg(imported)
         .arg(duplicate)
+        .arg(skipped)
         .arg(unsupported)
         .arg(failed);
 }

@@ -2318,4 +2318,107 @@ TEST(StudioPresenterTest, EditIn01PrepareReturnReopenAbandonAcrossRestart)
     EXPECT_FALSE(QFileInfo::exists(abandon_path)) << abandon_path.toStdString();
 }
 
+TEST(StudioPresenterTest, ImportIngestTransportCopyReportsFilesystemCard)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString source_dir = QDir(directory.path()).filePath(QStringLiteral("card/DCIM"));
+    ASSERT_TRUE(QDir().mkpath(source_dir));
+    const QString dest_dir = QDir(directory.path()).filePath(QStringLiteral("dest"));
+    ASSERT_TRUE(QDir().mkpath(dest_dir));
+    for (const auto &name : {QStringLiteral("one.png"), QStringLiteral("two.png")})
+    {
+        QImage image(32, 24, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(12, 34, 56));
+        ASSERT_TRUE(image.save(QDir(source_dir).filePath(name), "PNG"));
+    }
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.openImportPage();
+    presenter.setImportIngestTransport(QStringLiteral("filesystem-card"));
+    presenter.setImportMode(QStringLiteral("copy"));
+    presenter.setImportSourceRoot(QDir(directory.path()).filePath(QStringLiteral("card")));
+    presenter.setImportDestination(dest_dir);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 2; },
+        30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.importIngestSourceUri().startsWith(
+        QStringLiteral("ravo-ingest:filesystem-card:")));
+    EXPECT_FALSE(presenter.importNativeSupport().value(QStringLiteral("adapterPackaged")).toBool());
+    EXPECT_EQ(presenter.importNativeSupport().value(QStringLiteral("ptpUsb")).toString(),
+              QStringLiteral("unsupported"));
+
+    presenter.startPlannedImport();
+    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+    const auto report = presenter.importIngestReport();
+    EXPECT_EQ(report.value(QStringLiteral("transport")).toString(),
+              QStringLiteral("filesystem-card"));
+    EXPECT_EQ(report.value(QStringLiteral("imported")).toInt(), 2);
+    EXPECT_EQ(report.value(QStringLiteral("duplicates")).toInt(), 0);
+    EXPECT_EQ(report.value(QStringLiteral("failed")).toInt(), 0);
+    EXPECT_TRUE(report.value(QStringLiteral("resumeCheckpointCleared")).toBool());
+    EXPECT_EQ(presenter.visibleCount(), 2);
+
+    // Idempotent re-ingest of the same card reports duplicates without growing the catalog.
+    presenter.openImportPage();
+    presenter.setImportIngestTransport(QStringLiteral("filesystem-card"));
+    presenter.setImportMode(QStringLiteral("copy"));
+    presenter.setImportSourceRoot(QDir(directory.path()).filePath(QStringLiteral("card")));
+    presenter.setImportDestination(dest_dir);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 2; },
+        30000))
+        << presenter.errorText().toStdString();
+    presenter.startPlannedImport();
+    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+        << presenter.errorText().toStdString();
+    const auto again = presenter.importIngestReport();
+    EXPECT_EQ(again.value(QStringLiteral("imported")).toInt(), 0);
+    EXPECT_EQ(again.value(QStringLiteral("duplicates")).toInt(), 2);
+    EXPECT_EQ(presenter.visibleCount(), 2);
+}
+
+TEST(StudioPresenterTest, ImportNativeTransportFailsClosedWithoutPackagedAdapter)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString source_dir = QDir(directory.path()).filePath(QStringLiteral("card"));
+    ASSERT_TRUE(QDir().mkpath(source_dir));
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(1, 2, 3));
+    ASSERT_TRUE(image.save(QDir(source_dir).filePath(QStringLiteral("x.png")), "PNG"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.openImportPage();
+    presenter.setImportIngestTransport(QStringLiteral("ptp-usb"));
+    presenter.setImportMode(QStringLiteral("copy"));
+    presenter.setImportSourceRoot(source_dir);
+    presenter.setImportDestination(QDir(directory.path()).filePath(QStringLiteral("dest")));
+    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }, 30000));
+    presenter.importCandidates()->setAllSelected(true);
+    presenter.startPlannedImport();
+    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 5000));
+    EXPECT_FALSE(presenter.errorText().isEmpty());
+    EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("not packaged")) ||
+                presenter.errorText().contains(QStringLiteral("native")));
+    EXPECT_TRUE(presenter.importIngestReport().isEmpty());
+}
+
 } // namespace ravo

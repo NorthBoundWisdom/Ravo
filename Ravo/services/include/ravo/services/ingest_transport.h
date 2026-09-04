@@ -143,6 +143,9 @@ struct IngestRequest
     bool recursive = true;
     bool include_xmp_sidecars = true;
     bool defer_previews = true;
+    // Optional absolute-path filter (Studio selection). Empty => ingest all
+    // enumerated objects from the transport snapshot.
+    std::vector<std::string> selected_paths;
     CancellationToken cancellation{};
 };
 
