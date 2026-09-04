@@ -5,10 +5,12 @@
 > **Updated:** 2026-09-05
 >
 > **Review basis:** `main` through LOCAL-01 C2, EDITIN-01 C2, CULL-01 keyboard
-> C2, OFFLINE-01 C2, DISPLAY-01 C2, and INGEST-01 C2 Studio filesystem-card +
-> ptp-stub ingest (native adapters residual). The next free ADR
-> number is **0157**, but new product ADRs are frozen by the work-in-progress
-> rule below.
+> C2, OFFLINE-01 C2, DISPLAY-01 C2, INGEST-01 C2 Studio filesystem-card +
+> ptp-stub ingest (native adapters residual), and IQ-01 C2 fixture evaluation.
+> REL-01 has macOS desensitized evidence on `07dbb9ef` (report
+> `20260905_020736`); Windows/Linux and full scenario matrix remain open. The
+> next free ADR number is **0157**, but new product ADRs are frozen by the
+> work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -203,10 +205,14 @@ reopen/backup/restore corpus scenarios under REL-01.
 
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
-**Status:** Active evidence work. A host-local path alone is not reviewable
-evidence. Desensitized candidate reports live under
-`~/Documents/RavoEvidence/reports/<timestamp>/` tied to an exact SHA (see latest
-`REL-01-evidence-scaffold.md` when present).
+**Status:** macOS host C2-style evidence recorded for candidate
+`07dbb9ef4aad7e23f891fdb1adf6ea0b9d966ff9` — report id
+`20260905_020736` under `~/Documents/RavoEvidence/reports/` (hashed corpus
+manifest, PrivatePhotoManagementReleaseProbe PASS with source SHA-256/size/mtime
+preservation, backup/restore/reopen smoke PASS, scrubbed logs). A host path
+alone is still not evidence; Windows/Linux, Release-package smoke, and the full
+required scenario matrix (X-Trans, PNG/TIFF in-corpus, Add/Copy/Move,
+disconnect, disk-full, upgrade, etc.) remain open. Do not claim C3.
 
 Use an explicit read-only mixed RAW/raster corpus in `RAVO_PHOTO_CORPUS`, a
 Release build, and a unique temporary root for every generated catalog,
@@ -251,8 +257,11 @@ Do not commit absolute developer-machine paths as evidence.
 
 ## PERF-01 — End-to-end interaction and large-library budgets
 
-**Status:** Measurement harness exists; budgets and representative evidence are
-open. Do not start PERF-02 optimization work yet.
+**Status:** Measurement harness exists. Host-local Gallery→viewer→Develop
+samples for SHA `07dbb9ef4aad…` are filed with REL-01 report
+`20260905_020736` (`PERF-01-host-local-budget-notes.json`) — observation only,
+not admitted product budgets. Large-library / Release same-corpus freeze and
+cross-host evidence remain open. Do not start PERF-02 optimization work yet.
 
 Measure complete user-visible paths with two warmups and at least eight recorded
 samples:
