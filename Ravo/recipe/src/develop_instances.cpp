@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iterator>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -18,46 +19,90 @@ namespace ravo
 namespace
 {
 
-[[nodiscard]] std::string make_exposure_instance_id(const DevelopParams &params)
+// Never reuse deleted instance ids: mint max(existing numeric suffix)+1 so a
+// stale command/history entry cannot address a newly created instance (COR-01).
+[[nodiscard]] std::size_t max_numeric_instance_suffix(const std::string_view prefix,
+                                                      const auto &instances) noexcept
 {
-    for (std::size_t n = 1;; ++n)
+    std::size_t max_n = 0U;
+    for (const auto &instance : instances)
     {
-        const std::string id = "exposure-" + std::to_string(n);
-        bool used = false;
-        for (const auto &instance : params.exposure_instances)
+        const std::string_view id = instance.instance_id;
+        if (!id.starts_with(prefix) || id.size() == prefix.size())
+            continue;
+        const auto suffix = id.substr(prefix.size());
+        if (suffix.empty() || suffix.front() == '0')
+            continue;
+        bool digits = true;
+        std::size_t value = 0U;
+        for (const char character : suffix)
         {
-            if (instance.instance_id == id)
+            if (character < '0' || character > '9')
             {
-                used = true;
+                digits = false;
                 break;
             }
+            value = value * 10U + static_cast<std::size_t>(character - '0');
         }
-        if (!used)
-        {
-            return id;
-        }
+        if (digits)
+            max_n = std::max(max_n, value);
     }
+    return max_n;
 }
 
-[[nodiscard]] std::string make_color_balance_rgb_instance_id(const DevelopParams &params)
+[[nodiscard]] std::uint64_t numeric_suffix_after_prefix(const std::string_view id,
+                                                        const std::string_view prefix) noexcept
 {
-    for (std::size_t n = 1;; ++n)
+    if (!id.starts_with(prefix) || id.size() == prefix.size())
+        return 0;
+    const auto suffix = id.substr(prefix.size());
+    if (suffix.empty() || suffix.front() == '0')
+        return 0;
+    std::uint64_t value = 0;
+    for (const char character : suffix)
     {
-        const std::string id = "colorbalancergb-" + std::to_string(n);
-        bool used = false;
-        for (const auto &instance : params.color_balance_rgb_instances)
-        {
-            if (instance.instance_id == id)
-            {
-                used = true;
-                break;
-            }
-        }
-        if (!used)
-        {
-            return id;
-        }
+        if (character < '0' || character > '9')
+            return 0;
+        value = value * 10U + static_cast<std::uint64_t>(character - '0');
     }
+    return value;
+}
+
+void remember_exposure_instance_id(DevelopParams &params,
+                                   const std::string_view instance_id) noexcept
+{
+    params.exposure_instance_id_high_water =
+        std::max(params.exposure_instance_id_high_water,
+                 numeric_suffix_after_prefix(instance_id, "exposure-"));
+}
+
+void remember_color_balance_rgb_instance_id(DevelopParams &params,
+                                            const std::string_view instance_id) noexcept
+{
+    params.color_balance_rgb_instance_id_high_water =
+        std::max(params.color_balance_rgb_instance_id_high_water,
+                 numeric_suffix_after_prefix(instance_id, "colorbalancergb-"));
+}
+
+[[nodiscard]] std::string make_exposure_instance_id(DevelopParams &params)
+{
+    const auto from_live = max_numeric_instance_suffix("exposure-", params.exposure_instances);
+    const auto next =
+        std::max(from_live, static_cast<std::size_t>(params.exposure_instance_id_high_water)) + 1U;
+    params.exposure_instance_id_high_water = static_cast<std::uint64_t>(next);
+    return "exposure-" + std::to_string(next);
+}
+
+[[nodiscard]] std::string make_color_balance_rgb_instance_id(DevelopParams &params)
+{
+    const auto from_live =
+        max_numeric_instance_suffix("colorbalancergb-", params.color_balance_rgb_instances);
+    const auto next =
+        std::max(from_live,
+                 static_cast<std::size_t>(params.color_balance_rgb_instance_id_high_water)) +
+        1U;
+    params.color_balance_rgb_instance_id_high_water = static_cast<std::uint64_t>(next);
+    return "colorbalancergb-" + std::to_string(next);
 }
 
 template <typename T>
@@ -242,6 +287,118 @@ clone_mask_subgraph_staged(const DevelopParams &params, std::vector<Mask> &stage
     return new_id;
 }
 
+[[nodiscard]] bool is_studio_instance_mask_id(const std::string_view id,
+                                              const std::string_view prefix) noexcept
+{
+    if (!id.starts_with(prefix) || id.size() == prefix.size())
+        return false;
+    const auto suffix = id.substr(prefix.size());
+    if (suffix.empty() || suffix.front() == '0')
+        return false;
+    return std::all_of(suffix.begin(), suffix.end(),
+                       [](const char character) { return character >= '0' && character <= '9'; });
+}
+
+[[nodiscard]] std::size_t mask_reference_count(const DevelopParams &params,
+                                               const std::string_view id) noexcept
+{
+    std::size_t count = 0U;
+    if (params.exposure_mask_id && *params.exposure_mask_id == id)
+        ++count;
+    if (params.color_balance_rgb_mask_id && *params.color_balance_rgb_mask_id == id)
+        ++count;
+    for (const auto &instance : params.exposure_instances)
+    {
+        if (instance.mask_id && *instance.mask_id == id)
+            ++count;
+    }
+    for (const auto &instance : params.color_balance_rgb_instances)
+    {
+        if (instance.mask_id && *instance.mask_id == id)
+            ++count;
+    }
+    // Other Develop mask attachments (curves, lights, etc.).
+    if (params.graduated_mask_id && *params.graduated_mask_id == id)
+        ++count;
+    if (params.color_harmonizer_mask_id && *params.color_harmonizer_mask_id == id)
+        ++count;
+    if (params.rgb_curve_mask_id && *params.rgb_curve_mask_id == id)
+        ++count;
+    if (params.tone_curve_mask_id && *params.tone_curve_mask_id == id)
+        ++count;
+    if (params.highlights_mask_id && *params.highlights_mask_id == id)
+        ++count;
+    if (params.shadows_mask_id && *params.shadows_mask_id == id)
+        ++count;
+    if (params.whites_mask_id && *params.whites_mask_id == id)
+        ++count;
+    if (params.blacks_mask_id && *params.blacks_mask_id == id)
+        ++count;
+    if (params.velvia_mask_id && *params.velvia_mask_id == id)
+        ++count;
+    if (params.color_zones_mask_id && *params.color_zones_mask_id == id)
+        ++count;
+    if (params.monochrome_mask_id && *params.monochrome_mask_id == id)
+        ++count;
+    if (params.split_toning_mask_id && *params.split_toning_mask_id == id)
+        ++count;
+    for (const auto &mask : params.masks)
+    {
+        const auto *group = std::get_if<MaskGroup>(&mask.payload);
+        if (group == nullptr)
+            continue;
+        count += static_cast<std::size_t>(
+            std::count_if(group->children.begin(), group->children.end(),
+                          [id](const MaskGroupChild &child) { return child.mask_id == id; }));
+    }
+    return count;
+}
+
+void erase_mask_entry(DevelopParams &params, const std::string_view id)
+{
+    params.masks.erase(std::remove_if(params.masks.begin(), params.masks.end(),
+                                      [id](const Mask &mask) { return mask.id == id; }),
+                       params.masks.end());
+}
+
+// Remove only exclusively owned Studio mask subgraphs. Shared/external masks are
+// retained; callers must already have detached the deleted instance reference.
+void gc_exclusively_owned_mask_subgraph(DevelopParams &params, const std::string_view root_id,
+                                        const std::string_view studio_prefix)
+{
+    if (root_id.empty() || !is_studio_instance_mask_id(root_id, studio_prefix))
+        return;
+    if (mask_reference_count(params, root_id) != 0U)
+        return;
+    const Mask *found = nullptr;
+    for (const auto &mask : params.masks)
+    {
+        if (mask.id == root_id)
+        {
+            found = &mask;
+            break;
+        }
+    }
+    if (found == nullptr)
+        return;
+    std::vector<std::string> child_ids;
+    if (const auto *group = std::get_if<MaskGroup>(&found->payload); group != nullptr)
+    {
+        child_ids.reserve(group->children.size());
+        for (const auto &child : group->children)
+            child_ids.push_back(child.mask_id);
+    }
+    erase_mask_entry(params, root_id);
+    for (const auto &child_id : child_ids)
+        gc_exclusively_owned_mask_subgraph(params, child_id, studio_prefix);
+}
+
+void clear_legacy_mask_if_matches(std::optional<std::string> &legacy, const std::string_view id)
+{
+    if (legacy && *legacy == id)
+        legacy.reset();
+}
+
 [[nodiscard]] Result<std::optional<std::string>>
 duplicate_instance_mask(DevelopParams &params, const std::optional<std::string> &mask_id,
                         const std::string_view id_prefix)
@@ -331,6 +488,7 @@ std::size_t ensure_exposure_instances(DevelopParams &params)
     }
     DevelopExposureInstance seed;
     seed.instance_id = "exposure-1";
+    remember_exposure_instance_id(params, seed.instance_id);
     seed.name = "Master";
     seed.mode = params.exposure_mode;
     seed.black = params.exposure_black;
@@ -352,6 +510,7 @@ std::size_t ensure_color_balance_rgb_instances(DevelopParams &params)
     }
     DevelopColorBalanceRgbInstance seed;
     seed.instance_id = "colorbalancergb-1";
+    remember_color_balance_rgb_instance_id(params, seed.instance_id);
     seed.name = "Master";
     seed.params = params.color_balance_rgb;
     seed.mask_id = params.color_balance_rgb_mask_id;
@@ -394,13 +553,17 @@ Result<void> delete_exposure_instance(DevelopParams &params, const std::string_v
                           {{"instance_id", std::string(instance_id)},
                            {"reason", "delete_exposure_instance_id_mismatch"}});
     }
+    const std::optional<std::string> owned_mask = params.exposure_instances[*found].mask_id;
+    remember_exposure_instance_id(params, instance_id);
+    constexpr std::string_view kExposureStudioPrefix = "ravo.studio.mask.exposure.";
     if (params.exposure_instances.size() == 1U)
     {
         // Sole-instance collapse requires a matching id (above). Disabled or
         // bypassed sole instances must not re-activate through legacy fields:
         // collapse to documented identity exposure parameters.
         const auto &sole = params.exposure_instances.front();
-        if (!sole.enabled || sole.bypass)
+        const bool reset_identity = !sole.enabled || sole.bypass;
+        if (reset_identity)
         {
             params.exposure_mode = std::string(kExposureModeManual);
             params.exposure_black = 0.0;
@@ -413,12 +576,25 @@ Result<void> delete_exposure_instance(DevelopParams &params, const std::string_v
         }
         else
         {
+            // Preserve params+mask on legacy singleton fields.
             load_exposure_instance_into_legacy(params, 0);
         }
         params.exposure_instances.clear();
+        // Only GC when identity reset dropped the attachment; enabled collapse
+        // keeps the mask on legacy exposure_mask_id.
+        if (reset_identity && owned_mask)
+            gc_exclusively_owned_mask_subgraph(params, *owned_mask, kExposureStudioPrefix);
         return {};
     }
-    return delete_instance(params.exposure_instances, instance_id);
+    auto removed = delete_instance(params.exposure_instances, instance_id);
+    if (!removed)
+        return removed.error();
+    if (owned_mask)
+    {
+        clear_legacy_mask_if_matches(params.exposure_mask_id, *owned_mask);
+        gc_exclusively_owned_mask_subgraph(params, *owned_mask, kExposureStudioPrefix);
+    }
+    return {};
 }
 
 Result<void> delete_color_balance_rgb_instance(DevelopParams &params,
@@ -437,10 +613,15 @@ Result<void> delete_color_balance_rgb_instance(DevelopParams &params,
                           {{"instance_id", std::string(instance_id)},
                            {"reason", "delete_color_balance_rgb_instance_id_mismatch"}});
     }
+    const std::optional<std::string> owned_mask =
+        params.color_balance_rgb_instances[*found].mask_id;
+    remember_color_balance_rgb_instance_id(params, instance_id);
+    constexpr std::string_view kColorStudioPrefix = "ravo.studio.mask.color_balance_rgb.";
     if (params.color_balance_rgb_instances.size() == 1U)
     {
         const auto &sole = params.color_balance_rgb_instances.front();
-        if (!sole.enabled || sole.bypass)
+        const bool reset_identity = !sole.enabled || sole.bypass;
+        if (reset_identity)
         {
             params.color_balance_rgb = ColorBalanceRgbParams{};
             params.color_balance_rgb_mask_id.reset();
@@ -450,9 +631,19 @@ Result<void> delete_color_balance_rgb_instance(DevelopParams &params,
             load_color_balance_rgb_instance_into_legacy(params, 0);
         }
         params.color_balance_rgb_instances.clear();
+        if (reset_identity && owned_mask)
+            gc_exclusively_owned_mask_subgraph(params, *owned_mask, kColorStudioPrefix);
         return {};
     }
-    return delete_instance(params.color_balance_rgb_instances, instance_id);
+    auto removed = delete_instance(params.color_balance_rgb_instances, instance_id);
+    if (!removed)
+        return removed.error();
+    if (owned_mask)
+    {
+        clear_legacy_mask_if_matches(params.color_balance_rgb_mask_id, *owned_mask);
+        gc_exclusively_owned_mask_subgraph(params, *owned_mask, kColorStudioPrefix);
+    }
+    return {};
 }
 
 Result<void> rename_exposure_instance(DevelopParams &params, const std::string_view instance_id,

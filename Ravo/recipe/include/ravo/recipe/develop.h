@@ -322,6 +322,9 @@ struct DevelopParams
     std::int64_t exposure_mask_point_index = 0;
     // When non-empty, ordered Exposure authority (mirrors front() into fields above).
     std::vector<DevelopExposureInstance> exposure_instances;
+    // Monotonic mint watermark so deleted exposure-* ids are never reused in this
+    // edit buffer (COR-01 stale command binding).
+    std::uint64_t exposure_instance_id_high_water = 0;
     double contrast = 0.0;
     double highlights = 0.0;
     std::optional<std::string> highlights_mask_id;
@@ -402,6 +405,7 @@ struct DevelopParams
     std::int64_t color_balance_rgb_mask_point_index = 0;
     // When non-empty, ordered Color Balance RGB authority (mirrors front() into fields above).
     std::vector<DevelopColorBalanceRgbInstance> color_balance_rgb_instances;
+    std::uint64_t color_balance_rgb_instance_id_high_water = 0;
     bool color_correction_enabled = false;
     ColorCorrectionParams color_correction;
     bool color_contrast_enabled = false;

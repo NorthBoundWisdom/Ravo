@@ -152,6 +152,8 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
             source.exposure_compensate_highlight_preservation;
         destination.exposure_mask_id = source.exposure_mask_id;
         destination.exposure_instances = source.exposure_instances;
+        destination.exposure_instance_id_high_water = std::max(
+            destination.exposure_instance_id_high_water, source.exposure_instance_id_high_water);
     }
     else if (field == "contrast")
     {
@@ -254,6 +256,9 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.color_balance_rgb = source.color_balance_rgb;
         destination.color_balance_rgb_mask_id = source.color_balance_rgb_mask_id;
         destination.color_balance_rgb_instances = source.color_balance_rgb_instances;
+        destination.color_balance_rgb_instance_id_high_water =
+            std::max(destination.color_balance_rgb_instance_id_high_water,
+                     source.color_balance_rgb_instance_id_high_water);
     }
     else if (field == "colorCorrection")
     {

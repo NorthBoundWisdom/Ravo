@@ -16,6 +16,7 @@
 #include "ravo/services/offline_edit_proxy.h"
 
 #include "catalog_test_support.h"
+#include "catalog_service_test_support.h"
 
 namespace ravo
 {
@@ -425,6 +426,77 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyInterruptedPublishKeepsPrevious)
     // Cancelled token fails early before replacing the good proxy.
     auto failed = service->create_offline_edit_proxy(second);
     ASSERT_FALSE(failed);
+
+    auto status = service->verify_offline_edit_proxy(asset_id);
+    ASSERT_TRUE(status) << status.error().message;
+    ASSERT_TRUE(status.value().manifest);
+    EXPECT_EQ(status.value().manifest->proxy_sha256, first_sha);
+    EXPECT_TRUE(status.value().proxy_verified);
+}
+
+TEST_F(CatalogServiceTest, Cor01ExportUsableRequiresCatalogIdentity)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "cor01-identity.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(12, 34, 56)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, asset_id);
+    ASSERT_FALSE(original.empty());
+
+    auto ok_status = service->verify_offline_edit_proxy(asset_id);
+    ASSERT_TRUE(ok_status) << ok_status.error().message;
+    EXPECT_TRUE(ok_status.value().usable_for_export);
+
+    // Rewrite bytes in place so presence remains but catalog identity drifts.
+    ASSERT_TRUE(write_jpeg(std::filesystem::path(original), QColor(200, 10, 10)));
+    auto drifted = service->verify_offline_edit_proxy(asset_id);
+    ASSERT_TRUE(drifted) << drifted.error().message;
+    EXPECT_TRUE(std::filesystem::is_regular_file(original));
+    EXPECT_FALSE(drifted.value().usable_for_export);
+    EXPECT_EQ(drifted.value().reason, "original_identity_unverified");
+
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = (root / "identity-export-should-fail.png").string();
+    export_request.format = ExportFormat::kPng;
+    auto exported = service->export_asset(export_request);
+    ASSERT_FALSE(exported);
+    EXPECT_EQ(exported.error().code, ErrorCode::kConflict);
+    ASSERT_TRUE(exported.error().context.contains("reason"));
+    EXPECT_EQ(exported.error().context.at("reason"), "source_identity_mismatch");
+}
+
+TEST_F(CatalogServiceTest, Cor01OfflineProxyPublishInjectRetainsPrior)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "cor01-proxy-inject.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(70, 80, 90)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    OfflineEditProxyCreateRequest create;
+    create.asset_id = asset_id;
+    create.user_initiated = true;
+    create.max_edge = 64;
+    auto first = service->create_offline_edit_proxy(create);
+    ASSERT_TRUE(first) << first.error().message;
+    const auto first_sha = first.value().manifest.proxy_sha256;
+
+    testing::CatalogServiceTestControl::set_before_offline_proxy_publish(
+        *service,
+        [](std::string_view, std::string_view)
+        {
+            return make_error(
+                ErrorCode::kIo, "Injected offline proxy publish failure",
+                {{"reason", "offline_edit_proxy_publish_failed"}, {"detail", "injected_enospc"}});
+        });
+    auto failed = service->create_offline_edit_proxy(create);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().context.at("reason"), "offline_edit_proxy_publish_failed");
+    testing::CatalogServiceTestControl::set_before_offline_proxy_publish(*service, {});
 
     auto status = service->verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(status) << status.error().message;

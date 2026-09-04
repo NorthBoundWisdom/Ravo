@@ -230,6 +230,24 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 exposure.value().compensate_highlight_preservation;
             instance.mask_id = operation.mask_id;
             params.exposure_instances.push_back(instance);
+            {
+                const std::string_view id = instance.instance_id;
+                constexpr std::string_view prefix = "exposure-";
+                if (id.starts_with(prefix) && id.size() > prefix.size())
+                {
+                    const auto suffix = id.substr(prefix.size());
+                    if (!suffix.empty() && suffix.front() != '0' &&
+                        std::all_of(suffix.begin(), suffix.end(),
+                                    [](char c) { return c >= '0' && c <= '9'; }))
+                    {
+                        std::uint64_t value = 0;
+                        for (char c : suffix)
+                            value = value * 10U + static_cast<std::uint64_t>(c - '0');
+                        params.exposure_instance_id_high_water =
+                            std::max(params.exposure_instance_id_high_water, value);
+                    }
+                }
+            }
             // Legacy single fields mirror the first Exposure instance.
             if (params.exposure_instances.size() == 1U)
             {
@@ -565,6 +583,24 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             instance.params = std::move(color_balance).value();
             instance.mask_id = operation.mask_id;
             params.color_balance_rgb_instances.push_back(instance);
+            {
+                const std::string_view id = instance.instance_id;
+                constexpr std::string_view prefix = "colorbalancergb-";
+                if (id.starts_with(prefix) && id.size() > prefix.size())
+                {
+                    const auto suffix = id.substr(prefix.size());
+                    if (!suffix.empty() && suffix.front() != '0' &&
+                        std::all_of(suffix.begin(), suffix.end(),
+                                    [](char c) { return c >= '0' && c <= '9'; }))
+                    {
+                        std::uint64_t value = 0;
+                        for (char c : suffix)
+                            value = value * 10U + static_cast<std::uint64_t>(c - '0');
+                        params.color_balance_rgb_instance_id_high_water =
+                            std::max(params.color_balance_rgb_instance_id_high_water, value);
+                    }
+                }
+            }
             // Legacy single fields mirror the first Color Balance RGB instance.
             if (params.color_balance_rgb_instances.size() == 1U)
             {

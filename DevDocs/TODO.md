@@ -4,11 +4,11 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through COR-01 correctness tranche (LOCAL delete/
-> mask clone, CULL review atomicity, OFFLINE proxy parse/publish/double-grade,
-> aHash bounds) atop DISPLAY-01 / OFFLINE-01 proxy consume. The next free ADR
-> number is **0157**, but new product ADRs are frozen by the work-in-progress
-> rule below.
+> **Review basis:** `main` through COR-01 residual close (instance-id high-water +
+> revision-bound recipe saves, owned-mask GC, export-usable catalog identity,
+> offline proxy publish inject) atop the prior COR-01 five-fix tranche /
+> DISPLAY-01 / OFFLINE-01 proxy consume. The next free ADR number is **0157**,
+> but new product ADRs are frozen by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -54,7 +54,7 @@ A green `main` may carry at most:
 1. one active P0 evidence/correctness stream; and
 2. one active P1 workflow-completion stream.
 
-Until the residual COR-01 checklist items and `LOCAL-01` C2 are closed:
+Until `LOCAL-01` C2 geometry/composition evidence is closed:
 
 - do not add another product capability ID, model/provider stub, placeholder
   pane, unsupported-probe feature, or specialization ADR;
@@ -135,13 +135,11 @@ reviewed head's run was incomplete, and `main` remains unprotected.
 
 ## COR-01 — Reviewed correctness defects before further feature breadth
 
-**Status:** Closed for the five reviewed defects on this tranche (LOCAL delete/
-mask clone, CULL review atomicity, OFFLINE proxy parse/publish/double-grade,
-aHash bounds). Residual COR items that remain open and do **not** block LOCAL
-C2 chrome start: instance-id reuse binding to recipe/catalog revision; owned-
-mask GC on instance delete/replace; export-usable original identity beyond
-file presence; disk-full publish injection depth; reopen/backup/restore corpus
-evidence (REL-01).
+**Status:** Closed for LOCAL/CULL/OFFLINE/aHash reviewed defects and the four
+follow-on residuals (instance-id high-water + recipe save revision binding;
+owned-mask GC; export-usable catalog identity; offline proxy publish inject).
+Remaining evidence that does **not** block LOCAL-01 C2 chrome start:
+reopen/backup/restore corpus scenarios under REL-01.
 
 ### LOCAL-01 instance and mask mutation safety
 
@@ -151,14 +149,13 @@ evidence (REL-01).
 - [x] Sole disabled/bypassed collapse resets legacy fields to documented
   identity (no silent re-activation). Studio disables Delete when only one
   instance remains.
-- [ ] Instance IDs must not be silently reused after deletion when a stale
-  command/history entry could address a newly created instance. Mutations must
-  bind the observed recipe/catalog revision.
+- [x] Instance IDs never reuse deleted numeric suffixes (`*_instance_id_high_water`);
+  recipe/develop saves bind `RecipeSaveOptions.expected_revision` (Studio passes
+  observed catalog revision). Stale id after delete cannot address a new instance.
 - [x] `clone_mask_subgraph` stages the full clone and appends atomically;
   cycle/missing child leave `DevelopParams.masks` unchanged.
-- [ ] Deleting or replacing an instance must remove only its exclusively owned
-  mask subgraph and must retain shared/external masks or fail closed. No orphan
-  mask accumulation.
+- [x] Deleting an instance removes only its exclusively owned Studio mask
+  subgraph; shared/external masks are retained. No owned-mask orphan accumulation.
 
 ### CULL-01 catalog mutation atomicity
 
@@ -178,8 +175,11 @@ evidence (REL-01).
   asset id, hash, dims, profile, path-under-support-root validated.
 - [x] Corrupt manifests surfaced in `list_offline_edit_proxies().corrupt`.
 - [x] Staging tree + atomic replace; failure retains prior good proxy.
-- [ ] Original export-usable identity beyond file presence / reconnect (partial
-  residual).
+- [x] Original export-usable requires catalog identity match (size/mtime/
+  fingerprint), not file presence alone; export refuses `source_identity_mismatch`.
+  Explicit reconnect remains the verified clear path.
+- [x] Publish-boundary failure injection (`set_before_offline_proxy_publish`)
+  retains the prior verified proxy.
 - [x] `pixel_provenance=recipe_baked_srgb8`; Develop applies identity on proxy
   consume (ADR-0146 COR-01 note). No double-grade.
 
@@ -197,7 +197,7 @@ evidence (REL-01).
   have regression tests;
 - every listed error path either changes nothing or returns exact committed
   state for the closed items above;
-- residual items tracked above remain for follow-on / REL-01 evidence.
+- residual reopen/backup/restore corpus evidence remains under REL-01.
 
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
@@ -339,13 +339,13 @@ long paths, and removal without touching user data.
 
 ## LOCAL-01 — Professional multi-instance local adjustments
 
-**Maturity:** C2 candidate, blocked by COR-01 and geometry/composition evidence.
+**Maturity:** C2 candidate; COR-01 LOCAL residuals closed. Remaining blockers are
+geometry/composition evidence and chrome polish below.
 
 **Remaining work:**
 
-- close all LOCAL findings in COR-01 before more chrome;
-- define bounded instance counts, stable identity, last-instance behavior, and
-  owned-mask garbage collection;
+- COR-01 LOCAL residuals closed (id high-water, owned-mask GC, revision-bound saves);
+- keep bounded instance counts / last-instance Studio Delete gate as documented;
 - finish Add/Subtract/Intersect/Invert, opacity, overlay visibility, feather,
   and accepted brush flow/density UX through one C++-owned mask DAG;
 - prove one coordinate path through orientation, lens, Perspective, crop,

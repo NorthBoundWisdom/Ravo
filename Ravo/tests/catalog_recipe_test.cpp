@@ -1345,5 +1345,48 @@ TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIden
     EXPECT_EQ(after_reopen_image, before_reopen_image);
 }
 
+TEST_F(CatalogServiceTest, Cor01DevelopSaveBindsExpectedRevision)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "cor01-revision.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(9, 18, 27));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    auto snap = service->snapshot();
+    ASSERT_TRUE(snap);
+    const auto revision = snap.value().revision;
+
+    DevelopParams first;
+    first.exposure_ev = 0.25;
+    auto saved = service->save_develop_with_history(
+        asset_id, first,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .expected_revision = revision});
+    ASSERT_TRUE(saved) << saved.error().message;
+    EXPECT_GT(saved.value().revision, revision);
+
+    DevelopParams second;
+    second.exposure_ev = 0.5;
+    auto stale = service->save_develop_with_history(
+        asset_id, second,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .expected_revision = revision});
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(stale.error().context.at("reason"), "stale_catalog_revision");
+
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto loaded = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(loaded) << loaded.error().message;
+    EXPECT_DOUBLE_EQ(loaded.value().exposure_ev, 0.25);
+}
+
 } // namespace
 } // namespace ravo

@@ -699,6 +699,36 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         return location.error();
     }
 
+    // COR-01: refuse export when the on-disk original does not match catalog identity.
+    // Missing originals are handled below for rendered formats; original-copy also
+    // requires a present matching file.
+    {
+        std::error_code exists_error;
+        const bool original_exists =
+            std::filesystem::is_regular_file(utf8_path(location.value().path), exists_error) &&
+            !exists_error;
+        if (original_exists)
+        {
+            auto identity = read_file_identity(location.value().path);
+            if (!identity)
+                return identity.error();
+            const bool size_mtime_match =
+                identity.value().size_bytes == asset.value()->size_bytes &&
+                identity.value().mtime_unix_ms == asset.value()->mtime_unix_ms;
+            const bool fingerprint_match =
+                !asset.value()->content_fingerprint ||
+                make_content_fingerprint(identity.value()) == *asset.value()->content_fingerprint;
+            if (!size_mtime_match || !fingerprint_match)
+            {
+                return make_error(ErrorCode::kConflict,
+                                  "Original no longer matches catalog identity; export refused",
+                                  {{"asset_id", request.asset_id},
+                                   {"path", location.value().path},
+                                   {"reason", "source_identity_mismatch"}});
+            }
+        }
+    }
+
     ExportResult result;
     result.asset_id = request.asset_id;
     result.output_path = output.value().path;

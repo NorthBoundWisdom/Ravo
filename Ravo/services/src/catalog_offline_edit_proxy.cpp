@@ -612,6 +612,15 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
         return error;
     }
 
+    if (testing_before_offline_proxy_publish_)
+    {
+        auto inject = testing_before_offline_proxy_publish_(final_root, staging_root);
+        if (!inject)
+        {
+            best_effort_remove_tree(staging_root);
+            return inject.error();
+        }
+    }
     auto published = publish_proxy_tree_atomically(final_root, staging_root);
     if (!published)
     {
@@ -721,9 +730,33 @@ CatalogService::verify_offline_edit_proxy(const std::string_view asset_id) const
 
     auto original_path = original_path_for_asset(*source.value());
     const bool original_present = original_path && file_is_regular(original_path.value());
-    // Export stays fail-closed only while the original is absent. Once the
-    // original is present again, clear the machine-visible export block.
-    status.usable_for_export = original_present;
+    // COR-01: file presence alone must not mark export-usable. Require catalog
+    // identity (size/mtime/fingerprint) to match the on-disk original, or an
+    // explicit reconnect verification path.
+    bool original_identity_verified = false;
+    if (original_present)
+    {
+        auto identity = read_file_identity(original_path.value());
+        if (identity)
+        {
+            const bool size_mtime_match =
+                identity.value().size_bytes == source.value()->size_bytes &&
+                identity.value().mtime_unix_ms == source.value()->mtime_unix_ms;
+            if (size_mtime_match)
+            {
+                if (!source.value()->content_fingerprint)
+                {
+                    original_identity_verified = true;
+                }
+                else
+                {
+                    original_identity_verified = make_content_fingerprint(identity.value()) ==
+                                                 *source.value()->content_fingerprint;
+                }
+            }
+        }
+    }
+    status.usable_for_export = original_identity_verified;
 
     const auto root = offline_edit_proxy_root(snapshot.value().database_path, asset_id);
     auto loaded = load_manifest(root);
@@ -742,8 +775,12 @@ CatalogService::verify_offline_edit_proxy(const std::string_view asset_id) const
         status.usable_for_develop = status.proxy_verified;
         if (!status.proxy_verified)
             status.reason = "proxy_corrupt_or_stale";
+        else if (original_identity_verified)
+            status.reason = "original_present_with_proxy";
+        else if (original_present)
+            status.reason = "original_identity_unverified";
         else
-            status.reason = original_present ? "original_present_with_proxy" : "proxy_ready";
+            status.reason = "proxy_ready";
     }
     else if (loaded.error().code == ErrorCode::kNotFound || loaded.error().code == ErrorCode::kIo)
     {
@@ -765,6 +802,9 @@ CatalogService::verify_offline_edit_proxy(const std::string_view asset_id) const
         status.media_state = OfflineEditMediaState::kPlaceholder;
     else
         status.media_state = OfflineEditMediaState::kMissing;
+
+    if (original_present && !original_identity_verified && status.reason == "proxy_absent")
+        status.reason = "original_identity_unverified";
 
     return status;
 }
@@ -830,6 +870,22 @@ CatalogService::reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequ
     result.originals_unchanged = true;
     if (!status.value().manifest)
     {
+        // Without a proxy manifest, still require catalog identity match before
+        // marking export-usable (COR-01).
+        const bool identity_ok = current.value().size_bytes == source.value()->size_bytes &&
+                                 current.value().mtime_unix_ms == source.value()->mtime_unix_ms &&
+                                 (!source.value()->content_fingerprint ||
+                                  make_content_fingerprint(FileIdentity{
+                                      current.value().size_bytes, current.value().mtime_unix_ms}) ==
+                                      *source.value()->content_fingerprint);
+        if (!identity_ok)
+        {
+            return make_error(ErrorCode::kConflict,
+                              "Restored original does not match catalog identity",
+                              {{"asset_id", request.asset_id},
+                               {"path", original_path.value()},
+                               {"reason", "source_identity_mismatch"}});
+        }
         result.source_hash_matched = false;
         result.status = std::move(status).value();
         result.status.media_state = OfflineEditMediaState::kOriginal;

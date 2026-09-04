@@ -49,6 +49,9 @@ struct RecipeSaveOptions
     // durable generation; close, reopen, explicit sync, and backup remain
     // recovery paths if that publication fails.
     bool defer_recovery_publication = false;
+    // When set, recipe/develop saves reject stale catalog revisions so instance
+    // mutations cannot land against a superseded catalog head (COR-01).
+    std::optional<std::int64_t> expected_revision;
 };
 
 struct RecipeSaveResult
@@ -554,6 +557,9 @@ private:
     std::function<void()> testing_before_preview_cache_publication_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_import_checkpoint_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_backup_checkpoint_;
+    // Optional publish-boundary inject for offline-edit proxy staging replace.
+    std::function<Result<void>(std::string_view final_root, std::string_view staging_root)>
+        testing_before_offline_proxy_publish_;
     // ADR-0125 ingest transport liveness (filesystem-card disconnect).
     std::function<Result<void>()> ingest_source_liveness_;
     bool ingest_report_remaining_on_stop_ = false;

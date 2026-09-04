@@ -829,6 +829,87 @@ TEST(LocalAdjustmentMultiInstanceTest, Cor01SoleDisabledCollapseResetsIdentity)
     EXPECT_DOUBLE_EQ(color.color_balance_rgb.global_y, 0.0);
 }
 
+TEST(LocalAdjustmentMultiInstanceTest, Cor01InstanceIdsNeverReuseAfterDelete)
+{
+    DevelopParams params;
+    ASSERT_TRUE(add_exposure_instance(params));
+    ASSERT_EQ(params.exposure_instances.size(), 2U);
+    const auto first = params.exposure_instances[0].instance_id;
+    const auto second = params.exposure_instances[1].instance_id;
+    EXPECT_EQ(first, "exposure-1");
+    EXPECT_EQ(second, "exposure-2");
+
+    ASSERT_TRUE(delete_exposure_instance(params, second));
+    ASSERT_EQ(params.exposure_instances.size(), 1U);
+
+    auto added = add_exposure_instance(params);
+    ASSERT_TRUE(added) << added.error().message;
+    EXPECT_EQ(added.value(), "exposure-3");
+    EXPECT_NE(added.value(), second);
+
+    // Stale command targeting the deleted id must not hit the new instance.
+    auto stale = delete_exposure_instance(params, second);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().context.at("reason"), "delete_exposure_instance_id_mismatch");
+    ASSERT_EQ(params.exposure_instances.size(), 2U);
+    EXPECT_EQ(params.exposure_instances.back().instance_id, "exposure-3");
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, Cor01OwnedMaskGcOnInstanceDelete)
+{
+    DevelopParams params;
+    DevelopExposureInstance master;
+    master.instance_id = "exposure-1";
+    master.name = "Master";
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-2";
+    local.name = "Dodge";
+    local.mask_id = "ravo.studio.mask.exposure.1";
+    params.exposure_instances = {master, local};
+    Mask owned{"ravo.studio.mask.exposure.1", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    owned.payload = CircleMask{0.4, 0.5, 0.15, 0.0};
+    Mask external = make_ellipse("mask-ellipse");
+    params.masks = {owned, external};
+    params.exposure_mask_id = local.mask_id;
+
+    ASSERT_TRUE(delete_exposure_instance(params, "exposure-2"));
+    ASSERT_EQ(params.exposure_instances.size(), 1U);
+    EXPECT_FALSE(params.exposure_mask_id.has_value());
+    ASSERT_EQ(params.masks.size(), 1U);
+    EXPECT_EQ(params.masks.front().id, "mask-ellipse");
+
+    // Shared studio mask must be retained.
+    DevelopParams shared;
+    DevelopExposureInstance s0;
+    s0.instance_id = "exposure-1";
+    s0.mask_id = "ravo.studio.mask.exposure.2";
+    DevelopExposureInstance s1;
+    s1.instance_id = "exposure-2";
+    s1.mask_id = "ravo.studio.mask.exposure.2";
+    shared.exposure_instances = {s0, s1};
+    Mask shared_mask{"ravo.studio.mask.exposure.2", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    shared_mask.payload = CircleMask{0.5, 0.5, 0.2, 0.0};
+    shared.masks = {shared_mask};
+    ASSERT_TRUE(delete_exposure_instance(shared, "exposure-2"));
+    ASSERT_EQ(shared.exposure_instances.size(), 1U);
+    ASSERT_EQ(shared.masks.size(), 1U);
+    EXPECT_EQ(shared.masks.front().id, "ravo.studio.mask.exposure.2");
+    EXPECT_EQ(shared.exposure_instances.front().mask_id, "ravo.studio.mask.exposure.2");
+
+    // External-only attachment retained after delete.
+    DevelopParams ext;
+    DevelopExposureInstance e0;
+    e0.instance_id = "exposure-1";
+    DevelopExposureInstance e1;
+    e1.instance_id = "exposure-2";
+    e1.mask_id = "mask-ellipse";
+    ext.exposure_instances = {e0, e1};
+    ext.masks = {make_ellipse("mask-ellipse")};
+    ASSERT_TRUE(delete_exposure_instance(ext, "exposure-2"));
+    ASSERT_EQ(ext.masks.size(), 1U);
+    EXPECT_EQ(ext.masks.front().id, "mask-ellipse");
+}
+
 TEST(LocalAdjustmentMultiInstanceTest, Cor01MaskCloneRollsBackOnCycleOrMissingChild)
 {
     DevelopParams params;

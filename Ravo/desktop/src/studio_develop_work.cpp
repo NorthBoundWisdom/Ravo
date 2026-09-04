@@ -224,6 +224,9 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .overlay_mask_id = current_overlay_mask_id(params),
         .request_revision = request_revision,
         .intent_started_at = intent_started_at,
+        .expected_catalog_revision = observed_catalog_revision_ >= 0 ?
+                                         std::optional<std::int64_t>{observed_catalog_revision_} :
+                                         std::nullopt,
     };
     pending_preview_.reset();
     kick_develop_work();
@@ -474,6 +477,7 @@ void StudioPresenter::kick_develop_work()
                             .discard_history_after_seq = job.discard_history_after_seq,
                             .coalesce_history_id = job.coalesce_history_id,
                             .defer_recovery_publication = true,
+                            .expected_revision = job.expected_catalog_revision,
                         });
                     save_ok = static_cast<bool>(saved);
                 }

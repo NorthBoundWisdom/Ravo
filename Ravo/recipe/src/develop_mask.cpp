@@ -631,6 +631,16 @@ void smooth_brush_handles(std::vector<BrushMaskPoint> &points) noexcept
         if (attachment && *attachment == id)
             ++count;
     }
+    for (const auto &instance : params.exposure_instances)
+    {
+        if (instance.mask_id && *instance.mask_id == id)
+            ++count;
+    }
+    for (const auto &instance : params.color_balance_rgb_instances)
+    {
+        if (instance.mask_id && *instance.mask_id == id)
+            ++count;
+    }
     for (const auto &mask : params.masks)
     {
         const auto *group = std::get_if<MaskGroup>(&mask.payload);

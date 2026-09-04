@@ -1052,6 +1052,7 @@ private:
         std::optional<std::string> overlay_mask_id;
         std::optional<std::uint64_t> request_revision;
         std::chrono::steady_clock::time_point intent_started_at{};
+        std::optional<std::int64_t> expected_catalog_revision;
     };
     [[nodiscard]] LibraryQuery current_query() const;
     [[nodiscard]] Result<std::unique_ptr<CatalogService>>

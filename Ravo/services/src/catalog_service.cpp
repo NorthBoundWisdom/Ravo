@@ -47,6 +47,13 @@ void testing::CatalogServiceTestControl::set_backup_checkpoint(
     service.testing_backup_checkpoint_ = std::move(callback);
 }
 
+void testing::CatalogServiceTestControl::set_before_offline_proxy_publish(
+    CatalogService &service,
+    std::function<Result<void>(std::string_view, std::string_view)> callback)
+{
+    service.testing_before_offline_proxy_publish_ = std::move(callback);
+}
+
 std::array<std::optional<std::uint32_t>, 2>
 testing::CatalogServiceTestControl::linear_working_max_edges(const CatalogService &service)
 {
@@ -1043,6 +1050,19 @@ Result<RecipeSaveResult> CatalogService::save_recipe_with_history(const std::str
     if (repository_ == nullptr || engine_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    if (options.expected_revision)
+    {
+        auto current = snapshot();
+        if (!current)
+            return current.error();
+        if (*options.expected_revision != current.value().revision)
+        {
+            return make_error(ErrorCode::kConflict, "Catalog revision is stale",
+                              {{"reason", "stale_catalog_revision"},
+                               {"expected_revision", std::to_string(*options.expected_revision)},
+                               {"revision", std::to_string(current.value().revision)}});
+        }
     }
     auto asset = repository_->find_asset_by_id(asset_id);
     if (!asset)
