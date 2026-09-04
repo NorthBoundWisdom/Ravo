@@ -316,6 +316,7 @@ void StudioPresenter::preview_develop(DevelopParams params)
         .overlay_mask_id = current_overlay_mask_id(params),
         .request_revision = request_revision,
         .intent_started_at = intent_started_at,
+        .expected_catalog_revision = {},
     };
     kick_develop_work();
     // Start the pixel job before notifying the broad inspector property set. QML may reevaluate
@@ -417,6 +418,7 @@ void StudioPresenter::enqueue_preview()
         .overlay_mask_id = current_overlay_mask_id(develop_),
         .request_revision = request_revision,
         .intent_started_at = std::chrono::steady_clock::now(),
+        .expected_catalog_revision = {},
     };
     kick_develop_work();
 }
@@ -470,6 +472,7 @@ void StudioPresenter::kick_develop_work()
             .overlay_mask_id = {},
             .request_revision = {},
             .intent_started_at = std::chrono::steady_clock::now(),
+            .expected_catalog_revision = {},
         };
     }
     else
@@ -611,6 +614,7 @@ void StudioPresenter::kick_develop_work()
                             if (pending_save_)
                             {
                                 pending_save_->previous = job.params;
+                                pending_save_->expected_catalog_revision = saved.value().revision;
                                 if (job.history_coalesce_key &&
                                     pending_save_->history_coalesce_key ==
                                         job.history_coalesce_key &&
@@ -651,7 +655,10 @@ void StudioPresenter::kick_develop_work()
                         kick_develop_work();
                         return;
                     }
-                    preview_loading_ = false;
+                    // A progressive live frame is visible now, but a queued
+                    // settled frame still owns the completion state. Keep the
+                    // lifecycle busy until that exact request publishes.
+                    preview_loading_ = job.settle_preview;
                     if (!preview)
                     {
                         if (preview.error().code == ErrorCode::kCancelled)
@@ -742,6 +749,7 @@ void StudioPresenter::kick_develop_work()
                             .overlay_mask_id = {},
                             .request_revision = {},
                             .intent_started_at = job.intent_started_at,
+                            .expected_catalog_revision = {},
                         };
                     }
                     if (comparison_active_ && comparison_before_url_.isEmpty())
