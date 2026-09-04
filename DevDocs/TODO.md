@@ -9,9 +9,12 @@
 > Studio filesystem-card + ptp-stub ingest (native adapters residual), IQ-01 C2
 > fixture evaluation, and IQ-00 macOS contract expansions (CPU gold + GPU live
 > residual documented; Win/Linux not claimed). REL-01 has macOS desensitized
-> evidence on `07dbb9ef` (report `20260905_020736`); Windows/Linux and full
-> scenario matrix remain open. The next free ADR number is **0157**, but new
-> product ADRs are frozen by the work-in-progress rule below.
+> evidence on `07dbb9ef` (report `20260905_020736`) plus packaged-CLI Add/Copy and
+> XMP metadata deepen on `e1a68eeb` (report `20260905_023651`). REL-02 has a
+> macOS Release DMG package-smoke tranche on `e1a68eeb` (same report); Windows
+> ZIP / Linux AppImage+DEB and full REL matrices remain open. The next free ADR
+> number is **0157**, but new product ADRs are frozen by the work-in-progress
+> rule below.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -210,10 +213,16 @@ reopen/backup/restore corpus scenarios under REL-01.
 `07dbb9ef4aad7e23f891fdb1adf6ea0b9d966ff9` — report id
 `20260905_020736` under `~/Documents/RavoEvidence/reports/` (hashed corpus
 manifest, PrivatePhotoManagementReleaseProbe PASS with source SHA-256/size/mtime
-preservation, backup/restore/reopen smoke PASS, scrubbed logs). A host path
-alone is still not evidence; Windows/Linux, Release-package smoke, and the full
-required scenario matrix (X-Trans, PNG/TIFF in-corpus, Add/Copy/Move,
-disconnect, disk-full, upgrade, etc.) remain open. Do not claim C3.
+preservation, backup/restore/reopen smoke PASS, scrubbed logs). Follow-on
+packaged-CLI deepen on candidate `e1a68eeb0ebc4f8aafab45287549f5720e8c2580`
+(report `20260905_023651`): Add vs Copy ingest keeps source SHA-256/size/mtime
+unchanged and copy destination byte-identical; XMP sidecar export/import on a
+writable working copy restores `dc:title`/`dc:creator` with `catalog-newer` →
+sidecar resolve → `identical` (rating-via-XMP still residual; read-only corpus
+dir fail-closes adjacent `.xmp` write). A host path alone is still not
+evidence; Windows/Linux and the full required scenario matrix (X-Trans, PNG/TIFF
+in-corpus, Move, disconnect, disk-full, upgrade, rating-via-XMP, etc.) remain
+open. Do not claim C3.
 
 Use an explicit read-only mixed RAW/raster corpus in `RAVO_PHOTO_CORPUS`, a
 Release build, and a unique temporary root for every generated catalog,
@@ -342,7 +351,18 @@ resource-exhausted, cancelled, and corrupt-profile paths.
 
 ## REL-02 — Installed package, upgrade, and restore evidence
 
-**Status:** Open after CI enforcement and candidate artifacts exist.
+**Status:** macOS Release DMG tranche recorded (honest C2-style, not C3) for
+candidate `e1a68eeb0ebc4f8aafab45287549f5720e8c2580` — report id
+`20260905_023651` under `~/Documents/RavoEvidence/reports/`. Sanctioned
+`RavoPackage` produced `RavoStudio-0.9.2-arm64-macOS.dmg`; artifact was copied
+away from the build tree before smoke. Installed CLI 18/18: catalog
+create/import (JPEG+ARW+DNG)/preview/probe/rate/snapshot/develop/export/
+reopen/backup/verify/restore + `display-profile status` (system ICC) and probe
+`gpu_backend=metal`. otool/`@loader_path` deps show no `…/Ravo2/build` leakage;
+QSQLITE present, Mimer absent; Studio GUI click smoke skipped (no Computer Use).
+**Still open:** Windows ZIP; Linux AppImage + DEB; Studio interactive /
+localization / upgrade-failure host matrix; notarization/Developer ID claims.
+Do not claim full REL-02 or C3.
 
 Validate the final DMG, Windows ZIP, Linux AppImage, and Linux DEB after copying
 each away from the build tree. Smoke Studio and bundled CLI through catalog
