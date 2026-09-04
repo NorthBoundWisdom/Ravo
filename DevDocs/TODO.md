@@ -432,7 +432,7 @@ check with originals byte-identical.
 
 ## CULL-01 — High-throughput review, burst grouping, and duplicate assistance
 
-**Status:** P1 first Ready landed (ADR-0147). Residuals remain.
+**Status:** P1 Ready deepened (ADR-0147 + ADR-0149 near-dup). Residuals remain.
 
 **Closed in this tranche (local `main`):**
 
@@ -445,16 +445,22 @@ check with originals byte-identical.
 - Outcomes: `same_file` (shared URI / virtual copies) vs `same_bytes` (distinct
   URIs, identical SHA-256); missing originals skipped with `original_missing`.
 
+**Also closed (ADR-0149 near-dup residual):**
+
+- Bounded 64-bit average-hash near-duplicate groups
+  (`ravo.cull.near-duplicate/v1`); Hamming ≤ `--near-dup-max-hamming` (default 5);
+  CLI `cull-near-duplicates`; no auto-delete/auto-reject.
+
 **Still open:**
 
-- perceptual / near-duplicate fingerprinting;
 - keyboard-first Pick/Reject/rating/colour-label with auto-advance;
 - Studio 1:1 focus inspection sync and Library filters for
   unreviewed/picked/rejected/duplicate/burst;
-- durable proposal store / dismiss ledger; 100k paging budgets.
+- durable proposal store / dismiss ledger; 100k paging budgets;
+- learned embeddings (AI-04) beyond deterministic aHash.
 
-**Acceptance gate:** unchanged for remaining residuals; first Ready proves
-exact hash groups, burst propose/accept stack, and no auto-delete.
+**Acceptance gate:** unchanged for remaining residuals; Ready proves exact hash
+groups, near-dup aHash groups, burst propose/accept stack, and no auto-delete.
 
 **Blocks:** AI-04 metadata/culling/similarity quality work.
 
@@ -571,6 +577,11 @@ pixels on all supported hosts; unsupported brands/features remain structural;
 no incidental platform ImageIO or Qt plugin becomes a hidden product contract.
 
 ## SPECIALIZE-01 — Choose one vertical specialization
+
+**Interim note (2026-09-04):** Defer starting SPECIALIZE while CULL/INGEST
+deepen. When selected, prefer **tethered-studio** (Track B) as the P2 photo-manager
+track; HDR/Panorama remains the alternate. Record the formal choice in a dated
+ADR before implementation.
 
 Do not start both tracks concurrently. Select one based on the first external
 photographer cohort and record the decision in a dated ADR.

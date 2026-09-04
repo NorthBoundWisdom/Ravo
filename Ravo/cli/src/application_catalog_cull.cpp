@@ -159,6 +159,62 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
             {"stack", library_stack_mutation_to_json(accepted.value().stack)},
         }};
     }
+    if (subcommand == "cull-near-duplicates")
+    {
+        NearDuplicateRequest request;
+        if (flags.near_dup_max_hamming)
+            request.max_hamming = *flags.near_dup_max_hamming;
+        auto report = service.find_near_duplicate_groups(request);
+        if (!report)
+            return report.error();
+        JsonValue::Array groups;
+        groups.reserve(report.value().groups.size());
+        for (const auto &group : report.value().groups)
+        {
+            JsonValue::Array members;
+            members.reserve(group.members.size());
+            for (const auto &member : group.members)
+            {
+                JsonValue::Object object{
+                    {"asset_id", member.asset_id},
+                    {"normalized_uri", member.normalized_uri},
+                    {"fingerprint_hex", member.fingerprint_hex},
+                    {"version_ordinal", JsonValue::number(std::to_string(member.version_ordinal))},
+                };
+                if (member.source_asset_id)
+                    object.emplace("source_asset_id", *member.source_asset_id);
+                members.push_back(JsonValue{std::move(object)});
+            }
+            groups.push_back(JsonValue{JsonValue::Object{
+                {"schema", group.schema},
+                {"schema_version", JsonValue::number(std::to_string(group.schema_version))},
+                {"fingerprint_hex", group.fingerprint_hex},
+                {"max_hamming_in_group",
+                 JsonValue::number(std::to_string(group.max_hamming_in_group))},
+                {"members", JsonValue{std::move(members)}},
+            }});
+        }
+        JsonValue::Array skipped;
+        for (const auto &item : report.value().skipped)
+        {
+            JsonValue::Object object{{"asset_id", item.asset_id}, {"reason", item.reason}};
+            if (item.path)
+                object.emplace("path", *item.path);
+            skipped.push_back(JsonValue{std::move(object)});
+        }
+        return JsonValue{JsonValue::Object{
+            {"schema", report.value().schema},
+            {"schema_version", JsonValue::number(std::to_string(report.value().schema_version))},
+            {"max_hamming", JsonValue::number(std::to_string(report.value().max_hamming))},
+            {"max_groups", JsonValue::number(std::to_string(report.value().max_groups))},
+            {"assets_considered",
+             JsonValue::number(std::to_string(report.value().assets_considered))},
+            {"assets_fingerprinted",
+             JsonValue::number(std::to_string(report.value().assets_fingerprinted))},
+            {"groups", JsonValue{std::move(groups)}},
+            {"skipped", JsonValue{std::move(skipped)}},
+        }};
+    }
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog cull subcommand",
                       {{"subcommand", std::string(subcommand)}});
 }

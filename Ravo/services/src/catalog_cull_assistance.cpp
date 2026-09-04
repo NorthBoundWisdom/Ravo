@@ -3,6 +3,7 @@
 #include "catalog_internal.h"
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <cstdint>
 #include <filesystem>
@@ -361,6 +362,267 @@ CatalogService::accept_burst_group_proposal(const BurstAcceptRequest &request)
     result.stack = std::move(stacked).value();
     result.catalog_mutated = true;
     return result;
+}
+
+Result<NearDuplicateReport>
+CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+    if (request.max_hamming < 0 || request.max_hamming > 64)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "near-dup max Hamming must be 0..64",
+                          {{"max_hamming", std::to_string(request.max_hamming)},
+                           {"reason", "invalid_near_dup_max_hamming"}});
+    }
+    if (request.max_groups == 0U)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "near-dup max_groups must be positive",
+                          {{"reason", "invalid_near_dup_max_groups"}});
+    }
+
+    auto assets = repository_->list_assets();
+    if (!assets)
+        return assets.error();
+
+    NearDuplicateReport report;
+    report.max_hamming = request.max_hamming;
+    report.max_groups = request.max_groups;
+    report.assets_considered = assets.value().size();
+
+    struct Fingerprinted
+    {
+        NearDuplicateMember member;
+        std::uint64_t hash = 0;
+    };
+    std::vector<Fingerprinted> fingerprinted;
+    fingerprinted.reserve(assets.value().size());
+
+    const auto popcount64 = [](std::uint64_t value) noexcept -> int
+    {
+        int count = 0;
+        while (value != 0U)
+        {
+            count += static_cast<int>(value & 1U);
+            value >>= 1U;
+        }
+        return count;
+    };
+    const auto hamming = [&](std::uint64_t left, std::uint64_t right) noexcept -> int
+    { return popcount64(left ^ right); };
+    const auto hash_to_hex = [](std::uint64_t value) -> std::string
+    {
+        static constexpr char kHex[] = "0123456789abcdef";
+        std::string out(16, '0');
+        for (int i = 15; i >= 0; --i)
+        {
+            out[static_cast<std::size_t>(i)] = kHex[value & 0xFU];
+            value >>= 4U;
+        }
+        return out;
+    };
+    const auto average_hash_raster = [&](const RasterBuffer &raster) -> Result<std::uint64_t>
+    {
+        if (raster.width == 0U || raster.height == 0U ||
+            raster.srgb.size() < static_cast<std::size_t>(raster.width) * raster.height * 3U)
+        {
+            return make_error(ErrorCode::kUnsupported, "Raster is empty for near-duplicate hash",
+                              {{"reason", "near_dup_empty_raster"}});
+        }
+        // Box-sample to 8x8 grayscale using integer means.
+        std::array<std::uint64_t, 64> sums{};
+        std::array<std::uint32_t, 64> counts{};
+        for (std::uint32_t y = 0; y < raster.height; ++y)
+        {
+            const auto cell_y = static_cast<std::size_t>((y * 8U) / raster.height);
+            for (std::uint32_t x = 0; x < raster.width; ++x)
+            {
+                const auto cell_x = static_cast<std::size_t>((x * 8U) / raster.width);
+                const auto index = (static_cast<std::size_t>(y) * raster.width + x) * 3U;
+                const auto r = raster.srgb[index];
+                const auto g = raster.srgb[index + 1U];
+                const auto b = raster.srgb[index + 2U];
+                // Rec.709-ish integer luma.
+                const auto luma =
+                    (static_cast<std::uint32_t>(r) * 54U + static_cast<std::uint32_t>(g) * 183U +
+                     static_cast<std::uint32_t>(b) * 19U) /
+                    256U;
+                const auto cell = cell_y * 8U + cell_x;
+                sums[cell] += luma;
+                ++counts[cell];
+            }
+        }
+        std::array<std::uint8_t, 64> pixels{};
+        std::uint64_t total = 0;
+        for (std::size_t i = 0; i < 64U; ++i)
+        {
+            const auto value =
+                counts[i] == 0U ? 0U : static_cast<std::uint8_t>(sums[i] / counts[i]);
+            pixels[i] = value;
+            total += value;
+        }
+        const auto mean = static_cast<std::uint8_t>(total / 64U);
+        std::uint64_t hash = 0;
+        for (const auto pixel : pixels)
+        {
+            hash <<= 1U;
+            if (pixel >= mean)
+                hash |= 1U;
+        }
+        return hash;
+    };
+
+    for (const auto &asset : assets.value())
+    {
+        cancelled = request.cancellation.check();
+        if (!cancelled)
+            return cancelled.error();
+
+        auto location = normalize_local_input(asset.normalized_uri);
+        if (!location)
+        {
+            NearDuplicateSkip skip;
+            skip.asset_id = asset.id;
+            skip.reason = "invalid_uri";
+            report.skipped.push_back(std::move(skip));
+            continue;
+        }
+        if (!file_is_regular(location.value().path))
+        {
+            NearDuplicateSkip skip;
+            skip.asset_id = asset.id;
+            skip.reason = "original_missing";
+            skip.path = location.value().path;
+            report.skipped.push_back(std::move(skip));
+            continue;
+        }
+
+        auto raster =
+            decode_import_candidate_thumbnail(location.value().path, request.cancellation);
+        if (!raster)
+        {
+            NearDuplicateSkip skip;
+            skip.asset_id = asset.id;
+            skip.reason = "near_dup_decode_failed";
+            skip.path = location.value().path;
+            report.skipped.push_back(std::move(skip));
+            continue;
+        }
+        auto hash = average_hash_raster(raster.value());
+        if (!hash)
+        {
+            NearDuplicateSkip skip;
+            skip.asset_id = asset.id;
+            skip.reason = hash.error().context.count("reason") ? hash.error().context.at("reason") :
+                                                                 "near_dup_hash_failed";
+            skip.path = location.value().path;
+            report.skipped.push_back(std::move(skip));
+            continue;
+        }
+
+        NearDuplicateMember member;
+        member.asset_id = asset.id;
+        member.normalized_uri = asset.normalized_uri;
+        member.fingerprint_hex = hash_to_hex(hash.value());
+        member.version_ordinal = asset.version_ordinal;
+        member.source_asset_id = asset.source_asset_id;
+        fingerprinted.push_back(Fingerprinted{std::move(member), hash.value()});
+    }
+    report.assets_fingerprinted = fingerprinted.size();
+    if (fingerprinted.size() < 2U)
+        return report;
+
+    std::vector<std::size_t> parent(fingerprinted.size());
+    std::vector<int> rank(fingerprinted.size(), 0);
+    for (std::size_t i = 0; i < parent.size(); ++i)
+        parent[i] = i;
+    const auto find_root = [&](std::size_t index) -> std::size_t
+    {
+        while (parent[index] != index)
+        {
+            parent[index] = parent[parent[index]];
+            index = parent[index];
+        }
+        return index;
+    };
+    const auto unite = [&](std::size_t left, std::size_t right)
+    {
+        left = find_root(left);
+        right = find_root(right);
+        if (left == right)
+            return;
+        if (rank[left] < rank[right])
+            parent[left] = right;
+        else if (rank[left] > rank[right])
+            parent[right] = left;
+        else
+        {
+            parent[right] = left;
+            ++rank[left];
+        }
+    };
+
+    for (std::size_t i = 0; i < fingerprinted.size(); ++i)
+    {
+        cancelled = request.cancellation.check();
+        if (!cancelled)
+            return cancelled.error();
+        for (std::size_t j = i + 1U; j < fingerprinted.size(); ++j)
+        {
+            if (hamming(fingerprinted[i].hash, fingerprinted[j].hash) <= request.max_hamming)
+                unite(i, j);
+        }
+    }
+
+    std::map<std::size_t, std::vector<std::size_t>> clusters;
+    for (std::size_t i = 0; i < fingerprinted.size(); ++i)
+        clusters[find_root(i)].push_back(i);
+
+    for (auto &entry : clusters)
+    {
+        auto &members = entry.second;
+        if (members.size() < 2U)
+            continue;
+        if (report.groups.size() >= request.max_groups)
+            break;
+
+        NearDuplicateGroup group;
+        int max_distance = 0;
+        for (std::size_t a = 0; a < members.size(); ++a)
+        {
+            for (std::size_t b = a + 1U; b < members.size(); ++b)
+            {
+                max_distance = std::max(max_distance, hamming(fingerprinted[members[a]].hash,
+                                                              fingerprinted[members[b]].hash));
+            }
+        }
+        group.max_hamming_in_group = max_distance;
+        std::string canonical = fingerprinted[members.front()].member.fingerprint_hex;
+        for (const auto index : members)
+        {
+            group.members.push_back(fingerprinted[index].member);
+            if (fingerprinted[index].member.fingerprint_hex < canonical)
+                canonical = fingerprinted[index].member.fingerprint_hex;
+        }
+        group.fingerprint_hex = std::move(canonical);
+        std::sort(group.members.begin(), group.members.end(),
+                  [](const NearDuplicateMember &left, const NearDuplicateMember &right)
+                  { return left.asset_id < right.asset_id; });
+        report.groups.push_back(std::move(group));
+    }
+
+    std::sort(report.groups.begin(), report.groups.end(),
+              [](const NearDuplicateGroup &left, const NearDuplicateGroup &right)
+              {
+                  if (left.fingerprint_hex != right.fingerprint_hex)
+                      return left.fingerprint_hex < right.fingerprint_hex;
+                  return left.members.front().asset_id < right.members.front().asset_id;
+              });
+    return report;
 }
 
 } // namespace ravo

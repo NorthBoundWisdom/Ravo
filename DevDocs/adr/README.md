@@ -156,3 +156,4 @@ supersession relationship when direction changes.
 | [0146](0146-offline-edit-proxy.md) | Accepted | Offline-edit proxy class distinct from browse-only Smart Preview; export fail-closed without original |
 | [0147](0147-cull-exact-duplicate-and-burst-proposals.md) | Accepted | Exact-duplicate SHA-256 groups + burst proposals; no auto-delete; stack only on explicit accept |
 | [0148](0148-native-ptp-mtp-session-and-resume.md) | Accepted | Native PTP/MTP session identity + platform matrix; fail-closed until packaged; resume checkpoints; ptp-stub fixture |
+| [0149](0149-cull-near-duplicate-fingerprint.md) | Accepted | Bounded aHash near-duplicate groups; Hamming threshold; no auto-delete |

@@ -13,7 +13,8 @@
 namespace ravo
 {
 
-// ADR-0147: deterministic exact-duplicate + burst proposals (no auto-delete).
+// ADR-0147/0149: deterministic exact-duplicate, burst, and near-duplicate
+// fingerprint proposals (no auto-delete).
 inline constexpr std::string_view kCullExactDuplicateContractVersion =
     "ravo.cull.exact-duplicate/v1";
 inline constexpr std::int64_t kCullExactDuplicateSchemaVersion = 1;
@@ -120,6 +121,55 @@ struct BurstAcceptRequest
     std::optional<std::string> pick_asset_id;
     bool user_initiated = false;
     std::optional<std::int64_t> expected_catalog_revision;
+    CancellationToken cancellation{};
+};
+
+inline constexpr std::string_view kCullNearDuplicateContractVersion = "ravo.cull.near-duplicate/v1";
+inline constexpr std::int64_t kCullNearDuplicateSchemaVersion = 1;
+inline constexpr int kCullNearDupDefaultMaxHamming = 5;
+inline constexpr std::size_t kCullNearDupDefaultMaxGroups = 200;
+
+struct NearDuplicateMember
+{
+    std::string asset_id;
+    std::string normalized_uri;
+    std::string fingerprint_hex;
+    int version_ordinal = kAssetVersionOrdinalPrimary;
+    std::optional<std::string> source_asset_id;
+};
+
+struct NearDuplicateGroup
+{
+    std::string schema{std::string(kCullNearDuplicateContractVersion)};
+    std::int64_t schema_version = kCullNearDuplicateSchemaVersion;
+    std::string fingerprint_hex;
+    int max_hamming_in_group = 0;
+    std::vector<NearDuplicateMember> members;
+};
+
+struct NearDuplicateSkip
+{
+    std::string asset_id;
+    std::string reason;
+    std::optional<std::string> path;
+};
+
+struct NearDuplicateReport
+{
+    std::string schema{std::string(kCullNearDuplicateContractVersion)};
+    std::int64_t schema_version = kCullNearDuplicateSchemaVersion;
+    int max_hamming = kCullNearDupDefaultMaxHamming;
+    std::size_t max_groups = kCullNearDupDefaultMaxGroups;
+    std::vector<NearDuplicateGroup> groups;
+    std::vector<NearDuplicateSkip> skipped;
+    std::size_t assets_considered = 0;
+    std::size_t assets_fingerprinted = 0;
+};
+
+struct NearDuplicateRequest
+{
+    int max_hamming = kCullNearDupDefaultMaxHamming;
+    std::size_t max_groups = kCullNearDupDefaultMaxGroups;
     CancellationToken cancellation{};
 };
 

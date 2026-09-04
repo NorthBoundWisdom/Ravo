@@ -89,7 +89,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
+            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-near-duplicates|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -176,9 +176,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                                 subcommand == "editor-open" ||
                                 subcommand == "editor-prepare-working-copy" ||
                                 subcommand == "editor-check-returned";
-    const bool cull_command = subcommand == "cull-exact-duplicates" ||
-                              subcommand == "cull-burst-propose" ||
-                              subcommand == "cull-burst-accept";
+    const bool cull_command =
+        subcommand == "cull-exact-duplicates" || subcommand == "cull-burst-propose" ||
+        subcommand == "cull-burst-accept" || subcommand == "cull-near-duplicates";
     const bool ingest_command = subcommand == "ingest-probe" || subcommand == "ingest";
     const bool convert_command =
         subcommand == "convert-foreign" || subcommand == "dng-convert" ||
@@ -242,6 +242,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (flags.value().burst_window_seconds && subcommand != "cull-burst-propose")
         return make_error(ErrorCode::kInvalidArgument,
                           "--burst-window-seconds is only valid for catalog cull-burst-propose");
+    if (flags.value().near_dup_max_hamming && subcommand != "cull-near-duplicates")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--near-dup-max-hamming is only valid for catalog cull-near-duplicates");
     if (!flags.value().ingest_transport.empty() && subcommand != "ingest")
         return make_error(ErrorCode::kInvalidArgument,
                           "--transport is only valid for catalog ingest");

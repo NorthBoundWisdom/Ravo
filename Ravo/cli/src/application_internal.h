@@ -76,6 +76,7 @@ struct CatalogCliArguments
     std::string_view working_copy_id;
     std::string_view application_path;
     std::optional<std::int64_t> burst_window_seconds;
+    std::optional<int> near_dup_max_hamming;
     bool ensure = false;
     std::string_view foreign_source;
     std::string_view foreign_source_kind;

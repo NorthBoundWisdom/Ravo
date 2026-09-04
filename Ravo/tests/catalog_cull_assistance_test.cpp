@@ -159,4 +159,79 @@ TEST_F(CatalogServiceTest, CullBurstProposeAndAcceptStacksWithoutAutoDelete)
     EXPECT_EQ(stacked.value()->member_ids.size(), 3U);
 }
 
+TEST_F(CatalogServiceTest, CullNearDuplicatesGroupsVisuallySimilarJpegs)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto a_path = root / "near-a.jpg";
+    const auto b_path = root / "near-b.jpg";
+    const auto different_path = root / "different.jpg";
+
+    const auto write_pattern = [](const std::filesystem::path &path, int quality,
+                                  bool invert) -> bool
+    {
+        QImage image(32, 24, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        for (int y = 0; y < image.height(); ++y)
+        {
+            for (int x = 0; x < image.width(); ++x)
+            {
+                const int band = ((x / 4) + (y / 4)) % 2;
+                const int value = invert ? (band ? 30 : 220) : (band ? 220 : 30);
+                image.setPixel(x, y, qRgb(value, value / 2, 255 - value));
+            }
+        }
+        return image.save(QString::fromStdString(path.string()), "JPEG", quality);
+    };
+    ASSERT_TRUE(write_pattern(a_path, 92, false));
+    ASSERT_TRUE(write_pattern(b_path, 40, false));        // same pattern, heavier JPEG
+    ASSERT_TRUE(write_pattern(different_path, 92, true)); // inverted checker
+
+    auto a = service->import_one(a_path.string(), CancellationToken{});
+    ASSERT_TRUE(a) << a.error().message;
+    auto b = service->import_one(b_path.string(), CancellationToken{});
+    ASSERT_TRUE(b) << b.error().message;
+    auto different = service->import_one(different_path.string(), CancellationToken{});
+    ASSERT_TRUE(different) << different.error().message;
+
+    NearDuplicateRequest request;
+    request.max_hamming = 5;
+    auto report = service->find_near_duplicate_groups(request);
+    ASSERT_TRUE(report) << report.error().message;
+    EXPECT_EQ(report.value().schema, kCullNearDuplicateContractVersion);
+    EXPECT_EQ(report.value().assets_fingerprinted, 3U);
+    ASSERT_FALSE(report.value().groups.empty());
+
+    bool found_pair = false;
+    for (const auto &group : report.value().groups)
+    {
+        std::set<std::string> ids;
+        for (const auto &member : group.members)
+            ids.insert(member.asset_id);
+        if (ids.count(a.value().asset->id) && ids.count(b.value().asset->id))
+        {
+            found_pair = true;
+            EXPECT_EQ(ids.count(different.value().asset->id), 0U);
+            EXPECT_GE(group.members.size(), 2U);
+            EXPECT_FALSE(group.fingerprint_hex.empty());
+        }
+    }
+    EXPECT_TRUE(found_pair);
+}
+
+TEST_F(CatalogServiceTest, CullNearDuplicatesDoesNotMutateCatalog)
+{
+    ASSERT_TRUE(open_service(true));
+    ASSERT_TRUE(write_jpeg(root / "x.jpg", QColor(1, 2, 3)));
+    ASSERT_TRUE(write_jpeg(root / "y.jpg", QColor(1, 2, 3)));
+    ASSERT_TRUE(service->import_one((root / "x.jpg").string(), CancellationToken{}));
+    ASSERT_TRUE(service->import_one((root / "y.jpg").string(), CancellationToken{}));
+    auto before = service->snapshot();
+    ASSERT_TRUE(before);
+    auto report = service->find_near_duplicate_groups({});
+    ASSERT_TRUE(report) << report.error().message;
+    auto after = service->snapshot();
+    ASSERT_TRUE(after);
+    EXPECT_EQ(before.value().revision, after.value().revision);
+}
+
 } // namespace ravo

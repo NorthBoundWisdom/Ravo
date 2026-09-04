@@ -389,6 +389,8 @@ public:
     // ADR-0147: exact-duplicate hash groups + burst proposals (no auto-delete).
     [[nodiscard]] Result<ExactDuplicateReport>
     find_exact_duplicate_groups(const ExactDuplicateRequest &request = {}) const;
+    [[nodiscard]] Result<NearDuplicateReport>
+    find_near_duplicate_groups(const NearDuplicateRequest &request = {}) const;
     [[nodiscard]] Result<BurstProposeReport>
     propose_burst_groups(const BurstProposeRequest &request = {}) const;
     [[nodiscard]] Result<BurstAcceptResult>

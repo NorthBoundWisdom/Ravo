@@ -466,6 +466,22 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                                   "--resume-batch-id was specified twice");
             result.resume_batch_id = value;
         }
+        else if (option == "--near-dup-max-hamming")
+        {
+            if (result.near_dup_max_hamming)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--near-dup-max-hamming was specified twice");
+            auto parsed = parse_int_flag(value, option);
+            if (!parsed)
+                return parsed.error();
+            if (parsed.value() < 0 || parsed.value() > 64)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--near-dup-max-hamming must be 0..64",
+                                  {{"value", std::string(value)}});
+            }
+            result.near_dup_max_hamming = parsed.value();
+        }
         else if (option == "--burst-window-seconds")
         {
             if (result.burst_window_seconds)
