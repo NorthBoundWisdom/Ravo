@@ -872,15 +872,17 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
 
 TEST(StudioQmlContract, CommandMenuItemsKeepNativeMenuIdentityStable)
 {
-    QFile items(QStringLiteral(RAVO_REPOSITORY_ROOT
-                               "/Ravo/desktop/qml/chrome/StudioCommandMenuItems.qml"));
+    QFile items(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/chrome/StudioCommandMenuItems.qml"));
     ASSERT_TRUE(items.open(QIODevice::ReadOnly | QIODevice::Text))
         << items.errorString().toStdString();
     const auto source = QString::fromUtf8(items.readAll());
-    EXPECT_TRUE(source.contains(
-        QStringLiteral("model: root.controller ? root.controller.menuEntries(root.menuPath) : []")));
-    EXPECT_FALSE(source.contains(QStringLiteral("const ignoredRevision = root.controller.revision;\n        return root.controller.menuEntries")));
-    EXPECT_TRUE(source.contains(QStringLiteral("return root.controller.action(modelData.actionId);")));
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "model: root.controller ? root.controller.menuEntries(root.menuPath) : []")));
+    EXPECT_FALSE(source.contains(QStringLiteral(
+        "const ignoredRevision = root.controller.revision;\n        return root.controller.menuEntries")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("return root.controller.action(modelData.actionId);")));
     EXPECT_TRUE(source.contains(QStringLiteral("title + \"\\t\" + shortcut")));
 
     QFile bar(QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/chrome/StudioMenuBar.qml"));
@@ -921,3 +923,26 @@ TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)
 
 } // namespace
 } // namespace ravo
+
+TEST(StudioQmlContract, PhotoInfoPanelExposesIptcExtensionFields)
+{
+    QFile panel(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/inspect/PhotoInfoPanel.qml"));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("selectedHeadline")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"headline\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("selectedDescription")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"description\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("selectedCredit")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"credit\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("selectedSource")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"source\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("selectedInstructions")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"instructions\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("selectedUsageTerms")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"usage_terms\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("selectedJobId")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"job_id\"")));
+}

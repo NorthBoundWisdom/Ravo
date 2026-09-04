@@ -279,6 +279,12 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedProvinceState READ selectedProvinceState NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedCity READ selectedCity NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedSublocation READ selectedSublocation NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedHeadline READ selectedHeadline NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedCredit READ selectedCredit NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedSource READ selectedSource NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedInstructions READ selectedInstructions NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedUsageTerms READ selectedUsageTerms NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedJobId READ selectedJobId NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedCaptureSummary READ selectedCaptureSummary NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList recipeHistory READ recipeHistory NOTIFY editChanged)
     Q_PROPERTY(QVariantList editPresets READ editPresets NOTIFY presetsChanged)
@@ -612,6 +618,12 @@ public:
     [[nodiscard]] QString selectedProvinceState() const;
     [[nodiscard]] QString selectedCity() const;
     [[nodiscard]] QString selectedSublocation() const;
+    [[nodiscard]] QString selectedHeadline() const;
+    [[nodiscard]] QString selectedCredit() const;
+    [[nodiscard]] QString selectedSource() const;
+    [[nodiscard]] QString selectedInstructions() const;
+    [[nodiscard]] QString selectedUsageTerms() const;
+    [[nodiscard]] QString selectedJobId() const;
     [[nodiscard]] QString selectedCaptureSummary() const;
     [[nodiscard]] QVariantList recipeHistory() const;
     [[nodiscard]] qlonglong activeHistoryId() const noexcept;

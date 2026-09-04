@@ -369,6 +369,46 @@ QString StudioPresenter::selectedSublocation() const
                                                   QString{};
 }
 
+QString StudioPresenter::selectedHeadline() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.headline ? qstring_from_utf8(*asset->metadata.headline) :
+                                               QString{};
+}
+
+QString StudioPresenter::selectedCredit() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.credit ? qstring_from_utf8(*asset->metadata.credit) : QString{};
+}
+
+QString StudioPresenter::selectedSource() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.source ? qstring_from_utf8(*asset->metadata.source) : QString{};
+}
+
+QString StudioPresenter::selectedInstructions() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.instructions ?
+               qstring_from_utf8(*asset->metadata.instructions) :
+               QString{};
+}
+
+QString StudioPresenter::selectedUsageTerms() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.usage_terms ? qstring_from_utf8(*asset->metadata.usage_terms) :
+                                                  QString{};
+}
+
+QString StudioPresenter::selectedJobId() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.job_id ? qstring_from_utf8(*asset->metadata.job_id) : QString{};
+}
+
 QString StudioPresenter::selectedCaptureSummary() const
 {
     const auto asset = assets_.assetById(selected_asset_id_);

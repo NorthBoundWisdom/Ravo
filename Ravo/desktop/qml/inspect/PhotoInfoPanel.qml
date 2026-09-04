@@ -114,6 +114,18 @@ ColumnLayout {
             root.commands.setMetadata("title", text)
     }
     MetaField {
+        placeholderText: qsTr("Headline")
+        text: root.hasPresenter ? root.presenter.selectedHeadline : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("headline", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Description")
+        text: root.hasPresenter ? root.presenter.selectedDescription : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("description", text)
+    }
+    MetaField {
         placeholderText: qsTr("Creator")
         text: root.hasPresenter ? root.presenter.selectedCreator : ""
         onEditingFinished: if (root.commands)
@@ -124,6 +136,36 @@ ColumnLayout {
         text: root.hasPresenter ? root.presenter.selectedCopyright : ""
         onEditingFinished: if (root.commands)
             root.commands.setMetadata("copyright", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Credit")
+        text: root.hasPresenter ? root.presenter.selectedCredit : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("credit", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Source")
+        text: root.hasPresenter ? root.presenter.selectedSource : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("source", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Instructions")
+        text: root.hasPresenter ? root.presenter.selectedInstructions : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("instructions", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Usage Terms")
+        text: root.hasPresenter ? root.presenter.selectedUsageTerms : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("usage_terms", text)
+    }
+    MetaField {
+        placeholderText: qsTr("Job ID")
+        text: root.hasPresenter ? root.presenter.selectedJobId : ""
+        onEditingFinished: if (root.commands)
+            root.commands.setMetadata("job_id", text)
     }
     MetaField {
         placeholderText: qsTr("Country")
