@@ -277,6 +277,43 @@ void StudioPresenter::addColorBalanceRgbInstance()
                    std::string("colorbalancergb.instance.add"));
 }
 
+void StudioPresenter::duplicateExposureInstance()
+{
+    DevelopParams next = develop_;
+    static_cast<void>(ensure_exposure_instances(next));
+    mirror_legacy_exposure_into_instance(next, selected_exposure_instance_index_);
+    const auto source_id = next.exposure_instances[selected_exposure_instance_index_].instance_id;
+    auto duplicated = duplicate_exposure_instance(next, source_id);
+    if (!duplicated)
+    {
+        setError(qstring_from_utf8(duplicated.error().message));
+        return;
+    }
+    selected_exposure_instance_index_ = next.exposure_instances.size() - 1U;
+    load_exposure_instance_into_legacy(next, selected_exposure_instance_index_);
+    mutate_develop(std::move(next), DevelopEdit::Commit, true,
+                   std::string("exposure.instance.duplicate"));
+}
+
+void StudioPresenter::duplicateColorBalanceRgbInstance()
+{
+    DevelopParams next = develop_;
+    static_cast<void>(ensure_color_balance_rgb_instances(next));
+    mirror_legacy_color_balance_rgb_into_instance(next, selected_color_balance_rgb_instance_index_);
+    const auto source_id =
+        next.color_balance_rgb_instances[selected_color_balance_rgb_instance_index_].instance_id;
+    auto duplicated = duplicate_color_balance_rgb_instance(next, source_id);
+    if (!duplicated)
+    {
+        setError(qstring_from_utf8(duplicated.error().message));
+        return;
+    }
+    selected_color_balance_rgb_instance_index_ = next.color_balance_rgb_instances.size() - 1U;
+    load_color_balance_rgb_instance_into_legacy(next, selected_color_balance_rgb_instance_index_);
+    mutate_develop(std::move(next), DevelopEdit::Commit, true,
+                   std::string("colorbalancergb.instance.duplicate"));
+}
+
 void StudioPresenter::deleteExposureInstance(const QString &instance_id)
 {
     DevelopParams next = develop_;

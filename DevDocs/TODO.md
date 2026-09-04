@@ -329,12 +329,13 @@ workflow before admitting another product area.
 ## LOCAL-01 — Professional multi-instance local adjustments
 
 **Status:** ADR-0145 serialization/inspection plus Studio Exposure/Color Balance
-RGB instance chrome (list/select/name/bypass/reorder/add/delete) are on `main`;
-mask authoring completeness and history/style/batch still residual.
+RGB instance chrome (list/select/name/bypass/reorder/add/delete/duplicate with
+independent mask clone) are on `main`; mask authoring completeness and
+history/style/batch still residual.
 
 **Remaining work:**
 
-- enable toggle polish and duplicate-instance action if still needed beyond add;
+- enable toggle polish if still needed beyond bypass;
 - complete brush/path/linear/radial/parametric authoring, overlay visibility,
   feather, flow/density where accepted, opacity, and
   Add/Subtract/Intersect/Invert composition;

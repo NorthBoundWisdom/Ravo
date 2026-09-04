@@ -754,6 +754,8 @@ public:
     Q_INVOKABLE void selectColorBalanceRgbInstance(const QString &instanceId);
     Q_INVOKABLE void addExposureInstance();
     Q_INVOKABLE void addColorBalanceRgbInstance();
+    Q_INVOKABLE void duplicateExposureInstance();
+    Q_INVOKABLE void duplicateColorBalanceRgbInstance();
     Q_INVOKABLE void deleteExposureInstance(const QString &instanceId);
     Q_INVOKABLE void deleteColorBalanceRgbInstance(const QString &instanceId);
     Q_INVOKABLE void renameExposureInstance(const QString &instanceId, const QString &name);

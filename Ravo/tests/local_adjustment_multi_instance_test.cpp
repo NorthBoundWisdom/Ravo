@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <variant>
 #include <string>
 
 #include "ravo/recipe/develop.h"
@@ -340,6 +341,76 @@ TEST(LocalAdjustmentMultiInstanceTest, SelectedInstanceEditBufferSurvivesClamp)
     EXPECT_DOUBLE_EQ(develop.exposure_ev, -0.25);
     EXPECT_DOUBLE_EQ(develop.exposure_instances[0].exposure_ev, 0.1);
     EXPECT_DOUBLE_EQ(develop.exposure_instances[1].exposure_ev, -0.25);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, DuplicatesExposureInstanceWithIndependentMask)
+{
+    DevelopParams develop;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-1";
+    global.name = "Master";
+    global.exposure_ev = 0.1;
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-2";
+    local.name = "Dodge";
+    local.exposure_ev = 0.55;
+    local.mask_id = "mask-ellipse";
+    develop.exposure_instances = {global, local};
+    develop.masks = {make_ellipse("mask-ellipse")};
+
+    auto duplicated = duplicate_exposure_instance(develop, "exposure-2");
+    ASSERT_TRUE(duplicated) << duplicated.error().message;
+    ASSERT_EQ(develop.exposure_instances.size(), 3U);
+    const auto &copy = develop.exposure_instances[2];
+    EXPECT_EQ(copy.instance_id, duplicated.value());
+    EXPECT_EQ(copy.name, "Dodge copy");
+    EXPECT_DOUBLE_EQ(copy.exposure_ev, 0.55);
+    ASSERT_TRUE(copy.mask_id.has_value());
+    EXPECT_NE(*copy.mask_id, "mask-ellipse");
+    ASSERT_EQ(develop.masks.size(), 2U);
+    const Mask *cloned = nullptr;
+    for (const auto &mask : develop.masks)
+    {
+        if (mask.id == *copy.mask_id)
+        {
+            cloned = &mask;
+        }
+    }
+    ASSERT_NE(cloned, nullptr);
+    EXPECT_EQ(cloned->kind, MaskKind::kEllipse);
+    // Mutating the clone must not change the source mask.
+    auto *ellipse = std::get_if<EllipseMask>(&develop.masks.back().payload);
+    ASSERT_NE(ellipse, nullptr);
+    ellipse->center_x = 0.11;
+    const auto *source = std::get_if<EllipseMask>(&develop.masks.front().payload);
+    ASSERT_NE(source, nullptr);
+    EXPECT_DOUBLE_EQ(source->center_x, 0.6);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, DuplicatesColorBalanceRgbInstanceWithMask)
+{
+    DevelopParams develop;
+    DevelopColorBalanceRgbInstance master;
+    master.instance_id = "colorbalancergb-1";
+    master.name = "Master";
+    master.params.contrast = 0.2;
+    DevelopColorBalanceRgbInstance grade;
+    grade.instance_id = "colorbalancergb-2";
+    grade.name = "Grade";
+    grade.params.contrast = 0.45;
+    grade.mask_id = "mask-gradient";
+    develop.color_balance_rgb_instances = {master, grade};
+    develop.masks = {make_gradient("mask-gradient")};
+
+    auto duplicated = duplicate_color_balance_rgb_instance(develop, "colorbalancergb-2");
+    ASSERT_TRUE(duplicated) << duplicated.error().message;
+    ASSERT_EQ(develop.color_balance_rgb_instances.size(), 3U);
+    const auto &copy = develop.color_balance_rgb_instances[2];
+    EXPECT_EQ(copy.name, "Grade copy");
+    EXPECT_DOUBLE_EQ(copy.params.contrast, 0.45);
+    ASSERT_TRUE(copy.mask_id.has_value());
+    EXPECT_NE(*copy.mask_id, "mask-gradient");
+    EXPECT_EQ(develop.masks.size(), 2U);
 }
 
 } // namespace

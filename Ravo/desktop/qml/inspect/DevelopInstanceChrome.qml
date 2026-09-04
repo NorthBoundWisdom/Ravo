@@ -46,6 +46,17 @@ Item {
                         root.panel.presenter.addColorBalanceRgbInstance();
                 }
             }
+            CustomButton {
+                objectName: root.objectNamePrefix + "Duplicate"
+                text: qsTr("Duplicate")
+                enabled: root.hasPresenter && root.panel.hasSelection
+                onClicked: {
+                    if (root.operation === "exposure")
+                        root.panel.presenter.duplicateExposureInstance();
+                    else
+                        root.panel.presenter.duplicateColorBalanceRgbInstance();
+                }
+            }
         }
 
         Repeater {

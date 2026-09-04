@@ -4,9 +4,12 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
+#include <variant>
 
 namespace ravo
 {
@@ -138,6 +141,92 @@ template <typename T>
     instances.erase(instances.begin() + static_cast<std::ptrdiff_t>(from));
     instances.insert(instances.begin() + static_cast<std::ptrdiff_t>(to), std::move(item));
     return {};
+}
+
+[[nodiscard]] std::string make_duplicate_mask_id(const DevelopParams &params)
+{
+    for (std::size_t n = 1;; ++n)
+    {
+        const std::string id = "mask-dup-" + std::to_string(n);
+        bool used = false;
+        for (const auto &mask : params.masks)
+        {
+            if (mask.id == id)
+            {
+                used = true;
+                break;
+            }
+        }
+        if (!used)
+        {
+            return id;
+        }
+    }
+}
+
+[[nodiscard]] Result<std::string> clone_mask_subgraph(DevelopParams &params,
+                                                      const std::string_view source_id,
+                                                      std::unordered_set<std::string> &visiting)
+{
+    if (source_id.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Mask id is empty",
+                          {{"reason", "duplicate_instance_empty_mask"}});
+    }
+    const std::string source_key{source_id};
+    if (!visiting.insert(source_key).second)
+    {
+        return make_error(ErrorCode::kConflict, "Mask graph cycle while cloning instance mask",
+                          {{"reason", "duplicate_instance_mask_cycle"}, {"mask_id", source_key}});
+    }
+    const Mask *source = nullptr;
+    for (const auto &mask : params.masks)
+    {
+        if (mask.id == source_id)
+        {
+            source = &mask;
+            break;
+        }
+    }
+    if (source == nullptr)
+    {
+        return make_error(ErrorCode::kNotFound, "Instance mask was not found",
+                          {{"reason", "duplicate_instance_mask_missing"}, {"mask_id", source_key}});
+    }
+    Mask cloned = *source;
+    cloned.id = make_duplicate_mask_id(params);
+    if (auto *group = std::get_if<MaskGroup>(&cloned.payload))
+    {
+        for (auto &child : group->children)
+        {
+            auto child_clone = clone_mask_subgraph(params, child.mask_id, visiting);
+            if (!child_clone)
+            {
+                return child_clone.error();
+            }
+            child.mask_id = std::move(child_clone).value();
+        }
+    }
+    const std::string new_id = cloned.id;
+    params.masks.push_back(std::move(cloned));
+    visiting.erase(source_key);
+    return new_id;
+}
+
+[[nodiscard]] Result<std::optional<std::string>>
+duplicate_instance_mask(DevelopParams &params, const std::optional<std::string> &mask_id)
+{
+    if (!mask_id.has_value() || mask_id->empty())
+    {
+        return std::optional<std::string>{};
+    }
+    std::unordered_set<std::string> visiting;
+    auto cloned = clone_mask_subgraph(params, *mask_id, visiting);
+    if (!cloned)
+    {
+        return cloned.error();
+    }
+    return std::optional<std::string>{std::move(cloned).value()};
 }
 
 } // namespace
@@ -361,6 +450,66 @@ std::optional<std::size_t> find_color_balance_rgb_instance_index(const DevelopPa
         }
     }
     return std::nullopt;
+}
+
+Result<std::string> duplicate_exposure_instance(DevelopParams &params,
+                                                const std::string_view instance_id)
+{
+    ensure_exposure_instances(params);
+    const auto found = find_exposure_instance_index(params, instance_id);
+    if (!found)
+    {
+        return make_error(ErrorCode::kNotFound, "Develop instance was not found",
+                          {{"instance_id", std::string(instance_id)}});
+    }
+    DevelopExposureInstance copy = params.exposure_instances[*found];
+    auto mask = duplicate_instance_mask(params, copy.mask_id);
+    if (!mask)
+    {
+        return mask.error();
+    }
+    copy.instance_id = make_exposure_instance_id(params);
+    if (copy.name.empty())
+    {
+        copy.name = "Instance " + std::to_string(params.exposure_instances.size() + 1U);
+    }
+    else
+    {
+        copy.name += " copy";
+    }
+    copy.mask_id = std::move(mask).value();
+    params.exposure_instances.push_back(copy);
+    return copy.instance_id;
+}
+
+Result<std::string> duplicate_color_balance_rgb_instance(DevelopParams &params,
+                                                         const std::string_view instance_id)
+{
+    ensure_color_balance_rgb_instances(params);
+    const auto found = find_color_balance_rgb_instance_index(params, instance_id);
+    if (!found)
+    {
+        return make_error(ErrorCode::kNotFound, "Develop instance was not found",
+                          {{"instance_id", std::string(instance_id)}});
+    }
+    DevelopColorBalanceRgbInstance copy = params.color_balance_rgb_instances[*found];
+    auto mask = duplicate_instance_mask(params, copy.mask_id);
+    if (!mask)
+    {
+        return mask.error();
+    }
+    copy.instance_id = make_color_balance_rgb_instance_id(params);
+    if (copy.name.empty())
+    {
+        copy.name = "Instance " + std::to_string(params.color_balance_rgb_instances.size() + 1U);
+    }
+    else
+    {
+        copy.name += " copy";
+    }
+    copy.mask_id = std::move(mask).value();
+    params.color_balance_rgb_instances.push_back(copy);
+    return copy.instance_id;
 }
 
 } // namespace ravo

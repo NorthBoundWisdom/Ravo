@@ -652,6 +652,11 @@ void load_color_balance_rgb_instance_into_legacy(DevelopParams &params, std::siz
 [[nodiscard]] std::size_t ensure_color_balance_rgb_instances(DevelopParams &params);
 [[nodiscard]] Result<std::string> add_exposure_instance(DevelopParams &params);
 [[nodiscard]] Result<std::string> add_color_balance_rgb_instance(DevelopParams &params);
+// Clone selected instance params + independent mask subgraph; returns new instance id.
+[[nodiscard]] Result<std::string> duplicate_exposure_instance(DevelopParams &params,
+                                                              std::string_view instance_id);
+[[nodiscard]] Result<std::string>
+duplicate_color_balance_rgb_instance(DevelopParams &params, std::string_view instance_id);
 [[nodiscard]] Result<void> delete_exposure_instance(DevelopParams &params,
                                                     std::string_view instance_id);
 [[nodiscard]] Result<void> delete_color_balance_rgb_instance(DevelopParams &params,
