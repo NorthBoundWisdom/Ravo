@@ -431,8 +431,9 @@ Loupe/Develop do not consume the proxy while the original is absent.
 ## CULL-01 — Keyboard-first review and evaluated assistance
 
 **Status:** ADR-0147/0149/0150 service/CLI foundations plus Studio Library filter
-chips for picked/rejected/unreviewed and optional exact/near-dup/burst
-suggestion groups are on `main`. Full keyboard chrome and Survey compare remain.
+chips, and Studio keyboard/commands chrome for ADR-0150 `apply_cull_review`
+(Pick `P` / Reject `X` / Unflag `U` / rating / colour with auto-advance) are on
+`main`. Survey compare and evaluated assistance remain.
 
 **Correction:** ADR-0149 aHash is a bounded visual heuristic. It is not a
 quality-complete near-duplicate classifier, does not currently cover every RAW
@@ -443,9 +444,14 @@ professional similarity model.
 optional auto-advance and previous_review undo payload; schema v16 `picked`;
 no auto-delete.
 
+**Closed in Studio chrome:** Pick/Reject/Unflag shortcuts and Gallery review
+flag control dispatch through `apply_cull_review` with selection-order
+auto-advance; `selectedPicked` + asset `picked` role.
+
 **Remaining work:**
 
-- Studio keyboard chrome / visible shortcut state for the ADR-0150 service;
+- deepen visible shortcut teaching / cull-mode HUD if still needed beyond
+  command palette + review bar;
 - synchronized 1:1/focus inspection for burst members and fast Survey compare;
 - Library filter chips for picked/rejected/unreviewed and optional
   exact/near-dup/burst suggestion groups landed; deepen persistent fingerprint

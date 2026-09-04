@@ -184,6 +184,8 @@ QStringList command_ids()
             QLatin1String(command::kPhotoRenameSnapshot),
             QLatin1String(command::kPhotoRestoreHistory),
             QLatin1String(command::kPhotoToggleReject),
+            QLatin1String(command::kPhotoTogglePick),
+            QLatin1String(command::kPhotoCullUnflag),
             QLatin1String(command::kPhotoRequestRemove),
             QLatin1String(command::kPhotoRemove),
             QLatin1String(command::kPhotoRequestDelete),
@@ -526,10 +528,20 @@ QVector<ActionSpec> builtin_actions()
             {QStringLiteral("label"), QStringLiteral("review")}, QStringLiteral("photo.color"),
             color_order++, true, {}, QString::fromLatin1(color.value), true);
     }
+    add(command::kPhotoTogglePick, command::kPhotoTogglePick,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Pick")), photo,
+        {QStringLiteral("review"), QStringLiteral("flag"), QStringLiteral("cull"),
+         QStringLiteral("pick")},
+        QStringLiteral("photo.review"), 8, true, {key(QStringLiteral("P"), true)});
     add(command::kPhotoToggleReject, command::kPhotoToggleReject,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reject")), photo,
-        {QStringLiteral("review"), QStringLiteral("flag")}, QStringLiteral("photo.review"), 10,
-        true, {key(QStringLiteral("X"), true)});
+        {QStringLiteral("review"), QStringLiteral("flag"), QStringLiteral("cull")},
+        QStringLiteral("photo.review"), 10, true, {key(QStringLiteral("X"), true)});
+    add(command::kPhotoCullUnflag, command::kPhotoCullUnflag,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Unflag")), photo,
+        {QStringLiteral("review"), QStringLiteral("flag"), QStringLiteral("cull"),
+         QStringLiteral("clear")},
+        QStringLiteral("photo.review"), 11, true, {key(QStringLiteral("U"), true)});
     add(command::kPhotoCopyInfo, command::kPhotoCopyInfo,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Copy Info")), photo,
         {QStringLiteral("identity"), QStringLiteral("debug"), QStringLiteral("clipboard")},

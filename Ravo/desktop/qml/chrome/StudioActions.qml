@@ -274,7 +274,9 @@ Item {
     property alias comparison: comparisonAction
     property alias previousPhoto: previousAction
     property alias nextPhoto: nextAction
+    property alias pick: pickAction
     property alias reject: rejectAction
+    property alias unflag: unflagAction
     property alias resetEdits: resetEditsAction
     property alias copyParameters: copyParametersAction
     property alias pasteParameters: pasteParametersAction
@@ -385,8 +387,16 @@ Item {
         actionId: root.ids.photoNext || ""
     }
     RegisteredAction {
+        id: pickAction
+        actionId: root.ids.photoPick || ""
+    }
+    RegisteredAction {
         id: rejectAction
         actionId: root.ids.photoReject || ""
+    }
+    RegisteredAction {
+        id: unflagAction
+        actionId: root.ids.photoUnflag || ""
     }
     RegisteredAction {
         id: resetEditsAction

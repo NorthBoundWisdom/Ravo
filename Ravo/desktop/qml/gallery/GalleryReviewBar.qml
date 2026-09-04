@@ -308,17 +308,29 @@ Rectangle {
 
             SegmentedControl {
                 id: keepReject
+                objectName: "cullReviewFlagControl"
                 Layout.alignment: Qt.AlignVCenter
                 Layout.minimumWidth: implicitWidth
                 enabled: root.hasSelection
-                model: [qsTr("Keep"), qsTr("Reject")]
-                currentIndex: root.hasPresenter && root.presenter.selectedRejected ? 1 : 0
+                model: [qsTr("Pick"), qsTr("Keep"), qsTr("Reject")]
+                currentIndex: {
+                    if (!root.hasPresenter)
+                        return 1;
+                    if (root.presenter.selectedPicked)
+                        return 0;
+                    if (root.presenter.selectedRejected)
+                        return 2;
+                    return 1;
+                }
                 onActivated: function (index) {
                     if (!root.commands || !root.hasPresenter)
                         return;
-                    const rejected = root.presenter.selectedRejected;
-                    if ((index === 1 && !rejected) || (index === 0 && rejected))
+                    if (index === 0)
+                        root.commands.pick.trigger();
+                    else if (index === 2)
                         root.commands.reject.trigger();
+                    else
+                        root.commands.unflag.trigger();
                 }
             }
         }

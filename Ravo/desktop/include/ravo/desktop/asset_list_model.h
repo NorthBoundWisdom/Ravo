@@ -35,6 +35,7 @@ public:
         RatingRole,
         ColorLabelRole,
         RejectedRole,
+        PickedRole,
         ThumbnailUrlRole,
         ThumbnailStateRole,
         WidthRole,

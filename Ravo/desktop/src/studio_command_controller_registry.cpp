@@ -885,8 +885,13 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         },
         [this](const QVariant &argument, const QString &)
         { presenter_.restoreHistory(argument.toInt()); });
+    add(command::kPhotoTogglePick, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.togglePicked(); });
     add(command::kPhotoToggleReject, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.toggleRejected(); });
+    add(command::kPhotoCullUnflag, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &)
+        { presenter_.applyCullReview(QStringLiteral("unflag"), QVariant{}, QString{}, true); });
     add(command::kPhotoCopyInfo, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.copySelectedPhotoDebugInfo(); });
     add(command::kPhotoCopyParameters, Condition::kSelection, no_argument,

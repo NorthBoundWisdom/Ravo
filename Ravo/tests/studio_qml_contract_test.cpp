@@ -1743,6 +1743,79 @@ TEST(StudioQmlContract, LibraryFilterBarExposesCullReviewAndSuggestionChips)
     EXPECT_TRUE(source.contains(QStringLiteral("burst")));
 }
 
+TEST(StudioCommands, CullReviewPickRejectUnflagShortcutsWireToAdr0150)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    const auto pick = controller.ids().value(QStringLiteral("photoPick")).toString();
+    const auto reject = controller.ids().value(QStringLiteral("photoReject")).toString();
+    const auto unflag = controller.ids().value(QStringLiteral("photoUnflag")).toString();
+    ASSERT_EQ(pick, QLatin1String("studio.photo.toggle_pick"));
+    ASSERT_EQ(reject, QLatin1String("studio.photo.toggle_reject"));
+    ASSERT_EQ(unflag, QLatin1String("studio.photo.cull_unflag"));
+
+    QString pick_seq;
+    QString reject_seq;
+    QString unflag_seq;
+    for (const auto &entry_value : controller.shortcutEntries())
+    {
+        const auto entry = entry_value.toMap();
+        const auto action_id = entry.value(QStringLiteral("actionId")).toString();
+        const auto sequence = entry.value(QStringLiteral("sequence")).toString();
+        if (action_id == pick)
+            pick_seq = sequence;
+        else if (action_id == reject)
+            reject_seq = sequence;
+        else if (action_id == unflag)
+            unflag_seq = sequence;
+    }
+    EXPECT_EQ(pick_seq, QStringLiteral("P"));
+    EXPECT_EQ(reject_seq, QStringLiteral("X"));
+    EXPECT_EQ(unflag_seq, QStringLiteral("U"));
+
+    for (int rating = 0; rating <= 5; ++rating)
+    {
+        const auto rate_id = QStringLiteral("studio.photo.rating_%1").arg(rating);
+        bool found = false;
+        for (const auto &entry_value : controller.shortcutEntries())
+        {
+            const auto entry = entry_value.toMap();
+            if (entry.value(QStringLiteral("actionId")).toString() == rate_id &&
+                entry.value(QStringLiteral("sequence")).toString() == QString::number(rating))
+            {
+                found = true;
+                break;
+            }
+        }
+        EXPECT_TRUE(found) << rating;
+    }
+
+    EXPECT_EQ(controller.ids().value(QStringLiteral("photoRate")).toString(),
+              QLatin1String("studio.photo.set_rating"));
+    EXPECT_EQ(controller.ids().value(QStringLiteral("photoColor")).toString(),
+              QLatin1String("studio.photo.set_color"));
+}
+
+TEST(StudioQmlContract, GalleryReviewBarExposesCullPickKeepRejectChrome)
+{
+    QFile review(QStringLiteral(RAVO_STUDIO_GALLERY_REVIEW_BAR_QML));
+    ASSERT_TRUE(review.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto source = QString::fromUtf8(review.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"cullReviewFlagControl\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("selectedPicked")));
+    EXPECT_TRUE(source.contains(QStringLiteral("commands.pick.trigger")));
+    EXPECT_TRUE(source.contains(QStringLiteral("commands.unflag.trigger")));
+    EXPECT_TRUE(source.contains(QStringLiteral("commands.reject.trigger")));
+
+    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto action_source = QString::fromUtf8(actions.readAll());
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoPick")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoUnflag")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoReject")));
+}
+
 TEST(StudioQmlContract, ExposureAndColorBalanceInstanceChrome)
 {
     const auto source = combined_develop_qml_source();

@@ -32,6 +32,7 @@
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/domain/types.h"
+#include "ravo/services/cull_assistance.h"
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/executor.h"
@@ -58,6 +59,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(int selectedRating READ selectedRating NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedColorLabel READ selectedColorLabel NOTIFY selectionChanged)
     Q_PROPERTY(bool selectedRejected READ selectedRejected NOTIFY selectionChanged)
+    Q_PROPERTY(bool selectedPicked READ selectedPicked NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedImportState READ selectedImportState NOTIFY selectionChanged)
     Q_PROPERTY(bool canDeleteFromDisk READ canDeleteFromDisk NOTIFY selectionChanged)
     Q_PROPERTY(QUrl previewUrl READ previewUrl NOTIFY previewChanged)
@@ -410,6 +412,7 @@ public:
     [[nodiscard]] int selectedRating() const;
     [[nodiscard]] QString selectedColorLabel() const;
     [[nodiscard]] bool selectedRejected() const noexcept;
+    [[nodiscard]] bool selectedPicked() const noexcept;
     [[nodiscard]] QString selectedImportState() const;
     [[nodiscard]] bool canDeleteFromDisk() const;
     [[nodiscard]] QUrl previewUrl() const;
@@ -845,6 +848,9 @@ public:
     Q_INVOKABLE void setRating(int rating);
     Q_INVOKABLE void setColorLabel(const QString &label);
     Q_INVOKABLE void toggleRejected();
+    Q_INVOKABLE void togglePicked();
+    Q_INVOKABLE void applyCullReview(const QString &flagAction, const QVariant &rating,
+                                     const QString &colorLabel, bool autoAdvance);
     Q_INVOKABLE void setRatingFilter(const QString &mode, int value);
     Q_INVOKABLE void toggleColorFilter(const QString &label);
     Q_INVOKABLE void setRejectFilter(const QString &mode);
@@ -1024,6 +1030,8 @@ private:
     make_catalog_service(const std::string &path, bool create);
     void mutate_selected_review(
         const std::function<Result<AssetRecord>(CatalogService &, std::string_view)> &action);
+    void apply_cull_review_request(CullReviewFlagAction flag_action, std::optional<int> rating,
+                                   std::optional<ColorLabel> color_label, bool auto_advance);
     void remove_selected_from_catalog();
     void remove_selected_from_disk();
     void publish_selection();

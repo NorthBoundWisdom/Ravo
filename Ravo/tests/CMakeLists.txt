@@ -434,6 +434,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_SCOPE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ScopePanel.qml"
   RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibrarySidePanel.qml"
   RAVO_STUDIO_LIBRARY_FILTER_BAR_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibraryFilterBar.qml"
+  RAVO_STUDIO_GALLERY_REVIEW_BAR_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/GalleryReviewBar.qml"
   RAVO_STUDIO_EXPORT_OPTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ExportOptionsDialog.qml"
   RAVO_STUDIO_BACKUP_SCHEDULE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/BackupScheduleDialog.qml"
   RAVO_STUDIO_EDIT_IN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/EditInDialog.qml"

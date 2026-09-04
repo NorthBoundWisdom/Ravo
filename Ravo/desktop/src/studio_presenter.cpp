@@ -434,6 +434,12 @@ bool StudioPresenter::selectedRejected() const noexcept
     return asset && asset->review.rejected;
 }
 
+bool StudioPresenter::selectedPicked() const noexcept
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->review.picked;
+}
+
 QString StudioPresenter::selectedImportState() const
 {
     const auto asset = assets_.assetById(selected_asset_id_);

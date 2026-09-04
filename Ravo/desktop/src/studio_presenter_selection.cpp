@@ -29,6 +29,8 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/types.h"
+#include "ravo/services/cull_assistance.h"
+#include "ravo/services/catalog_service.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
@@ -589,10 +591,133 @@ void StudioPresenter::mutate_selected_review(
         });
 }
 
+void StudioPresenter::apply_cull_review_request(const CullReviewFlagAction flag_action,
+                                                const std::optional<int> rating,
+                                                const std::optional<ColorLabel> color_label,
+                                                const bool auto_advance)
+{
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    {
+        return;
+    }
+    CullReviewRequest request;
+    request.asset_id = utf8_from_qstring(selected_asset_id_);
+    request.flag_action = flag_action;
+    request.rating = rating;
+    request.color_label = color_label;
+    request.auto_advance = auto_advance && selected_ids_.size() <= 1U;
+    request.expected_catalog_revision = observed_catalog_revision_;
+    request.selection_asset_ids.reserve(static_cast<std::size_t>(std::max(0, assets_.rowCount())));
+    for (int row = 0; row < assets_.rowCount(); ++row)
+    {
+        if (!assets_.rowLoaded(row))
+        {
+            continue;
+        }
+        const auto id = assets_.assetIdAt(row);
+        if (!id.isEmpty())
+        {
+            request.selection_asset_ids.push_back(utf8_from_qstring(id));
+        }
+    }
+
+    // Multi-select without auto-advance: apply the same mutation to each selected asset.
+    if (selected_ids_.size() > 1U)
+    {
+        const auto ids = selected_asset_ids();
+        executor_.post(
+            [this, flag_action, rating, color_label, ids]()
+            {
+                std::vector<AssetRecord> updated;
+                TaskError error = make_error(ErrorCode::kIo, "Catalog session is closed");
+                bool ok = false;
+                std::int64_t revision = 0;
+                if (service_ != nullptr)
+                {
+                    ok = true;
+                    for (const auto &asset_id : ids)
+                    {
+                        CullReviewRequest per;
+                        per.asset_id = asset_id;
+                        per.flag_action = flag_action;
+                        per.rating = rating;
+                        per.color_label = color_label;
+                        per.auto_advance = false;
+                        auto applied = service_->apply_cull_review(per);
+                        if (!applied)
+                        {
+                            error = applied.error();
+                            ok = false;
+                            break;
+                        }
+                        revision = applied.value().revision;
+                        updated.push_back(std::move(applied).value().asset);
+                    }
+                }
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, ok, error = std::move(error), updated = std::move(updated),
+                     revision]() mutable
+                    {
+                        if (!ok)
+                        {
+                            setError(qstring_from_utf8(error.message));
+                            return;
+                        }
+                        observed_catalog_revision_ = revision;
+                        for (const auto &asset : updated)
+                        {
+                            assets_.updateAsset(asset);
+                        }
+                        emit selectionChanged();
+                        if (filtersActive())
+                        {
+                            reloadVisibleAssets();
+                        }
+                    },
+                    Qt::QueuedConnection);
+            });
+        return;
+    }
+
+    executor_.post(
+        [this, request = std::move(request)]() mutable
+        {
+            Result<CullReviewResult> applied =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                applied = service_->apply_cull_review(request);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, applied = std::move(applied)]() mutable
+                {
+                    if (!applied)
+                    {
+                        setError(qstring_from_utf8(applied.error().message));
+                        return;
+                    }
+                    auto result = std::move(applied).value();
+                    observed_catalog_revision_ = result.revision;
+                    assets_.updateAsset(result.asset);
+                    emit selectionChanged();
+                    if (result.next_asset_id)
+                    {
+                        selectAsset(qstring_from_utf8(*result.next_asset_id));
+                    }
+                    else if (filtersActive())
+                    {
+                        reloadVisibleAssets();
+                    }
+                },
+                Qt::QueuedConnection);
+        });
+}
+
 void StudioPresenter::setRating(const int rating)
 {
-    mutate_selected_review([rating](CatalogService &service, const std::string_view asset_id)
-                           { return service.set_rating(asset_id, rating); });
+    apply_cull_review_request(CullReviewFlagAction::kUnchanged, rating, std::nullopt, true);
 }
 
 void StudioPresenter::setColorLabel(const QString &label)
@@ -603,16 +728,74 @@ void StudioPresenter::setColorLabel(const QString &label)
         setError(qstring_from_utf8(parsed.error().message));
         return;
     }
-    const auto color = parsed.value();
-    mutate_selected_review([color](CatalogService &service, const std::string_view asset_id)
-                           { return service.set_color_label(asset_id, color); });
+    apply_cull_review_request(CullReviewFlagAction::kUnchanged, std::nullopt, parsed.value(), true);
 }
 
 void StudioPresenter::toggleRejected()
 {
-    const bool next = !selectedRejected();
-    mutate_selected_review([next](CatalogService &service, const std::string_view asset_id)
-                           { return service.set_rejected(asset_id, next); });
+    const auto flag =
+        selectedRejected() ? CullReviewFlagAction::kUnflag : CullReviewFlagAction::kReject;
+    apply_cull_review_request(flag, std::nullopt, std::nullopt, true);
+}
+
+void StudioPresenter::togglePicked()
+{
+    const auto flag =
+        selectedPicked() ? CullReviewFlagAction::kUnflag : CullReviewFlagAction::kPick;
+    apply_cull_review_request(flag, std::nullopt, std::nullopt, true);
+}
+
+void StudioPresenter::applyCullReview(const QString &flag_action, const QVariant &rating,
+                                      const QString &color_label, const bool auto_advance)
+{
+    CullReviewFlagAction flag = CullReviewFlagAction::kUnchanged;
+    const auto flag_text = flag_action.trimmed().toLower();
+    if (flag_text == QLatin1String("pick"))
+    {
+        flag = CullReviewFlagAction::kPick;
+    }
+    else if (flag_text == QLatin1String("reject"))
+    {
+        flag = CullReviewFlagAction::kReject;
+    }
+    else if (flag_text == QLatin1String("unflag"))
+    {
+        flag = CullReviewFlagAction::kUnflag;
+    }
+    else if (!flag_text.isEmpty() && flag_text != QLatin1String("unchanged"))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "Cull review flag must be pick, reject, unflag, or unchanged."));
+        return;
+    }
+
+    std::optional<int> rating_value;
+    if (rating.isValid() && !rating.isNull())
+    {
+        bool ok = false;
+        const int value = rating.toInt(&ok);
+        if (!ok || value < 0 || value > 5)
+        {
+            setError(QCoreApplication::translate("StudioPresenter",
+                                                 "Rating must be an integer between 0 and 5."));
+            return;
+        }
+        rating_value = value;
+    }
+
+    std::optional<ColorLabel> color_value;
+    if (!color_label.trimmed().isEmpty())
+    {
+        auto parsed = parse_color_label(utf8_from_qstring(color_label));
+        if (!parsed)
+        {
+            setError(qstring_from_utf8(parsed.error().message));
+            return;
+        }
+        color_value = parsed.value();
+    }
+
+    apply_cull_review_request(flag, rating_value, color_value, auto_advance);
 }
 
 void StudioPresenter::setAssetTags(const QString &text)

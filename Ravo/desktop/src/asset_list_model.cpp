@@ -74,6 +74,7 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         case StackIdRole:
             return QString{};
         case RejectedRole:
+        case PickedRole:
         case HasEditsRole:
         case SelectedRole:
         case StackPickRole:
@@ -105,6 +106,8 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         return qstring_from_utf8(color_label_name(asset.review.color_label));
     case RejectedRole:
         return asset.review.rejected;
+    case PickedRole:
+        return asset.review.picked;
     case ThumbnailUrlRole:
     {
         const auto thumbnail = thumbnail_urls_.find(asset.id);
@@ -158,6 +161,7 @@ QHash<int, QByteArray> AssetListModel::roleNames() const
             {RatingRole, "rating"},
             {ColorLabelRole, "colorLabel"},
             {RejectedRole, "rejected"},
+            {PickedRole, "picked"},
             {ThumbnailUrlRole, "thumbnailUrl"},
             {ThumbnailStateRole, "thumbnailState"},
             {WidthRole, "pixelWidth"},

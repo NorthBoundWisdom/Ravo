@@ -166,6 +166,8 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     QString title = tr_command(found->title);
     if (found->id == QLatin1String(command::kPhotoToggleReject) && presenter_.selectedRejected())
         title = tr_command(QStringLiteral("Unreject"));
+    if (found->id == QLatin1String(command::kPhotoTogglePick) && presenter_.selectedPicked())
+        title = tr_command(QStringLiteral("Unpick"));
     if (found->id == QLatin1String(command::kEditCropTool) && presenter_.cropToolActive())
         title = tr_command(QStringLiteral("Done Cropping"));
 
@@ -217,6 +219,11 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     {
         checkable = true;
         checked = presenter_.selectedRejected();
+    }
+    else if (found->id == QLatin1String(command::kPhotoTogglePick))
+    {
+        checkable = true;
+        checked = presenter_.selectedPicked();
     }
     else if (found->id == QLatin1String(command::kEditCropTool))
     {
