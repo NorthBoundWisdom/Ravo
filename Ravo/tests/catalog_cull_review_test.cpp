@@ -13,6 +13,7 @@
 #include "ravo/services/cull_assistance.h"
 
 #include "catalog_test_support.h"
+#include "catalog_repository_test_control.h"
 
 namespace ravo
 {
@@ -129,6 +130,81 @@ TEST_F(CatalogServiceTest, CullReviewRequiresMutationAndHonorsRevision)
     ASSERT_TRUE(rejected) << rejected.error().message;
     EXPECT_TRUE(rejected.value().review.rejected);
     EXPECT_FALSE(rejected.value().review.picked);
+}
+
+TEST_F(CatalogServiceTest, Cor01CullReviewAtomicCommitAndCancelBeforePublish)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto path = root / "cor01-cull.jpg";
+    ASSERT_TRUE(write_jpeg(path, QColor(9, 8, 7)));
+    auto imported = service->import_one(path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+    auto before = service->snapshot();
+    ASSERT_TRUE(before);
+
+    CancellationSource cancel;
+    ASSERT_TRUE(cancel.cancel("test"));
+    CullReviewRequest cancelled;
+    cancelled.asset_id = asset_id;
+    cancelled.flag_action = CullReviewFlagAction::kPick;
+    cancelled.cancellation = cancel.token();
+    auto denied = service->apply_cull_review(cancelled);
+    ASSERT_FALSE(denied);
+    EXPECT_EQ(denied.error().context.at("catalog_committed"), "false");
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_FALSE(listed.value().front().review.picked);
+    auto after_cancel = service->snapshot();
+    ASSERT_TRUE(after_cancel);
+    EXPECT_EQ(after_cancel.value().revision, before.value().revision);
+
+    ASSERT_NE(sqlite_repository, nullptr);
+    testing::SqliteCatalogTestControl::inject_review(*sqlite_repository,
+                                                     testing::SqliteReviewFailure::kRevisionBump);
+    CullReviewRequest fail_bump;
+    fail_bump.asset_id = asset_id;
+    fail_bump.flag_action = CullReviewFlagAction::kPick;
+    auto failed = service->apply_cull_review(fail_bump);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().context.at("catalog_committed"), "false");
+    EXPECT_EQ(failed.error().context.at("reason"), "injected_review_revision_bump");
+    listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    EXPECT_FALSE(listed.value().front().review.picked);
+    auto after_fail = service->snapshot();
+    ASSERT_TRUE(after_fail);
+    EXPECT_EQ(after_fail.value().revision, before.value().revision);
+
+    CullReviewRequest ok;
+    ok.asset_id = asset_id;
+    ok.flag_action = CullReviewFlagAction::kPick;
+    ok.rating = 4;
+    auto picked = service->apply_cull_review(ok);
+    ASSERT_TRUE(picked) << picked.error().message;
+    EXPECT_TRUE(picked.value().catalog_mutated);
+    EXPECT_TRUE(picked.value().review.picked);
+    EXPECT_GT(picked.value().revision, before.value().revision);
+}
+
+TEST_F(CatalogServiceTest, Cor01SetPickedUsesTransactionalCommit)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto path = root / "cor01-picked.jpg";
+    ASSERT_TRUE(write_jpeg(path, QColor(3, 4, 5)));
+    auto imported = service->import_one(path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_NE(sqlite_repository, nullptr);
+    testing::SqliteCatalogTestControl::inject_review(*sqlite_repository,
+                                                     testing::SqliteReviewFailure::kCommit);
+    auto failed = service->set_picked(imported.value().asset->id, true);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().context.at("reason"), "injected_review_commit");
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_FALSE(listed.value().front().review.picked);
 }
 
 } // namespace ravo

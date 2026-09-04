@@ -322,4 +322,39 @@ TEST_F(CatalogServiceTest, CullBurstCompareResolvesSurveyPairAndSteps)
     EXPECT_EQ(missing.error().context.at("reason"), "burst_compare_not_stacked");
 }
 
+TEST_F(CatalogServiceTest, Cor01NearDupAssetBoundFailsClosed)
+{
+    ASSERT_TRUE(open_service(true));
+    ASSERT_TRUE(write_jpeg(root / "bound-a.jpg", QColor(1, 2, 3)));
+    ASSERT_TRUE(write_jpeg(root / "bound-b.jpg", QColor(4, 5, 6)));
+    ASSERT_TRUE(service->import_one((root / "bound-a.jpg").string(), CancellationToken{}));
+    ASSERT_TRUE(service->import_one((root / "bound-b.jpg").string(), CancellationToken{}));
+    NearDuplicateRequest request;
+    request.max_assets = 1;
+    auto report = service->find_near_duplicate_groups(request);
+    ASSERT_FALSE(report);
+    EXPECT_EQ(report.error().context.at("reason"), "near_dup_asset_bound_exceeded");
+}
+
+TEST_F(CatalogServiceTest, Cor01NearDupGroupsArePairwiseNonTransitive)
+{
+    ASSERT_TRUE(open_service(true));
+    ASSERT_TRUE(write_jpeg(root / "p1.jpg", QColor(10, 10, 10)));
+    ASSERT_TRUE(write_jpeg(root / "p2.jpg", QColor(10, 10, 10)));
+    ASSERT_TRUE(write_jpeg(root / "p3.jpg", QColor(10, 10, 10)));
+    ASSERT_TRUE(service->import_one((root / "p1.jpg").string(), CancellationToken{}));
+    ASSERT_TRUE(service->import_one((root / "p2.jpg").string(), CancellationToken{}));
+    ASSERT_TRUE(service->import_one((root / "p3.jpg").string(), CancellationToken{}));
+    NearDuplicateRequest request;
+    request.max_hamming = 0;
+    auto report = service->find_near_duplicate_groups(request);
+    ASSERT_TRUE(report) << report.error().message;
+    EXPECT_TRUE(report.value().non_authoritative);
+    for (const auto &group : report.value().groups)
+    {
+        EXPECT_EQ(group.members.size(), 2U);
+        EXPECT_LE(group.max_hamming_in_group, request.max_hamming);
+    }
+}
+
 } // namespace ravo

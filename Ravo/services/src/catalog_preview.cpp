@@ -589,6 +589,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         return baseline_recipe.error();
     }
     Recipe edit_recipe = std::move(baseline_recipe).value();
+    const Recipe proxy_identity_recipe = edit_recipe;
     const auto recipe_digest = [&](const Recipe &recipe) -> Result<std::string>
     {
         auto serialized = serialize_recipe(recipe);
@@ -694,6 +695,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                 edit_digest += "_nostraighten";
             }
         }
+    }
+    if (using_offline_proxy)
+    {
+        // COR-01 / ADR-0146: baked presentation proxy — keep baseline input/output
+        // colour ops only; do not re-apply the catalog develop recipe.
+        edit_recipe = proxy_identity_recipe;
+        edit_digest = "identity_proxy_baked";
     }
     if (request.roi.has_value())
     {

@@ -35,6 +35,14 @@ enum class SqliteFolderRelinkFailure : std::uint8_t
     kBeforeCommit,
 };
 
+enum class SqliteReviewFailure : std::uint8_t
+{
+    kNone,
+    kAfterReviewUpdate,
+    kRevisionBump,
+    kCommit,
+};
+
 // Source-private, repository-instance fault control. Product callers cannot
 // reach this header through the installed adapter interface.
 class SqliteCatalogTestControl
@@ -45,6 +53,8 @@ public:
                                 SqliteRecoveryFailure failure) noexcept;
     static void inject_folder_relink(SqliteCatalogRepository &repository,
                                      SqliteFolderRelinkFailure failure) noexcept;
+    static void inject_review(SqliteCatalogRepository &repository,
+                              SqliteReviewFailure failure) noexcept;
 };
 
 } // namespace ravo::testing

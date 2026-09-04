@@ -384,6 +384,11 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
         return make_error(ErrorCode::kInvalidArgument, "near-dup max_groups must be positive",
                           {{"reason", "invalid_near_dup_max_groups"}});
     }
+    if (request.max_assets == 0U)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "near-dup max_assets must be positive",
+                          {{"reason", "invalid_near_dup_max_assets"}});
+    }
 
     auto assets = repository_->list_assets();
     if (!assets)
@@ -392,7 +397,19 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
     NearDuplicateReport report;
     report.max_hamming = request.max_hamming;
     report.max_groups = request.max_groups;
+    report.max_assets = request.max_assets;
+    report.non_authoritative = true;
     report.assets_considered = assets.value().size();
+    if (assets.value().size() > request.max_assets)
+    {
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "near-duplicate scan exceeds hard asset upper bound; narrow the catalog or raise "
+            "max_assets deliberately",
+            {{"assets_considered", std::to_string(assets.value().size())},
+             {"max_assets", std::to_string(request.max_assets)},
+             {"reason", "near_dup_asset_bound_exceeded"}});
+    }
 
     struct Fingerprinted
     {
@@ -536,36 +553,8 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
     if (fingerprinted.size() < 2U)
         return report;
 
-    std::vector<std::size_t> parent(fingerprinted.size());
-    std::vector<int> rank(fingerprinted.size(), 0);
-    for (std::size_t i = 0; i < parent.size(); ++i)
-        parent[i] = i;
-    const auto find_root = [&](std::size_t index) -> std::size_t
-    {
-        while (parent[index] != index)
-        {
-            parent[index] = parent[parent[index]];
-            index = parent[index];
-        }
-        return index;
-    };
-    const auto unite = [&](std::size_t left, std::size_t right)
-    {
-        left = find_root(left);
-        right = find_root(right);
-        if (left == right)
-            return;
-        if (rank[left] < rank[right])
-            parent[left] = right;
-        else if (rank[left] > rank[right])
-            parent[right] = left;
-        else
-        {
-            parent[right] = left;
-            ++rank[left];
-        }
-    };
-
+    // Non-transitive max-edge groups: emit only direct pairs within Hamming.
+    // Union-find transitive merges are intentionally avoided (COR-01 / ADR-0149).
     for (std::size_t i = 0; i < fingerprinted.size(); ++i)
     {
         cancelled = request.cancellation.check();
@@ -573,46 +562,26 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
             return cancelled.error();
         for (std::size_t j = i + 1U; j < fingerprinted.size(); ++j)
         {
-            if (hamming(fingerprinted[i].hash, fingerprinted[j].hash) <= request.max_hamming)
-                unite(i, j);
+            const int distance = hamming(fingerprinted[i].hash, fingerprinted[j].hash);
+            if (distance > request.max_hamming)
+                continue;
+            if (report.groups.size() >= request.max_groups)
+                break;
+            NearDuplicateGroup group;
+            group.max_hamming_in_group = distance;
+            group.members.push_back(fingerprinted[i].member);
+            group.members.push_back(fingerprinted[j].member);
+            std::sort(group.members.begin(), group.members.end(),
+                      [](const NearDuplicateMember &left, const NearDuplicateMember &right)
+                      { return left.asset_id < right.asset_id; });
+            group.fingerprint_hex =
+                group.members[0].fingerprint_hex < group.members[1].fingerprint_hex ?
+                    group.members[0].fingerprint_hex :
+                    group.members[1].fingerprint_hex;
+            report.groups.push_back(std::move(group));
         }
-    }
-
-    std::map<std::size_t, std::vector<std::size_t>> clusters;
-    for (std::size_t i = 0; i < fingerprinted.size(); ++i)
-        clusters[find_root(i)].push_back(i);
-
-    for (auto &entry : clusters)
-    {
-        auto &members = entry.second;
-        if (members.size() < 2U)
-            continue;
         if (report.groups.size() >= request.max_groups)
             break;
-
-        NearDuplicateGroup group;
-        int max_distance = 0;
-        for (std::size_t a = 0; a < members.size(); ++a)
-        {
-            for (std::size_t b = a + 1U; b < members.size(); ++b)
-            {
-                max_distance = std::max(max_distance, hamming(fingerprinted[members[a]].hash,
-                                                              fingerprinted[members[b]].hash));
-            }
-        }
-        group.max_hamming_in_group = max_distance;
-        std::string canonical = fingerprinted[members.front()].member.fingerprint_hex;
-        for (const auto index : members)
-        {
-            group.members.push_back(fingerprinted[index].member);
-            if (fingerprinted[index].member.fingerprint_hex < canonical)
-                canonical = fingerprinted[index].member.fingerprint_hex;
-        }
-        group.fingerprint_hex = std::move(canonical);
-        std::sort(group.members.begin(), group.members.end(),
-                  [](const NearDuplicateMember &left, const NearDuplicateMember &right)
-                  { return left.asset_id < right.asset_id; });
-        report.groups.push_back(std::move(group));
     }
 
     std::sort(report.groups.begin(), report.groups.end(),

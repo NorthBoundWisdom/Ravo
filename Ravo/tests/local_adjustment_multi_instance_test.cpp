@@ -790,5 +790,94 @@ TEST(LocalAdjustmentMultiInstanceTest, SelectiveCopyFailClosedOnOrphanInstanceMa
     EXPECT_TRUE(destination.exposure_instances.empty());
 }
 
+TEST(LocalAdjustmentMultiInstanceTest, Cor01SoleInstanceDeleteRequiresMatchingId)
+{
+    DevelopParams params;
+    ASSERT_EQ(ensure_exposure_instances(params), 1U);
+    params.exposure_instances.front().exposure_ev = 1.25;
+    const auto sole_id = params.exposure_instances.front().instance_id;
+
+    auto wrong = delete_exposure_instance(params, "exposure-stale");
+    ASSERT_FALSE(wrong);
+    EXPECT_EQ(wrong.error().context.at("reason"), "delete_exposure_instance_id_mismatch");
+    ASSERT_EQ(params.exposure_instances.size(), 1U);
+    EXPECT_DOUBLE_EQ(params.exposure_instances.front().exposure_ev, 1.25);
+
+    ASSERT_TRUE(delete_exposure_instance(params, sole_id));
+    EXPECT_TRUE(params.exposure_instances.empty());
+    EXPECT_DOUBLE_EQ(params.exposure_ev, 1.25);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, Cor01SoleDisabledCollapseResetsIdentity)
+{
+    DevelopParams params;
+    ASSERT_EQ(ensure_exposure_instances(params), 1U);
+    params.exposure_instances.front().exposure_ev = 2.0;
+    params.exposure_instances.front().enabled = false;
+    const auto sole_id = params.exposure_instances.front().instance_id;
+    ASSERT_TRUE(delete_exposure_instance(params, sole_id));
+    EXPECT_TRUE(params.exposure_instances.empty());
+    EXPECT_DOUBLE_EQ(params.exposure_ev, 0.0);
+
+    DevelopParams color;
+    ASSERT_EQ(ensure_color_balance_rgb_instances(color), 1U);
+    color.color_balance_rgb_instances.front().params.global_y = 0.4;
+    color.color_balance_rgb_instances.front().bypass = true;
+    const auto color_id = color.color_balance_rgb_instances.front().instance_id;
+    ASSERT_TRUE(delete_color_balance_rgb_instance(color, color_id));
+    EXPECT_TRUE(color.color_balance_rgb_instances.empty());
+    EXPECT_DOUBLE_EQ(color.color_balance_rgb.global_y, 0.0);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, Cor01MaskCloneRollsBackOnCycleOrMissingChild)
+{
+    DevelopParams params;
+    Mask leaf = make_gradient("ravo.studio.mask.exposure.1");
+    Mask group{"ravo.studio.mask.exposure.2", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    MaskGroup payload;
+    MaskGroupChild child;
+    child.mask_id = "missing-child";
+    payload.children.push_back(child);
+    group.payload = payload;
+    params.masks.push_back(leaf);
+    params.masks.push_back(group);
+    const auto before = params.masks.size();
+
+    DevelopExposureInstance instance;
+    instance.instance_id = "exposure-1";
+    instance.mask_id = group.id;
+    params.exposure_instances.push_back(instance);
+
+    auto missing = duplicate_exposure_instance(params, "exposure-1");
+    ASSERT_FALSE(missing);
+    EXPECT_EQ(missing.error().context.at("reason"), "duplicate_instance_mask_missing");
+    EXPECT_EQ(params.masks.size(), before);
+    EXPECT_EQ(params.exposure_instances.size(), 1U);
+
+    // Cycle: A -> B -> A
+    params.masks.clear();
+    Mask a{"ravo.studio.mask.exposure.10", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    MaskGroup ga;
+    MaskGroupChild ca;
+    ca.mask_id = "ravo.studio.mask.exposure.11";
+    ga.children.push_back(ca);
+    a.payload = ga;
+    Mask b{"ravo.studio.mask.exposure.11", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    MaskGroup gb;
+    MaskGroupChild cb;
+    cb.mask_id = "ravo.studio.mask.exposure.10";
+    gb.children.push_back(cb);
+    b.payload = gb;
+    params.masks.push_back(a);
+    params.masks.push_back(b);
+    params.exposure_instances.front().mask_id = a.id;
+    const auto cycle_before = params.masks.size();
+    auto cycled = duplicate_exposure_instance(params, "exposure-1");
+    ASSERT_FALSE(cycled);
+    EXPECT_EQ(cycled.error().context.at("reason"), "duplicate_instance_mask_cycle");
+    EXPECT_EQ(params.masks.size(), cycle_before);
+}
+
 } // namespace
+
 } // namespace ravo

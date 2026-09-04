@@ -23,8 +23,14 @@ and never auto-delete.
   pixel to the block mean, pack bits MSB-first into a hex fingerprint.
 - Group members whose fingerprints are within a caller-bounded Hamming distance
   (default **5**; CLI `--near-dup-max-hamming`). Identical fingerprints are the
-  primary signal; distance ≤ threshold merges via union-find.
-- Cap emitted groups (`max_groups`, default 200) and never mutate the catalog.
+  primary signal. Groups are **pairwise max-edge** only (direct Hamming edges);
+  transitive union-find merges that can join pairs beyond the threshold are
+  rejected (COR-01).
+- Cap emitted groups (`max_groups`, default 200) and fingerprinted inputs
+  (`max_assets`, default **4096**). Exceeding `max_assets` fails closed with
+  `near_dup_asset_bound_exceeded` rather than running unbounded O(N²) work.
+- The report is an explicitly **non-authoritative heuristic**; never mutate the
+  catalog from near-dup alone.
 - **No auto-delete, auto-reject, or stack.** Exact-byte duplicates remain ADR-0147.
 
 ### Non-goals

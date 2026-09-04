@@ -1240,6 +1240,15 @@ bool SqliteCatalogRepository::Impl::consume_folder_relink_failure(
     return true;
 }
 
+bool SqliteCatalogRepository::Impl::consume_review_failure(
+    const testing::SqliteReviewFailure expected) noexcept
+{
+    if (review_failure != expected)
+        return false;
+    review_failure = testing::SqliteReviewFailure::kNone;
+    return true;
+}
+
 Result<void> SqliteCatalogRepository::Impl::exec(const QString &sql, const std::string_view action)
 {
     QSqlQuery query(database);

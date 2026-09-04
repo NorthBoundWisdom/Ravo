@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 #include <QColor>
@@ -97,8 +98,9 @@ TEST_F(CatalogServiceTest, OfflineEditProxyCreateVerifyAndDistinctFromSmartPrevi
 
     auto listed = service->list_offline_edit_proxies();
     ASSERT_TRUE(listed) << listed.error().message;
-    ASSERT_EQ(listed.value().size(), 1U);
-    EXPECT_EQ(listed.value().front().asset_id, asset_id);
+    ASSERT_EQ(listed.value().manifests.size(), 1U);
+    EXPECT_EQ(listed.value().manifests.front().asset_id, asset_id);
+    EXPECT_TRUE(listed.value().corrupt.empty());
 
     auto smart = service->smart_preview_status(asset_id);
     ASSERT_TRUE(smart) << smart.error().message;
@@ -352,6 +354,83 @@ TEST_F(CatalogServiceTest, OfflineEditProxyLoupeDevelopConsumeWhileOriginalMissi
     EXPECT_EQ(exported.error().code, ErrorCode::kNotFound);
     ASSERT_TRUE(exported.error().context.contains("reason"));
     EXPECT_EQ(exported.error().context.at("reason"), "proxy_export_forbidden");
+}
+
+TEST_F(CatalogServiceTest, Cor01OfflineProxyCorruptManifestAndPathEscapeFailClosed)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "cor01-proxy.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(11, 22, 33)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    OfflineEditProxyCreateRequest create;
+    create.asset_id = asset_id;
+    create.user_initiated = true;
+    create.max_edge = 64;
+    auto created = service->create_offline_edit_proxy(create);
+    ASSERT_TRUE(created) << created.error().message;
+    EXPECT_EQ(created.value().manifest.pixel_provenance,
+              kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8);
+
+    auto snap = service->snapshot();
+    ASSERT_TRUE(snap);
+    const auto proxy_root = std::filesystem::path(snap.value().database_path).string() +
+                            ".ravo/offline-edit-proxies/" + asset_id;
+    const auto manifest_path = proxy_root + "/manifest.json";
+    {
+        std::ofstream out(manifest_path, std::ios::binary | std::ios::trunc);
+        out << "{\"schema\":\"ravo.offline-edit-proxy/v1\",\"schema_version\":1,"
+               "\"asset_id\":\""
+            << asset_id
+            << "\",\"source_sha256\":\"not-a-hash\",\"source_size_bytes\":1,"
+               "\"source_mtime_unix_ms\":1,\"recipe_cache_key\":\"x\",\"max_edge\":64,"
+               "\"profile\":\"srgb\",\"proxy_path\":\"/tmp/escape.tif\","
+               "\"proxy_sha256\":"
+               "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\","
+               "\"width\":1,\"height\":1,\"created_unix_ms\":1}";
+    }
+    auto listed = service->list_offline_edit_proxies();
+    ASSERT_TRUE(listed) << listed.error().message;
+    EXPECT_TRUE(listed.value().manifests.empty());
+    ASSERT_FALSE(listed.value().corrupt.empty());
+    EXPECT_FALSE(listed.value().corrupt.front().reason.empty());
+
+    auto status = service->verify_offline_edit_proxy(asset_id);
+    ASSERT_FALSE(status);
+}
+
+TEST_F(CatalogServiceTest, Cor01OfflineProxyInterruptedPublishKeepsPrevious)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "cor01-proxy-keep.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(44, 55, 66)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    OfflineEditProxyCreateRequest create;
+    create.asset_id = asset_id;
+    create.user_initiated = true;
+    create.max_edge = 64;
+    auto first = service->create_offline_edit_proxy(create);
+    ASSERT_TRUE(first) << first.error().message;
+    const auto first_sha = first.value().manifest.proxy_sha256;
+
+    CancellationSource cancel;
+    ASSERT_TRUE(cancel.cancel("before-second-publish"));
+    OfflineEditProxyCreateRequest second = create;
+    second.cancellation = cancel.token();
+    // Cancelled token fails early before replacing the good proxy.
+    auto failed = service->create_offline_edit_proxy(second);
+    ASSERT_FALSE(failed);
+
+    auto status = service->verify_offline_edit_proxy(asset_id);
+    ASSERT_TRUE(status) << status.error().message;
+    ASSERT_TRUE(status.value().manifest);
+    EXPECT_EQ(status.value().manifest->proxy_sha256, first_sha);
+    EXPECT_TRUE(status.value().proxy_verified);
 }
 
 } // namespace ravo

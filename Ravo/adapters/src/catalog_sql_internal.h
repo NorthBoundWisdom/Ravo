@@ -33,12 +33,14 @@ struct SqliteCatalogRepository::Impl
     testing::SqliteRecoveryFailure recovery_failure = testing::SqliteRecoveryFailure::kNone;
     testing::SqliteFolderRelinkFailure folder_relink_failure =
         testing::SqliteFolderRelinkFailure::kNone;
+    testing::SqliteReviewFailure review_failure = testing::SqliteReviewFailure::kNone;
 
     [[nodiscard]] bool consume_import_failure(testing::SqliteImportFailure expected) noexcept;
     [[nodiscard]] TaskError abort_transaction(TaskError primary);
     [[nodiscard]] bool consume_recovery_failure(testing::SqliteRecoveryFailure expected) noexcept;
     [[nodiscard]] bool
     consume_folder_relink_failure(testing::SqliteFolderRelinkFailure expected) noexcept;
+    [[nodiscard]] bool consume_review_failure(testing::SqliteReviewFailure expected) noexcept;
     [[nodiscard]] Result<void> exec(const QString &sql, std::string_view action);
     [[nodiscard]] Result<void> repair_v5_capture_columns();
 };

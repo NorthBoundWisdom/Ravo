@@ -3,6 +3,7 @@
 #include "catalog_internal.h"
 
 #include <cctype>
+#include <charconv>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -112,6 +113,67 @@ void best_effort_remove_tree(const std::string_view path_utf8)
     }};
 }
 
+[[nodiscard]] Result<std::uint64_t> parse_manifest_u64(const std::string_view text,
+                                                       const std::string_view path,
+                                                       const std::string_view field)
+{
+    if (text.empty() || text.size() > 20U)
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy manifest number out of range",
+                          {{"path", std::string(path)},
+                           {"field", std::string(field)},
+                           {"reason", "invalid_offline_edit_proxy_manifest_number"}});
+    }
+    std::uint64_t value = 0;
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size())
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy manifest number is malformed",
+                          {{"path", std::string(path)},
+                           {"field", std::string(field)},
+                           {"reason", "invalid_offline_edit_proxy_manifest_number"}});
+    }
+    return value;
+}
+
+[[nodiscard]] Result<std::int64_t> parse_manifest_i64(const std::string_view text,
+                                                      const std::string_view path,
+                                                      const std::string_view field)
+{
+    if (text.empty() || text.size() > 20U)
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy manifest number out of range",
+                          {{"path", std::string(path)},
+                           {"field", std::string(field)},
+                           {"reason", "invalid_offline_edit_proxy_manifest_number"}});
+    }
+    std::int64_t value = 0;
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size())
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy manifest number is malformed",
+                          {{"path", std::string(path)},
+                           {"field", std::string(field)},
+                           {"reason", "invalid_offline_edit_proxy_manifest_number"}});
+    }
+    return value;
+}
+
+[[nodiscard]] bool is_sha256_hex(const std::string_view value) noexcept
+{
+    if (value.size() != 64U)
+        return false;
+    for (const char raw : value)
+    {
+        const auto ch = static_cast<unsigned char>(raw);
+        const bool hex =
+            (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
+        if (!hex)
+            return false;
+    }
+    return true;
+}
+
 [[nodiscard]] Result<void> write_manifest(const OfflineEditProxyManifest &manifest)
 {
     const auto root = std::filesystem::path(manifest.proxy_path).parent_path();
@@ -134,6 +196,7 @@ void best_effort_remove_tree(const std::string_view path_utf8)
         {"width", JsonValue::number(std::to_string(manifest.width))},
         {"height", JsonValue::number(std::to_string(manifest.height))},
         {"created_unix_ms", JsonValue::number(std::to_string(manifest.created_unix_ms))},
+        {"pixel_provenance", manifest.pixel_provenance},
     };
     const auto path = offline_edit_proxy_manifest_path(root.generic_string());
     return write_utf8_text_file_atomically(path, serialize_json(JsonValue{std::move(object)}));
@@ -176,7 +239,7 @@ void best_effort_remove_tree(const std::string_view path_utf8)
                                {"field", field},
                                {"reason", "invalid_offline_edit_proxy_manifest"}});
         }
-        return static_cast<std::uint64_t>(std::stoull(value->number_if()->text));
+        return parse_manifest_u64(value->number_if()->text, path, field);
     };
     const auto require_i64 = [&](const char *field) -> Result<std::int64_t>
     {
@@ -188,7 +251,7 @@ void best_effort_remove_tree(const std::string_view path_utf8)
                                {"field", field},
                                {"reason", "invalid_offline_edit_proxy_manifest"}});
         }
-        return std::stoll(value->number_if()->text);
+        return parse_manifest_i64(value->number_if()->text, path, field);
     };
 
     OfflineEditProxyManifest manifest;
@@ -248,6 +311,72 @@ void best_effort_remove_tree(const std::string_view path_utf8)
     if (!created)
         return created.error();
     manifest.created_unix_ms = created.value();
+    if (manifest.schema != kOfflineEditProxyContractVersion)
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy manifest schema mismatch",
+                          {{"path", path},
+                           {"schema", manifest.schema},
+                           {"reason", "invalid_offline_edit_proxy_schema"}});
+    }
+    if (manifest.schema_version != kOfflineEditProxySchemaVersion)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Offline-edit proxy manifest schema_version unsupported",
+                          {{"path", path},
+                           {"schema_version", std::to_string(manifest.schema_version)},
+                           {"reason", "invalid_offline_edit_proxy_schema_version"}});
+    }
+    if (!safe_path_component(manifest.asset_id))
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy manifest asset_id is unsafe",
+                          {{"path", path},
+                           {"asset_id", manifest.asset_id},
+                           {"reason", "invalid_offline_edit_proxy_asset_id"}});
+    }
+    if (!is_sha256_hex(manifest.source_sha256))
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy source hash is malformed",
+                          {{"path", path}, {"reason", "invalid_offline_edit_proxy_source_hash"}});
+    }
+    if (!is_sha256_hex(manifest.proxy_sha256))
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy hash is malformed",
+                          {{"path", path}, {"reason", "invalid_offline_edit_proxy_hash"}});
+    }
+    if (manifest.max_edge == 0U || manifest.profile != "srgb" || manifest.width == 0U ||
+        manifest.height == 0U)
+    {
+        return make_error(ErrorCode::kValidation, "Offline-edit proxy manifest fields out of range",
+                          {{"path", path}, {"reason", "invalid_offline_edit_proxy_manifest"}});
+    }
+    {
+        std::error_code path_error;
+        const auto proxy = utf8_path(manifest.proxy_path).lexically_normal().generic_string();
+        const auto support = utf8_path(root).lexically_normal().generic_string();
+        if (!(proxy == support ||
+              (proxy.size() > support.size() && proxy.compare(0, support.size(), support) == 0 &&
+               proxy[support.size()] == '/')))
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Offline-edit proxy path escapes support root",
+                              {{"path", manifest.proxy_path},
+                               {"root", std::string(root)},
+                               {"reason", "offline_edit_proxy_path_escape"}});
+        }
+    }
+    const auto *provenance = parsed.value().find("pixel_provenance");
+    if (provenance != nullptr && provenance->string_if() != nullptr)
+        manifest.pixel_provenance = *provenance->string_if();
+    else
+        manifest.pixel_provenance = std::string(kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8);
+    if (manifest.pixel_provenance != kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Offline-edit proxy pixel_provenance is unsupported",
+                          {{"path", path},
+                           {"pixel_provenance", manifest.pixel_provenance},
+                           {"reason", "invalid_offline_edit_proxy_pixel_provenance"}});
+    }
     (void)fingerprint_fields;
     return manifest;
 }
@@ -268,6 +397,45 @@ void best_effort_remove_tree(const std::string_view path_utf8)
 {
     std::error_code error;
     return std::filesystem::is_regular_file(utf8_path(path), error) && !error;
+}
+
+[[nodiscard]] Result<void> publish_proxy_tree_atomically(const std::string_view final_root,
+                                                         const std::string_view staging_root)
+{
+    std::error_code error;
+    const auto final_path = utf8_path(final_root);
+    const auto staging_path = utf8_path(staging_root);
+    const auto backup_path = utf8_path(std::string(final_root) + ".prev");
+    const bool had_previous = std::filesystem::exists(final_path, error) && !error;
+    if (had_previous)
+    {
+        std::filesystem::remove_all(backup_path, error);
+        std::filesystem::rename(final_path, backup_path, error);
+        if (error)
+        {
+            return make_error(ErrorCode::kIo, "Unable to quarantine previous offline-edit proxy",
+                              {{"path", std::string(final_root)},
+                               {"reason", "offline_edit_proxy_publish_quarantine_failed"},
+                               {"detail", error.message()}});
+        }
+    }
+    std::filesystem::rename(staging_path, final_path, error);
+    if (error)
+    {
+        if (had_previous)
+        {
+            std::error_code restore_error;
+            std::filesystem::rename(backup_path, final_path, restore_error);
+        }
+        return make_error(ErrorCode::kIo, "Unable to publish offline-edit proxy staging tree",
+                          {{"path", std::string(final_root)},
+                           {"staging", std::string(staging_root)},
+                           {"reason", "offline_edit_proxy_publish_failed"},
+                           {"detail", error.message()}});
+    }
+    if (had_previous)
+        std::filesystem::remove_all(backup_path, error);
+    return {};
 }
 
 } // namespace
@@ -334,20 +502,22 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
     if (!snapshot)
         return snapshot.error();
 
-    const auto root = offline_edit_proxy_root(snapshot.value().database_path, request.asset_id);
-    best_effort_remove_tree(root);
-    auto created_dir = ensure_directory(root, "offline_edit_proxy_create_failed");
+    const auto final_root =
+        offline_edit_proxy_root(snapshot.value().database_path, request.asset_id);
+    const auto staging_root = final_root + ".staging-" + std::to_string(now_unix_ms());
+    best_effort_remove_tree(staging_root);
+    auto created_dir = ensure_directory(staging_root, "offline_edit_proxy_create_failed");
     if (!created_dir)
         return created_dir.error();
 
     auto recipe_key = recipe_cache_key_for(*this, request.asset_id);
     if (!recipe_key)
     {
-        best_effort_remove_tree(root);
+        best_effort_remove_tree(staging_root);
         return recipe_key.error();
     }
 
-    const auto proxy_path = offline_edit_proxy_raster_path(root);
+    const auto proxy_path = offline_edit_proxy_raster_path(staging_root);
     ExportRequest export_request;
     export_request.asset_id = request.asset_id;
     export_request.output_path = proxy_path;
@@ -363,28 +533,28 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
     auto exported = export_asset(export_request);
     if (!exported)
     {
-        best_effort_remove_tree(root);
+        best_effort_remove_tree(staging_root);
         return exported.error();
     }
 
     auto proxy_fp = fingerprint_file(proxy_path);
     if (!proxy_fp)
     {
-        best_effort_remove_tree(root);
+        best_effort_remove_tree(staging_root);
         return proxy_fp.error();
     }
 
     auto after = fingerprint_file(original_path.value());
     if (!after)
     {
-        best_effort_remove_tree(root);
+        best_effort_remove_tree(staging_root);
         return after.error();
     }
     if (after.value().sha256 != before.value().sha256 ||
         after.value().size_bytes != before.value().size_bytes ||
         after.value().mtime_unix_ms != before.value().mtime_unix_ms)
     {
-        best_effort_remove_tree(root);
+        best_effort_remove_tree(staging_root);
         return make_error(ErrorCode::kConflict,
                           "Source original changed during offline-edit proxy create",
                           {{"asset_id", request.asset_id},
@@ -392,6 +562,7 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
                            {"reason", "source_mutated_during_proxy_create"}});
     }
 
+    const auto published_proxy_path = offline_edit_proxy_raster_path(final_root);
     OfflineEditProxyManifest manifest;
     manifest.asset_id = request.asset_id;
     manifest.source_sha256 = before.value().sha256;
@@ -400,17 +571,52 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
     manifest.recipe_cache_key = std::move(recipe_key).value();
     manifest.max_edge = request.max_edge;
     manifest.profile = request.profile;
-    manifest.proxy_path = proxy_path;
+    manifest.proxy_path = published_proxy_path;
     manifest.proxy_sha256 = proxy_fp.value().sha256;
     manifest.width = exported.value().width;
     manifest.height = exported.value().height;
     manifest.created_unix_ms = now_unix_ms();
+    manifest.pixel_provenance = std::string(kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8);
 
-    auto written = write_manifest(manifest);
+    JsonValue::Object object{
+        {"schema", manifest.schema},
+        {"schema_version", JsonValue::number(std::to_string(manifest.schema_version))},
+        {"asset_id", manifest.asset_id},
+        {"source_sha256", manifest.source_sha256},
+        {"source_size_bytes", JsonValue::number(std::to_string(manifest.source_size_bytes))},
+        {"source_mtime_unix_ms", JsonValue::number(std::to_string(manifest.source_mtime_unix_ms))},
+        {"recipe_cache_key", manifest.recipe_cache_key},
+        {"max_edge", JsonValue::number(std::to_string(manifest.max_edge))},
+        {"profile", manifest.profile},
+        {"proxy_path", manifest.proxy_path},
+        {"proxy_sha256", manifest.proxy_sha256},
+        {"width", JsonValue::number(std::to_string(manifest.width))},
+        {"height", JsonValue::number(std::to_string(manifest.height))},
+        {"created_unix_ms", JsonValue::number(std::to_string(manifest.created_unix_ms))},
+        {"pixel_provenance", manifest.pixel_provenance},
+    };
+    auto written = write_utf8_text_file_atomically(offline_edit_proxy_manifest_path(staging_root),
+                                                   serialize_json(JsonValue{std::move(object)}));
     if (!written)
     {
-        best_effort_remove_tree(root);
+        best_effort_remove_tree(staging_root);
         return written.error();
+    }
+
+    cancelled = request.cancellation.check();
+    if (!cancelled)
+    {
+        best_effort_remove_tree(staging_root);
+        auto error = cancelled.error();
+        error.context.insert_or_assign("reason", "offline_edit_proxy_cancelled_before_publish");
+        return error;
+    }
+
+    auto published = publish_proxy_tree_atomically(final_root, staging_root);
+    if (!published)
+    {
+        best_effort_remove_tree(staging_root);
+        return published.error();
     }
 
     OfflineEditProxyCreateResult result;
@@ -419,7 +625,7 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
     return result;
 }
 
-Result<std::vector<OfflineEditProxyManifest>> CatalogService::list_offline_edit_proxies() const
+Result<OfflineEditProxyListReport> CatalogService::list_offline_edit_proxies() const
 {
     if (repository_ == nullptr)
     {
@@ -431,10 +637,10 @@ Result<std::vector<OfflineEditProxyManifest>> CatalogService::list_offline_edit_
         return snapshot.error();
 
     const auto root = std::string(snapshot.value().database_path) + ".ravo/offline-edit-proxies";
-    std::vector<OfflineEditProxyManifest> manifests;
+    OfflineEditProxyListReport report;
     std::error_code error;
     if (!std::filesystem::is_directory(utf8_path(root), error) || error)
-        return manifests;
+        return report;
 
     for (const auto &entry : std::filesystem::directory_iterator(utf8_path(root), error))
     {
@@ -443,14 +649,44 @@ Result<std::vector<OfflineEditProxyManifest>> CatalogService::list_offline_edit_
         if (!entry.is_directory(error) || error)
             continue;
         const auto asset_id = entry.path().filename().generic_string();
-        if (!safe_path_component(asset_id))
+        if (asset_id.find(".staging-") != std::string::npos ||
+            (asset_id.size() >= 5U && asset_id.compare(asset_id.size() - 5U, 5U, ".prev") == 0))
+        {
             continue;
+        }
+        if (!safe_path_component(asset_id))
+        {
+            OfflineEditProxyCorruptEntry corrupt;
+            corrupt.asset_id = asset_id;
+            corrupt.path = entry.path().generic_string();
+            corrupt.reason = "unsafe_proxy_directory_name";
+            report.corrupt.push_back(std::move(corrupt));
+            continue;
+        }
         auto loaded = load_manifest(entry.path().generic_string());
         if (!loaded)
+        {
+            OfflineEditProxyCorruptEntry corrupt;
+            corrupt.asset_id = asset_id;
+            corrupt.path = offline_edit_proxy_manifest_path(entry.path().generic_string());
+            corrupt.reason = loaded.error().context.count("reason") ?
+                                 loaded.error().context.at("reason") :
+                                 "invalid_offline_edit_proxy_manifest";
+            report.corrupt.push_back(std::move(corrupt));
             continue;
-        manifests.push_back(std::move(loaded).value());
+        }
+        if (loaded.value().asset_id != asset_id)
+        {
+            OfflineEditProxyCorruptEntry corrupt;
+            corrupt.asset_id = asset_id;
+            corrupt.path = offline_edit_proxy_manifest_path(entry.path().generic_string());
+            corrupt.reason = "invalid_offline_edit_proxy_asset_id";
+            report.corrupt.push_back(std::move(corrupt));
+            continue;
+        }
+        report.manifests.push_back(std::move(loaded).value());
     }
-    return manifests;
+    return report;
 }
 
 Result<OfflineEditProxyStatus>

@@ -351,6 +351,13 @@ void testing::SqliteCatalogTestControl::inject_folder_relink(
         repository.impl_->folder_relink_failure = failure;
 }
 
+void testing::SqliteCatalogTestControl::inject_review(SqliteCatalogRepository &repository,
+                                                      const SqliteReviewFailure failure) noexcept
+{
+    if (repository.impl_ != nullptr)
+        repository.impl_->review_failure = failure;
+}
+
 SqliteCatalogRepository::SqliteCatalogRepository(std::unique_ptr<Impl> impl)
     : impl_(std::move(impl))
 {

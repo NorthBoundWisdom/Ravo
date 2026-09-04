@@ -102,6 +102,8 @@ public:
     [[nodiscard]] Result<void> update_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_review(std::string_view asset_id,
                                              const ReviewState &review) override;
+    [[nodiscard]] Result<std::int64_t> commit_review(std::string_view asset_id,
+                                                     const ReviewState &review) override;
     [[nodiscard]] Result<void> remove_asset(std::string_view asset_id) override;
     [[nodiscard]] Result<std::optional<std::string>>
     load_recipe_json(std::string_view asset_id) const override;

@@ -16,6 +16,11 @@ namespace ravo
 inline constexpr std::string_view kOfflineEditProxyContractVersion = "ravo.offline-edit-proxy/v1";
 inline constexpr std::int64_t kOfflineEditProxySchemaVersion = 1;
 inline constexpr std::uint32_t kOfflineEditProxyDefaultMaxEdge = 2048;
+// COR-01 / ADR-0146: create-time export is an 8-bit sRGB presentation raster with
+// the then-current recipe already baked. Develop must apply identity (no
+// double-grade) while media_state=proxy for this provenance.
+inline constexpr std::string_view kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8 =
+    "recipe_baked_srgb8";
 
 enum class OfflineEditMediaState : std::uint8_t
 {
@@ -58,6 +63,8 @@ struct OfflineEditProxyManifest
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::int64_t created_unix_ms = 0;
+    // "recipe_baked_srgb8" => presentation pixels; Develop uses identity recipe.
+    std::string pixel_provenance{std::string(kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8)};
 };
 
 struct OfflineEditProxyCreateRequest
@@ -73,6 +80,19 @@ struct OfflineEditProxyCreateResult
 {
     OfflineEditProxyManifest manifest;
     bool originals_unchanged = true;
+};
+
+struct OfflineEditProxyCorruptEntry
+{
+    std::string asset_id;
+    std::string path;
+    std::string reason;
+};
+
+struct OfflineEditProxyListReport
+{
+    std::vector<OfflineEditProxyManifest> manifests;
+    std::vector<OfflineEditProxyCorruptEntry> corrupt;
 };
 
 struct OfflineEditProxyStatus

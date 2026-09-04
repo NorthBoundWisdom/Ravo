@@ -676,6 +676,81 @@ Result<void> SqliteCatalogRepository::update_review(const std::string_view asset
     return {};
 }
 
+Result<std::int64_t> SqliteCatalogRepository::commit_review(const std::string_view asset_id,
+                                                            const ReviewState &review)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    auto valid = validate_review_state(review);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to begin review commit transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())},
+                           {"reason", "review_commit_begin_failed"}});
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "UPDATE asset SET rating = ?, color_label = ?, rejected = ?, picked = ? WHERE id = ?"));
+    query.addBindValue(review.rating);
+    query.addBindValue(qstring_from_utf8(color_label_name(review.color_label)));
+    query.addBindValue(review.rejected ? 1 : 0);
+    query.addBindValue(review.picked ? 1 : 0);
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+    {
+        return impl_->abort_transaction(map_sql_error(query, "commit_review_update"));
+    }
+    if (query.numRowsAffected() == 0)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kNotFound, "Asset does not exist",
+            {{"asset_id", std::string(asset_id)}, {"reason", "review_commit_asset_missing"}}));
+    }
+    if (impl_->consume_review_failure(testing::SqliteReviewFailure::kAfterReviewUpdate))
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kIo, "Injected review commit failure after review update",
+            {{"reason", "injected_review_after_update"}, {"asset_id", std::string(asset_id)}}));
+    }
+    if (impl_->consume_review_failure(testing::SqliteReviewFailure::kRevisionBump))
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kIo, "Injected review commit failure at revision bump",
+            {{"reason", "injected_review_revision_bump"}, {"asset_id", std::string(asset_id)}}));
+    }
+    QSqlQuery bump(impl_->database);
+    if (!bump.exec(QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
+    {
+        return impl_->abort_transaction(map_sql_error(bump, "commit_review_bump_revision"));
+    }
+    if (!bump.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) || !bump.next())
+    {
+        return impl_->abort_transaction(map_sql_error(bump, "commit_review_read_revision"));
+    }
+    const auto next_revision = bump.value(0).toLongLong();
+    if (impl_->consume_review_failure(testing::SqliteReviewFailure::kCommit))
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kIo, "Injected review commit failure before database commit",
+            {{"reason", "injected_review_commit"}, {"asset_id", std::string(asset_id)}}));
+    }
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit review transaction",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())},
+                        {"reason", "review_commit_failed"}}));
+    }
+    impl_->snapshot.revision = next_revision;
+    return next_revision;
+}
+
 Result<void> SqliteCatalogRepository::remove_asset(const std::string_view asset_id)
 {
     if (impl_ == nullptr)

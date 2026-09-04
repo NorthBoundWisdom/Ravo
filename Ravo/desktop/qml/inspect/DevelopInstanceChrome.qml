@@ -132,7 +132,9 @@ Item {
                 CustomButton {
                     objectName: root.objectNamePrefix + "Delete" + index
                     text: qsTr("Delete")
-                    enabled: root.hasPresenter && root.panel.hasSelection && !modelData.synthetic
+                    // COR-01: sole instance delete is API-only with matching id +
+                    // identity collapse; Studio disables Delete when only one remains.
+                    enabled: root.hasPresenter && root.panel.hasSelection && !modelData.synthetic && root.instances.length > 1
                     onClicked: {
                         if (root.operation === "exposure")
                             root.panel.presenter.deleteExposureInstance(modelData.id);

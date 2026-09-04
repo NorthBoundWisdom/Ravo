@@ -128,6 +128,9 @@ inline constexpr std::string_view kCullNearDuplicateContractVersion = "ravo.cull
 inline constexpr std::int64_t kCullNearDuplicateSchemaVersion = 1;
 inline constexpr int kCullNearDupDefaultMaxHamming = 5;
 inline constexpr std::size_t kCullNearDupDefaultMaxGroups = 200;
+// Hard upper bound for fingerprinted inputs. Above this, fail closed rather than
+// run unbounded O(N^2) Hamming work on a professional catalog (PERF/COR-01).
+inline constexpr std::size_t kCullNearDupDefaultMaxAssets = 4096;
 
 struct NearDuplicateMember
 {
@@ -160,16 +163,20 @@ struct NearDuplicateReport
     std::int64_t schema_version = kCullNearDuplicateSchemaVersion;
     int max_hamming = kCullNearDupDefaultMaxHamming;
     std::size_t max_groups = kCullNearDupDefaultMaxGroups;
+    std::size_t max_assets = kCullNearDupDefaultMaxAssets;
     std::vector<NearDuplicateGroup> groups;
     std::vector<NearDuplicateSkip> skipped;
     std::size_t assets_considered = 0;
     std::size_t assets_fingerprinted = 0;
+    // Heuristic only: never authoritative for delete/reject/stack.
+    bool non_authoritative = true;
 };
 
 struct NearDuplicateRequest
 {
     int max_hamming = kCullNearDupDefaultMaxHamming;
     std::size_t max_groups = kCullNearDupDefaultMaxGroups;
+    std::size_t max_assets = kCullNearDupDefaultMaxAssets;
     CancellationToken cancellation{};
 };
 

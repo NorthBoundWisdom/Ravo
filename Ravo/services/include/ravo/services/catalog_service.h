@@ -390,7 +390,7 @@ public:
     // fail-closed without original; reconnect verifies source hash.
     [[nodiscard]] Result<OfflineEditProxyCreateResult>
     create_offline_edit_proxy(const OfflineEditProxyCreateRequest &request);
-    [[nodiscard]] Result<std::vector<OfflineEditProxyManifest>> list_offline_edit_proxies() const;
+    [[nodiscard]] Result<OfflineEditProxyListReport> list_offline_edit_proxies() const;
     [[nodiscard]] Result<OfflineEditProxyStatus>
     verify_offline_edit_proxy(std::string_view asset_id) const;
     [[nodiscard]] Result<OfflineEditProxyStatus>

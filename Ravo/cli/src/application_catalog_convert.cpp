@@ -94,6 +94,7 @@ namespace
         {"width", JsonValue::number(std::to_string(manifest.width))},
         {"height", JsonValue::number(std::to_string(manifest.height))},
         {"created_unix_ms", JsonValue::number(std::to_string(manifest.created_unix_ms))},
+        {"pixel_provenance", manifest.pixel_provenance},
     }};
 }
 
@@ -221,10 +222,21 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         if (!listed)
             return listed.error();
         JsonValue::Array items;
-        items.reserve(listed.value().size());
-        for (const auto &manifest : listed.value())
+        items.reserve(listed.value().manifests.size());
+        for (const auto &manifest : listed.value().manifests)
             items.push_back(offline_proxy_manifest_json(manifest));
-        return JsonValue{JsonValue::Object{{"proxies", std::move(items)}}};
+        JsonValue::Array corrupt;
+        corrupt.reserve(listed.value().corrupt.size());
+        for (const auto &entry : listed.value().corrupt)
+        {
+            corrupt.push_back(JsonValue{JsonValue::Object{
+                {"asset_id", entry.asset_id},
+                {"path", entry.path},
+                {"reason", entry.reason},
+            }});
+        }
+        return JsonValue{
+            JsonValue::Object{{"proxies", std::move(items)}, {"corrupt", std::move(corrupt)}}};
     }
     if (subcommand == "offline-proxy-verify" || subcommand == "offline-proxy-status")
     {

@@ -3,12 +3,14 @@
 #include "develop_internal.h"
 
 #include <algorithm>
+#include <iterator>
 #include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 #include <variant>
 
 namespace ravo
@@ -148,6 +150,7 @@ template <typename T>
 // Non-studio source masks stay fail-closed on the source instance; the clone
 // becomes an independent authored leaf.
 [[nodiscard]] std::string make_duplicate_mask_id(const DevelopParams &params,
+                                                 const std::vector<Mask> &staged,
                                                  const std::string_view prefix)
 {
     for (std::size_t n = 1;; ++n)
@@ -164,15 +167,28 @@ template <typename T>
         }
         if (!used)
         {
+            for (const auto &mask : staged)
+            {
+                if (mask.id == id)
+                {
+                    used = true;
+                    break;
+                }
+            }
+        }
+        if (!used)
+        {
             return id;
         }
     }
 }
 
-[[nodiscard]] Result<std::string> clone_mask_subgraph(DevelopParams &params,
-                                                      const std::string_view source_id,
-                                                      const std::string_view id_prefix,
-                                                      std::unordered_set<std::string> &visiting)
+// Stage clones into `staged` only. `params.masks` stays unchanged until the
+// caller publishes the full staged set (all-or-nothing).
+[[nodiscard]] Result<std::string>
+clone_mask_subgraph_staged(const DevelopParams &params, std::vector<Mask> &staged,
+                           const std::string_view source_id, const std::string_view id_prefix,
+                           std::unordered_set<std::string> &visiting)
 {
     if (source_id.empty())
     {
@@ -185,27 +201,34 @@ template <typename T>
         return make_error(ErrorCode::kConflict, "Mask graph cycle while cloning instance mask",
                           {{"reason", "duplicate_instance_mask_cycle"}, {"mask_id", source_key}});
     }
-    const Mask *source = nullptr;
-    for (const auto &mask : params.masks)
+    const auto find_mask = [&](const std::string_view id) -> const Mask *
     {
-        if (mask.id == source_id)
+        for (const auto &mask : params.masks)
         {
-            source = &mask;
-            break;
+            if (mask.id == id)
+                return &mask;
         }
-    }
+        for (const auto &mask : staged)
+        {
+            if (mask.id == id)
+                return &mask;
+        }
+        return nullptr;
+    };
+    const Mask *source = find_mask(source_id);
     if (source == nullptr)
     {
         return make_error(ErrorCode::kNotFound, "Instance mask was not found",
                           {{"reason", "duplicate_instance_mask_missing"}, {"mask_id", source_key}});
     }
     Mask cloned = *source;
-    cloned.id = make_duplicate_mask_id(params, id_prefix);
+    cloned.id = make_duplicate_mask_id(params, staged, id_prefix);
     if (auto *group = std::get_if<MaskGroup>(&cloned.payload))
     {
         for (auto &child : group->children)
         {
-            auto child_clone = clone_mask_subgraph(params, child.mask_id, id_prefix, visiting);
+            auto child_clone =
+                clone_mask_subgraph_staged(params, staged, child.mask_id, id_prefix, visiting);
             if (!child_clone)
             {
                 return child_clone.error();
@@ -214,7 +237,7 @@ template <typename T>
         }
     }
     const std::string new_id = cloned.id;
-    params.masks.push_back(std::move(cloned));
+    staged.push_back(std::move(cloned));
     visiting.erase(source_key);
     return new_id;
 }
@@ -228,11 +251,15 @@ duplicate_instance_mask(DevelopParams &params, const std::optional<std::string> 
         return std::optional<std::string>{};
     }
     std::unordered_set<std::string> visiting;
-    auto cloned = clone_mask_subgraph(params, *mask_id, id_prefix, visiting);
+    std::vector<Mask> staged;
+    auto cloned = clone_mask_subgraph_staged(params, staged, *mask_id, id_prefix, visiting);
     if (!cloned)
     {
+        // Staged clones are discarded — params.masks is byte-for-byte unchanged.
         return cloned.error();
     }
+    params.masks.insert(params.masks.end(), std::make_move_iterator(staged.begin()),
+                        std::make_move_iterator(staged.end()));
     return std::optional<std::string>{std::move(cloned).value()};
 }
 
@@ -354,10 +381,37 @@ Result<std::string> add_color_balance_rgb_instance(DevelopParams &params)
 
 Result<void> delete_exposure_instance(DevelopParams &params, const std::string_view instance_id)
 {
-    if (params.exposure_instances.size() <= 1U)
+    if (params.exposure_instances.empty())
     {
-        // Collapse back to legacy singleton buffer.
-        if (!params.exposure_instances.empty())
+        return make_error(ErrorCode::kNotFound, "Develop instance was not found",
+                          {{"instance_id", std::string(instance_id)},
+                           {"reason", "delete_exposure_instance_empty"}});
+    }
+    const auto found = find_exposure_instance_index(params, instance_id);
+    if (!found)
+    {
+        return make_error(ErrorCode::kNotFound, "Develop instance was not found",
+                          {{"instance_id", std::string(instance_id)},
+                           {"reason", "delete_exposure_instance_id_mismatch"}});
+    }
+    if (params.exposure_instances.size() == 1U)
+    {
+        // Sole-instance collapse requires a matching id (above). Disabled or
+        // bypassed sole instances must not re-activate through legacy fields:
+        // collapse to documented identity exposure parameters.
+        const auto &sole = params.exposure_instances.front();
+        if (!sole.enabled || sole.bypass)
+        {
+            params.exposure_mode = std::string(kExposureModeManual);
+            params.exposure_black = 0.0;
+            params.exposure_ev = 0.0;
+            params.exposure_deflicker_percentile = 0.0;
+            params.exposure_deflicker_target_ev = 0.0;
+            params.exposure_compensate_exposure_bias = false;
+            params.exposure_compensate_highlight_preservation = false;
+            params.exposure_mask_id.reset();
+        }
+        else
         {
             load_exposure_instance_into_legacy(params, 0);
         }
@@ -370,9 +424,28 @@ Result<void> delete_exposure_instance(DevelopParams &params, const std::string_v
 Result<void> delete_color_balance_rgb_instance(DevelopParams &params,
                                                const std::string_view instance_id)
 {
-    if (params.color_balance_rgb_instances.size() <= 1U)
+    if (params.color_balance_rgb_instances.empty())
     {
-        if (!params.color_balance_rgb_instances.empty())
+        return make_error(ErrorCode::kNotFound, "Develop instance was not found",
+                          {{"instance_id", std::string(instance_id)},
+                           {"reason", "delete_color_balance_rgb_instance_empty"}});
+    }
+    const auto found = find_color_balance_rgb_instance_index(params, instance_id);
+    if (!found)
+    {
+        return make_error(ErrorCode::kNotFound, "Develop instance was not found",
+                          {{"instance_id", std::string(instance_id)},
+                           {"reason", "delete_color_balance_rgb_instance_id_mismatch"}});
+    }
+    if (params.color_balance_rgb_instances.size() == 1U)
+    {
+        const auto &sole = params.color_balance_rgb_instances.front();
+        if (!sole.enabled || sole.bypass)
+        {
+            params.color_balance_rgb = ColorBalanceRgbParams{};
+            params.color_balance_rgb_mask_id.reset();
+        }
+        else
         {
             load_color_balance_rgb_instance_into_legacy(params, 0);
         }

@@ -56,6 +56,22 @@ Each proxy directory holds at least:
   source hash (and catalog identity), then returns to original-backed rendering.
 - Machine-visible media states: `original` | `proxy` | `placeholder` | `missing`.
 
+### Pixel provenance and Develop double-grade guard (COR-01)
+
+Create-time proxies are **8-bit sRGB TIFF presentation rasters** with the
+then-current recipe already baked (`pixel_provenance=recipe_baked_srgb8`). While
+`media_state=proxy`, Develop/Loupe `request_preview` applies an **identity**
+recipe to those pixels so the catalog recipe is not double-applied. Recipes
+remain catalog-owned and re-render from the original after verified reconnect.
+Further offline delta-preview on top of a baked proxy is deferred to OFFLINE-01
+C2.
+
+Publication builds into a unique staging tree, verifies bytes/manifest, then
+atomically replaces the previous good proxy directory. Manifest parsing uses
+bounded structured number parsing (no throwing `stoll`/`stoull`); schema, asset
+id, hash format, dimensions, profile, and path-under-support-root are validated
+fail-closed. Corrupt manifests surface in list/status results.
+
 ### Non-goals (explicit)
 
 - Using Smart Previews for Develop/export.

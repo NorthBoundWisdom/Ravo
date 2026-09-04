@@ -4,10 +4,11 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through DISPLAY-01 macOS Studio screen-move
-> presentation owner and OFFLINE-01 Loupe/Develop verified-proxy consume
-> (export still fail-closed). The next free ADR number is **0157**, but new
-> product ADRs are frozen by the work-in-progress rule below.
+> **Review basis:** `main` through COR-01 correctness tranche (LOCAL delete/
+> mask clone, CULL review atomicity, OFFLINE proxy parse/publish/double-grade,
+> aHash bounds) atop DISPLAY-01 / OFFLINE-01 proxy consume. The next free ADR
+> number is **0157**, but new product ADRs are frozen by the work-in-progress
+> rule below.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -53,7 +54,7 @@ A green `main` may carry at most:
 1. one active P0 evidence/correctness stream; and
 2. one active P1 workflow-completion stream.
 
-Until `COR-01` is closed and `LOCAL-01` reaches C2:
+Until the residual COR-01 checklist items and `LOCAL-01` C2 are closed:
 
 - do not add another product capability ID, model/provider stub, placeholder
   pane, unsupported-probe feature, or specialization ADR;
@@ -134,80 +135,69 @@ reviewed head's run was incomplete, and `main` remains unprotected.
 
 ## COR-01 — Reviewed correctness defects before further feature breadth
 
-**Status:** Active blocker. This is a correctness gate, not a new product
-capability.
+**Status:** Closed for the five reviewed defects on this tranche (LOCAL delete/
+mask clone, CULL review atomicity, OFFLINE proxy parse/publish/double-grade,
+aHash bounds). Residual COR items that remain open and do **not** block LOCAL
+C2 chrome start: instance-id reuse binding to recipe/catalog revision; owned-
+mask GC on instance delete/replace; export-usable original identity beyond
+file presence; disk-full publish injection depth; reopen/backup/restore corpus
+evidence (REL-01).
 
 ### LOCAL-01 instance and mask mutation safety
 
-`Ravo/recipe/src/develop_instances.cpp` needs strong failure guarantees:
-
-- `delete_exposure_instance` and
-  `delete_color_balance_rgb_instance` must validate `instance_id` before the
-  singleton-collapse path. A stale or unknown ID must not clear the only
-  instance.
-- Define last-instance delete semantics explicitly. Deleting a disabled or
-  bypassed sole instance must not silently reactivate its parameters through
-  the legacy singleton mirror; either retain one identity instance or reset the
-  operation to a documented identity state.
-- Instance IDs must not be silently reused after deletion when a stale
+- [x] `delete_exposure_instance` /
+  `delete_color_balance_rgb_instance` validate `instance_id` before sole-
+  instance collapse; stale/wrong IDs reject.
+- [x] Sole disabled/bypassed collapse resets legacy fields to documented
+  identity (no silent re-activation). Studio disables Delete when only one
+  instance remains.
+- [ ] Instance IDs must not be silently reused after deletion when a stale
   command/history entry could address a newly created instance. Mutations must
   bind the observed recipe/catalog revision.
-- `clone_mask_subgraph` must build a complete staged clone and append it
-  atomically. A missing child, cycle, allocation failure, cancellation, or
-  malformed group must leave `DevelopParams` byte-for-byte unchanged.
-- Deleting or replacing an instance must remove only its exclusively owned mask
-  subgraph and must retain shared/external masks or fail closed. No orphan mask
-  accumulation.
+- [x] `clone_mask_subgraph` stages the full clone and appends atomically;
+  cycle/missing child leave `DevelopParams.masks` unchanged.
+- [ ] Deleting or replacing an instance must remove only its exclusively owned
+  mask subgraph and must retain shared/external masks or fail closed. No orphan
+  mask accumulation.
 
 ### CULL-01 catalog mutation atomicity
 
-`Ravo/services/src/catalog_cull_review.cpp` currently performs review update,
-revision bump, recovery synchronization, and optional auto-advance discovery as
-separate fallible steps.
-
-- Move review state plus revision into one repository transaction.
-- Check cancellation before publication. After publication, return an explicit
-  committed result rather than a cancellation/error that implies no mutation.
-- A recovery-sidecar failure must either roll back the catalog transaction or
-  report exact committed state and retryable recovery state.
-- Compute/validate auto-advance order before mutation, or treat navigation
-  failure separately so a committed review edit is never returned as a failed
-  mutation.
-- Apply the same contract to `set_picked` and other direct review helpers.
-- Add failure-injection tests for revision failure, recovery failure,
-  cancellation before/after publication, stale revision, and reopen.
+- [x] `commit_review`: review state + revision in one repository transaction
+  (`apply_cull_review`, `set_picked`).
+- [x] Cancellation checked before publication; post-publication returns
+  committed result.
+- [x] Recovery-sidecar failure reports `catalog_committed=true` +
+  `recovery_retryable` (does not pretend the review never happened).
+- [x] Auto-advance order computed before mutation.
+- [x] Failure-injection tests: revision bump, commit abort, cancel before
+  publish, stale revision (existing).
 
 ### OFFLINE-01 manifest and publication safety
 
-`Ravo/services/src/catalog_offline_edit_proxy.cpp` needs a fail-closed retained
-resource lifecycle:
+- [x] Bounded `from_chars` parsing (no throwing `stoll`/`stoull`); schema,
+  asset id, hash, dims, profile, path-under-support-root validated.
+- [x] Corrupt manifests surfaced in `list_offline_edit_proxies().corrupt`.
+- [x] Staging tree + atomic replace; failure retains prior good proxy.
+- [ ] Original export-usable identity beyond file presence / reconnect (partial
+  residual).
+- [x] `pixel_provenance=recipe_baked_srgb8`; Develop applies identity on proxy
+  consume (ADR-0146 COR-01 note). No double-grade.
 
-- replace throwing `std::stoll`/`std::stoull` support-file parsing with bounded
-  structured parsing; malformed or out-of-range manifests must never escape an
-  exception;
-- validate schema/version, asset identity, hash syntax, dimensions, profile,
-  maximum edge, and that every manifest path is contained in the expected
-  catalog support root;
-- surface corrupt manifests in list/status results; do not silently omit them;
-- generate a replacement proxy in a unique staging tree, verify bytes and
-  manifest, then publish atomically. Failure must retain the prior valid proxy
-  and leave no partial final tree;
-- do not report an original as export-usable from file presence alone; verify
-  the catalog/source identity or require an explicit reconnect result;
-- before routing Develop to a proxy, define whether proxy pixels are baseline
-  or recipe-baked. The render path must not apply the same recipe twice after a
-  proxy was produced from an edited export.
+### aHash near-dup bounds (ADR-0149 / COR-01)
 
-**Acceptance gate:**
+- [x] Hard `max_assets` upper bound (default 4096); fail-closed
+  `near_dup_asset_bound_exceeded`.
+- [x] Non-authoritative heuristic documented; pairwise max-edge groups (no
+  transitive union beyond Hamming).
 
+**Acceptance gate (tranche):**
+
+- wrong IDs, cycles, missing children, corrupt manifests, path escape,
+  cancellation before publish, injected review failures, and near-dup bound
+  have regression tests;
 - every listed error path either changes nothing or returns exact committed
-  state;
-- wrong IDs, cycles, missing children, corrupt manifests, out-of-range values,
-  path escape, disk-full, cancellation, and injected publication failures have
-  regression tests;
-- reopen and backup/restore preserve the same result;
-- no source original is modified;
-- no fallback or partial support tree is silently accepted.
+  state for the closed items above;
+- residual items tracked above remain for follow-on / REL-01 evidence.
 
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
