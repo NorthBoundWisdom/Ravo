@@ -384,5 +384,50 @@ TEST_F(CatalogServiceTest, XmpAdjacentMetadataOnlySidecarImport)
     EXPECT_EQ(applied.value().asset.tags.front(), "Temple");
 }
 
+TEST_F(CatalogServiceTest, XmpStatusReportsCrsProcessVersionClassAndFailClosedUnsupported)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto local_png = (root / "pv-matrix.png").string();
+    std::error_code copy_error;
+    std::filesystem::copy_file(png_fixture_path(), local_png,
+                               std::filesystem::copy_options::overwrite_existing, copy_error);
+    ASSERT_FALSE(copy_error) << copy_error.message();
+    auto imported = service->import_one(local_png, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+    auto status0 = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(status0) << status0.error().message;
+    const auto original = status0.value().original_path;
+
+    const auto ok_path = write_adjacent_xmp(original, minimal_crs_xmp(-0.2));
+    auto ok = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(ok) << ok.error().message;
+    EXPECT_TRUE(ok.value().crs_parse_ok);
+    EXPECT_EQ(ok.value().crs_version_class, CrsProcessVersionClass::kSupportedPv2012);
+    ASSERT_TRUE(ok.value().crs_process_version);
+    EXPECT_FALSE(ok.value().crs_process_version->empty());
+
+    auto bad = minimal_crs_xmp(0.0);
+    const auto marker = bad.find("crs:ProcessVersion=\"");
+    ASSERT_NE(marker, std::string::npos);
+    const auto value_begin = marker + std::string("crs:ProcessVersion=\"").size();
+    const auto end = bad.find('"', value_begin);
+    ASSERT_NE(end, std::string::npos);
+    bad.replace(marker, end + 1 - marker, "crs:ProcessVersion=\"18.0\"");
+    ASSERT_TRUE(write_utf8_text_file_replace_atomically(ok_path, bad));
+    auto unsupported = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(unsupported) << unsupported.error().message;
+    EXPECT_FALSE(unsupported.value().crs_parse_ok);
+    EXPECT_EQ(unsupported.value().crs_version_class, CrsProcessVersionClass::kUnsupported);
+    EXPECT_EQ(unsupported.value().crs_process_version.value_or(""), "18.0");
+    EXPECT_EQ(unsupported.value().crs_parse_reason.value_or(""), "unsupported_crs_process_version");
+
+    auto apply = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    ASSERT_FALSE(apply);
+    EXPECT_EQ(apply.error().context.at("reason"), "unsupported_crs_process_version");
+    EXPECT_EQ(apply.error().context.at("crs_version_class"), "unsupported");
+    EXPECT_EQ(apply.error().context.at("crs_process_version"), "18.0");
+}
+
 } // namespace
 } // namespace ravo

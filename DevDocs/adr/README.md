@@ -150,3 +150,4 @@ supersession relationship when direction changes.
 | [0140](0140-iptc-extension-core-subset.md) | Accepted | Bounded IPTC Extension / additional Core writables (schema v15) |
 | [0141](0141-dng-conversion-smart-preview-policy.md) | Accepted | DNG Copy-mode side conversion + Smart Preview browse-only; fail-closed without packaged converter |
 | [0142](0142-ai-metadata-culling-suggestions.md) | Accepted | AI-04 stub keyword/caption/focus/duplicate suggestions; explicit accept; never auto-reject/delete |
+| [0143](0143-crs-process-version-matrix.md) | Accepted | CRS ProcessVersion supported vs fail-closed matrix; xmp-status reports version class |

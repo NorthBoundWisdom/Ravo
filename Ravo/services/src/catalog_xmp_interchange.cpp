@@ -3,6 +3,7 @@
 #include "catalog_internal.h"
 #include "catalog_service_internal.h"
 
+#include <map>
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -421,6 +422,7 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
         if (!is_crs_xmp_document(text.value()))
         {
             status.crs_parse_ok = false;
+            status.crs_version_class = CrsProcessVersionClass::kAbsent;
             // Metadata-only sidecars are allowed (ADR-0138); CRS absence is not
             // an error by itself.
             if (metadata.metadata.has_any_writable_element || metadata.metadata.keyword_paths)
@@ -430,6 +432,12 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
         }
         else
         {
+            auto version = classify_crs_process_version(text.value());
+            if (version)
+            {
+                status.crs_version_class = version.value().version_class;
+                status.crs_process_version = version.value().process_version;
+            }
             AssetDescriptor descriptor{asset.value()->id, asset.value()->normalized_uri,
                                        asset.value()->content_fingerprint};
             auto imported = import_crs_xmp({text.value(), descriptor});
@@ -439,11 +447,35 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
                 const auto reason = imported.error().context.find("reason");
                 status.crs_parse_reason =
                     reason != imported.error().context.end() ? reason->second : "unsupported_crs";
+                // Prefer version-class reason when ProcessVersion itself is unsupported.
+                if (version &&
+                    version.value().version_class == CrsProcessVersionClass::kUnsupported)
+                {
+                    status.crs_version_class = CrsProcessVersionClass::kUnsupported;
+                    status.crs_process_version = version.value().process_version;
+                    status.crs_parse_reason =
+                        version.value().reason.value_or("unsupported_crs_process_version");
+                }
+                else if (version)
+                {
+                    status.crs_version_class = version.value().version_class;
+                    status.crs_process_version = version.value().process_version;
+                }
+                else
+                {
+                    // Malformed CRS: keep absent class; parse reason from import.
+                    status.crs_version_class = CrsProcessVersionClass::kAbsent;
+                }
             }
             else
             {
                 status.crs_parse_ok = true;
                 status.omitted = imported.value().omitted;
+                if (version)
+                {
+                    status.crs_version_class = version.value().version_class;
+                    status.crs_process_version = version.value().process_version;
+                }
             }
         }
     }
@@ -519,12 +551,19 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
     if (has_crs_namespace && !status.value().crs_parse_ok)
     {
         // CRS present but unsupported: never partially apply metadata (ADR-0120).
+        std::map<std::string, std::string, std::less<>> context{
+            {"asset_id", std::string(asset_id)},
+            {"path", *status.value().sidecar_path},
+            {"reason", status.value().crs_parse_reason.value_or("unsupported_crs")},
+            {"conflict_class",
+             std::string(xmp_interchange_conflict_class_name(status.value().conflict_class))},
+            {"crs_version_class",
+             std::string(crs_process_version_class_name(status.value().crs_version_class))},
+        };
+        if (status.value().crs_process_version)
+            context.emplace("crs_process_version", *status.value().crs_process_version);
         return make_error(ErrorCode::kUnsupported, "XMP sidecar is not a supported CRS document",
-                          {{"asset_id", std::string(asset_id)},
-                           {"path", *status.value().sidecar_path},
-                           {"reason", status.value().crs_parse_reason.value_or("unsupported_crs")},
-                           {"conflict_class", std::string(xmp_interchange_conflict_class_name(
-                                                  status.value().conflict_class))}});
+                          std::move(context));
     }
 
     const bool has_metadata_payload =

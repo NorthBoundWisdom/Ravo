@@ -188,8 +188,7 @@ TEST(CrsXmpTest, CalibratedSidecarUsesRawSigmoidAndDisplayEncodedPointCurve)
               std::distance(recipe.value().operations.begin(), curve));
     auto reopened = develop_from_recipe(recipe.value());
     ASSERT_TRUE(reopened) << reopened.error().message;
-    EXPECT_EQ(reopened.value().rgb_curve.application_space,
-              kRgbCurveApplicationSpaceDisplaySrgb);
+    EXPECT_EQ(reopened.value().rgb_curve.application_space, kRgbCurveApplicationSpaceDisplaySrgb);
     EXPECT_EQ(reopened.value().rgb_curve.channels, raw.rgb_curve.channels);
 
     auto negative_xmp = xmp;
@@ -299,6 +298,41 @@ TEST(CrsXmpTest, ImportXmpCliWritesMappedRecipe)
     ASSERT_TRUE(recipe) << recipe.error().message;
     EXPECT_NE(operation_by_id(recipe.value(), "ravo.effect.vignette"), nullptr);
     std::filesystem::remove(out);
+}
+
+TEST(CrsXmpTest, ProcessVersionMatrixReportsSupportedAndFailClosedUnsupported)
+{
+    EXPECT_TRUE(crs_process_version_is_supported("11.0"));
+    EXPECT_TRUE(crs_process_version_is_supported("17.0"));
+    EXPECT_FALSE(crs_process_version_is_supported("5.0"));
+    EXPECT_FALSE(crs_process_version_is_supported("18.0"));
+    EXPECT_FALSE(crs_process_version_is_supported("CameraRaw"));
+
+    auto supported = read_fixture();
+    auto classified = classify_crs_process_version(supported);
+    ASSERT_TRUE(classified) << classified.error().message;
+    EXPECT_EQ(classified.value().version_class, CrsProcessVersionClass::kSupportedPv2012);
+    ASSERT_TRUE(classified.value().process_version);
+    EXPECT_FALSE(classified.value().process_version->empty());
+
+    auto unsupported = supported;
+    const auto marker = unsupported.find("crs:ProcessVersion=\"");
+    ASSERT_NE(marker, std::string::npos);
+    const auto value_begin = marker + std::string("crs:ProcessVersion=\"").size();
+    const auto end = unsupported.find('"', value_begin);
+    ASSERT_NE(end, std::string::npos);
+    unsupported.replace(marker, end + 1 - marker, "crs:ProcessVersion=\"5.0\"");
+    auto rejected_class = classify_crs_process_version(unsupported);
+    ASSERT_TRUE(rejected_class) << rejected_class.error().message;
+    EXPECT_EQ(rejected_class.value().version_class, CrsProcessVersionClass::kUnsupported);
+    EXPECT_EQ(rejected_class.value().process_version.value_or(""), "5.0");
+    EXPECT_EQ(rejected_class.value().reason.value_or(""), "unsupported_crs_process_version");
+
+    auto imported = import_crs_xmp({unsupported, {"asset-1", "file:///fixture.jpg", std::nullopt}});
+    ASSERT_FALSE(imported);
+    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_crs_process_version");
+    EXPECT_EQ(imported.error().context.at("key"), "ProcessVersion");
+    EXPECT_EQ(imported.error().context.at("value"), "5.0");
 }
 
 } // namespace

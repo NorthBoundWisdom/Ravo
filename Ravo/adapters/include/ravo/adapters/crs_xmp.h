@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -12,6 +14,44 @@
 
 namespace ravo
 {
+
+enum class CrsProcessVersionClass : std::uint8_t
+{
+    kAbsent = 0,
+    kSupportedPv2012,
+    kUnsupported,
+};
+
+[[nodiscard]] constexpr std::string_view
+crs_process_version_class_name(CrsProcessVersionClass value) noexcept
+{
+    switch (value)
+    {
+    case CrsProcessVersionClass::kAbsent:
+        return "absent";
+    case CrsProcessVersionClass::kSupportedPv2012:
+        return "supported-pv2012";
+    case CrsProcessVersionClass::kUnsupported:
+        return "unsupported";
+    }
+    return "absent";
+}
+
+struct CrsProcessVersionInfo
+{
+    CrsProcessVersionClass version_class = CrsProcessVersionClass::kAbsent;
+    std::optional<std::string> process_version;
+    std::optional<std::string> reason;
+};
+
+// True for ProcessVersion strings accepted by the PV2012 recipe-field dialect
+// (ADR-0143). Absent ProcessVersion is not "supported" by this predicate.
+[[nodiscard]] bool crs_process_version_is_supported(std::string_view process_version) noexcept;
+
+// Classifies crs:ProcessVersion without applying a look. Malformed / non-CRS
+// documents fail closed; version class is still filled when the CRS namespace
+// parses and only the ProcessVersion gate fails.
+[[nodiscard]] Result<CrsProcessVersionInfo> classify_crs_process_version(std::string_view xmp_utf8);
 
 inline constexpr std::string_view kCrsNamespaceUri = "http://ns.adobe.com/camera-raw-settings/1.0/";
 

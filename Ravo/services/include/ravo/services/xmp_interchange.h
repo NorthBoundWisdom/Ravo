@@ -8,6 +8,7 @@
 
 #include "ravo/foundation/error.h"
 #include "ravo/domain/types.h"
+#include "ravo/adapters/crs_xmp.h"
 #include "ravo/recipe/crs_types.h"
 
 namespace ravo
@@ -96,6 +97,9 @@ struct XmpInterchangeStatus
     std::optional<XmpInterchangeSidecarFingerprint> baseline_sidecar;
     bool crs_parse_ok = false;
     std::optional<std::string> crs_parse_reason;
+    // ADR-0143: ProcessVersion matrix class / raw value when present.
+    CrsProcessVersionClass crs_version_class = CrsProcessVersionClass::kAbsent;
+    std::optional<std::string> crs_process_version;
     std::vector<CrsOmission> omitted;
     bool metadata_parse_ok = false;
     std::optional<std::string> metadata_parse_reason;

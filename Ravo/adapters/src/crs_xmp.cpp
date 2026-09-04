@@ -41,6 +41,12 @@ constexpr double kCrsReferenceToneGamma = 0.62;
 constexpr double kCrsCurveDeltaScale = 1.4;
 constexpr std::size_t kCrsComposedCurvePoints = 20;
 
+[[nodiscard]] constexpr auto supported_crs_process_versions()
+{
+    return std::array<std::string_view, 12>{"6.7",  "8.0",  "9.0",  "10.0", "11.0", "15.0",
+                                            "15.1", "15.2", "15.3", "15.4", "16.0", "17.0"};
+}
+
 [[nodiscard]] std::string utf8(const QStringView value)
 {
     return value.toString().toUtf8().toStdString();
@@ -485,9 +491,7 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentit
 [[nodiscard]] Result<void> reject_unknown_and_identity(const ParsedCrs &parsed,
                                                        std::vector<CrsOmission> &omitted)
 {
-    static constexpr std::array<std::string_view, 12> kAllowedProcess = {
-        "6.7",  "8.0",  "9.0",  "10.0", "11.0", "15.0",
-        "15.1", "15.2", "15.3", "15.4", "16.0", "17.0"};
+    static constexpr auto kAllowedProcess = supported_crs_process_versions();
     static constexpr std::array<std::string_view, 5> kDefaultProfiles = {
         "Adobe Standard", "Adobe Color", "Embedded", "Camera Settings", "Default"};
     static constexpr std::array<std::string_view, 1> kDefaultLooks = {"Adobe Color"};
@@ -1133,6 +1137,42 @@ void apply_crs_look(DevelopParams &dest, const DevelopParams &look, const CrsLoo
     if (mask.clarity)
         dest.detail_effect_enabled = true;
     clamp_develop(dest);
+}
+
+bool crs_process_version_is_supported(const std::string_view process_version) noexcept
+{
+    for (const auto allowed : supported_crs_process_versions())
+    {
+        if (process_version == allowed)
+            return true;
+    }
+    return false;
+}
+
+Result<CrsProcessVersionInfo> classify_crs_process_version(const std::string_view xmp_utf8)
+{
+    auto parsed = parse_crs_document(xmp_utf8);
+    if (!parsed)
+        return parsed.error();
+    CrsProcessVersionInfo info;
+    if (const auto *process = find_attr(parsed.value(), "ProcessVersion"); process != nullptr)
+    {
+        info.process_version = *process;
+        if (crs_process_version_is_supported(*process))
+        {
+            info.version_class = CrsProcessVersionClass::kSupportedPv2012;
+        }
+        else
+        {
+            info.version_class = CrsProcessVersionClass::kUnsupported;
+            info.reason = "unsupported_crs_process_version";
+        }
+    }
+    else
+    {
+        info.version_class = CrsProcessVersionClass::kAbsent;
+    }
+    return info;
 }
 
 Result<CrsImportResult> import_crs_xmp(const LegacyXmpImportRequest &request)

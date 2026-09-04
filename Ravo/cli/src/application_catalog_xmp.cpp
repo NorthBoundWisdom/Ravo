@@ -36,6 +36,8 @@ namespace
         {"has_adjacent_metadata", status.has_adjacent_metadata},
         {"catalog", fingerprint_catalog_json(status.catalog)},
         {"crs_parse_ok", status.crs_parse_ok},
+        {"crs_version_class",
+         std::string(crs_process_version_class_name(status.crs_version_class))},
         {"metadata_parse_ok", status.metadata_parse_ok},
     };
     if (status.sidecar_path)
@@ -48,6 +50,8 @@ namespace
         object.emplace("baseline_sidecar", fingerprint_sidecar_json(*status.baseline_sidecar));
     if (status.crs_parse_reason)
         object.emplace("crs_parse_reason", *status.crs_parse_reason);
+    if (status.crs_process_version)
+        object.emplace("crs_process_version", *status.crs_process_version);
     if (status.metadata_parse_reason)
         object.emplace("metadata_parse_reason", *status.metadata_parse_reason);
     if (!status.omitted.empty())
