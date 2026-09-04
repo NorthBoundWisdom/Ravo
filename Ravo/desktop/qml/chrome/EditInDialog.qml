@@ -265,7 +265,7 @@ DialogShell {
             objectName: "editInSessionStatus"
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            visible: root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId
+            visible: Boolean(root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId)
             text: {
                 const session = root.presenter ? root.presenter.externalEditorSession : ({});
                 if (!session || !session.workingCopyId)
@@ -293,25 +293,25 @@ DialogShell {
         CustomButton {
             objectName: "editInAbandon"
             text: qsTr("Abandon")
-            enabled: root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered
+            enabled: Boolean(root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered)
             onClicked: root.acceptAbandon()
         }
         CustomButton {
             objectName: "editInReopen"
             text: qsTr("Reopen")
-            enabled: root.presenter && ((root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered) || (root.presenter.selectedAssetId && root.presenter.selectedAssetId.length))
+            enabled: Boolean(root.presenter && ((root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered) || (root.presenter.selectedAssetId && root.presenter.selectedAssetId.length)))
             onClicked: root.acceptReopen()
         }
         CustomButton {
             objectName: "editInRefreshStatus"
             text: qsTr("Refresh Status")
-            enabled: root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered
+            enabled: Boolean(root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered)
             onClicked: root.acceptRefreshStatus()
         }
         CustomButton {
             objectName: "editInCheckReturned"
             text: qsTr("Check Returned")
-            enabled: root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered
+            enabled: Boolean(root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId && !root.presenter.externalEditorSession.registered)
             onClicked: root.acceptCheckReturned()
         }
         CustomButton {

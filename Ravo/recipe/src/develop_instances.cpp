@@ -334,7 +334,7 @@ std::size_t ensure_color_balance_rgb_instances(DevelopParams &params)
 
 Result<std::string> add_exposure_instance(DevelopParams &params)
 {
-    ensure_exposure_instances(params);
+    static_cast<void>(ensure_exposure_instances(params));
     DevelopExposureInstance added;
     added.instance_id = make_exposure_instance_id(params);
     added.name = "Instance " + std::to_string(params.exposure_instances.size() + 1U);
@@ -344,7 +344,7 @@ Result<std::string> add_exposure_instance(DevelopParams &params)
 
 Result<std::string> add_color_balance_rgb_instance(DevelopParams &params)
 {
-    ensure_color_balance_rgb_instances(params);
+    static_cast<void>(ensure_color_balance_rgb_instances(params));
     DevelopColorBalanceRgbInstance added;
     added.instance_id = make_color_balance_rgb_instance_id(params);
     added.name = "Instance " + std::to_string(params.color_balance_rgb_instances.size() + 1U);
@@ -462,7 +462,7 @@ std::optional<std::size_t> find_color_balance_rgb_instance_index(const DevelopPa
 Result<std::string> duplicate_exposure_instance(DevelopParams &params,
                                                 const std::string_view instance_id)
 {
-    ensure_exposure_instances(params);
+    static_cast<void>(ensure_exposure_instances(params));
     const auto found = find_exposure_instance_index(params, instance_id);
     if (!found)
     {
@@ -492,7 +492,7 @@ Result<std::string> duplicate_exposure_instance(DevelopParams &params,
 Result<std::string> duplicate_color_balance_rgb_instance(DevelopParams &params,
                                                          const std::string_view instance_id)
 {
-    ensure_color_balance_rgb_instances(params);
+    static_cast<void>(ensure_color_balance_rgb_instances(params));
     const auto found = find_color_balance_rgb_instance_index(params, instance_id);
     if (!found)
     {

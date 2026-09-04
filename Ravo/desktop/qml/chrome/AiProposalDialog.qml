@@ -71,7 +71,7 @@ DialogShell {
         CustomLabel {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            color: Theme.secondaryTextColor
+            color: Theme.placeholderTextColor
             text: qsTr("Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.")
         }
 
@@ -121,7 +121,7 @@ DialogShell {
             Layout.fillWidth: true
             implicitHeight: Fonts.size48 * 3
             radius: Fonts.size4
-            color: Theme.panelSurfaceColor
+            color: Theme.baseColor
             border.color: Theme.dividerColor
             border.width: 1
             clip: true
@@ -206,13 +206,13 @@ DialogShell {
         CustomButton {
             objectName: "aiProposalCancelAction"
             text: qsTr("Cancel Proposal")
-            enabled: root.presenter && root.presenter.selectedAiProposal && root.presenter.selectedAiProposal.pending
+            enabled: Boolean(root.presenter && root.presenter.selectedAiProposal && root.presenter.selectedAiProposal.pending)
             onClicked: root.cancelAccepted()
         }
         CustomButton {
             objectName: "aiProposalReject"
             text: qsTr("Reject")
-            enabled: root.presenter && root.presenter.selectedAiProposal && root.presenter.selectedAiProposal.pending
+            enabled: Boolean(root.presenter && root.presenter.selectedAiProposal && root.presenter.selectedAiProposal.pending)
             onClicked: root.rejectAccepted()
         }
         CustomButton {
@@ -220,7 +220,7 @@ DialogShell {
             text: qsTr("Apply")
             buttonColor: Theme.highlightColor
             buttonTextColor: Theme.highlightedTextColor
-            enabled: root.presenter && root.presenter.selectedAiProposal && root.presenter.selectedAiProposal.pending
+            enabled: Boolean(root.presenter && root.presenter.selectedAiProposal && root.presenter.selectedAiProposal.pending)
             onClicked: root.applyAccepted()
         }
         CustomButton {

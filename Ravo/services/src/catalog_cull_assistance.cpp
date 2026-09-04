@@ -461,7 +461,7 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
         for (std::size_t i = 0; i < 64U; ++i)
         {
             const auto value =
-                counts[i] == 0U ? 0U : static_cast<std::uint8_t>(sums[i] / counts[i]);
+                static_cast<std::uint8_t>(counts[i] == 0U ? 0U : sums[i] / counts[i]);
             pixels[i] = value;
             total += value;
         }

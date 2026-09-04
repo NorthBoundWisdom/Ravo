@@ -203,6 +203,8 @@ QStringList command_ids()
             QLatin1String(command::kPhotoEditInAbandon),
             QLatin1String(command::kPhotoEditInReopen),
             QLatin1String(command::kPhotoEditInRefreshStatus),
+            QLatin1String(command::kPhotoOfflineEditRefreshStatus),
+            QLatin1String(command::kPhotoOfflineEditReconnect),
             QLatin1String(command::kPhotoAiProposal),
             QLatin1String(command::kPhotoAiPropose),
             QLatin1String(command::kPhotoAiProposalSelect),

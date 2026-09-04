@@ -56,7 +56,7 @@
   "dependencies": {
     "Exiv2": {
       "remote": "https://github.com/Exiv2/exiv2.git",
-      "commit": "9ff49152c283ac99ee0f39672b426df6bf6109a7",
+      "commit": "dc9364baa5d75395ab7d71c470f1e94bbe792a93",
       "repoName": "exiv2"
     },
     "LibJpegTurbo": {
@@ -91,7 +91,7 @@
     },
     "LittleCMS": {
       "remote": "https://github.com/mm2/Little-CMS.git",
-      "commit": "cb35a0c1df796fcad01fd5804e5eea4b93379731",
+      "commit": "47270ff27e4e05e8ceae3dcc26fabe78364c6d26",
       "repoName": "Little-CMS"
     }
   }
