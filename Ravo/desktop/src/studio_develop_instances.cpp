@@ -257,8 +257,7 @@ void StudioPresenter::addExposureInstance()
     }
     selected_exposure_instance_index_ = next.exposure_instances.size() - 1U;
     load_exposure_instance_into_legacy(next, selected_exposure_instance_index_);
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("exposure.instance.add"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::addColorBalanceRgbInstance()
@@ -273,8 +272,7 @@ void StudioPresenter::addColorBalanceRgbInstance()
     }
     selected_color_balance_rgb_instance_index_ = next.color_balance_rgb_instances.size() - 1U;
     load_color_balance_rgb_instance_into_legacy(next, selected_color_balance_rgb_instance_index_);
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("colorbalancergb.instance.add"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::duplicateExposureInstance()
@@ -291,8 +289,7 @@ void StudioPresenter::duplicateExposureInstance()
     }
     selected_exposure_instance_index_ = next.exposure_instances.size() - 1U;
     load_exposure_instance_into_legacy(next, selected_exposure_instance_index_);
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("exposure.instance.duplicate"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::duplicateColorBalanceRgbInstance()
@@ -310,8 +307,7 @@ void StudioPresenter::duplicateColorBalanceRgbInstance()
     }
     selected_color_balance_rgb_instance_index_ = next.color_balance_rgb_instances.size() - 1U;
     load_color_balance_rgb_instance_into_legacy(next, selected_color_balance_rgb_instance_index_);
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("colorbalancergb.instance.duplicate"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::deleteExposureInstance(const QString &instance_id)
@@ -334,8 +330,7 @@ void StudioPresenter::deleteExposureInstance(const QString &instance_id)
     {
         load_exposure_instance_into_legacy(next, selected_exposure_instance_index_);
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("exposure.instance.delete"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::deleteColorBalanceRgbInstance(const QString &instance_id)
@@ -360,8 +355,7 @@ void StudioPresenter::deleteColorBalanceRgbInstance(const QString &instance_id)
         load_color_balance_rgb_instance_into_legacy(next,
                                                     selected_color_balance_rgb_instance_index_);
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("colorbalancergb.instance.delete"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::renameExposureInstance(const QString &instance_id, const QString &name)
@@ -404,8 +398,7 @@ void StudioPresenter::setExposureInstanceBypass(const QString &instance_id, cons
         setError(qstring_from_utf8(updated.error().message));
         return;
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("exposure.instance.bypass"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::setColorBalanceRgbInstanceBypass(const QString &instance_id,
@@ -420,8 +413,7 @@ void StudioPresenter::setColorBalanceRgbInstanceBypass(const QString &instance_i
         setError(qstring_from_utf8(updated.error().message));
         return;
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("colorbalancergb.instance.bypass"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::setExposureInstanceEnabled(const QString &instance_id, const bool enabled)
@@ -434,8 +426,7 @@ void StudioPresenter::setExposureInstanceEnabled(const QString &instance_id, con
         setError(qstring_from_utf8(updated.error().message));
         return;
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("exposure.instance.enabled"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::setColorBalanceRgbInstanceEnabled(const QString &instance_id,
@@ -450,8 +441,7 @@ void StudioPresenter::setColorBalanceRgbInstanceEnabled(const QString &instance_
         setError(qstring_from_utf8(updated.error().message));
         return;
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("colorbalancergb.instance.enabled"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::reorderExposureInstance(const int from, const int to)
@@ -476,8 +466,7 @@ void StudioPresenter::reorderExposureInstance(const int from, const int to)
         selected_exposure_instance_index_ = *found;
     }
     load_exposure_instance_into_legacy(next, selected_exposure_instance_index_);
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("exposure.instance.reorder"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 void StudioPresenter::reorderColorBalanceRgbInstance(const int from, const int to)
@@ -503,8 +492,7 @@ void StudioPresenter::reorderColorBalanceRgbInstance(const int from, const int t
         selected_color_balance_rgb_instance_index_ = *found;
     }
     load_color_balance_rgb_instance_into_legacy(next, selected_color_balance_rgb_instance_index_);
-    mutate_develop(std::move(next), DevelopEdit::Commit, true,
-                   std::string("colorbalancergb.instance.reorder"));
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::nullopt);
 }
 
 } // namespace ravo

@@ -584,5 +584,128 @@ TEST(LocalAdjustmentMultiInstanceTest, FailsClosedExternalAndSharedInstanceMasks
     EXPECT_EQ(shared.masks.size(), 1U);
 }
 
+TEST(LocalAdjustmentMultiInstanceTest, HistorySummaryCoversInstanceVectorAndMasks)
+{
+    DevelopParams before;
+    DevelopExposureInstance master;
+    master.instance_id = "exposure-1";
+    master.name = "Master";
+    before.exposure_instances = {master};
+
+    DevelopParams after = before;
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-2";
+    local.name = "Dodge";
+    local.exposure_ev = 0.35;
+    local.mask_id = "ravo.studio.mask.exposure.2";
+    after.exposure_instances.push_back(local);
+    Mask mask{"ravo.studio.mask.exposure.2", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    mask.payload = CircleMask{0.4, 0.5, 0.15, 0.0};
+    after.masks = {mask};
+
+    const auto changes = develop_change_summary(before, after);
+    bool saw_instances = false;
+    bool saw_masks = false;
+    for (const auto &change : changes)
+    {
+        if (change.field == "exposureInstances")
+            saw_instances = true;
+        if (change.field == "masks")
+            saw_masks = true;
+    }
+    EXPECT_TRUE(saw_instances);
+    EXPECT_TRUE(saw_masks);
+
+    DevelopParams cbr_before;
+    DevelopColorBalanceRgbInstance c0;
+    c0.instance_id = "colorbalancergb-1";
+    cbr_before.color_balance_rgb_instances = {c0};
+    DevelopParams cbr_after = cbr_before;
+    ASSERT_TRUE(add_color_balance_rgb_instance(cbr_after));
+    const auto cbr_changes = develop_change_summary(cbr_before, cbr_after);
+    bool saw_cbr = false;
+    for (const auto &change : cbr_changes)
+    {
+        if (change.field == "colorBalanceRgbInstances")
+            saw_cbr = true;
+    }
+    EXPECT_TRUE(saw_cbr);
+}
+
+TEST(LocalAdjustmentMultiInstanceTest, StructuralOpsRoundTripThroughRecipeHistoryJson)
+{
+    DevelopParams develop;
+    // First add seeds Master then appends Instance 2.
+    ASSERT_TRUE(add_exposure_instance(develop));
+    ASSERT_EQ(develop.exposure_instances.size(), 2U);
+    develop.exposure_instances[1].name = "Local";
+    develop.exposure_instances[1].exposure_ev = 0.5;
+    load_exposure_instance_into_legacy(develop, 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop, "exposureMaskKind", 3.0)); // circle
+    mirror_legacy_exposure_into_instance(develop, 1);
+    ASSERT_TRUE(develop.exposure_instances[1].mask_id.has_value());
+    const auto masked_id = *develop.exposure_instances[1].mask_id;
+
+    ASSERT_TRUE(
+        set_exposure_instance_bypass(develop, develop.exposure_instances[0].instance_id, true));
+    ASSERT_TRUE(reorder_exposure_instance(develop, 0, 1));
+    ASSERT_EQ(develop.exposure_instances.size(), 2U);
+
+    const AssetDescriptor asset{"asset-history", "file:///fixture.raw", std::nullopt};
+    auto recipe = recipe_from_develop(asset, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto json = serialize_recipe(recipe.value());
+    ASSERT_TRUE(json) << json.error().message;
+    auto parsed = parse_recipe_json(json.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    auto restored = develop_from_recipe(parsed.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    ASSERT_EQ(restored.value().exposure_instances.size(), 2U);
+    EXPECT_TRUE(restored.value().exposure_instances[0].bypass ||
+                restored.value().exposure_instances[1].bypass);
+    bool found_mask = false;
+    for (const auto &instance : restored.value().exposure_instances)
+    {
+        if (instance.mask_id && *instance.mask_id == masked_id)
+            found_mask = true;
+    }
+    EXPECT_TRUE(found_mask);
+    EXPECT_FALSE(restored.value().masks.empty());
+
+    // Duplicate a masked instance; clone keeps an independent mask through history.
+    DevelopParams dup = restored.value();
+    std::string source_id;
+    for (const auto &instance : dup.exposure_instances)
+    {
+        if (instance.mask_id && *instance.mask_id == masked_id)
+        {
+            source_id = instance.instance_id;
+            break;
+        }
+    }
+    ASSERT_FALSE(source_id.empty());
+    ASSERT_TRUE(duplicate_exposure_instance(dup, source_id));
+    ASSERT_EQ(dup.exposure_instances.size(), 3U);
+    ASSERT_TRUE(dup.exposure_instances.back().mask_id.has_value());
+    EXPECT_NE(*dup.exposure_instances.back().mask_id, masked_id);
+    const auto cloned_mask = *dup.exposure_instances.back().mask_id;
+    auto dup_recipe = recipe_from_develop(asset, dup);
+    ASSERT_TRUE(dup_recipe) << dup_recipe.error().message;
+    auto dup_json = serialize_recipe(dup_recipe.value());
+    ASSERT_TRUE(dup_json) << dup_json.error().message;
+    auto dup_parsed = parse_recipe_json(dup_json.value());
+    ASSERT_TRUE(dup_parsed) << dup_parsed.error().message;
+    auto dup_restored = develop_from_recipe(dup_parsed.value());
+    ASSERT_TRUE(dup_restored) << dup_restored.error().message;
+    ASSERT_EQ(dup_restored.value().exposure_instances.size(), 3U);
+    bool found_clone = false;
+    for (const auto &instance : dup_restored.value().exposure_instances)
+    {
+        if (instance.mask_id && *instance.mask_id == cloned_mask)
+            found_clone = true;
+    }
+    EXPECT_TRUE(found_clone);
+}
+
 } // namespace
 } // namespace ravo

@@ -4,7 +4,7 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0155 plus PERF-01 Gallery→viewer→Develop
+> **Review basis:** `main` through ADR-0155 plus LOCAL-01 history/undo for multi-instance
 > measurement harness and AI-01/02 Studio stub proposal inspect/apply/reject chrome;
 > next free ADR **0156**.
 
@@ -348,7 +348,10 @@ RGB instance chrome (list/select/name/enable/bypass/reorder/add/delete/duplicate
 with independent Studio-owned mask clone) are on `main`; selected-instance leaf
 authoring for brush/path/linear/radial/parametric (luminance/colour range) via
 the existing mask pipeline is on `main` with fail-closed external/shared sibling
-attachments. Overlay/composition polish and history/style/batch still residual.
+attachments. Session undo/redo and develop history now keep discrete entries for
+add/duplicate/reorder/bypass/enable/delete and selected-instance mask edits
+(instance vector + masks restore). Overlay/composition polish and style/batch
+still residual.
 
 **Remaining work:**
 
@@ -356,9 +359,8 @@ attachments. Overlay/composition polish and history/style/batch still residual.
   Add/Subtract/Intersect/Invert composition UX beyond the existing leaf editor;
 - one canonical coordinate path through orientation, lens, Perspective, crop,
   Canvas, preview scaling, 1:1 ROI, and export;
-- history/undo/redo, snapshots, style/preset, selective copy/paste,
-  multi-selection batch, virtual-copy, and reopen completeness for instance
-  vectors;
+- snapshots, style/preset, selective copy/paste, multi-selection batch,
+  virtual-copy, and reopen completeness for instance vectors;
 - explicit XMP export/import failure for unrepresentable multi-instance state;
 - GPU parity only after CPU equality and PERF-01 evidence;
 - split oversized Studio owners while implementing the workflow; do not grow

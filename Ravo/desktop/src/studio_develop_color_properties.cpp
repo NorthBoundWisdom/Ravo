@@ -406,6 +406,8 @@ void StudioPresenter::placeMask(const double preview_x, const double preview_y)
         return;
     }
     DevelopParams next = develop_;
+    const auto mask_field = utf8_from_qstring(x_field);
+    capture_instance_front_for_field(next, mask_field);
     auto applied_x =
         apply_develop_mask_field_strict(next, utf8_from_qstring(x_field), mapped.value().first);
     if (!applied_x)
@@ -430,6 +432,7 @@ void StudioPresenter::placeMask(const double preview_x, const double preview_y)
                  QStringLiteral(" [") + reason_text + QStringLiteral("]"));
         return;
     }
+    retarget_instance_edit_after_field(next, mask_field);
     mutate_develop(std::move(next), DevelopEdit::Commit, true, utf8_from_qstring(x_field));
 }
 
@@ -578,6 +581,8 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
 
     const QString prefix = develop_mask_field_prefix(*target);
     DevelopParams next = develop_;
+    const auto mask_field = utf8_from_qstring(prefix + QStringLiteral("Threshold2"));
+    capture_instance_front_for_field(next, mask_field);
     // Apply mid keys before outer keys so each single-field write stays
     // monotonic against the previous Threshold0..3 snapshot.
     const std::array<std::pair<QString, double>, 4> fields{{
@@ -601,6 +606,7 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
             return;
         }
     }
+    retarget_instance_edit_after_field(next, mask_field);
     mutate_develop(std::move(next), DevelopEdit::Commit, true, utf8_from_qstring(fields[0].first));
 }
 

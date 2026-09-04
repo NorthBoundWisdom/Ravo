@@ -44,6 +44,12 @@ QString history_field_label(const std::string_view field)
 {
     if (field == "exposure")
         return QCoreApplication::translate("DevelopPanel", "Exposure");
+    if (field == "exposureInstances")
+        return QCoreApplication::translate("DevelopPanel", "Exposure instances");
+    if (field == "colorBalanceRgbInstances")
+        return QCoreApplication::translate("DevelopPanel", "Color Balance RGB instances");
+    if (field == "masks")
+        return QCoreApplication::translate("DevelopPanel", "Masks");
     if (field == "black")
         return QCoreApplication::translate("DevelopPanel", "Exposure black");
     if (field == "contrast")

@@ -238,6 +238,13 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                       after.geometry_effect_enabled);
     add_toggle_change(changes, "colorEqualizer", before.color_eq_effect_enabled,
                       after.color_eq_effect_enabled);
+    // ADR-0145 / LOCAL-01: multi-instance vectors and mask graphs must surface in
+    // develop history summaries; never treat structural instance edits as no-ops.
+    add_named_change(changes, "exposureInstances",
+                     before.exposure_instances != after.exposure_instances);
+    add_named_change(changes, "colorBalanceRgbInstances",
+                     before.color_balance_rgb_instances != after.color_balance_rgb_instances);
+    add_named_change(changes, "masks", before.masks != after.masks);
     return changes;
 }
 

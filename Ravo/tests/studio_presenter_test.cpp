@@ -1913,5 +1913,162 @@ TEST(StudioPresenterTest, ActualSizeInspectRoiFollowsLiveDevelopWithoutPan)
     EXPECT_TRUE(presenter.inspectRoiUrl().toString().contains(QStringLiteral("inspectRoi")));
 }
 
+TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("multi-instance-history.png"));
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(90, 110, 130));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.openDevelop();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && !presenter.previewUrl().isEmpty() &&
+                   presenter.selectedPhotoParametersDebugInfo().contains(
+                       QStringLiteral("recipe_state=saved\n"));
+        }))
+        << presenter.errorText().toStdString();
+
+    const auto history_size = [&] { return presenter.recipeHistory().size(); };
+
+    presenter.addExposureInstance();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && presenter.exposureInstances().size() == 2 &&
+                   history_size() == 1;
+        }))
+        << presenter.errorText().toStdString()
+        << " instances=" << presenter.exposureInstances().size() << " history=" << history_size();
+    EXPECT_TRUE(presenter.canUndo());
+
+    const auto local_id =
+        presenter.exposureInstances().back().toMap().value(QStringLiteral("id")).toString();
+    presenter.selectExposureInstance(local_id);
+    presenter.setDevelopNumber(QStringLiteral("exposureMaskKind"), 3.0); // circle
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && history_size() == 2 &&
+                   presenter.exposureInstances()
+                       .back()
+                       .toMap()
+                       .value(QStringLiteral("hasMask"))
+                       .toBool();
+        }))
+        << presenter.errorText().toStdString() << " history=" << history_size();
+
+    presenter.duplicateExposureInstance();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && presenter.exposureInstances().size() == 3 &&
+                   history_size() == 3 &&
+                   presenter.exposureInstances()
+                       .back()
+                       .toMap()
+                       .value(QStringLiteral("hasMask"))
+                       .toBool();
+        }))
+        << presenter.errorText().toStdString() << " history=" << history_size();
+
+    presenter.setExposureInstanceBypass(
+        presenter.exposureInstances().front().toMap().value(QStringLiteral("id")).toString(), true);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && history_size() == 4 &&
+                   presenter.exposureInstances()
+                       .front()
+                       .toMap()
+                       .value(QStringLiteral("bypass"))
+                       .toBool();
+        }))
+        << presenter.errorText().toStdString() << " history=" << history_size();
+
+    presenter.reorderExposureInstance(0, 2);
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && history_size() == 5; }))
+        << presenter.errorText().toStdString() << " history=" << history_size();
+
+    // Undo restores instance vector + masks step by step.
+    presenter.undoEdit();
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && history_size() >= 4; }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(presenter.exposureInstances().size(), 3);
+
+    presenter.undoEdit(); // bypass
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+    presenter.undoEdit(); // duplicate
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && presenter.exposureInstances().size() == 2; }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(
+        presenter.exposureInstances().back().toMap().value(QStringLiteral("hasMask")).toBool());
+
+    presenter.undoEdit(); // mask
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && presenter.exposureInstances().size() == 2 &&
+                   !presenter.exposureInstances()
+                        .back()
+                        .toMap()
+                        .value(QStringLiteral("hasMask"))
+                        .toBool();
+        }))
+        << presenter.errorText().toStdString();
+
+    presenter.undoEdit(); // add
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && presenter.exposureInstances().size() <= 1; }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.canRedo());
+
+    presenter.redoEdit();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && presenter.exposureInstances().size() == 2; }))
+        << presenter.errorText().toStdString();
+
+    const auto before_delete = presenter.exposureInstances().size();
+    const auto delete_id =
+        presenter.exposureInstances().back().toMap().value(QStringLiteral("id")).toString();
+    presenter.deleteExposureInstance(delete_id);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   presenter.exposureInstances().size() == before_delete - 1;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.undoEdit();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   presenter.exposureInstances().size() == before_delete;
+        }))
+        << presenter.errorText().toStdString();
+}
+
 } // namespace
 } // namespace ravo
