@@ -674,7 +674,8 @@ SqliteCatalogRepository::create_asset_version(const std::string_view source_asse
         "captured_unix_s, captured_local_exif, captured_subsecond_digits, "
         "captured_utc_offset_minutes, gps_latitude_e6, gps_longitude_e6, "
         "gps_altitude_magnitude_mm, gps_altitude_ref, country, province_state, city, "
-        "sublocation FROM asset_metadata WHERE asset_id = ?"));
+        "sublocation, headline, credit, source, instructions, usage_terms, job_id "
+        "FROM asset_metadata WHERE asset_id = ?"));
     copy_metadata.addBindValue(qstring_from_utf8(version_id));
     copy_metadata.addBindValue(qstring_from_utf8(source_asset_id));
     if (!copy_metadata.exec())

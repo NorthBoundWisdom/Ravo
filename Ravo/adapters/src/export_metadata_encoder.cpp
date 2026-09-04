@@ -424,6 +424,7 @@ Result<std::vector<std::uint8_t>> build_export_xmp_packet(const PreparedExportMe
         xml += "    xmlns:tiff=\"http://ns.adobe.com/tiff/1.0/\"\n";
         xml += "    xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\"\n";
         xml += "    xmlns:Iptc4xmpCore=\"http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/\"\n";
+        xml += "    xmlns:xmpRights=\"http://ns.adobe.com/xap/1.0/rights/\"\n";
         xml += "    xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\">\n";
         xml += "   <xmp:CreatorTool>";
         xml += xml_escape_utf8(kExportXmpCreatorTool);
@@ -545,6 +546,12 @@ Result<std::vector<std::uint8_t>> build_export_xmp_packet(const PreparedExportMe
         append_simple("photoshop:State", prepared.province_state);
         append_simple("photoshop:City", prepared.city);
         append_simple("Iptc4xmpCore:Location", prepared.sublocation);
+        append_simple("photoshop:Headline", prepared.headline);
+        append_simple("photoshop:Credit", prepared.credit);
+        append_simple("photoshop:Source", prepared.source);
+        append_simple("photoshop:Instructions", prepared.instructions);
+        append_simple("photoshop:TransmissionReference", prepared.job_id);
+        append_lang_alt("xmpRights:UsageTerms", prepared.usage_terms);
         if (!prepared.tags.empty())
         {
             xml += "   <dc:subject>\n    <rdf:Bag>\n";
@@ -581,7 +588,8 @@ Result<std::vector<std::uint8_t>> build_export_iptc_iim(const PreparedExportMeta
 {
     if (!prepared.title && !prepared.description && !prepared.creator && !prepared.copyright &&
         !prepared.country && !prepared.province_state && !prepared.city && !prepared.sublocation &&
-        prepared.tags.empty())
+        !prepared.headline && !prepared.credit && !prepared.source && !prepared.instructions &&
+        !prepared.job_id && prepared.tags.empty())
     {
         return export_metadata_error(ErrorCode::kInternal,
                                      "IPTC packet requested when every writable value is absent",
@@ -630,6 +638,26 @@ Result<std::vector<std::uint8_t>> build_export_iptc_iim(const PreparedExportMeta
         if (prepared.country)
         {
             append_iptc_dataset(iim, 2U, 100U, *prepared.country);
+        }
+        if (prepared.headline)
+        {
+            append_iptc_dataset(iim, 2U, 105U, *prepared.headline);
+        }
+        if (prepared.credit)
+        {
+            append_iptc_dataset(iim, 2U, 110U, *prepared.credit);
+        }
+        if (prepared.source)
+        {
+            append_iptc_dataset(iim, 2U, 115U, *prepared.source);
+        }
+        if (prepared.instructions)
+        {
+            append_iptc_dataset(iim, 2U, 40U, *prepared.instructions);
+        }
+        if (prepared.job_id)
+        {
+            append_iptc_dataset(iim, 2U, 103U, *prepared.job_id);
         }
         if (iim.size() > kExportIptcIimMaxBytes)
         {
@@ -765,6 +793,12 @@ Result<PreparedExportMetadata> prepare_export_metadata(const ExportMetadataSnaps
         prepared.province_state = snapshot.writable.province_state;
         prepared.city = snapshot.writable.city;
         prepared.sublocation = snapshot.writable.sublocation;
+        prepared.headline = snapshot.writable.headline;
+        prepared.credit = snapshot.writable.credit;
+        prepared.source = snapshot.writable.source;
+        prepared.instructions = snapshot.writable.instructions;
+        prepared.usage_terms = snapshot.writable.usage_terms;
+        prepared.job_id = snapshot.writable.job_id;
         prepared.tags = snapshot.tags;
         if (snapshot.capture.iso)
         {

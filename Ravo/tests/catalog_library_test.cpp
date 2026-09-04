@@ -1862,5 +1862,66 @@ TEST_F(CatalogServiceTest, CatalogLocationWritablePatchIsTransactionalAndSurvive
     EXPECT_EQ(reopened_snapshot.value().schema_version, kCatalogSchemaVersion);
 }
 
+TEST_F(CatalogServiceTest, IptcExtensionWritablePatchSurvivesReopenAndRefresh)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto path_a = root / "iptc-ext.jpg";
+    ASSERT_TRUE(
+        QImage(32, 24, QImage::Format_RGB32).save(QString::fromStdString(path_a.string()), "JPG"));
+    auto imported = service->import_one(path_a.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    WritableMetadata metadata;
+    metadata.headline = "Press headline";
+    metadata.credit = "Ravo Desk";
+    metadata.source = "Wire";
+    metadata.instructions = "Crop carefully";
+    metadata.usage_terms = "Editorial only";
+    metadata.job_id = "JOB-0140";
+    metadata.title = "Keep title";
+    auto written = service->set_writable_metadata(asset_id, metadata);
+    ASSERT_TRUE(written) << written.error().message;
+    EXPECT_EQ(written.value().metadata.headline, std::optional<std::string>{"Press headline"});
+    EXPECT_EQ(written.value().metadata.job_id, std::optional<std::string>{"JOB-0140"});
+
+    auto headline_patch = writable_metadata_patch_for_field("headline", std::string{"Updated HL"});
+    ASSERT_TRUE(headline_patch) << headline_patch.error().message;
+    auto patched =
+        service->set_writable_metadata_selection({asset_id}, headline_patch.value(), std::nullopt);
+    ASSERT_TRUE(patched) << patched.error().message;
+    ASSERT_FALSE(patched.value().assets.empty());
+    EXPECT_EQ(patched.value().assets.front().metadata.headline,
+              std::optional<std::string>{"Updated HL"});
+    EXPECT_EQ(patched.value().assets.front().metadata.credit,
+              std::optional<std::string>{"Ravo Desk"});
+
+    auto refreshed = service->refresh_capture_metadata(asset_id, CancellationToken{});
+    ASSERT_TRUE(refreshed) << refreshed.error().message;
+    EXPECT_EQ(refreshed.value().metadata.headline, std::optional<std::string>{"Updated HL"});
+    EXPECT_EQ(refreshed.value().metadata.usage_terms, std::optional<std::string>{"Editorial only"});
+    EXPECT_EQ(refreshed.value().metadata.title, std::optional<std::string>{"Keep title"});
+
+    ASSERT_TRUE(service->close());
+    ASSERT_TRUE(open_service(false));
+    auto reopened_assets = service->list_assets();
+    ASSERT_TRUE(reopened_assets);
+    ASSERT_EQ(reopened_assets.value().size(), 1U);
+    EXPECT_EQ(reopened_assets.value().front().metadata.headline,
+              std::optional<std::string>{"Updated HL"});
+    EXPECT_EQ(reopened_assets.value().front().metadata.credit,
+              std::optional<std::string>{"Ravo Desk"});
+    EXPECT_EQ(reopened_assets.value().front().metadata.source, std::optional<std::string>{"Wire"});
+    EXPECT_EQ(reopened_assets.value().front().metadata.instructions,
+              std::optional<std::string>{"Crop carefully"});
+    EXPECT_EQ(reopened_assets.value().front().metadata.usage_terms,
+              std::optional<std::string>{"Editorial only"});
+    EXPECT_EQ(reopened_assets.value().front().metadata.job_id,
+              std::optional<std::string>{"JOB-0140"});
+    auto reopened_snapshot = service->snapshot();
+    ASSERT_TRUE(reopened_snapshot);
+    EXPECT_EQ(reopened_snapshot.value().schema_version, kCatalogSchemaVersion);
+}
+
 } // namespace
 } // namespace ravo

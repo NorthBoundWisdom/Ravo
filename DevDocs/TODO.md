@@ -178,9 +178,11 @@ subset (title/description/creator/copyright), ADR-0126 catalog-owned IPTC
 location quartet (country/province_state/city/sublocation), ADR-0128
 camera/lens(focal)/capture-date facets, ADR-0130 LibraryQuery location
 exact filters + location facets, ADR-0135 Exif LensMake/LensModel
-lens-name facet, and ADR-0138 adjacent XMP keyword/IPTC/location merge under
-the ADR-0120 matrix accepted and implemented (no facet tables; catalog schema
-v14; LibraryQuery document schema v4).
+lens-name facet, ADR-0138 adjacent XMP keyword/IPTC/location merge under
+the ADR-0120 matrix, and ADR-0140 IPTC Extension / additional Core subset
+(headline/credit/source/instructions/usage_terms/job_id) accepted and
+implemented (no facet tables; catalog schema v15; LibraryQuery document
+schema v4).
 
 **Outcome:** hierarchical keywords, a defined IPTC subset, catalog-owned location,
 and camera/lens/date facets with transactional multi-selection editing.
@@ -230,9 +232,15 @@ and camera/lens/date facets with transactional multi-selection editing.
   `lens_make_equals`/`lens_model_equals` selectors (LibraryQuery document v4);
   CLI `--lens-make`/`--lens-model` + `lens_names` facets JSON; Studio lens-name
   chips; not user-writable.
+- ADR-0140 IPTC Extension / additional Core subset on schema v15
+  (`headline`/`credit`/`source`/`instructions`/`usage_terms`/`job_id`);
+  capture refresh leaves them untouched; multi-select patches share the
+  ADR-0124 transaction contract; export `full`/`no-location` keep them while
+  `none` strips public packets; CLI get/set flags; ADR-0138 adjacent XMP
+  matrix includes the Photoshop/xmpRights packets.
 
 **Remaining unfinished work:**
-- IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126.
+- Full IPTC Extension / contact / scene / subject codes beyond ADR-0140.
 
 **Risks:** two live metadata authorities if interchange lands without a matrix,
 QML-built SQL, and privacy stripping that does not match export for future

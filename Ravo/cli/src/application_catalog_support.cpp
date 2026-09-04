@@ -98,6 +98,12 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"description", optional_string_json(asset.metadata.description)},
         {"province_state", optional_string_json(asset.metadata.province_state)},
         {"sublocation", optional_string_json(asset.metadata.sublocation)},
+        {"headline", optional_string_json(asset.metadata.headline)},
+        {"credit", optional_string_json(asset.metadata.credit)},
+        {"source", optional_string_json(asset.metadata.source)},
+        {"instructions", optional_string_json(asset.metadata.instructions)},
+        {"usage_terms", optional_string_json(asset.metadata.usage_terms)},
+        {"job_id", optional_string_json(asset.metadata.job_id)},
         {"title", optional_string_json(asset.metadata.title)},
     };
     JsonValue captured_at{nullptr};

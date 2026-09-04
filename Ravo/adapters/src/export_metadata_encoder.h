@@ -43,6 +43,12 @@ struct PreparedExportMetadata
     std::optional<std::string> province_state;
     std::optional<std::string> city;
     std::optional<std::string> sublocation;
+    std::optional<std::string> headline;
+    std::optional<std::string> credit;
+    std::optional<std::string> source;
+    std::optional<std::string> instructions;
+    std::optional<std::string> usage_terms;
+    std::optional<std::string> job_id;
     std::vector<std::string> tags;
     std::optional<std::string> datetime_original;
     std::optional<std::string> offset_time_original;

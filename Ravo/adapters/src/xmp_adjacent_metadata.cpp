@@ -233,7 +233,11 @@ std::string xmp_adjacent_metadata_fingerprint_sha256(const WritableMetadata &wri
     object.emplace("copyright", optional_string_json(writable.copyright));
     object.emplace("country", optional_string_json(writable.country));
     object.emplace("creator", optional_string_json(writable.creator));
+    object.emplace("credit", optional_string_json(writable.credit));
     object.emplace("description", optional_string_json(writable.description));
+    object.emplace("headline", optional_string_json(writable.headline));
+    object.emplace("instructions", optional_string_json(writable.instructions));
+    object.emplace("job_id", optional_string_json(writable.job_id));
     JsonValue::Array keywords;
     auto sorted = keyword_paths;
     std::sort(sorted.begin(), sorted.end());
@@ -241,8 +245,10 @@ std::string xmp_adjacent_metadata_fingerprint_sha256(const WritableMetadata &wri
         keywords.emplace_back(path);
     object.emplace("keywords", std::move(keywords));
     object.emplace("province_state", optional_string_json(writable.province_state));
+    object.emplace("source", optional_string_json(writable.source));
     object.emplace("sublocation", optional_string_json(writable.sublocation));
     object.emplace("title", optional_string_json(writable.title));
+    object.emplace("usage_terms", optional_string_json(writable.usage_terms));
     return sha256_utf8_hex(serialize_json(JsonValue{std::move(object)}));
 }
 
@@ -320,6 +326,19 @@ XmpAdjacentMetadataParseResult parse_xmp_adjacent_metadata(const std::string_vie
                     set_field(result.metadata.writable.city);
                 else if (ns == kIptcCoreNs && name == QLatin1String("Location"))
                     set_field(result.metadata.writable.sublocation);
+                else if (ns == kPhotoshopNs && name == QLatin1String("Headline"))
+                    set_field(result.metadata.writable.headline);
+                else if (ns == kPhotoshopNs && name == QLatin1String("Credit"))
+                    set_field(result.metadata.writable.credit);
+                else if (ns == kPhotoshopNs && name == QLatin1String("Source"))
+                    set_field(result.metadata.writable.source);
+                else if (ns == kPhotoshopNs && name == QLatin1String("Instructions"))
+                    set_field(result.metadata.writable.instructions);
+                else if (ns == kPhotoshopNs && name == QLatin1String("TransmissionReference"))
+                    set_field(result.metadata.writable.job_id);
+                else if (ns == QLatin1String("http://ns.adobe.com/xap/1.0/rights/") &&
+                         name == QLatin1String("UsageTerms"))
+                    set_field(result.metadata.writable.usage_terms);
             }
             continue;
         }
@@ -369,6 +388,44 @@ XmpAdjacentMetadataParseResult parse_xmp_adjacent_metadata(const std::string_vie
         if (reader.namespaceUri() == kIptcCoreNs && reader.name() == QLatin1String("Location"))
         {
             if (!assign_writable(result.metadata.writable.sublocation))
+                return result;
+            continue;
+        }
+        if (reader.namespaceUri() == kPhotoshopNs && reader.name() == QLatin1String("Headline"))
+        {
+            if (!assign_writable(result.metadata.writable.headline))
+                return result;
+            continue;
+        }
+        if (reader.namespaceUri() == kPhotoshopNs && reader.name() == QLatin1String("Credit"))
+        {
+            if (!assign_writable(result.metadata.writable.credit))
+                return result;
+            continue;
+        }
+        if (reader.namespaceUri() == kPhotoshopNs && reader.name() == QLatin1String("Source"))
+        {
+            if (!assign_writable(result.metadata.writable.source))
+                return result;
+            continue;
+        }
+        if (reader.namespaceUri() == kPhotoshopNs && reader.name() == QLatin1String("Instructions"))
+        {
+            if (!assign_writable(result.metadata.writable.instructions))
+                return result;
+            continue;
+        }
+        if (reader.namespaceUri() == kPhotoshopNs &&
+            reader.name() == QLatin1String("TransmissionReference"))
+        {
+            if (!assign_writable(result.metadata.writable.job_id))
+                return result;
+            continue;
+        }
+        if (reader.namespaceUri() == QLatin1String("http://ns.adobe.com/xap/1.0/rights/") &&
+            reader.name() == QLatin1String("UsageTerms"))
+        {
+            if (!assign_writable(result.metadata.writable.usage_terms))
                 return result;
             continue;
         }
@@ -465,6 +522,7 @@ export_xmp_adjacent_interchange(const XmpAdjacentExportRequest &request)
         "\n    xmlns:dc=\"http://purl.org/dc/elements/1.1/\""
         "\n    xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\""
         "\n    xmlns:Iptc4xmpCore=\"http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/\""
+        "\n    xmlns:xmpRights=\"http://ns.adobe.com/xap/1.0/rights/\""
         "\n    xmlns:lr=\"http://ns.adobe.com/lightroom/1.0/\"";
 
     std::ostringstream body;
@@ -498,6 +556,12 @@ export_xmp_adjacent_interchange(const XmpAdjacentExportRequest &request)
     append_simple("photoshop:State", request.writable.province_state);
     append_simple("photoshop:City", request.writable.city);
     append_simple("Iptc4xmpCore:Location", request.writable.sublocation);
+    append_simple("photoshop:Headline", request.writable.headline);
+    append_simple("photoshop:Credit", request.writable.credit);
+    append_simple("photoshop:Source", request.writable.source);
+    append_simple("photoshop:Instructions", request.writable.instructions);
+    append_simple("photoshop:TransmissionReference", request.writable.job_id);
+    append_lang_alt("xmpRights:UsageTerms", request.writable.usage_terms);
 
     auto keywords = request.keyword_paths;
     std::sort(keywords.begin(), keywords.end());

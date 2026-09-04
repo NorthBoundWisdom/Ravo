@@ -302,7 +302,13 @@ template <typename Integer>
           std::pair{"country", &snapshot.asset.metadata.country},
           std::pair{"province_state", &snapshot.asset.metadata.province_state},
           std::pair{"city", &snapshot.asset.metadata.city},
-          std::pair{"sublocation", &snapshot.asset.metadata.sublocation}})
+          std::pair{"sublocation", &snapshot.asset.metadata.sublocation},
+          std::pair{"headline", &snapshot.asset.metadata.headline},
+          std::pair{"credit", &snapshot.asset.metadata.credit},
+          std::pair{"source", &snapshot.asset.metadata.source},
+          std::pair{"instructions", &snapshot.asset.metadata.instructions},
+          std::pair{"usage_terms", &snapshot.asset.metadata.usage_terms},
+          std::pair{"job_id", &snapshot.asset.metadata.job_id}})
     {
         if (value->has_value())
         {
@@ -364,10 +370,16 @@ template <typename Integer>
              {"copyright", optional_string_json(snapshot.asset.metadata.copyright)},
              {"country", optional_string_json(snapshot.asset.metadata.country)},
              {"creator", optional_string_json(snapshot.asset.metadata.creator)},
+             {"credit", optional_string_json(snapshot.asset.metadata.credit)},
              {"description", optional_string_json(snapshot.asset.metadata.description)},
+             {"headline", optional_string_json(snapshot.asset.metadata.headline)},
+             {"instructions", optional_string_json(snapshot.asset.metadata.instructions)},
+             {"job_id", optional_string_json(snapshot.asset.metadata.job_id)},
              {"province_state", optional_string_json(snapshot.asset.metadata.province_state)},
+             {"source", optional_string_json(snapshot.asset.metadata.source)},
              {"sublocation", optional_string_json(snapshot.asset.metadata.sublocation)},
              {"title", optional_string_json(snapshot.asset.metadata.title)},
+             {"usage_terms", optional_string_json(snapshot.asset.metadata.usage_terms)},
          }},
         {"mtime_unix_ms", JsonValue::number(std::to_string(snapshot.asset.mtime_unix_ms))},
         {"normalized_uri", snapshot.asset.normalized_uri},
@@ -710,16 +722,34 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
 
 [[nodiscard]] Result<WritableMetadata> validate_recovery_metadata(const JsonValue::Object &object)
 {
-    // Accept legacy ADR-0124 quartet sidecars and ADR-0126 location-extended objects.
+    // Accept legacy ADR-0124/0126 sidecars and ADR-0140 Extension-extended objects.
     const bool has_location = object.contains("country") || object.contains("province_state") ||
                               object.contains("city") || object.contains("sublocation");
-    auto keys = has_location ?
-                    expect_exact_keys(object,
-                                      {"city", "copyright", "country", "creator", "description",
-                                       "province_state", "sublocation", "title"},
-                                      "payload.asset.metadata") :
-                    expect_exact_keys(object, {"copyright", "creator", "description", "title"},
-                                      "payload.asset.metadata");
+    const bool has_extension = object.contains("headline") || object.contains("credit") ||
+                               object.contains("source") || object.contains("instructions") ||
+                               object.contains("usage_terms") || object.contains("job_id");
+    Result<void> keys;
+    if (has_extension)
+    {
+        keys =
+            expect_exact_keys(object,
+                              {"city", "copyright", "country", "creator", "credit", "description",
+                               "headline", "instructions", "job_id", "province_state", "source",
+                               "sublocation", "title", "usage_terms"},
+                              "payload.asset.metadata");
+    }
+    else if (has_location)
+    {
+        keys = expect_exact_keys(object,
+                                 {"city", "copyright", "country", "creator", "description",
+                                  "province_state", "sublocation", "title"},
+                                 "payload.asset.metadata");
+    }
+    else
+    {
+        keys = expect_exact_keys(object, {"copyright", "creator", "description", "title"},
+                                 "payload.asset.metadata");
+    }
     if (!keys)
         return keys.error();
     WritableMetadata metadata;
@@ -739,7 +769,7 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
     metadata.creator = std::move(creator).value();
     metadata.description = std::move(description).value();
     metadata.title = std::move(title).value();
-    if (has_location)
+    if (has_location || has_extension)
     {
         auto country = require_optional_string(object, "country", kMetadataFieldMaxLength);
         auto province = require_optional_string(object, "province_state", kMetadataFieldMaxLength);
@@ -758,12 +788,43 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
         metadata.city = std::move(city).value();
         metadata.sublocation = std::move(sublocation).value();
     }
+    if (has_extension)
+    {
+        auto headline = require_optional_string(object, "headline", kMetadataFieldMaxLength);
+        auto credit = require_optional_string(object, "credit", kMetadataFieldMaxLength);
+        auto source = require_optional_string(object, "source", kMetadataFieldMaxLength);
+        auto instructions =
+            require_optional_string(object, "instructions", kMetadataFieldMaxLength);
+        auto usage_terms = require_optional_string(object, "usage_terms", kMetadataFieldMaxLength);
+        auto job_id = require_optional_string(object, "job_id", kMetadataFieldMaxLength);
+        if (!headline)
+            return headline.error();
+        if (!credit)
+            return credit.error();
+        if (!source)
+            return source.error();
+        if (!instructions)
+            return instructions.error();
+        if (!usage_terms)
+            return usage_terms.error();
+        if (!job_id)
+            return job_id.error();
+        metadata.headline = std::move(headline).value();
+        metadata.credit = std::move(credit).value();
+        metadata.source = std::move(source).value();
+        metadata.instructions = std::move(instructions).value();
+        metadata.usage_terms = std::move(usage_terms).value();
+        metadata.job_id = std::move(job_id).value();
+    }
     for (const auto &[name, value] :
          {std::pair{"copyright", &metadata.copyright}, std::pair{"creator", &metadata.creator},
           std::pair{"description", &metadata.description}, std::pair{"title", &metadata.title},
           std::pair{"country", &metadata.country},
           std::pair{"province_state", &metadata.province_state}, std::pair{"city", &metadata.city},
-          std::pair{"sublocation", &metadata.sublocation}})
+          std::pair{"sublocation", &metadata.sublocation},
+          std::pair{"headline", &metadata.headline}, std::pair{"credit", &metadata.credit},
+          std::pair{"source", &metadata.source}, std::pair{"instructions", &metadata.instructions},
+          std::pair{"usage_terms", &metadata.usage_terms}, std::pair{"job_id", &metadata.job_id}})
     {
         if (value->has_value())
         {

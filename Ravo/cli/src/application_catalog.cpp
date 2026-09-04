@@ -249,6 +249,18 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand != "facets")
         return make_error(ErrorCode::kInvalidArgument,
                           "Location fields are only valid for catalog list, metadata, or facets");
+    const bool has_extension_metadata_options =
+        !flags.value().headline.empty() || !flags.value().credit.empty() ||
+        !flags.value().source.empty() || !flags.value().instructions.empty() ||
+        !flags.value().usage_terms.empty();
+    // --job-id is shared with export-job-create; only gate the Extension-only flags here.
+    if (has_extension_metadata_options && subcommand != "metadata")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "IPTC Extension fields are only valid for catalog metadata");
+    if (!flags.value().job_id.empty() && subcommand != "metadata" &&
+        subcommand != "export-job-create")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--job-id is only valid for catalog metadata or export-job-create");
     const bool has_import_options =
         !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
@@ -1553,6 +1565,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         assign(flags.value().province_state, metadata.province_state);
         assign(flags.value().city, metadata.city);
         assign(flags.value().sublocation, metadata.sublocation);
+        assign(flags.value().headline, metadata.headline);
+        assign(flags.value().credit, metadata.credit);
+        assign(flags.value().source, metadata.source);
+        assign(flags.value().instructions, metadata.instructions);
+        assign(flags.value().usage_terms, metadata.usage_terms);
+        assign(flags.value().job_id, metadata.job_id);
         if (write)
         {
             auto saved = service.set_writable_metadata(flags.value().asset_id, metadata);

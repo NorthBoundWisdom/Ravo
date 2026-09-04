@@ -247,13 +247,17 @@ Result<void> SqliteCatalogRepository::upsert_writable_metadata(const std::string
     QSqlQuery query(impl_->database);
     query.prepare(QStringLiteral(
         "INSERT INTO asset_metadata(asset_id, title, description, creator, copyright, country, "
-        "province_state, city, sublocation) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "province_state, city, sublocation, headline, credit, source, instructions, usage_terms, "
+        "job_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(asset_id) DO UPDATE SET title = excluded.title, "
         "description = excluded.description, creator = excluded.creator, "
         "copyright = excluded.copyright, country = excluded.country, "
         "province_state = excluded.province_state, city = excluded.city, "
-        "sublocation = excluded.sublocation"));
+        "sublocation = excluded.sublocation, headline = excluded.headline, "
+        "credit = excluded.credit, source = excluded.source, "
+        "instructions = excluded.instructions, usage_terms = excluded.usage_terms, "
+        "job_id = excluded.job_id"));
     query.addBindValue(qstring_from_utf8(asset_id));
     query.addBindValue(optional_string(metadata.title));
     query.addBindValue(optional_string(metadata.description));
@@ -263,6 +267,12 @@ Result<void> SqliteCatalogRepository::upsert_writable_metadata(const std::string
     query.addBindValue(optional_string(metadata.province_state));
     query.addBindValue(optional_string(metadata.city));
     query.addBindValue(optional_string(metadata.sublocation));
+    query.addBindValue(optional_string(metadata.headline));
+    query.addBindValue(optional_string(metadata.credit));
+    query.addBindValue(optional_string(metadata.source));
+    query.addBindValue(optional_string(metadata.instructions));
+    query.addBindValue(optional_string(metadata.usage_terms));
+    query.addBindValue(optional_string(metadata.job_id));
     if (!query.exec())
     {
         return map_sql_error(query, "upsert_writable_metadata");
@@ -342,6 +352,20 @@ require_writable_revision(QSqlDatabase &database,
     if (auto sublocation = check(patch.update_sublocation, "sublocation", patch.sublocation);
         !sublocation)
         return sublocation.error();
+    if (auto headline = check(patch.update_headline, "headline", patch.headline); !headline)
+        return headline.error();
+    if (auto credit = check(patch.update_credit, "credit", patch.credit); !credit)
+        return credit.error();
+    if (auto source = check(patch.update_source, "source", patch.source); !source)
+        return source.error();
+    if (auto instructions = check(patch.update_instructions, "instructions", patch.instructions);
+        !instructions)
+        return instructions.error();
+    if (auto usage_terms = check(patch.update_usage_terms, "usage_terms", patch.usage_terms);
+        !usage_terms)
+        return usage_terms.error();
+    if (auto job_id = check(patch.update_job_id, "job_id", patch.job_id); !job_id)
+        return job_id.error();
     return {};
 }
 
@@ -351,7 +375,8 @@ require_writable_revision(QSqlDatabase &database,
     QSqlQuery query(database);
     query.prepare(QStringLiteral(
         "SELECT title, description, creator, copyright, country, province_state, city, "
-        "sublocation FROM asset_metadata WHERE asset_id = ?"));
+        "sublocation, headline, credit, source, instructions, usage_terms, job_id "
+        "FROM asset_metadata WHERE asset_id = ?"));
     query.addBindValue(qstring_from_utf8(asset_id));
     if (!query.exec())
         return map_sql_error(query, "load_writable_metadata");
@@ -366,6 +391,12 @@ require_writable_revision(QSqlDatabase &database,
     metadata.province_state = string_column(query, 5);
     metadata.city = string_column(query, 6);
     metadata.sublocation = string_column(query, 7);
+    metadata.headline = string_column(query, 8);
+    metadata.credit = string_column(query, 9);
+    metadata.source = string_column(query, 10);
+    metadata.instructions = string_column(query, 11);
+    metadata.usage_terms = string_column(query, 12);
+    metadata.job_id = string_column(query, 13);
     return metadata;
 }
 

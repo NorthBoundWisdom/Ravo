@@ -1253,7 +1253,10 @@ bool export_iptc_should_omit(const ExportMetadataSnapshot &metadata) noexcept
     return !metadata.writable.title && !metadata.writable.description &&
            !metadata.writable.creator && !metadata.writable.copyright &&
            !metadata.writable.country && !metadata.writable.province_state &&
-           !metadata.writable.city && !metadata.writable.sublocation && metadata.tags.empty();
+           !metadata.writable.city && !metadata.writable.sublocation &&
+           !metadata.writable.headline && !metadata.writable.credit && !metadata.writable.source &&
+           !metadata.writable.instructions && !metadata.writable.usage_terms &&
+           !metadata.writable.job_id && metadata.tags.empty();
 }
 
 std::string export_rational_xmp_text(const ExportUnsignedRational value)
@@ -1521,6 +1524,12 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
     add_xmp_text(metadata.writable.province_state, 96U);
     add_xmp_text(metadata.writable.city, 80U);
     add_xmp_text(metadata.writable.sublocation, 112U);
+    add_xmp_text(metadata.writable.headline, 112U);
+    add_xmp_text(metadata.writable.credit, 96U);
+    add_xmp_text(metadata.writable.source, 96U);
+    add_xmp_text(metadata.writable.instructions, 128U);
+    add_xmp_text(metadata.writable.usage_terms, 144U);
+    add_xmp_text(metadata.writable.job_id, 112U);
     add_xmp_text(metadata.capture.camera_make, 64U);
     add_xmp_text(metadata.capture.camera_model, 64U);
     add_xmp_text(metadata.capture.lens_make, 64U);
@@ -1574,6 +1583,11 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
         add_iptc(metadata.writable.sublocation);
         add_iptc(metadata.writable.province_state);
         add_iptc(metadata.writable.country);
+        add_iptc(metadata.writable.headline);
+        add_iptc(metadata.writable.credit);
+        add_iptc(metadata.writable.source);
+        add_iptc(metadata.writable.instructions);
+        add_iptc(metadata.writable.job_id);
         for (const auto &tag : metadata.tags)
         {
             bounded_add(sizes.iptc_iim_bytes, 5U, kExportIptcIimMaxBytes);
@@ -1629,7 +1643,7 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
 
     const auto writable_reason = "invalid_export_metadata";
     for (const auto &[name, value] :
-         std::array<std::pair<std::string_view, const std::optional<std::string> *>, 8U>{{
+         std::array<std::pair<std::string_view, const std::optional<std::string> *>, 14U>{{
              {"title", &metadata.writable.title},
              {"description", &metadata.writable.description},
              {"creator", &metadata.writable.creator},
@@ -1638,6 +1652,12 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
              {"province_state", &metadata.writable.province_state},
              {"city", &metadata.writable.city},
              {"sublocation", &metadata.writable.sublocation},
+             {"headline", &metadata.writable.headline},
+             {"credit", &metadata.writable.credit},
+             {"source", &metadata.writable.source},
+             {"instructions", &metadata.writable.instructions},
+             {"usage_terms", &metadata.writable.usage_terms},
+             {"job_id", &metadata.writable.job_id},
          }})
     {
         if (value->has_value())
@@ -1657,7 +1677,7 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
     }
     for (const auto &[name, value, maximum, allow_line_breaks] : std::array<
              std::tuple<std::string_view, const std::optional<std::string> *, std::size_t, bool>,
-             8U>{{
+             13U>{{
              {"title", &metadata.writable.title, kExportIptcTitleMaxBytes, false},
              {"description", &metadata.writable.description, kExportIptcDescriptionMaxBytes, true},
              {"creator", &metadata.writable.creator, kExportIptcCreatorMaxBytes, false},
@@ -1667,6 +1687,12 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
               false},
              {"city", &metadata.writable.city, kExportIptcCityMaxBytes, false},
              {"sublocation", &metadata.writable.sublocation, kExportIptcSublocationMaxBytes, false},
+             {"headline", &metadata.writable.headline, kExportIptcHeadlineMaxBytes, false},
+             {"credit", &metadata.writable.credit, kExportIptcCreditMaxBytes, false},
+             {"source", &metadata.writable.source, kExportIptcSourceMaxBytes, false},
+             {"instructions", &metadata.writable.instructions, kExportIptcInstructionsMaxBytes,
+              false},
+             {"job_id", &metadata.writable.job_id, kExportIptcJobIdMaxBytes, false},
          }})
     {
         auto valid = validate_iptc_text_field(name, *value, maximum, allow_line_breaks);

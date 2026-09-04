@@ -121,7 +121,13 @@ const char *kSchemaStatements[] = {
     "  country TEXT,"
     "  province_state TEXT,"
     "  city TEXT,"
-    "  sublocation TEXT"
+    "  sublocation TEXT,"
+    "  headline TEXT,"
+    "  credit TEXT,"
+    "  source TEXT,"
+    "  instructions TEXT,"
+    "  usage_terms TEXT,"
+    "  job_id TEXT"
     ")",
     "CREATE TABLE asset_recipe_history ("
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -1018,6 +1024,25 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                     return impl->abort_transaction(altered.error());
             }
             version = 14;
+        }
+
+        if (version == 14)
+        {
+            auto columns = asset_metadata_columns(impl->database);
+            if (!columns)
+                return impl->abort_transaction(columns.error());
+            for (const char *name :
+                 {"headline", "credit", "source", "instructions", "usage_terms", "job_id"})
+            {
+                if (columns.value().contains(name))
+                    continue;
+                const auto sql = QStringLiteral("ALTER TABLE asset_metadata ADD COLUMN %1 TEXT")
+                                     .arg(QString::fromUtf8(name));
+                const auto altered = impl->exec(sql, "migrate_v15_iptc_extension_columns");
+                if (!altered)
+                    return impl->abort_transaction(altered.error());
+            }
+            version = 15;
         }
 
         if (version != kCatalogSchemaVersion)

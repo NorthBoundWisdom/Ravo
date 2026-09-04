@@ -298,6 +298,36 @@ writable_patch_from_present_fields(const WritableMetadata &sidecar)
         patch.update_sublocation = true;
         patch.sublocation = sidecar.sublocation;
     }
+    if (sidecar.headline)
+    {
+        patch.update_headline = true;
+        patch.headline = sidecar.headline;
+    }
+    if (sidecar.credit)
+    {
+        patch.update_credit = true;
+        patch.credit = sidecar.credit;
+    }
+    if (sidecar.source)
+    {
+        patch.update_source = true;
+        patch.source = sidecar.source;
+    }
+    if (sidecar.instructions)
+    {
+        patch.update_instructions = true;
+        patch.instructions = sidecar.instructions;
+    }
+    if (sidecar.usage_terms)
+    {
+        patch.update_usage_terms = true;
+        patch.usage_terms = sidecar.usage_terms;
+    }
+    if (sidecar.job_id)
+    {
+        patch.update_job_id = true;
+        patch.job_id = sidecar.job_id;
+    }
     return patch;
 }
 

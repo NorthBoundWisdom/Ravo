@@ -705,6 +705,28 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         {
             result.sublocation = value;
         }
+        else if (option == "--headline")
+        {
+            result.headline = value;
+        }
+        else if (option == "--credit")
+        {
+            result.credit = value;
+        }
+        else if (option == "--source")
+        {
+            result.source = value;
+        }
+        else if (option == "--instructions")
+        {
+            result.instructions = value;
+        }
+        else if (option == "--usage-terms")
+        {
+            result.usage_terms = value;
+        }
+        // --job-id is parsed earlier (also used by export-job-create) and maps to
+        // WritableMetadata::job_id / TransmissionReference for catalog metadata.
         else if (option == "--label")
         {
             result.label = value;

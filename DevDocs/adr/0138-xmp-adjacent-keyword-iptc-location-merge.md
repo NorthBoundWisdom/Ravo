@@ -65,6 +65,9 @@ import/export allow rules as ADR-0120 (default abort; no silent last-write-wins)
   - Core: `dc:title`, `dc:description`, `dc:creator`, `dc:rights`
   - Location: `photoshop:Country`, `photoshop:State`, `photoshop:City`,
     `Iptc4xmpCore:Location`
+  - Extension / additional Core (ADR-0140): `photoshop:Headline`,
+    `photoshop:Credit`, `photoshop:Source`, `photoshop:Instructions`,
+    `photoshop:TransmissionReference`, `xmpRights:UsageTerms`
   - Keywords: `lr:hierarchicalSubject` as an RDF Bag of `|`-separated display
     paths (ADR-0119). When that element is absent, flat `dc:subject` Bag items
     are accepted only as **single-segment** root paths.
@@ -86,7 +89,8 @@ import/export allow rules as ADR-0120 (default abort; no silent last-write-wins)
 
 ### Out of scope
 
-- IPTC Extension / additional Core fields beyond ADR-0124 + ADR-0126.
+- Full IPTC Extension / contact / scene / subject codes beyond the ADR-0140
+  bounded subset (those six writables participate in this matrix).
 - Automatic adjacent watch/merge; treating recovery JSON as interchange XMP.
 - Vendor `.lrcat` readers; external-editor launch (ADR-0122 residuals).
 

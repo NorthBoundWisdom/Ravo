@@ -16,7 +16,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 14;
+inline constexpr std::int64_t kCatalogSchemaVersion = 15;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 2;
@@ -146,6 +146,12 @@ inline constexpr std::size_t kExportIptcCityMaxBytes = 32U;
 inline constexpr std::size_t kExportIptcSublocationMaxBytes = 32U;
 inline constexpr std::size_t kExportIptcProvinceStateMaxBytes = 32U;
 inline constexpr std::size_t kExportIptcCountryMaxBytes = 64U;
+// ADR-0140 Extension / additional Core IIM caps (usage_terms is XMP-only).
+inline constexpr std::size_t kExportIptcHeadlineMaxBytes = 256U;
+inline constexpr std::size_t kExportIptcCreditMaxBytes = 32U;
+inline constexpr std::size_t kExportIptcSourceMaxBytes = 32U;
+inline constexpr std::size_t kExportIptcInstructionsMaxBytes = 32U;
+inline constexpr std::size_t kExportIptcJobIdMaxBytes = 32U;
 // Even a one-byte tag needs 24 bytes in the canonical dc:subject item. Reject
 // impossible counts before copying or sorting the snapshot.
 inline constexpr std::size_t kExportTagMaxCount = kExportXmpPacketMaxBytes / 24U;
@@ -538,6 +544,13 @@ struct WritableMetadata
     std::optional<std::string> province_state;
     std::optional<std::string> city;
     std::optional<std::string> sublocation;
+    // ADR-0140 IPTC Extension / additional Core subset.
+    std::optional<std::string> headline;
+    std::optional<std::string> credit;
+    std::optional<std::string> source;
+    std::optional<std::string> instructions;
+    std::optional<std::string> usage_terms;
+    std::optional<std::string> job_id;
 
     [[nodiscard]] bool operator==(const WritableMetadata &) const noexcept = default;
 };
@@ -562,11 +575,25 @@ struct WritableMetadataPatch
     std::optional<std::string> city;
     bool update_sublocation = false;
     std::optional<std::string> sublocation;
+    bool update_headline = false;
+    std::optional<std::string> headline;
+    bool update_credit = false;
+    std::optional<std::string> credit;
+    bool update_source = false;
+    std::optional<std::string> source;
+    bool update_instructions = false;
+    std::optional<std::string> instructions;
+    bool update_usage_terms = false;
+    std::optional<std::string> usage_terms;
+    bool update_job_id = false;
+    std::optional<std::string> job_id;
 
     [[nodiscard]] bool empty() const noexcept
     {
         return !update_title && !update_description && !update_creator && !update_copyright &&
-               !update_country && !update_province_state && !update_city && !update_sublocation;
+               !update_country && !update_province_state && !update_city && !update_sublocation &&
+               !update_headline && !update_credit && !update_source && !update_instructions &&
+               !update_usage_terms && !update_job_id;
     }
 };
 

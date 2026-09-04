@@ -660,7 +660,9 @@ Result<std::string> join_keyword_path(const std::vector<std::string> &segments)
 Result<void> validate_metadata_field(const std::string_view name, const std::string_view value)
 {
     if (name != "title" && name != "description" && name != "creator" && name != "copyright" &&
-        name != "country" && name != "province_state" && name != "city" && name != "sublocation")
+        name != "country" && name != "province_state" && name != "city" && name != "sublocation" &&
+        name != "headline" && name != "credit" && name != "source" && name != "instructions" &&
+        name != "usage_terms" && name != "job_id")
     {
         return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
                           {{"field", std::string(name)}});
@@ -692,7 +694,8 @@ writable_metadata_patch_for_field(const std::string_view name,
     }
     else if (name != "title" && name != "description" && name != "creator" && name != "copyright" &&
              name != "country" && name != "province_state" && name != "city" &&
-             name != "sublocation")
+             name != "sublocation" && name != "headline" && name != "credit" && name != "source" &&
+             name != "instructions" && name != "usage_terms" && name != "job_id")
     {
         return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
                           {{"field", std::string(name)}});
@@ -733,10 +736,40 @@ writable_metadata_patch_for_field(const std::string_view name,
         patch.update_city = true;
         patch.city = value;
     }
-    else
+    else if (name == "sublocation")
     {
         patch.update_sublocation = true;
         patch.sublocation = value;
+    }
+    else if (name == "headline")
+    {
+        patch.update_headline = true;
+        patch.headline = value;
+    }
+    else if (name == "credit")
+    {
+        patch.update_credit = true;
+        patch.credit = value;
+    }
+    else if (name == "source")
+    {
+        patch.update_source = true;
+        patch.source = value;
+    }
+    else if (name == "instructions")
+    {
+        patch.update_instructions = true;
+        patch.instructions = value;
+    }
+    else if (name == "usage_terms")
+    {
+        patch.update_usage_terms = true;
+        patch.usage_terms = value;
+    }
+    else if (name == "job_id")
+    {
+        patch.update_job_id = true;
+        patch.job_id = value;
     }
     return patch;
 }
@@ -760,6 +793,18 @@ WritableMetadataPatch writable_metadata_patch_all(const WritableMetadata &metada
     patch.city = metadata.city;
     patch.update_sublocation = true;
     patch.sublocation = metadata.sublocation;
+    patch.update_headline = true;
+    patch.headline = metadata.headline;
+    patch.update_credit = true;
+    patch.credit = metadata.credit;
+    patch.update_source = true;
+    patch.source = metadata.source;
+    patch.update_instructions = true;
+    patch.instructions = metadata.instructions;
+    patch.update_usage_terms = true;
+    patch.usage_terms = metadata.usage_terms;
+    patch.update_job_id = true;
+    patch.job_id = metadata.job_id;
     return patch;
 }
 
@@ -782,6 +827,18 @@ void apply_writable_metadata_patch(WritableMetadata &metadata,
         metadata.city = patch.city;
     if (patch.update_sublocation)
         metadata.sublocation = patch.sublocation;
+    if (patch.update_headline)
+        metadata.headline = patch.headline;
+    if (patch.update_credit)
+        metadata.credit = patch.credit;
+    if (patch.update_source)
+        metadata.source = patch.source;
+    if (patch.update_instructions)
+        metadata.instructions = patch.instructions;
+    if (patch.update_usage_terms)
+        metadata.usage_terms = patch.usage_terms;
+    if (patch.update_job_id)
+        metadata.job_id = patch.job_id;
 }
 
 bool asset_in_folder(const AssetRecord &asset, const std::string_view folder_uri) noexcept
