@@ -1086,6 +1086,8 @@ struct PreviewResult
     std::uint32_t height = 0;
     std::string cache_key;
     bool original_missing = false;
+    // ADR-0146 machine-visible preview source: original | proxy | missing
+    std::string media_state{"original"};
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
     std::vector<float> mask_alpha;

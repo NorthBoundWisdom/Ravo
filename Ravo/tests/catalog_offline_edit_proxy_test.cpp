@@ -294,4 +294,64 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectClearsMissingImportState)
     EXPECT_NE(status.value().reason, "proxy_ready");
 }
 
+TEST_F(CatalogServiceTest, OfflineEditProxyLoupeDevelopConsumeWhileOriginalMissing)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "offline-preview-source.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(30, 60, 90)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, asset_id);
+    ASSERT_FALSE(original.empty());
+
+    OfflineEditProxyCreateRequest create;
+    create.asset_id = asset_id;
+    create.user_initiated = true;
+    create.max_edge = 64;
+    auto created = service->create_offline_edit_proxy(create);
+    ASSERT_TRUE(created) << created.error().message;
+
+    const auto stashed = root / "stashed-preview-original.jpg";
+    std::error_code ec;
+    std::filesystem::rename(original, stashed, ec);
+    ASSERT_FALSE(ec) << ec.message();
+
+    auto status = service->verify_offline_edit_proxy(asset_id);
+    ASSERT_TRUE(status) << status.error().message;
+    EXPECT_EQ(status.value().media_state, OfflineEditMediaState::kProxy);
+    EXPECT_TRUE(status.value().usable_for_develop);
+    EXPECT_FALSE(status.value().usable_for_export);
+
+    PreviewRequest loupe;
+    loupe.asset_id = asset_id;
+    loupe.max_edge = 64;
+    loupe.purpose = PreviewPurpose::kDevelop;
+    loupe.prefer_embedded_preview = false;
+    auto previewed = service->request_preview(loupe);
+    ASSERT_TRUE(previewed) << previewed.error().message;
+    EXPECT_TRUE(previewed.value().original_missing);
+    EXPECT_EQ(previewed.value().media_state, "proxy");
+    EXPECT_GT(previewed.value().width, 0U);
+    EXPECT_GT(previewed.value().height, 0U);
+    EXPECT_FALSE(previewed.value().cache_path.empty());
+
+    DevelopParams live;
+    live.exposure_ev = 0.5;
+    auto live_preview = service->request_preview(loupe, live);
+    ASSERT_TRUE(live_preview) << live_preview.error().message;
+    EXPECT_EQ(live_preview.value().media_state, "proxy");
+    EXPECT_TRUE(live_preview.value().original_missing);
+
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = (root / "offline-preview-export-should-fail.png").string();
+    export_request.format = ExportFormat::kPng;
+    auto exported = service->export_asset(export_request);
+    ASSERT_FALSE(exported);
+    EXPECT_EQ(exported.error().code, ErrorCode::kNotFound);
+    ASSERT_TRUE(exported.error().context.contains("reason"));
+    EXPECT_EQ(exported.error().context.at("reason"), "proxy_export_forbidden");
+}
+
 } // namespace ravo

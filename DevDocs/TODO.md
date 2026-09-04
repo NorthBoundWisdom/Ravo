@@ -4,9 +4,9 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` at
-> `b9bbb766dc3e91204fe01fb2fc911b7c680f1539`; CI run `33876363596`
-> was still incomplete at review. The next free ADR number is **0157**, but new
+> **Review basis:** `main` through DISPLAY-01 macOS Studio screen-move
+> presentation owner and OFFLINE-01 Loupe/Develop verified-proxy consume
+> (export still fail-closed). The next free ADR number is **0157**, but new
 > product ADRs are frozen by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
@@ -72,8 +72,8 @@ resource defect preempts both streams.
 
 Recent work on LOCAL-01 Studio chrome/history/copy, CULL-01 keyboard review,
 EDITIN-01 Studio round-trip, PERF-01 instrumentation, and IQ-00 CPU-gold policy
-moves in the intended direction. OFFLINE-01 and DISPLAY-01 remain partial
-contracts rather than complete workflows. AI proposal chrome, display/native
+moves in the intended direction. DISPLAY-01 macOS screen-move owner and OFFLINE-01 Loupe/Develop proxy
+consume landed on `main`; remaining DISPLAY/OFFLINE work is still below C2. AI proposal chrome, display/native
 transport stubs, and the tethered-studio probe do not count as product progress.
 
 ### Release and correctness lane
@@ -420,15 +420,21 @@ source/corrupt decode/stale fingerprint/resource exhaustion are deterministic.
 
 ## OFFLINE-01 — Offline-original editing
 
-**Maturity:** C1. Status/reconnect exists, but Loupe/Develop still do not render
-from the proxy.
+**Maturity:** C1+. Status/reconnect plus Loupe/Develop `request_preview`
+consumption of a verified offline-edit proxy when the original is absent
+(`media_state=proxy`, `original_missing=true`) are on `main`. Export remains
+fail-closed (`proxy_export_forbidden`); ROI inspect while offline stays
+fail-closed (`offline_proxy_roi_unsupported`). Thin Studio status/reconnect
+remain. Not yet C2 (Studio create/manage UI, baseline-vs-baked semantics,
+scopes/Before-After parity, quotas).
 
 **Remaining work:**
 
 - close all manifest/publication findings in COR-01;
-- define baseline-vs-recipe-baked proxy semantics before any proxy render path;
-- route Loupe/Develop/Before-After/scopes to a verified proxy only under explicit
-  media state, with no double application of recipe operations;
+- define baseline-vs-recipe-baked proxy semantics so Develop cannot double-apply
+  recipe operations atop a baked create-time raster;
+- extend verified-proxy consume to Before/After and scopes under explicit media
+  state;
 - re-render from the verified original after reconnect and compare
   resolution-dependent results;
 - add Studio create/delete/pin/storage/corruption management;
@@ -443,14 +449,16 @@ eviction; source bytes remain unchanged.
 
 ## DISPLAY-01 — Per-display ICC presentation
 
-**Maturity:** C1 on macOS contract paths; Windows/Linux discovery remains a
-fail-closed stub and does not count as platform completion.
+**Maturity:** C1+ on macOS: discovery, synthetic/injected CPU paths, CLI status,
+and Studio `StudioDisplayPresentation` screen-move wiring (`cg:<displayId>`
+refresh without recipe/history/export mutation) are on `main`. Windows/Linux
+discovery remains a fail-closed stub and does not count as platform completion.
+View pixel application across Gallery/Loupe/Develop remains incomplete (not C2).
 
 **Remaining work:**
 
 - implement and package real Windows/Linux monitor-profile discovery and change
   lifecycle or explicitly reduce the supported-host claim;
-- bind window/screen changes to one C++ presentation owner;
 - apply presentation consistently to Gallery, Loupe, Develop, Before/After,
   comparison, magnifier, and declared display-referred surfaces;
 - explicitly define scope pixel kind;

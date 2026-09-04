@@ -15,6 +15,7 @@
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/services/offline_edit_proxy.h"
 
 namespace ravo
 {
@@ -475,8 +476,35 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         static_cast<void>(repository_->update_asset(working));
     }
 
-    const auto source_width = asset.width.value_or(0);
-    const auto source_height = asset.height.value_or(0);
+    std::string render_path = location.value().path;
+    bool using_offline_proxy = false;
+    std::string offline_proxy_cache_tag;
+    std::string preview_media_state =
+        original_exists ?
+            std::string(offline_edit_media_state_name(OfflineEditMediaState::kOriginal)) :
+            std::string(offline_edit_media_state_name(OfflineEditMediaState::kMissing));
+    if (!original_exists)
+    {
+        auto offline = verify_offline_edit_proxy(asset.id);
+        if (offline && offline.value().usable_for_develop && offline.value().manifest.has_value())
+        {
+            render_path = offline.value().manifest->proxy_path;
+            using_offline_proxy = true;
+            offline_proxy_cache_tag = "offline_proxy:" + offline.value().manifest->proxy_sha256;
+            preview_media_state =
+                std::string(offline_edit_media_state_name(OfflineEditMediaState::kProxy));
+            // Proxy is a bounded sRGB TIFF stand-in; never re-enter RAW demosaic.
+            working.media_type = std::string(kMediaTypeTiff);
+            if (offline.value().manifest->width > 0 && offline.value().manifest->height > 0)
+            {
+                working.width = offline.value().manifest->width;
+                working.height = offline.value().manifest->height;
+            }
+        }
+    }
+
+    const auto source_width = working.width.value_or(asset.width.value_or(0));
+    const auto source_height = working.height.value_or(asset.height.value_or(0));
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
@@ -669,10 +697,25 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     }
     if (request.roi.has_value())
     {
-        return generate_roi_preview(asset, request, edit_recipe, location.value().path);
+        if (!original_exists)
+        {
+            return make_error(
+                ErrorCode::kNotFound,
+                "Original file is missing; offline-edit proxy cannot serve ROI inspect",
+                {{"path", location.value().path},
+                 {"asset_id", asset.id},
+                 {"reason",
+                  using_offline_proxy ? "offline_proxy_roi_unsupported" : "original_missing"}});
+        }
+        return generate_roi_preview(asset, request, edit_recipe, render_path);
     }
     const bool interactive = !request.persist_preview_record || request.overlay_mask_id.has_value();
     std::string cache_digest = interactive ? "interactive" : edit_digest;
+    if (using_offline_proxy)
+    {
+        // Cache keys must remain filesystem-safe; fold the proxy tag into hex.
+        cache_digest += "_opx_" + fnv1a64_hex(offline_proxy_cache_tag);
+    }
     const auto cache_key =
         make_preview_cache_key(asset.id, width, height, fingerprint, cache_digest);
 
@@ -681,6 +724,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     result.request_revision = request.request_revision;
     result.cache_key = cache_key;
     result.original_missing = !original_exists;
+    result.media_state = preview_media_state;
 
     if (!interactive)
     {
@@ -707,10 +751,17 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         }
     }
 
-    if (!original_exists)
+    if (!original_exists && !using_offline_proxy)
     {
         return make_error(ErrorCode::kNotFound, "Original file is missing",
-                          {{"path", location.value().path}, {"asset_id", asset.id}});
+                          {{"path", location.value().path},
+                           {"asset_id", asset.id},
+                           {"reason", "original_missing"}});
+    }
+
+    if (using_offline_proxy)
+    {
+        disable_raw_preprocess(edit_recipe);
     }
 
     const auto render_started = std::chrono::steady_clock::now();
@@ -720,8 +771,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                                  PreviewLane::kForegroundDevelop;
     if (is_raw_media_type(working.media_type))
     {
-        auto linear = cached_linear_working(working, location.value().path, edit_recipe, width,
-                                            height, request.max_edge, request.cancellation, lane);
+        auto linear = cached_linear_working(working, render_path, edit_recipe, width, height,
+                                            request.max_edge, request.cancellation, lane);
         if (!linear)
         {
             return linear.error();
@@ -744,8 +795,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     }
     else
     {
-        auto linear = cached_linear_working(working, location.value().path, edit_recipe, width,
-                                            height, request.max_edge, request.cancellation, lane);
+        auto linear = cached_linear_working(working, render_path, edit_recipe, width, height,
+                                            request.max_edge, request.cancellation, lane);
         if (!linear)
         {
             return linear.error();
@@ -994,9 +1045,9 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
                         .interactive_render_cache = {},
                     });
                 }
-                auto scaled = engine_->scale_linear_working(
-                    source->buffer, width, height, asset.width.value_or(0),
-                    asset.height.value_or(0), cancellation);
+                auto scaled = engine_->scale_linear_working(source->buffer, width, height,
+                                                            asset.width.value_or(0),
+                                                            asset.height.value_or(0), cancellation);
                 if (!scaled)
                 {
                     return scaled.error();
@@ -1090,9 +1141,9 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
             .interactive_render_cache = {},
         });
     }
-    auto scaled = engine_->scale_linear_working(stored->buffer, width, height,
-                                                asset.width.value_or(0), asset.height.value_or(0),
-                                                cancellation);
+    auto scaled =
+        engine_->scale_linear_working(stored->buffer, width, height, asset.width.value_or(0),
+                                      asset.height.value_or(0), cancellation);
     if (!scaled)
     {
         return scaled.error();

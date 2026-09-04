@@ -981,6 +981,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
              previewed.value().gpu_backend.empty() ? "cpu" : previewed.value().gpu_backend},
             {"height", JsonValue::number(std::to_string(previewed.value().height))},
             {"original_missing", previewed.value().original_missing},
+            {"media_state", previewed.value().media_state},
             {"width", JsonValue::number(std::to_string(previewed.value().width))},
         };
         if (flags.value().roi.has_value())
@@ -1106,6 +1107,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"height", JsonValue::number(std::to_string(previewed.value().height))},
             {"iq_consistency", iq_consistency_policy_json()},
             {"original_missing", previewed.value().original_missing},
+            {"media_state", previewed.value().media_state},
             {"overrides", std::move(overrides)},
             {"preview_records_unchanged", true},
             {"recipe_unchanged", true},
