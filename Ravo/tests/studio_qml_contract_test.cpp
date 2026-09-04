@@ -598,22 +598,14 @@ TEST(StudioCommands, MenuEntriesExposeTitledRowsForMenuBarPaths)
     ensure_qt_core();
     StudioPresenter presenter;
     StudioCommandController controller(presenter);
-    const QStringList paths = {QStringLiteral("file.library"),
-                               QStringLiteral("file.transfer"),
-                               QStringLiteral("file.recovery"),
-                               QStringLiteral("file.window"),
-                               QStringLiteral("edit.history"),
-                               QStringLiteral("edit.reset"),
-                               QStringLiteral("view.mode"),
-                               QStringLiteral("view.zoom"),
-                               QStringLiteral("view.compare"),
-                               QStringLiteral("view.commands"),
-                               QStringLiteral("photo.navigate"),
-                               QStringLiteral("photo.transform"),
-                               QStringLiteral("photo.rating"),
-                               QStringLiteral("photo.color"),
-                               QStringLiteral("photo.review"),
-                               QStringLiteral("photo.delete"),
+    const QStringList paths = {QStringLiteral("file.library"),   QStringLiteral("file.transfer"),
+                               QStringLiteral("file.recovery"),  QStringLiteral("file.window"),
+                               QStringLiteral("edit.history"),   QStringLiteral("edit.reset"),
+                               QStringLiteral("view.mode"),      QStringLiteral("view.zoom"),
+                               QStringLiteral("view.compare"),   QStringLiteral("view.commands"),
+                               QStringLiteral("photo.navigate"), QStringLiteral("photo.transform"),
+                               QStringLiteral("photo.rating"),   QStringLiteral("photo.color"),
+                               QStringLiteral("photo.review"),   QStringLiteral("photo.delete"),
                                QStringLiteral("help.about")};
     for (const auto &path : paths)
     {
@@ -1654,6 +1646,78 @@ TEST(StudioPresenterTest, ImportKeepsGalleryStableThenPublishesOneLastImportColl
     EXPECT_FALSE(presenter.lastImportAvailable());
     EXPECT_FALSE(presenter.lastImportSelected());
     EXPECT_EQ(presenter.lastImportCount(), 0);
+}
+
+TEST(StudioQmlContract, EditInDialogExposesWorkingCopyChrome)
+{
+    QFile dialog(QStringLiteral(RAVO_STUDIO_EDIT_IN_QML));
+    ASSERT_TRUE(dialog.open(QIODevice::ReadOnly | QIODevice::Text))
+        << dialog.errorString().toStdString();
+    const auto dialog_source = QString::fromUtf8(dialog.readAll());
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"EditInDialog\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInEditorId\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInTiffSampleType\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInPrepare\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInCheckReturned\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInOpenAfterCreate\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInSessionStatus\"")));
+
+    QFile menu(QStringLiteral(RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML));
+    ASSERT_TRUE(menu.open(QIODevice::ReadOnly | QIODevice::Text))
+        << menu.errorString().toStdString();
+    const auto menu_source = QString::fromUtf8(menu.readAll());
+    EXPECT_TRUE(menu_source.contains(QStringLiteral("objectName: \"editInMenuItem\"")));
+    EXPECT_TRUE(menu_source.contains(QStringLiteral("root.commands.editIn")));
+
+    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
+        << actions.errorString().toStdString();
+    const auto action_source = QString::fromUtf8(actions.readAll());
+    EXPECT_TRUE(action_source.contains(QStringLiteral("property alias editIn")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("root.ids.photoEditIn")));
+
+    QFile main_qml(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main_qml.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main_qml.errorString().toStdString();
+    const auto main_source = QString::fromUtf8(main_qml.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("EditInDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("openEditInDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.photoEditIn")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInPrepare")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("photoEditInCheckReturned")));
+}
+
+TEST(StudioCommands, EditInCommandsExposePrepareAndCheckReturned)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    const auto ids = controller.ids();
+    EXPECT_EQ(ids.value(QStringLiteral("photoEditIn")).toString(),
+              QStringLiteral("studio.photo.edit_in"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoEditInPrepare")).toString(),
+              QStringLiteral("studio.photo.edit_in_prepare"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoEditInCheckReturned")).toString(),
+              QStringLiteral("studio.photo.edit_in_check_returned"));
+    EXPECT_EQ(ids.value(QStringLiteral("photoEditInClearSession")).toString(),
+              QStringLiteral("studio.photo.edit_in_clear_session"));
+
+    const auto edit_in = ids.value(QStringLiteral("photoEditIn")).toString();
+    const auto edit_action = controller.action(edit_in);
+    EXPECT_FALSE(edit_action.value(QStringLiteral("enabled")).toBool());
+    EXPECT_FALSE(edit_action.value(QStringLiteral("disabledReason")).toString().isEmpty());
+
+    const auto prepare = ids.value(QStringLiteral("photoEditInPrepare")).toString();
+    const auto rejected = controller.executeCommand(
+        prepare, QVariantMap{{QStringLiteral("editorId"), QString{}}}, QStringLiteral("control"));
+    EXPECT_FALSE(rejected.value(QStringLiteral("accepted")).toBool());
+
+    const auto defaults = presenter.externalEditorDefaultOptions();
+    EXPECT_EQ(defaults.value(QStringLiteral("profile")).toString(), QStringLiteral("srgb"));
+    EXPECT_EQ(defaults.value(QStringLiteral("tiffSampleType")).toString(),
+              QStringLiteral("uint16"));
+    EXPECT_TRUE(defaults.value(QStringLiteral("autoStack")).toBool());
+    EXPECT_TRUE(presenter.externalEditorSession().isEmpty());
 }
 
 } // namespace

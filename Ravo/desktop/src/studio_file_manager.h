@@ -19,6 +19,9 @@ struct FileManagerRevealLaunch
 [[nodiscard]] Result<FileManagerRevealLaunch> file_manager_reveal_launch(const QString &local_path);
 [[nodiscard]] Result<FileManagerRevealLaunch>
 file_manager_open_directory_launch(const QString &local_path);
+[[nodiscard]] Result<FileManagerRevealLaunch>
+file_open_with_launch(const QString &local_path, const QString &application_path = {});
 [[nodiscard]] bool start_file_manager_reveal(const FileManagerRevealLaunch &launch);
+[[nodiscard]] bool start_file_open(const FileManagerRevealLaunch &launch);
 
 } // namespace ravo

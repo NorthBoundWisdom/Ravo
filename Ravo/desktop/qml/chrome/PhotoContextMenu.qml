@@ -101,6 +101,11 @@ StudioContextMenu {
         objectName: "revealInFileManagerMenuItem"
         action: root.commands.revealInFileManager
     }
+    StudioContextMenuItem {
+        objectName: "editInMenuItem"
+        action: root.commands.editIn
+        displayText: qsTr("Edit in…")
+    }
     StudioContextMenuSeparator {}
     StudioContextMenuItem {
         action: root.commands.exportPhoto

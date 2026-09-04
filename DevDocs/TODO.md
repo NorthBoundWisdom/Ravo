@@ -4,8 +4,8 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0150 (cull keyboard review) and the first same-SHA green
-> three-platform Debug matrix after CI-01 repairs.
+> **Review basis:** `main` through ADR-0151 (IQ-00 CPU gold) plus Studio Edit-in chrome and
+> display discovery stubs; next free ADR **0152**.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -476,18 +476,16 @@ no auto-delete.
 
 ## EDITIN-01 — Studio external-editor round trip
 
-**Status:** ADR-0122/0136/0139 plus the working-copy service/CLI path are on
-`main`; Studio remains incomplete.
+**Status:** ADR-0122/0136/0139 service/CLI path plus Studio `Edit in…` chrome
+(prepare working copy / OS open / check-returned / session map) are on `main`.
+Full reopen/abandon/conflict and package-host matrix remain open.
 
 **Remaining work:**
 
-- Studio `Edit in...` dialog for application, TIFF sample type, profile,
-  resize, naming, open action, and auto-stack choice;
-- visible working-copy/session/provenance state and explicit check-returned /
-  register action;
-- reopen, abandon, retry, remove, and conflict UX;
-- derived-pair Gallery/stack presentation;
+- reopen, abandon, retry, remove, and conflict UX beyond the active session map;
+- derived-pair Gallery/stack presentation polish;
 - profile/bit-depth equality and package smoke on each host;
+- naming templates beyond default working-copy paths;
 - keep watch-folder auto-import and proprietary editor scripting out unless a
   later dated decision supplies deterministic ownership.
 

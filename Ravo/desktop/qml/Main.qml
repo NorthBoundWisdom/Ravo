@@ -486,6 +486,12 @@ ApplicationWindow {
         backupScheduleDialog.openForPolicy(studio.backupScheduleStatus);
     }
 
+    function openEditInDialog() {
+        if (!studio.selectedAssetId.length)
+            return;
+        editInDialog.openForSelection();
+    }
+
     function openFolderRelinkDialog(folderId) {
         window.pendingRelinkFolderId = String(folderId || "");
         folderRelinkDialog.currentFolder = studio.defaultCatalogFolder;
@@ -673,6 +679,8 @@ ApplicationWindow {
                 openImportFolderDialog();
             else if (id === ids.libraryExport)
                 openExportDialog();
+            else if (id === ids.photoEditIn)
+                openEditInDialog();
             else if (id === ids.libraryBackupCreate)
                 openBackupCreateDialog();
             else if (id === ids.libraryBackupVerify)
@@ -1761,6 +1769,20 @@ ApplicationWindow {
             });
         }
         onFileRejected: window.pendingRestoreBackup = ""
+    }
+
+    EditInDialog {
+        id: editInDialog
+        parentItem: window.contentItem
+        presenter: studio
+        onPrepareAccepted: function (options) {
+            studioActions.run(studioActions.ids.photoEditInPrepare, options);
+        }
+        onCheckReturnedAccepted: function (workingCopyId) {
+            studioActions.run(studioActions.ids.photoEditInCheckReturned, {
+                "workingCopyId": workingCopyId
+            });
+        }
     }
 
     BackupScheduleDialog {

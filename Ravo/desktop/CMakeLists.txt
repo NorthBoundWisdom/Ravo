@@ -32,6 +32,7 @@ target_sources(ravo_desktop
     src/studio_presenter.cpp
     src/studio_presenter_library.cpp
     src/studio_presenter_export.cpp
+    src/studio_presenter_external_editor.cpp
     src/studio_presenter_selection.cpp
     src/studio_import.cpp
     src/studio_recovery.cpp
@@ -209,6 +210,7 @@ qt_add_qml_module(ravo_studio
     qml/inspect/ScopePanel.qml
     qml/chrome/FolderDialogPage.qml
     qml/chrome/BackupScheduleDialog.qml
+    qml/chrome/EditInDialog.qml
     qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
     qml/chrome/ImportPage.qml

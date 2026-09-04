@@ -327,6 +327,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(int libraryTotal READ libraryTotal NOTIFY filterChanged)
     Q_PROPERTY(bool libraryHasMore READ libraryHasMore NOTIFY filterChanged)
     Q_PROPERTY(QVariantMap backupScheduleStatus READ backupScheduleStatus NOTIFY libraryWorkChanged)
+    Q_PROPERTY(QVariantMap externalEditorSession READ externalEditorSession NOTIFY
+                   externalEditorSessionChanged)
     Q_PROPERTY(bool importPageOpen READ importPageOpen NOTIFY importPageChanged)
     Q_PROPERTY(bool importScanActive READ importScanActive NOTIFY importPageChanged)
     Q_PROPERTY(bool importPreviewWorkActive READ importPreviewWorkActive NOTIFY libraryWorkChanged)
@@ -701,6 +703,15 @@ public:
     Q_INVOKABLE QVariantList exportRenderingIntentChoices() const;
     Q_INVOKABLE QVariantMap exportDefaultOptions() const;
     Q_INVOKABLE QVariantMap exportOptionBounds() const;
+    Q_INVOKABLE QVariantMap externalEditorSession() const;
+    Q_INVOKABLE QVariantMap externalEditorDefaultOptions() const;
+    Q_INVOKABLE QVariantList externalEditorTiffSampleTypeChoices() const;
+    Q_INVOKABLE void prepareExternalEditorWorkingCopy(const QVariantMap &options);
+    Q_INVOKABLE void openExternalEditorWorkingCopy(const QString &working_path,
+                                                   const QString &application_path = QString());
+    Q_INVOKABLE void checkExternalEditorReturned(const QString &working_copy_id = QString(),
+                                                 const QString &returned_path = QString());
+    Q_INVOKABLE void clearExternalEditorSession();
     Q_INVOKABLE void selectAsset(const QString &asset_id);
     Q_INVOKABLE void selectAssetRange(const QString &asset_id);
     Q_INVOKABLE void toggleAssetSelected(const QString &asset_id);
@@ -849,6 +860,7 @@ signals:
     void copiedParametersChanged();
     void presetsChanged();
     void libraryWorkChanged();
+    void externalEditorSessionChanged();
     void thumbnailsChanged();
     void importPageChanged();
 
@@ -1100,6 +1112,7 @@ private:
     QString last_non_actual_zoom_mode_{QStringLiteral("fit")};
     double last_non_actual_zoom_factor_ = 1.0;
     int thumbnail_size_ = 180;
+    QVariantMap external_editor_session_;
     bool busy_ = false;
     bool preview_loading_ = false;
     PreviewRequestOwner develop_preview_owner_;

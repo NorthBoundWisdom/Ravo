@@ -116,4 +116,63 @@ bool start_file_manager_reveal(const FileManagerRevealLaunch &launch)
     return false;
 }
 
+Result<FileManagerRevealLaunch> file_open_with_launch(const QString &local_path,
+                                                      const QString &application_path)
+{
+    const QFileInfo info(local_path);
+    if (!info.exists() || !info.isFile())
+    {
+        return make_error(ErrorCode::kNotFound,
+                          "The working-copy file is missing and cannot be opened.");
+    }
+
+    FileManagerRevealLaunch launch;
+    launch.local_path = info.absoluteFilePath();
+    const QString app = application_path.trimmed();
+#if defined(Q_OS_MACOS)
+    launch.program = QStringLiteral("open");
+    if (!app.isEmpty())
+    {
+        const QFileInfo app_info(app);
+        if (app_info.isBundle() || app.endsWith(QStringLiteral(".app")))
+            launch.arguments = {QStringLiteral("-a"), app, launch.local_path};
+        else
+            launch.arguments = {QStringLiteral("-a"), app, launch.local_path};
+    }
+    else
+    {
+        launch.arguments = {launch.local_path};
+    }
+#elif defined(Q_OS_WIN)
+    if (!app.isEmpty())
+    {
+        launch.program = app;
+        launch.arguments = {QDir::toNativeSeparators(launch.local_path)};
+    }
+    else
+    {
+        launch.program = QStringLiteral("cmd");
+        launch.arguments = {QStringLiteral("/c"), QStringLiteral("start"), QStringLiteral(""),
+                            QDir::toNativeSeparators(launch.local_path)};
+    }
+#else
+    if (!app.isEmpty())
+    {
+        launch.program = app;
+        launch.arguments = {launch.local_path};
+    }
+    else
+    {
+        launch.program = QStringLiteral("xdg-open");
+        launch.arguments = {launch.local_path};
+    }
+#endif
+    return launch;
+}
+
+bool start_file_open(const FileManagerRevealLaunch &launch)
+{
+    return start_file_manager_reveal(launch);
+}
+
 } // namespace ravo
