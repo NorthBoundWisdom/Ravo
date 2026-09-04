@@ -1899,5 +1899,42 @@ TEST(StudioQmlContract, ExposureAndColorBalanceInstanceChrome)
     EXPECT_TRUE(chrome_source.contains(QStringLiteral("renameExposureInstance")));
 }
 
+TEST(StudioQmlContract, Local01MaskPlaceUsesPhotoPlaneNotInspectRoi)
+{
+    // Live Studio contract: mask authoring clicks normalize against photoPlane
+    // under Fit/Fill/1:1. inspectRoiImage is a display overlay only and must not
+    // redefine placeMask coordinates for the selected instance.
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto main_source = QString::fromUtf8(main.readAll());
+
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: photoPlane")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: inspectRoiImage")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.zoomMode === \"actual\"")));
+
+    const auto place_idx = main_source.indexOf(QStringLiteral("studioActions.placeMask("));
+    ASSERT_GE(place_idx, 0);
+    // Include the preceding photoPlane normalization (w/h from photoPlane).
+    const auto place_snip = main_source.mid(place_idx > 180 ? place_idx - 180 : 0, 360);
+    EXPECT_TRUE(place_snip.contains(QStringLiteral("photoPlane.width")));
+    EXPECT_TRUE(place_snip.contains(QStringLiteral("photoPlane.height")));
+    EXPECT_TRUE(place_snip.contains(QStringLiteral("photoPlane.x")));
+    EXPECT_TRUE(place_snip.contains(QStringLiteral("photoPlane.y")));
+    EXPECT_FALSE(place_snip.contains(QStringLiteral("inspectRoiImage")));
+    EXPECT_FALSE(place_snip.contains(QStringLiteral("inspectRoiX")));
+    EXPECT_FALSE(place_snip.contains(QStringLiteral("inspectRoiY")));
+
+    // Fit/Fill/1:1 chrome remains available for preview scale without changing
+    // the photoPlane-normalized authoring path above.
+    QFile library(QStringLiteral(RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML));
+    ASSERT_TRUE(library.open(QIODevice::ReadOnly | QIODevice::Text))
+        << library.errorString().toStdString();
+    const auto library_source = QString::fromUtf8(library.readAll());
+    EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fit\")")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fill\")")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"1:1\")")));
+}
+
 } // namespace
 } // namespace ravo

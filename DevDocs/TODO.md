@@ -4,11 +4,11 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through COR-01 residual close (instance-id high-water +
-> revision-bound recipe saves, owned-mask GC, export-usable catalog identity,
-> offline proxy publish inject) atop the prior COR-01 five-fix tranche /
-> DISPLAY-01 / OFFLINE-01 proxy consume. The next free ADR number is **0157**,
-> but new product ADRs are frozen by the work-in-progress rule below.
+> **Review basis:** `main` through LOCAL-01 C2 evidence (snapshot/history/
+> backup-restore multi-instance, failure-injection depth, live preview-scale/
+> 1:1 ROI mask authoring) atop COR-01 residuals + DISPLAY-01 / OFFLINE-01 proxy
+> consume. The next free ADR number is **0157**, but new product ADRs are frozen
+> by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -54,7 +54,7 @@ A green `main` may carry at most:
 1. one active P0 evidence/correctness stream; and
 2. one active P1 workflow-completion stream.
 
-Until `LOCAL-01` C2 snapshot/reopen and live preview-scale/ROI evidence is closed:
+Until GPU/PERF follow-ons and REL-01 corpus reopen evidence are closed (LOCAL-01 Studio C2 evidence is on `main`):
 
 - do not add another product capability ID, model/provider stub, placeholder
   pane, unsupported-probe feature, or specialization ADR;
@@ -95,7 +95,7 @@ the next one.
 
 | Order | ID | Priority | Outcome |
 | ---: | --- | --- | --- |
-| 1 | LOCAL-01 | P1 | Finish safe multi-instance local adjustments and mask composition |
+| 1 | LOCAL-01 | P1 | C2 Studio multi-instance local adjustments/masks; GPU residual after PERF-01 |
 | 2 | EDITIN-01 | P1 | Close the nearly complete Studio external-editor round trip |
 | 3 | CULL-01 | P1 | Finish transactional keyboard review and evaluated assistance |
 | 4 | OFFLINE-01 | P1 | Make verified proxies usable for actual Loupe/Develop work |
@@ -339,12 +339,13 @@ long paths, and removal without touching user data.
 
 ## LOCAL-01 — Professional multi-instance local adjustments
 
-**Maturity:** Near C2; COR-01 LOCAL residuals closed. Composition Invert/Intersect,
-selected-instance overlay/feather/brush-flow contracts, and orientation/lens/
-Canvas/1:1-crop/export mask-coord survival are evidenced on `main` via
-`LocalAdjustmentMultiInstanceTest.Local01*`. Remaining: snapshot/reopen +
-failure-injection depth, preview-scale live path evidence beyond normalized
-coords, GPU after PERF-01, and any leftover Main.qml extraction.
+**Maturity:** C2 on `main` for Studio multi-instance workflow evidence. Snapshot /
+history reopen / backup-restore smoke, failure-injection depth (stale revision on
+instance mutate, wrong `instance_id` after recreate, cancel mid structural batch
+apply), and live Studio preview-scale / 1:1 ROI mask-authoring contracts are
+closed via `Local01*` / catalog / presenter / QML-contract tests. Residual: GPU
+mask evaluation only after PERF-01 CPU equality; any leftover Main.qml extraction
+must shrink chrome, not grow it. Full mixed-corpus reopen/backup remains REL-01.
 
 **Remaining work:**
 
@@ -357,13 +358,22 @@ coords, GPU after PERF-01, and any leftover Main.qml extraction.
   `color_balance_rgb_mask_id`), feather, and brush flow/density/hardness through
   the C++-owned mask DAG (`Local01OverlayFeatherBrushFlow*`); MaskEditor chrome
   already exposes Invert/Intersect/overlay/feather/brush without Main.qml growth;
-- [partial] coordinate legs: orientation, lens, Canvas, 1:1 crop aspect, and
-  export recipe survival with multi-instance group masks
-  (`Local01GeometryLegsMaskCoordSurvival`); preview scale remains request-time
-  (normalized mask coords) — live Studio preview-scale/1:1 ROI path still needs
-  deeper evidence;
-- complete snapshot/reopen and failure-injection depth for instance vectors and
-  masks; retain existing history/undo/style/copy/batch/virtual-copy contracts;
+- [done] coordinate legs: orientation, lens, Canvas, 1:1 crop aspect, export
+  recipe survival (`Local01GeometryLegsMaskCoordSurvival`); live Studio
+  preview-scale / 1:1 ROI authoring path
+  (`Local01PreviewScaleAndOneToOneRoiMaskAuthoring`,
+  `Local01MaskPlaceUsesPhotoPlaneNotInspectRoi`) — Fit/Fill/1:1 normalize to
+  `photoPlane`; `map_mask_place_preview` maps through 1:1 crop onto the selected
+  instance; inspect ROI is display-only;
+- [done] snapshot / history reopen / catalog reopen + backup/restore smoke for
+  multi-instance Exposure/CBR + masks
+  (`Local01MultiInstanceSnapshotHistoryReopenAndStaleRevision`,
+  `Local01MultiInstanceBackupRestoreSmoke`);
+- [done] failure-injection depth: stale revision on instance mutate, wrong
+  `instance_id` after recreate (rename/bypass/enable/delete), cancel mid
+  structural multi-instance batch apply (`Local01WrongInstanceIdAfterRecreate*`,
+  stale revision in snapshot test, `Local01CancelMidStructuralMultiInstanceApply`);
+- retain existing history/undo/style/copy/batch/virtual-copy contracts;
 - add GPU evaluation only after CPU equality and PERF-01 evidence;
 - extract any remaining Main.qml orchestration rather than growing it.
 

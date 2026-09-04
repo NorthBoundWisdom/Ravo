@@ -46,6 +46,7 @@
 #include "ravo/recipe/color_reconstruction.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/mask.h"
 #include "ravo/recipe/dehaze.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
@@ -1301,6 +1302,91 @@ TEST_F(CatalogServiceTest, ListsImportedFoldersAndFiltersByFolderUri)
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_NE(listed.value().front().normalized_uri.find("Trip"), std::string::npos);
+}
+
+TEST_F(CatalogServiceTest, Local01MultiInstanceBackupRestoreSmoke)
+{
+    // LOCAL-01 C2 smoke: multi-instance Exposure/CBR + masks survive backup/restore.
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "local01-backup-multi.jpg";
+    QImage image(24, 18, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(70, 40, 110));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams multi;
+    DevelopExposureInstance master;
+    master.instance_id = "exposure-1";
+    master.name = "Master";
+    master.exposure_ev = 0.2;
+    DevelopExposureInstance local;
+    local.instance_id = "exposure-2";
+    local.name = "Burn";
+    local.exposure_ev = -0.35;
+    local.mask_id = "backup-mask-circle";
+    multi.exposure_instances = {master, local};
+    Mask circle{"backup-mask-circle", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    circle.payload = CircleMask{0.3, 0.7, 0.2, 0.02};
+    multi.masks.push_back(circle);
+
+    DevelopColorBalanceRgbInstance c0;
+    c0.instance_id = "colorbalancergb-1";
+    c0.name = "Master";
+    DevelopColorBalanceRgbInstance c1;
+    c1.instance_id = "colorbalancergb-2";
+    c1.name = "Cool";
+    c1.params.global_y = -0.12;
+    c1.mask_id = "backup-mask-ellipse";
+    multi.color_balance_rgb_instances = {c0, c1};
+    Mask ellipse{"backup-mask-ellipse", kCanonicalMaskSchemaVersion, MaskKind::kEllipse};
+    ellipse.payload = EllipseMask{0.55, 0.45, 0.22, 0.14, 5.0, 0.01};
+    multi.masks.push_back(ellipse);
+    ASSERT_TRUE(service->save_develop(asset_id, multi));
+
+    const auto backup_path = root / "local01-multi-backup";
+    auto backup = service->create_backup(backup_path.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+
+    auto backup_recovery =
+        FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
+    ASSERT_TRUE(backup_recovery) << backup_recovery.error().message;
+    const SqliteCatalogBackupVerifier verifier;
+    const auto restored_path = (root / "local01-restored.sqlite").string();
+    CatalogRestoreRequest request;
+    request.backup_directory = backup_path.string();
+    request.destination_catalog = restored_path;
+    auto restored = restore_catalog_backup(verifier, verifier, *backup_recovery.value(), request);
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().published);
+
+    auto restored_repository = SqliteCatalogRepository::open(restored_path);
+    ASSERT_TRUE(restored_repository) << restored_repository.error().message;
+    auto restored_cache = FilesystemPreviewCache::create(restored_path + ".preview");
+    ASSERT_TRUE(restored_cache) << restored_cache.error().message;
+    auto restored_recovery = FilesystemRecoveryStore::create_for_catalog(restored_path);
+    ASSERT_TRUE(restored_recovery) << restored_recovery.error().message;
+    CatalogService restored_service(
+        engine, std::move(restored_repository).value(), std::make_unique<QtRasterDecoder>(),
+        std::move(restored_cache).value(), std::move(restored_recovery).value());
+    ASSERT_TRUE(restored_service.sync_recovery(std::nullopt));
+
+    auto restored_recipe = restored_service.load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto params = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(params) << params.error().message;
+    ASSERT_EQ(params.value().exposure_instances.size(), 2U);
+    EXPECT_EQ(params.value().exposure_instances[1].name, "Burn");
+    EXPECT_EQ(params.value().exposure_instances[1].mask_id, "backup-mask-circle");
+    EXPECT_NEAR(params.value().exposure_instances[1].exposure_ev, -0.35, 1e-9);
+    ASSERT_EQ(params.value().color_balance_rgb_instances.size(), 2U);
+    EXPECT_EQ(params.value().color_balance_rgb_instances[1].name, "Cool");
+    EXPECT_EQ(params.value().color_balance_rgb_instances[1].mask_id, "backup-mask-ellipse");
+    EXPECT_NEAR(params.value().color_balance_rgb_instances[1].params.global_y, -0.12, 1e-9);
+    EXPECT_EQ(params.value().masks.size(), 2U);
+    ASSERT_TRUE(restored_service.close());
 }
 
 } // namespace

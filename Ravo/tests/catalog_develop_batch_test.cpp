@@ -306,4 +306,85 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionCarriesMultiInstanceExposure)
     EXPECT_EQ(second_params.value().masks.front().id, "batch-mask-ellipse");
 }
 
+TEST_F(CatalogServiceTest, Local01CancelMidStructuralMultiInstanceApply)
+{
+    // Failure-injection: cancel mid batch apply of multi-instance structural
+    // Exposure vectors keeps completed photos and leaves remaining unchanged.
+    ASSERT_TRUE(open_service(true));
+    const auto a_path = root / "struct-a.jpg";
+    const auto b_path = root / "struct-b.jpg";
+    const auto c_path = root / "struct-c.jpg";
+    ASSERT_TRUE(write_jpeg(a_path, QColor(20, 80, 140)));
+    ASSERT_TRUE(write_jpeg(b_path, QColor(140, 80, 20)));
+    ASSERT_TRUE(write_jpeg(c_path, QColor(40, 140, 80)));
+    auto a = service->import_one(a_path.string(), CancellationToken{});
+    auto b = service->import_one(b_path.string(), CancellationToken{});
+    auto c = service->import_one(c_path.string(), CancellationToken{});
+    ASSERT_TRUE(a) << a.error().message;
+    ASSERT_TRUE(b) << b.error().message;
+    ASSERT_TRUE(c) << c.error().message;
+    const auto a_id = a.value().asset->id;
+    const auto b_id = b.value().asset->id;
+    const auto c_id = c.value().asset->id;
+
+    DevelopParams source;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-global";
+    global.name = "Global";
+    global.exposure_ev = 0.1;
+    DevelopExposureInstance dodge;
+    dodge.instance_id = "exposure-dodge";
+    dodge.name = "Dodge";
+    dodge.exposure_ev = 0.7;
+    dodge.mask_id = "struct-mask-ellipse";
+    source.exposure_instances = {global, dodge};
+    Mask mask{"struct-mask-ellipse", kCanonicalMaskSchemaVersion, MaskKind::kEllipse};
+    mask.payload = EllipseMask{0.48, 0.52, 0.19, 0.14, 0.0, 0.04};
+    source.masks.push_back(mask);
+    ASSERT_TRUE(service->save_develop(a_id, source));
+
+    DevelopParams baseline;
+    baseline.exposure_ev = 0.0;
+    ASSERT_TRUE(service->save_develop(b_id, baseline));
+    ASSERT_TRUE(service->save_develop(c_id, baseline));
+
+    CancellationSource cancellation;
+    DevelopApplyRequest request;
+    request.source = source;
+    request.fields = {"exposure"};
+    request.asset_ids = {b_id, c_id};
+    request.cancellation = cancellation.token();
+    auto applied = service->apply_develop_selection(
+        request,
+        [&](const std::size_t completed, const std::size_t, const DevelopApplyItemResult *)
+        {
+            if (completed == 1U)
+                static_cast<void>(cancellation.cancel("local01-struct-cancel"));
+        });
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(applied.value().applied, 1U);
+    EXPECT_EQ(applied.value().skipped, 1U);
+    ASSERT_EQ(applied.value().items.size(), 2U);
+    EXPECT_EQ(applied.value().items[0].status, DevelopApplyItemStatus::kApplied);
+    EXPECT_EQ(applied.value().items[0].asset_id, b_id);
+    EXPECT_EQ(applied.value().items[1].status, DevelopApplyItemStatus::kSkipped);
+    EXPECT_EQ(applied.value().items[1].asset_id, c_id);
+
+    auto b_recipe = service->load_recipe(b_id);
+    ASSERT_TRUE(b_recipe);
+    auto b_params = develop_from_recipe(b_recipe.value());
+    ASSERT_TRUE(b_params);
+    ASSERT_EQ(b_params.value().exposure_instances.size(), 2U);
+    EXPECT_EQ(b_params.value().exposure_instances[1].mask_id, "struct-mask-ellipse");
+    EXPECT_EQ(b_params.value().masks.size(), 1U);
+
+    auto c_recipe = service->load_recipe(c_id);
+    ASSERT_TRUE(c_recipe);
+    auto c_params = develop_from_recipe(c_recipe.value());
+    ASSERT_TRUE(c_params);
+    EXPECT_TRUE(c_params.value().exposure_instances.empty());
+    EXPECT_NEAR(c_params.value().exposure_ev, 0.0, 1e-9);
+    EXPECT_TRUE(c_params.value().masks.empty());
+}
+
 } // namespace ravo

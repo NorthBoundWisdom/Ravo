@@ -46,6 +46,7 @@
 #include "ravo/recipe/color_reconstruction.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/mask.h"
 #include "ravo/recipe/dehaze.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
@@ -1386,6 +1387,166 @@ TEST_F(CatalogServiceTest, Cor01DevelopSaveBindsExpectedRevision)
     auto loaded = develop_from_recipe(recipe.value());
     ASSERT_TRUE(loaded) << loaded.error().message;
     EXPECT_DOUBLE_EQ(loaded.value().exposure_ev, 0.25);
+}
+
+TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevision)
+{
+    // LOCAL-01 C2: multi-instance Exposure/CBR + masks survive catalog snapshot,
+    // history restore, and catalog reopen. Stale revision on instance mutate
+    // leaves prior state (COR-01 expected_revision).
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "local01-snapshot-reopen.jpg").string();
+    QImage image(20, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(22, 44, 66));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams multi;
+    DevelopExposureInstance global;
+    global.instance_id = "exposure-1";
+    global.name = "Master";
+    global.exposure_ev = 0.15;
+    DevelopExposureInstance dodge;
+    dodge.instance_id = "exposure-2";
+    dodge.name = "Dodge";
+    dodge.exposure_ev = 0.55;
+    dodge.mask_id = "ravo.studio.mask.exposure.1";
+    multi.exposure_instances = {global, dodge};
+    Mask exposure_mask{"ravo.studio.mask.exposure.1", kCanonicalMaskSchemaVersion,
+                       MaskKind::kCircle};
+    exposure_mask.payload = CircleMask{0.42, 0.58, 0.16, 0.04};
+    multi.masks.push_back(exposure_mask);
+    multi.exposure_mask_id = dodge.mask_id;
+
+    DevelopColorBalanceRgbInstance cbr_master;
+    cbr_master.instance_id = "colorbalancergb-1";
+    cbr_master.name = "Master";
+    cbr_master.params.global_y = 0.05;
+    DevelopColorBalanceRgbInstance cbr_local;
+    cbr_local.instance_id = "colorbalancergb-2";
+    cbr_local.name = "Warm face";
+    cbr_local.params.shadows_y = -0.08;
+    cbr_local.mask_id = "ravo.studio.mask.colorbalancergb.1";
+    multi.color_balance_rgb_instances = {cbr_master, cbr_local};
+    Mask cbr_mask{"ravo.studio.mask.colorbalancergb.1", kCanonicalMaskSchemaVersion,
+                  MaskKind::kEllipse};
+    cbr_mask.payload = EllipseMask{0.5, 0.4, 0.18, 0.12, 10.0, 0.03};
+    multi.masks.push_back(cbr_mask);
+    multi.color_balance_rgb_mask_id = cbr_local.mask_id;
+
+    auto snap_rev = service->snapshot();
+    ASSERT_TRUE(snap_rev);
+    auto saved = service->save_develop_with_history(
+        asset_id, multi,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .expected_revision = snap_rev.value().revision});
+    ASSERT_TRUE(saved) << saved.error().message;
+
+    auto snapshot = service->create_recipe_snapshot(asset_id, "local01-multi");
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    std::int64_t snapshot_id = 0;
+    std::int64_t history_id = 0;
+    auto history = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history) << history.error().message;
+    for (const auto &entry : history.value())
+    {
+        if (entry.kind == kRecipeHistoryKindSnapshot && entry.label &&
+            *entry.label == "local01-multi")
+            snapshot_id = entry.id;
+        else if (entry.kind == kRecipeHistoryKindHistory && history_id == 0)
+            history_id = entry.id;
+    }
+    ASSERT_NE(snapshot_id, 0);
+    ASSERT_NE(history_id, 0);
+
+    // Mutate away from the snapshot: drop instances and clear masks.
+    DevelopParams drifted;
+    drifted.exposure_ev = -0.9;
+    drifted.saturation = 0.4;
+    ASSERT_TRUE(service->save_develop(asset_id, drifted));
+
+    auto restored_snap = service->restore_recipe_history(asset_id, snapshot_id);
+    ASSERT_TRUE(restored_snap) << restored_snap.error().message;
+    auto after_snap = service->load_recipe(asset_id);
+    ASSERT_TRUE(after_snap) << after_snap.error().message;
+    auto snap_params = develop_from_recipe(after_snap.value());
+    ASSERT_TRUE(snap_params) << snap_params.error().message;
+    ASSERT_EQ(snap_params.value().exposure_instances.size(), 2U);
+    EXPECT_EQ(snap_params.value().exposure_instances[1].name, "Dodge");
+    EXPECT_EQ(snap_params.value().exposure_instances[1].mask_id, "ravo.studio.mask.exposure.1");
+    EXPECT_NEAR(snap_params.value().exposure_instances[1].exposure_ev, 0.55, 1e-9);
+    ASSERT_EQ(snap_params.value().color_balance_rgb_instances.size(), 2U);
+    EXPECT_EQ(snap_params.value().color_balance_rgb_instances[1].name, "Warm face");
+    EXPECT_EQ(snap_params.value().color_balance_rgb_instances[1].mask_id,
+              "ravo.studio.mask.colorbalancergb.1");
+    EXPECT_NEAR(snap_params.value().color_balance_rgb_instances[1].params.shadows_y, -0.08, 1e-9);
+    EXPECT_EQ(snap_params.value().masks.size(), 2U);
+    // Overlay edit-buffer slots are Studio session state; durable ownership is
+    // the per-instance mask_id above.
+
+    // History reopen of the original multi-instance step also restores vectors.
+    DevelopParams drifted_again;
+    drifted_again.contrast = 0.5;
+    ASSERT_TRUE(service->save_develop(asset_id, drifted_again));
+    auto restored_hist = service->restore_recipe_history(asset_id, history_id);
+    ASSERT_TRUE(restored_hist) << restored_hist.error().message;
+    auto after_hist = service->load_recipe(asset_id);
+    ASSERT_TRUE(after_hist) << after_hist.error().message;
+    auto hist_params = develop_from_recipe(after_hist.value());
+    ASSERT_TRUE(hist_params) << hist_params.error().message;
+    ASSERT_EQ(hist_params.value().exposure_instances.size(), 2U);
+    ASSERT_EQ(hist_params.value().color_balance_rgb_instances.size(), 2U);
+    EXPECT_EQ(hist_params.value().masks.size(), 2U);
+
+    // Catalog reopen preserves multi-instance recipe.
+    ASSERT_TRUE(service->close());
+    ASSERT_TRUE(open_service(false));
+    auto reopened = service->load_recipe(asset_id);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto reopened_params = develop_from_recipe(reopened.value());
+    ASSERT_TRUE(reopened_params) << reopened_params.error().message;
+    ASSERT_EQ(reopened_params.value().exposure_instances.size(), 2U);
+    ASSERT_EQ(reopened_params.value().color_balance_rgb_instances.size(), 2U);
+    EXPECT_EQ(reopened_params.value().exposure_instances[1].mask_id, "ravo.studio.mask.exposure.1");
+    EXPECT_EQ(reopened_params.value().color_balance_rgb_instances[1].mask_id,
+              "ravo.studio.mask.colorbalancergb.1");
+    EXPECT_EQ(reopened_params.value().masks.size(), 2U);
+
+    // Stale revision on instance mutate leaves prior multi-instance state.
+    auto head = service->snapshot();
+    ASSERT_TRUE(head);
+    const auto stale_rev = head.value().revision;
+    DevelopParams bump = reopened_params.value();
+    bump.exposure_instances[1].exposure_ev = 0.9;
+    auto fresh = service->save_develop_with_history(
+        asset_id, bump,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .expected_revision = stale_rev});
+    ASSERT_TRUE(fresh) << fresh.error().message;
+    EXPECT_GT(fresh.value().revision, stale_rev);
+
+    DevelopParams hijack = bump;
+    hijack.exposure_instances[1].exposure_ev = -1.5;
+    hijack.exposure_instances.pop_back();
+    auto stale = service->save_develop_with_history(
+        asset_id, hijack,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .expected_revision = stale_rev});
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(stale.error().context.at("reason"), "stale_catalog_revision");
+
+    auto kept = service->load_recipe(asset_id);
+    ASSERT_TRUE(kept) << kept.error().message;
+    auto kept_params = develop_from_recipe(kept.value());
+    ASSERT_TRUE(kept_params) << kept_params.error().message;
+    ASSERT_EQ(kept_params.value().exposure_instances.size(), 2U);
+    EXPECT_NEAR(kept_params.value().exposure_instances[1].exposure_ev, 0.9, 1e-9);
+    EXPECT_EQ(kept_params.value().masks.size(), 2U);
 }
 
 } // namespace

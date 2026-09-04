@@ -1372,6 +1372,76 @@ TEST(LocalAdjustmentMultiInstanceTest, Local01GeometryLegsMaskCoordSurvival)
     EXPECT_EQ(restored.value().exposure_mask_id, restored.value().exposure_instances[1].mask_id);
 }
 
+TEST(LocalAdjustmentMultiInstanceTest, Local01WrongInstanceIdAfterRecreateRejectsMutate)
+{
+    // Failure-injection depth: after delete+recreate, stale instance_id must not
+    // rename/bypass/enable/delete the new instance (COR-01 high-water reuse ban).
+    DevelopParams params;
+    ASSERT_TRUE(add_exposure_instance(params));
+    ASSERT_EQ(params.exposure_instances.size(), 2U);
+    const auto deleted = params.exposure_instances[1].instance_id;
+    ASSERT_EQ(deleted, "exposure-2");
+    params.exposure_instances[1].name = "KeepMe";
+    params.exposure_instances[1].exposure_ev = 0.4;
+    load_exposure_instance_into_legacy(params, 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskKind", 3.0)); // circle
+    mirror_legacy_exposure_into_instance(params, 1);
+    ASSERT_TRUE(params.exposure_instances[1].mask_id.has_value());
+    const auto owned_mask = *params.exposure_instances[1].mask_id;
+
+    ASSERT_TRUE(delete_exposure_instance(params, deleted));
+    ASSERT_EQ(params.exposure_instances.size(), 1U);
+
+    auto recreated = add_exposure_instance(params);
+    ASSERT_TRUE(recreated) << recreated.error().message;
+    EXPECT_EQ(recreated.value(), "exposure-3");
+    EXPECT_NE(recreated.value(), deleted);
+    ASSERT_EQ(params.exposure_instances.size(), 2U);
+    params.exposure_instances[1].name = "Fresh";
+    params.exposure_instances[1].exposure_ev = -0.2;
+
+    auto rename = rename_exposure_instance(params, deleted, "Hijack");
+    ASSERT_FALSE(rename);
+    EXPECT_EQ(rename.error().code, ErrorCode::kNotFound);
+    EXPECT_EQ(params.exposure_instances[1].name, "Fresh");
+
+    auto bypass = set_exposure_instance_bypass(params, deleted, true);
+    ASSERT_FALSE(bypass);
+    EXPECT_EQ(bypass.error().code, ErrorCode::kNotFound);
+    EXPECT_FALSE(params.exposure_instances[1].bypass);
+
+    auto enabled = set_exposure_instance_enabled(params, deleted, false);
+    ASSERT_FALSE(enabled);
+    EXPECT_EQ(enabled.error().code, ErrorCode::kNotFound);
+    EXPECT_TRUE(params.exposure_instances[1].enabled);
+
+    auto stale_delete = delete_exposure_instance(params, deleted);
+    ASSERT_FALSE(stale_delete);
+    EXPECT_EQ(stale_delete.error().context.at("reason"), "delete_exposure_instance_id_mismatch");
+    ASSERT_EQ(params.exposure_instances.size(), 2U);
+    EXPECT_EQ(params.exposure_instances[1].instance_id, "exposure-3");
+    EXPECT_NEAR(params.exposure_instances[1].exposure_ev, -0.2, 1e-9);
+
+    // Owned mask from the deleted instance must already be gone; recreate does not revive it.
+    const bool revived = std::any_of(params.masks.begin(), params.masks.end(),
+                                     [&](const Mask &mask) { return mask.id == owned_mask; });
+    EXPECT_FALSE(revived);
+
+    // CBR parity: wrong id after recreate rejects mutate.
+    DevelopParams color;
+    ASSERT_TRUE(add_color_balance_rgb_instance(color));
+    const auto cbr_deleted = color.color_balance_rgb_instances[1].instance_id;
+    ASSERT_TRUE(delete_color_balance_rgb_instance(color, cbr_deleted));
+    auto cbr_new = add_color_balance_rgb_instance(color);
+    ASSERT_TRUE(cbr_new);
+    EXPECT_NE(cbr_new.value(), cbr_deleted);
+    color.color_balance_rgb_instances[1].params.global_y = 0.33;
+    auto cbr_bypass = set_color_balance_rgb_instance_bypass(color, cbr_deleted, true);
+    ASSERT_FALSE(cbr_bypass);
+    EXPECT_FALSE(color.color_balance_rgb_instances[1].bypass);
+    EXPECT_NEAR(color.color_balance_rgb_instances[1].params.global_y, 0.33, 1e-9);
+}
+
 } // namespace
 
 } // namespace ravo

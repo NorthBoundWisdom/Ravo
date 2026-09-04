@@ -2070,5 +2070,80 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
         << presenter.errorText().toStdString();
 }
 
+TEST(StudioPresenterTest, Local01PreviewScaleAndOneToOneRoiMaskAuthoring)
+{
+    // Live Studio path: QML normalizes clicks to the photoPlane (fit/fill/1:1
+    // scroll only change plane size; authoring coords stay 0..1). map_mask_place
+    // then maps through crop — including 1:1 ROI aspect — onto the selected
+    // instance mask. Preview scale itself is request-time and must not alter
+    // the normalized authoring contract.
+    using studio_develop_internal::map_mask_place_preview;
+    using studio_develop_internal::mask_place_geometry_allowed;
+
+    DevelopParams params;
+    ASSERT_TRUE(add_exposure_instance(params));
+    ASSERT_EQ(params.exposure_instances.size(), 2U);
+    load_exposure_instance_into_legacy(params, 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "exposureMaskKind", 3.0)); // circle
+    mirror_legacy_exposure_into_instance(params, 1);
+    ASSERT_TRUE(params.exposure_instances[1].mask_id.has_value());
+    EXPECT_EQ(params.exposure_mask_id, params.exposure_instances[1].mask_id);
+
+    // 1:1 ROI crop on the develop recipe (Studio Actual Size / locked aspect).
+    params.crop_x = 0.10;
+    params.crop_y = 0.05;
+    params.crop_width = 0.80;
+    params.crop_height = 0.70;
+    ASSERT_TRUE(apply_crop_aspect(params, "1:1"));
+    EXPECT_NEAR(params.crop_width, params.crop_height, 1e-9);
+    EXPECT_TRUE(mask_place_geometry_allowed(params));
+
+    // Same normalized photoPlane click under any preview scale maps identically.
+    constexpr double preview_x = 0.25;
+    constexpr double preview_y = 0.75;
+    auto mapped_fit = map_mask_place_preview(params, preview_x, preview_y);
+    ASSERT_TRUE(mapped_fit) << mapped_fit.error().message;
+    auto mapped_fill = map_mask_place_preview(params, preview_x, preview_y);
+    ASSERT_TRUE(mapped_fill) << mapped_fill.error().message;
+    auto mapped_actual = map_mask_place_preview(params, preview_x, preview_y);
+    ASSERT_TRUE(mapped_actual) << mapped_actual.error().message;
+    EXPECT_DOUBLE_EQ(mapped_fit.value().first, mapped_fill.value().first);
+    EXPECT_DOUBLE_EQ(mapped_fit.value().second, mapped_fill.value().second);
+    EXPECT_DOUBLE_EQ(mapped_fit.value().first, mapped_actual.value().first);
+    EXPECT_DOUBLE_EQ(mapped_fit.value().second, mapped_actual.value().second);
+    EXPECT_NEAR(mapped_fit.value().first, params.crop_x + preview_x * params.crop_width, 1e-12);
+    EXPECT_NEAR(mapped_fit.value().second, params.crop_y + preview_y * params.crop_height, 1e-12);
+
+    // Apply onto selected instance mask fields (mirrors StudioPresenter::placeMask).
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(params, "exposureMaskCenterX", mapped_fit.value().first));
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(params, "exposureMaskCenterY", mapped_fit.value().second));
+    mirror_legacy_exposure_into_instance(params, 1);
+    load_exposure_instance_into_legacy(params, 1);
+    auto state = develop_mask_editor_state(params, DevelopMaskTarget::kExposure);
+    EXPECT_TRUE(state.editable);
+    EXPECT_EQ(state.kind_name, "circle");
+    EXPECT_NEAR(state.center_x, mapped_fit.value().first, 1e-9);
+    EXPECT_NEAR(state.center_y, mapped_fit.value().second, 1e-9);
+    EXPECT_EQ(params.exposure_mask_id, params.exposure_instances[1].mask_id);
+
+    // Inspect-ROI normalized rect (1:1 viewport window into photoPlane) does not
+    // redefine authoring space: a click expressed in full-plane coords still maps
+    // through crop only. ROI origin (0.2,0.3) size (0.4,0.4) of the plane.
+    const double roi_x = 0.2;
+    const double roi_y = 0.3;
+    const double roi_w = 0.4;
+    const double roi_h = 0.4;
+    const double click_in_roi_u = 0.5; // center of visible ROI
+    const double click_in_roi_v = 0.5;
+    const double plane_x = roi_x + click_in_roi_u * roi_w;
+    const double plane_y = roi_y + click_in_roi_v * roi_h;
+    auto through_roi = map_mask_place_preview(params, plane_x, plane_y);
+    ASSERT_TRUE(through_roi) << through_roi.error().message;
+    EXPECT_NEAR(through_roi.value().first, params.crop_x + plane_x * params.crop_width, 1e-12);
+    EXPECT_NEAR(through_roi.value().second, params.crop_y + plane_y * params.crop_height, 1e-12);
+}
+
 } // namespace
 } // namespace ravo
