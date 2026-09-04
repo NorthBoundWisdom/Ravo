@@ -1,6 +1,11 @@
+#include <algorithm>
+#include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <fstream>
+#include <memory>
 #include <string>
+#include <vector>
 #include <system_error>
 
 #include <QColor>
@@ -33,6 +38,67 @@ namespace
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(color);
     return image.save(QString::fromStdString(path.string()), "JPEG", 90);
+}
+
+[[nodiscard]] std::optional<std::uint16_t> tiff_bits_per_sample(const std::filesystem::path &path)
+{
+    std::ifstream in(path, std::ios::binary);
+    if (!in)
+        return std::nullopt;
+    const auto file_bytes = std::filesystem::file_size(path);
+    std::vector<unsigned char> bytes(static_cast<std::size_t>(file_bytes));
+    in.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    if (!in || bytes.size() < 8U)
+        return std::nullopt;
+    const bool le = bytes[0] == 'I' && bytes[1] == 'I';
+    const bool be = bytes[0] == 'M' && bytes[1] == 'M';
+    if (!le && !be)
+        return std::nullopt;
+    auto u16 = [&](const std::size_t off) -> std::optional<std::uint16_t>
+    {
+        if (off + 2U > bytes.size())
+            return std::nullopt;
+        return le ? static_cast<std::uint16_t>(bytes[off] | (bytes[off + 1U] << 8)) :
+                    static_cast<std::uint16_t>((bytes[off] << 8) | bytes[off + 1U]);
+    };
+    auto u32 = [&](const std::size_t off) -> std::optional<std::uint32_t>
+    {
+        if (off + 4U > bytes.size())
+            return std::nullopt;
+        return le ? static_cast<std::uint32_t>(bytes[off] | (bytes[off + 1U] << 8) |
+                                               (bytes[off + 2U] << 16) | (bytes[off + 3U] << 24)) :
+                    static_cast<std::uint32_t>((bytes[off] << 24) | (bytes[off + 1U] << 16) |
+                                               (bytes[off + 2U] << 8) | bytes[off + 3U]);
+    };
+    const auto magic = u16(2);
+    if (!magic || *magic != 42U)
+        return std::nullopt;
+    const auto ifd = u32(4);
+    if (!ifd)
+        return std::nullopt;
+    const auto count = u16(*ifd);
+    if (!count)
+        return std::nullopt;
+    for (std::uint16_t i = 0; i < *count; ++i)
+    {
+        const auto entry = static_cast<std::size_t>(*ifd) + 2U + static_cast<std::size_t>(i) * 12U;
+        const auto tag = u16(entry);
+        const auto type = u16(entry + 2U);
+        const auto n = u32(entry + 4U);
+        if (!tag || !type || !n || *tag != 258U)
+            continue;
+        const std::size_t value_bytes = static_cast<std::size_t>(*n) * (*type == 3U ? 2U : 4U);
+        std::size_t data_off = entry + 8U;
+        if (value_bytes > 4U)
+        {
+            const auto off = u32(entry + 8U);
+            if (!off)
+                return std::nullopt;
+            data_off = *off;
+        }
+        return u16(data_off);
+    }
+    return std::nullopt;
 }
 
 [[nodiscard]] std::string original_path_for(CatalogService &service, const std::string &asset_id)
@@ -693,6 +759,200 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyMissingAndStaleStates)
     ASSERT_FALSE(stale_blocked);
     EXPECT_EQ(stale_blocked.error().code, ErrorCode::kConflict);
     EXPECT_EQ(stale_blocked.error().context.at("reason"), "stale_catalog_revision");
+}
+
+TEST_F(CatalogServiceTest, BackupRestorePreservesWorkingCopySessionsAndRelocation)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "wc-backup-source.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(18, 64, 90)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, source_id);
+    ASSERT_FALSE(original.empty());
+    const auto before_sha = sha256_file_hex(original);
+    ASSERT_TRUE(before_sha) << before_sha.error().message;
+
+    ExternalEditorWorkingCopyRequest request;
+    request.asset_id = source_id;
+    request.editor_id = "photoshop";
+    request.user_initiated = true;
+    request.max_edge = 40U;
+    request.tiff_sample_type = TiffSampleType::kUint8;
+    auto prepared = service->create_external_editor_working_copy(request);
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    const auto working_id = prepared.value().session.working_copy_id;
+    const auto working_path_before = prepared.value().session.working_path;
+    EXPECT_NE(
+        working_path_before.find("external-editor/working-copies/" + working_id + "/working.tif"),
+        std::string::npos);
+
+    const auto backup_path = root / "wc-session-backup";
+    auto backup = service->create_backup(backup_path.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+    EXPECT_GE(backup.value().external_editor_count, 1U);
+    EXPECT_TRUE(std::filesystem::is_regular_file(backup_path / "external-editor" /
+                                                 "working-copies" / working_id / "session.json"));
+    EXPECT_TRUE(std::filesystem::is_regular_file(backup_path / "external-editor" /
+                                                 "working-copies" / working_id / "working.tif"));
+
+    auto verified = service->verify_backup(backup_path.string());
+    ASSERT_TRUE(verified) << verified.error().message;
+
+    const SqliteCatalogBackupVerifier verifier;
+    auto backup_recovery =
+        FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
+    ASSERT_TRUE(backup_recovery) << backup_recovery.error().message;
+    const auto restored_path = (root / "restored-with-working-copy.sqlite").string();
+    CatalogRestoreRequest restore_request;
+    restore_request.backup_directory = backup_path.string();
+    restore_request.destination_catalog = restored_path;
+    auto restored =
+        restore_catalog_backup(verifier, verifier, *backup_recovery.value(), restore_request);
+    ASSERT_TRUE(restored) << restored.error().message;
+
+    auto restored_repository = SqliteCatalogRepository::open(restored_path);
+    ASSERT_TRUE(restored_repository) << restored_repository.error().message;
+    auto restored_cache = FilesystemPreviewCache::create(restored_path + ".preview");
+    ASSERT_TRUE(restored_cache) << restored_cache.error().message;
+    auto restored_recovery = FilesystemRecoveryStore::create_for_catalog(restored_path);
+    ASSERT_TRUE(restored_recovery) << restored_recovery.error().message;
+    CatalogService restored_service(
+        engine, std::move(restored_repository).value(), std::make_unique<QtRasterDecoder>(),
+        std::move(restored_cache).value(), std::move(restored_recovery).value());
+
+    auto status = restored_service.external_editor_working_copy_status(working_id);
+    ASSERT_TRUE(status) << status.error().message;
+    EXPECT_TRUE(status.value().working_copy_present);
+    const auto restored_marker = std::filesystem::path(restored_path).filename().string() +
+                                 ".ravo/external-editor/working-copies/";
+    EXPECT_NE(status.value().session.working_path.find(restored_marker), std::string::npos)
+        << status.value().session.working_path;
+    EXPECT_TRUE(std::filesystem::is_regular_file(status.value().session.working_path));
+    EXPECT_EQ(status.value().session.working_path.find(working_path_before), std::string::npos)
+        << "working_path must relocate away from the source catalog support root";
+
+    ExternalEditorReopenRequest reopen;
+    reopen.working_copy_id = working_id;
+    reopen.user_initiated = true;
+    auto reopened = restored_service.reopen_external_editor_working_copy(reopen);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    EXPECT_TRUE(reopened.value().status.working_copy_present);
+
+    const auto after_sha = sha256_file_hex(original);
+    ASSERT_TRUE(after_sha) << after_sha.error().message;
+    EXPECT_EQ(after_sha.value(), before_sha.value());
+}
+
+TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyTiffBitDepthDimensionsNaming)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "wc-tiff-matrix.jpg";
+    {
+        QImage image(96, 64, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(33, 77, 121));
+        ASSERT_TRUE(image.save(QString::fromStdString(source_path.string()), "JPEG", 90));
+    }
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+    QtRasterDecoder decoder;
+
+    ExternalEditorWorkingCopyRequest uint16_req;
+    uint16_req.asset_id = source_id;
+    uint16_req.editor_id = "photoshop";
+    uint16_req.user_initiated = true;
+    uint16_req.tiff_sample_type = TiffSampleType::kUint16;
+    uint16_req.profile = "srgb";
+    uint16_req.max_edge = 32U;
+    auto prepared16 = service->create_external_editor_working_copy(uint16_req);
+    ASSERT_TRUE(prepared16) << prepared16.error().message;
+    EXPECT_EQ(prepared16.value().session.tiff_sample_type, TiffSampleType::kUint16);
+    EXPECT_EQ(prepared16.value().session.profile, "srgb");
+    const auto &path16 = prepared16.value().session.working_path;
+    EXPECT_NE(path16.find("/working.tif"), std::string::npos) << path16;
+    EXPECT_NE(path16.find("/working-copies/"), std::string::npos) << path16;
+    EXPECT_EQ(std::filesystem::path(path16).filename(), "working.tif");
+    auto probe16 = decoder.probe(path16);
+    ASSERT_TRUE(probe16) << probe16.error().message;
+    EXPECT_EQ(std::max(probe16.value().width, probe16.value().height), 32U);
+    const auto bits16 = tiff_bits_per_sample(path16);
+    ASSERT_TRUE(bits16.has_value());
+    EXPECT_EQ(*bits16, 16U);
+
+    ExternalEditorWorkingCopyRequest uint8_req = uint16_req;
+    uint8_req.tiff_sample_type = TiffSampleType::kUint8;
+    uint8_req.max_edge = 24U;
+    auto prepared8 = service->create_external_editor_working_copy(uint8_req);
+    ASSERT_TRUE(prepared8) << prepared8.error().message;
+    EXPECT_EQ(prepared8.value().session.tiff_sample_type, TiffSampleType::kUint8);
+    const auto &path8 = prepared8.value().session.working_path;
+    EXPECT_EQ(std::filesystem::path(path8).filename(), "working.tif");
+    auto probe8 = decoder.probe(path8);
+    ASSERT_TRUE(probe8) << probe8.error().message;
+    EXPECT_EQ(std::max(probe8.value().width, probe8.value().height), 24U);
+    const auto bits8 = tiff_bits_per_sample(path8);
+    ASSERT_TRUE(bits8.has_value());
+    EXPECT_EQ(*bits8, 8U);
+
+    ASSERT_TRUE(write_jpeg(path8, QColor(9, 200, 9)));
+    ExternalEditorCheckReturnedRequest check;
+    check.working_copy_id = prepared8.value().session.working_copy_id;
+    auto first = service->check_external_editor_returned(check);
+    ASSERT_TRUE(first) << first.error().message;
+    auto second = service->check_external_editor_returned(check);
+    ASSERT_FALSE(second);
+    EXPECT_EQ(second.error().code, ErrorCode::kConflict);
+
+    ExternalEditorWorkingCopyRequest stale = uint8_req;
+    stale.expected_catalog_revision = 0;
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot);
+    if (snapshot.value().revision != 0)
+    {
+        auto stale_blocked = service->create_external_editor_working_copy(stale);
+        ASSERT_FALSE(stale_blocked);
+        EXPECT_EQ(stale_blocked.error().context.at("reason"), "stale_catalog_revision");
+    }
+}
+
+TEST_F(CatalogServiceTest, ExternalEditorWorkingCopySourceConflictState)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "wc-source-conflict.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(70, 20, 20)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, source_id);
+    ASSERT_FALSE(original.empty());
+
+    ExternalEditorWorkingCopyRequest request;
+    request.asset_id = source_id;
+    request.editor_id = "gimp";
+    request.user_initiated = true;
+    request.max_edge = 28U;
+    auto prepared = service->create_external_editor_working_copy(request);
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    const auto working_id = prepared.value().session.working_copy_id;
+
+    ASSERT_TRUE(write_jpeg(original, QColor(1, 2, 3)));
+    auto conflict = service->external_editor_working_copy_status(working_id);
+    ASSERT_TRUE(conflict) << conflict.error().message;
+    EXPECT_EQ(conflict.value().machine_state,
+              ExternalEditorWorkingCopyMachineState::kSourceConflict);
+    EXPECT_EQ(conflict.value().reason, "source_conflict");
+    EXPECT_FALSE(conflict.value().source_original_unchanged);
+
+    ASSERT_TRUE(write_jpeg(prepared.value().session.working_path, QColor(240, 10, 10)));
+    ExternalEditorCheckReturnedRequest check;
+    check.working_copy_id = working_id;
+    auto blocked = service->check_external_editor_returned(check);
+    ASSERT_FALSE(blocked);
+    EXPECT_EQ(blocked.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(blocked.error().context.at("reason"), "source_mutated_during_return");
 }
 
 } // namespace ravo

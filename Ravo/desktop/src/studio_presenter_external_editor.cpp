@@ -263,34 +263,96 @@ void StudioPresenter::checkExternalEditorReturned(const QString &working_copy_id
         {
             Result<ExternalEditorCheckReturnedResult> checked =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
+            std::optional<ExternalEditorWorkingCopyStatus> status_after_failure;
+            std::optional<std::int64_t> live_revision;
             if (service_ != nullptr)
+            {
                 checked = service_->check_external_editor_returned(request);
+                if (!checked)
+                {
+                    auto status =
+                        service_->external_editor_working_copy_status(request.working_copy_id);
+                    if (status)
+                        status_after_failure = std::move(status).value();
+                }
+                else
+                {
+                    auto snapshot = service_->snapshot();
+                    if (snapshot)
+                        live_revision = snapshot.value().revision;
+                }
+            }
             QMetaObject::invokeMethod(
                 this,
-                [this, checked = std::move(checked)]() mutable
+                [this, checked = std::move(checked),
+                 status_after_failure = std::move(status_after_failure), live_revision]() mutable
                 {
                     setBusy(false);
                     if (!checked)
                     {
+                        QString reason;
+                        const auto found = checked.error().context.find("reason");
+                        if (found != checked.error().context.end())
+                            reason = qstring_from_utf8(found->second);
+                        if (status_after_failure)
+                        {
+                            external_editor_session_ = status_session_map(*status_after_failure);
+                            if (!reason.isEmpty())
+                                external_editor_session_.insert(QStringLiteral("reason"), reason);
+                            emit externalEditorSessionChanged();
+                        }
+                        else if (!external_editor_session_.isEmpty())
+                        {
+                            if (!reason.isEmpty())
+                                external_editor_session_.insert(QStringLiteral("reason"), reason);
+                            external_editor_session_.insert(QStringLiteral("registered"), false);
+                            emit externalEditorSessionChanged();
+                        }
                         setError(qstring_from_utf8(checked.error().message));
-                        setStatus(QCoreApplication::translate("StudioPresenter",
-                                                              "Edit in… check-returned failed."));
+                        setStatus(reason.isEmpty() ?
+                                      QCoreApplication::translate(
+                                          "StudioPresenter", "Edit in… check-returned failed.") :
+                                      QCoreApplication::translate(
+                                          "StudioPresenter", "Edit in… check-returned failed: %1")
+                                          .arg(reason));
                         return;
                     }
+                    const auto derived_id =
+                        qstring_from_utf8(checked.value().registration.derived_asset.id);
                     external_editor_session_ = session_map(checked.value().session);
-                    external_editor_session_.insert(
-                        QStringLiteral("derivedAssetId"),
-                        qstring_from_utf8(checked.value().registration.derived_asset.id));
+                    external_editor_session_.insert(QStringLiteral("derivedAssetId"), derived_id);
                     external_editor_session_.insert(QStringLiteral("autoStacked"),
                                                     checked.value().registration.auto_stacked);
                     external_editor_session_.insert(QStringLiteral("registered"), true);
+                    if (checked.value().registration.stack)
+                    {
+                        external_editor_session_.insert(
+                            QStringLiteral("stackId"),
+                            qstring_from_utf8(checked.value().registration.stack->stack.id));
+                        external_editor_session_.insert(
+                            QStringLiteral("stackPickAssetId"),
+                            qstring_from_utf8(
+                                checked.value().registration.stack->stack.pick_asset_id));
+                    }
                     emit externalEditorSessionChanged();
-                    observed_catalog_revision_ =
-                        checked.value().registration.provenance.observed_catalog_revision;
+                    if (checked.value().registration.stack)
+                        observed_catalog_revision_ = checked.value().registration.stack->revision;
+                    else if (live_revision)
+                        observed_catalog_revision_ = *live_revision;
+                    else
+                        observed_catalog_revision_ =
+                            checked.value().registration.provenance.observed_catalog_revision;
                     setStatus(
-                        QCoreApplication::translate("StudioPresenter",
-                                                    "Registered returned editor output as %1")
-                            .arg(qstring_from_utf8(checked.value().registration.derived_asset.id)));
+                        checked.value().registration.auto_stacked ?
+                            QCoreApplication::translate(
+                                "StudioPresenter", "Registered derived %1 and auto-stacked as pick")
+                                .arg(derived_id) :
+                            QCoreApplication::translate("StudioPresenter",
+                                                        "Registered returned editor output as %1")
+                                .arg(derived_id));
+                    // Prefer the derived pick after reload so Gallery shows the stack pair.
+                    selected_asset_id_ = derived_id;
+                    selected_ids_ = {utf8_from_qstring(derived_id)};
                     reloadVisibleAssets();
                 },
                 Qt::QueuedConnection);

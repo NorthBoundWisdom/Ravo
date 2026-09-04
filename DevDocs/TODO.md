@@ -4,11 +4,12 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through LOCAL-01 C2 evidence (snapshot/history/
-> backup-restore multi-instance, failure-injection depth, live preview-scale/
-> 1:1 ROI mask authoring) atop COR-01 residuals + DISPLAY-01 / OFFLINE-01 proxy
-> consume. The next free ADR number is **0157**, but new product ADRs are frozen
-> by the work-in-progress rule below.
+> **Review basis:** `main` through LOCAL-01 C2 and EDITIN-01 C2 Studio
+> round-trip evidence (working-copy prepare/return/auto-stack/reopen/abandon,
+> backup/restore session relocation, TIFF/service conflict coverage) atop
+> COR-01 residuals + DISPLAY-01 / OFFLINE-01 proxy consume. The next free ADR
+> number is **0157**, but new product ADRs are frozen by the work-in-progress
+> rule below.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -54,7 +55,7 @@ A green `main` may carry at most:
 1. one active P0 evidence/correctness stream; and
 2. one active P1 workflow-completion stream.
 
-Until GPU/PERF follow-ons and REL-01 corpus reopen evidence are closed (LOCAL-01 Studio C2 evidence is on `main`):
+Until GPU/PERF follow-ons and REL-01 corpus reopen evidence are closed (LOCAL-01 and EDITIN-01 Studio C2 evidence are on `main`):
 
 - do not add another product capability ID, model/provider stub, placeholder
   pane, unsupported-probe feature, or specialization ADR;
@@ -71,8 +72,8 @@ resource defect preempts both streams.
 
 ## Current assessment and execution order
 
-Recent work on LOCAL-01 Studio chrome/history/copy, CULL-01 keyboard review,
-EDITIN-01 Studio round-trip, PERF-01 instrumentation, and IQ-00 CPU-gold policy
+LOCAL-01 and EDITIN-01 Studio C2 evidence are on `main`. Recent work on
+CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
 moves in the intended direction. DISPLAY-01 macOS screen-move owner and OFFLINE-01 Loupe/Develop proxy
 consume landed on `main`; remaining DISPLAY/OFFLINE work is still below C2. AI proposal chrome, display/native
 transport stubs, and the tethered-studio probe do not count as product progress.
@@ -96,7 +97,7 @@ the next one.
 | Order | ID | Priority | Outcome |
 | ---: | --- | --- | --- |
 | 1 | LOCAL-01 | P1 | C2 Studio multi-instance local adjustments/masks; GPU residual after PERF-01 |
-| 2 | EDITIN-01 | P1 | Close the nearly complete Studio external-editor round trip |
+| 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; package TIFF matrix residual |
 | 3 | CULL-01 | P1 | Finish transactional keyboard review and evaluated assistance |
 | 4 | OFFLINE-01 | P1 | Make verified proxies usable for actual Loupe/Develop work |
 | 5 | DISPLAY-01 | P1 | Finish per-display ICC presentation on supported hosts and views |
@@ -389,17 +390,17 @@ must shrink chrome, not grow it. Full mixed-corpus reopen/backup remains REL-01.
 
 ## EDITIN-01 — Studio external-editor round trip
 
-**Maturity:** Near C2; complete this after LOCAL-01.
+**Maturity:** C2 on Studio workflow (prepare/return/auto-stack/reopen/abandon,
+backup/restore relocation of working-copy sessions, TIFF sRGB uint8/uint16
+profile/bit-depth/dimensions/naming/conflict service coverage, and clear
+stale/missing/source-conflict Studio states). Residual toward C3: installed
+macOS/Windows/Linux package matrix for TIFF export equality.
 
 **Remaining work:**
 
-- prove prepare/open/return/register/auto-stack/reopen/abandon entirely from
-  Studio across restart;
-- include working-copy sessions and derived provenance in backup/restore and
-  catalog relocation;
-- validate TIFF profile, bit depth, dimensions, naming, and conflict behavior
-  on installed macOS/Windows/Linux packages;
-- finish derived-pair/stack presentation and clear stale/missing states;
+- validate TIFF profile/bit-depth/dimensions/naming equality on installed
+  macOS/Windows/Linux packages (service/CLI coverage is present; package matrix
+  remains residual without Win/Linux host evidence);
 - keep watch-folder auto-import and proprietary scripting out of scope.
 
 **Acceptance gate:** originals remain byte-identical; unchanged, missing,

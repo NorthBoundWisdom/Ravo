@@ -237,6 +237,38 @@ catalog_restore_rewrite_support_json_tree(const std::filesystem::path &support_r
                                  error.message());
             }
         }
+
+        // EDITIN-01: rewrite durable working-copy session paths after catalog relocation.
+        const auto working_copies_root = external_root / "working-copies";
+        if (std::filesystem::is_directory(working_copies_root, error))
+        {
+            for (std::filesystem::recursive_directory_iterator it(working_copies_root, error), end;
+                 it != end; it.increment(error))
+            {
+                auto active = cancellation.check();
+                if (!active)
+                    return active.error();
+                if (error)
+                {
+                    return uri_error(ErrorCode::kIo, "Unable to enumerate working-copy tree",
+                                     "restore_support_json_enumeration_failed",
+                                     path_utf8(working_copies_root), error.message());
+                }
+                if (!it->is_regular_file() || it->path().filename() != "session.json")
+                    continue;
+                auto count = rewrite_json_file(it->path(), destination_support_root,
+                                               {"working_path", "working_uri"});
+                if (!count)
+                    return count.error();
+                rewritten += count.value();
+            }
+            if (error)
+            {
+                return uri_error(ErrorCode::kIo, "Unable to enumerate working-copy tree",
+                                 "restore_support_json_enumeration_failed",
+                                 path_utf8(working_copies_root), error.message());
+            }
+        }
     }
     return rewritten;
 }

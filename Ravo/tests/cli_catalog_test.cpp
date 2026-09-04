@@ -1358,6 +1358,89 @@ TEST_F(CliTest, CatalogEditorPrepareWorkingCopyAndCheckReturned)
     std::filesystem::remove_all(root, ignored);
 }
 
+TEST_F(CliTest, CatalogEditorWorkingCopyStatusAbandonAndUint8)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-editor-wc2-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
+                      "frozen" / "0000-nop" / "expected.png")
+                         .generic_u8string();
+    const std::string png_path(png.begin(), png.end());
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", png_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    const auto *asset = items->array_if()->front().find("asset");
+    const auto id = *asset->find("id")->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "editor-prepare-working-copy", "--catalog", catalog, "--asset-id", id,
+                  "--editor", "gimp", "--user-initiated", "--tiff-sample-type", "uint8",
+                  "--max-edge", "64", "--json"}),
+              0)
+        << stdout_stream.str() << stderr_stream.str();
+    auto prepared = parse_json(stdout_stream.str());
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    const auto *prep = prepared.value().find("data");
+    ASSERT_NE(prep, nullptr);
+    const auto *session = prep->find("session");
+    ASSERT_NE(session, nullptr);
+    const auto working_copy_id = *session->find("working_copy_id")->string_if();
+    EXPECT_EQ(*session->find("tiff_sample_type")->string_if(), "uint8");
+    EXPECT_EQ(*session->find("profile")->string_if(), "srgb");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "editor-working-copy-status", "--catalog", catalog,
+                  "--working-copy-id", working_copy_id, "--json"}),
+              0)
+        << stdout_stream.str() << stderr_stream.str();
+    auto status = parse_json(stdout_stream.str());
+    ASSERT_TRUE(status) << status.error().message;
+    const auto *status_data = status.value().find("data");
+    ASSERT_NE(status_data, nullptr);
+    EXPECT_EQ(*status_data->find("machine_state")->string_if(), "pending");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "editor-abandon-working-copy", "--catalog", catalog,
+                  "--working-copy-id", working_copy_id, "--user-initiated", "--json"}),
+              0)
+        << stdout_stream.str() << stderr_stream.str();
+    auto abandoned = parse_json(stdout_stream.str());
+    ASSERT_TRUE(abandoned) << abandoned.error().message;
+    const auto *abandoned_data = abandoned.value().find("data");
+    ASSERT_NE(abandoned_data, nullptr);
+    EXPECT_TRUE(*abandoned_data->find("session_removed")->boolean_if());
+    EXPECT_TRUE(*abandoned_data->find("originals_unchanged")->boolean_if());
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CliTest, CatalogCliFloatParsingRejectsMalformedLocaleAndDuplicateOptions)
 {
     const auto root = std::filesystem::temp_directory_path() / "ravo-cli-float-parse";

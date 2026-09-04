@@ -1661,6 +1661,12 @@ TEST(StudioQmlContract, EditInDialogExposesWorkingCopyChrome)
     EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInCheckReturned\"")));
     EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInOpenAfterCreate\"")));
     EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInSessionStatus\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInAbandon\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInReopen\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"editInRefreshStatus\"")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("Working copy missing")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("Source original changed")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("auto-stacked as pick")));
 
     QFile menu(QStringLiteral(RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML));
     ASSERT_TRUE(menu.open(QIODevice::ReadOnly | QIODevice::Text))

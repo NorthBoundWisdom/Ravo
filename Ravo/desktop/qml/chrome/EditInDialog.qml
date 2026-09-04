@@ -266,14 +266,48 @@ DialogShell {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             visible: Boolean(root.presenter && root.presenter.externalEditorSession && root.presenter.externalEditorSession.workingCopyId)
+            color: {
+                const session = root.presenter ? root.presenter.externalEditorSession : ({});
+                const reason = session && session.reason ? String(session.reason) : "";
+                const state = session && session.machineState ? String(session.machineState) : "";
+                if (session && session.registered)
+                    return Theme.textColor;
+                if (reason === "source_conflict" || state === "source_conflict" || reason === "missing_working_copy" || state === "missing_working_copy" || reason === "stale_catalog" || state === "stale_catalog" || reason === "editor_output_unchanged" || reason === "editor_output_missing" || reason === "source_mutated_during_return" || reason === "stale_catalog_revision")
+                    return Theme.errorColor;
+                if (reason === "modified" || state === "modified")
+                    return Theme.highlightColor;
+                return Theme.placeholderTextColor;
+            }
             text: {
                 const session = root.presenter ? root.presenter.externalEditorSession : ({});
                 if (!session || !session.workingCopyId)
                     return "";
-                if (session.registered)
+                if (session.registered) {
+                    const derived = session.derivedAssetId ? String(session.derivedAssetId) : "";
+                    if (session.autoStacked && derived.length)
+                        return qsTr("Registered derived %1 — auto-stacked as pick").arg(derived);
+                    if (derived.length)
+                        return qsTr("Registered derived %1").arg(derived);
                     return qsTr("Session %1 (registered)").arg(session.workingCopyId);
-                const state = session.machineState ? String(session.machineState) : qsTr("pending");
+                }
+                const state = session.machineState ? String(session.machineState) : "pending";
                 const reason = session.reason ? String(session.reason) : state;
+                if (reason === "missing_working_copy" || state === "missing_working_copy")
+                    return qsTr("Working copy missing — reopen unavailable until restored");
+                if (reason === "source_conflict" || state === "source_conflict")
+                    return qsTr("Source original changed — return blocked");
+                if (reason === "stale_catalog" || state === "stale_catalog" || reason === "stale_catalog_revision")
+                    return qsTr("Catalog revision stale — refresh or reopen");
+                if (reason === "editor_output_unchanged")
+                    return qsTr("Returned file unchanged — edit then check returned");
+                if (reason === "editor_output_missing")
+                    return qsTr("Returned file missing");
+                if (reason === "source_mutated_during_return")
+                    return qsTr("Source mutated during return — publication blocked");
+                if (reason === "modified" || state === "modified")
+                    return qsTr("Working copy modified — ready to check returned");
+                if (reason === "pending" || state === "pending")
+                    return qsTr("Working copy pending — open editor, then check returned");
                 return qsTr("Session %1 — %2").arg(session.workingCopyId).arg(reason);
             }
         }

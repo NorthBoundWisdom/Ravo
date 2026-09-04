@@ -2146,4 +2146,176 @@ TEST(StudioPresenterTest, Local01PreviewScaleAndOneToOneRoiMaskAuthoring)
 }
 
 } // namespace
+
+TEST(StudioPresenterTest, EditIn01PrepareReturnReopenAbandonAcrossRestart)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("editin-source.png"));
+    QImage image(64, 48, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 90, 140));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    const auto source_id = presenter.selectedAssetId();
+
+    presenter.prepareExternalEditorWorkingCopy(
+        QVariantMap{{QStringLiteral("editorId"), QStringLiteral("photoshop")},
+                    {QStringLiteral("tiffSampleType"), QStringLiteral("uint8")},
+                    {QStringLiteral("profile"), QStringLiteral("srgb")},
+                    {QStringLiteral("maxEdge"), 48},
+                    {QStringLiteral("autoStack"), true},
+                    {QStringLiteral("openAfterCreate"), false}});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.busy() &&
+                   presenter.externalEditorSession()
+                       .value(QStringLiteral("workingCopyId"))
+                       .isValid() &&
+                   !presenter.externalEditorSession()
+                        .value(QStringLiteral("workingCopyId"))
+                        .toString()
+                        .isEmpty();
+        }))
+        << presenter.errorText().toStdString()
+        << " session-keys=" << presenter.externalEditorSession().keys().join(",").toStdString();
+
+    const auto working_id =
+        presenter.externalEditorSession().value(QStringLiteral("workingCopyId")).toString();
+    const auto working_path =
+        presenter.externalEditorSession().value(QStringLiteral("workingPath")).toString();
+    ASSERT_FALSE(working_id.isEmpty());
+    ASSERT_TRUE(QFileInfo::exists(working_path)) << working_path.toStdString();
+    EXPECT_TRUE(working_path.endsWith(QStringLiteral("/working.tif")));
+    EXPECT_EQ(presenter.externalEditorSession().value(QStringLiteral("machineState")).toString(),
+              QStringLiteral("pending"));
+
+    // Simulate Studio restart: clear in-memory session, reopen durable session.
+    presenter.clearExternalEditorSession();
+    EXPECT_TRUE(presenter.externalEditorSession().isEmpty());
+    presenter.reopenExternalEditorWorkingCopy(QString(), false);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.busy() && presenter.externalEditorSession()
+                                                .value(QStringLiteral("workingCopyId"))
+                                                .toString() == working_id;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(presenter.externalEditorSession().value(QStringLiteral("sourceAssetId")).toString(),
+              source_id);
+
+    // Unchanged return is visible as conflict reason.
+    presenter.checkExternalEditorReturned(working_id, QString());
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    EXPECT_FALSE(presenter.errorText().isEmpty());
+    EXPECT_TRUE(presenter.statusText().contains(QStringLiteral("unchanged")) ||
+                presenter.externalEditorSession()
+                    .value(QStringLiteral("reason"))
+                    .toString()
+                    .contains(QStringLiteral("unchanged")) ||
+                presenter.errorText().contains(QStringLiteral("unchanged")));
+
+    // Modify working copy and register/auto-stack.
+    QImage edited(32, 24, QImage::Format_RGB888);
+    edited.fill(QColor(220, 40, 40));
+    ASSERT_TRUE(edited.save(working_path, "JPEG", 90));
+    presenter.refreshExternalEditorWorkingCopyStatus(working_id);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.busy() && presenter.externalEditorSession()
+                                                .value(QStringLiteral("machineState"))
+                                                .toString() == QStringLiteral("modified");
+        }))
+        << presenter.errorText().toStdString() << " reason="
+        << presenter.externalEditorSession()
+               .value(QStringLiteral("reason"))
+               .toString()
+               .toStdString();
+
+    presenter.checkExternalEditorReturned(working_id, QString());
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.busy() &&
+                   presenter.externalEditorSession().value(QStringLiteral("registered")).toBool();
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.externalEditorSession().value(QStringLiteral("autoStacked")).toBool());
+    const auto derived_id =
+        presenter.externalEditorSession().value(QStringLiteral("derivedAssetId")).toString();
+    ASSERT_FALSE(derived_id.isEmpty());
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.selectedAssetId() == derived_id ||
+                   presenter.externalEditorSession()
+                           .value(QStringLiteral("stackPickAssetId"))
+                           .toString() == derived_id;
+        }))
+        << "selected=" << presenter.selectedAssetId().toStdString()
+        << " derived=" << derived_id.toStdString();
+
+    // Fresh session then abandon across clear/reopen.
+    presenter.clearExternalEditorSession();
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
+    presenter.selectAsset(source_id);
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.selectedAssetId() == source_id && !presenter.busy(); }));
+    presenter.prepareExternalEditorWorkingCopy(
+        QVariantMap{{QStringLiteral("editorId"), QStringLiteral("affinity")},
+                    {QStringLiteral("tiffSampleType"), QStringLiteral("uint16")},
+                    {QStringLiteral("maxEdge"), 40},
+                    {QStringLiteral("autoStack"), false},
+                    {QStringLiteral("openAfterCreate"), false}});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.busy() &&
+                   !presenter.externalEditorSession()
+                        .value(QStringLiteral("workingCopyId"))
+                        .toString()
+                        .isEmpty() &&
+                   !presenter.externalEditorSession().value(QStringLiteral("registered")).toBool();
+        }))
+        << presenter.errorText().toStdString();
+    const auto abandon_id =
+        presenter.externalEditorSession().value(QStringLiteral("workingCopyId")).toString();
+    const auto abandon_path =
+        presenter.externalEditorSession().value(QStringLiteral("workingPath")).toString();
+    presenter.clearExternalEditorSession();
+    presenter.reopenExternalEditorWorkingCopy(abandon_id, false);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.busy() && presenter.externalEditorSession()
+                                                .value(QStringLiteral("workingCopyId"))
+                                                .toString() == abandon_id;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.abandonExternalEditorWorkingCopy(abandon_id);
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.busy() && presenter.externalEditorSession().isEmpty(); }))
+        << presenter.errorText().toStdString();
+    EXPECT_FALSE(QFileInfo::exists(abandon_path)) << abandon_path.toStdString();
+}
+
 } // namespace ravo
