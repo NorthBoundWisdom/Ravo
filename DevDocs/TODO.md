@@ -598,6 +598,12 @@ source-preservation tests before the other track enters implementation.
 **Status:** P2 unless a journalism, sports, agency, or archive cohort makes it a
 P1 requirement.
 
+**Residual from ADR-0143:** CRS `ProcessVersion` matrix is accepted on `main`.
+`catalog xmp-status` / import report `crs_version_class` /
+`crs_process_version`; unsupported Process Versions fail closed with
+`unsupported_crs_process_version` (no silent drop). Remaining META-01 work is
+IPTC Extension depth beyond ADR-0140, not ProcessVersion admission.
+
 Define the remaining IPTC Extension/contact/scene/subject-code subset, controlled
 vocabularies, multi-select semantics, facets, export privacy, XMP conflict
 fingerprints, and capture-refresh authority. Do not add empty columns or panes
@@ -608,7 +614,8 @@ before the contract and target users are known.
 **Status:** P2.
 
 Potential readers for Lightroom `.lrcat` and Capture One catalogs/sessions need
-a dependency/licence/package decision, a supported-version matrix, read-only
+a dependency/licence/package decision, a **vendor catalog** supported-version
+matrix (distinct from ADR-0143 CRS ProcessVersion admission), read-only
 parsing, Copy-mode destination policy, persistent resume/report state, and a
 Studio surface. Never open or migrate a vendor catalog in place. Unsupported
 fields must be reported per item rather than silently dropped.
