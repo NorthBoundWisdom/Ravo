@@ -75,6 +75,13 @@ target_link_libraries(ravo_desktop
   PRIVATE Qt6::Gui Qt6::Qml)
 
 set_target_properties(ravo_desktop PROPERTIES AUTOMOC ON)
+if(APPLE)
+  target_sources(ravo_desktop PRIVATE
+    src/studio_iosurface_snapshot.mm
+    src/studio_iosurface_snapshot.h)
+  target_link_libraries(ravo_desktop PRIVATE
+    "-framework IOSurface" "-framework CoreFoundation")
+endif()
 ravo_configure_target(ravo_desktop)
 
 set(RAVO_APP_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/icons/AppIcon.png")

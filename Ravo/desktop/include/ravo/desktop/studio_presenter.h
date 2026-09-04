@@ -1244,6 +1244,7 @@ private:
     std::optional<DevelopExposureInstance> exposure_front_restore_;
     std::optional<DevelopColorBalanceRgbInstance> color_balance_rgb_front_restore_;
     bool develop_loaded_ = false;
+    bool develop_preview_deferred_ = false;
     QString develop_load_error_;
     int curve_family_ = 0;
     int curve_channel_ = 0;

@@ -206,7 +206,12 @@ clipboard nor merge policy. The former complete clipboard and fixed Light/Color
 paste paths have no product consumer (ADR-0078/0098).
 
 Develop preview is bounded and coalesced: at most one render is in flight, plus
-one recipe waiting to save and one latest preview request waiting. Repeated
+one recipe waiting to save and one latest preview request waiting. While the
+selected Recipe is loading, the presenter does not start a Develop render from
+its temporary identity parameters: one deferred-preview bit is owned by the UI
+thread and consumed only after the selected Recipe has been published there.
+Selection replacement clears it, and Recipe load/parse failure clears preview
+loading and reports the real error. Repeated
 pure-interactive intents do not cancel the frame already in its pixel stage:
 that monotonically newer result may publish while the latest parameters remain
 queued, and `displayed_develop_` keeps live control from claiming it matches the
@@ -215,8 +220,9 @@ selection, catalog-close, comparison, and non-interactive supersession still
 cancel the active token and reject late results by revision and asset. During a
 drag, the presenter only forwards in-memory parameters. Services apply the
 complete effect stack to a cached 960px scene-linear working image, return
-memory pixels, and do not write PNG/cache. That 960px buffer is a box-filtered
-copy of the 1600px settled linear working, so entering Develop demosaics once.
+an in-memory frame, and do not write PNG/cache. That 960px buffer is a
+box-filtered copy of the 1600px settled linear working, so entering Develop
+demosaics once.
 Actual Size 1:1 is a Bayer CFA window of the visible crop (ADR-0132) demosaiced
 on GPU RCD when a compute backend exists. Live Develop parameter changes
 re-request that window; they do not wait for a pan. The CFA-window linear
@@ -230,10 +236,16 @@ interactive-prefix RGB resident as a GPU source so RGB sliders copy+apply
 without a CPU upload, and on macOS packs display sRGB into an IOSurface that
 Qt Quick samples. IOSurface `bytesPerRow` is 16-byte aligned so odd preview
 widths are valid Metal textures. Catalog copies only the generation and
-native-surface token; it does not hold device objects. Studio interactive
-Develop downloads CPU pixels for live identity, comparison, and scopes even
-when that IOSurface is also published. Persist preview, CLI PNG, and gold
-tests still download CPU pixels. Masked ops, other RGB kernels, and export stay on CPU. Failures are
+native-surface token; it does not hold device objects. A pure Studio interactive
+Develop request skips the synchronous float-buffer readback. Desktop immediately
+copies a bounded owned RGB8 snapshot from the same completed IOSurface before
+publishing the frame, so live identity and scopes describe the displayed pixels
+without delaying the canvas for CPU output conversion. Non-Metal hosts and
+recipes that require a later CPU operation return the ordinary owned CPU RGB;
+this is the existing admitted path, not a GPU failure fallback. Persist preview,
+CLI PNG, comparison, overlay, and gold tests still request CPU pixels. Masked
+ops, other RGB kernels, and export stay on CPU. IOSurface layout/lock/allocation
+failures are structured and publish no replacement snapshot. Failures are
 fail-closed. Recipe, Catalog, CLI, and QML do not hold device objects.
 `catalog probe --json` reports `gpu_backend`.
 For an ordinary commit whose parameters are not
@@ -1529,9 +1541,10 @@ CLI and Studio project that contract without expanding paths themselves. See
   for ROI 1:1 is GPU when a compute backend exists; PPG and export stay CPU.
   Interactive Studio may sample an Engine-published IOSurface instead of a
   CPU `QImage`; missing display transport downloads pixels rather than
-  changing the algorithm. IOSurface rows are 16-byte aligned. Live identity,
-  comparison, and scopes still consume CPU RGB from the same interactive
-  render. Do not reuse 0.9 OpenCL or add a silent CPU fallback.
+  changing the algorithm. IOSurface rows are 16-byte aligned. Desktop copies
+  the completed display-sRGB surface into bounded owned RGB8 for live identity
+  and scopes; comparison and non-native paths consume ordinary CPU RGB. Do not
+  reuse 0.9 OpenCL or add a silent CPU fallback.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
   query language without consumers.
 - Do not modify frozen 0.9 to call Ravo or let Ravo production call the frozen

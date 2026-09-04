@@ -205,6 +205,12 @@ Current implementation status:
   prefix and its bounded row team, so Exposure does not recompute unchanged
   calibration, denoise, or lens/canvas stages. Prefix changes publish only
   after successful completion and invalidate with the working generation.
+  Entering Develop while the selected Recipe is still loading defers the first
+  preview until those parameters reach the presenter, so temporary identity
+  state cannot warm the wrong RAW/GPU generation. On Metal, pure interactive
+  frames publish the retained IOSurface without a synchronous float readback;
+  Desktop copies the completed display-sRGB surface into bounded owned RGB8 for
+  exact live identity and scopes.
   Rapid slider intents retain one active frame plus only the latest pending
   parameters, avoiding cancellation starvation while never presenting an
   older frame after a newer one. The UI publishes owned pixels before a

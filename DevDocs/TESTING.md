@@ -157,10 +157,12 @@ compute backend exists. Recipes without those ops stay on CPU. A later smaller
 upload must not over-read a grow-only SSBO. Retained-source RGB apply matches
 the uploaded path. Interactive skip-download on Metal publishes a non-zero
 display generation and native surface with empty CPU RGB, including odd widths
-whose IOSurface `bytesPerRow` is 16-byte aligned. Studio interactive Develop
-still downloads CPU RGB for live identity, comparison, scopes, and headless
-presenter tests while Metal also publishes that IOSurface. Hosts without
-compute or buffer readback, and hosts whose QRhi device cannot build the
+whose IOSurface `bytesPerRow` is 16-byte aligned. Studio pure-interactive
+Develop skips the synchronous float readback, then copies owned RGB8 from that
+same completed IOSurface for exact live identity, scopes, and headless presenter
+tests. Invalid surface identity/layout fails structurally. Comparison, overlay,
+persisted preview, and non-native paths still request ordinary CPU RGB. Hosts
+without compute or buffer readback, and hosts whose QRhi device cannot build the
 preview pipelines, return `gpu_unavailable` or `gpu_pipeline_failed`. Bayer
 window RCD is RMSE-gated against the CPU gold when the adapter is present; PPG
 and hosts without a working compute backend stay on CPU. Export stays on the
@@ -168,7 +170,10 @@ CPU path.
 Progressive-preview coverage uses a source larger than both preview classes and
 requires the 960px interactive image to retain the preceding 1600px viewport
 extent until settlement; QML must use that accepted presenter extent instead of
-the image loader's transient implicit dimensions.
+the image loader's transient implicit dimensions. A separate saved-edit reopen
+case enters Develop before the asynchronous Recipe callback and requires the
+first live frame to match the loaded Recipe, preventing an identity warm-up
+generation from charging a complete rebuild to the first slider intent.
 Inspect-click scale/pan animation is QML-only and is loaded by smoke rather
 than a C++ timing contract. Develop toolbar comparison tests require that its
 baseline is non-persistent and immutable while the edited pane refreshes,
@@ -686,7 +691,10 @@ gated (ADR-0096).
   Develop and an ordinary committed style/develop change must publish the exact
   live memory preview before its persisted settled preview. Embedded JPEG must
   not become editable data. CLI/Studio share the `request_preview` contract;
-  late results are dropped by request revision.
+  late results are dropped by request revision. Entering Develop while the
+  selected Recipe is still loading defers that live request; the first frame
+  must use the loaded parameters and its display-RGB snapshot must remain
+  available to identity and scope analysis.
 - Scopes collect from the current declared display-referred RGB preview: RGB
   histogram skips bin 0 for its peak, and parade uses 8/9 mapping with 160 tone
   bins. The Gallery grid computes scopes from browse thumbnails to avoid full

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <functional>
 #include <optional>
@@ -9,8 +10,11 @@
 #include <vector>
 
 #include <QElapsedTimer>
+#include <QColor>
+#include <QColorSpace>
 #include <QImage>
 #include <QEventLoop>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QUrl>
 
@@ -18,6 +22,9 @@
 #include "ravo/foundation/log.h"
 
 #include "interactive_perf_report.h"
+#if defined(Q_OS_MACOS)
+#include "studio_iosurface_snapshot.h"
+#endif
 #include "studio_test_support.h"
 
 namespace ravo
@@ -94,6 +101,99 @@ using interactive_perf_report::warmups_from_env;
 }
 
 } // namespace
+
+#if defined(Q_OS_MACOS)
+TEST(StudioGpuPreviewSnapshotTest, RejectsAnInvalidSurface)
+{
+    auto snapshot = studio_metal::snapshot_iosurface_rgb8(0U, 64U, 48U);
+    ASSERT_FALSE(snapshot);
+    EXPECT_EQ(snapshot.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(snapshot.error().context.at("reason"), "invalid_gpu_display_surface");
+}
+#endif
+
+TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("loaded-recipe.png"));
+    QImage image(64, 48, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 60, 80));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+    QString asset_id;
+
+    {
+        StudioPresenter setup;
+        setup.createCatalogFromPath(catalog);
+        ASSERT_TRUE(wait_until([&] { return setup.catalogOpen() && !setup.busy(); }))
+            << setup.errorText().toStdString();
+        setup.importFilePaths({photo});
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return setup.visibleCount() == 1 && !setup.selectedAssetId().isEmpty() &&
+                       !setup.busy();
+            }))
+            << setup.errorText().toStdString();
+        asset_id = setup.selectedAssetId();
+        setup.openDevelop();
+        ASSERT_TRUE(
+            wait_until([&] { return !setup.previewLoading() && setup.previewUrl().isLocalFile(); }))
+            << setup.errorText().toStdString();
+        setup.setDevelopNumber(QStringLiteral("exposure"), 1.0);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return !setup.previewLoading() && setup.previewUrl().isLocalFile() &&
+                       std::abs(setup.editExposure() - 1.0) < 1.0e-9;
+            }))
+            << setup.errorText().toStdString();
+    }
+
+    StudioPresenter presenter;
+    presenter.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.catalogOpen() && !presenter.busy() &&
+                   presenter.selectedAssetId() == asset_id;
+        }))
+        << presenter.errorText().toStdString();
+
+    std::optional<QColor> first_live_center;
+    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+                     [&]
+                     {
+                         const QUrl url = presenter.previewUrl();
+                         const QImage frame = presenter.previewImage();
+                         if (!first_live_center && url.scheme() == QLatin1String("image") &&
+                             url.path() == QLatin1String("/live") && !frame.isNull())
+                         {
+                             first_live_center =
+                                 frame.pixelColor(frame.width() / 2, frame.height() / 2);
+                         }
+                     });
+    presenter.openDevelop();
+    ASSERT_TRUE(wait_until([&] { return first_live_center.has_value(); }))
+        << presenter.errorText().toStdString();
+#if defined(Q_OS_MACOS)
+    EXPECT_GT(presenter.gpuPreviewGeneration(), 0U);
+#endif
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
+        << presenter.errorText().toStdString();
+    ASSERT_NEAR(presenter.editExposure(), 1.0, 1.0e-9);
+    const QImage settled = presenter.previewImage();
+    ASSERT_FALSE(settled.isNull());
+    const QColor settled_center = settled.pixelColor(settled.width() / 2, settled.height() / 2);
+    EXPECT_NEAR(first_live_center->red(), settled_center.red(), 1);
+    EXPECT_NEAR(first_live_center->green(), settled_center.green(), 1);
+    EXPECT_NEAR(first_live_center->blue(), settled_center.blue(), 1);
+}
 
 TEST(StudioGalleryViewerDevelopPerformanceProbe, MeasuresGallerySelectLoupeDevelopLatency)
 {

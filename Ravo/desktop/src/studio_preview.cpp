@@ -20,6 +20,9 @@
 #include <QVariantList>
 
 #include "ravo/domain/types.h"
+#if defined(Q_OS_MACOS)
+#include "studio_iosurface_snapshot.h"
+#endif
 #include "studio_qt.h"
 
 namespace ravo
@@ -560,6 +563,8 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
     gpu_preview_native_surface_ = preview.gpu_display_native_surface;
     gpu_preview_width_ = static_cast<int>(preview.gpu_display_width);
     gpu_preview_height_ = static_cast<int>(preview.gpu_display_height);
+    QImage owned;
+    bool native_snapshot = false;
     if (preview.gpu_display_generation != 0U && preview.rgb.empty())
     {
         if (preview.gpu_display_native_surface == 0U || preview.gpu_display_width == 0U ||
@@ -568,28 +573,32 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
             setError(QStringLiteral("GPU preview display is missing"));
             return;
         }
-        const QSize displayed(static_cast<int>(preview.gpu_display_width),
-                              static_cast<int>(preview.gpu_display_height));
-        const QSize viewport_size =
-            stable_preview_viewport_size(QSize(preview_viewport_width_, preview_viewport_height_),
-                                         displayed, preserve_viewport_extent);
-        preview_viewport_width_ = viewport_size.width();
-        preview_viewport_height_ = viewport_size.height();
-        live_preview_revision_ = revision;
-        live_preview_width_ = preview.gpu_display_width;
-        live_preview_height_ = preview.gpu_display_height;
-        live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
-        live_preview_pixel_sha256_.clear();
-        preview_url_ = QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision));
+#if defined(Q_OS_MACOS)
+        auto snapshot = studio_metal::snapshot_iosurface_rgb8(preview.gpu_display_native_surface,
+                                                              preview.gpu_display_width,
+                                                              preview.gpu_display_height);
+        if (!snapshot)
+        {
+            setError(qstring_from_utf8(snapshot.error().message));
+            return;
+        }
+        owned = std::move(snapshot).value();
+        native_snapshot = true;
+#else
+        setError(QStringLiteral("GPU preview display cannot be captured on this platform"));
         return;
+#endif
     }
-    auto prepared = preview_result_image(preview);
-    if (!prepared)
+    else
     {
-        setError(qstring_from_utf8(prepared.error().message));
-        return;
+        auto prepared = preview_result_image(preview);
+        if (!prepared)
+        {
+            setError(qstring_from_utf8(prepared.error().message));
+            return;
+        }
+        owned = std::move(prepared).value();
     }
-    QImage owned = std::move(prepared).value();
     preview_base_image_ = owned;
     preview_mask_alpha_ = preview.mask_alpha;
     QImage displayed = owned;
@@ -637,7 +646,9 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
     live_preview_revision_ = revision;
     live_preview_width_ = static_cast<std::uint32_t>(std::max(0, displayed.width()));
     live_preview_height_ = static_cast<std::uint32_t>(std::max(0, displayed.height()));
-    live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
+    live_preview_color_profile_id_ = native_snapshot ?
+                                         QStringLiteral("srgb") :
+                                         qstring_from_utf8(preview.color_profile.identifier);
     if (live_preview_color_profile_id_.isEmpty() && displayed.colorSpace().isValid())
     {
         live_preview_color_profile_id_ = displayed.colorSpace().description();
@@ -645,7 +656,7 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
             live_preview_color_profile_id_ = QStringLiteral("embedded-icc");
     }
     live_preview_pixel_sha256_.clear();
-    preview_url_ = !preview.rgb.empty() ?
+    preview_url_ = !preview.rgb.empty() || native_snapshot ?
                        QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision)) :
                        QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
     schedule_preview_analysis(displayed, owned, revision, preview.asset_id,

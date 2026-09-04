@@ -43,6 +43,7 @@ void StudioPresenter::load_develop_for_selection()
     develop_ = {};
     saved_develop_ = {};
     develop_loaded_ = false;
+    develop_preview_deferred_ = false;
     develop_load_error_.clear();
     white_balance_pick_active_ = false;
     mask_place_active_ = false;
@@ -93,6 +94,12 @@ void StudioPresenter::load_develop_for_selection()
                         saved_develop_ = {};
                         develop_load_error_ = qstring_from_utf8(loaded.error().message);
                         sync_active_history();
+                        develop_preview_deferred_ = false;
+                        if (browse_mode_ == QLatin1String("develop"))
+                        {
+                            preview_loading_ = false;
+                            emit previewChanged();
+                        }
                         emit editChanged();
                         setError(qstring_from_utf8(loaded.error().message));
                         return;
@@ -104,6 +111,12 @@ void StudioPresenter::load_develop_for_selection()
                         saved_develop_ = {};
                         develop_load_error_ = qstring_from_utf8(params.error().message);
                         sync_active_history();
+                        develop_preview_deferred_ = false;
+                        if (browse_mode_ == QLatin1String("develop"))
+                        {
+                            preview_loading_ = false;
+                            emit previewChanged();
+                        }
                         emit editChanged();
                         setError(qstring_from_utf8(params.error().message));
                         return;
@@ -117,6 +130,12 @@ void StudioPresenter::load_develop_for_selection()
                     develop_load_error_.clear();
                     sync_curve_ui_from_develop();
                     sync_active_history();
+                    const bool preview_deferred = develop_preview_deferred_;
+                    develop_preview_deferred_ = false;
+                    if (preview_deferred && browse_mode_ == QLatin1String("develop"))
+                    {
+                        requestPreviewForSelection();
+                    }
                     emit editChanged();
                 },
                 Qt::QueuedConnection);
@@ -363,6 +382,18 @@ void StudioPresenter::enqueue_preview()
         emit previewChanged();
         return;
     }
+    // Selection loads the recipe on the serial catalog executor and publishes
+    // the resulting DevelopParams back on the UI thread. Do not capture the
+    // temporary identity value for a Develop render while that publication is
+    // still queued: it warms the RAW/GPU working generation for the wrong
+    // recipe and makes the first real slider intent pay the complete rebuild.
+    if (browse_mode_ == QLatin1String("develop") && !develop_loaded_)
+    {
+        develop_preview_deferred_ = true;
+        preview_loading_ = true;
+        emit previewChanged();
+        return;
+    }
     preview_loading_ = true;
     emit previewChanged();
     const auto request_revision = develop_preview_owner_.supersede("preview_superseded");
@@ -494,10 +525,11 @@ void StudioPresenter::kick_develop_work()
                     request.persist_preview_record =
                         job.comparison_before ? false : !job.interactive;
                     request.cancellation = cancellation;
-                    // CPU RGB is required for live identity, comparison Image,
-                    // scopes, and headless presenter tests. Metal still
-                    // publishes an IOSurface for QML when the recipe stays GPU.
-                    request.need_cpu_pixels = true;
+                    // Pure interactive frames publish the Engine-owned native
+                    // display surface. Desktop snapshots its display RGB8 for
+                    // identity/scopes without forcing a float-buffer readback.
+                    request.need_cpu_pixels = !job.interactive || job.comparison_before ||
+                                              job.overlay_mask_id.has_value();
                     if (job.overlay_mask_id)
                     {
                         request.overlay_mask_id = job.overlay_mask_id;
