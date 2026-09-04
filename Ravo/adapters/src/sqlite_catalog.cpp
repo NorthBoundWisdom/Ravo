@@ -69,6 +69,7 @@ const char *kSchemaStatements[] = {
     "  rating INTEGER NOT NULL DEFAULT 0,"
     "  color_label TEXT NOT NULL DEFAULT 'none',"
     "  rejected INTEGER NOT NULL DEFAULT 0,"
+    "  picked INTEGER NOT NULL DEFAULT 0,"
     "  version_ordinal INTEGER NOT NULL DEFAULT 0,"
     "  source_asset_id TEXT REFERENCES asset(id) ON DELETE CASCADE,"
     "  UNIQUE(normalized_uri, version_ordinal),"
@@ -277,7 +278,7 @@ constexpr const char *kSchemaV6Table =
 constexpr const char *kSchemaV6AssetUpdateTrigger =
     "CREATE TRIGGER asset_recovery_update AFTER UPDATE OF normalized_uri, media_type, size_bytes, "
     "mtime_unix_ms, content_fingerprint, width, height, import_state, error_code, error_message, "
-    "created_unix_ms, rating, color_label, rejected ON asset BEGIN "
+    "created_unix_ms, rating, color_label, rejected, picked ON asset BEGIN "
     "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.id; "
     "END";
 
@@ -1043,6 +1044,42 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                     return impl->abort_transaction(altered.error());
             }
             version = 15;
+        }
+
+        if (version == 15)
+        {
+            QSqlQuery columns(impl->database);
+            if (!columns.exec(QStringLiteral("PRAGMA table_info(asset)")))
+                return impl->abort_transaction(map_sql_error(columns, "migrate_v16_pragma_asset"));
+            bool has_picked = false;
+            while (columns.next())
+            {
+                if (columns.value(1).toString() == QStringLiteral("picked"))
+                {
+                    has_picked = true;
+                    break;
+                }
+            }
+            if (!has_picked)
+            {
+                const auto altered = impl->exec(
+                    QStringLiteral(
+                        "ALTER TABLE asset ADD COLUMN picked INTEGER NOT NULL DEFAULT 0"),
+                    "migrate_v16_picked");
+                if (!altered)
+                    return impl->abort_transaction(altered.error());
+            }
+            // Refresh recovery trigger so picked mutations advance generation.
+            auto dropped =
+                impl->exec(QStringLiteral("DROP TRIGGER IF EXISTS asset_recovery_update"),
+                           "migrate_v16_drop_recovery_trigger");
+            if (!dropped)
+                return impl->abort_transaction(dropped.error());
+            auto created = impl->exec(QString::fromUtf8(kSchemaV6AssetUpdateTrigger),
+                                      "migrate_v16_create_recovery_trigger");
+            if (!created)
+                return impl->abort_transaction(created.error());
+            version = 16;
         }
 
         if (version != kCatalogSchemaVersion)

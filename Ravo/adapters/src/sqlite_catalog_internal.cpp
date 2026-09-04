@@ -545,9 +545,10 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
     const auto label = parse_color_label(utf8_from_qstring(query.value(13).toString()));
     asset.review.color_label = label ? label.value() : ColorLabel::kNone;
     asset.review.rejected = query.value(14).toInt() != 0;
-    asset.has_edits = query.value(15).toInt() != 0;
-    asset.version_ordinal = query.value(16).toInt();
-    asset.source_asset_id = string_column(query, 17);
+    asset.review.picked = query.value(15).toInt() != 0;
+    asset.has_edits = query.value(16).toInt() != 0;
+    asset.version_ordinal = query.value(17).toInt();
+    asset.source_asset_id = string_column(query, 18);
     return asset;
 }
 
@@ -1170,14 +1171,14 @@ inspect_backup_database(const std::string_view path, const std::string_view expe
 const char *const kAssetSelect =
     "SELECT id, normalized_uri, media_type, size_bytes, mtime_unix_ms, content_fingerprint, "
     "width, height, import_state, error_code, error_message, created_unix_ms, rating, "
-    "color_label, rejected, "
+    "color_label, rejected, picked, "
     "EXISTS(SELECT 1 FROM asset_recipe WHERE asset_id = asset.id), "
     "version_ordinal, source_asset_id FROM asset";
 
 const char *const kAssetPageSelect =
     "SELECT a.id, a.normalized_uri, a.media_type, a.size_bytes, a.mtime_unix_ms, "
     "a.content_fingerprint, a.width, a.height, a.import_state, a.error_code, a.error_message, "
-    "a.created_unix_ms, a.rating, a.color_label, a.rejected, "
+    "a.created_unix_ms, a.rating, a.color_label, a.rejected, a.picked, "
     "EXISTS(SELECT 1 FROM asset_recipe r WHERE r.asset_id = a.id), "
     "a.version_ordinal, a.source_asset_id "
     "FROM asset a LEFT JOIN asset_metadata m ON m.asset_id = a.id";

@@ -209,6 +209,9 @@ public:
     [[nodiscard]] Result<AssetRecord> set_rating(std::string_view asset_id, int rating);
     [[nodiscard]] Result<AssetRecord> set_color_label(std::string_view asset_id, ColorLabel label);
     [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
+    [[nodiscard]] Result<AssetRecord> set_picked(std::string_view asset_id, bool picked);
+    // ADR-0150: transactional Pick/Reject/rating/colour with optional auto-advance.
+    [[nodiscard]] Result<CullReviewResult> apply_cull_review(const CullReviewRequest &request);
     [[nodiscard]] Result<void> remove_from_catalog(std::string_view asset_id);
     [[nodiscard]] Result<void> remove_original_and_catalog(std::string_view asset_id);
     [[nodiscard]] Result<AssetRecord>

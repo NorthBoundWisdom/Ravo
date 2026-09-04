@@ -572,8 +572,8 @@ Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
         "INSERT INTO asset(id, normalized_uri, display_name, folder_uri, folder_id, media_type, size_bytes, "
         "mtime_unix_ms, "
         "content_fingerprint, width, height, import_state, error_code, error_message, "
-        "created_unix_ms, rating, color_label, rejected, version_ordinal, source_asset_id) VALUES "
-        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+        "created_unix_ms, rating, color_label, rejected, picked, version_ordinal, source_asset_id) VALUES "
+        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
     query.addBindValue(qstring_from_utf8(asset.id));
     query.addBindValue(qstring_from_utf8(asset.normalized_uri));
     query.addBindValue(qstring_from_utf8(uri_display_name(asset.normalized_uri)));
@@ -592,6 +592,7 @@ Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
     query.addBindValue(asset.review.rating);
     query.addBindValue(qstring_from_utf8(color_label_name(asset.review.color_label)));
     query.addBindValue(asset.review.rejected ? 1 : 0);
+    query.addBindValue(asset.review.picked ? 1 : 0);
     query.addBindValue(asset.version_ordinal);
     query.addBindValue(optional_string(asset.source_asset_id));
     if (!query.exec())
@@ -617,7 +618,7 @@ Result<void> SqliteCatalogRepository::update_asset(const AssetRecord &asset)
     query.prepare(QStringLiteral(
         "UPDATE asset SET media_type = ?, size_bytes = ?, mtime_unix_ms = ?, "
         "content_fingerprint = ?, width = ?, height = ?, import_state = ?, error_code = ?, "
-        "error_message = ?, rating = ?, color_label = ?, rejected = ? WHERE id = ?"));
+        "error_message = ?, rating = ?, color_label = ?, rejected = ?, picked = ? WHERE id = ?"));
     query.addBindValue(qstring_from_utf8(asset.media_type));
     query.addBindValue(static_cast<qlonglong>(asset.size_bytes));
     query.addBindValue(static_cast<qlonglong>(asset.mtime_unix_ms));
@@ -630,6 +631,7 @@ Result<void> SqliteCatalogRepository::update_asset(const AssetRecord &asset)
     query.addBindValue(asset.review.rating);
     query.addBindValue(qstring_from_utf8(color_label_name(asset.review.color_label)));
     query.addBindValue(asset.review.rejected ? 1 : 0);
+    query.addBindValue(asset.review.picked ? 1 : 0);
     query.addBindValue(qstring_from_utf8(asset.id));
     if (!query.exec())
     {
@@ -649,17 +651,18 @@ Result<void> SqliteCatalogRepository::update_review(const std::string_view asset
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
-    auto valid = validate_rating(review.rating);
+    auto valid = validate_review_state(review);
     if (!valid)
     {
         return valid.error();
     }
     QSqlQuery query(impl_->database);
-    query.prepare(
-        QStringLiteral("UPDATE asset SET rating = ?, color_label = ?, rejected = ? WHERE id = ?"));
+    query.prepare(QStringLiteral(
+        "UPDATE asset SET rating = ?, color_label = ?, rejected = ?, picked = ? WHERE id = ?"));
     query.addBindValue(review.rating);
     query.addBindValue(qstring_from_utf8(color_label_name(review.color_label)));
     query.addBindValue(review.rejected ? 1 : 0);
+    query.addBindValue(review.picked ? 1 : 0);
     query.addBindValue(qstring_from_utf8(asset_id));
     if (!query.exec())
     {

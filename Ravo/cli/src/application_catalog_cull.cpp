@@ -215,6 +215,85 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
             {"skipped", JsonValue{std::move(skipped)}},
         }};
     }
+
+    if (subcommand == "cull-review")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog cull-review requires --asset-id");
+        }
+        const int flag_count = static_cast<int>(flags.cull_pick) +
+                               static_cast<int>(flags.cull_reject_flag) +
+                               static_cast<int>(flags.cull_unflag);
+        if (flag_count > 1)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog cull-review accepts only one of --pick, --reject, --unflag",
+                              {{"reason", "cull_review_flag_conflict"}});
+        }
+        CullReviewRequest request;
+        request.asset_id = std::string(flags.asset_id);
+        if (flags.cull_pick)
+            request.flag_action = CullReviewFlagAction::kPick;
+        else if (flags.cull_reject_flag)
+            request.flag_action = CullReviewFlagAction::kReject;
+        else if (flags.cull_unflag)
+            request.flag_action = CullReviewFlagAction::kUnflag;
+        if (flags.rating)
+            request.rating = *flags.rating;
+        if (!flags.color_label.empty())
+        {
+            auto label = parse_color_label(flags.color_label);
+            if (!label)
+                return label.error();
+            request.color_label = label.value();
+        }
+        request.auto_advance = flags.auto_advance;
+        request.selection_asset_ids.reserve(flags.selection_asset_ids.size());
+        for (const auto id : flags.selection_asset_ids)
+            request.selection_asset_ids.emplace_back(id);
+        if (!flags.query_json.empty())
+        {
+            auto parsed = parse_library_query_document(flags.query_json);
+            if (!parsed)
+                return parsed.error();
+            request.query = std::move(parsed).value();
+        }
+        request.expected_catalog_revision = flags.expected_revision;
+        auto applied = service.apply_cull_review(request);
+        if (!applied)
+            return applied.error();
+        JsonValue::Object previous{
+            {"color_label",
+             std::string(color_label_name(applied.value().previous_review.color_label))},
+            {"picked", applied.value().previous_review.picked},
+            {"rating", JsonValue::number(std::to_string(applied.value().previous_review.rating))},
+            {"rejected", applied.value().previous_review.rejected},
+        };
+        JsonValue::Object review{
+            {"color_label", std::string(color_label_name(applied.value().review.color_label))},
+            {"picked", applied.value().review.picked},
+            {"rating", JsonValue::number(std::to_string(applied.value().review.rating))},
+            {"rejected", applied.value().review.rejected},
+        };
+        JsonValue::Object object{
+            {"asset", asset_to_json(applied.value().asset)},
+            {"catalog_mutated", applied.value().catalog_mutated},
+            {"flag_action", std::string(cull_review_flag_action_name(request.flag_action))},
+            {"previous_review", std::move(previous)},
+            {"review", std::move(review)},
+            {"revision", JsonValue::number(std::to_string(applied.value().revision))},
+            {"schema", applied.value().schema},
+            {"schema_version", JsonValue::number(std::to_string(applied.value().schema_version))},
+        };
+        if (applied.value().next_asset_id)
+            object.emplace("next_asset_id", *applied.value().next_asset_id);
+        else
+            object.emplace("next_asset_id", nullptr);
+        return JsonValue{std::move(object)};
+    }
+
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog cull subcommand",
                       {{"subcommand", std::string(subcommand)}});
 }

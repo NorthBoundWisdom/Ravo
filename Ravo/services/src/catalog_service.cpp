@@ -661,6 +661,8 @@ Result<AssetRecord> CatalogService::set_rejected(const std::string_view asset_id
     }
     ReviewState review = asset.value()->review;
     review.rejected = rejected;
+    if (rejected)
+        review.picked = false;
     const auto updated = repository_->update_review(asset_id, review);
     if (!updated)
     {

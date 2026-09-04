@@ -13,8 +13,8 @@
 namespace ravo
 {
 
-// ADR-0147/0149: deterministic exact-duplicate, burst, and near-duplicate
-// fingerprint proposals (no auto-delete).
+// ADR-0147/0149/0150: deterministic exact-duplicate, burst, near-duplicate
+// fingerprint proposals, and keyboard cull review mutations (no auto-delete).
 inline constexpr std::string_view kCullExactDuplicateContractVersion =
     "ravo.cull.exact-duplicate/v1";
 inline constexpr std::int64_t kCullExactDuplicateSchemaVersion = 1;
@@ -176,6 +176,59 @@ struct NearDuplicateRequest
 struct BurstAcceptResult
 {
     LibraryStackMutation stack;
+    bool catalog_mutated = true;
+};
+
+inline constexpr std::string_view kCullReviewContractVersion = "ravo.cull.review/v1";
+inline constexpr std::int64_t kCullReviewSchemaVersion = 1;
+
+enum class CullReviewFlagAction : std::uint8_t
+{
+    kUnchanged = 0,
+    kPick = 1,
+    kReject = 2,
+    kUnflag = 3,
+};
+
+[[nodiscard]] inline std::string_view
+cull_review_flag_action_name(const CullReviewFlagAction action) noexcept
+{
+    switch (action)
+    {
+    case CullReviewFlagAction::kUnchanged:
+        return "unchanged";
+    case CullReviewFlagAction::kPick:
+        return "pick";
+    case CullReviewFlagAction::kReject:
+        return "reject";
+    case CullReviewFlagAction::kUnflag:
+        return "unflag";
+    }
+    return "unchanged";
+}
+
+struct CullReviewRequest
+{
+    std::string asset_id;
+    CullReviewFlagAction flag_action = CullReviewFlagAction::kUnchanged;
+    std::optional<int> rating;
+    std::optional<ColorLabel> color_label;
+    bool auto_advance = false;
+    std::vector<std::string> selection_asset_ids;
+    std::optional<LibraryQuery> query;
+    std::optional<std::int64_t> expected_catalog_revision;
+    CancellationToken cancellation{};
+};
+
+struct CullReviewResult
+{
+    std::string schema{std::string(kCullReviewContractVersion)};
+    std::int64_t schema_version = kCullReviewSchemaVersion;
+    AssetRecord asset;
+    ReviewState previous_review{};
+    ReviewState review{};
+    std::int64_t revision = 0;
+    std::optional<std::string> next_asset_id;
     bool catalog_mutated = true;
 };
 

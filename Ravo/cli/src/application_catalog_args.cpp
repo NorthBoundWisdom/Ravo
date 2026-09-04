@@ -189,6 +189,37 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.user_initiated = true;
             continue;
         }
+        if (option == "--pick")
+        {
+            if (result.cull_pick)
+                return make_error(ErrorCode::kInvalidArgument, "--pick can only be specified once");
+            result.cull_pick = true;
+            continue;
+        }
+        if (option == "--reject")
+        {
+            if (result.cull_reject_flag)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--reject can only be specified once");
+            result.cull_reject_flag = true;
+            continue;
+        }
+        if (option == "--unflag")
+        {
+            if (result.cull_unflag)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--unflag can only be specified once");
+            result.cull_unflag = true;
+            continue;
+        }
+        if (option == "--auto-advance")
+        {
+            if (result.auto_advance)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--auto-advance can only be specified once");
+            result.auto_advance = true;
+            continue;
+        }
         if (option == "--auto-stack")
         {
             if (result.editor_auto_stack)
@@ -294,6 +325,17 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return rating.error();
             }
             result.rating = rating.value();
+        }
+        else if (option == "--color-label")
+        {
+            if (!result.color_label.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--color-label was specified more than once");
+            result.color_label = value;
+        }
+        else if (option == "--selection-asset-id")
+        {
+            result.selection_asset_ids.push_back(value);
         }
         else if (option == "--exposure-ev")
         {

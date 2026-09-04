@@ -160,6 +160,7 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"import_state", asset.import_state},
         {"media_type", asset.media_type},
         {"metadata", std::move(metadata)},
+        {"picked", asset.review.picked},
         {"rating", JsonValue::number(std::to_string(asset.review.rating))},
         {"rejected", asset.review.rejected},
         {"source_asset_id", optional_string_json(asset.source_asset_id)},

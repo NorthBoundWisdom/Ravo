@@ -451,6 +451,19 @@ std::string_view color_label_name(const ColorLabel label) noexcept
     return "none";
 }
 
+Result<void> validate_review_state(const ReviewState &review)
+{
+    auto rating = validate_rating(review.rating);
+    if (!rating)
+        return rating.error();
+    if (review.picked && review.rejected)
+    {
+        return make_error(ErrorCode::kValidation, "Review pick and reject are mutually exclusive",
+                          {{"reason", "review_pick_reject_conflict"}});
+    }
+    return {};
+}
+
 Result<ColorLabel> parse_color_label(const std::string_view name)
 {
     if (name == "none" || name.empty())

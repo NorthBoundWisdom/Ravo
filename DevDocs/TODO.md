@@ -4,7 +4,7 @@
 >
 > **Updated:** 2026-09-04
 >
-> **Review basis:** `main` through ADR-0149 and the first same-SHA green
+> **Review basis:** `main` through ADR-0150 (cull keyboard review) and the first same-SHA green
 > three-platform Debug matrix after CI-01 repairs.
 
 This file contains only unfinished product work, dependencies, risks,
@@ -94,7 +94,7 @@ while `main` is green. A red head immediately returns all owners to CI-01.
 | 1 | LOCAL-01 | P1 | Finish professional multi-instance local adjustments in Studio |
 | 2 | DISPLAY-01 | P1 | Finish per-display ICC presentation on all supported hosts and views |
 | 3 | OFFLINE-01 | P1 | Make offline proxies usable for actual Loupe/Develop work |
-| 4 | CULL-01 | P1 | Finish keyboard-first review and evaluated duplicate/burst assistance |
+| 4 | CULL-01 | P1 | Finish Studio keyboard chrome and evaluated duplicate/burst assistance |
 | 5 | EDITIN-01 | P1 | Finish the Studio external-editor round trip |
 | 6 | INGEST-01 | P1 | Replace native-ingest stubs with packaged adapters and hardware evidence |
 | 7 | IQ-01 | P1 | Establish camera/profile and denoise quality admission |
@@ -420,18 +420,22 @@ Loupe/Develop do not consume the proxy while the original is absent.
 ## CULL-01 — Keyboard-first review and evaluated assistance
 
 **Status:** ADR-0147 exact-byte groups and burst propose/accept plus ADR-0149
-64-bit average-hash groups are on `main`. These are service/CLI foundations, not
-a complete culling workflow.
+64-bit average-hash groups plus ADR-0150 keyboard cull-review (`picked` /
+`apply_cull_review` / CLI `cull-review`) are on `main`. These remain
+service/CLI foundations, not a complete Studio culling workflow.
 
 **Correction:** ADR-0149 aHash is a bounded visual heuristic. It is not a
 quality-complete near-duplicate classifier, does not currently cover every RAW
 path, and must not be presented as delete authority or as an evaluated
 professional similarity model.
 
+**Closed in ADR-0150:** transactional Pick/Reject/rating/colour-label with
+optional auto-advance and previous_review undo payload; schema v16 `picked`;
+no auto-delete.
+
 **Remaining work:**
 
-- keyboard-first Pick/Reject, rating, colour label, auto-advance, previous/next,
-  and selection behavior with visible shortcut state;
+- Studio keyboard chrome / visible shortcut state for the ADR-0150 service;
 - synchronized 1:1/focus inspection for burst members and fast Survey compare;
 - Library filters for unreviewed, picked, rejected, exact duplicate, heuristic
   similar, and burst groups;

@@ -77,6 +77,12 @@ struct CatalogCliArguments
     std::string_view application_path;
     std::optional<std::int64_t> burst_window_seconds;
     std::optional<int> near_dup_max_hamming;
+    bool cull_pick = false;
+    bool cull_reject_flag = false;
+    bool cull_unflag = false;
+    bool auto_advance = false;
+    std::string_view color_label;
+    std::vector<std::string_view> selection_asset_ids;
     bool ensure = false;
     std::string_view foreign_source;
     std::string_view foreign_source_kind;

@@ -640,11 +640,11 @@ SqliteCatalogRepository::create_asset_version(const std::string_view source_asse
     insert.prepare(QStringLiteral(
         "INSERT INTO asset(id, normalized_uri, display_name, folder_uri, folder_id, media_type, "
         "size_bytes, mtime_unix_ms, content_fingerprint, width, height, import_state, error_code, "
-        "error_message, created_unix_ms, rating, color_label, rejected, version_ordinal, "
+        "error_message, created_unix_ms, rating, color_label, rejected, picked, version_ordinal, "
         "source_asset_id) "
         "SELECT ?, normalized_uri, display_name, folder_uri, folder_id, media_type, size_bytes, "
         "mtime_unix_ms, content_fingerprint, width, height, import_state, error_code, "
-        "error_message, ?, rating, color_label, rejected, ?, ? FROM asset WHERE id = ?"));
+        "error_message, ?, rating, color_label, rejected, picked, ?, ? FROM asset WHERE id = ?"));
     insert.addBindValue(qstring_from_utf8(version_id));
     insert.addBindValue(static_cast<qlonglong>(now));
     insert.addBindValue(next_ordinal);

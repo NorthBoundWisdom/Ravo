@@ -24,7 +24,7 @@ constexpr const char *kKnownSupportPrefixes[] = {"derived/", "external-editor/",
 constexpr const char *kAssetRecoveryUpdateTrigger =
     "CREATE TRIGGER asset_recovery_update AFTER UPDATE OF normalized_uri, media_type, size_bytes, "
     "mtime_unix_ms, content_fingerprint, width, height, import_state, error_code, error_message, "
-    "created_unix_ms, rating, color_label, rejected ON asset BEGIN "
+    "created_unix_ms, rating, color_label, rejected, picked ON asset BEGIN "
     "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.id; "
     "END";
 

@@ -384,6 +384,7 @@ template <typename Integer>
         {"mtime_unix_ms", JsonValue::number(std::to_string(snapshot.asset.mtime_unix_ms))},
         {"normalized_uri", snapshot.asset.normalized_uri},
         {"rating", JsonValue::number(std::to_string(snapshot.asset.review.rating))},
+        {"picked", snapshot.asset.review.picked},
         {"rejected", snapshot.asset.review.rejected},
         {"size_bytes", JsonValue::number(std::to_string(snapshot.asset.size_bytes))},
         {"tags", std::move(tags)},
@@ -844,12 +845,28 @@ struct VerifiedAsset
 
 [[nodiscard]] Result<VerifiedAsset> validate_recovery_asset(const JsonValue::Object &object)
 {
-    auto keys = expect_exact_keys(
-        object,
-        {"capture", "color_label", "content_fingerprint", "created_unix_ms", "error_code",
-         "error_message", "has_edits", "height", "id", "import_state", "media_type", "metadata",
-         "mtime_unix_ms", "normalized_uri", "rating", "rejected", "size_bytes", "tags", "width"},
-        "payload.asset");
+    auto keys = expect_exact_keys(object,
+                                  {"capture",
+                                   "color_label",
+                                   "content_fingerprint",
+                                   "created_unix_ms",
+                                   "error_code",
+                                   "error_message",
+                                   "has_edits",
+                                   "height",
+                                   "id",
+                                   "import_state",
+                                   "media_type",
+                                   "metadata",
+                                   "mtime_unix_ms",
+                                   "normalized_uri",
+                                   "picked",
+                                   "rating",
+                                   "rejected",
+                                   "size_bytes",
+                                   "tags",
+                                   "width"},
+                                  "payload.asset");
     if (!keys)
         return keys.error();
     auto id = require_string(object, "id", 180U);
@@ -874,6 +891,7 @@ struct VerifiedAsset
     auto rating = require_integer<int>(object, "rating", 0, 5);
     auto color_label = require_string(object, "color_label", 16U);
     auto has_edits = require_boolean(object, "has_edits");
+    auto picked = require_boolean(object, "picked");
     auto rejected = require_boolean(object, "rejected");
     if (!id)
         return id.error();
@@ -907,6 +925,8 @@ struct VerifiedAsset
         return has_edits.error();
     if (!rejected)
         return rejected.error();
+    if (!picked)
+        return picked.error();
     if (!safe_asset_id(id.value()) || !media_type.value().starts_with("image/") ||
         (import_state.value() != kImportStateImported &&
          import_state.value() != kImportStateFailed &&
@@ -920,6 +940,10 @@ struct VerifiedAsset
     auto parsed_label = parse_color_label(color_label.value());
     if (!parsed_label)
         return parsed_label.error();
+    if (picked.value() && rejected.value())
+        return recovery_error(ErrorCode::kValidation,
+                              "Recovery review pick and reject are mutually exclusive",
+                              "invalid_recovery_review_flags");
 
     const auto capture_value = object.find("capture");
     const auto metadata_value = object.find("metadata");

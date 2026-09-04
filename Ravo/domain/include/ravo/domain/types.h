@@ -16,7 +16,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 15;
+inline constexpr std::int64_t kCatalogSchemaVersion = 16;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 3;
@@ -354,6 +354,7 @@ struct ReviewState
     int rating = 0;
     ColorLabel color_label = ColorLabel::kNone;
     bool rejected = false;
+    bool picked = false;
 };
 
 enum class EditFilter
@@ -1303,6 +1304,7 @@ validate_export_output_sharpen_options(const ExportOutputSharpenOptions &options
 [[nodiscard]] std::string_view export_job_item_status_name(ExportJobItemStatus status) noexcept;
 [[nodiscard]] Result<ExportJobItemStatus> parse_export_job_item_status(std::string_view name);
 [[nodiscard]] Result<void> validate_rating(int rating);
+[[nodiscard]] Result<void> validate_review_state(const ReviewState &review);
 [[nodiscard]] Result<void> validate_catalog_backup_policy(const CatalogBackupPolicy &policy);
 [[nodiscard]] std::string_view color_label_name(ColorLabel label) noexcept;
 [[nodiscard]] Result<ColorLabel> parse_color_label(std::string_view name);
