@@ -418,6 +418,20 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "--editor was specified twice");
             result.editor_id = value;
         }
+        else if (option == "--working-copy-id")
+        {
+            if (!result.working_copy_id.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--working-copy-id was specified twice");
+            result.working_copy_id = value;
+        }
+        else if (option == "--application-path")
+        {
+            if (!result.application_path.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--application-path was specified twice");
+            result.application_path = value;
+        }
         else if (option == "--editor-version")
         {
             if (!result.editor_version.empty())
@@ -547,18 +561,18 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 const bool last = field + 1U == 4U;
                 if (last ? comma != std::string::npos : comma == std::string::npos)
                 {
-                    return make_error(
-                        ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
-                        {{"value", owned}, {"reason", "invalid_preview_roi"}});
+                    return make_error(ErrorCode::kInvalidArgument,
+                                      "--roi requires x,y,width,height in 0-1",
+                                      {{"value", owned}, {"reason", "invalid_preview_roi"}});
                 }
                 const auto end = last ? owned.size() : comma;
-                auto parsed = parse_double_flag(std::string_view(owned).substr(begin, end - begin),
-                                                "--roi");
+                auto parsed =
+                    parse_double_flag(std::string_view(owned).substr(begin, end - begin), "--roi");
                 if (!parsed)
                 {
-                    return make_error(
-                        ErrorCode::kInvalidArgument, "--roi requires x,y,width,height in 0-1",
-                        {{"value", owned}, {"reason", "invalid_preview_roi"}});
+                    return make_error(ErrorCode::kInvalidArgument,
+                                      "--roi requires x,y,width,height in 0-1",
+                                      {{"value", owned}, {"reason", "invalid_preview_roi"}});
                 }
                 *fields[field] = parsed.value();
                 begin = end + 1U;
@@ -1367,7 +1381,7 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                           {{"reason", "png_options_require_png_export"},
                            {"subcommand", std::string(subcommand)}});
     }
-    if (has_explicit_tiff_options(flags))
+    if (has_explicit_tiff_options(flags) && subcommand != "editor-prepare-working-copy")
     {
         return make_error(ErrorCode::kInvalidArgument,
                           "TIFF options require catalog export with --format tiff",

@@ -531,34 +531,37 @@ device transport without creating a second import planner.
 
 ## EDITIN-01 — Complete the Studio external-editor round trip
 
-**Status:** P1, building on ADR-0122, ADR-0136, and ADR-0139.
+**Status:** P1 first Ready landed (ADR-0122 / ADR-0136 / ADR-0139). Residuals remain.
 
-**First bounded tranche:**
+**Closed in this tranche (local `main`):**
 
-- a Studio `Edit in…` dialog with destination application, TIFF baseline,
-  bit depth, output profile, optional resize, naming, and auto-stack choice;
-- explicit create-working-copy/open/register states with visible provenance;
-- an explicit `Check for returned file` or user-selected result path rather than
-  an implicit watch-folder authority;
-- refresh of derived thumbnail/preview after successful registration;
-- conflict, stale source revision, missing application, cancelled open,
-  unchanged result, and duplicate registration handling;
-- reopen, backup/restore, catalog relocation, unstack, and removal behavior.
+- Service contract `ravo.external-editor.working-copy/v1`: create TIFF working
+  copy under `{catalog}.ravo/external-editor/working-copies/`, persist session,
+  optional application-path preflight, then explicit check-returned / register
+  (no watch-folder).
+- CLI: `catalog editor-prepare-working-copy` (`--user-initiated`, TIFF sample
+  type, `--max-edge`, optional `--invoke-os-open`) and
+  `catalog editor-check-returned` (`--working-copy-id`, optional returned
+  `--input`).
+- Fail-closed: missing user initiation, missing application, unsupported
+  profile (v1 `srgb` only), unchanged returned bytes, stale revision, duplicate
+  derived destination; originals remain byte-identical; check-returned
+  default-on auto-stack uses ADR-0139 conflict retention.
+- Service + CLI tests cover create → unchanged reject → returned register +
+  auto-stack. Studio `Edit in…` dialog deferred (TU-heavy; same machine
+  contract).
 
-PSD/PSB, proprietary application scripting, and background watch-folder import
-remain outside the first tranche and require separate dependency/product
-decisions.
+**Still open:**
 
-**Acceptance gate:**
+- Studio `Edit in…` dialog (destination app, TIFF baseline, profile, resize,
+  naming, auto-stack choice) and visible session provenance chrome;
+- PSD/PSB, proprietary application scripting, background watch-folder import;
+- reopen/removal UX for working-copy sessions beyond register; richer Gallery
+  derived-pair chrome.
 
-- the original remains byte-identical;
-- the exported working copy has the requested dimensions, sample type, profile,
-  and metadata privacy;
-- registration publishes one immutable derived asset and complete provenance or
-  publishes nothing;
-- a stack conflict retains the derived asset and reports the exact unresolved
-  relationship;
-- Studio and CLI expose the same machine contract and failure classes.
+**Acceptance gate:** unchanged for remaining residuals; first Ready proves
+working-copy create, check-returned/register, auto-stack, and originals
+byte-identical with CLI/service parity.
 
 # P2 — Important extensions after the professional baseline
 

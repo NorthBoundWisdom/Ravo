@@ -343,6 +343,14 @@ public:
     [[nodiscard]] Result<ExternalEditorOpenResult>
     prepare_external_editor_open(const ExternalEditorOpenRequest &request);
 
+    // EDITIN-01: create TIFF working copy + check-returned (no watch-folder).
+    [[nodiscard]] Result<ExternalEditorWorkingCopyResult>
+    create_external_editor_working_copy(const ExternalEditorWorkingCopyRequest &request);
+    [[nodiscard]] Result<ExternalEditorWorkingCopySession>
+    external_editor_working_copy_session(std::string_view working_copy_id) const;
+    [[nodiscard]] Result<ExternalEditorCheckReturnedResult>
+    check_external_editor_returned(const ExternalEditorCheckReturnedRequest &request);
+
     // ADR-0131: read-only foreign catalog conversion into this NEW/empty Ravo
     // catalog. Never opens or migrates the source in place; originals stay
     // byte-identical; unsupported schema/version fails closed.

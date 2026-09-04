@@ -73,6 +73,8 @@ struct CatalogCliArguments
     std::string_view editor_version;
     bool editor_auto_stack = false;
     bool editor_invoke_os_open = false;
+    std::string_view working_copy_id;
+    std::string_view application_path;
     bool ensure = false;
     std::string_view foreign_source;
     std::string_view foreign_source_kind;

@@ -13,6 +13,7 @@ target_sources(ravo_services
     src/catalog_ai_suggestion.cpp
     src/catalog_xmp_interchange.cpp
     src/catalog_external_editor.cpp
+    src/catalog_external_editor_working_copy.cpp
     src/catalog_foreign_catalog.cpp
     src/catalog_dng_smart_preview.cpp
     src/catalog_offline_edit_proxy.cpp

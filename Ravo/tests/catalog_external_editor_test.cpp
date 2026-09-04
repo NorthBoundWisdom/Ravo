@@ -460,4 +460,114 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterAutoStacksDerivedPair)
     EXPECT_EQ(shown.value().source_asset_id, source_id);
 }
 
+TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "wc-source.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(40, 80, 120)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto source_id = imported.value().asset->id;
+    const auto original = original_path_for(*service, source_id);
+    ASSERT_FALSE(original.empty());
+    const auto before_sha = sha256_file_hex(original);
+    ASSERT_TRUE(before_sha) << before_sha.error().message;
+
+    ExternalEditorWorkingCopyRequest blocked;
+    blocked.asset_id = source_id;
+    blocked.editor_id = "photoshop";
+    blocked.user_initiated = false;
+    auto missing_flag = service->create_external_editor_working_copy(blocked);
+    ASSERT_FALSE(missing_flag);
+    EXPECT_EQ(missing_flag.error().code, ErrorCode::kInvalidArgument);
+    EXPECT_EQ(missing_flag.error().context.at("reason"), "missing_user_initiated");
+
+    ExternalEditorWorkingCopyRequest missing_app = blocked;
+    missing_app.user_initiated = true;
+    missing_app.application_path = (root / "missing-editor.app").string();
+    auto app_missing = service->create_external_editor_working_copy(missing_app);
+    ASSERT_FALSE(app_missing);
+    EXPECT_EQ(app_missing.error().code, ErrorCode::kNotFound);
+    EXPECT_EQ(app_missing.error().context.at("reason"), "missing_application");
+
+    ExternalEditorWorkingCopyRequest request;
+    request.asset_id = source_id;
+    request.editor_id = "photoshop";
+    request.editor_version = "2026";
+    request.user_initiated = true;
+    request.auto_stack = true;
+    request.tiff_sample_type = TiffSampleType::kUint16;
+    request.max_edge = 64U;
+    auto prepared = service->create_external_editor_working_copy(request);
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    EXPECT_TRUE(prepared.value().originals_unchanged);
+    EXPECT_EQ(prepared.value().session.source_asset_id, source_id);
+    EXPECT_EQ(prepared.value().session.editor_id, "photoshop");
+    EXPECT_EQ(prepared.value().session.schema, kExternalEditorWorkingCopyContractVersion);
+    EXPECT_EQ(prepared.value().session.tiff_sample_type, TiffSampleType::kUint16);
+    EXPECT_EQ(prepared.value().session.profile, "srgb");
+    EXPECT_EQ(prepared.value().session.max_edge, std::optional<std::uint32_t>{64U});
+    EXPECT_TRUE(prepared.value().session.auto_stack);
+    EXPECT_TRUE(std::filesystem::is_regular_file(prepared.value().session.working_path));
+    EXPECT_NE(prepared.value().session.working_path.find("external-editor/working-copies"),
+              std::string::npos);
+    EXPECT_TRUE(prepared.value().session.open_intent_id.has_value());
+
+    auto loaded =
+        service->external_editor_working_copy_session(prepared.value().session.working_copy_id);
+    ASSERT_TRUE(loaded) << loaded.error().message;
+    EXPECT_EQ(loaded.value().working_copy_id, prepared.value().session.working_copy_id);
+    EXPECT_EQ(loaded.value().working_copy.sha256, prepared.value().session.working_copy.sha256);
+
+    // Unchanged working copy fails closed.
+    ExternalEditorCheckReturnedRequest unchanged;
+    unchanged.working_copy_id = prepared.value().session.working_copy_id;
+    auto unchanged_result = service->check_external_editor_returned(unchanged);
+    ASSERT_FALSE(unchanged_result);
+    EXPECT_EQ(unchanged_result.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(unchanged_result.error().context.at("reason"), "editor_output_unchanged");
+
+    // Explicit returned path registers derived + auto-stack.
+    const auto returned = root / "wc-returned.jpg";
+    ASSERT_TRUE(write_jpeg(returned, QColor(220, 40, 40)));
+    ExternalEditorCheckReturnedRequest check;
+    check.working_copy_id = prepared.value().session.working_copy_id;
+    check.returned_path = returned.string();
+    auto checked = service->check_external_editor_returned(check);
+    ASSERT_TRUE(checked) << checked.error().message;
+    EXPECT_TRUE(checked.value().registration.source_original_unchanged);
+    EXPECT_TRUE(checked.value().registration.auto_stacked);
+    ASSERT_TRUE(checked.value().registration.stack);
+    EXPECT_EQ(checked.value().registration.stack->stack.pick_asset_id,
+              checked.value().registration.derived_asset.id);
+    EXPECT_NE(checked.value().registration.derived_asset.id, source_id);
+
+    const auto after_sha = sha256_file_hex(original);
+    ASSERT_TRUE(after_sha) << after_sha.error().message;
+    EXPECT_EQ(after_sha.value(), before_sha.value());
+
+    // Duplicate registration of the same returned bytes fails closed.
+    auto duplicate = service->check_external_editor_returned(check);
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().code, ErrorCode::kConflict);
+}
+
+TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyRejectsUnsupportedProfile)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = root / "wc-profile.jpg";
+    ASSERT_TRUE(write_jpeg(source_path, QColor(9, 9, 9)));
+    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ExternalEditorWorkingCopyRequest request;
+    request.asset_id = imported.value().asset->id;
+    request.editor_id = "affinity";
+    request.user_initiated = true;
+    request.profile = "adobe-rgb";
+    auto failed = service->create_external_editor_working_copy(request);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kInvalidArgument);
+    EXPECT_EQ(failed.error().context.at("reason"), "unsupported_working_copy_profile");
+}
+
 } // namespace ravo

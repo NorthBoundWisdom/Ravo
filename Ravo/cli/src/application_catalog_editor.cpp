@@ -93,6 +93,34 @@ namespace
     return true;
 }
 
+[[nodiscard]] JsonValue working_copy_session_json(const ExternalEditorWorkingCopySession &session)
+{
+    JsonValue::Object object{
+        {"schema", session.schema},
+        {"schema_version", JsonValue::number(std::to_string(session.schema_version))},
+        {"working_copy_id", session.working_copy_id},
+        {"source_asset_id", session.source_asset_id},
+        {"editor_id", session.editor_id},
+        {"working_path", session.working_path},
+        {"working_uri", session.working_uri},
+        {"source_original", fingerprint_json(session.source_original)},
+        {"working_copy", fingerprint_json(session.working_copy)},
+        {"tiff_sample_type", std::string(tiff_sample_type_name(session.tiff_sample_type))},
+        {"profile", session.profile},
+        {"auto_stack", session.auto_stack},
+        {"created_unix_ms", JsonValue::number(std::to_string(session.created_unix_ms))},
+        {"observed_catalog_revision",
+         JsonValue::number(std::to_string(session.observed_catalog_revision))},
+    };
+    if (session.editor_version)
+        object.emplace("editor_version", *session.editor_version);
+    if (session.max_edge)
+        object.emplace("max_edge", JsonValue::number(std::to_string(*session.max_edge)));
+    if (session.open_intent_id)
+        object.emplace("open_intent_id", *session.open_intent_id);
+    return JsonValue{std::move(object)};
+}
+
 } // namespace
 
 Result<JsonValue> run_catalog_editor_command(CatalogService &service,
@@ -187,6 +215,90 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
         JsonValue::Object object =
             intent_json.object_if() != nullptr ? *intent_json.object_if() : JsonValue::Object{};
         object.emplace("os_open_invoked", os_open_invoked);
+        return JsonValue{std::move(object)};
+    }
+
+    if (subcommand == "editor-prepare-working-copy")
+    {
+        if (flags.asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-prepare-working-copy requires --asset-id");
+        }
+        if (flags.editor_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-prepare-working-copy requires --editor");
+        }
+        if (!flags.user_initiated)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-prepare-working-copy requires --user-initiated",
+                              {{"reason", "missing_user_initiated"}});
+        }
+        ExternalEditorWorkingCopyRequest request;
+        request.asset_id = std::string(flags.asset_id);
+        request.editor_id = std::string(flags.editor_id);
+        if (!flags.editor_version.empty())
+            request.editor_version = std::string(flags.editor_version);
+        if (!flags.application_path.empty())
+            request.application_path = std::string(flags.application_path);
+        request.user_initiated = true;
+        request.auto_stack = true;
+        if (!flags.tiff_sample_type.empty())
+        {
+            auto sample = parse_tiff_sample_type(flags.tiff_sample_type);
+            if (!sample)
+                return sample.error();
+            request.tiff_sample_type = sample.value();
+        }
+        if (flags.max_edge)
+            request.max_edge = *flags.max_edge;
+        request.expected_catalog_revision = flags.expected_revision;
+        auto prepared = service.create_external_editor_working_copy(request);
+        if (!prepared)
+            return prepared.error();
+
+        bool os_open_invoked = false;
+        if (flags.editor_invoke_os_open)
+        {
+            auto invoked = invoke_platform_os_open(prepared.value().session.working_path);
+            if (!invoked)
+                return invoked.error();
+            os_open_invoked = true;
+        }
+        return JsonValue{JsonValue::Object{
+            {"session", working_copy_session_json(prepared.value().session)},
+            {"originals_unchanged", prepared.value().originals_unchanged},
+            {"os_open_invoked", os_open_invoked},
+        }};
+    }
+    if (subcommand == "editor-check-returned")
+    {
+        if (flags.working_copy_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog editor-check-returned requires --working-copy-id");
+        }
+        ExternalEditorCheckReturnedRequest request;
+        request.working_copy_id = std::string(flags.working_copy_id);
+        if (!flags.inputs.empty())
+            request.returned_path = std::string(flags.inputs.front());
+        request.expected_catalog_revision = flags.expected_revision;
+        auto checked = service.check_external_editor_returned(request);
+        if (!checked)
+            return checked.error();
+        auto asset_json = asset_to_json(checked.value().registration.derived_asset);
+        JsonValue::Object object =
+            asset_json.object_if() != nullptr ? *asset_json.object_if() : JsonValue::Object{};
+        object.emplace("provenance", provenance_to_json(checked.value().registration.provenance));
+        object.emplace("source_original_unchanged",
+                       checked.value().registration.source_original_unchanged);
+        object.emplace("auto_stacked", checked.value().registration.auto_stacked);
+        if (checked.value().registration.stack)
+            object.emplace("stack",
+                           library_stack_mutation_to_json(*checked.value().registration.stack));
+        object.emplace("session", working_copy_session_json(checked.value().session));
         return JsonValue{std::move(object)};
     }
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog editor subcommand",

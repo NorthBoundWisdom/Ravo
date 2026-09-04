@@ -1282,6 +1282,82 @@ TEST_F(CliTest, CatalogEditorOpenAndAutoStack)
     ASSERT_NE(reg->find("stack"), nullptr);
 }
 
+TEST_F(CliTest, CatalogEditorPrepareWorkingCopyAndCheckReturned)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-editor-wc-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
+                      "frozen" / "0000-nop" / "expected.png")
+                         .generic_u8string();
+    const std::string png_path(png.begin(), png.end());
+    const auto returned = (root / "returned.png").string();
+    std::filesystem::copy_file(png_path, returned);
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", png_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    const auto *asset = items->array_if()->front().find("asset");
+    const auto id = *asset->find("id")->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "editor-prepare-working-copy", "--catalog", catalog, "--asset-id", id,
+                  "--editor", "photoshop", "--user-initiated", "--tiff-sample-type", "uint16",
+                  "--max-edge", "128", "--json"}),
+              0)
+        << stdout_stream.str() << stderr_stream.str();
+    auto prepared = parse_json(stdout_stream.str());
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    const auto *prep = prepared.value().find("data");
+    ASSERT_NE(prep, nullptr);
+    ASSERT_NE(prep->find("session"), nullptr);
+    const auto *session = prep->find("session");
+    ASSERT_NE(session->find("working_copy_id"), nullptr);
+    const auto working_copy_id = *session->find("working_copy_id")->string_if();
+    EXPECT_FALSE(working_copy_id.empty());
+    ASSERT_NE(prep->find("originals_unchanged")->boolean_if(), nullptr);
+    EXPECT_TRUE(*prep->find("originals_unchanged")->boolean_if());
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "editor-check-returned", "--catalog", catalog, "--working-copy-id",
+                  working_copy_id, "--input", returned, "--json"}),
+              0)
+        << stdout_stream.str() << stderr_stream.str();
+    auto checked = parse_json(stdout_stream.str());
+    ASSERT_TRUE(checked) << checked.error().message;
+    const auto *reg = checked.value().find("data");
+    ASSERT_NE(reg, nullptr);
+    ASSERT_NE(reg->find("auto_stacked"), nullptr);
+    ASSERT_NE(reg->find("auto_stacked")->boolean_if(), nullptr);
+    EXPECT_TRUE(*reg->find("auto_stacked")->boolean_if());
+    ASSERT_NE(reg->find("session"), nullptr);
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CliTest, CatalogCliFloatParsingRejectsMalformedLocaleAndDuplicateOptions)
 {
     const auto root = std::filesystem::temp_directory_path() / "ravo-cli-float-parse";

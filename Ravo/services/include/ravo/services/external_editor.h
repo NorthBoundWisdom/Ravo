@@ -118,4 +118,65 @@ struct ExternalEditorOpenResult
     ExternalEditorOpenIntent intent;
 };
 
+// EDITIN-01: explicit TIFF working-copy create + check-returned (no watch-folder).
+inline constexpr std::string_view kExternalEditorWorkingCopyContractVersion =
+    "ravo.external-editor.working-copy/v1";
+inline constexpr std::int64_t kExternalEditorWorkingCopySchemaVersion = 1;
+
+struct ExternalEditorWorkingCopyRequest
+{
+    std::string asset_id;
+    std::string editor_id;
+    std::optional<std::string> editor_version;
+    std::optional<std::string> application_path;
+    TiffSampleType tiff_sample_type = TiffSampleType::kUint16;
+    std::string profile{"srgb"};
+    std::optional<std::uint32_t> max_edge;
+    bool auto_stack = true;
+    bool user_initiated = false;
+    std::optional<std::int64_t> expected_catalog_revision;
+    CancellationToken cancellation{};
+};
+
+struct ExternalEditorWorkingCopySession
+{
+    std::string schema{std::string(kExternalEditorWorkingCopyContractVersion)};
+    std::int64_t schema_version = kExternalEditorWorkingCopySchemaVersion;
+    std::string working_copy_id;
+    std::string source_asset_id;
+    std::string editor_id;
+    std::optional<std::string> editor_version;
+    std::string working_path;
+    std::string working_uri;
+    ExternalEditorFileFingerprint source_original;
+    ExternalEditorFileFingerprint working_copy;
+    TiffSampleType tiff_sample_type = TiffSampleType::kUint16;
+    std::string profile{"srgb"};
+    std::optional<std::uint32_t> max_edge;
+    bool auto_stack = true;
+    std::int64_t created_unix_ms = 0;
+    std::int64_t observed_catalog_revision = 0;
+    std::optional<std::string> open_intent_id;
+};
+
+struct ExternalEditorWorkingCopyResult
+{
+    ExternalEditorWorkingCopySession session;
+    bool originals_unchanged = true;
+};
+
+struct ExternalEditorCheckReturnedRequest
+{
+    std::string working_copy_id;
+    std::optional<std::string> returned_path;
+    std::optional<std::int64_t> expected_catalog_revision;
+    CancellationToken cancellation{};
+};
+
+struct ExternalEditorCheckReturnedResult
+{
+    ExternalEditorRegisterResult registration;
+    ExternalEditorWorkingCopySession session;
+};
+
 } // namespace ravo
