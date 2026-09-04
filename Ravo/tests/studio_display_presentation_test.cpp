@@ -64,5 +64,30 @@ TEST(StudioDisplayPresentationTest, InitialStateIsMachineVisible)
     EXPECT_TRUE(owner.state().contains(QStringLiteral("contractVersion")));
 }
 
+TEST(StudioDisplayPresentationTest, ViewContractsAreMachineVisible)
+{
+    ensure_qt_core();
+    StudioDisplayPresentation owner;
+    const auto contracts = owner.viewContracts();
+    ASSERT_FALSE(contracts.isEmpty());
+    bool saw_display_transformed = false;
+    bool saw_scopes = false;
+    for (const auto &entry : contracts)
+    {
+        const auto map = entry.toMap();
+        EXPECT_FALSE(map.value(QStringLiteral("viewId")).toString().isEmpty());
+        EXPECT_FALSE(map.value(QStringLiteral("pixelKind")).toString().isEmpty());
+        EXPECT_EQ(map.value(QStringLiteral("softProofInteraction")).toString(),
+                  QStringLiteral("after_soft_proof_display_only"));
+        if (map.value(QStringLiteral("pixelKind")).toString() ==
+            QStringLiteral("display_transformed"))
+            saw_display_transformed = true;
+        if (map.value(QStringLiteral("viewId")).toString() == QStringLiteral("scopes"))
+            saw_scopes = true;
+    }
+    EXPECT_TRUE(saw_display_transformed);
+    EXPECT_TRUE(saw_scopes);
+}
+
 } // namespace
 } // namespace ravo

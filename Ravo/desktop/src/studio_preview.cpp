@@ -1,5 +1,8 @@
 #include "ravo/desktop/studio_presenter.h"
 
+#include "ravo/desktop/studio_display_presentation.h"
+#include "ravo/services/display_presentation.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -264,6 +267,110 @@ prepare_preview_analysis(const QImage &identity_image, const QImage &scope_sourc
 
 } // namespace
 
+QImage
+StudioPresenter::apply_display_presentation_image(const QImage &output_referred,
+                                                  const ColorProfileState &source_profile) const
+{
+    if (output_referred.isNull() || display_presentation_ == nullptr ||
+        !display_presentation_->valid())
+    {
+        return output_referred;
+    }
+    QImage rgb = output_referred;
+    if (rgb.format() != QImage::Format_RGB888)
+        rgb = rgb.convertToFormat(QImage::Format_RGB888);
+    if (rgb.width() <= 0 || rgb.height() <= 0)
+        return output_referred;
+
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(rgb.width()) *
+                                     static_cast<std::size_t>(rgb.height()) * 3U);
+    for (int y = 0; y < rgb.height(); ++y)
+    {
+        std::copy_n(rgb.constScanLine(y), static_cast<std::size_t>(rgb.width()) * 3U,
+                    pixels.begin() +
+                        static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) *
+                                                    static_cast<std::size_t>(rgb.width()) * 3U));
+    }
+    auto converted = apply_display_presentation_rgb8(
+        pixels, static_cast<std::uint32_t>(rgb.width()), static_cast<std::uint32_t>(rgb.height()),
+        source_profile, display_presentation_->presentationState(), CancellationToken{});
+    if (!converted)
+        return output_referred;
+
+    QImage presented(static_cast<int>(converted.value().width),
+                     static_cast<int>(converted.value().height), QImage::Format_RGB888);
+    for (int y = 0; y < presented.height(); ++y)
+    {
+        std::copy_n(converted.value().rgb8.data() +
+                        static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) *
+                                                    static_cast<std::size_t>(presented.width()) *
+                                                    3U),
+                    static_cast<std::size_t>(presented.width()) * 3U, presented.scanLine(y));
+    }
+    if (!converted.value().color_profile.icc_bytes.empty())
+    {
+        const QByteArray bytes(
+            reinterpret_cast<const char *>(converted.value().color_profile.icc_bytes.data()),
+            static_cast<qsizetype>(converted.value().color_profile.icc_bytes.size()));
+        const QColorSpace space = QColorSpace::fromIccProfile(bytes);
+        if (space.isValid())
+            presented.setColorSpace(space);
+    }
+    return presented;
+}
+
+void StudioPresenter::bindDisplayPresentation(StudioDisplayPresentation *owner)
+{
+    if (display_presentation_ == owner)
+        return;
+    if (display_presentation_ != nullptr)
+        disconnect(display_presentation_, nullptr, this, nullptr);
+    display_presentation_ = owner;
+    if (display_presentation_ == nullptr)
+        return;
+    connect(display_presentation_, &StudioDisplayPresentation::stateChanged, this,
+            &StudioPresenter::handle_display_presentation_changed);
+    reapply_display_presentation_to_cached_previews();
+}
+
+void StudioPresenter::handle_display_presentation_changed()
+{
+    reapply_display_presentation_to_cached_previews();
+}
+
+void StudioPresenter::reapply_display_presentation_to_cached_previews()
+{
+    bool changed = false;
+    if (!preview_base_image_.isNull())
+    {
+        QImage presented =
+            apply_display_presentation_image(preview_base_image_, preview_output_profile_);
+        {
+            const QMutexLocker lock(&preview_image_mutex_);
+            if (presented.cacheKey() != preview_image_.cacheKey())
+            {
+                preview_image_ = std::move(presented);
+                changed = true;
+            }
+        }
+    }
+    if (!comparison_before_base_image_.isNull())
+    {
+        QImage presented = apply_display_presentation_image(comparison_before_base_image_,
+                                                            comparison_before_output_profile_);
+        {
+            const QMutexLocker lock(&preview_image_mutex_);
+            if (presented.cacheKey() != comparison_before_image_.cacheKey())
+            {
+                comparison_before_image_ = std::move(presented);
+                changed = true;
+            }
+        }
+    }
+    if (changed)
+        emit previewChanged();
+}
+
 QUrl StudioPresenter::previewUrl() const
 {
     return preview_url_;
@@ -310,6 +417,8 @@ bool StudioPresenter::clear_comparison()
         const QMutexLocker lock(&preview_image_mutex_);
         comparison_before_image_ = QImage();
     }
+    comparison_before_base_image_ = QImage();
+    comparison_before_output_profile_ = {};
     comparison_before_url_.clear();
     return changed;
 }
@@ -324,6 +433,9 @@ void StudioPresenter::clear_displayed_preview()
         preview_url_.clear();
     }
     preview_base_image_ = QImage();
+    preview_output_profile_ = {};
+    comparison_before_base_image_ = QImage();
+    comparison_before_output_profile_ = {};
     preview_viewport_width_ = 0;
     preview_viewport_height_ = 0;
     preview_mask_alpha_.clear();
@@ -599,7 +711,6 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         }
         owned = std::move(prepared).value();
     }
-    preview_base_image_ = owned;
     preview_mask_alpha_ = preview.mask_alpha;
     QImage displayed = owned;
     if (mask_overlay_visible_ && !preview.mask_alpha.empty() && engine_.has_value())
@@ -634,18 +745,21 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
             }
         }
     }
+    preview_output_profile_ = preview.color_profile;
+    preview_base_image_ = displayed;
+    QImage presented = apply_display_presentation_image(displayed, preview_output_profile_);
     {
         const QMutexLocker lock(&preview_image_mutex_);
-        preview_image_ = displayed;
+        preview_image_ = presented;
     }
     const QSize viewport_size =
         stable_preview_viewport_size(QSize(preview_viewport_width_, preview_viewport_height_),
-                                     displayed.size(), preserve_viewport_extent);
+                                     presented.size(), preserve_viewport_extent);
     preview_viewport_width_ = viewport_size.width();
     preview_viewport_height_ = viewport_size.height();
     live_preview_revision_ = revision;
-    live_preview_width_ = static_cast<std::uint32_t>(std::max(0, displayed.width()));
-    live_preview_height_ = static_cast<std::uint32_t>(std::max(0, displayed.height()));
+    live_preview_width_ = static_cast<std::uint32_t>(std::max(0, presented.width()));
+    live_preview_height_ = static_cast<std::uint32_t>(std::max(0, presented.height()));
     live_preview_color_profile_id_ = native_snapshot ?
                                          QStringLiteral("srgb") :
                                          qstring_from_utf8(preview.color_profile.identifier);
@@ -672,9 +786,13 @@ void StudioPresenter::show_comparison_before_result(const PreviewResult &preview
         setError(qstring_from_utf8(prepared.error().message));
         return;
     }
+    comparison_before_output_profile_ = preview.color_profile;
+    comparison_before_base_image_ = std::move(prepared).value();
+    QImage presented = apply_display_presentation_image(comparison_before_base_image_,
+                                                        comparison_before_output_profile_);
     {
         const QMutexLocker lock(&preview_image_mutex_);
-        comparison_before_image_ = std::move(prepared).value();
+        comparison_before_image_ = std::move(presented);
     }
     comparison_before_url_ =
         QUrl(QStringLiteral("image://studioPreview/before?r=%1").arg(revision));

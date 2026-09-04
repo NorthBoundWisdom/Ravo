@@ -3,7 +3,10 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QVariantList>
 #include <QVariantMap>
+
+#include "ravo/services/display_presentation.h"
 
 class QScreen;
 class QWindow;
@@ -21,6 +24,7 @@ class StudioDisplayPresentation final : public QObject
     Q_PROPERTY(QString source READ source NOTIFY stateChanged)
     Q_PROPERTY(QString reason READ reason NOTIFY stateChanged)
     Q_PROPERTY(bool valid READ valid NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList viewContracts READ viewContracts CONSTANT)
 
 public:
     explicit StudioDisplayPresentation(QObject *parent = nullptr);
@@ -31,6 +35,8 @@ public:
     [[nodiscard]] QString source() const;
     [[nodiscard]] QString reason() const;
     [[nodiscard]] bool valid() const noexcept;
+    [[nodiscard]] QVariantList viewContracts() const;
+    [[nodiscard]] const DisplayPresentationState &presentationState() const noexcept;
 
     Q_INVOKABLE void bindWindow(QObject *window_object);
     Q_INVOKABLE void refresh();
@@ -46,9 +52,11 @@ private:
     void detach();
     void handleScreenChanged(QScreen *screen);
     void applyToken(const QString &token, bool force_rediscover);
+    void publish(DisplayPresentationState state);
     [[nodiscard]] static QString tokenForScreen(const QScreen *screen);
 
     QPointer<QWindow> window_;
+    DisplayPresentationState presentation_;
     QVariantMap state_;
     bool synthetic_lock_ = false;
 };

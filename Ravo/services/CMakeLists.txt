@@ -51,5 +51,8 @@ target_link_libraries(ravo_services PRIVATE lcms2)
 if(APPLE)
   target_link_libraries(ravo_services PRIVATE "-framework CoreGraphics" "-framework CoreFoundation")
 endif()
+if(WIN32)
+  target_link_libraries(ravo_services PRIVATE mscms gdi32)
+endif()
 
 ravo_configure_target(ravo_services)

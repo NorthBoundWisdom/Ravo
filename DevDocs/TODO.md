@@ -74,8 +74,8 @@ resource defect preempts both streams.
 
 LOCAL-01 and EDITIN-01 Studio C2 evidence are on `main`. Recent work on
 CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
-moves in the intended direction. DISPLAY-01 macOS screen-move owner and OFFLINE-01 C2 Studio proxy
-create/manage + baked consume landed on `main`; remaining DISPLAY work is still below C2. AI proposal chrome, display/native
+moves in the intended direction. DISPLAY-01 Studio view pixel-kind contracts + Loupe/Develop/comparison CPU monitor ICC apply and OFFLINE-01 C2 Studio proxy
+create/manage + baked consume landed on `main`; DISPLAY-01 is C2 with GPU/Linux discovery residuals. AI proposal chrome, display/native
 transport stubs, and the tethered-studio probe do not count as product progress.
 
 ### Release and correctness lane
@@ -484,26 +484,29 @@ contract tests. C3 corpus/package evidence remains open.
 
 ## DISPLAY-01 — Per-display ICC presentation
 
-**Maturity:** C1+ on macOS: discovery, synthetic/injected CPU paths, CLI status,
-and Studio `StudioDisplayPresentation` screen-move wiring (`cg:<displayId>`
-refresh without recipe/history/export mutation) are on `main`. Windows/Linux
-discovery remains a fail-closed stub and does not count as platform completion.
-View pixel application across Gallery/Loupe/Develop remains incomplete (not C2).
+**Maturity:** C2 on macOS Studio workflow: monitor ICC discovery + screen-move
+owner, machine-visible view pixel-kind contracts (Gallery/Loupe/Develop/
+Before-After/comparison/magnifier/scopes/GPU), Loupe/Develop/Before-After/
+comparison CPU paths apply `apply_display_presentation_rgb8` after soft-proof/
+output, and contract tests prove recipe JSON / history / catalog revision /
+export bytes unchanged across discover/refresh/inject. Soft-proof remains
+recipe-owned; display transform is presentation-only. Windows uses best-effort
+ICM (`windows_icm_display_icc` or explicit `windows_*` `fallback_srgb`); Linux
+stays explicit `fallback_srgb` (C2 host discovery macOS-primary with
+cross-platform fallback). Missing/corrupt injected ICC reasons are machine-
+visible.
 
-**Remaining work:**
+**Remaining work (post-C2 residuals, not blocking this C2 claim):**
 
-- implement and package real Windows/Linux monitor-profile discovery and change
-  lifecycle or explicitly reduce the supported-host claim;
-- apply presentation consistently to Gallery, Loupe, Develop, Before/After,
-  comparison, magnifier, and declared display-referred surfaces;
-- explicitly define scope pixel kind;
-- prove CPU/GPU matrix/LUT parity, invalidation, corrupt/missing profiles, and
-  multi-display performance;
-- define the SDR/HDR boundary.
+- GPU native preview presentation parity (currently declared `output_referred`);
+- Gallery thumbnail monitor convert (declared `output_referred` by contract);
+- Linux packaged monitor discovery (or keep fallback claim);
+- CPU/GPU matrix/LUT parity evidence, multi-display performance, SDR/HDR policy.
 
 **Acceptance gate:** display movement changes presentation only; recipe/history/
 catalog/export remain unchanged; every view declares pixel kind; transformed
-pixels are compared directly; unsupported states are visible.
+pixels are compared directly; unsupported states are visible. Met for C2 Studio
+CPU preview surfaces; residuals above remain for C3/host breadth.
 
 ## INGEST-01 — Packaged native camera transport
 

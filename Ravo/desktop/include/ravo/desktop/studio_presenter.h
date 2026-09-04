@@ -17,6 +17,7 @@
 #include <QList>
 #include <QMutex>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
@@ -44,6 +45,7 @@ namespace ravo
 
 class StudioCommandController;
 class StudioLiveSessionController;
+class StudioDisplayPresentation;
 
 class StudioPresenter final : public QObject
 {
@@ -423,6 +425,8 @@ public:
     [[nodiscard]] QString selectedImportState() const;
     [[nodiscard]] bool canDeleteFromDisk() const;
     [[nodiscard]] QUrl previewUrl() const;
+    // ADR-0144: bind presentation owner so Loupe/Develop/comparison apply monitor ICC.
+    void bindDisplayPresentation(StudioDisplayPresentation *owner);
     [[nodiscard]] int previewViewportWidth() const noexcept;
     [[nodiscard]] int previewViewportHeight() const noexcept;
     [[nodiscard]] QUrl inspectRoiUrl() const;
@@ -1025,6 +1029,11 @@ private:
     current_overlay_mask_id(const DevelopParams &params) const;
     void kick_develop_work();
     void clear_displayed_preview();
+    [[nodiscard]] QImage
+    apply_display_presentation_image(const QImage &output_referred,
+                                     const ColorProfileState &source_profile) const;
+    void handle_display_presentation_changed();
+    void reapply_display_presentation_to_cached_previews();
     [[nodiscard]] bool clear_comparison();
     void show_preview_result(const PreviewResult &preview, std::uint64_t revision,
                              bool preserve_viewport_extent);
@@ -1161,6 +1170,10 @@ private:
     QImage preview_image_;
     QImage comparison_before_image_;
     QImage preview_base_image_;
+    QImage comparison_before_base_image_;
+    ColorProfileState preview_output_profile_;
+    ColorProfileState comparison_before_output_profile_;
+    QPointer<StudioDisplayPresentation> display_presentation_;
     int preview_viewport_width_ = 0;
     int preview_viewport_height_ = 0;
     std::uint64_t live_preview_revision_ = 0;

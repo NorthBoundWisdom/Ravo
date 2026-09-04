@@ -8,8 +8,6 @@
 #include <QScreen>
 #include <QWindow>
 
-#include "ravo/services/display_presentation.h"
-
 namespace ravo
 {
 namespace
@@ -41,22 +39,22 @@ StudioDisplayPresentation::StudioDisplayPresentation(QObject *parent)
     auto discovered = discover_monitor_presentation("primary");
     if (discovered)
     {
-        state_ = state_to_map(discovered.value());
+        publish(std::move(discovered).value());
     }
     else
     {
-        state_ = QVariantMap{
-            {QStringLiteral("contractVersion"),
-             QString::fromUtf8(kDisplayPresentationContractVersion.data(),
-                               static_cast<int>(kDisplayPresentationContractVersion.size()))},
-            {QStringLiteral("screenToken"), QStringLiteral("primary")},
-            {QStringLiteral("source"), QStringLiteral("fallback_srgb")},
-            {QStringLiteral("reason"), QString::fromStdString(discovered.error().message)},
-            {QStringLiteral("profileIdentifier"), QString()},
-            {QStringLiteral("profileFingerprint"), QString()},
-            {QStringLiteral("iccByteCount"), 0},
-            {QStringLiteral("valid"), false},
-        };
+        presentation_ = {};
+        presentation_.source = DisplayProfileSource::kFallbackSrgb;
+        presentation_.reason = discovered.error().message;
+        presentation_.valid = false;
+        state_ = state_to_map(presentation_);
+        state_.insert(
+            QStringLiteral("contractVersion"),
+            QString::fromUtf8(kDisplayPresentationContractVersion.data(),
+                              static_cast<int>(kDisplayPresentationContractVersion.size())));
+        state_.insert(QStringLiteral("screenToken"), QStringLiteral("primary"));
+        state_.insert(QStringLiteral("source"), QStringLiteral("fallback_srgb"));
+        state_.insert(QStringLiteral("valid"), false);
     }
 }
 
@@ -90,6 +88,30 @@ bool StudioDisplayPresentation::valid() const noexcept
     return state_.value(QStringLiteral("valid")).toBool();
 }
 
+QVariantList StudioDisplayPresentation::viewContracts() const
+{
+    QVariantList list;
+    for (const auto &entry : display_presentation_view_contracts())
+    {
+        list.push_back(QVariantMap{
+            {QStringLiteral("viewId"), QString::fromStdString(entry.view_id)},
+            {QStringLiteral("pixelKind"),
+             QString::fromUtf8(
+                 display_view_pixel_kind_name(entry.pixel_kind).data(),
+                 static_cast<int>(display_view_pixel_kind_name(entry.pixel_kind).size()))},
+            {QStringLiteral("softProofInteraction"),
+             QString::fromStdString(entry.soft_proof_interaction)},
+            {QStringLiteral("notes"), QString::fromStdString(entry.notes)},
+        });
+    }
+    return list;
+}
+
+const DisplayPresentationState &StudioDisplayPresentation::presentationState() const noexcept
+{
+    return presentation_;
+}
+
 void StudioDisplayPresentation::bindWindow(QObject *window_object)
 {
     attach(qobject_cast<QWindow *>(window_object));
@@ -112,8 +134,7 @@ bool StudioDisplayPresentation::injectSyntheticMatrixForTesting()
     if (!presentation)
         return false;
     synthetic_lock_ = true;
-    state_ = state_to_map(presentation.value());
-    emit stateChanged();
+    publish(std::move(presentation).value());
     return true;
 }
 
@@ -123,23 +144,10 @@ bool StudioDisplayPresentation::applyScreenTokenForTesting(const QString &screen
         return false;
     if (synthetic_lock_)
     {
-        DisplayPresentationState previous;
-        previous.screen_token = screenToken().toStdString();
-        previous.source = DisplayProfileSource::kSyntheticMatrix;
-        previous.reason = reason().toStdString();
-        previous.profile_fingerprint =
-            state_.value(QStringLiteral("profileFingerprint")).toString().toStdString();
-        previous.valid = valid();
-        previous.monitor_profile.identifier =
-            state_.value(QStringLiteral("profileIdentifier")).toString().toStdString();
-        previous.monitor_profile.has_matrix = true;
-        const std::array<float, 9> boost{1.05F, 0.0F, 0.0F, 0.0F, 0.95F, 0.0F, 0.0F, 0.0F, 1.0F};
-        previous.monitor_profile.matrix_to_xyz_d50 = boost;
-        auto refreshed = refresh_monitor_presentation(previous, screen_token.toStdString());
+        auto refreshed = refresh_monitor_presentation(presentation_, screen_token.toStdString());
         if (!refreshed)
             return false;
-        state_ = state_to_map(refreshed.value());
-        emit stateChanged();
+        publish(std::move(refreshed).value());
         return true;
     }
     applyToken(screen_token, true);
@@ -180,13 +188,24 @@ void StudioDisplayPresentation::applyToken(const QString &token, const bool forc
     auto discovered = discover_monitor_presentation(token.toStdString());
     if (!discovered)
     {
+        presentation_.valid = false;
+        presentation_.reason = discovered.error().message;
         state_.insert(QStringLiteral("valid"), false);
         state_.insert(QStringLiteral("reason"), QString::fromStdString(discovered.error().message));
         emit stateChanged();
         return;
     }
-    const auto next = state_to_map(discovered.value());
-    if (next == state_)
+    publish(std::move(discovered).value());
+}
+
+void StudioDisplayPresentation::publish(DisplayPresentationState state)
+{
+    const auto next = state_to_map(state);
+    const bool unchanged =
+        next == state_ && state.profile_fingerprint == presentation_.profile_fingerprint &&
+        state.screen_token == presentation_.screen_token && state.source == presentation_.source;
+    presentation_ = std::move(state);
+    if (unchanged)
         return;
     state_ = next;
     emit stateChanged();

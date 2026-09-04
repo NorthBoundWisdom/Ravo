@@ -405,6 +405,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("studioWindow"), &window_geometry);
     engine.rootContext()->setContextProperty(QStringLiteral("studioDisplayPresentation"),
                                              &display_presentation);
+    presenter.bindDisplayPresentation(&display_presentation);
     engine.rootContext()->setContextProperty(QStringLiteral("studioSmoke"), smoke);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <string>
@@ -14,6 +15,13 @@
 
 #if defined(__APPLE__)
 #include <CoreGraphics/CoreGraphics.h>
+#endif
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #endif
 
 namespace ravo
@@ -462,11 +470,73 @@ Result<DisplayPresentationState> discover_monitor_presentation(const std::string
     return finalize_state(resolved_token, DisplayProfileSource::kSystemMonitor,
                           "macos_coregraphics_display_icc", std::move(profile).value());
 #elif defined(_WIN32)
-    // DISPLAY-01 residual: WinRT/ICC discovery not packaged. Fail closed to
-    // explicit sRGB rather than inventing a silent host transform.
-    return fallback_srgb_state(std::string(screen_token), "windows_monitor_discovery_unavailable",
-                               std::move(srgb).value());
+    // Best-effort MSCMS/GDI ICM path (no new deps). Fail closed to explicit
+    // fallback_srgb with a machine-visible reason when ICM is missing/corrupt.
+    {
+        HDC hdc = GetDC(nullptr);
+        if (hdc == nullptr)
+        {
+            return fallback_srgb_state(std::string(screen_token), "windows_display_dc_unavailable",
+                                       std::move(srgb).value());
+        }
+        DWORD chars_needed = 0;
+        if (!GetICMProfileW(hdc, &chars_needed, nullptr) &&
+            GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+        {
+            ReleaseDC(nullptr, hdc);
+            return fallback_srgb_state(std::string(screen_token), "windows_icm_profile_unavailable",
+                                       std::move(srgb).value());
+        }
+        if (chars_needed == 0 || chars_needed > 32768U)
+        {
+            ReleaseDC(nullptr, hdc);
+            return fallback_srgb_state(std::string(screen_token),
+                                       "windows_icm_profile_path_invalid", std::move(srgb).value());
+        }
+        std::wstring path(chars_needed, L'\0');
+        DWORD path_chars = chars_needed;
+        if (!GetICMProfileW(hdc, &path_chars, path.data()))
+        {
+            ReleaseDC(nullptr, hdc);
+            return fallback_srgb_state(std::string(screen_token), "windows_icm_profile_unreadable",
+                                       std::move(srgb).value());
+        }
+        ReleaseDC(nullptr, hdc);
+        while (!path.empty() && path.back() == L'\0')
+        {
+            path.pop_back();
+        }
+        if (path.empty())
+        {
+            return fallback_srgb_state(std::string(screen_token), "windows_icm_profile_path_empty",
+                                       std::move(srgb).value());
+        }
+        std::ifstream input(std::filesystem::path(path), std::ios::binary);
+        if (!input)
+        {
+            return fallback_srgb_state(std::string(screen_token),
+                                       "windows_icm_profile_file_unreadable",
+                                       std::move(srgb).value());
+        }
+        std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)),
+                                        std::istreambuf_iterator<char>());
+        auto profile = profile_from_icc_bytes(std::move(bytes), "windows.display.primary");
+        if (!profile)
+        {
+            return fallback_srgb_state(std::string(screen_token),
+                                       profile.error().context.count("reason") ?
+                                           profile.error().context.at("reason") :
+                                           "corrupt_monitor_icc",
+                                       std::move(srgb).value());
+        }
+        static_cast<void>(screen_token);
+        return finalize_state(std::string(screen_token.empty() ? "primary" : screen_token),
+                              DisplayProfileSource::kSystemMonitor, "windows_icm_display_icc",
+                              std::move(profile).value());
+    }
 #elif defined(__linux__)
+    // No packaged colord/X11 dependency: keep explicit sRGB fallback. C2 host
+    // discovery remains macOS-primary with cross-platform fallback_srgb.
     return fallback_srgb_state(std::string(screen_token), "linux_monitor_discovery_unavailable",
                                std::move(srgb).value());
 #else
@@ -631,6 +701,59 @@ JsonValue display_presentation_state_to_json(const DisplayPresentationState &sta
         {"icc_byte_count",
          JsonValue::number(std::to_string(state.monitor_profile.icc_bytes.size()))},
         {"valid", state.valid},
+    };
+}
+
+std::vector<DisplayViewPixelContract> display_presentation_view_contracts()
+{
+    return {
+        {"gallery_thumbnail", DisplayViewPixelKind::kOutputReferred,
+         "after_soft_proof_display_only",
+         "Gallery thumbs stay output/soft-proof referred; monitor ICC not applied."},
+        {"loupe_preview", DisplayViewPixelKind::kDisplayTransformed,
+         "after_soft_proof_display_only",
+         "Loupe CPU preview applies presentation after soft-proof/output."},
+        {"develop_preview", DisplayViewPixelKind::kDisplayTransformed,
+         "after_soft_proof_display_only",
+         "Develop CPU preview applies presentation after soft-proof/output."},
+        {"before_after", DisplayViewPixelKind::kDisplayTransformed, "after_soft_proof_display_only",
+         "Before/After uses the same display-transformed preview path."},
+        {"comparison", DisplayViewPixelKind::kDisplayTransformed, "after_soft_proof_display_only",
+         "Comparison before/after plates are display-transformed."},
+        {"magnifier", DisplayViewPixelKind::kDisplayTransformed, "after_soft_proof_display_only",
+         "Magnifier zooms the active Loupe/Develop display-transformed pixels."},
+        {"scopes", DisplayViewPixelKind::kAnalysisDiagnostic, "after_soft_proof_display_only",
+         "Scopes analyze output-referred pixels; not monitor-converted."},
+        {"gpu_native_preview", DisplayViewPixelKind::kOutputReferred,
+         "after_soft_proof_display_only",
+         "GPU native surfaces remain output-referred until GPU presentation parity."},
+    };
+}
+
+JsonValue display_presentation_view_contracts_to_json()
+{
+    JsonValue::Array views;
+    for (const auto &entry : display_presentation_view_contracts())
+    {
+        views.push_back(JsonValue::Object{
+            {"view_id", entry.view_id},
+            {"pixel_kind", std::string(display_view_pixel_kind_name(entry.pixel_kind))},
+            {"soft_proof_interaction", entry.soft_proof_interaction},
+            {"notes", entry.notes},
+        });
+    }
+    return JsonValue::Object{
+        {"contract_version", std::string(kDisplayPresentationContractVersion)},
+        {"supported_host_discovery",
+#if defined(__APPLE__)
+         "macos_coregraphics"
+#elif defined(_WIN32)
+         "windows_icm_best_effort"
+#else
+         "fallback_srgb_only"
+#endif
+        },
+        {"views", std::move(views)},
     };
 }
 

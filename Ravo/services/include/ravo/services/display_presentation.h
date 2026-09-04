@@ -112,4 +112,43 @@ apply_display_presentation_rgb8(const std::vector<std::uint8_t> &source_rgb8, st
 
 [[nodiscard]] JsonValue display_presentation_state_to_json(const DisplayPresentationState &state);
 
+// ADR-0144 DISPLAY-01: machine-visible Studio view pixel-kind contracts.
+// display_transformed views must consume apply_display_presentation_rgb8 output.
+// output_referred / analysis_diagnostic views intentionally skip monitor ICC.
+enum class DisplayViewPixelKind : std::uint8_t
+{
+    kDisplayTransformed = 0,
+    kOutputReferred = 1,
+    kAnalysisDiagnostic = 2,
+};
+
+[[nodiscard]] constexpr std::string_view
+display_view_pixel_kind_name(DisplayViewPixelKind kind) noexcept
+{
+    switch (kind)
+    {
+    case DisplayViewPixelKind::kDisplayTransformed:
+        return "display_transformed";
+    case DisplayViewPixelKind::kOutputReferred:
+        return "output_referred";
+    case DisplayViewPixelKind::kAnalysisDiagnostic:
+        return "analysis_diagnostic";
+    }
+    return "output_referred";
+}
+
+struct DisplayViewPixelContract
+{
+    std::string view_id;
+    DisplayViewPixelKind pixel_kind = DisplayViewPixelKind::kOutputReferred;
+    // Soft-proof stays on recipe; display transform applies after soft-proof for
+    // on-screen display_transformed pixels only. Export bypasses display.
+    std::string soft_proof_interaction{"after_soft_proof_display_only"};
+    std::string notes;
+};
+
+[[nodiscard]] std::vector<DisplayViewPixelContract> display_presentation_view_contracts();
+
+[[nodiscard]] JsonValue display_presentation_view_contracts_to_json();
+
 } // namespace ravo
