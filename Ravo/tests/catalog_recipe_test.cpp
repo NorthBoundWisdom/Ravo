@@ -1340,9 +1340,10 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     // RCD tile-aligned CPU demosaic + spatial processing apron keep packed
     // channels within interactive abs-delta (±1) on this host
     // (kIqRawRoiVersusExportResidual). Metal ROI publish crops the same owned
-    // window after the apron (gpu_display_* size-matches owned). Scaled export
-    // crops stay a size-mismatch residual when max_edge forces scale (probe
-    // fields only; CPU-gold authority unchanged). Win/Linux / Bayer-RCD matrix
+    // window after the apron (gpu_display_* size-matches owned). Scaled max_edge
+    // export is compared fairly at the same scale as the settled preview crop
+    // (owned packed bit-exact). Cross-scale 1:1 ROI vs scaled-export crop is an
+    // explicit non-compare probe (no resample). Win/Linux / Bayer-RCD matrix
     // are not claimed.
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
@@ -1410,7 +1411,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     ASSERT_TRUE(preview) << preview.error().message;
     ASSERT_TRUE(require_cpu_gold_backend(preview.value().gpu_backend, "settled_preview"));
 
-    // Scaled export: CPU-gold authority at settled size; cannot size-match 1:1 ROI.
+    // Scaled export at the same max_edge as settled preview (fair same-scale path).
     const auto scaled_export_path = (root / "iq00-roi-export-scaled.png").string();
     ExportRequest scaled_export;
     scaled_export.asset_id = asset_id;
@@ -1421,6 +1422,8 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     ASSERT_TRUE(scaled_exported) << scaled_exported.error().message;
     EXPECT_EQ(scaled_exported.value().width, preview.value().width);
     EXPECT_EQ(scaled_exported.value().height, preview.value().height);
+    ASSERT_FALSE(preview.value().cache_path.empty());
+    ASSERT_TRUE(require_cpu_gold_backend(preview.value().gpu_backend, "scaled_settled_preview"));
 
     // Full-resolution export crop is the size-matched packed comparison authority.
     const auto full_export_path = (root / "iq00-roi-export-full.png").string();
@@ -1483,18 +1486,40 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
                        roi_gpu ? "gpu_backend_without_owned_surface" : "cpu_path_no_gpu_surface");
     }
 
+    // Fair same-scale owned compare: settled preview crop vs scaled export crop.
+    const QImage settled_image(QString::fromStdString(preview.value().cache_path));
+    ASSERT_FALSE(settled_image.isNull());
     const QImage scaled_image(QString::fromStdString(scaled_export_path));
     ASSERT_FALSE(scaled_image.isNull());
-    const auto scaled_crop =
+    ASSERT_EQ(settled_image.width(), scaled_image.width());
+    ASSERT_EQ(settled_image.height(), scaled_image.height());
+    const auto same_scale_crop =
         norm_rect_pixel_crop(roi_rect, static_cast<std::uint32_t>(scaled_image.width()),
                              static_cast<std::uint32_t>(scaled_image.height()));
-    RecordProperty("iq00_scaled_export_crop_w", static_cast<int>(scaled_crop.w));
-    RecordProperty("iq00_scaled_export_crop_h", static_cast<int>(scaled_crop.h));
-    ASSERT_FALSE(scaled_crop.w == roi_preview.value().width &&
-                 scaled_crop.h == roi_preview.value().height)
-        << "scaled export crop unexpectedly size-matched ROI; update residual claim";
-    RecordProperty("iq00_raw_roi_scaled_export_size_residual",
-                   "raw_roi_size_vs_scaled_export_crop_mismatch");
+    RecordProperty("iq00_scaled_export_crop_w", static_cast<int>(same_scale_crop.w));
+    RecordProperty("iq00_scaled_export_crop_h", static_cast<int>(same_scale_crop.h));
+    const auto settled_packed = qimage_to_packed_rgb8(settled_image);
+    const auto scaled_packed = qimage_to_packed_rgb8(scaled_image);
+    auto settled_crop_rgb =
+        crop_packed_rgb8(settled_packed, static_cast<std::uint32_t>(settled_image.width()),
+                         static_cast<std::uint32_t>(settled_image.height()), same_scale_crop.x,
+                         same_scale_crop.y, same_scale_crop.w, same_scale_crop.h);
+    ASSERT_TRUE(settled_crop_rgb) << settled_crop_rgb.error().message;
+    auto scaled_crop_rgb =
+        crop_packed_rgb8(scaled_packed, static_cast<std::uint32_t>(scaled_image.width()),
+                         static_cast<std::uint32_t>(scaled_image.height()), same_scale_crop.x,
+                         same_scale_crop.y, same_scale_crop.w, same_scale_crop.h);
+    ASSERT_TRUE(scaled_crop_rgb) << scaled_crop_rgb.error().message;
+    ASSERT_EQ(settled_crop_rgb.value().size(), scaled_crop_rgb.value().size());
+    EXPECT_TRUE(rgb8_buffers_equal(settled_crop_rgb.value(), scaled_crop_rgb.value()));
+    RecordProperty("iq00_scaled_export_same_scale_packed_bit_exact", "true");
+
+    // Explicit non-compare: cross-scale 1:1 ROI vs scaled-export crop (dims differ).
+    ASSERT_FALSE(same_scale_crop.w == roi_preview.value().width &&
+                 same_scale_crop.h == roi_preview.value().height)
+        << "scaled export crop unexpectedly size-matched 1:1 ROI; update non-compare claim";
+    RecordProperty("iq00_cross_scale_roi_vs_scaled_export",
+                   "explicit_non_compare_size_mismatch_no_resample");
 
     const QImage full_image(QString::fromStdString(full_export_path));
     ASSERT_FALSE(full_image.isNull());
@@ -1525,9 +1550,12 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
               std::string::npos);
     EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("gpu_native_roi_apron_owned_surface"),
               std::string::npos);
-    EXPECT_NE(
-        std::string(kIqRawRoiVersusExportResidual).find("scaled_export_max_edge_size_mismatch"),
-        std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual)
+                  .find("scaled_export_same_scale_settled_preview_crop_packed_bit_exact"),
+              std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual)
+                  .find("cross_scale_roi_vs_scaled_export_explicit_non_compare"),
+              std::string::npos);
     // Owned packed contract: size-matched full-export crop stays within interactive
     // abs-delta after tile-aligned demosaic + spatial apron (macOS probe).
     EXPECT_LE(max_delta, kIqGpuCpuPackedRgb8AbsDelta) << "max_packed_abs_delta=" << max_delta;

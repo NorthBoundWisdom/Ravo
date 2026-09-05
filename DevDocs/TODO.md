@@ -91,8 +91,8 @@ IQ-00 macOS Metal admitted-stage interactive packed-delta contracts landed
 CPU hybrid; RAW ROI vs full-export owned packed abs-delta closed within
 interactive ±1 on macOS (tile-aligned demosaic + spatial apron); Metal ROI
 apron owned-surface publish landed (gpu_display_* size-matches owned); scaled
-export max_edge size-mismatch remains documented via probe fields; Linux
-monitor discovery remain;
+export same-scale settled-preview crop packed bit-exact with cross-scale ROI
+vs scaled-export as explicit non-compare; Linux monitor discovery remain;
 OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
 INGEST-01 is C2 for Studio filesystem-card + ptp-stub Copy ingest with fail-
 closed native probe (packaged ImageCapture/WinRT/libmtp residual is C3). AI
@@ -364,9 +364,10 @@ as packed RGB8 within interactive abs-delta (±1) via RCD tile-aligned CPU
 demosaic plus spatial processing apron (`kIqRawRoiVersusExportResidual`);
 Metal ROI display publish crops the same owned window after the apron so
 `gpu_display_*` matches owned packed size when admitted stages publish;
-scaled export crops remain a max_edge size-mismatch residual (probe fields
-`iq00_scaled_export_crop_w/h` vs ROI; CPU-gold authority unchanged); RAW ROI
-may report GPU for admitted edit stages. **Not** a full corpus / Win/Linux /
+scaled max_edge export is compared fairly at the same scale as the settled
+preview crop (owned packed bit-exact; probe `iq00_scaled_export_same_scale_packed_bit_exact`);
+cross-scale 1:1 ROI vs scaled-export crop is an explicit non-compare (no resample);
+RAW ROI may report GPU for admitted edit stages. **Not** a full corpus / Win/Linux /
 proof-monitor / multi-instance / Bayer-RCD matrix closure.
 
 Complete a matrix across raster, Bayer, and X-Trans inputs; representative
@@ -616,7 +617,7 @@ visible.
   Metal stages is contracted under IQ-00 (presentation already matches
   Loupe/Develop owned-pixel). Remaining IQ/DISPLAY residuals: non-admitted
   interactive ops (CPU hybrid), full corpus / Win-Linux, RAW ROI scaled-export
-  max_edge size-mismatch (probe fields only), Linux/non-Metal GPU publish,
+  same-scale packed closed (cross-scale explicit non-compare), Linux/non-Metal GPU publish,
   packaged Linux monitor discovery, multi-display performance, and SDR/HDR
   policy. RAW ROI vs full-export owned packed abs-delta is closed within
   interactive ±1 on the macOS contract probe (tile-aligned demosaic + spatial

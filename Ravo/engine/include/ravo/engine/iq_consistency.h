@@ -40,8 +40,8 @@ inline constexpr std::string_view kIqGpuAdmittedInteractiveStages[] = {
 
 // Machine-visible residual after admitted-stage packed contracts: full
 // corpus / Win-Linux / proof-monitor / multi-instance GPU remain open; RAW
-// ROI vs export size-match is probed with owned packed-delta documented below.
-// Non-admitted interactive ops run CPU.
+// ROI vs export owned packed-delta + same-scale scaled-export compare are
+// documented below. Non-admitted interactive ops (e.g. contrast) run CPU.
 inline constexpr std::string_view kIqGpuInteractiveNonAdmittedPolicy =
     "non_admitted_ops_run_cpu_on_interactive_hybrid; masked_ops_cpu; "
     "non_linear_rec709_sharpen_cpu; non_linear_srgb_sigmoid_working_space_cpu; "
@@ -159,16 +159,19 @@ inline constexpr std::string_view kIqConsistencyGpuLiveResidual =
 // within interactive abs-delta (±1) on the macOS contract probe (observed).
 // Metal ROI display publish crops the same owned window after the apron so
 // gpu_display_* matches owned packed size when admitted stages publish.
-// Scaled/preview-edge export crops remain a size-mismatch residual when
-// max_edge forces scale (probe fields: iq00_scaled_export_crop_w/h vs ROI);
-// CPU-gold authority is not weakened by resampling the export crop.
+// Scaled max_edge export is compared fairly at the same scale: crop the
+// settled preview and the scaled export with the same norm rect (owned packed
+// bit-exact when dims match). Cross-scale 1:1 ROI vs scaled-export crop is an
+// explicit non-compare probe (dims mismatch; no resample that weakens CPU-gold).
 // RAW ROI may report GPU for admitted edit stages. Win/Linux / full corpus /
 // Bayer-RCD matrix stay open.
 inline constexpr std::string_view kIqRawRoiVersusExportResidual =
     "full_export_crop_size_matched_macos_contract; "
     "owned_packed_rgb8_within_interactive_abs_delta_rcd_tile_aligned_cpu_demosaic_spatial_apron; "
     "gpu_native_roi_apron_owned_surface_publish_macos_metal; "
-    "scaled_export_max_edge_size_mismatch_probe_fields; raw_viewport_roi_may_report_gpu; "
+    "scaled_export_same_scale_settled_preview_crop_packed_bit_exact; "
+    "cross_scale_roi_vs_scaled_export_explicit_non_compare; "
+    "raw_viewport_roi_may_report_gpu; "
     "persist_export_reopen_cpu_gold; win_linux_and_full_corpus_open";
 
 } // namespace ravo

@@ -481,9 +481,12 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
               std::string::npos);
     EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("gpu_native_roi_apron_owned_surface"),
               std::string::npos);
-    EXPECT_NE(
-        std::string(kIqRawRoiVersusExportResidual).find("scaled_export_max_edge_size_mismatch"),
-        std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual)
+                  .find("scaled_export_same_scale_settled_preview_crop_packed_bit_exact"),
+              std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual)
+                  .find("cross_scale_roi_vs_scaled_export_explicit_non_compare"),
+              std::string::npos);
     bool saw_exposure = false;
     bool saw_sigmoid = false;
     bool saw_sharpen = false;
