@@ -30,9 +30,9 @@ TEST(DomainTypesTest, FitsTheLongEdgeAndKeepsSmallImagesUnchanged)
 
 TEST(DomainTypesTest, PreviewContractInvalidatesAdaptiveDenoiseCaches)
 {
-    EXPECT_EQ(kPreviewContractVersion, 10);
+    EXPECT_EQ(kPreviewContractVersion, 11);
     EXPECT_TRUE(make_preview_cache_key("asset", 640, 480, "fingerprint", "recipe")
-                    .starts_with("v10_asset_640x480_fingerprint_recipe"));
+                    .starts_with("v11_asset_640x480_fingerprint_recipe"));
 }
 
 TEST(DomainUriTest, NormalizesAbsoluteAndRelativePathsToTheSameFileUri)

@@ -37,6 +37,7 @@ target_sources(ravo_engine
     src/hsl.h
     src/engine.cpp
     src/gpu_adapter.h
+    src/gpu_adapter_rhi_types.h
     src/guided_filter.cpp
     src/guided_filter.h
     src/image_ops.cpp
@@ -149,6 +150,7 @@ endfunction()
 ravo_embed_gpu_shader(affine_rgb)
 ravo_embed_gpu_shader(sigmoid_rgb)
 ravo_embed_gpu_shader(rapidraw_basic_tone)
+ravo_embed_gpu_shader(rapidraw_tone_blur)
 ravo_embed_gpu_shader(rapidraw_tone_controls)
 ravo_embed_gpu_shader(light_controls)
 ravo_embed_gpu_shader(contrast_rgb)

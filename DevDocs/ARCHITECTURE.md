@@ -520,8 +520,11 @@ embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 `embedded-jpeg`. It is not editable scene-linear data. Gallery grid cells keep
 that browse thumbnail; Standard/1:1 import drain does not replace it with
 processed RAW. Loupe, Develop, scopes, export, and `request_preview` with
-`prefer_embedded_preview=false` use preview contract v10: full CPU
-decode/render of the RAW. Import writes a colour-calibration baseline for RAW:
+`prefer_embedded_preview=false` use preview contract v11: full CPU
+decode/render of the RAW. Its successful decode owns the effective source
+dimensions; settled publication repairs older catalog rows, while transient
+interactive/probe requests remain read-only. Import writes a colour-calibration
+baseline for RAW:
 opposed highlight reconstruction, as-shot white balance from LibRaw `cam_mul`,
 the camera input matrix (`enhanced_matrix` via input profile `source`),
 `ravo.display.rapidraw-basic`, and `ravo.detail.sharpen` at the accepted Lab USM

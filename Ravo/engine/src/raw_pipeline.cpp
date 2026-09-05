@@ -171,6 +171,85 @@ void configure_exiv2_diagnostics()
     return decoder;
 }
 
+[[nodiscard]] Result<std::optional<RawDefaultCropMetadata>>
+read_raw_default_crop_metadata(const std::string_view input_uri)
+try
+{
+    configure_exiv2_diagnostics();
+    const QString path = local_path(input_uri);
+    const QByteArray utf8 = path.toUtf8();
+    auto image = Exiv2::ImageFactory::open(utf8.constData());
+    if (!image)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Exiv2 did not create a RAW metadata reader",
+            {{"input_uri", std::string(input_uri)}, {"reason", "raw_default_crop_read_failed"}});
+    }
+    image->readMetadata();
+    std::map<std::string, RawDefaultCropMetadata> groups;
+    for (const auto &datum : image->exifData())
+    {
+        const bool origin = datum.tagName() == "DefaultCropOrigin";
+        const bool size = datum.tagName() == "DefaultCropSize";
+        if (!origin && !size)
+        {
+            continue;
+        }
+        const std::string group = datum.groupName();
+        auto &metadata = groups[group];
+        metadata.ifd_group = group;
+        std::vector<std::int64_t> values;
+        values.reserve(datum.count());
+        for (std::size_t index = 0U; index < datum.count(); ++index)
+        {
+            values.push_back(datum.toInt64(index));
+        }
+        (origin ? metadata.origin : metadata.size) = std::move(values);
+    }
+    if (groups.empty())
+    {
+        return std::optional<RawDefaultCropMetadata>{};
+    }
+    std::optional<RawDefaultCropMetadata> selected;
+    for (auto &[group, metadata] : groups)
+    {
+        if (!metadata.origin || !metadata.size)
+        {
+            return make_error(ErrorCode::kValidation, "RAW DefaultCrop metadata is incomplete",
+                              {{"ifd_group", group},
+                               {"input_uri", std::string(input_uri)},
+                               {"reason", "incomplete_raw_default_crop"}});
+        }
+        if (selected && (selected->origin != metadata.origin || selected->size != metadata.size))
+        {
+            return make_error(ErrorCode::kValidation, "RAW DefaultCrop metadata is ambiguous",
+                              {{"ifd_group", group},
+                               {"input_uri", std::string(input_uri)},
+                               {"reason", "ambiguous_raw_default_crop"}});
+        }
+        selected = std::move(metadata);
+    }
+    return selected;
+}
+catch (const std::bad_alloc &)
+{
+    throw;
+}
+catch (const Exiv2::Error &error)
+{
+    return make_error(ErrorCode::kValidation, "RAW DefaultCrop metadata could not be read",
+                      {{"detail", error.what()},
+                       {"input_uri", std::string(input_uri)},
+                       {"reason", "raw_default_crop_read_failed"}});
+}
+catch (const std::exception &error)
+{
+    return make_error(ErrorCode::kValidation, "RAW DefaultCrop metadata could not be read",
+                      {{"detail", error.what()},
+                       {"input_uri", std::string(input_uri)},
+                       {"reason", "raw_default_crop_read_failed"}});
+}
+
 // LibRaw/dcraw flip: 0 none, 3 180°, 5 90° CCW, 6 90° CW.
 [[nodiscard]] int clockwise_quarters_from_libraw_flip(const int flip) noexcept
 {
@@ -351,7 +430,7 @@ void configure_exiv2_diagnostics()
 }
 
 [[nodiscard]] Result<std::shared_ptr<const DngOpcodeMetadata>>
-parse_libraw_dng_opcodes(const libraw_data_t &raw)
+parse_libraw_dng_opcodes(const libraw_data_t &raw, const RawDecodeRegion &region)
 {
     auto list2 = libraw_dng_opcode_view(raw, 1U, LIBRAW_DNGFM_OPCODE2, 2U);
     if (!list2)
@@ -364,7 +443,8 @@ parse_libraw_dng_opcodes(const libraw_data_t &raw)
         return list3.error();
     }
     return parse_dng_opcode_metadata(list2.value(), list3.value(), raw.sizes.width,
-                                     raw.sizes.height);
+                                     raw.sizes.height, region.relative_left, region.relative_top,
+                                     region.width, region.height);
 }
 
 } // namespace raw_pipeline_internal
@@ -509,21 +589,85 @@ Result<RawExposureMetadata> resolve_legacy_exposure_metadata(const LegacyExposur
     return result;
 }
 
+Result<RawDecodeRegion>
+resolve_raw_decode_region(const std::optional<RawDefaultCropMetadata> &metadata,
+                          const std::uint32_t libraw_left, const std::uint32_t libraw_top,
+                          const std::uint32_t libraw_width, const std::uint32_t libraw_height,
+                          const std::uint32_t raw_width, const std::uint32_t raw_height)
+{
+    const auto malformed = [](const std::string_view reason)
+    {
+        return make_error(ErrorCode::kValidation, "RAW DefaultCrop metadata is malformed",
+                          {{"reason", std::string(reason)}});
+    };
+    if (libraw_width == 0U || libraw_height == 0U || libraw_left > raw_width ||
+        libraw_top > raw_height || libraw_width > raw_width - libraw_left ||
+        libraw_height > raw_height - libraw_top)
+    {
+        return malformed("invalid_libraw_active_area");
+    }
+    RawDecodeRegion region{libraw_left, libraw_top, libraw_width, libraw_height, 0U, 0U};
+    if (!metadata)
+    {
+        return region;
+    }
+    if (!metadata->origin || !metadata->size || metadata->origin->size() != 2U ||
+        metadata->size->size() != 2U)
+    {
+        return malformed("invalid_raw_default_crop_arity");
+    }
+    const auto x = (*metadata->origin)[0];
+    const auto y = (*metadata->origin)[1];
+    const auto width = (*metadata->size)[0];
+    const auto height = (*metadata->size)[1];
+    constexpr auto maximum = static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max());
+    if (x < 0 || y < 0 || width <= 0 || height <= 0 || x > maximum || y > maximum ||
+        width > maximum || height > maximum)
+    {
+        return malformed("invalid_raw_default_crop_value");
+    }
+    const auto relative_left = static_cast<std::uint32_t>(x);
+    const auto relative_top = static_cast<std::uint32_t>(y);
+    const auto crop_width = static_cast<std::uint32_t>(width);
+    const auto crop_height = static_cast<std::uint32_t>(height);
+    if (relative_left > libraw_width || relative_top > libraw_height ||
+        crop_width > libraw_width - relative_left || crop_height > libraw_height - relative_top)
+    {
+        return malformed("raw_default_crop_out_of_bounds");
+    }
+    region.left += relative_left;
+    region.top += relative_top;
+    region.width = crop_width;
+    region.height = crop_height;
+    region.relative_left = relative_left;
+    region.relative_top = relative_top;
+    return region;
+}
+
 Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::string_view input_uri)
 {
     const auto &raw = decoder.imgdata;
-    if (raw.sizes.width == 0 || raw.sizes.height == 0)
+    auto crop_metadata = read_raw_default_crop_metadata(input_uri);
+    if (!crop_metadata)
     {
-        return make_error(ErrorCode::kValidation, "LibRaw returned invalid RAW dimensions",
-                          {{"input_uri", std::string(input_uri)}});
+        return crop_metadata.error();
+    }
+    auto region = resolve_raw_decode_region(crop_metadata.value(), raw.sizes.left_margin,
+                                            raw.sizes.top_margin, raw.sizes.width, raw.sizes.height,
+                                            raw.sizes.raw_width, raw.sizes.raw_height);
+    if (!region)
+    {
+        auto error = region.error();
+        error.context.insert_or_assign("input_uri", std::string(input_uri));
+        return error;
     }
     InspectionResult result;
     result.input_uri = std::string(input_uri);
     result.format = "raw";
     result.make = raw.idata.make;
     result.model = raw.idata.model;
-    result.width = static_cast<std::uint32_t>(raw.sizes.width);
-    result.height = static_cast<std::uint32_t>(raw.sizes.height);
+    result.width = region.value().width;
+    result.height = region.value().height;
     apply_display_rotation_to_size(result.width, result.height,
                                    clockwise_quarters_from_libraw_flip(raw.sizes.flip));
     result.is_raw = true;
@@ -583,7 +727,7 @@ Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::stri
         result.camera_reference_white_balance = {camera_reference[0], camera_reference[1],
                                                  camera_reference[2], camera_reference[3]};
     }
-    auto dng_opcodes = parse_libraw_dng_opcodes(raw);
+    auto dng_opcodes = parse_libraw_dng_opcodes(raw, region.value());
     if (!dng_opcodes)
     {
         return dng_opcodes.error();
@@ -819,18 +963,30 @@ try
                            {"reason", "unsupported_raw_sensor"},
                            {"sensor", sensor}});
     }
-    if (sizes.width == 0 || sizes.height == 0 || sizes.raw_pitch == 0 ||
-        static_cast<std::uint32_t>(sizes.left_margin) + sizes.width > sizes.raw_width ||
-        static_cast<std::uint32_t>(sizes.top_margin) + sizes.height > sizes.raw_height)
+    auto crop_metadata = read_raw_default_crop_metadata(input_uri);
+    if (!crop_metadata)
     {
+        return crop_metadata.error();
+    }
+    auto region =
+        resolve_raw_decode_region(crop_metadata.value(), sizes.left_margin, sizes.top_margin,
+                                  sizes.width, sizes.height, sizes.raw_width, sizes.raw_height);
+    if (!region || sizes.raw_pitch == 0)
+    {
+        if (!region)
+        {
+            auto error = region.error();
+            error.context.insert_or_assign("input_uri", std::string(input_uri));
+            return error;
+        }
         return make_error(
             ErrorCode::kValidation, "LibRaw returned invalid RAW dimensions",
             {{"input_uri", std::string(input_uri)}, {"reason", "invalid_raw_dimensions"}});
     }
     constexpr std::uint32_t kMaxRawDimension = 65535U;
     constexpr std::uint64_t kMaxRawCfaBytes = 512ULL * 1024ULL * 1024ULL;
-    const auto pixel_count =
-        saturating_multiply(static_cast<std::uint64_t>(sizes.width), sizes.height);
+    const auto pixel_count = saturating_multiply(static_cast<std::uint64_t>(region.value().width),
+                                                 region.value().height);
     const auto cfa_bytes = saturating_multiply(pixel_count, sizeof(std::uint16_t));
     if (sizes.width > kMaxRawDimension || sizes.height > kMaxRawDimension ||
         static_cast<std::uint32_t>(sizes.raw_width) > kMaxRawDimension ||
@@ -844,15 +1000,15 @@ try
                            {"width", std::to_string(sizes.width)}});
     }
 
-    auto dng_opcodes = parse_libraw_dng_opcodes(raw);
+    auto dng_opcodes = parse_libraw_dng_opcodes(raw, region.value());
     if (!dng_opcodes)
     {
         return dng_opcodes.error();
     }
 
     DecodedRaw result;
-    result.width = sizes.width;
-    result.height = sizes.height;
+    result.width = region.value().width;
+    result.height = region.value().height;
     result.rotate_quarters = clockwise_quarters_from_libraw_flip(sizes.flip);
     result.black_level = static_cast<std::int32_t>(
         std::min(raw.color.black, static_cast<unsigned>(std::numeric_limits<std::int32_t>::max())));
@@ -939,8 +1095,8 @@ try
             // Bayer FC(), by contrast, needs the absolute sensor coordinates.
             const int color = xtrans ?
                                   raw.idata.xtrans[y][x] :
-                                  decoder.value()->COLOR(static_cast<int>(sizes.top_margin + y),
-                                                         static_cast<int>(sizes.left_margin + x));
+                                  decoder.value()->COLOR(static_cast<int>(region.value().top + y),
+                                                         static_cast<int>(region.value().left + x));
             auto channel = channel_for(color);
             if (!channel)
             {
@@ -960,8 +1116,8 @@ try
             return active.error();
         }
         const auto *source = raw.rawdata.raw_image +
-                             (static_cast<std::size_t>(sizes.top_margin) + y) * pitch +
-                             sizes.left_margin;
+                             (static_cast<std::size_t>(region.value().top) + y) * pitch +
+                             region.value().left;
         const auto row_offset =
             static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) * result.width);
         std::copy_n(source, result.width, result.pixels.begin() + row_offset);

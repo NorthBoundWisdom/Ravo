@@ -31,8 +31,8 @@
         "Ravo/tests/catalog_capture_test.cpp",
         "Ravo/tests/catalog_import_test.cpp"
       ],
-      "case_count": 152,
-      "case_sha256": "efd044b5bff03d501e8a57a4cdbdbef0405fb2158d43987ad3c5403662ae69d8"
+      "case_count": 153,
+      "case_sha256": "f8732f7d58dc032a9200a8e8524cdecfcc73ce7913eedbcd7dc0a17c314bddb0"
     },
     {
       "sources": [

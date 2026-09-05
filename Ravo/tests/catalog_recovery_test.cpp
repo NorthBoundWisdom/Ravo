@@ -1033,13 +1033,36 @@ TEST_F(CatalogServiceTest, InteractiveAndSettledRawWorkingBuffersRemainIndepende
     auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
+    ASSERT_TRUE(imported.value().asset->width);
+    ASSERT_TRUE(imported.value().asset->height);
+    const auto expected_width = *imported.value().asset->width;
+    const auto expected_height = *imported.value().asset->height;
+    auto stale_asset = *imported.value().asset;
+    stale_asset.width = expected_width + 2U;
+    stale_asset.height = expected_height + 2U;
+    ASSERT_TRUE(sqlite_repository->update_asset(stale_asset));
 
     PreviewRequest settled;
     settled.asset_id = imported.value().asset->id;
     settled.max_edge = kDefaultPreviewMaxEdge;
     settled.prefer_embedded_preview = false;
+    PreviewRequest read_only = settled;
+    read_only.persist_preview_record = false;
+    auto transient = service->request_preview(read_only);
+    ASSERT_TRUE(transient) << transient.error().message;
+    auto still_stale = sqlite_repository->find_asset_by_id(settled.asset_id);
+    ASSERT_TRUE(still_stale) << still_stale.error().message;
+    ASSERT_TRUE(still_stale.value());
+    EXPECT_EQ(still_stale.value()->width, stale_asset.width);
+    EXPECT_EQ(still_stale.value()->height, stale_asset.height);
+
     auto full = service->request_preview(settled);
     ASSERT_TRUE(full) << full.error().message;
+    auto repaired = sqlite_repository->find_asset_by_id(settled.asset_id);
+    ASSERT_TRUE(repaired) << repaired.error().message;
+    ASSERT_TRUE(repaired.value());
+    EXPECT_EQ(repaired.value()->width, expected_width);
+    EXPECT_EQ(repaired.value()->height, expected_height);
     auto cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
     EXPECT_FALSE(cache_state[0].has_value());
     EXPECT_EQ(cache_state[1], kDefaultPreviewMaxEdge);

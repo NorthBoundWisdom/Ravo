@@ -21,6 +21,7 @@
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/velvia.h"
 #include "image_ops_internal.h"
+#include "rapidraw_tone_controls.h"
 
 namespace ravo
 {
@@ -481,11 +482,8 @@ enum class PreviewOpClass : std::uint8_t
         pass.kind = GpuRgbPass::Kind::kRapidRawToneControls;
         pass.rapidraw_tone.width = working.width;
         pass.rapidraw_tone.height = working.height;
-        pass.rapidraw_tone.radius =
-            working.canonical_roi_scale.valid() ?
-                static_cast<std::uint32_t>(std::max(
-                    1, static_cast<int>(std::ceil(3.5F * working.canonical_roi_scale.value())))) :
-                1U;
+        pass.rapidraw_tone.radius = rapidraw_tonal_blur_radius(
+            working.canonical_roi_scale.reference_short_edge());
         pass.rapidraw_tone.ev_shift = static_cast<float>(parsed.value().ev_shift);
         pass.rapidraw_tone.exposure = static_cast<float>(parsed.value().exposure);
         pass.rapidraw_tone.contrast = static_cast<float>(parsed.value().contrast);

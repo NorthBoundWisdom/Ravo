@@ -47,9 +47,12 @@ copy the response.
   there is no silent alternative algorithm.
 - New RAW Studio controls expose RapidRAW's `[-5,5]` EV Shift/Exposure and
   `[-100,100]` tonal units. Shadows/Blacks use the scale-aware 3.5-pixel
-  Gaussian tonal reference. CPU preflight owns both blur planes; Metal snapshots
-  the current RGB buffer before the neighbourhood read so a dispatch never races
-  adjacent writes.
+  Gaussian tonal reference, with RapidRAW's current-short-edge/1080 scale rather
+  than Ravo's original-image density scale. CPU and Metal execute the same
+  separable horizontal/vertical Gaussian; Metal materializes the horizontal
+  plane before the tone pass so no dispatch reads adjacent pixels being written.
+  Studio and history label `EV Shift` separately from filmic `Exposure`; stored
+  `ev_shift` and `exposure` values are never reinterpreted or exchanged.
 
 ## Consequences
 

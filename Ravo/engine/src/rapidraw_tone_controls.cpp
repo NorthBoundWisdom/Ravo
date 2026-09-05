@@ -164,8 +164,8 @@ void highlights_adjustment(float rgb[3], const float highlights) noexcept
                           {{"reason", "invalid_rapidraw_tone_roi_scale"}});
     }
     std::vector<float> horizontal;
-    const int radius =
-        std::max(1, static_cast<int>(std::ceil(3.5F * image.canonical_roi_scale.value())));
+    const int radius = static_cast<int>(
+        rapidraw_tonal_blur_radius(image.canonical_roi_scale.reference_short_edge()));
     std::vector<float> weights;
     try
     {
@@ -236,6 +236,19 @@ void highlights_adjustment(float rgb[3], const float highlights) noexcept
 }
 
 } // namespace
+
+std::uint32_t rapidraw_tonal_blur_radius(const std::uint32_t width,
+                                         const std::uint32_t height) noexcept
+{
+    return rapidraw_tonal_blur_radius(static_cast<float>(std::min(width, height)));
+}
+
+std::uint32_t rapidraw_tonal_blur_radius(const float reference_short_edge) noexcept
+{
+    const float reference_scale = reference_short_edge / 1080.0F;
+    return static_cast<std::uint32_t>(
+        std::max(1, static_cast<int>(std::ceil(3.5F * reference_scale))));
+}
 
 // Adapted from RapidRAW commit d6d8daa999f81198fb49e99b7e8ff43b47a6ffcd,
 // src-tauri/src/shaders/{blur,shader}.wgsl and image_processing.rs, AGPL-3.0.

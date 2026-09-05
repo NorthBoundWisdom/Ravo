@@ -25,7 +25,9 @@ DevelopSection {
         }
         CustomSlider {
             Layout.fillWidth: true
-            title: qsTr("Exposure") + " EV"
+            // RapidRAW exposes this as a separate technical control. Keep the
+            // source name verbatim so it cannot be mistaken for filmic Exposure.
+            title: "EV Shift"
             from: -5
             to: 5
             stepSize: 0.01

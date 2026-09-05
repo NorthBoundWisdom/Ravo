@@ -57,7 +57,7 @@ inline constexpr std::size_t kKeywordPathMaxLength = 512;
 inline constexpr char kKeywordPathSeparator = '|';
 
 inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
-inline constexpr std::int64_t kPreviewContractVersion = 10;
+inline constexpr std::int64_t kPreviewContractVersion = 11;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 960;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;

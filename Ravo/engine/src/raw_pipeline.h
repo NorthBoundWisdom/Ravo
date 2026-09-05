@@ -2,7 +2,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "ravo/engine/engine.h"
 
@@ -24,6 +27,23 @@ struct LegacyExposureMetadataTags
     std::optional<std::vector<std::uint8_t>> pentax_dynamic_range_expansion;
 };
 
+struct RawDefaultCropMetadata
+{
+    std::string ifd_group;
+    std::optional<std::vector<std::int64_t>> origin;
+    std::optional<std::vector<std::int64_t>> size;
+};
+
+struct RawDecodeRegion
+{
+    std::uint32_t left = 0;
+    std::uint32_t top = 0;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t relative_left = 0;
+    std::uint32_t relative_top = 0;
+};
+
 [[nodiscard]] Result<InspectionResult> identify_raw(std::string_view input_uri);
 [[nodiscard]] Result<EmbeddedPreview> extract_libraw_preview(std::string_view input_uri,
                                                              std::uint32_t max_edge,
@@ -33,6 +53,11 @@ inspect_raw_with_embedded_preview(std::string_view input_uri, std::uint32_t max_
                                   const CancellationToken &cancellation);
 [[nodiscard]] Result<RawExposureMetadata>
 resolve_legacy_exposure_metadata(const LegacyExposureMetadataTags &tags);
+[[nodiscard]] Result<RawDecodeRegion>
+resolve_raw_decode_region(const std::optional<RawDefaultCropMetadata> &metadata,
+                          std::uint32_t libraw_left, std::uint32_t libraw_top,
+                          std::uint32_t libraw_width, std::uint32_t libraw_height,
+                          std::uint32_t raw_width, std::uint32_t raw_height);
 [[nodiscard]] Result<DecodedRaw> decode_raw(std::string_view input_uri,
                                             const CancellationToken &cancellation);
 [[nodiscard]] Result<std::shared_ptr<const ExposureAnalysisContext>>

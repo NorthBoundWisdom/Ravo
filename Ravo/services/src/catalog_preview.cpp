@@ -505,11 +505,14 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         }
     }
 
-    const auto source_width = working.width.value_or(asset.width.value_or(0));
-    const auto source_height = working.height.value_or(asset.height.value_or(0));
+    auto source_width = working.width.value_or(asset.width.value_or(0));
+    auto source_height = working.height.value_or(asset.height.value_or(0));
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
+    const PreviewLane lane = request.purpose == PreviewPurpose::kBrowse ?
+                                 PreviewLane::kBackgroundBrowse :
+                                 PreviewLane::kForegroundDevelop;
     const auto fingerprint = asset.content_fingerprint.value_or("none");
     const bool embedded_browse =
         request.purpose == PreviewPurpose::kBrowse && request.prefer_embedded_preview &&
@@ -583,6 +586,34 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         {
             LOG_INFO(ravo::logger(), "embedded browse preview unavailable asset={} error={}",
                      asset.id, extracted.error().message);
+        }
+    }
+    if (original_exists && is_raw_media_type(working.media_type))
+    {
+        auto decoded = cached_raw_frame(working, render_path, request.cancellation, lane);
+        if (!decoded)
+        {
+            return decoded.error();
+        }
+        std::uint32_t decoded_width = decoded.value()->width;
+        std::uint32_t decoded_height = decoded.value()->height;
+        apply_display_rotation_to_size(decoded_width, decoded_height,
+                                       decoded.value()->rotate_quarters);
+        if (decoded_width != source_width || decoded_height != source_height)
+        {
+            working.width = decoded_width;
+            working.height = decoded_height;
+            source_width = decoded_width;
+            source_height = decoded_height;
+            fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
+            if (request.persist_preview_record)
+            {
+                auto updated = repository_->update_asset(working);
+                if (!updated)
+                {
+                    return updated.error();
+                }
+            }
         }
     }
     auto baseline_recipe = baseline_recipe_for(working, location.value().path);
@@ -722,7 +753,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                  {"reason",
                   using_offline_proxy ? "offline_proxy_roi_unsupported" : "original_missing"}});
         }
-        return generate_roi_preview(asset, request, edit_recipe, render_path);
+        return generate_roi_preview(working, request, edit_recipe, render_path);
     }
     const bool interactive = !request.persist_preview_record || request.overlay_mask_id.has_value();
     std::string cache_digest = interactive ? "interactive" : edit_digest;
@@ -785,9 +816,6 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
 
     const auto render_started = std::chrono::steady_clock::now();
     RenderedImage rendered;
-    const PreviewLane lane = request.purpose == PreviewPurpose::kBrowse ?
-                                 PreviewLane::kBackgroundBrowse :
-                                 PreviewLane::kForegroundDevelop;
     if (is_raw_media_type(working.media_type))
     {
         auto linear = cached_linear_working(working, render_path, edit_recipe, width, height,

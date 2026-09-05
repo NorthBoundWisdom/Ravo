@@ -697,6 +697,8 @@ TEST(CanonicalRoiScaleTest, RasterAndOrientedRawCreationCarryOnlyProvenProportio
     EXPECT_TRUE(downscaled.valid());
     EXPECT_FLOAT_EQ(full.value(), 1.0F);
     EXPECT_FLOAT_EQ(downscaled.value(), 0.5F);
+    EXPECT_FLOAT_EQ(full.reference_short_edge(), 6.0F);
+    EXPECT_FLOAT_EQ(downscaled.reference_short_edge(), 3.0F);
     EXPECT_FALSE(CanonicalRoiScale::from_scaled_dimensions(4U, 4U, 8U, 6U).valid());
     EXPECT_FALSE(CanonicalRoiScale::from_scaled_dimensions(4U, 3U, 0U, 6U).valid());
 
@@ -710,6 +712,7 @@ TEST(CanonicalRoiScaleTest, RasterAndOrientedRawCreationCarryOnlyProvenProportio
     ASSERT_TRUE(raster_working) << raster_working.error().message;
     EXPECT_TRUE(raster_working.value().canonical_roi_scale.valid());
     EXPECT_FLOAT_EQ(raster_working.value().canonical_roi_scale.value(), 0.5F);
+    EXPECT_FLOAT_EQ(raster_working.value().canonical_roi_scale.reference_short_edge(), 3.0F);
     raster.source_width = 0U;
     const auto unknown_raster_working = working_from_encoded_rgb8(raster);
     ASSERT_TRUE(unknown_raster_working) << unknown_raster_working.error().message;
@@ -734,6 +737,7 @@ TEST(CanonicalRoiScaleTest, RasterAndOrientedRawCreationCarryOnlyProvenProportio
     EXPECT_EQ(raw_working.value().height, 2U);
     EXPECT_TRUE(raw_working.value().canonical_roi_scale.valid());
     EXPECT_FLOAT_EQ(raw_working.value().canonical_roi_scale.value(), 0.5F);
+    EXPECT_FLOAT_EQ(raw_working.value().canonical_roi_scale.reference_short_edge(), 1.0F);
 }
 
 TEST(EngineFacadeTest, ReadsMire1EmbeddedCaptureAsLocalTimeWithoutOffset)

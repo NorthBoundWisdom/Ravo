@@ -610,8 +610,7 @@ Result<WorkingImage> working_from_raw_window(const DecodedRaw &raw, const std::u
         return oriented.error();
     }
     oriented.value().canonical_roi_scale =
-        CanonicalRoiScale::from_scaled_dimensions(oriented.value().width, oriented.value().height,
-                                                  oriented.value().width, oriented.value().height);
+        CanonicalRoiScale::from_scaled_dimensions(raw.width, raw.height, raw.width, raw.height);
     return oriented;
 }
 

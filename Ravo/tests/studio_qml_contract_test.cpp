@@ -76,6 +76,9 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     ASSERT_GT(light_end, light_begin);
     const auto light = source.mid(light_begin, light_end - light_begin);
 
+    EXPECT_TRUE(light.contains(QStringLiteral("title: \"EV Shift\"")));
+    EXPECT_FALSE(light.contains(QStringLiteral("Exposure (EV Shift)")));
+
     const auto rapidraw_ev = light.indexOf(QStringLiteral("rapidrawEvShift"));
     const auto tone_mapper = light.indexOf(QStringLiteral("toneMapperIndex"));
     const auto rapidraw_exposure = light.indexOf(QStringLiteral("rapidrawExposure"));

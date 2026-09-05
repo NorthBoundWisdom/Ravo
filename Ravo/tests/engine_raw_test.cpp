@@ -73,6 +73,31 @@ public:
 
 TEST(EngineFacadeTest, ClassifiesMissingDirectoryTruncatedAndUnrecognizedRaw)
 {
+    auto uncropped = resolve_raw_decode_region(std::nullopt, 8U, 6U, 100U, 80U, 120U, 100U);
+    ASSERT_TRUE(uncropped) << uncropped.error().message;
+    EXPECT_EQ(uncropped.value().left, 8U);
+    EXPECT_EQ(uncropped.value().top, 6U);
+    EXPECT_EQ(uncropped.value().width, 100U);
+    EXPECT_EQ(uncropped.value().height, 80U);
+
+    RawDefaultCropMetadata sony_crop;
+    sony_crop.ifd_group = "SubImage1";
+    sony_crop.origin = std::vector<std::int64_t>{32, 20};
+    sony_crop.size = std::vector<std::int64_t>{9504, 6336};
+    auto cropped = resolve_raw_decode_region(sony_crop, 0U, 0U, 9564U, 6376U, 9600U, 6376U);
+    ASSERT_TRUE(cropped) << cropped.error().message;
+    EXPECT_EQ(cropped.value().left, 32U);
+    EXPECT_EQ(cropped.value().top, 20U);
+    EXPECT_EQ(cropped.value().width, 9504U);
+    EXPECT_EQ(cropped.value().height, 6336U);
+    EXPECT_EQ(cropped.value().relative_left, 32U);
+    EXPECT_EQ(cropped.value().relative_top, 20U);
+
+    sony_crop.size = std::vector<std::int64_t>{9600, 6336};
+    auto invalid_crop = resolve_raw_decode_region(sony_crop, 0U, 0U, 9564U, 6376U, 9600U, 6376U);
+    ASSERT_FALSE(invalid_crop);
+    EXPECT_EQ(invalid_crop.error().context.at("reason"), "raw_default_crop_out_of_bounds");
+
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
     const auto root =

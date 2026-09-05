@@ -609,8 +609,11 @@ Current implementation status:
   display transform, adapted from the pinned RapidRAW source under AGPLv3.
   `ravo.core.rapidraw-tone-controls` v1 gives Studio and CLI the matching EV
   Shift, Exposure, Contrast, Highlights, Shadows, Whites, and Blacks response
-  in RapidRAW's native slider units. Shadows and Blacks use its scale-aware
-  3.5-pixel tonal blur. The Light tone-mapper selector lets an existing
+  in RapidRAW's native slider units. Shadows and Blacks use its 1080px-short-edge
+  scale-aware 3.5-pixel separable tonal blur. `EV Shift` and `Exposure` remain
+  visibly distinct controls, matching RapidRAW's linear `exposure` and filmic
+  `brightness` fields respectively; history does not collapse their labels.
+  The Light tone-mapper selector lets an existing
   Sigmoid recipe opt into this pair explicitly; merely reopening an old recipe
   never changes it.
   Existing recipes with `ravo.display.sigmoid` v1 keep their prior
@@ -618,7 +621,13 @@ Current implementation status:
   as a user edit. The RAW baseline runs
   opposed highlight reconstruction before demosaic and also enables
   `ravo.detail.sharpen` at amount 0.5, radius 2, and threshold 0.5. Gallery embedded-JPEG
-  thumbnails and inspect dimensions are corrected to camera orientation.
+  thumbnails and inspect dimensions are corrected to camera orientation. RAW
+  inspect/decode also apply a bounded, unambiguous
+  `DefaultCropOrigin`/`DefaultCropSize` metadata pair; CFA phase and DNG opcode
+  coordinates retain the corresponding sensor offset. A settled processed RAW
+  preview repairs pre-v11 catalog dimensions after successful decode; read-only
+  interactive/probe requests use the decoded dimensions transiently and do not
+  mutate the asset row.
   Configure requires JPEG/GIF/WebP/TIFF imageformat plugins and the QSQLITE
   driver; missing them is a hard error.
 

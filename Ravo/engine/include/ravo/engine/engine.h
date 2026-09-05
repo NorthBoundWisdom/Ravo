@@ -60,13 +60,15 @@ public:
         }
 
         const float scale = static_cast<float>(current_long) / static_cast<float>(original_long);
-        return std::isfinite(scale) && scale > 0.0F ? CanonicalRoiScale(scale) :
-                                                      CanonicalRoiScale{};
+        return std::isfinite(scale) && scale > 0.0F ?
+                   CanonicalRoiScale(scale, static_cast<float>(current_short)) :
+                   CanonicalRoiScale{};
     }
 
     [[nodiscard]] bool valid() const noexcept
     {
-        return std::isfinite(value_) && value_ > 0.0F;
+        return std::isfinite(value_) && value_ > 0.0F &&
+               std::isfinite(reference_short_edge_) && reference_short_edge_ > 0.0F;
     }
 
     [[nodiscard]] float value() const noexcept
@@ -74,13 +76,22 @@ public:
         return value_;
     }
 
+    // Full-frame short edge at this working buffer's pixel density. A cropped
+    // ROI keeps the source density while retaining its smaller owned extent.
+    [[nodiscard]] float reference_short_edge() const noexcept
+    {
+        return reference_short_edge_;
+    }
+
 private:
-    explicit constexpr CanonicalRoiScale(const float value) noexcept
-        : value_(value)
+    explicit constexpr CanonicalRoiScale(const float value,
+                                         const float reference_short_edge) noexcept
+        : value_(value), reference_short_edge_(reference_short_edge)
     {
     }
 
     float value_ = std::numeric_limits<float>::quiet_NaN();
+    float reference_short_edge_ = std::numeric_limits<float>::quiet_NaN();
 };
 
 enum class RenderBackend

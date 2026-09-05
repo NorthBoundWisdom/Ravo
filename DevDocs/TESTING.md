@@ -665,7 +665,7 @@ gated (ADR-0096).
   at the pre-commit seam (ADR-0067).
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v10 validates complete decode, explicit input/output
+- RAW preview contract v11 validates complete decode, explicit input/output
   profiles, default opposed highlight reconstruction, and default RapidRAW
   Basic tone; the raster baseline must not receive a second display transform.
   RapidRAW tone requires strict schema validation, fixed normalization and

@@ -186,7 +186,9 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Unbreak input profile");
     if (field == "sigmoid")
         return QCoreApplication::translate("DevelopPanel", "Sigmoid");
-    if (field == "rapidrawEvShift" || field == "rapidrawExposure")
+    if (field == "rapidrawEvShift")
+        return QStringLiteral("EV Shift");
+    if (field == "rapidrawExposure")
         return QCoreApplication::translate("DevelopPanel", "Exposure");
     if (field == "rapidrawContrast")
         return QCoreApplication::translate("DevelopPanel", "Contrast");

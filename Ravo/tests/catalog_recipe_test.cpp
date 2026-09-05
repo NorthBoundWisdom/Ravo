@@ -709,22 +709,20 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
         static_cast<int>(rapidraw_preview.value().height),
         static_cast<int>(rapidraw_preview.value().width * 3U), QImage::Format_RGB888);
     const QImage rapidraw_export_rgb = rapidraw_export_image.convertToFormat(QImage::Format_RGB888);
-    bool within_gpu_delta = true;
-    for (int row = 0; row < rapidraw_export_rgb.height() && within_gpu_delta; ++row)
+    int maximum_gpu_delta = 0;
+    for (int row = 0; row < rapidraw_export_rgb.height(); ++row)
     {
         const auto *export_row = rapidraw_export_rgb.constScanLine(row);
         const auto *preview_row = rapidraw_preview_image.constScanLine(row);
         for (int sample = 0; sample < rapidraw_export_rgb.width() * 3; ++sample)
         {
-            if (std::abs(static_cast<int>(export_row[sample]) -
-                         static_cast<int>(preview_row[sample])) > 1)
-            {
-                within_gpu_delta = false;
-                break;
-            }
+            maximum_gpu_delta =
+                std::max(maximum_gpu_delta,
+                         std::abs(static_cast<int>(export_row[sample]) -
+                                  static_cast<int>(preview_row[sample])));
         }
     }
-    EXPECT_TRUE(within_gpu_delta);
+    EXPECT_LE(maximum_gpu_delta, 1);
 
     auto reset = service->reset_recipe(asset_id);
     ASSERT_TRUE(reset) << reset.error().message;

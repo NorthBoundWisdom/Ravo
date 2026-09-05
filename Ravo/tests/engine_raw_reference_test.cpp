@@ -50,6 +50,7 @@
 #include "input_color.h"
 #include "primaries.h"
 #include "raw_pipeline.h"
+#include "rapidraw_tone_controls.h"
 #include "raw_temperature.h"
 #include "recursive_gaussian.h"
 #include "temperature_fixture.h"
@@ -224,6 +225,10 @@ rapidraw_tone_controls_operation(const RapidRawToneControlsParams &params)
 
 TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
 {
+    EXPECT_EQ(rapidraw_tonal_blur_radius(3U, 1U), 1U);
+    EXPECT_EQ(rapidraw_tonal_blur_radius(1600U, 1066U), 4U);
+    EXPECT_EQ(rapidraw_tonal_blur_radius(9504U, 6336U), 21U);
+
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
     const auto source = gradient_raster();
@@ -288,10 +293,8 @@ TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
         WorkingImage input;
         input.width = 3U;
         input.height = 1U;
-        input.rgb = {0.05F, 0.05F, 0.05F, 0.18F, 0.18F,
-                     0.18F, 0.75F, 0.75F, 0.75F};
-        input.canonical_roi_scale =
-            CanonicalRoiScale::from_scaled_dimensions(3U, 1U, 3U, 1U);
+        input.rgb = {0.05F, 0.05F, 0.05F, 0.18F, 0.18F, 0.18F, 0.75F, 0.75F, 0.75F};
+        input.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(3U, 1U, 3U, 1U);
         Recipe recipe;
         recipe.operations.push_back(rapidraw_tone_controls_operation(params));
         return apply_recipe_ops(std::move(input), recipe, CancellationToken{});
@@ -312,6 +315,17 @@ TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
     EXPECT_NEAR(exposed_controls.value().rgb[6], 0.92406817F, 2.0e-6F);
 
     controls = {};
+    controls.ev_shift = 1.8;
+    auto shifted_18 = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(shifted_18) << shifted_18.error().message;
+    controls = {};
+    controls.exposure = 1.8;
+    auto exposed_18 = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(exposed_18) << exposed_18.error().message;
+    EXPECT_GT(shifted_18.value().rgb[3], exposed_18.value().rgb[3]);
+    EXPECT_GT(shifted_18.value().rgb[6], exposed_18.value().rgb[6] * 2.0F);
+
+    controls = {};
     controls.contrast = 100.0;
     auto contrasted_controls = apply_rapidraw_controls(controls);
     ASSERT_TRUE(contrasted_controls) << contrasted_controls.error().message;
@@ -329,8 +343,8 @@ TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
     controls.shadows = 100.0;
     auto lifted_shadows = apply_rapidraw_controls(controls);
     ASSERT_TRUE(lifted_shadows) << lifted_shadows.error().message;
-    EXPECT_NEAR(lifted_shadows.value().rgb[0], 0.07866573F, 2.0e-5F);
-    EXPECT_NEAR(lifted_shadows.value().rgb[3], 0.20559042F, 2.0e-5F);
+    EXPECT_NEAR(lifted_shadows.value().rgb[0], 0.07998791F, 2.0e-5F);
+    EXPECT_NEAR(lifted_shadows.value().rgb[3], 0.20714238F, 2.0e-5F);
 
     controls = {};
     controls.whites = 30.0;
@@ -342,7 +356,7 @@ TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
     controls.blacks = 40.0;
     auto lifted_blacks = apply_rapidraw_controls(controls);
     ASSERT_TRUE(lifted_blacks) << lifted_blacks.error().message;
-    EXPECT_NEAR(lifted_blacks.value().rgb[0], 0.05321993F, 2.0e-5F);
+    EXPECT_NEAR(lifted_blacks.value().rgb[0], 0.05333560F, 2.0e-5F);
     EXPECT_NEAR(lifted_blacks.value().rgb[3], 0.18032259F, 2.0e-5F);
 
     auto invalid_controls = rapidraw_tone_controls_operation(controls);
@@ -360,8 +374,8 @@ TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
     ASSERT_TRUE(cancelled_controls.cancel("rapidraw controls"));
     Recipe cancelled_controls_recipe;
     cancelled_controls_recipe.operations.push_back(rapidraw_tone_controls_operation(controls));
-    auto cancelled_controls_result = apply_recipe_ops(rapidraw_source, cancelled_controls_recipe,
-                                                       cancelled_controls.token());
+    auto cancelled_controls_result =
+        apply_recipe_ops(rapidraw_source, cancelled_controls_recipe, cancelled_controls.token());
     ASSERT_FALSE(cancelled_controls_result);
     EXPECT_EQ(cancelled_controls_result.error().code, ErrorCode::kCancelled);
 }

@@ -680,11 +680,13 @@ catch (const std::bad_alloc &)
 
 [[nodiscard]] Result<void> apply_vignette(WorkingImage &input,
                                           const DngFixVignetteRadial &vignette,
+                                          const DngOpcodeMetadata &metadata,
                                           const CancellationToken &cancellation)
 {
-    const double center_x = vignette.center[0] * static_cast<double>(input.width - 1U);
-    const double center_y = vignette.center[1] * static_cast<double>(input.height - 1U);
-    const double extent = radial_extent(input.width, input.height, vignette.center);
+    const double center_x = vignette.center[0] * static_cast<double>(metadata.source_width - 1U);
+    const double center_y = vignette.center[1] * static_cast<double>(metadata.source_height - 1U);
+    const double extent = radial_extent(metadata.source_width, metadata.source_height,
+                                        vignette.center);
     if (!std::isfinite(extent) || extent <= 0.0)
     {
         return make_error(ErrorCode::kValidation, "DNG vignette radius is invalid",
@@ -700,10 +702,16 @@ catch (const std::bad_alloc &)
             {
                 return;
             }
-            const double dy = static_cast<double>(y) - center_y;
+            const double source_y = static_cast<double>(metadata.active_origin_y) +
+                                    static_cast<double>(y) * metadata.active_height /
+                                        static_cast<double>(input.height);
+            const double dy = source_y - center_y;
             for (std::uint32_t x = 0U; x < input.width; ++x)
             {
-                const double dx = static_cast<double>(x) - center_x;
+                const double source_x = static_cast<double>(metadata.active_origin_x) +
+                                        static_cast<double>(x) * metadata.active_width /
+                                            static_cast<double>(input.width);
+                const double dx = source_x - center_x;
                 const double radius2 = (dx * dx + dy * dy) * inverse_extent_squared;
                 const auto &coefficient = vignette.coefficients;
                 const double gain =
@@ -761,15 +769,17 @@ catch (const std::bad_alloc &)
                 return;
             }
             const std::uint32_t source_y = std::min(
-                metadata.source_height - 1U,
-                static_cast<std::uint32_t>(static_cast<std::uint64_t>(y) *
-                                           metadata.source_height / input.height));
+                metadata.active_origin_y + metadata.active_height - 1U,
+                metadata.active_origin_y +
+                    static_cast<std::uint32_t>(static_cast<std::uint64_t>(y) *
+                                               metadata.active_height / input.height));
             for (std::uint32_t x = 0U; x < input.width; ++x)
             {
                 const std::uint32_t source_x = std::min(
-                    metadata.source_width - 1U,
-                    static_cast<std::uint32_t>(static_cast<std::uint64_t>(x) *
-                                               metadata.source_width / input.width));
+                    metadata.active_origin_x + metadata.active_width - 1U,
+                    metadata.active_origin_x +
+                        static_cast<std::uint32_t>(static_cast<std::uint64_t>(x) *
+                                                   metadata.active_width / input.width));
                 if (source_y < map.top || source_y >= map.bottom || source_x < map.left ||
                     source_x >= map.right)
                 {
@@ -808,7 +818,11 @@ catch (const std::bad_alloc &)
 
 Result<std::shared_ptr<const DngOpcodeMetadata>>
 parse_dng_opcode_metadata(const DngOpcodeListView list2, const DngOpcodeListView list3,
-                          const std::uint32_t raw_width, const std::uint32_t raw_height)
+                          const std::uint32_t raw_width, const std::uint32_t raw_height,
+                          const std::uint32_t active_origin_x,
+                          const std::uint32_t active_origin_y,
+                          const std::uint32_t active_width,
+                          const std::uint32_t active_height)
 try
 {
     if (!list2.present && !list3.present)
@@ -821,11 +835,25 @@ try
                           "DNG opcode metadata requires non-zero RAW dimensions",
                           {{"reason", "invalid_dng_opcode_dimensions"}});
     }
+    const std::uint32_t resolved_width = active_width == 0U ? raw_width : active_width;
+    const std::uint32_t resolved_height = active_height == 0U ? raw_height : active_height;
+    if (active_origin_x > raw_width || active_origin_y > raw_height || resolved_width == 0U ||
+        resolved_height == 0U || resolved_width > raw_width - active_origin_x ||
+        resolved_height > raw_height - active_origin_y)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "DNG opcode active frame is outside the RAW dimensions",
+                          {{"reason", "invalid_dng_opcode_active_frame"}});
+    }
     auto metadata = std::make_shared<DngOpcodeMetadata>();
     metadata->list2_present = list2.present;
     metadata->list3_present = list3.present;
     metadata->source_width = raw_width;
     metadata->source_height = raw_height;
+    metadata->active_origin_x = active_origin_x;
+    metadata->active_origin_y = active_origin_y;
+    metadata->active_width = resolved_width;
+    metadata->active_height = resolved_height;
     auto parsed = parse_opcode_list(2U, list2, *metadata, raw_width, raw_height);
     if (!parsed)
     {
@@ -851,17 +879,30 @@ float apply_dng_opcode_list2_sample(const DngOpcodeMetadata &metadata, const std
                                     const float normalized_sample) noexcept
 {
     float value = std::clamp(normalized_sample, 0.0F, 1.0F);
-    if (raw_width == 0U || raw_height == 0U)
+    if (raw_width == 0U || raw_height == 0U || metadata.source_width == 0U ||
+        metadata.source_height == 0U || metadata.active_width == 0U ||
+        metadata.active_height == 0U)
     {
         return value;
     }
+    const std::uint32_t source_x = std::min(
+        metadata.active_origin_x + metadata.active_width - 1U,
+        metadata.active_origin_x +
+            static_cast<std::uint32_t>(static_cast<std::uint64_t>(x) * metadata.active_width /
+                                       raw_width));
+    const std::uint32_t source_y = std::min(
+        metadata.active_origin_y + metadata.active_height - 1U,
+        metadata.active_origin_y +
+            static_cast<std::uint32_t>(static_cast<std::uint64_t>(y) * metadata.active_height /
+                                       raw_height));
     for (const auto &map : metadata.list2_gain_maps)
     {
-        if (gain_map_affects(map, x, y, 0U))
+        if (gain_map_affects(map, source_x, source_y, 0U))
         {
-            value = std::clamp(value * interpolate_gain_map(map, static_cast<double>(x),
-                                                            static_cast<double>(y), raw_width,
-                                                            raw_height, 0U),
+            value = std::clamp(value * interpolate_gain_map(
+                                           map, static_cast<double>(source_x),
+                                           static_cast<double>(source_y), metadata.source_width,
+                                           metadata.source_height, 0U),
                                0.0F, 1.0F);
         }
     }
@@ -920,7 +961,7 @@ Result<WorkingImage> apply_dng_opcode_list3(WorkingImage input,
         }
         if (const auto *vignette = std::get_if<DngFixVignetteRadial>(&operation))
         {
-            auto corrected = apply_vignette(input, *vignette, cancellation);
+            auto corrected = apply_vignette(input, *vignette, metadata, cancellation);
             if (!corrected)
             {
                 return corrected.error();

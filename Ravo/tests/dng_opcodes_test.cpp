@@ -538,6 +538,17 @@ TEST(DngOpcodeTest, ParsesOwnedFourParityGainMapsAndInterpolates)
     EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*parsed.value(), 0U, 1U, 4U, 4U, 0.2F), 0.6F);
     EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*parsed.value(), 3U, 3U, 4U, 4U, 0.2F), 0.8F);
 
+    auto cropped = parse_dng_opcode_metadata({true, bytes}, {}, 6U, 6U, 1U, 1U, 4U, 4U);
+    ASSERT_TRUE(cropped) << cropped.error().message;
+    ASSERT_NE(cropped.value(), nullptr);
+    EXPECT_EQ(cropped.value()->active_origin_x, 1U);
+    EXPECT_EQ(cropped.value()->active_origin_y, 1U);
+    EXPECT_FLOAT_EQ(
+        apply_dng_opcode_list2_sample(*cropped.value(), 0U, 0U, 4U, 4U, 0.2F), 0.8F);
+    auto invalid_crop = parse_dng_opcode_metadata({true, bytes}, {}, 6U, 6U, 3U, 3U, 4U, 4U);
+    ASSERT_FALSE(invalid_crop);
+    EXPECT_EQ(invalid_crop.error().context.at("reason"), "invalid_dng_opcode_active_frame");
+
     std::fill(bytes.begin(), bytes.end(), 0U);
     EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*parsed.value(), 1U, 0U, 4U, 4U, 0.2F), 0.4F);
     EXPECT_GT(estimate_dng_opcode_memory(*parsed.value()), sizeof(DngOpcodeMetadata));

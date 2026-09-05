@@ -45,7 +45,9 @@ namespace
 // Spatial RGB ops (Lab USM / RapidRAW tone radius) need neighbors outside the
 // owned ROI. Expand the demosaic window by this apron, process, then crop back
 // so owned pixels match full-frame export crop (macOS IQ-00 contract).
-[[nodiscard]] std::uint32_t preview_roi_spatial_apron_px(const Recipe &recipe) noexcept
+[[nodiscard]] std::uint32_t preview_roi_spatial_apron_px(const Recipe &recipe,
+                                                         const std::uint32_t width,
+                                                         const std::uint32_t height) noexcept
 {
     std::uint32_t apron = 0U;
     for (const auto &operation : recipe.operations)
@@ -64,8 +66,10 @@ namespace
         }
         else if (operation.id == kRapidRawToneControlsOperationId)
         {
-            // CPU/GPU tone controls use ceil(3.5 * canonical_roi_scale); 1:1 ROI => 4.
-            apron = std::max(apron, 4U);
+            // RapidRAW scales its 3.5px reference radius from a 1080px short edge.
+            const double scale = static_cast<double>(std::min(width, height)) / 1080.0;
+            apron =
+                std::max(apron, static_cast<std::uint32_t>(std::max(1.0, std::ceil(3.5 * scale))));
         }
     }
     // Keep a small floor so mild demosaic/filter edge bleed stays outside owned
@@ -331,7 +335,8 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     {
         return raw.error();
     }
-    const std::uint32_t spatial_apron = preview_roi_spatial_apron_px(recipe);
+    const std::uint32_t spatial_apron =
+        preview_roi_spatial_apron_px(recipe, source_width, source_height);
     const std::uint32_t expanded_x = px > spatial_apron ? px - spatial_apron : 0U;
     const std::uint32_t expanded_y = py > spatial_apron ? py - spatial_apron : 0U;
     const std::uint32_t expanded_x2 = std::min(source_width, px + pw + spatial_apron);

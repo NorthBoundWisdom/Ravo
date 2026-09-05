@@ -69,6 +69,13 @@ struct DngOpcodeMetadata
     bool list3_present = false;
     std::uint32_t source_width = 0U;
     std::uint32_t source_height = 0U;
+    // DefaultCrop is relative to the active RAW frame. Opcode coordinates stay
+    // in that uncropped frame, so cropped CFA/RGB samples retain an explicit
+    // immutable coordinate mapping instead of silently shifting gain maps.
+    std::uint32_t active_origin_x = 0U;
+    std::uint32_t active_origin_y = 0U;
+    std::uint32_t active_width = 0U;
+    std::uint32_t active_height = 0U;
     // Both lists preserve file order. List2 currently accepts GainMap only.
     // List3 accepts GainMap, WarpRectilinear, and FixVignetteRadial. Default
     // colour decode executes GainMap and vignette and skips WarpRectilinear.
@@ -90,7 +97,11 @@ struct DngOpcodeListView
 // and duplicate handling are Ravo-owned and intentionally stricter.
 [[nodiscard]] Result<std::shared_ptr<const DngOpcodeMetadata>>
 parse_dng_opcode_metadata(DngOpcodeListView list2, DngOpcodeListView list3,
-                          std::uint32_t raw_width, std::uint32_t raw_height);
+                          std::uint32_t raw_width, std::uint32_t raw_height,
+                          std::uint32_t active_origin_x = 0U,
+                          std::uint32_t active_origin_y = 0U,
+                          std::uint32_t active_width = 0U,
+                          std::uint32_t active_height = 0U);
 
 // Applies the ordered OpcodeList2 GainMaps to one normalized CFA sample and
 // enforces DNG's logical [0, 1] range after every opcode.
