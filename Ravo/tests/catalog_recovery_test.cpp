@@ -1389,5 +1389,286 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceBackupRestoreSmoke)
     ASSERT_TRUE(restored_service.close());
 }
 
+TEST_F(CatalogServiceTest, Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores)
+{
+    // REL-01 / REL-02: fail-injection at the current schema upgrade boundary must
+    // leave the prior catalog recoverable (transaction rollback), then a cleared
+    // fault upgrades cleanly and backup/restore republishes the retained state.
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "rel012-upgrade-source.jpg";
+    QImage image(20, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(62, 118, 174));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(service->set_rating(asset_id, 4));
+    ASSERT_TRUE(service->set_picked(asset_id, true));
+    ASSERT_TRUE(service->set_tags(asset_id, {"rel012", "upgrade"}));
+    DevelopParams develop;
+    develop.exposure_ev = 0.35;
+    ASSERT_TRUE(service->save_develop(asset_id, develop));
+    auto before = service->snapshot();
+    ASSERT_TRUE(before) << before.error().message;
+    const auto catalog_id = before.value().catalog_id;
+    const auto revision = before.value().revision;
+    EXPECT_EQ(before.value().schema_version, kCatalogSchemaVersion);
+    ASSERT_TRUE(service->close());
+    service.reset();
+    sqlite_repository = nullptr;
+
+    enum class FailureKind
+    {
+        kSchemaInfo,
+        kCommit,
+    };
+    struct FailureCase
+    {
+        const char *name;
+        FailureKind kind;
+    };
+    // Cover the current N-1 -> N publication boundary with real fail-injection:
+    // BEFORE UPDATE abort on schema_info, and AFTER UPDATE CHECK-constraint abort
+    // (FK is disabled for migrate, so deferred-FK commit injects are ineffective).
+    const std::array<FailureCase, 2> cases{{
+        {"schema-info", FailureKind::kSchemaInfo},
+        {"schema-info-check-abort", FailureKind::kCommit},
+    }};
+
+    for (std::size_t index = 0; index < cases.size(); ++index)
+    {
+        const auto &test_case = cases[index];
+        const auto case_root = root / (std::string("upgrade-fail-") + test_case.name);
+        std::error_code ec;
+        std::filesystem::create_directories(case_root, ec);
+        const auto case_db = (case_root / "library.sqlite").string();
+        std::filesystem::copy_file(database_path, case_db,
+                                   std::filesystem::copy_options::overwrite_existing, ec);
+        ASSERT_FALSE(ec) << ec.message();
+        const auto support_src = std::filesystem::path(database_path).string() + ".ravo";
+        const auto support_dst = case_db + ".ravo";
+        if (std::filesystem::exists(support_src))
+        {
+            std::filesystem::copy(support_src, support_dst,
+                                  std::filesystem::copy_options::recursive |
+                                      std::filesystem::copy_options::overwrite_existing,
+                                  ec);
+            ASSERT_FALSE(ec) << ec.message();
+        }
+
+        const QString seed_connection =
+            QStringLiteral("ravo_rel012_upgrade_seed_%1").arg(static_cast<int>(index));
+        {
+            auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), seed_connection);
+            database.setDatabaseName(QString::fromStdString(case_db));
+            ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+            QSqlQuery query(database);
+            ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA wal_checkpoint(FULL)")))
+                << query.lastError().text().toStdString();
+            ASSERT_TRUE(query.exec(
+                QStringLiteral("UPDATE schema_info SET schema_version = %1, migrated_unix_ms = 17 "
+                               "WHERE id = 1")
+                    .arg(static_cast<qlonglong>(kCatalogSchemaVersion - 1))))
+                << query.lastError().text().toStdString();
+            if (test_case.kind == FailureKind::kSchemaInfo)
+            {
+                ASSERT_TRUE(query.exec(QStringLiteral(
+                    "CREATE TRIGGER reject_current_schema_upgrade BEFORE UPDATE OF schema_version "
+                    "ON schema_info BEGIN SELECT RAISE(ABORT, 'injected current schema upgrade "
+                    "failure'); END")))
+                    << query.lastError().text().toStdString();
+            }
+            if (test_case.kind == FailureKind::kCommit)
+            {
+                // FK checks are disabled for the migrate transaction; CHECK is not.
+                ASSERT_TRUE(query.exec(QStringLiteral(
+                    "CREATE TABLE migration_guard(ok INTEGER NOT NULL CHECK(ok = 1))")))
+                    << query.lastError().text().toStdString();
+                ASSERT_TRUE(query.exec(QStringLiteral(
+                    "CREATE TRIGGER reject_current_upgrade_commit AFTER UPDATE OF schema_version ON "
+                    "schema_info BEGIN INSERT INTO migration_guard(ok) VALUES (0); END")))
+                    << query.lastError().text().toStdString();
+            }
+            database.close();
+            database = QSqlDatabase();
+        }
+        QSqlDatabase::removeDatabase(seed_connection);
+
+        auto failed = SqliteCatalogRepository::open(case_db);
+        ASSERT_FALSE(failed) << test_case.name;
+        EXPECT_EQ(failed.error().code, ErrorCode::kIo) << test_case.name;
+
+        const QString check_connection =
+            QStringLiteral("ravo_rel012_upgrade_check_%1").arg(static_cast<int>(index));
+        {
+            auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), check_connection);
+            database.setDatabaseName(QString::fromStdString(case_db));
+            ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+            QSqlQuery query(database);
+            ASSERT_TRUE(query.exec(QStringLiteral(
+                "SELECT schema_version, catalog_id, revision, migrated_unix_ms FROM schema_info "
+                "WHERE id = 1")));
+            ASSERT_TRUE(query.next());
+            EXPECT_EQ(query.value(0).toLongLong(), kCatalogSchemaVersion - 1) << test_case.name;
+            EXPECT_EQ(query.value(1).toString().toStdString(), catalog_id) << test_case.name;
+            EXPECT_EQ(query.value(2).toLongLong(), revision) << test_case.name;
+            EXPECT_EQ(query.value(3).toLongLong(), 17) << test_case.name;
+            ASSERT_TRUE(
+                query.prepare(QStringLiteral("SELECT rating, picked FROM asset WHERE id = ?")));
+            query.addBindValue(QString::fromStdString(asset_id));
+            ASSERT_TRUE(query.exec()) << query.lastError().text().toStdString();
+            ASSERT_TRUE(query.next());
+            EXPECT_EQ(query.value(0).toLongLong(), 4) << test_case.name;
+            EXPECT_EQ(query.value(1).toLongLong(), 1) << test_case.name;
+            if (test_case.kind == FailureKind::kCommit)
+            {
+                ASSERT_TRUE(query.exec(QStringLiteral("SELECT COUNT(*) FROM migration_guard")));
+                ASSERT_TRUE(query.next());
+                EXPECT_EQ(query.value(0).toLongLong(), 0) << test_case.name;
+            }
+            if (test_case.kind == FailureKind::kSchemaInfo)
+            {
+                ASSERT_TRUE(
+                    query.exec(QStringLiteral("DROP TRIGGER reject_current_schema_upgrade")))
+                    << query.lastError().text().toStdString();
+            }
+            if (test_case.kind == FailureKind::kCommit)
+            {
+                ASSERT_TRUE(
+                    query.exec(QStringLiteral("DROP TRIGGER reject_current_upgrade_commit")))
+                    << query.lastError().text().toStdString();
+                ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE migration_guard")))
+                    << query.lastError().text().toStdString();
+            }
+            ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA wal_checkpoint(FULL)")));
+            database.close();
+            database = QSqlDatabase();
+        }
+        QSqlDatabase::removeDatabase(check_connection);
+
+        auto recovered = SqliteCatalogRepository::open(case_db);
+        ASSERT_TRUE(recovered) << test_case.name << ": " << recovered.error().message << " action="
+                               << (recovered.error().context.contains("action") ?
+                                       recovered.error().context.at("action") :
+                                       "");
+        auto snap = recovered.value()->snapshot();
+        ASSERT_TRUE(snap) << test_case.name;
+        EXPECT_EQ(snap.value().schema_version, kCatalogSchemaVersion) << test_case.name;
+        EXPECT_EQ(snap.value().catalog_id, catalog_id) << test_case.name;
+        EXPECT_EQ(snap.value().revision, revision) << test_case.name;
+        auto assets = recovered.value()->list_assets();
+        ASSERT_TRUE(assets) << test_case.name;
+        ASSERT_EQ(assets.value().size(), 1U) << test_case.name;
+        EXPECT_EQ(assets.value().front().id, asset_id) << test_case.name;
+        EXPECT_EQ(assets.value().front().review.rating, 4) << test_case.name;
+        EXPECT_TRUE(assets.value().front().review.picked) << test_case.name;
+        ASSERT_TRUE(recovered.value()->close());
+    }
+
+    {
+        const QString live_seed = QStringLiteral("ravo_rel012_live_seed");
+        {
+            auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), live_seed);
+            database.setDatabaseName(QString::fromStdString(database_path));
+            ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+            QSqlQuery query(database);
+            ASSERT_TRUE(
+                query.exec(QStringLiteral("UPDATE schema_info SET schema_version = %1 WHERE id = 1")
+                               .arg(static_cast<qlonglong>(kCatalogSchemaVersion - 1))))
+                << query.lastError().text().toStdString();
+            ASSERT_TRUE(query.exec(QStringLiteral(
+                "CREATE TRIGGER reject_live_upgrade BEFORE UPDATE OF schema_version ON schema_info "
+                "BEGIN SELECT RAISE(ABORT, 'injected live upgrade failure'); END")))
+                << query.lastError().text().toStdString();
+            database.close();
+            database = QSqlDatabase();
+        }
+        QSqlDatabase::removeDatabase(live_seed);
+
+        auto failed_live = open_service(false);
+        ASSERT_FALSE(failed_live);
+        EXPECT_EQ(failed_live.error().code, ErrorCode::kIo);
+
+        {
+            const QString live_clear = QStringLiteral("ravo_rel012_live_clear");
+            auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), live_clear);
+            database.setDatabaseName(QString::fromStdString(database_path));
+            ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+            QSqlQuery query(database);
+            ASSERT_TRUE(query.exec(
+                QStringLiteral("SELECT schema_version, revision FROM schema_info WHERE id = 1")));
+            ASSERT_TRUE(query.next());
+            EXPECT_EQ(query.value(0).toLongLong(), kCatalogSchemaVersion - 1);
+            EXPECT_EQ(query.value(1).toLongLong(), revision);
+            ASSERT_TRUE(query.exec(QStringLiteral("DROP TRIGGER reject_live_upgrade")));
+            database.close();
+            database = QSqlDatabase();
+            QSqlDatabase::removeDatabase(live_clear);
+        }
+    }
+
+    ASSERT_TRUE(open_service(false)) << "cleared upgrade fault must reopen the prior catalog";
+    auto recovered_snap = service->snapshot();
+    ASSERT_TRUE(recovered_snap);
+    EXPECT_EQ(recovered_snap.value().schema_version, kCatalogSchemaVersion);
+    EXPECT_EQ(recovered_snap.value().catalog_id, catalog_id);
+    EXPECT_EQ(recovered_snap.value().revision, revision);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().review.rating, 4);
+    EXPECT_TRUE(listed.value().front().review.picked);
+    EXPECT_EQ(listed.value().front().tags, (std::vector<std::string>{"rel012", "upgrade"}));
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe);
+    auto params = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(params);
+    EXPECT_DOUBLE_EQ(params.value().exposure_ev, 0.35);
+
+    const auto backup_path = root / "rel012-upgrade-backup";
+    auto backup = service->create_backup(backup_path.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+    auto backup_recovery =
+        FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
+    ASSERT_TRUE(backup_recovery) << backup_recovery.error().message;
+    const SqliteCatalogBackupVerifier verifier;
+    const auto restored_path = (root / "rel012-upgraded-restored.sqlite").string();
+    CatalogRestoreRequest request;
+    request.backup_directory = backup_path.string();
+    request.destination_catalog = restored_path;
+    auto restored = restore_catalog_backup(verifier, verifier, *backup_recovery.value(), request);
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().published);
+
+    auto restored_repository = SqliteCatalogRepository::open(restored_path);
+    ASSERT_TRUE(restored_repository) << restored_repository.error().message;
+    auto restored_cache = FilesystemPreviewCache::create(restored_path + ".preview");
+    ASSERT_TRUE(restored_cache) << restored_cache.error().message;
+    auto restored_recovery = FilesystemRecoveryStore::create_for_catalog(restored_path);
+    ASSERT_TRUE(restored_recovery) << restored_recovery.error().message;
+    CatalogService restored_service(
+        engine, std::move(restored_repository).value(), std::make_unique<QtRasterDecoder>(),
+        std::move(restored_cache).value(), std::move(restored_recovery).value());
+    ASSERT_TRUE(restored_service.sync_recovery(std::nullopt));
+    auto restored_assets = restored_service.list_assets();
+    ASSERT_TRUE(restored_assets);
+    ASSERT_EQ(restored_assets.value().size(), 1U);
+    EXPECT_EQ(restored_assets.value().front().id, asset_id);
+    EXPECT_EQ(restored_assets.value().front().review.rating, 4);
+    EXPECT_TRUE(restored_assets.value().front().review.picked);
+    EXPECT_EQ(restored_assets.value().front().tags,
+              (std::vector<std::string>{"rel012", "upgrade"}));
+    auto restored_recipe = restored_service.load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe);
+    auto restored_develop = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored_develop);
+    EXPECT_DOUBLE_EQ(restored_develop.value().exposure_ev, 0.35);
+    ASSERT_TRUE(restored_service.close());
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
 } // namespace
 } // namespace ravo

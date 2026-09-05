@@ -16,9 +16,11 @@
 > `20260905_023651`), plus contract/packaged deepen for disconnect/reconnect,
 > ENOSPC injection harness, Move, missing-volume fail-closed on report
 > `20260905_024633` (PNG/TIFF-in-corpus, X-Trans, Win/Linux still residual; rating-via-XMP
-> closed by contract on this SHA; not C3). REL-02 has a macOS Release DMG package-smoke tranche on
-> `e1a68eeb` (report `20260905_023651`); Windows ZIP / Linux AppImage+DEB and full
-> REL matrices remain open. The next free ADR number is **0157**, but new product
+> closed by contract on this SHA; not C3). Current-schema upgrade fail-injection
+> recoverability contracted (`Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`).
+> REL-02 has a macOS Release DMG package-smoke tranche on
+> `e1a68eeb` (report `20260905_023651`); Windows ZIP / Linux AppImage+DEB, upgrade-failure
+> host matrix, and full REL matrices remain open. The next free ADR number is **0157**, but new product
 > ADRs are frozen by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
@@ -241,8 +243,12 @@ Move relocates with destination SHA match, filesystem-card ingest Move rejects
 publication and original-copy publication boundaries via existing injection
 harnesses. Private corpus still has **0 PNG / 0 TIFF** (not invented). A host
 path alone is still not evidence; Windows/Linux and remaining required scenarios
-(X-Trans, PNG/TIFF-in-corpus, live host disk-full, upgrade,
-large-library) remain open. Do not claim C3.
+(X-Trans, PNG/TIFF-in-corpus, live host disk-full, large-library) remain open.
+Current-schema upgrade fail-injection recoverability is contracted on this SHA
+(`Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`: N-1→N
+schema_info / CHECK-abort inject retains prior catalog, cleared fault upgrades,
+backup/restore republishes retained state). Host upgrade-failure matrix and
+corpus upgrade evidence remain open. Do not claim C3.
 
 Use an explicit read-only mixed RAW/raster corpus in `RAVO_PHOTO_CORPUS`, a
 Release build, and a unique temporary root for every generated catalog,
@@ -402,8 +408,11 @@ create/import (JPEG+ARW+DNG)/preview/probe/rate/snapshot/develop/export/
 reopen/backup/verify/restore + `display-profile status` (system ICC) and probe
 `gpu_backend=metal`. otool/`@loader_path` deps show no `…/Ravo2/build` leakage;
 QSQLITE present, Mimer absent; Studio GUI click smoke skipped (no Computer Use).
+Contract deepen on this SHA: failed current-schema catalog upgrade leaves the
+prior catalog recoverable (transactional retain-prior + backup/restore after
+clearing the fault) via `Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`.
 **Still open:** Windows ZIP; Linux AppImage + DEB; Studio interactive /
-localization / upgrade-failure host matrix; notarization/Developer ID claims.
+localization / upgrade-failure **host** matrix; notarization/Developer ID claims.
 Do not claim full REL-02 or C3.
 
 Validate the final DMG, Windows ZIP, Linux AppImage, and Linux DEB after copying
