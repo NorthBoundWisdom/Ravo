@@ -287,15 +287,18 @@ Do not commit absolute developer-machine paths as evidence.
 
 ## PERF-01 — End-to-end interaction and large-library budgets
 
-**Status:** Measurement harness exists. Host-local Gallery→viewer→Develop
-samples for SHA `07dbb9ef4aad…` are filed with REL-01 report
-`20260905_020736` (`PERF-01-host-local-budget-notes.json`) — **observation-only
-machine-local Debug notes**, not admitted product budgets and **not** a PERF-02
-admit. Documented observation ceilings from that host-local note (same SHA,
-`mac_clang_debug`, warmups=2 / n=8 where recorded): warm gallery→loupe P90 ≤50 ms,
-adjacent revisit P90 ≤50 ms, loupe→Develop first-frame P90 ≤30 ms, warm preview
-P90 ≤5 ms, page P90 ≤2000 µs. Cold gallery→loupe (~6.7 s) and cold settled
-preview (~3.8 s P90) remain separately characterized. Large-library / Release
+**Status:** Measurement harness exists. Host-local Gallery→viewer→Develop +
+large-library synthetic + PrivatePhoto timings for SHA `55e2a05286f2…` are filed
+under evidence `20260905_130706` (`PERF-01-host-local-budget-notes.json`) —
+**observation-only machine-local Debug notes** (Release `BUILD_TESTING=OFF`, so
+Debug labeled), not admitted product budgets and **not** a PERF-02 admit.
+Updated observation ceilings from that host-local note (`mac_clang_debug`,
+warmups=2 / n=8): warm gallery→loupe P90 ≤40 ms, adjacent revisit P90 ≤40 ms,
+loupe→Develop first-frame P90 ≤25 ms, warm preview P90 ≤5 ms, page P90 ≤2000 µs,
+synthetic large-library page-first N=1000 P90 ≤3000 µs. Measured this SHA (P90):
+gallery warm ~16 ms, adjacent ~17 ms, loupe→Develop ~12 ms, large_library ~1.4 ms,
+warm preview ~1.0 ms, page ~615 µs. Cold gallery→loupe (~4.9 s) and cold settled
+preview (~5.1 s P90 PrivatePhoto) remain separately characterized. Release
 same-corpus freeze and cross-host evidence remain open. Harness expand:
 `LargeLibrarySyntheticPageObservation` seeds synthetic N metadata assets
 (default 1000, override `RAVO_PERF01_LARGE_LIBRARY_N`) and emits observation-only
@@ -353,7 +356,8 @@ shadows/whites/blacks, Lab USM sharpen, linear-sRGB Sigmoid, and RapidRAW
 global tone controls plus Basic display) versus CPU gold
 owned packed RGB8 (`kIqGpuCpuPackedRgb8AbsDelta=1`), with persist/export/reopen
 remaining CPU gold. Non-admitted interactive ops (e.g. contrast-only) stay
-CPU-gold bit-exact; masked admitted ops run CPU prefix then may GPU the
+CPU-gold bit-exact / interactive hybrid (20260905_130706: no Metal contrast path
+ready for packed ±1 admit — left hybrid); masked admitted ops run CPU prefix then may GPU the
 admitted suffix within the same packed delta. `catalog probe` `iq_consistency`
 schema_version=3 lists `gpu_admitted_interactive_stages` and
 `non_admitted_interactive_policy`; host_scope=`macos_debug_release_contract`,
