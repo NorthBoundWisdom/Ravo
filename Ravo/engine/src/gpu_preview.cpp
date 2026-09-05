@@ -18,6 +18,7 @@
 #include "ravo/recipe/rapidraw_tone_controls.h"
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/velvia.h"
 #include "image_ops_internal.h"
 
@@ -148,6 +149,25 @@ enum class PreviewOpClass : std::uint8_t
             return PreviewOpClass::Cpu;
         if (near(parameter(operation, "mix", 0.0), 0.0))
             return PreviewOpClass::Skip;
+        return PreviewOpClass::Gpu;
+    }
+    if (operation.id == kColorContrastOperationId)
+    {
+        if (!linear_rec709_working(working))
+            return PreviewOpClass::Cpu;
+        OperationInstance canonical = operation;
+        auto upgraded = upgrade_color_contrast_operation(canonical);
+        if (!upgraded)
+            return upgraded.error();
+        auto params = color_contrast_from_parameters(canonical.parameters);
+        if (!params)
+            return params.error();
+        const auto &cc = params.value();
+        if (near(cc.a_steepness, 1.0) && near(cc.a_offset, 0.0) && near(cc.b_steepness, 1.0) &&
+            near(cc.b_offset, 0.0) && cc.unbound)
+        {
+            return PreviewOpClass::Skip;
+        }
         return PreviewOpClass::Gpu;
     }
     if (operation.id == kSharpenOperationId)
@@ -340,6 +360,34 @@ enum class PreviewOpClass : std::uint8_t
         pass.split_toning.balance = balance;
         pass.split_toning.compression = compression;
         pass.split_toning.mix = mix;
+        return pass;
+    }
+    if (operation.id == kColorContrastOperationId)
+    {
+        OperationInstance canonical = operation;
+        auto upgraded = upgrade_color_contrast_operation(canonical);
+        if (!upgraded)
+            return upgraded.error();
+        auto params = color_contrast_from_parameters(canonical.parameters);
+        if (!params)
+            return params.error();
+        const float a_steepness = static_cast<float>(params.value().a_steepness);
+        const float a_offset = static_cast<float>(params.value().a_offset);
+        const float b_steepness = static_cast<float>(params.value().b_steepness);
+        const float b_offset = static_cast<float>(params.value().b_offset);
+        if (!std::isfinite(a_steepness) || !std::isfinite(a_offset) ||
+            !std::isfinite(b_steepness) || !std::isfinite(b_offset))
+        {
+            return make_error(ErrorCode::kValidation, "GPU color contrast is not finite",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kColorContrast;
+        pass.color_contrast.a_steepness = a_steepness;
+        pass.color_contrast.a_offset = a_offset;
+        pass.color_contrast.b_steepness = b_steepness;
+        pass.color_contrast.b_offset = b_offset;
+        pass.color_contrast.unbound = params.value().unbound ? 1U : 0U;
         return pass;
     }
     if (operation.id == kSharpenOperationId)

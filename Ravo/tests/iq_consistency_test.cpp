@@ -14,6 +14,7 @@
 #include "ravo/recipe/mask.h"
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/velvia.h"
 
 namespace ravo
@@ -231,6 +232,26 @@ namespace
         return encoded.error();
     recipe.operations.push_back({std::string(kSplitToningOperationId),
                                  kSplitToningOperationSchemaVersion, "split-1", true,
+                                 encoded.value(), std::nullopt});
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Result<Recipe> make_color_contrast_only_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    ColorContrastParams params;
+    params.a_steepness = 1.8;
+    params.a_offset = 4.0;
+    params.b_steepness = 1.35;
+    params.b_offset = -3.0;
+    params.unbound = true;
+    auto encoded = color_contrast_to_parameters(params);
+    if (!encoded)
+        return encoded.error();
+    recipe.operations.push_back({std::string(kColorContrastOperationId),
+                                 kColorContrastOperationSchemaVersion, "colorcontrast-1", true,
                                  encoded.value(), std::nullopt});
     recipe.operations.push_back(output_operation());
     return recipe;
@@ -526,6 +547,15 @@ TEST(IqConsistencyTest, InteractiveGpuSplitToningPackedDeltaWithinContract)
     expect_interactive_packed_within_contract(engine.value(), make_working(8, 8), recipe.value());
 }
 
+TEST(IqConsistencyTest, InteractiveGpuColorContrastPackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto recipe = make_color_contrast_only_recipe();
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8), recipe.value());
+}
+
 TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -561,7 +591,7 @@ TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
 
 TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
 {
-    EXPECT_EQ(kIqConsistencySchemaVersion, 6);
+    EXPECT_EQ(kIqConsistencySchemaVersion, 7);
     EXPECT_FALSE(std::string(kIqGpuInteractiveNonAdmittedPolicy).empty());
     EXPECT_NE(std::string(kIqConsistencyGpuLiveResidual).find("admitted_interactive"),
               std::string::npos);
@@ -584,6 +614,7 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
     bool saw_saturation = false;
     bool saw_velvia = false;
     bool saw_split_toning = false;
+    bool saw_color_contrast = false;
     bool saw_sigmoid = false;
     bool saw_sharpen = false;
     bool saw_rapidraw_controls = false;
@@ -604,6 +635,8 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
             saw_velvia = true;
         if (stage == "ravo.color.splittoning")
             saw_split_toning = true;
+        if (stage == "ravo.color.colorcontrast")
+            saw_color_contrast = true;
         if (stage == "ravo.display.sigmoid")
             saw_sigmoid = true;
         if (stage == "ravo.detail.sharpen")
@@ -620,6 +653,7 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
     EXPECT_TRUE(saw_saturation);
     EXPECT_TRUE(saw_velvia);
     EXPECT_TRUE(saw_split_toning);
+    EXPECT_TRUE(saw_color_contrast);
     EXPECT_TRUE(saw_sigmoid);
     EXPECT_TRUE(saw_sharpen);
     EXPECT_TRUE(saw_rapidraw_controls);

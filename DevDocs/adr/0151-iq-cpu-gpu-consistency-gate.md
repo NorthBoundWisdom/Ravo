@@ -113,6 +113,21 @@ hooks dated without claiming the full corpus matrix is closed.
   (curves/levels, color-balance*, clarity/texture/dehaze, effects, equalizers,
   LUT, masked ops, etc.) stay on the CPU hybrid.
 
+
+
+### Color Contrast interactive admit (follow-on)
+
+- Schema version **7** adds `ravo.color.colorcontrast` to
+  `gpu_admitted_interactive_stages` with a Metal/RHI `color_contrast_rgb` pass
+  that mirrors CPU `apply_color_contrast` (pointwise D50 Lab a/b affine on
+  linear Rec.709).
+- Owned packed RGB8 stays within `kIqGpuCpuPackedRgb8AbsDelta` vs CPU gold on
+  macOS Metal; persist/export/reopen remain CPU gold. Remaining non-admitted
+  interactive ops (curves/levels, color-balance*/colorbalancergb, color
+  zones/harmonizer/correction/reconstruction, monochrome Lab+bilateral,
+  clarity/texture/dehaze, effects, equalizers, LUT, masked ops,
+  non-linear-Rec709 sharpen, non-linear-sRGB sigmoid) stay on the CPU hybrid.
+
 ### Explicit residuals
 
 - Full IQ-00 matrix (RAW corpus, ICC/proof, multi-instance locals, denoise,
