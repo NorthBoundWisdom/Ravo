@@ -27,14 +27,21 @@ inline constexpr float kIqGpuCpuWorkingAbsTolerance = 2.0e-3F;
 // gold). Masked instances, non-linear-Rec709 sharpen, and non-linear-sRGB
 // sigmoid working spaces are also CPU on the interactive path.
 inline constexpr std::string_view kIqGpuAdmittedInteractiveStages[] = {
-    "ravo.core.exposure", "ravo.core.highlights", "ravo.core.shadows",    "ravo.core.whites",
-    "ravo.core.blacks",   "ravo.detail.sharpen",  "ravo.display.sigmoid",
-    "ravo.core.rapidraw-tone-controls", "ravo.display.rapidraw-basic",
+    "ravo.core.exposure",
+    "ravo.core.highlights",
+    "ravo.core.shadows",
+    "ravo.core.whites",
+    "ravo.core.blacks",
+    "ravo.detail.sharpen",
+    "ravo.display.sigmoid",
+    "ravo.core.rapidraw-tone-controls",
+    "ravo.display.rapidraw-basic",
 };
 
 // Machine-visible residual after admitted-stage packed contracts: full
-// corpus / Win-Linux / proof-monitor / multi-instance GPU / RAW ROI size
-// mismatch vs export remain open. Non-admitted interactive ops run CPU.
+// corpus / Win-Linux / proof-monitor / multi-instance GPU remain open; RAW
+// ROI vs export size-match is probed with packed residual documented below.
+// Non-admitted interactive ops run CPU.
 inline constexpr std::string_view kIqGpuInteractiveNonAdmittedPolicy =
     "non_admitted_ops_run_cpu_on_interactive_hybrid; masked_ops_cpu; "
     "non_linear_rec709_sharpen_cpu; non_linear_srgb_sigmoid_working_space_cpu; "
@@ -142,6 +149,18 @@ inline constexpr std::string_view kIqConsistencyHostScope = "macos_debug_release
 inline constexpr std::string_view kIqConsistencyGpuLiveResidual =
     "admitted_interactive_develop_stages_packed_delta_contracted_macos_metal; "
     "raw_viewport_roi_may_use_gpu; non_admitted_interactive_ops_cpu_hybrid; "
+    "persist_export_reopen_cpu_gold; win_linux_and_full_corpus_open";
+
+// RAW viewport ROI versus CPU-gold export (macOS contract probe):
+// full-resolution export crop size-matches the ROI window; packed RGB8 is
+// compared as owned pixels. Interactive abs-delta (±1) is NOT claimed for this
+// pair — windowed CFA demosaic versus full-frame export crop can exceed it
+// (observed). Scaled/preview-edge export crops remain a size-mismatch residual.
+// Win/Linux / full corpus / Bayer-RCD matrix stay open.
+inline constexpr std::string_view kIqRawRoiVersusExportResidual =
+    "full_export_crop_size_matched_macos_contract; "
+    "packed_rgb8_may_exceed_interactive_abs_delta_windowed_demosaic_vs_full_frame_crop; "
+    "scaled_export_crop_size_mismatch_residual; raw_viewport_roi_may_report_gpu; "
     "persist_export_reopen_cpu_gold; win_linux_and_full_corpus_open";
 
 } // namespace ravo

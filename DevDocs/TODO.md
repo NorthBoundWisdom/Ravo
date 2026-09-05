@@ -87,9 +87,10 @@ CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
 moves in the intended direction. DISPLAY-01 is C2 with Gallery thumbnail
 monitor convert + macOS GPU native owned-pixel presentation publish landed;
 IQ-00 macOS Metal admitted-stage interactive packed-delta contracts landed
-(Exposure/light/Lab-USM/Sigmoid); non-admitted interactive ops stay CPU
-hybrid; full corpus / Win-Linux / RAW ROI size residuals + Linux discovery
-remain;
+(Exposure/light/Lab-USM/Sigmoid/RapidRAW); non-admitted interactive ops stay
+CPU hybrid; RAW ROI vs full-export crop is size-matched with packed residual
+documented (`kIqRawRoiVersusExportResidual`); full corpus / Win-Linux + Linux
+discovery remain;
 OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
 INGEST-01 is C2 for Studio filesystem-card + ptp-stub Copy ingest with fail-
 closed native probe (packaged ImageCapture/WinRT/libmtp residual is C3). AI
@@ -355,9 +356,13 @@ admitted suffix within the same packed delta. `catalog probe` `iq_consistency`
 schema_version=3 lists `gpu_admitted_interactive_stages` and
 `non_admitted_interactive_policy`; host_scope=`macos_debug_release_contract`,
 `win_linux_hosts_claimed=false`. Catalog probe
-`Iq00RawRoiLiveVersusCpuExportDocumentsResidual` records settled/reopen CPU
-gold while RAW ROI may report GPU. **Not** a full corpus / Win/Linux /
-proof-monitor / multi-instance / Bayer-RCD matrix closure.
+`Iq00RawRoiLiveVersusCpuExportDocumentsResidual` keeps settled/reopen/export
+CPU gold, size-matches full-resolution export crop vs RAW viewport ROI as
+owned packed RGB8, and records the machine-visible residual that packed
+channels may exceed interactive abs-delta (±1) because windowed CFA demosaic
+≠ full-frame export crop (`kIqRawRoiVersusExportResidual`); scaled export
+crops remain a size-mismatch residual; RAW ROI may report GPU. **Not** a full
+corpus / Win/Linux / proof-monitor / multi-instance / Bayer-RCD matrix closure.
 
 Complete a matrix across raster, Bayer, and X-Trans inputs; representative
 global and multi-instance edits; masks and geometry; built-in/file ICC input and
@@ -605,9 +610,10 @@ visible.
 - Residual: interactive Develop GPU **edit-math** packed-delta for admitted
   Metal stages is contracted under IQ-00 (presentation already matches
   Loupe/Develop owned-pixel). Remaining IQ/DISPLAY residuals: non-admitted
-  interactive ops (CPU hybrid), full corpus / Win-Linux / RAW ROI size vs
-  export, Linux/non-Metal GPU publish, packaged Linux monitor discovery,
-  multi-display performance, and SDR/HDR policy.
+  interactive ops (CPU hybrid), full corpus / Win-Linux, RAW ROI packed
+  residual beyond interactive abs-delta (windowed demosaic vs full-frame
+  export crop; size-match closed), Linux/non-Metal GPU publish, packaged
+  Linux monitor discovery, multi-display performance, and SDR/HDR policy.
 - Linux packaged monitor discovery (or keep fallback claim);
 - CPU/GPU matrix/LUT parity evidence, multi-display performance, SDR/HDR policy.
 

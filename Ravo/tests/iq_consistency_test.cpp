@@ -475,6 +475,10 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
     EXPECT_FALSE(std::string(kIqGpuInteractiveNonAdmittedPolicy).empty());
     EXPECT_NE(std::string(kIqConsistencyGpuLiveResidual).find("admitted_interactive"),
               std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("full_export_crop_size_matched"),
+              std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("windowed_demosaic"),
+              std::string::npos);
     bool saw_exposure = false;
     bool saw_sigmoid = false;
     bool saw_sharpen = false;

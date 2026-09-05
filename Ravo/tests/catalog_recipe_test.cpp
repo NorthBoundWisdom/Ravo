@@ -708,8 +708,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
         rapidraw_preview.value().rgb.data(), static_cast<int>(rapidraw_preview.value().width),
         static_cast<int>(rapidraw_preview.value().height),
         static_cast<int>(rapidraw_preview.value().width * 3U), QImage::Format_RGB888);
-    const QImage rapidraw_export_rgb =
-        rapidraw_export_image.convertToFormat(QImage::Format_RGB888);
+    const QImage rapidraw_export_rgb = rapidraw_export_image.convertToFormat(QImage::Format_RGB888);
     bool within_gpu_delta = true;
     for (int row = 0; row < rapidraw_export_rgb.height() && within_gpu_delta; ++row)
     {
@@ -1335,15 +1334,68 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReturnsWindowPixelsWithoutCache)
 
 TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
 {
-    // IQ-00 macOS contract: persist/export stay CPU gold; RAW viewport ROI may
-    // use the interactive GPU path. When sizes match, packed RGB8 stays within
-    // the documented delta. Win/Linux hosts are not claimed here.
+    // IQ-00 macOS contract: persist/export/reopen stay CPU gold. RAW viewport ROI
+    // may report GPU. Full-resolution export crop size-matches the ROI window and
+    // is compared as owned packed RGB8; interactive abs-delta (±1) is NOT claimed
+    // for this pair (windowed demosaic vs full-frame crop residual —
+    // kIqRawRoiVersusExportResidual). Scaled export crops stay a size-mismatch
+    // residual. Win/Linux / Bayer-RCD matrix are not claimed.
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
+    const PreviewNormRect roi_rect{0.30, 0.30, 0.25, 0.20};
+    EXPECT_FALSE(std::string(kIqRawRoiVersusExportResidual).empty());
+
+    auto norm_rect_pixel_crop =
+        [](const PreviewNormRect &roi, const std::uint32_t width, const std::uint32_t height)
+    {
+        struct Crop
+        {
+            std::uint32_t x = 0;
+            std::uint32_t y = 0;
+            std::uint32_t w = 0;
+            std::uint32_t h = 0;
+        };
+        auto pixel = [](const double normalized, const std::uint32_t extent) -> std::uint32_t
+        {
+            return static_cast<std::uint32_t>(
+                std::clamp(std::llround(normalized * static_cast<double>(extent)), 0LL,
+                           static_cast<long long>(extent > 0U ? extent - 1U : 0U)));
+        };
+        Crop crop;
+        crop.x = pixel(roi.x, width);
+        crop.y = pixel(roi.y, height);
+        crop.w = static_cast<std::uint32_t>(
+            std::clamp(std::llround(roi.width * static_cast<double>(width)), 1LL,
+                       static_cast<long long>(width)));
+        crop.h = static_cast<std::uint32_t>(
+            std::clamp(std::llround(roi.height * static_cast<double>(height)), 1LL,
+                       static_cast<long long>(height)));
+        if (crop.x + crop.w > width)
+            crop.w = width - crop.x;
+        if (crop.y + crop.h > height)
+            crop.h = height - crop.y;
+        return crop;
+    };
+
+    auto qimage_to_packed_rgb8 = [](const QImage &image)
+    {
+        const QImage rgb = image.convertToFormat(QImage::Format_RGB888);
+        std::vector<std::uint8_t> packed(static_cast<std::size_t>(rgb.width()) *
+                                         static_cast<std::size_t>(rgb.height()) * 3U);
+        for (int y = 0; y < rgb.height(); ++y)
+        {
+            const auto *row = rgb.constScanLine(y);
+            const auto dst =
+                static_cast<std::size_t>(y) * static_cast<std::size_t>(rgb.width()) * 3U;
+            std::copy(row, row + static_cast<std::ptrdiff_t>(rgb.width()) * 3,
+                      packed.begin() + static_cast<std::ptrdiff_t>(dst));
+        }
+        return packed;
+    };
 
     PreviewRequest settled;
     settled.asset_id = asset_id;
@@ -1353,20 +1405,34 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     auto preview = service->request_preview(settled);
     ASSERT_TRUE(preview) << preview.error().message;
     ASSERT_TRUE(require_cpu_gold_backend(preview.value().gpu_backend, "settled_preview"));
-    // ICC identity: reopen must carry the same ColorProfileState declaration as
-    // the settled preview (bytes + identifier), even when identifier is empty on
-    // the default RAW baseline recipe.
 
-    const auto export_path = (root / "iq00-roi-export.png").string();
-    ExportRequest export_request;
-    export_request.asset_id = asset_id;
-    export_request.output_path = export_path;
-    export_request.format = ExportFormat::kPng;
-    export_request.max_edge = 128U;
-    auto exported = service->export_asset(export_request);
-    ASSERT_TRUE(exported) << exported.error().message;
+    // Scaled export: CPU-gold authority at settled size; cannot size-match 1:1 ROI.
+    const auto scaled_export_path = (root / "iq00-roi-export-scaled.png").string();
+    ExportRequest scaled_export;
+    scaled_export.asset_id = asset_id;
+    scaled_export.output_path = scaled_export_path;
+    scaled_export.format = ExportFormat::kPng;
+    scaled_export.max_edge = 128U;
+    auto scaled_exported = service->export_asset(scaled_export);
+    ASSERT_TRUE(scaled_exported) << scaled_exported.error().message;
+    EXPECT_EQ(scaled_exported.value().width, preview.value().width);
+    EXPECT_EQ(scaled_exported.value().height, preview.value().height);
 
-    // Reopen settled preview from cache/re-render must remain CPU gold.
+    // Full-resolution export crop is the size-matched packed comparison authority.
+    const auto full_export_path = (root / "iq00-roi-export-full.png").string();
+    ExportRequest full_export;
+    full_export.asset_id = asset_id;
+    full_export.output_path = full_export_path;
+    full_export.format = ExportFormat::kPng;
+    full_export.max_edge = 0U;
+    auto full_exported = service->export_asset(full_export);
+    ASSERT_TRUE(full_exported) << full_exported.error().message;
+    RecordProperty("iq00_full_export_width", static_cast<int>(full_exported.value().width));
+    RecordProperty("iq00_full_export_height", static_cast<int>(full_exported.value().height));
+    EXPECT_GT(full_exported.value().width, scaled_exported.value().width);
+    EXPECT_GT(full_exported.value().height, scaled_exported.value().height);
+
+    // Reopen settled preview must remain CPU gold + ICC identity.
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
@@ -1379,20 +1445,77 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     roi.asset_id = asset_id;
     roi.persist_preview_record = false;
     roi.prefer_embedded_preview = false;
-    roi.roi = PreviewNormRect{0.30, 0.30, 0.25, 0.20};
+    roi.need_cpu_pixels = true;
+    roi.roi = roi_rect;
     auto roi_preview = service->request_preview(roi);
     ASSERT_TRUE(roi_preview) << roi_preview.error().message;
-    EXPECT_FALSE(roi_preview.value().rgb.empty());
-    EXPECT_GT(roi_preview.value().width, 0U);
-    EXPECT_GT(roi_preview.value().height, 0U);
-    // Live ROI may report a GPU backend; that residual is explicit, not CPU gold.
-    if (roi_preview.value().gpu_backend.empty())
-    {
+    ASSERT_FALSE(roi_preview.value().rgb.empty());
+    ASSERT_GT(roi_preview.value().width, 0U);
+    ASSERT_GT(roi_preview.value().height, 0U);
+    const bool roi_gpu = !is_cpu_gold_backend(roi_preview.value().gpu_backend);
+    RecordProperty("iq00_raw_roi_gpu_backend", roi_preview.value().gpu_backend);
+    RecordProperty("iq00_raw_roi_width", static_cast<int>(roi_preview.value().width));
+    RecordProperty("iq00_raw_roi_height", static_cast<int>(roi_preview.value().height));
+    if (roi_gpu)
+        EXPECT_FALSE(is_cpu_gold_backend(roi_preview.value().gpu_backend));
+    else
         EXPECT_TRUE(is_cpu_gold_backend(roi_preview.value().gpu_backend));
+
+    const QImage scaled_image(QString::fromStdString(scaled_export_path));
+    ASSERT_FALSE(scaled_image.isNull());
+    const auto scaled_crop =
+        norm_rect_pixel_crop(roi_rect, static_cast<std::uint32_t>(scaled_image.width()),
+                             static_cast<std::uint32_t>(scaled_image.height()));
+    RecordProperty("iq00_scaled_export_crop_w", static_cast<int>(scaled_crop.w));
+    RecordProperty("iq00_scaled_export_crop_h", static_cast<int>(scaled_crop.h));
+    ASSERT_FALSE(scaled_crop.w == roi_preview.value().width &&
+                 scaled_crop.h == roi_preview.value().height)
+        << "scaled export crop unexpectedly size-matched ROI; update residual claim";
+    RecordProperty("iq00_raw_roi_scaled_export_size_residual",
+                   "raw_roi_size_vs_scaled_export_crop_mismatch");
+
+    const QImage full_image(QString::fromStdString(full_export_path));
+    ASSERT_FALSE(full_image.isNull());
+    const auto full_packed = qimage_to_packed_rgb8(full_image);
+    const auto full_crop =
+        norm_rect_pixel_crop(roi_rect, static_cast<std::uint32_t>(full_image.width()),
+                             static_cast<std::uint32_t>(full_image.height()));
+    auto cropped_export =
+        crop_packed_rgb8(full_packed, static_cast<std::uint32_t>(full_image.width()),
+                         static_cast<std::uint32_t>(full_image.height()), full_crop.x, full_crop.y,
+                         full_crop.w, full_crop.h);
+    ASSERT_TRUE(cropped_export) << cropped_export.error().message;
+    RecordProperty("iq00_full_export_crop_w", static_cast<int>(full_crop.w));
+    RecordProperty("iq00_full_export_crop_h", static_cast<int>(full_crop.h));
+
+    // Size-matched closure: full export crop equals ROI window dimensions.
+    ASSERT_EQ(full_crop.w, roi_preview.value().width);
+    ASSERT_EQ(full_crop.h, roi_preview.value().height);
+    RecordProperty("iq00_raw_roi_full_export_size_matched", "true");
+
+    const int max_delta =
+        max_packed_rgb8_abs_delta(roi_preview.value().rgb, cropped_export.value());
+    RecordProperty("iq00_raw_roi_vs_full_export_max_packed_abs_delta", max_delta);
+    // Honest packed residual: do not claim interactive ±1 for windowed demosaic
+    // versus full-frame export crop (observed max can far exceed the delta).
+    if (max_delta > kIqGpuCpuPackedRgb8AbsDelta)
+    {
+        RecordProperty("iq00_raw_roi_packed_delta_residual",
+                       "raw_roi_vs_export_crop_exceeds_packed_abs_delta");
+        EXPECT_GT(max_delta, kIqGpuCpuPackedRgb8AbsDelta);
+        EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("windowed_demosaic"),
+                  std::string::npos);
+    }
+    else if (roi_gpu)
+    {
+        EXPECT_TRUE(packed_rgb8_within_abs_delta(roi_preview.value().rgb, cropped_export.value(),
+                                                 kIqGpuCpuPackedRgb8AbsDelta));
+        RecordProperty("iq00_raw_roi_packed_within_documented_delta", "true");
     }
     else
     {
-        EXPECT_FALSE(is_cpu_gold_backend(roi_preview.value().gpu_backend));
+        EXPECT_TRUE(rgb8_buffers_equal(roi_preview.value().rgb, cropped_export.value()));
+        RecordProperty("iq00_raw_roi_packed_bit_exact", "true");
     }
 }
 

@@ -553,6 +553,7 @@ JsonValue keyword_mutation_to_json(const KeywordMutation &mutation)
         {"win_linux_hosts_claimed", false},
         {"full_corpus_matrix_closed", false},
         {"roi_overlap_policy", "cpu_gold_packed_regions_bit_exact; gpu_live_roi_uses_packed_delta"},
+        {"raw_roi_versus_export_residual", std::string(kIqRawRoiVersusExportResidual)},
         {"icc_policy", "preview_and_export_color_profile_identifier_and_icc_bytes_must_match"},
     };
 }
