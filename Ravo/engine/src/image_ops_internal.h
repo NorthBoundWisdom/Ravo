@@ -81,6 +81,9 @@ struct SigmoidCurve
                                             const CancellationToken &cancellation);
 [[nodiscard]] Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operation,
                                          const CancellationToken &cancellation);
+[[nodiscard]] Result<void> apply_rapidraw_basic_tone(WorkingImage &image,
+                                                     const OperationInstance &operation,
+                                                     const CancellationToken &cancellation);
 void apply_contrast(WorkingImage &image, double amount);
 [[nodiscard]] Result<void> apply_light_controls(WorkingImage &image,
                                                 const LightControlAmounts &amounts,
@@ -132,10 +135,10 @@ apply_masked_color_balance_rgb(WorkingImage image, const Recipe &recipe,
 [[nodiscard]] Result<WorkingImage> apply_masked_tone_curve(WorkingImage image, const Recipe &recipe,
                                                            const OperationInstance &operation,
                                                            const CancellationToken &cancellation);
-[[nodiscard]] Result<WorkingImage> apply_masked_light_control(WorkingImage image,
-                                                              const Recipe &recipe,
-                                                              const OperationInstance &operation,
-                                                              const CancellationToken &cancellation);
+[[nodiscard]] Result<WorkingImage>
+apply_masked_light_control(WorkingImage image, const Recipe &recipe,
+                           const OperationInstance &operation,
+                           const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> apply_masked_graduated_nd(WorkingImage image,
                                                              const Recipe &recipe,
                                                              const OperationInstance &operation,

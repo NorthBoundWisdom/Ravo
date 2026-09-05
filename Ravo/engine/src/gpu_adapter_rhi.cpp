@@ -21,6 +21,8 @@ extern unsigned char const ravo_gpu_affine_rgb_qsb[];
 extern unsigned long long const ravo_gpu_affine_rgb_qsb_size;
 extern unsigned char const ravo_gpu_sigmoid_rgb_qsb[];
 extern unsigned long long const ravo_gpu_sigmoid_rgb_qsb_size;
+extern unsigned char const ravo_gpu_rapidraw_basic_tone_qsb[];
+extern unsigned long long const ravo_gpu_rapidraw_basic_tone_qsb_size;
 extern unsigned char const ravo_gpu_light_controls_qsb[];
 extern unsigned long long const ravo_gpu_light_controls_qsb_size;
 extern unsigned char const ravo_gpu_sharpen_lab_qsb[];
@@ -190,6 +192,7 @@ struct GpuAdapter::Impl
 #endif
     std::unique_ptr<QRhi> rhi;
     std::unique_ptr<QRhiBuffer> affine_uniforms;
+    std::unique_ptr<QRhiBuffer> rapidraw_basic_tone_uniforms;
     std::unique_ptr<QRhiBuffer> sigmoid_uniforms;
     std::unique_ptr<QRhiBuffer> light_uniforms[4];
     std::unique_ptr<QRhiBuffer> sharpen_uniforms[4];
@@ -203,6 +206,7 @@ struct GpuAdapter::Impl
     std::unique_ptr<QRhiShaderResourceBindings> pack_layout;
     std::unique_ptr<QRhiComputePipeline> affine_pipeline;
     std::unique_ptr<QRhiComputePipeline> sigmoid_pipeline;
+    std::unique_ptr<QRhiComputePipeline> rapidraw_basic_tone_pipeline;
     std::unique_ptr<QRhiComputePipeline> light_pipeline;
     std::unique_ptr<QRhiComputePipeline> sharpen_pipeline;
     std::unique_ptr<QRhiComputePipeline> rcd_pipeline;
@@ -310,7 +314,8 @@ GpuAdapter::Impl::make_pipeline(const QShader &shader, QRhiShaderResourceBinding
 }
 
 Result<QRhiBuffer *> GpuAdapter::Impl::ensure_storage(std::unique_ptr<QRhiBuffer> &slot,
-                                                      quint32 &slot_bytes, const quint32 bytes) const
+                                                      quint32 &slot_bytes,
+                                                      const quint32 bytes) const
 {
     if (bytes == 0U)
     {
@@ -333,14 +338,15 @@ Result<QRhiBuffer *> GpuAdapter::Impl::ensure_storage(std::unique_ptr<QRhiBuffer
     return slot.get();
 }
 
-Result<void> GpuAdapter::Impl::copy_rgb_window(
-    QRhiCommandBuffer *command, QRhiResourceUpdateBatch *updates, QRhiBuffer *source,
-    QRhiBuffer *destination, const quint32 src_width, const quint32 src_height,
-    const quint32 origin_x, const quint32 origin_y, const quint32 dst_width,
-    const quint32 dst_height) const
+Result<void> GpuAdapter::Impl::copy_rgb_window(QRhiCommandBuffer *command,
+                                               QRhiResourceUpdateBatch *updates, QRhiBuffer *source,
+                                               QRhiBuffer *destination, const quint32 src_width,
+                                               const quint32 src_height, const quint32 origin_x,
+                                               const quint32 origin_y, const quint32 dst_width,
+                                               const quint32 dst_height) const
 {
-    if (command == nullptr || source == nullptr || destination == nullptr || copy_pipeline == nullptr ||
-        copy_uniforms == nullptr || dst_width == 0U || dst_height == 0U)
+    if (command == nullptr || source == nullptr || destination == nullptr ||
+        copy_pipeline == nullptr || copy_uniforms == nullptr || dst_width == 0U || dst_height == 0U)
     {
         rhi->endOffscreenFrame();
         return make_error(ErrorCode::kIo, "GPU copy dispatch failed",
@@ -397,8 +403,8 @@ Result<void> GpuAdapter::Impl::publish_display(QRhiCommandBuffer *command, QRhiB
                                                const quint32 width, const quint32 height,
                                                const bool last) const
 {
-    if (command == nullptr || rgb == nullptr || pack_pipeline == nullptr || pack_uniforms == nullptr ||
-        width == 0U || height == 0U)
+    if (command == nullptr || rgb == nullptr || pack_pipeline == nullptr ||
+        pack_uniforms == nullptr || width == 0U || height == 0U)
     {
         rhi->endOffscreenFrame();
         return make_error(ErrorCode::kIo, "GPU display pack failed",
@@ -406,8 +412,8 @@ Result<void> GpuAdapter::Impl::publish_display(QRhiCommandBuffer *command, QRhiB
     }
     if (pack_texture == nullptr || pack_texture_width != width || pack_texture_height != height)
     {
-        pack_texture.reset(rhi->newTexture(QRhiTexture::RGBA8, QSize(static_cast<int>(width),
-                                                                     static_cast<int>(height)),
+        pack_texture.reset(rhi->newTexture(QRhiTexture::RGBA8,
+                                           QSize(static_cast<int>(width), static_cast<int>(height)),
                                            1, QRhiTexture::UsedWithLoadStore));
         if (pack_texture == nullptr || !pack_texture->create())
         {
@@ -509,6 +515,12 @@ Result<void> GpuAdapter::Impl::open()
     {
         return sigmoid_shader.error();
     }
+    auto rapidraw_basic_tone_shader =
+        load_shader(ravo_gpu_rapidraw_basic_tone_qsb, ravo_gpu_rapidraw_basic_tone_qsb_size);
+    if (!rapidraw_basic_tone_shader)
+    {
+        return rapidraw_basic_tone_shader.error();
+    }
     auto light_shader = load_shader(ravo_gpu_light_controls_qsb, ravo_gpu_light_controls_qsb_size);
     if (!light_shader)
     {
@@ -525,13 +537,15 @@ Result<void> GpuAdapter::Impl::open()
         return make_error(ErrorCode::kIo, "GPU uniform alignment is invalid",
                           {{"reason", "gpu_pipeline_failed"}});
     }
-    const auto ubo_bytes = std::max(static_cast<quint32>(aligned),
-                                    static_cast<quint32>(sizeof(SharpenUniforms)));
+    const auto ubo_bytes =
+        std::max(static_cast<quint32>(aligned), static_cast<quint32>(sizeof(SharpenUniforms)));
     const auto ubo_aligned =
         ((ubo_bytes + static_cast<quint32>(aligned) - 1U) / static_cast<quint32>(aligned)) *
         static_cast<quint32>(aligned);
     rhi = std::move(created);
     affine_uniforms.reset(
+        rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
+    rapidraw_basic_tone_uniforms.reset(
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
     sigmoid_uniforms.reset(
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
@@ -557,9 +571,10 @@ Result<void> GpuAdapter::Impl::open()
             break;
         }
     }
-    if (affine_uniforms == nullptr || sigmoid_uniforms == nullptr ||
-        layout_bindings == nullptr || sharpen_layout == nullptr || !light_ubos || !sharpen_ubos ||
-        !affine_uniforms->create() || !sigmoid_uniforms->create())
+    if (affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
+        sigmoid_uniforms == nullptr || layout_bindings == nullptr || sharpen_layout == nullptr ||
+        !light_ubos || !sharpen_ubos || !affine_uniforms->create() ||
+        !rapidraw_basic_tone_uniforms->create() || !sigmoid_uniforms->create())
     {
         return make_error(ErrorCode::kIo, "GPU pipeline allocation failed",
                           {{"reason", "gpu_pipeline_failed"}});
@@ -600,6 +615,12 @@ Result<void> GpuAdapter::Impl::open()
     {
         return sigmoid.error();
     }
+    auto rapidraw_basic_tone =
+        make_pipeline(rapidraw_basic_tone_shader.value(), layout_bindings.get());
+    if (!rapidraw_basic_tone)
+    {
+        return rapidraw_basic_tone.error();
+    }
     auto light = make_pipeline(light_shader.value(), layout_bindings.get());
     if (!light)
     {
@@ -612,6 +633,7 @@ Result<void> GpuAdapter::Impl::open()
     }
     affine_pipeline = std::move(affine).value();
     sigmoid_pipeline = std::move(sigmoid).value();
+    rapidraw_basic_tone_pipeline = std::move(rapidraw_basic_tone).value();
     light_pipeline = std::move(light).value();
     sharpen_pipeline = std::move(sharpen).value();
     auto copy_shader = load_shader(ravo_gpu_copy_rgb_qsb, ravo_gpu_copy_rgb_qsb_size);
@@ -732,8 +754,9 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
     {
         return cancelled.error();
     }
-    if (rhi == nullptr || affine_uniforms == nullptr || sigmoid_uniforms == nullptr ||
-        light_uniforms[0] == nullptr || affine_pipeline == nullptr || sigmoid_pipeline == nullptr ||
+    if (rhi == nullptr || affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
+        sigmoid_uniforms == nullptr || light_uniforms[0] == nullptr || affine_pipeline == nullptr ||
+        sigmoid_pipeline == nullptr || rapidraw_basic_tone_pipeline == nullptr ||
         light_pipeline == nullptr || sharpen_pipeline == nullptr)
     {
         return make_error(ErrorCode::kUnsupported, "GPU adapter is not initialized",
@@ -763,6 +786,7 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             needs_sharpen = true;
         }
         else if (pass.kind != GpuRgbPass::Kind::kSigmoid &&
+                 pass.kind != GpuRgbPass::Kind::kRapidRawBasicTone &&
                  pass.kind != GpuRgbPass::Kind::kLightControls)
         {
             return make_error(ErrorCode::kInvalidArgument, "GPU RGB pass kind is unsupported",
@@ -959,8 +983,8 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                     rhi->endOffscreenFrame();
                     return cancelled.error();
                 }
-                const quint32 stage = pass.sharpen.radius == 0U && stage_index == 1U ? 3U :
-                                                                                      stage_index;
+                const quint32 stage =
+                    pass.sharpen.radius == 0U && stage_index == 1U ? 3U : stage_index;
                 SharpenUniforms params;
                 params.width = pass.sharpen.width;
                 params.height = pass.sharpen.height;
@@ -996,8 +1020,8 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                     return fail_bindings();
                 }
                 const bool last = last_pass && stage_index + 1U == stages;
-                auto dispatched = dispatch(updates, sharpen_pipeline.get(), bindings.get(),
-                                           pixel_groups, last);
+                auto dispatched =
+                    dispatch(updates, sharpen_pipeline.get(), bindings.get(), pixel_groups, last);
                 if (!dispatched)
                 {
                     return dispatched.error();
@@ -1012,9 +1036,11 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         QRhiComputePipeline *pipeline = nullptr;
         QRhiBuffer *ubo = nullptr;
         quint32 groups = 0;
-        if (pass.kind == GpuRgbPass::Kind::kAffine)
+        if (pass.kind == GpuRgbPass::Kind::kAffine ||
+            pass.kind == GpuRgbPass::Kind::kRapidRawBasicTone)
         {
-            if (!std::isfinite(pass.affine.scale) || !std::isfinite(pass.affine.black))
+            if (pass.kind == GpuRgbPass::Kind::kAffine &&
+                (!std::isfinite(pass.affine.scale) || !std::isfinite(pass.affine.black)))
             {
                 rhi->endOffscreenFrame();
                 return make_error(ErrorCode::kInvalidArgument,
@@ -1025,9 +1051,13 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             params.count = count;
             params.scale = pass.affine.scale;
             params.black = pass.affine.black;
-            updates->updateDynamicBuffer(affine_uniforms.get(), 0, sizeof(params), &params);
-            pipeline = affine_pipeline.get();
-            ubo = affine_uniforms.get();
+            QRhiBuffer *const params_buffer = pass.kind == GpuRgbPass::Kind::kAffine ?
+                                                  affine_uniforms.get() :
+                                                  rapidraw_basic_tone_uniforms.get();
+            updates->updateDynamicBuffer(params_buffer, 0, sizeof(params), &params);
+            pipeline = pass.kind == GpuRgbPass::Kind::kAffine ? affine_pipeline.get() :
+                                                                rapidraw_basic_tone_pipeline.get();
+            ubo = params_buffer;
             groups = sample_groups;
         }
         else if (pass.kind == GpuRgbPass::Kind::kLightControls)
@@ -1090,7 +1120,8 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             return make_error(ErrorCode::kInvalidArgument, "GPU display size does not match pixels",
                               {{"reason", "gpu_copy_size_mismatch"}});
         }
-        auto published = publish_display(command, rgb_buffer, display_w, display_h, !options.download);
+        auto published =
+            publish_display(command, rgb_buffer, display_w, display_h, !options.download);
         if (!published)
         {
             return published.error();
@@ -1153,7 +1184,8 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             display_metal_texture[slot][write] = gpu_metal::texture_from_iosurface(
                 metal->dev, display_surface[slot][write], display_w, display_h);
         }
-        if (display_surface[slot][write] == nullptr || display_metal_texture[slot][write] == nullptr ||
+        if (display_surface[slot][write] == nullptr ||
+            display_metal_texture[slot][write] == nullptr ||
             !gpu_metal::blit_texture(metal->dev, metal->cmdQueue,
                                      reinterpret_cast<void *>(native.object),
                                      display_metal_texture[slot][write], display_w, display_h))
@@ -1184,14 +1216,11 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
     return {};
 }
 
-Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
-                                            const std::span<float> rgb, const std::uint32_t width,
-                                            const std::uint32_t height,
-                                            const std::array<std::uint8_t, 4> pattern,
-                                            const std::uint32_t crop_x, const std::uint32_t crop_y,
-                                            const std::uint32_t crop_width,
-                                            const std::uint32_t crop_height,
-                                            const CancellationToken &cancellation) const
+Result<void> GpuAdapter::Impl::demosaic_rcd(
+    const std::span<const float> cfa, const std::span<float> rgb, const std::uint32_t width,
+    const std::uint32_t height, const std::array<std::uint8_t, 4> pattern,
+    const std::uint32_t crop_x, const std::uint32_t crop_y, const std::uint32_t crop_width,
+    const std::uint32_t crop_height, const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -1251,13 +1280,13 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
     auto out_ok = ensure_storage(rcd_out, rcd_out_bytes, rgb_bytes);
     if (!cfa_ok || !rgb_ok || !vh_ok || !pq_ok || !p_high_ok || !q_high_ok || !out_ok)
     {
-        return !cfa_ok       ? cfa_ok.error() :
-               !rgb_ok       ? rgb_ok.error() :
-               !vh_ok        ? vh_ok.error() :
-               !pq_ok        ? pq_ok.error() :
-               !p_high_ok    ? p_high_ok.error() :
-               !q_high_ok    ? q_high_ok.error() :
-                               out_ok.error();
+        return !cfa_ok    ? cfa_ok.error() :
+               !rgb_ok    ? rgb_ok.error() :
+               !vh_ok     ? vh_ok.error() :
+               !pq_ok     ? pq_ok.error() :
+               !p_high_ok ? p_high_ok.error() :
+               !q_high_ok ? q_high_ok.error() :
+                            out_ok.error();
     }
     QRhiBuffer *const cfa_buffer = cfa_ok.value();
     QRhiBuffer *const rgb_buffer = rgb_ok.value();
@@ -1349,9 +1378,8 @@ Result<void> GpuAdapter::Impl::demosaic_rcd(const std::span<const float> cfa,
         command->dispatch(static_cast<int>(groups_x), static_cast<int>(groups_y), 1);
         command->endComputePass();
     }
-    auto copied =
-        copy_rgb_window(command, nullptr, out_buffer, source_ok.value(), width, height, crop_x,
-                        crop_y, out_width, out_height);
+    auto copied = copy_rgb_window(command, nullptr, out_buffer, source_ok.value(), width, height,
+                                  crop_x, crop_y, out_width, out_height);
     if (!copied)
     {
         return copied.error();
@@ -1477,7 +1505,8 @@ Result<void> GpuAdapter::demosaic_rcd(const std::span<const float> cfa, const st
                                crop_height, cancellation);
 }
 
-bool GpuAdapter::has_retained_source(const std::uint32_t width, const std::uint32_t height) const noexcept
+bool GpuAdapter::has_retained_source(const std::uint32_t width,
+                                     const std::uint32_t height) const noexcept
 {
     if (impl_ == nullptr)
     {
@@ -1499,8 +1528,8 @@ std::string_view GpuAdapter::retained_source_key() const noexcept
     return impl_->retained_key;
 }
 
-Result<void> GpuAdapter::retain_source_rgb(const std::span<const float> rgb, const std::uint32_t width,
-                                           const std::uint32_t height,
+Result<void> GpuAdapter::retain_source_rgb(const std::span<const float> rgb,
+                                           const std::uint32_t width, const std::uint32_t height,
                                            const CancellationToken &cancellation,
                                            const std::string_view key) const
 {

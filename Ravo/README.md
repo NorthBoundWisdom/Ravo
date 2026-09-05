@@ -605,9 +605,11 @@ Current implementation status:
   authors bounded circle regions; imported canonical path/brush regions remain
   reproducible. The old GTK IOP and exclusive OpenCL kernel are removed, while
   shared DWT/heal/bilateral and historic mask/order consumers remain.
-- RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
-  display transform. Recipes may adjust contrast/skew/hue preservation, while
-  the default baseline is not marked as a user edit. The RAW baseline runs
+- New RAW preview/export uses `ravo.display.rapidraw-basic` v1 as its sole
+  display transform, adapted from the pinned RapidRAW source under AGPLv3.
+  Existing recipes with `ravo.display.sigmoid` v1 keep their prior
+  contrast/skew/hue-preservation response. The default baseline is not marked
+  as a user edit. The RAW baseline runs
   opposed highlight reconstruction before demosaic and also enables
   `ravo.detail.sharpen` at amount 0.5, radius 2, and threshold 0.5. Gallery embedded-JPEG
   thumbnails and inspect dimensions are corrected to camera orientation.
@@ -986,4 +988,4 @@ libraries, load old IOPs, or access global `darktable`.
 - [Packaging](../DevDocs/Packaging.md): three-platform Release artifacts and
   installed-launch constraints;
 
-The repository is distributed under GPLv3; see the root [LICENSE](../LICENSE).
+The repository is distributed under AGPLv3; see the root [LICENSE](../LICENSE).

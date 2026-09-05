@@ -164,3 +164,4 @@ supersession relationship when direction changes.
 | [0154](0154-external-editor-working-copy-reopen-abandon.md) | Accepted | EDITIN-01 working-copy reopen/abandon + conflict machine states |
 | [0155](0155-cull-burst-stack-compare-pair.md) | Accepted | CULL-01 burst/stack Survey compare pair + adjacent step |
 | [0156](0156-xmp-fail-closed-unrepresentable-multi-instance.md) | Accepted | XMP/CRS fail-closed for unrepresentable multi-instance locals |
+| [0157](0157-agpl-rapidraw-tone-pipeline.md) | Accepted | AGPL RapidRAW tone-pipeline assimilation with versioned CPU/QRhi ownership |

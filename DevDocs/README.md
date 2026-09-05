@@ -30,7 +30,7 @@ Three-platform package evidence belongs in [Packaging.md](Packaging.md).
 | --- | --- |
 | [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM source roots, local integration, refresh, and publication order |
 | [Packaging.md](Packaging.md) | Release packaging ownership, artifacts, and validation |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Generated third-party attribution and licence notices packaged with Ravo |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Tracked third-party attribution and licence notices packaged with Ravo |
 
 The following remain separate owners and are not folded into `DevDocs/`:
 

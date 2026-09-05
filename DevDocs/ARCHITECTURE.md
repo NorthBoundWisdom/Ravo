@@ -229,7 +229,7 @@ re-request that window; they do not wait for a pan. The CFA-window linear
 working is retained across RGB-only edits so sliders do not remosaic. Lens,
 perspective, and full-frame ROIs reject and keep the 1600 preview. GPU is an
 Engine-owned QRhi adapter (ADR-0133/0134): one process-wide device. Unmasked
-Exposure, light controls, Lab USM Sharpen, and Sigmoid run on the GPU during
+Exposure, light controls, Lab USM Sharpen, Sigmoid, and RapidRAW Basic tone run on the GPU during
 preview in one SSBO session, interleaved with remaining CPU RGB ops. The
 process-wide adapter reuses grow-only SSBOs, keeps the current CFA-window or
 interactive-prefix RGB resident as a GPU source so RGB sliders copy+apply
@@ -523,7 +523,7 @@ processed RAW. Loupe, Develop, scopes, export, and `request_preview` with
 decode/render of the RAW. Import writes a colour-calibration baseline for RAW:
 opposed highlight reconstruction, as-shot white balance from LibRaw `cam_mul`,
 the camera input matrix (`enhanced_matrix` via input profile `source`),
-`ravo.display.sigmoid`, and `ravo.detail.sharpen` at the accepted Lab USM
+`ravo.display.rapidraw-basic`, and `ravo.detail.sharpen` at the accepted Lab USM
 defaults (amount 0.5, radius 2, threshold 0.5). Opposed reconstruction evaluates
 the CFA in the resolved white-balance scale and bounds each clip threshold by
 LibRaw's optional per-channel, pre-black `linear_max`; zero means absent, while
@@ -759,13 +759,15 @@ names and `basic.cl` kernel text are cleanup owners for D0.4/S4/S14, not runtime
 exposure owners. [ADR-0024](adr/0024-exposure-analysis-and-metadata-contract.md)
 freezes these boundaries.
 
-`ravo.display.sigmoid` v1 is the sole default display transform:
-`working_space=linear_srgb`, `color_processing=per_channel`, middle-grey
-contrast, skew, Standard SDR black/white target, and hue preservation. It is
-the RAW baseline and final scene-referred operation. A restricted imported
-display-sRGB point curve may follow it before output-profile encoding. RAW
-Studio and CRS Contrast belong to Sigmoid; CRS maps the signed slider
-logarithmically around the 1.5 default to a +100 endpoint of 3.25.
+`ravo.display.rapidraw-basic` v1 is the sole display transform for new RAW
+baselines. It applies the attributed RapidRAW Basic RAW sRGB response, then
+decodes the result back to linear sRGB so the output-profile owner performs
+the single final display encoding. Explicit stored `ravo.display.sigmoid` v1
+recipes retain their per-channel or RGB-ratio generalized log-logistic
+response and are never silently reinterpreted. A restricted imported
+display-sRGB point curve may follow either transform before output-profile
+encoding. Sigmoid-only Studio and CRS Contrast map logarithmically around the
+1.5 default to a +100 endpoint of 3.25.
 `ravo.core.contrast` serves
 display-referred raster input and old recipes. Highlights/shadows/whites/blacks
 are scene controls before the transform; the narrower Whites/Blacks envelopes
@@ -847,7 +849,7 @@ still camera RGB, then white balance and Input Color run. WarpRectilinear is
 parsed and inspect-visible so the file's lens geometry is not hidden, but the
 default colour decode does not apply it. darktable keeps DNG warp for the lens
 module (off by default); RapidRAW uses optional lensfun. Ravo import uses
-as-shot white balance, the camera matrix, Sigmoid, and default Lab USM. The private adapter
+as-shot white balance, the camera matrix, RapidRAW Basic tone, and default Lab USM. The private adapter
 owns all parsed values, applies DNG's `[0, 1]` clip after each executed
 List2/List3 opcode, and preserves repeated operations. Known malformed or
 unknown mandatory operations fail before publication; unknown optional
@@ -1537,7 +1539,7 @@ CLI and Studio project that contract without expanding paths themselves. See
   old-catalog migration.
 - GPU is an Engine QRhi adapter (ADR-0133/0134). CPU remains the correctness
   reference. Preview keeps unmasked Exposure, light controls, Lab USM, and
-  Sigmoid on one GPU SSBO session; other RGB ops stay CPU. Bayer window RCD
+  Sigmoid or RapidRAW Basic tone on one GPU SSBO session; other RGB ops stay CPU. Bayer window RCD
   for ROI 1:1 is GPU when a compute backend exists; PPG and export stay CPU.
   Interactive Studio may sample an Engine-published IOSurface instead of a
   CPU `QImage`; missing display transport downloads pixels rather than

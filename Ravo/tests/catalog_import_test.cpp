@@ -1376,7 +1376,7 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
-    EXPECT_TRUE(develop.value().sigmoid_enabled);
+    EXPECT_TRUE(develop.value().rapidraw_basic_tone_enabled);
     EXPECT_NEAR(develop.value().sharpen, SharpenParams{}.amount, 1e-9);
 
     PreviewRequest browse;

@@ -58,6 +58,7 @@ struct GpuRgbPass
         kSigmoid = 1,
         kLightControls = 2,
         kSharpen = 3,
+        kRapidRawBasicTone = 4,
     };
     Kind kind = Kind::kAffine;
     GpuAffineRgbParams affine;
@@ -121,7 +122,8 @@ public:
                                             std::uint32_t crop_x, std::uint32_t crop_y,
                                             std::uint32_t crop_width, std::uint32_t crop_height,
                                             const CancellationToken &cancellation) const;
-    [[nodiscard]] bool has_retained_source(std::uint32_t width, std::uint32_t height) const noexcept;
+    [[nodiscard]] bool has_retained_source(std::uint32_t width,
+                                           std::uint32_t height) const noexcept;
     [[nodiscard]] std::string_view retained_source_key() const noexcept;
     [[nodiscard]] Result<void> retain_source_rgb(std::span<const float> rgb, std::uint32_t width,
                                                  std::uint32_t height,

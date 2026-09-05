@@ -12,7 +12,8 @@ verified recurring backup retention, and stable missing-folder relink
 Leftover algorithm ports are closed by
 [ADR-0106](adr/0106-close-legacy-algorithm-migration.md). Unaccepted leftover
 IOPs are leftovers, not C++ ports. The leftover source tree is gone. New
-ownership lives only in `Ravo/`. Defaults remain Sigmoid and Color Equalizer.
+ownership lives only in `Ravo/`. New RAW defaults use the versioned RapidRAW
+Basic tone mapper and Color Equalizer; stored Sigmoid recipes remain stable.
 GTK, Lua, dynamic ABI, and OpenCL are deleted rather than ported.
 
 ## One-way boundary
@@ -131,9 +132,10 @@ Accepted Ravo operations (including Color Zones, crop, flip, demosaic, RGB
 curve/levels, and photographic grain/vignette/bloom amounts already on the
 Develop stack) keep their current contracts. Historic leftover XMP that names
 an unaccepted leftover IOP stays
-fail-closed. Sigmoid and `colorequal` remain the default display transform and
-default HSL partition. The retired final-display channel and mask branches stay
-unsupported presentation adapters.
+fail-closed. `ravo.display.rapidraw-basic` and `colorequal` are the new-RAW
+default display transform and default HSL partition. Explicit stored Sigmoid
+recipes retain their prior rendering. The retired final-display channel and
+mask branches stay unsupported presentation adapters.
 
 ## Migration ledger
 
@@ -200,9 +202,9 @@ unsupported presentation adapters.
 | Original-copy publication | `imageio/format/copy.c` + dynamic imageio/storage/job consumers | services + CLI | In progress | explicit source→destination exact bytes stream through 64 KiB; unique exclusive adjacent temp, sync, atomic no-replace, conflict/cancellation/source-change/disk-full taxonomy, cleanup, source immutability, new destination metadata, and complete CLI context are tested. No XMP is generated. I1/I14/U10/J2 must reach zero consumers before the legacy plugin or registration can retire |
 | Tone curve | `iop/tonecurve.c` | `ravo.core.tonecurve` + Curves section | Old implementation removed | frozen C default `RGB, linked`: Lab D50 → ProPhoto, `preserve_colors=average`. Studio authors RGB-linked, Lab, XYZ, and Lab-independent L/a/b with monotone Hermite, centripetal Catmull-Rom, or cubic spline, and one owned canonical mask (ADR-0111). Histogram overlay uses engine-owned display RGB8 + luma bins (ADR-0084) |
 | RGB curve | `iop/rgbcurve.c` | `ravo.color.rgbcurve` + Curves section | Ravo accepted | Linked/independent working-RGB, preserve-colors, middle-grey uncompensate, 2–20 nodes, leftover interpolators, Studio parametric regions, and one owned canonical mask (ADR-0110). Dedicated editor is accepted (ADR-0052/0053/0084) |
-| Default display transform | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | Old implementation removed | default per-channel generalized log-logistic + hue preservation; `rgb_ratio` is the C second mode. Linear sRGB, Standard SDR target. `filmicrgb`/`agx` remain leftovers |
+| Default display transform | RapidRAW Basic at commit `d6d8daa999f81198fb49e99b7e8ff43b47a6ffcd`; formerly `iop/sigmoid.c` | `ravo.display.rapidraw-basic` + RAW baseline; stored `ravo.display.sigmoid` | Ravo accepted | New RAW uses the source-attributed Basic RAW display response, returned to linear sRGB before the single output-profile encoding (ADR-0157). Existing explicit Sigmoid keeps its generalized log-logistic rendering and `rgb_ratio` mode. `filmicrgb`/`agx` remain leftovers |
 | CLI | `src/cli` | cli + control | In progress | engine/recipe/catalog/develop/export JSON use supported services/engine; `ravo-studio-control/v1` adds owner-only discovery, revisioned selection/current+saved recipe inspection, strict command-controller Develop mutation, and exact no-replace preview artifacts without UI automation (ADR-0090) |
-| GPU | OpenCL/pixelpipe | engine adapter | In progress | 0.9 OpenCL is leftover and is not reused. CPU remains the correctness reference. GPU is an Engine QRhi adapter (ADR-0133/0134): no Recipe/QML/catalog device state and no silent CPU fallback. Preview keeps unmasked Exposure, light controls, Lab USM Sharpen, and Sigmoid on one GPU SSBO session with grow-only reused SSBOs and a resident interactive-prefix RGB source; remaining RGB ops stay CPU. Bayer window RCD for viewport ROI 1:1 is GPU when a compute backend exists and is RMSE-gated against CPU. macOS Studio interactive display packs sRGB to an IOSurface that Qt Quick samples (16-byte-aligned `bytesPerRow`); missing display transport downloads pixels rather than changing the algorithm. Live identity, comparison, and scopes still download CPU RGB from that interactive render. PPG, masks, other kernels, persist preview, export, CLI PNG, and gold tests stay on the CPU download path. `catalog probe --json` and `catalog preview --json` report `gpu_backend`. The retired `GPU_Baseline.md` checklist is not an admission gate. |
+| GPU | OpenCL/pixelpipe | engine adapter | In progress | 0.9 OpenCL is leftover and is not reused. CPU remains the correctness reference. GPU is an Engine QRhi adapter (ADR-0133/0134): no Recipe/QML/catalog device state and no silent CPU fallback. Preview keeps unmasked Exposure, light controls, Lab USM Sharpen, Sigmoid, and RapidRAW Basic tone on one GPU SSBO session with grow-only reused SSBOs and a resident interactive-prefix RGB source; per-pass uniform storage prevents same-frame parameter overwrite, and remaining RGB ops stay CPU. Bayer window RCD for viewport ROI 1:1 is GPU when a compute backend exists and is RMSE-gated against CPU. macOS Studio interactive display packs sRGB to an IOSurface that Qt Quick samples (16-byte-aligned `bytesPerRow`); missing display transport downloads pixels rather than changing the algorithm. Live identity, comparison, and scopes still download CPU RGB from that interactive render. PPG, masks, other kernels, persist preview, export, CLI PNG, and gold tests stay on the CPU download path. `catalog probe --json` and `catalog preview --json` report `gpu_backend`. The retired `GPU_Baseline.md` checklist is not an admission gate. |
 
 Use only these statuses: “Not started / Baseline frozen / In progress / Ravo
 accepted / Old implementation removed / Deferred / Unsupported.” The leftover

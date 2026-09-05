@@ -1,7 +1,7 @@
 # Ravo — Open-Source RAW Photo Editor, Photo Library Manager, and Color Grading Software
 
 [![CI](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml/badge.svg)](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml)
-[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C.svg)](DevDocs/ARCHITECTURE.md)
 [![Qt 6 Quick](https://img.shields.io/badge/Qt-6%20Quick%2FQML-41CD52.svg)](DevDocs/ARCHITECTURE.md)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#install-and-build-from-source)
@@ -121,8 +121,9 @@ color zones, color harmonizer, color correction and contrast, Velvia,
 monochrome, split toning, profile-explicit 3D LUTs, graduated filter, RGB and
 tone curves, tone equalizer, guided Texture, D50 Lab sharpening, dark-channel
 dehazing, mask-based clone / heal / blur / fill retouch, canvas and output
-frame, dither and posterize, and a deterministic text watermark. RAW output
-uses the Sigmoid Standard SDR display transform. Masks form a typed graph —
+frame, dither and posterize, and a deterministic text watermark. New RAW output
+uses the RapidRAW Basic display transform while stored explicit Sigmoid recipes
+retain their original response. Masks form a typed graph —
 gradient, circle, ellipse, parametric, path, brush, and ordered groups — with a
 live Studio overlay.
 
@@ -195,7 +196,7 @@ Behavior changes need matching Ravo unit or contract tests.
 ## License
 
 Ravo is distributed under the
-[GNU General Public License, version 3](LICENSE). Third-party components are
+[GNU Affero General Public License, version 3](LICENSE). Third-party components are
 listed in [DevDocs/THIRD_PARTY_NOTICES.md](DevDocs/THIRD_PARTY_NOTICES.md).
 
 ---

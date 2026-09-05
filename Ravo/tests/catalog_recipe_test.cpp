@@ -50,6 +50,7 @@
 #include "ravo/recipe/dehaze.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
+#include "ravo/recipe/rapidraw_tone.h"
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/texture.h"
 #include "ravo/services/catalog_service.h"
@@ -578,7 +579,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
               baseline.value().operations.end());
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
-                           { return operation.id == "ravo.display.sigmoid"; }),
+                           { return operation.id == kRapidRawBasicToneOperationId; }),
               baseline.value().operations.end());
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
@@ -594,8 +595,8 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
               baseline.value().operations.end());
     auto baseline_params = develop_from_recipe(baseline.value());
     ASSERT_TRUE(baseline_params) << baseline_params.error().message;
-    EXPECT_TRUE(baseline_params.value().sigmoid_enabled);
-    EXPECT_NEAR(baseline_params.value().sigmoid_contrast, kSigmoidContrastDefault, 1e-9);
+    EXPECT_FALSE(baseline_params.value().sigmoid_enabled);
+    EXPECT_TRUE(baseline_params.value().rapidraw_basic_tone_enabled);
     EXPECT_NEAR(baseline_params.value().sharpen, SharpenParams{}.amount, 1e-9);
     EXPECT_NEAR(baseline_params.value().sharpen_radius, SharpenParams{}.radius, 1e-9);
     EXPECT_NEAR(baseline_params.value().sharpen_threshold, SharpenParams{}.threshold, 1e-9);
@@ -606,17 +607,14 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     ASSERT_TRUE(baseline_has_edits) << baseline_has_edits.error().message;
     EXPECT_FALSE(baseline_has_edits.value());
 
-    Recipe prior_baseline = baseline.value();
-    prior_baseline.operations.erase(
-        std::remove_if(prior_baseline.operations.begin(), prior_baseline.operations.end(),
-                       [](const OperationInstance &operation)
-                       { return operation.id == "ravo.raw.highlights"; }),
-        prior_baseline.operations.end());
-    const auto prior_sigmoid = std::find_if(
-        prior_baseline.operations.begin(), prior_baseline.operations.end(),
-        [](const OperationInstance &operation) { return operation.id == "ravo.display.sigmoid"; });
-    ASSERT_NE(prior_sigmoid, prior_baseline.operations.end());
-    prior_sigmoid->parameters["contrast_skewness"] = ParameterValue{-0.2};
+    auto prior_params = baseline_params.value();
+    prior_params.rapidraw_basic_tone_enabled = false;
+    prior_params.sigmoid_enabled = true;
+    prior_params.sigmoid_skew = -0.2;
+    prior_params.raw_highlights = 0.0;
+    auto prior_built = recipe_from_develop(baseline.value().asset, prior_params);
+    ASSERT_TRUE(prior_built) << prior_built.error().message;
+    Recipe prior_baseline = std::move(prior_built).value();
     auto prior_saved = service->save_recipe(asset_id, prior_baseline);
     ASSERT_TRUE(prior_saved) << prior_saved.error().message;
     auto prior_effective = service->load_recipe(asset_id);
@@ -653,7 +651,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
               prior_parsed.value().operations.end());
 
     auto adjusted = baseline_params.value();
-    adjusted.sigmoid_skew = -0.35;
+    adjusted.exposure_ev = -0.35;
     auto saved = service->save_develop(asset_id, adjusted);
     ASSERT_TRUE(saved) << saved.error().message;
     EXPECT_TRUE(saved.value().has_edits);
@@ -666,7 +664,8 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     ASSERT_TRUE(restored) << restored.error().message;
     auto restored_params = develop_from_recipe(restored.value());
     ASSERT_TRUE(restored_params) << restored_params.error().message;
-    EXPECT_NEAR(restored_params.value().sigmoid_skew, -0.35, 1e-9);
+    EXPECT_NEAR(restored_params.value().exposure_ev, -0.35, 1e-9);
+    EXPECT_TRUE(restored_params.value().rapidraw_basic_tone_enabled);
 
     auto reset = service->reset_recipe(asset_id);
     ASSERT_TRUE(reset) << reset.error().message;
@@ -675,8 +674,8 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     ASSERT_TRUE(reset_recipe) << reset_recipe.error().message;
     auto reset_params = develop_from_recipe(reset_recipe.value());
     ASSERT_TRUE(reset_params) << reset_params.error().message;
-    EXPECT_TRUE(reset_params.value().sigmoid_enabled);
-    EXPECT_NEAR(reset_params.value().sigmoid_skew, kSigmoidSkewDefault, 1e-9);
+    EXPECT_FALSE(reset_params.value().sigmoid_enabled);
+    EXPECT_TRUE(reset_params.value().rapidraw_basic_tone_enabled);
     EXPECT_NEAR(reset_params.value().sharpen, SharpenParams{}.amount, 1e-9);
     EXPECT_DOUBLE_EQ(reset_params.value().raw_highlights, 1.0);
 }
@@ -1205,7 +1204,8 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     auto stored_params = develop_from_recipe(stored.value());
     ASSERT_TRUE(stored_params) << stored_params.error().message;
     EXPECT_NEAR(stored_params.value().exposure_ev, 0.0, 1e-9);
-    EXPECT_TRUE(stored_params.value().sigmoid_enabled);
+    EXPECT_FALSE(stored_params.value().sigmoid_enabled);
+    EXPECT_TRUE(stored_params.value().rapidraw_basic_tone_enabled);
 
     live.exposure_ev = -0.5;
     auto second = service->request_preview(request, live);

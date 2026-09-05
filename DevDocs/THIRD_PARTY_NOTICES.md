@@ -6,6 +6,22 @@ Specification: <https://helpx.adobe.com/camera-raw/digital-negative.html>
 
 This product includes DNG technology under license by Adobe.
 
+## RapidRAW Basic tone mapper
+
+Source: RapidRAW commit
+`d6d8daa999f81198fb49e99b7e8ff43b47a6ffcd`,
+`src-tauri/src/shaders/shader.wgsl` and
+`src-tauri/src/image_processing.rs`,
+<https://github.com/CyberTimon/RapidRAW>.
+
+Copyright (c) Timon Käch and RapidRAW contributors. Used under the GNU Affero
+General Public License, version 3. Ravo's C++20/QRhi adaptation retains the
+Basic RAW display curve while replacing the
+Rust/Tauri/wgpu application, worker, texture, and state owners with Ravo's
+versioned Recipe, Engine CPU-gold, QRhi preview, cancellation, bounded memory,
+and structured-error contracts. Ravo distributes the combined product under
+the GNU Affero General Public License, version 3.
+
 ## RawTherapee RCD demosaic
 
 Source: <https://github.com/Beep6581/RawTherapee/blob/498f62378/rtengine/rcd_demosaic.cc>

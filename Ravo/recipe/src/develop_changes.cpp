@@ -229,6 +229,8 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_toggle_change(changes, "profileGamma", before.profile_gamma_enabled,
                       after.profile_gamma_enabled);
     add_toggle_change(changes, "sigmoid", before.sigmoid_enabled, after.sigmoid_enabled);
+    add_toggle_change(changes, "rapidrawToneMapper", before.rapidraw_basic_tone_enabled,
+                      after.rapidraw_basic_tone_enabled);
     add_toggle_change(changes, "light", before.light_effect_enabled, after.light_effect_enabled);
     add_toggle_change(changes, "color", before.color_effect_enabled, after.color_effect_enabled);
     add_toggle_change(changes, "detail", before.detail_effect_enabled, after.detail_effect_enabled);

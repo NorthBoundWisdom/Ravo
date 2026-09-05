@@ -26,38 +26,38 @@ namespace ravo
 {
 using develop_internal::add_operation;
 using develop_internal::append_color_balance_develop_names;
-using develop_internal::append_legacy_color_balance_develop_names;
 using develop_internal::append_develop_numeric_field_names;
+using develop_internal::append_legacy_color_balance_develop_names;
+using develop_internal::apply_color_balance_field;
 using develop_internal::apply_color_checker_field;
 using develop_internal::apply_color_contrast_field;
 using develop_internal::apply_color_correction_field;
 using develop_internal::apply_color_harmonizer_field;
 using develop_internal::apply_color_reconstruction_field;
-using develop_internal::apply_color_balance_field;
 using develop_internal::apply_legacy_color_balance_field;
-using develop_internal::apply_temperature_field;
-using develop_internal::assign_color_harmonizer_hue_turns;
-using develop_internal::assign_develop_field;
 using develop_internal::apply_rgb_curve_field;
 using develop_internal::apply_rgb_levels_field;
+using develop_internal::apply_temperature_field;
 using develop_internal::as_integer;
 using develop_internal::as_number;
 using develop_internal::as_string_if;
+using develop_internal::assign_color_harmonizer_hue_turns;
+using develop_internal::assign_develop_field;
 using develop_internal::band_array_parameter;
 using develop_internal::bands_near_zero;
-using develop_internal::clamp_value;
+using develop_internal::candidate_develop_set_names;
 using develop_internal::clamp_color_balance;
 using develop_internal::clamp_color_contrast;
 using develop_internal::clamp_color_correction;
 using develop_internal::clamp_color_harmonizer;
 using develop_internal::clamp_color_reconstruction;
 using develop_internal::clamp_legacy_color_balance;
-using develop_internal::clamp_temperature;
 using develop_internal::clamp_rgb_levels;
-using develop_internal::exact_develop_integer;
-using develop_internal::candidate_develop_set_names;
-using develop_internal::develop_set_field_extreme;
+using develop_internal::clamp_temperature;
+using develop_internal::clamp_value;
 using develop_internal::develop_set_field_accepts;
+using develop_internal::develop_set_field_extreme;
+using develop_internal::exact_develop_integer;
 using develop_internal::first_accepted_develop_set_value;
 using develop_internal::flag01;
 using develop_internal::kEpsilon;
@@ -72,13 +72,11 @@ using develop_internal::reset_color_correction_field;
 using develop_internal::reset_color_harmonizer_field;
 using develop_internal::reset_color_reconstruction_field;
 using develop_internal::reset_legacy_color_balance_field;
-using develop_internal::reset_temperature_field;
 using develop_internal::reset_rgb_curve_field;
 using develop_internal::reset_rgb_levels_field;
+using develop_internal::reset_temperature_field;
 using develop_internal::rgb_levels_preserve_names;
 using develop_internal::studio_color_zones_curves;
-
-
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
 {
@@ -1092,18 +1090,18 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
                                       params.exposure_compensate_exposure_bias,
                                       params.exposure_compensate_highlight_preservation};
         return !exposure.is_identity() || params.exposure_mask_id.has_value() ||
-               !near(params.contrast, 0.0) ||
-               !near(params.highlights, 0.0) || params.highlights_mask_id.has_value() ||
-               !near(params.shadows, 0.0) || params.shadows_mask_id.has_value() ||
-               !near(params.whites, 0.0) || params.whites_mask_id.has_value() ||
-               !near(params.blacks, 0.0) || params.blacks_mask_id.has_value() ||
-               !near(params.gamma, kDevelopGammaDefault) || !params.rgb_levels.is_identity() ||
-               params.sigmoid_enabled ||
+               !near(params.contrast, 0.0) || !near(params.highlights, 0.0) ||
+               params.highlights_mask_id.has_value() || !near(params.shadows, 0.0) ||
+               params.shadows_mask_id.has_value() || !near(params.whites, 0.0) ||
+               params.whites_mask_id.has_value() || !near(params.blacks, 0.0) ||
+               params.blacks_mask_id.has_value() || !near(params.gamma, kDevelopGammaDefault) ||
+               !params.rgb_levels.is_identity() || params.sigmoid_enabled ||
                !near(params.sigmoid_contrast, identity.sigmoid_contrast) ||
                !near(params.sigmoid_skew, identity.sigmoid_skew) ||
                !near(params.sigmoid_display_white, identity.sigmoid_display_white) ||
                !near(params.sigmoid_display_black, identity.sigmoid_display_black) ||
-               !near(params.sigmoid_hue_preservation, identity.sigmoid_hue_preservation);
+               !near(params.sigmoid_hue_preservation, identity.sigmoid_hue_preservation) ||
+               params.rapidraw_basic_tone_enabled;
     }
     if (section == "curves")
     {
@@ -1120,14 +1118,14 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
                params.velvia_mask_id.has_value() || params.lut3d_present || params.lut3d_enabled ||
                params.color_balance_enabled || !params.color_balance.is_identity() ||
                params.color_checker_enabled || !params.color_balance_rgb.is_identity() ||
-               params.color_balance_rgb_mask_id.has_value() ||
-               params.color_correction_enabled || params.color_contrast_enabled ||
-               params.color_reconstruction_enabled || params.color_zones_present ||
-               params.color_zones_enabled || params.color_zones_mask_id.has_value() ||
-               params.color_harmonizer_enabled || params.color_harmonizer_present ||
-               params.monochrome_present || params.monochrome_enabled ||
-               params.monochrome_mask_id.has_value() || params.split_toning_present ||
-               params.split_toning_enabled || params.split_toning_mask_id.has_value();
+               params.color_balance_rgb_mask_id.has_value() || params.color_correction_enabled ||
+               params.color_contrast_enabled || params.color_reconstruction_enabled ||
+               params.color_zones_present || params.color_zones_enabled ||
+               params.color_zones_mask_id.has_value() || params.color_harmonizer_enabled ||
+               params.color_harmonizer_present || params.monochrome_present ||
+               params.monochrome_enabled || params.monochrome_mask_id.has_value() ||
+               params.split_toning_present || params.split_toning_enabled ||
+               params.split_toning_mask_id.has_value();
     }
     if (section == "colorHarmonizer")
     {
@@ -1321,6 +1319,5 @@ bool set_develop_section_effect_enabled(DevelopParams &params, const std::string
     }
     return true;
 }
-
 
 } // namespace ravo

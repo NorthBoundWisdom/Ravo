@@ -33,6 +33,7 @@
 #include "ravo/engine/engine.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/rapidraw_tone.h"
 
 #include "color_balance_fixture.h"
 #include "capability_ops.h"
@@ -91,6 +92,10 @@ TEST(EngineFacadeTest, ExposesExactlyTheReservedPhaseOneDescriptors)
               std::find_if(engine.value().operations().begin(), engine.value().operations().end(),
                            [](const OperationDescriptor &item)
                            { return item.id == "ravo.display.sigmoid"; }));
+    EXPECT_NE(engine.value().operations().end(),
+              std::find_if(engine.value().operations().begin(), engine.value().operations().end(),
+                           [](const OperationDescriptor &item)
+                           { return item.id == kRapidRawBasicToneOperationId; }));
 }
 
 TEST(EngineFacadeTest, CancelledRequestsNeverReachRendering)

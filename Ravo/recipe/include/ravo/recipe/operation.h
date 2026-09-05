@@ -21,10 +21,10 @@ inline constexpr std::string_view kDemosaicModePpg = "ppg";
 inline constexpr std::string_view kDemosaicModeMarkesteijn1 = "markesteijn1";
 inline constexpr std::string_view kDemosaicModeMarkesteijn3 = "markesteijn3";
 
-[[nodiscard]] Result<std::string> demosaic_mode_from_parameters(
-    const std::map<std::string, ParameterValue, std::less<>> &parameters);
-[[nodiscard]] Result<void> validate_demosaic_parameters(
-    const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<std::string>
+demosaic_mode_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<void>
+validate_demosaic_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
 
 inline constexpr std::string_view kExposureOperationId = "ravo.core.exposure";
 inline constexpr std::int64_t kExposureOperationSchemaVersion = 2;
@@ -110,7 +110,7 @@ private:
     std::map<std::string, std::size_t, std::less<>> indexes_;
 };
 
-inline constexpr std::size_t kPhase1OperationCount = 62;
+inline constexpr std::size_t kPhase1OperationCount = 63;
 
 [[nodiscard]] Result<OperationRegistry> make_phase1_registry();
 [[nodiscard]] std::string_view parameter_type_name(ParameterType type) noexcept;

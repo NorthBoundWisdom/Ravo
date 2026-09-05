@@ -1,5 +1,6 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/rapidraw_tone.h"
 
 #include "develop_internal.h"
 
@@ -898,6 +899,12 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         }
         else if (operation.id == "ravo.display.sigmoid")
         {
+            if (params.sigmoid_enabled || params.rapidraw_basic_tone_enabled)
+            {
+                return make_error(ErrorCode::kConflict,
+                                  "Develop contains duplicate display tone mappers",
+                                  {{"reason", "duplicate_display_tone_mapper"}});
+            }
             auto validated = validate_sigmoid_parameters(operation.parameters);
             if (!validated)
             {
@@ -912,6 +919,29 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 number("display_black_target", params.sigmoid_display_black);
             params.sigmoid_hue_preservation =
                 number("hue_preservation", params.sigmoid_hue_preservation);
+            note_section("light", operation.enabled);
+        }
+        else if (operation.id == kRapidRawBasicToneOperationId)
+        {
+            if (operation.schema_version != kRapidRawBasicToneSchemaVersion)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop RapidRAW Basic tone schema is unsupported",
+                                  {{"schema_version", std::to_string(operation.schema_version)},
+                                   {"reason", "unsupported_rapidraw_basic_tone_schema"}});
+            }
+            auto validated = validate_rapidraw_basic_tone_parameters(operation.parameters);
+            if (!validated)
+            {
+                return validated.error();
+            }
+            if (params.sigmoid_enabled || params.rapidraw_basic_tone_enabled)
+            {
+                return make_error(ErrorCode::kConflict,
+                                  "Develop contains duplicate display tone mappers",
+                                  {{"reason", "duplicate_display_tone_mapper"}});
+            }
+            params.rapidraw_basic_tone_enabled = true;
             note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.raw.highlights")

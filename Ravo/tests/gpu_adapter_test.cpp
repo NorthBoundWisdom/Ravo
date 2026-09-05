@@ -13,6 +13,7 @@
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/rapidraw_tone.h"
 
 namespace ravo
 {
@@ -375,6 +376,10 @@ TEST(EngineFacadeTest, GpuPreviewDefaultRawBaselineReportsBackend)
     develop.raw_highlights = 0.0;
     auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
+    EXPECT_NE(std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == kRapidRawBasicToneOperationId; }),
+              recipe.value().operations.end());
     auto gpu = GpuAdapter::try_create();
     std::string gpu_backend;
     const auto mixed = apply_preview_rgb(input, recipe.value(), gpu ? gpu.value().get() : nullptr,
@@ -465,14 +470,15 @@ TEST(EngineFacadeTest, GpuPreviewSharpenMatchesCpuGoldWhenAvailable)
     ASSERT_TRUE(passes) << passes.error().message;
     ASSERT_TRUE(passes.value().has_value());
     bool has_sharpen = false;
-    bool has_sigmoid = false;
+    bool has_rapidraw_basic_tone = false;
     for (const auto &pass : *passes.value())
     {
         has_sharpen = has_sharpen || pass.kind == GpuRgbPass::Kind::kSharpen;
-        has_sigmoid = has_sigmoid || pass.kind == GpuRgbPass::Kind::kSigmoid;
+        has_rapidraw_basic_tone =
+            has_rapidraw_basic_tone || pass.kind == GpuRgbPass::Kind::kRapidRawBasicTone;
     }
     EXPECT_TRUE(has_sharpen);
-    EXPECT_TRUE(has_sigmoid);
+    EXPECT_TRUE(has_rapidraw_basic_tone);
     auto gpu = GpuAdapter::try_create();
     ASSERT_TRUE(gpu) << gpu.error().message;
     auto gpu_image =
@@ -496,8 +502,7 @@ TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
     develop.raw_highlights = 0.0;
     develop.exposure_ev = 0.847;
     develop.shadows = 0.214;
-    auto recipe =
-        recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt}, develop);
+    auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto gpu = GpuAdapter::try_create();
     std::string gpu_backend;
@@ -521,6 +526,7 @@ TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
         EXPECT_EQ(passes.value()->at(0).kind, GpuRgbPass::Kind::kAffine);
         EXPECT_EQ(passes.value()->at(1).kind, GpuRgbPass::Kind::kLightControls);
         EXPECT_EQ(passes.value()->at(2).kind, GpuRgbPass::Kind::kSharpen);
+        EXPECT_EQ(passes.value()->back().kind, GpuRgbPass::Kind::kRapidRawBasicTone);
     }
     else
     {
@@ -546,8 +552,9 @@ TEST(EngineFacadeTest, GpuRetainedSourceMatchesUploadedPassesWhenAvailable)
     upload_options.download = true;
     upload_options.width = input.width;
     upload_options.height = input.height;
-    auto first = gpu.value()->apply_rgb_passes(input.rgb, uploaded, std::span<const GpuRgbPass>(&pass, 1U),
-                                               upload_options, CancellationToken{});
+    auto first =
+        gpu.value()->apply_rgb_passes(input.rgb, uploaded, std::span<const GpuRgbPass>(&pass, 1U),
+                                      upload_options, CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     auto stored = gpu.value()->retain_source_rgb(input.rgb, input.width, input.height,
                                                  CancellationToken{}, "test-retained");
@@ -559,9 +566,9 @@ TEST(EngineFacadeTest, GpuRetainedSourceMatchesUploadedPassesWhenAvailable)
     retained_options.download = true;
     retained_options.width = input.width;
     retained_options.height = input.height;
-    auto second = gpu.value()->apply_rgb_passes(input.rgb, retained,
-                                                std::span<const GpuRgbPass>(&pass, 1U),
-                                                retained_options, CancellationToken{});
+    auto second =
+        gpu.value()->apply_rgb_passes(input.rgb, retained, std::span<const GpuRgbPass>(&pass, 1U),
+                                      retained_options, CancellationToken{});
     ASSERT_TRUE(second) << second.error().message;
     ASSERT_EQ(uploaded.size(), retained.size());
     for (std::size_t index = 0; index < uploaded.size(); ++index)
@@ -589,16 +596,17 @@ TEST(EngineFacadeTest, GpuGrowOnlySmallerUploadDoesNotOverreadWhenAvailable)
     large_options.download = true;
     large_options.width = large.width;
     large_options.height = large.height;
-    auto first = gpu.value()->apply_rgb_passes(large.rgb, large_out, std::span<const GpuRgbPass>(&pass, 1U),
-                                               large_options, CancellationToken{});
+    auto first =
+        gpu.value()->apply_rgb_passes(large.rgb, large_out, std::span<const GpuRgbPass>(&pass, 1U),
+                                      large_options, CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     GpuRgbApplyOptions small_options;
     small_options.download = true;
     small_options.width = small.width;
     small_options.height = small.height;
-    auto second = gpu.value()->apply_rgb_passes(small.rgb, small_out,
-                                                std::span<const GpuRgbPass>(&pass, 1U),
-                                                small_options, CancellationToken{});
+    auto second =
+        gpu.value()->apply_rgb_passes(small.rgb, small_out, std::span<const GpuRgbPass>(&pass, 1U),
+                                      small_options, CancellationToken{});
     ASSERT_TRUE(second) << second.error().message;
     ASSERT_EQ(small_out.size(), small.rgb.size());
     for (std::size_t index = 0; index < small.rgb.size(); ++index)

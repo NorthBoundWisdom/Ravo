@@ -29,6 +29,7 @@
 #include "ravo/recipe/output_dither.h"
 #include "ravo/recipe/perspective.h"
 #include "ravo/recipe/profile_gamma.h"
+#include "ravo/recipe/rapidraw_tone.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/sharpen.h"
@@ -1071,6 +1072,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             if (!sigmoid)
             {
                 auto error = sigmoid.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kRapidRawBasicToneOperationId)
+        {
+            auto tone = validate_rapidraw_basic_tone_parameters(operation.parameters);
+            if (!tone)
+            {
+                auto error = tone.error();
                 error.context.emplace("operation_id", operation.id);
                 return error;
             }

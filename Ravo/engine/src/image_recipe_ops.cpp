@@ -48,6 +48,7 @@
 #include "split_toning.h"
 #include "velvia.h"
 #include "ravo/recipe/profile_gamma.h"
+#include "ravo/recipe/rapidraw_tone.h"
 
 #include "image_ops_internal.h"
 
@@ -553,6 +554,15 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.id == "ravo.display.sigmoid")
         {
             auto transformed = apply_sigmoid(image, operation, cancellation);
+            if (!transformed)
+            {
+                return transformed.error();
+            }
+            continue;
+        }
+        if (operation.id == kRapidRawBasicToneOperationId)
+        {
+            auto transformed = apply_rapidraw_basic_tone(image, operation, cancellation);
             if (!transformed)
             {
                 return transformed.error();

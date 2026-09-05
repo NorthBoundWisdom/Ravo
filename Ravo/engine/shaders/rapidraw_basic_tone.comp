@@ -1,0 +1,43 @@
+#version 440
+
+// Adapted from RapidRAW commit d6d8daa999f81198fb49e99b7e8ff43b47a6ffcd,
+// src-tauri/src/shaders/shader.wgsl. Copyright Timon Käch and RapidRAW
+// contributors. SPDX-License-Identifier: AGPL-3.0-only
+// Ravo returns linear sRGB so its output-profile owner performs final encoding.
+
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer Rgb {
+    float rgb[];
+};
+
+layout(std140, binding = 1) uniform Params {
+    uvec4 header;
+    vec4 body;
+};
+
+float linear_to_srgb(float value)
+{
+    float clamped = clamp(value, 0.0, 1.0);
+    return clamped <= 0.0031308 ? 12.92 * clamped :
+                                 1.055 * pow(clamped, 1.0 / 2.4) - 0.055;
+}
+
+float srgb_to_linear(float value)
+{
+    float clamped = clamp(value, 0.0, 1.0);
+    return clamped <= 0.04045 ? clamped / 12.92 :
+                               pow((clamped + 0.055) / 1.055, 2.4);
+}
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= header.x)
+        return;
+    float encoded = linear_to_srgb(rgb[index]);
+    float brightened = pow(encoded, 1.0 / 1.1);
+    float contrast_curve = brightened * brightened * (3.0 - 2.0 * brightened);
+    float display_value = mix(brightened, contrast_curve, 0.75);
+    rgb[index] = srgb_to_linear(display_value);
+}

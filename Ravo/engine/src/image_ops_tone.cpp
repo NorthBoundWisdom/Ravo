@@ -48,6 +48,7 @@
 #include "split_toning.h"
 #include "velvia.h"
 #include "ravo/recipe/profile_gamma.h"
+#include "ravo/recipe/rapidraw_tone.h"
 
 #include "image_ops_internal.h"
 
@@ -756,6 +757,64 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
                 "Sigmoid produced a non-finite sample" :
                 "Sigmoid input contains a non-finite sample",
             {{"sample_index", std::to_string(invalid_index.load(std::memory_order_relaxed))}});
+    }
+    return {};
+}
+
+// Source-faithful adaptation of RapidRAW commit
+// d6d8daa999f81198fb49e99b7e8ff43b47a6ffcd,
+// src-tauri/src/shaders/shader.wgsl, AGPL-3.0. RapidRAW emits display sRGB;
+// Ravo decodes that result back to linear sRGB so the output-profile owner
+// performs the single final display encoding.
+Result<void> apply_rapidraw_basic_tone(WorkingImage &image, const OperationInstance &operation,
+                                       const CancellationToken &cancellation)
+{
+    auto validated = validate_rapidraw_basic_tone_parameters(operation.parameters);
+    if (!validated)
+    {
+        return validated.error();
+    }
+    std::atomic<bool> invalid{false};
+    std::atomic<std::size_t> invalid_index{0U};
+    const auto rows = for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
+        {
+            const std::size_t begin = static_cast<std::size_t>(row) * image.width * 3U;
+            const std::size_t end = begin + static_cast<std::size_t>(image.width) * 3U;
+            for (std::size_t index = begin; index < end; ++index)
+            {
+                const float input = image.rgb[index];
+                if (!std::isfinite(input))
+                {
+                    invalid_index.store(index, std::memory_order_relaxed);
+                    invalid.store(true, std::memory_order_release);
+                    return;
+                }
+                const float encoded = display_srgb_encode(std::clamp(input, 0.0F, 1.0F));
+                const float brightened = std::pow(encoded, 1.0F / 1.1F);
+                const float contrast = brightened * brightened * (3.0F - 2.0F * brightened);
+                const float display = brightened + 0.75F * (contrast - brightened);
+                const float output = display_srgb_decode(std::clamp(display, 0.0F, 1.0F));
+                if (!std::isfinite(output))
+                {
+                    invalid_index.store(index, std::memory_order_relaxed);
+                    invalid.store(true, std::memory_order_release);
+                    return;
+                }
+                image.rgb[index] = output;
+            }
+        });
+    if (!rows)
+    {
+        return rows.error();
+    }
+    if (invalid.load(std::memory_order_acquire))
+    {
+        return make_error(
+            ErrorCode::kValidation, "RapidRAW Basic tone input or output is non-finite",
+            {{"sample_index", std::to_string(invalid_index.load(std::memory_order_relaxed))},
+             {"reason", "nonfinite_rapidraw_basic_tone"}});
     }
     return {};
 }

@@ -35,7 +35,7 @@ toolchain has the same Qt SDK installed at configuration time.
   out of scope through the headless exit. ADR-0007 now selects Qt Quick/QML
   with a C++ presentation layer for the M1 viewer and explicitly rejects Qt
   Widgets in Ravo production targets.
-- Ravo is GPLv3; distributing the Qt Core runtime must retain the applicable
+- Ravo is AGPLv3; distributing the Qt Core runtime must retain the applicable
   Qt license notices and runtime obligations in the eventual packaging work.
 
 ## Consequences

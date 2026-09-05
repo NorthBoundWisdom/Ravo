@@ -20,6 +20,7 @@
 #include "ravo/recipe/monochrome.h"
 #include "ravo/recipe/perspective.h"
 #include "ravo/recipe/profile_gamma.h"
+#include "ravo/recipe/rapidraw_tone.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/sharpen.h"
@@ -962,6 +963,13 @@ Result<OperationRegistry> make_phase1_registry()
           {"display_black_target", ParameterType::kNumber, true, std::nullopt,
            kSigmoidDisplayBlackMin, kSigmoidDisplayBlackMax},
           {"hue_preservation", ParameterType::kNumber, true, std::nullopt, 0.0, 1.0}},
+         false,
+         true},
+        {std::string(kRapidRawBasicToneOperationId),
+         "RapidRAW Basic display transform",
+         kRapidRawBasicToneSchemaVersion,
+         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt}},
          false,
          true},
         {"ravo.raw.highlights",

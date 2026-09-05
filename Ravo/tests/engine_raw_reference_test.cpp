@@ -33,6 +33,7 @@
 #include "ravo/engine/engine.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/rapidraw_tone.h"
 
 #include "color_balance_fixture.h"
 #include "capability_ops.h"
@@ -196,6 +197,16 @@ sigmoid_operation(const double contrast = kSigmoidContrastDefault,
             std::nullopt};
 }
 
+[[nodiscard]] OperationInstance rapidraw_basic_tone_operation()
+{
+    return {std::string(kRapidRawBasicToneOperationId),
+            kRapidRawBasicToneSchemaVersion,
+            "rapidraw-basic-tone-1",
+            true,
+            {{"working_space", ParameterValue{std::string(kRapidRawBasicToneWorkingSpace)}}},
+            std::nullopt};
+}
+
 TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -229,6 +240,33 @@ TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
     auto boundary = render_op(engine.value(), source, std::move(boundary_operation));
     ASSERT_TRUE(boundary) << boundary.error().message;
     EXPECT_EQ(boundary.value().rgb.size(), source.srgb.size());
+
+    WorkingImage rapidraw_source;
+    rapidraw_source.width = 7U;
+    rapidraw_source.height = 1U;
+    for (const float value : {0.0F, 0.001F, 0.0031308F, 0.18F, 0.5F, 1.0F, 2.0F})
+    {
+        rapidraw_source.rgb.insert(rapidraw_source.rgb.end(), 3U, value);
+    }
+    Recipe rapidraw_recipe;
+    rapidraw_recipe.operations.push_back(rapidraw_basic_tone_operation());
+    auto rapidraw = apply_recipe_ops(rapidraw_source, rapidraw_recipe, CancellationToken{});
+    ASSERT_TRUE(rapidraw) << rapidraw.error().message;
+    const std::array<float, 7> rapidraw_gold = {
+        0.0F, 0.000434510F, 0.001539832F, 0.207694889F, 0.650689324F, 1.0F, 1.0F};
+    ASSERT_EQ(rapidraw.value().rgb.size(), rapidraw_gold.size() * 3U);
+    for (std::size_t index = 0; index < rapidraw_gold.size(); ++index)
+    {
+        EXPECT_NEAR(rapidraw.value().rgb[index * 3U], rapidraw_gold[index], 2.0e-6F) << index;
+    }
+
+    auto invalid_rapidraw = rapidraw_basic_tone_operation();
+    invalid_rapidraw.parameters.emplace("unknown", ParameterValue{1.0});
+    rapidraw_recipe.operations.front() = std::move(invalid_rapidraw);
+    auto rejected = apply_recipe_ops(rapidraw_source, rapidraw_recipe, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_rapidraw_basic_tone_parameters");
 }
 
 TEST(EngineFacadeTest, SigmoidHasARealRawReference)

@@ -33,7 +33,7 @@ inherit.
 - Reference code may inform an independently integrated Ravo owner or a
   source-faithful port. Every borrowed file or material function records its
   upstream project, exact commit, source path, copyright, license, and local
-  changes. Ravo remains GPLv3, but compatibility does not waive attribution or
+  changes. Ravo is AGPLv3, but compatibility does not waive attribution or
   a more specific per-file license.
 - Engine owns image mathematics and immutable task-local resources. Recipe owns
   versioned operation state. Services own cancellation, cache generations and
@@ -332,7 +332,8 @@ with a new user outcome and measured end-to-end budget.
 
 ## Rejected alternatives
 
-- Copying a reference application's processing graph or UI wholesale.
+- Copying a reference application's processing graph or UI wholesale without
+  an explicit product-scope, licence, provenance, and ownership decision.
 - Treating a compatible repository-wide license as sufficient provenance for
   every file and embedded dataset.
 - Silently ignoring malformed known opcodes, mapping NaN to zero, or switching

@@ -475,10 +475,11 @@ bool DevelopParams::is_identity() const noexcept
            rgb_levels.is_identity() && rgb_curve.is_identity() && !rgb_curve_mask_id.has_value() &&
            !tone_curve_mask_id.has_value() && tone_curve_is_identity(tone_curve) &&
            tone_curve_is_identity(tone_curve_a) && tone_curve_is_identity(tone_curve_b) &&
-           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
-           raw_ca_iterations == 0 && near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) &&
-           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
-           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           !sigmoid_enabled && !rapidraw_basic_tone_enabled && near(raw_highlights, 0.0) &&
+           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
+           near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) && near(lens_k1, 0.0) &&
+           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
+           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&

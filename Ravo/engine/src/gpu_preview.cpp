@@ -13,6 +13,7 @@
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/rapidraw_tone.h"
 #include "ravo/recipe/sharpen.h"
 #include "image_ops_internal.h"
 
@@ -74,7 +75,7 @@ enum class PreviewOpClass : std::uint8_t
 }
 
 [[nodiscard]] Result<PreviewOpClass> classify_preview_operation(const LinearWorkingBuffer &working,
-                                                               const OperationInstance &operation)
+                                                                const OperationInstance &operation)
 {
     if (!operation.enabled || absorbed_operation(operation.id) || identity_geometry(operation))
     {
@@ -130,6 +131,15 @@ enum class PreviewOpClass : std::uint8_t
         }
         return PreviewOpClass::Gpu;
     }
+    if (operation.id == kRapidRawBasicToneOperationId)
+    {
+        auto validated = validate_rapidraw_basic_tone_parameters(operation.parameters);
+        if (!validated)
+        {
+            return validated.error();
+        }
+        return PreviewOpClass::Gpu;
+    }
     return PreviewOpClass::Cpu;
 }
 
@@ -166,10 +176,9 @@ enum class PreviewOpClass : std::uint8_t
     if (light_rank >= 0)
     {
         const double amount = parameter(operation, "amount", 0.0);
-        const float ev = static_cast<float>(amount) *
-                         (light_rank == 0 || light_rank == 2 ?
-                              (amount >= 0.0 ? 0.9F : 1.8F) :
-                              (amount >= 0.0 ? 2.0F : 2.9F));
+        const float ev = static_cast<float>(amount) * (light_rank == 0 || light_rank == 2 ?
+                                                           (amount >= 0.0 ? 0.9F : 1.8F) :
+                                                           (amount >= 0.0 ? 2.0F : 2.9F));
         if (!std::isfinite(ev))
         {
             return make_error(ErrorCode::kValidation, "GPU light-control amount is not finite",
@@ -257,6 +266,17 @@ enum class PreviewOpClass : std::uint8_t
             pass.sharpen.kernel[static_cast<std::size_t>(index)] /= weight;
         }
         pass.sharpen.radius = static_cast<std::uint32_t>(taps);
+        return pass;
+    }
+    if (operation.id == kRapidRawBasicToneOperationId)
+    {
+        auto validated = validate_rapidraw_basic_tone_parameters(operation.parameters);
+        if (!validated)
+        {
+            return validated.error();
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kRapidRawBasicTone;
         return pass;
     }
     if (operation.id != "ravo.display.sigmoid")
@@ -499,8 +519,7 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
             gpu_options.width = working.width;
             gpu_options.height = working.height;
             gpu_options.display_slot = display_slot;
-            auto gpu_image =
-                apply_gpu_preview_rgb(working, batch, *gpu, cancellation, gpu_options);
+            auto gpu_image = apply_gpu_preview_rgb(working, batch, *gpu, cancellation, gpu_options);
             if (!gpu_image)
             {
                 return gpu_image.error();
