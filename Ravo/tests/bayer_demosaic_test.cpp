@@ -194,6 +194,56 @@ TEST(BayerDemosaicTest, WindowMatchesInteriorOfFullFrame)
     }
 }
 
+// High-contrast edge with ROI origin deliberately off the RCD tile grid
+// (tile_step=176). Without absolute tile alignment, windowed RCD diverges from
+// full-frame crop even with a 12px apron.
+TEST(BayerDemosaicTest, MisalignedHighContrastWindowMatchesFullFrameCrop)
+{
+    // Grow past one RCD tile so tile-grid misalignment is observable.
+    DecodedRaw raw = smooth_bayer(384U, 256U);
+    for (std::uint32_t y = 0U; y < raw.height; ++y)
+    {
+        for (std::uint32_t x = 0U; x < raw.width; ++x)
+        {
+            const float edge = (x + y / 3U) % 47U < 23U ? 0.08F : 0.82F;
+            raw.pixels[static_cast<std::size_t>(y) * raw.width + x] =
+                static_cast<std::uint16_t>(std::lround(edge * 65535.0F));
+        }
+    }
+    const std::array<float, 4> white_balance{1.2F, 1.0F, 1.4F, 1.0F};
+    auto full = demosaic_bayer(raw, raw.width, raw.height, white_balance, BayerDemosaicMode::kRcd,
+                               CancellationToken{});
+    ASSERT_TRUE(full) << full.error().message;
+    constexpr std::uint32_t kX = 200U; // 200 % 176 == 24 — not tile-aligned
+    constexpr std::uint32_t kY = 100U; // 100 % 176 == 100
+    constexpr std::uint32_t kW = 48U;
+    constexpr std::uint32_t kH = 36U;
+    auto window = demosaic_bayer_window(raw, kX, kY, kW, kH, white_balance, BayerDemosaicMode::kRcd,
+                                        CancellationToken{});
+    ASSERT_TRUE(window) << window.error().message;
+    ASSERT_EQ(window.value().width, kW);
+    ASSERT_EQ(window.value().height, kH);
+    float max_abs = 0.0F;
+    for (std::uint32_t y = 0U; y < kH; ++y)
+    {
+        for (std::uint32_t x = 0U; x < kW; ++x)
+        {
+            const std::size_t src =
+                (static_cast<std::size_t>(kY + y) * full.value().width + (kX + x)) * 3U;
+            const std::size_t dst = (static_cast<std::size_t>(y) * kW + x) * 3U;
+            for (std::size_t c = 0U; c < 3U; ++c)
+            {
+                const float delta =
+                    std::fabs(window.value().rgb[dst + c] - full.value().rgb[src + c]);
+                max_abs = std::max(max_abs, delta);
+                EXPECT_FLOAT_EQ(window.value().rgb[dst + c], full.value().rgb[src + c])
+                    << x << ',' << y << " c=" << c;
+            }
+        }
+    }
+    RecordProperty("rcd_window_vs_full_max_abs_ppm", static_cast<int>(max_abs * 1.0e6F));
+}
+
 TEST(BayerDemosaicTest, PreviewReductionIsDeterministicFiniteAndSourceOwned)
 {
     const DecodedRaw raw = smooth_bayer(96U, 64U);
@@ -357,6 +407,52 @@ TEST(BayerDemosaicTest, GpuRcdWindowMatchesCpuGoldWhenAvailable)
     {
         EXPECT_NEAR(gpu_image.value().rgb[index], cpu.value().rgb[index], 2.0e-3F) << index;
     }
+}
+
+TEST(BayerDemosaicTest, Mire1WindowMatchesFullFrameCropFloat)
+{
+    const auto input = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
+                       "frozen" / "images" / "mire1.cr2";
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto raw = engine.value().decode_raw_frame(input.string(), CancellationToken{});
+    ASSERT_TRUE(raw) << raw.error().message;
+    const std::array<float, 4> wb{1.0F, 1.0F, 1.0F, 1.0F};
+    auto full = demosaic_bayer(raw.value(), raw.value().width, raw.value().height, wb,
+                               BayerDemosaicMode::kRcd, CancellationToken{});
+    ASSERT_TRUE(full) << full.error().message;
+    // Same CFA window observed by IQ-00 probe (display ROI after map): 1954,781 782x651
+    constexpr std::uint32_t kX = 1954U;
+    constexpr std::uint32_t kY = 781U;
+    constexpr std::uint32_t kW = 782U;
+    constexpr std::uint32_t kH = 651U;
+    ASSERT_LT(kX + kW, raw.value().width + 1U);
+    ASSERT_LT(kY + kH, raw.value().height + 1U);
+    auto window = demosaic_bayer_window(raw.value(), kX, kY, kW, kH, wb, BayerDemosaicMode::kRcd,
+                                        CancellationToken{});
+    ASSERT_TRUE(window) << window.error().message;
+    float max_abs = 0.0F;
+    std::size_t mismatches = 0U;
+    for (std::uint32_t y = 0U; y < kH; ++y)
+    {
+        for (std::uint32_t x = 0U; x < kW; ++x)
+        {
+            const std::size_t src =
+                (static_cast<std::size_t>(kY + y) * full.value().width + (kX + x)) * 3U;
+            const std::size_t dst = (static_cast<std::size_t>(y) * kW + x) * 3U;
+            for (std::size_t c = 0U; c < 3U; ++c)
+            {
+                const float delta =
+                    std::fabs(window.value().rgb[dst + c] - full.value().rgb[src + c]);
+                max_abs = std::max(max_abs, delta);
+                if (delta > 0.0F)
+                    ++mismatches;
+            }
+        }
+    }
+    RecordProperty("mire1_window_vs_full_max_abs_ppm", static_cast<int>(max_abs * 1.0e6F));
+    RecordProperty("mire1_window_vs_full_mismatch_channels", static_cast<int>(mismatches));
+    EXPECT_EQ(max_abs, 0.0F) << "max_abs=" << max_abs << " mismatches=" << mismatches;
 }
 
 } // namespace

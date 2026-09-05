@@ -88,8 +88,9 @@ moves in the intended direction. DISPLAY-01 is C2 with Gallery thumbnail
 monitor convert + macOS GPU native owned-pixel presentation publish landed;
 IQ-00 macOS Metal admitted-stage interactive packed-delta contracts landed
 (Exposure/light/Lab-USM/Sigmoid/RapidRAW); non-admitted interactive ops stay
-CPU hybrid; RAW ROI vs full-export crop is size-matched with packed residual
-documented (`kIqRawRoiVersusExportResidual`); full corpus / Win-Linux + Linux
+CPU hybrid; RAW ROI vs full-export owned packed abs-delta closed within
+interactive ±1 on macOS (tile-aligned demosaic + spatial apron); scaled-export
+size-mismatch + GPU-native ROI apron-surface residuals remain; Linux monitor
 discovery remain;
 OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
 INGEST-01 is C2 for Studio filesystem-card + ptp-stub Copy ingest with fail-
@@ -357,12 +358,12 @@ schema_version=3 lists `gpu_admitted_interactive_stages` and
 `non_admitted_interactive_policy`; host_scope=`macos_debug_release_contract`,
 `win_linux_hosts_claimed=false`. Catalog probe
 `Iq00RawRoiLiveVersusCpuExportDocumentsResidual` keeps settled/reopen/export
-CPU gold, size-matches full-resolution export crop vs RAW viewport ROI as
-owned packed RGB8, and records the machine-visible residual that packed
-channels may exceed interactive abs-delta (±1) because windowed CFA demosaic
-≠ full-frame export crop (`kIqRawRoiVersusExportResidual`); scaled export
-crops remain a size-mismatch residual; RAW ROI may report GPU. **Not** a full
-corpus / Win/Linux / proof-monitor / multi-instance / Bayer-RCD matrix closure.
+CPU gold, size-matches full-resolution export crop vs RAW viewport owned ROI
+as packed RGB8 within interactive abs-delta (±1) via RCD tile-aligned CPU
+demosaic plus spatial processing apron (`kIqRawRoiVersusExportResidual`);
+scaled export crops remain a size-mismatch residual; RAW ROI may report GPU
+for admitted edit stages. **Not** a full corpus / Win/Linux / proof-monitor /
+multi-instance / Bayer-RCD matrix / GPU-native ROI apron-surface closure.
 
 Complete a matrix across raster, Bayer, and X-Trans inputs; representative
 global and multi-instance edits; masks and geometry; built-in/file ICC input and
@@ -610,10 +611,12 @@ visible.
 - Residual: interactive Develop GPU **edit-math** packed-delta for admitted
   Metal stages is contracted under IQ-00 (presentation already matches
   Loupe/Develop owned-pixel). Remaining IQ/DISPLAY residuals: non-admitted
-  interactive ops (CPU hybrid), full corpus / Win-Linux, RAW ROI packed
-  residual beyond interactive abs-delta (windowed demosaic vs full-frame
-  export crop; size-match closed), Linux/non-Metal GPU publish, packaged
-  Linux monitor discovery, multi-display performance, and SDR/HDR policy.
+  interactive ops (CPU hybrid), full corpus / Win-Linux, RAW ROI scaled-export
+  size-mismatch + GPU-native apron surface publish, Linux/non-Metal GPU
+  publish, packaged Linux monitor discovery, multi-display performance, and
+  SDR/HDR policy. RAW ROI vs full-export owned packed abs-delta is closed
+  within interactive ±1 on the macOS contract probe (tile-aligned demosaic +
+  spatial apron).
 - Linux packaged monitor discovery (or keep fallback claim);
 - CPU/GPU matrix/LUT parity evidence, multi-display performance, SDR/HDR policy.
 

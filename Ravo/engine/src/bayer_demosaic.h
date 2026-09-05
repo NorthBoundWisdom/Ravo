@@ -33,6 +33,8 @@ inline constexpr std::string_view kBayerDemosaicModePpg = "ppg";
 
 // 1:1 CFA window. `origin` is in unrotated sensor pixels. The decoded RAW is
 // borrowed. The result owns camera-RGB pixels of exactly width x height.
+// RCD expands onto the absolute full-frame tile grid (+ apron) so owned pixels
+// match full-frame demosaic then crop; PPG uses a fixed apron only.
 [[nodiscard]] Result<WorkingImage>
 demosaic_bayer_window(const DecodedRaw &raw, std::uint32_t origin_x, std::uint32_t origin_y,
                       std::uint32_t width, std::uint32_t height,

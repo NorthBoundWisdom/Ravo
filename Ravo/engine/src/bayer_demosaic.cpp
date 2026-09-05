@@ -39,6 +39,59 @@ struct PreparedBayer
     std::vector<float> samples;
 };
 
+// RCD tile geometry (RawTherapee-adapted). Window demosaic must expand onto this
+// absolute sensor grid so owned pixels match full-frame demosaic+crop.
+constexpr int kRcdTileBorder = 9;
+constexpr int kRcdAlgorithmBorder = 9;
+constexpr int kRcdTileSize = 194;
+constexpr int kRcdTileStep = kRcdTileSize - 2 * kRcdTileBorder;
+// Apron beyond the owned ROI: must cover algorithm/tile border so border_interpolate
+// and incomplete edge tiles cannot touch owned pixels after crop.
+constexpr std::uint32_t kBayerWindowApron = 12U;
+static_assert(kRcdTileBorder == kRcdAlgorithmBorder);
+static_assert(static_cast<int>(kBayerWindowApron) >= kRcdAlgorithmBorder);
+
+struct BayerWindowBounds
+{
+    std::uint32_t x0 = 0U;
+    std::uint32_t y0 = 0U;
+    std::uint32_t x1 = 0U;
+    std::uint32_t y1 = 0U;
+};
+
+[[nodiscard]] BayerWindowBounds
+bayer_window_demosaic_bounds(const std::uint32_t raw_width, const std::uint32_t raw_height,
+                             const std::uint32_t origin_x, const std::uint32_t origin_y,
+                             const std::uint32_t width, const std::uint32_t height,
+                             const bool align_rcd_tiles) noexcept
+{
+    BayerWindowBounds bounds;
+    bounds.x0 = origin_x > kBayerWindowApron ? origin_x - kBayerWindowApron : 0U;
+    bounds.y0 = origin_y > kBayerWindowApron ? origin_y - kBayerWindowApron : 0U;
+    bounds.x1 = std::min(raw_width, origin_x + width + kBayerWindowApron);
+    bounds.y1 = std::min(raw_height, origin_y + height + kBayerWindowApron);
+    if (!align_rcd_tiles || kRcdTileStep <= 0)
+        return bounds;
+    // Snap the prepared origin down onto the full-frame RCD tile grid so local
+    // tile 0 == global tile at sensor (x0,y0). Expand the far edge to include
+    // complete tiles that write into the owned ROI (matching full-frame clip).
+    bounds.x0 = (bounds.x0 / static_cast<std::uint32_t>(kRcdTileStep)) *
+                static_cast<std::uint32_t>(kRcdTileStep);
+    bounds.y0 = (bounds.y0 / static_cast<std::uint32_t>(kRcdTileStep)) *
+                static_cast<std::uint32_t>(kRcdTileStep);
+    const std::uint32_t owned_last_x = origin_x + width - 1U;
+    const std::uint32_t owned_last_y = origin_y + height - 1U;
+    const std::uint32_t last_tile_x = (owned_last_x / static_cast<std::uint32_t>(kRcdTileStep)) *
+                                      static_cast<std::uint32_t>(kRcdTileStep);
+    const std::uint32_t last_tile_y = (owned_last_y / static_cast<std::uint32_t>(kRcdTileStep)) *
+                                      static_cast<std::uint32_t>(kRcdTileStep);
+    bounds.x1 = std::max(
+        bounds.x1, std::min(raw_width, last_tile_x + static_cast<std::uint32_t>(kRcdTileSize)));
+    bounds.y1 = std::max(
+        bounds.y1, std::min(raw_height, last_tile_y + static_cast<std::uint32_t>(kRcdTileSize)));
+    return bounds;
+}
+
 class FloatBuffer
 {
 public:
@@ -406,10 +459,10 @@ void seed_known_samples(const PreparedBayer &input, WorkingImage &output)
                                                 const CancellationToken &cancellation)
 try
 {
-    constexpr int tile_border = 9;
-    constexpr int algorithm_border = 9;
-    constexpr int tile_size = 194;
-    constexpr int tile_step = tile_size - 2 * tile_border;
+    constexpr int tile_border = kRcdTileBorder;
+    constexpr int algorithm_border = kRcdAlgorithmBorder;
+    constexpr int tile_size = kRcdTileSize;
+    constexpr int tile_step = kRcdTileStep;
     constexpr float epsilon = 1.0e-5F;
     constexpr float epsilon_squared = 1.0e-10F;
     constexpr int w1 = tile_size;
@@ -1100,11 +1153,17 @@ Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uin
         return make_error(ErrorCode::kInvalidArgument, "Bayer window is outside the CFA frame",
                           {{"reason", "invalid_bayer_window"}});
     }
-    constexpr std::uint32_t kBorder = 12U;
-    const std::uint32_t x0 = origin_x > kBorder ? origin_x - kBorder : 0U;
-    const std::uint32_t y0 = origin_y > kBorder ? origin_y - kBorder : 0U;
-    const std::uint32_t x1 = std::min(raw.width, origin_x + width + kBorder);
-    const std::uint32_t y1 = std::min(raw.height, origin_y + height + kBorder);
+    // RCD is tiled on an absolute sensor grid. A naive apron around the ROI
+    // restarts tiles at the prepared origin and diverges from full-frame crop
+    // on high-contrast content. Align the prepared window to kRcdTileStep and
+    // include complete tiles that write owned pixels; PPG keeps the apron only.
+    const bool align_rcd_tiles = mode == BayerDemosaicMode::kRcd;
+    const BayerWindowBounds bounds = bayer_window_demosaic_bounds(
+        raw.width, raw.height, origin_x, origin_y, width, height, align_rcd_tiles);
+    const std::uint32_t x0 = bounds.x0;
+    const std::uint32_t y0 = bounds.y0;
+    const std::uint32_t x1 = bounds.x1;
+    const std::uint32_t y1 = bounds.y1;
     auto prepared =
         prepare_bayer_window(raw, x0, y0, x1 - x0, y1 - y0, white_balance, cancellation);
     if (!prepared)
@@ -1122,10 +1181,10 @@ Result<WorkingImage> demosaic_bayer_window(const DecodedRaw &raw, const std::uin
         gpu_image.height = height;
         gpu_image.color_profile = raw.color_profile;
         gpu_image.rgb.resize(static_cast<std::size_t>(width) * height * 3U);
-        auto applied = gpu->demosaic_rcd(prepared.value().samples, gpu_image.rgb,
-                                         prepared.value().width, prepared.value().height,
-                                         prepared.value().cfa, crop_x, crop_y, width, height,
-                                         cancellation);
+        auto applied =
+            gpu->demosaic_rcd(prepared.value().samples, gpu_image.rgb, prepared.value().width,
+                              prepared.value().height, prepared.value().cfa, crop_x, crop_y, width,
+                              height, cancellation);
         if (!applied)
         {
             return applied.error();

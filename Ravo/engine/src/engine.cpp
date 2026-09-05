@@ -304,8 +304,7 @@ std::string_view EngineFacade::gpu_backend() const
     return g_gpu_adapter != nullptr ? g_gpu_adapter->backend_id() : std::string_view{"unavailable"};
 }
 
-EngineFacade::GpuDisplayFrame
-EngineFacade::gpu_display_frame(const GpuDisplayKind kind) const
+EngineFacade::GpuDisplayFrame EngineFacade::gpu_display_frame(const GpuDisplayKind kind) const
 {
     ensure_gpu_adapter();
     GpuDisplayFrame out;
@@ -801,9 +800,12 @@ Result<LinearWorkingBuffer> EngineFacade::linear_working_from_raw_window(
         }
     }
     ensure_gpu_adapter();
+    // CFA demosaic for ROI windows stays on CPU with RCD tile-grid alignment so
+    // owned pixels match full-frame demosaic+crop. Interactive Metal stages still
+    // retain linear working later in render_interactive_linear_working.
     auto demosaiced = working_from_raw_window(*source, origin_x, origin_y, width, height,
                                               temperature.value().coefficients, demosaic_mode,
-                                              cancellation, g_gpu_adapter.get());
+                                              cancellation, nullptr);
     if (!demosaiced)
     {
         return demosaiced.error();
@@ -913,15 +915,12 @@ EngineFacade::scale_linear_working(const LinearWorkingBuffer &working, const std
 namespace
 {
 
-[[nodiscard]] Result<ProfiledOutputBuffer>
-render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recipe &recipe,
-                                 const CancellationToken &cancellation,
-                                 const std::optional<std::string> &overlay_mask_id,
-                                 AlphaPlane *overlay_alpha, std::string *gpu_backend = nullptr,
-                                 const bool need_cpu_pixels = true,
-                                 const std::uint32_t display_slot = 0,
-                                 const bool prefer_retained_source = false,
-                                 const bool use_gpu = false)
+[[nodiscard]] Result<ProfiledOutputBuffer> render_recipe_to_profiled_output(
+    const LinearWorkingBuffer &working, const Recipe &recipe, const CancellationToken &cancellation,
+    const std::optional<std::string> &overlay_mask_id, AlphaPlane *overlay_alpha,
+    std::string *gpu_backend = nullptr, const bool need_cpu_pixels = true,
+    const std::uint32_t display_slot = 0, const bool prefer_retained_source = false,
+    const bool use_gpu = false)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -1255,14 +1254,11 @@ render_interactive_prefix(const LinearWorkingBuffer &working, const Recipe &reci
     return key;
 }
 
-[[nodiscard]] Result<RenderedImage>
-render_validated_preview(const LinearWorkingBuffer &working, const Recipe &recipe,
-                         const CancellationToken &cancellation,
-                         const std::optional<std::string> &overlay_mask_id,
-                         const bool need_cpu_pixels = true,
-                         const EngineFacade::GpuDisplayKind display_kind =
-                             EngineFacade::GpuDisplayKind::kPreview,
-                         const bool prefer_retained_source = false, const bool use_gpu = false)
+[[nodiscard]] Result<RenderedImage> render_validated_preview(
+    const LinearWorkingBuffer &working, const Recipe &recipe, const CancellationToken &cancellation,
+    const std::optional<std::string> &overlay_mask_id, const bool need_cpu_pixels = true,
+    const EngineFacade::GpuDisplayKind display_kind = EngineFacade::GpuDisplayKind::kPreview,
+    const bool prefer_retained_source = false, const bool use_gpu = false)
 {
     AlphaPlane overlay;
     std::string gpu_backend;
@@ -1408,8 +1404,7 @@ try
         {
             return {};
         }
-        const auto key =
-            gpu_retained_key(recipe, fingerprint, buffer.width, buffer.height);
+        const auto key = gpu_retained_key(recipe, fingerprint, buffer.width, buffer.height);
         if (g_gpu_adapter->has_retained_source(buffer.width, buffer.height) &&
             g_gpu_adapter->retained_source_key() == key)
         {

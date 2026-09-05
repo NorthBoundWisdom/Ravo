@@ -8,6 +8,8 @@
 #include "ravo/recipe/perspective.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
+#include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/watermark.h"
 
 #include <algorithm>
@@ -38,6 +40,37 @@ namespace
         return static_cast<double>(*value);
     }
     return fallback;
+}
+
+// Spatial RGB ops (Lab USM / RapidRAW tone radius) need neighbors outside the
+// owned ROI. Expand the demosaic window by this apron, process, then crop back
+// so owned pixels match full-frame export crop (macOS IQ-00 contract).
+[[nodiscard]] std::uint32_t preview_roi_spatial_apron_px(const Recipe &recipe) noexcept
+{
+    std::uint32_t apron = 0U;
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled)
+            continue;
+        if (operation.id == kSharpenOperationId)
+        {
+            // Engine scales recipe radius by 2.5 before ceil for the Gaussian.
+            const double radius = parameter_number(operation, "radius", 2.0);
+            if (std::isfinite(radius) && radius > 0.0)
+            {
+                const auto px = static_cast<std::uint32_t>(std::max(0.0, std::ceil(2.5 * radius)));
+                apron = std::max(apron, px);
+            }
+        }
+        else if (operation.id == kRapidRawToneControlsOperationId)
+        {
+            // CPU/GPU tone controls use ceil(3.5 * canonical_roi_scale); 1:1 ROI => 4.
+            apron = std::max(apron, 4U);
+        }
+    }
+    // Keep a small floor so mild demosaic/filter edge bleed stays outside owned
+    // pixels even when the recipe has no explicit spatial radius ops.
+    return std::max(apron, 2U);
 }
 
 [[nodiscard]] Result<void> validate_preview_roi(const PreviewNormRect &roi)
@@ -298,7 +331,17 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     {
         return raw.error();
     }
-    auto cfa = map_display_rect_to_cfa(*raw.value(), px, py, pw, ph);
+    const std::uint32_t spatial_apron = preview_roi_spatial_apron_px(recipe);
+    const std::uint32_t expanded_x = px > spatial_apron ? px - spatial_apron : 0U;
+    const std::uint32_t expanded_y = py > spatial_apron ? py - spatial_apron : 0U;
+    const std::uint32_t expanded_x2 = std::min(source_width, px + pw + spatial_apron);
+    const std::uint32_t expanded_y2 = std::min(source_height, py + ph + spatial_apron);
+    const std::uint32_t expanded_w = expanded_x2 - expanded_x;
+    const std::uint32_t expanded_h = expanded_y2 - expanded_y;
+    const std::uint32_t crop_x_px = px - expanded_x;
+    const std::uint32_t crop_y_px = py - expanded_y;
+    auto cfa =
+        map_display_rect_to_cfa(*raw.value(), expanded_x, expanded_y, expanded_w, expanded_h);
     if (!cfa)
     {
         return cfa.error();
@@ -314,37 +357,77 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     }
     Recipe rgb_recipe = window_recipe;
     disable_raw_preprocess(rgb_recipe);
+    // Spatial apron requires a CPU owned-pixel crop; request pixels even when the
+    // caller only wanted a GPU surface for the unexpanded window.
+    const bool need_cpu_pixels = request.need_cpu_pixels || spatial_apron > 0U;
     auto applied = engine_->render_interactive_linear_working(
         linear.value()->buffer, rgb_recipe, linear.value()->interactive_render_cache,
-        request.cancellation, request.overlay_mask_id, request.need_cpu_pixels,
+        request.cancellation, request.overlay_mask_id, need_cpu_pixels,
         EngineFacade::GpuDisplayKind::kRoi);
     if (!applied)
     {
         return applied.error();
     }
-    LOG_INFO(ravo::logger(), "preview roi asset={} {}x{} cfa={},{} {}x{}", asset.id,
-             applied.value().width, applied.value().height, cfa.value().x, cfa.value().y,
-             cfa.value().width, cfa.value().height);
+    if (applied.value().width != expanded_w || applied.value().height != expanded_h)
+    {
+        return make_error(ErrorCode::kInternal,
+                          "Preview ROI render size does not match the expanded window",
+                          {{"reason", "preview_roi_size_mismatch"},
+                           {"render_width", std::to_string(applied.value().width)},
+                           {"render_height", std::to_string(applied.value().height)},
+                           {"expanded_width", std::to_string(expanded_w)},
+                           {"expanded_height", std::to_string(expanded_h)}});
+    }
+    if (crop_x_px + pw > applied.value().width || crop_y_px + ph > applied.value().height)
+    {
+        return make_error(ErrorCode::kInternal, "Preview ROI owned crop is outside the render",
+                          {{"reason", "preview_roi_crop_out_of_bounds"}});
+    }
     PreviewResult result;
     result.asset_id = asset.id;
     result.request_revision = request.request_revision;
-    result.width = applied.value().width;
-    result.height = applied.value().height;
-    result.rgb = std::move(applied.value().rgb);
+    result.width = pw;
+    result.height = ph;
     result.color_profile = std::move(applied.value().color_profile);
-    result.mask_alpha = std::move(applied.value().mask_alpha);
     result.gpu_backend = applied.value().gpu_backend;
-    result.gpu_display_generation = applied.value().gpu_display_generation;
-    if (applied.value().gpu_display_generation != 0U)
+    // Expanded renders publish a larger GPU surface; drop the native surface so
+    // callers that need owned pixels use the cropped CPU RGB (need_cpu_pixels).
+    result.gpu_display_generation = 0U;
+    if (!applied.value().rgb.empty())
     {
-        const auto frame = engine_->gpu_display_frame(EngineFacade::GpuDisplayKind::kRoi);
-        if (frame.generation == applied.value().gpu_display_generation)
+        result.rgb.resize(static_cast<std::size_t>(pw) * ph * 3U);
+        for (std::uint32_t row = 0U; row < ph; ++row)
         {
-            result.gpu_display_width = frame.width;
-            result.gpu_display_height = frame.height;
-            result.gpu_display_native_surface = frame.native_surface;
+            const auto src =
+                (static_cast<std::size_t>(crop_y_px + row) * applied.value().width + crop_x_px) *
+                3U;
+            const auto dst = static_cast<std::size_t>(row) * pw * 3U;
+            std::copy_n(applied.value().rgb.begin() + static_cast<std::ptrdiff_t>(src),
+                        static_cast<std::size_t>(pw) * 3U,
+                        result.rgb.begin() + static_cast<std::ptrdiff_t>(dst));
         }
     }
+    if (!applied.value().mask_alpha.empty())
+    {
+        if (applied.value().mask_alpha.size() !=
+            static_cast<std::size_t>(applied.value().width) * applied.value().height)
+        {
+            return make_error(ErrorCode::kInternal, "Preview ROI mask alpha size mismatch",
+                              {{"reason", "preview_roi_mask_size_mismatch"}});
+        }
+        result.mask_alpha.resize(static_cast<std::size_t>(pw) * ph);
+        for (std::uint32_t row = 0U; row < ph; ++row)
+        {
+            const auto src =
+                static_cast<std::size_t>(crop_y_px + row) * applied.value().width + crop_x_px;
+            const auto dst = static_cast<std::size_t>(row) * pw;
+            std::copy_n(applied.value().mask_alpha.begin() + static_cast<std::ptrdiff_t>(src), pw,
+                        result.mask_alpha.begin() + static_cast<std::ptrdiff_t>(dst));
+        }
+    }
+    LOG_INFO(ravo::logger(), "preview roi asset={} {}x{} owned={},{} apron={} cfa={},{} {}x{}",
+             asset.id, pw, ph, px, py, spatial_apron, cfa.value().x, cfa.value().y,
+             cfa.value().width, cfa.value().height);
     result.original_missing = false;
     return result;
 }

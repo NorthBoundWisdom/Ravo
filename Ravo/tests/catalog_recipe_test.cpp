@@ -1335,11 +1335,13 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReturnsWindowPixelsWithoutCache)
 TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
 {
     // IQ-00 macOS contract: persist/export/reopen stay CPU gold. RAW viewport ROI
-    // may report GPU. Full-resolution export crop size-matches the ROI window and
-    // is compared as owned packed RGB8; interactive abs-delta (±1) is NOT claimed
-    // for this pair (windowed demosaic vs full-frame crop residual —
-    // kIqRawRoiVersusExportResidual). Scaled export crops stay a size-mismatch
-    // residual. Win/Linux / Bayer-RCD matrix are not claimed.
+    // may report GPU for admitted edit stages. Full-resolution export crop
+    // size-matches the owned ROI window and is compared as owned packed RGB8;
+    // RCD tile-aligned CPU demosaic + spatial processing apron keep packed
+    // channels within interactive abs-delta (±1) on this host
+    // (kIqRawRoiVersusExportResidual). Scaled export crops stay a size-mismatch
+    // residual. Win/Linux / Bayer-RCD matrix / GPU-native apron surface are not
+    // claimed.
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
@@ -1496,26 +1498,24 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     const int max_delta =
         max_packed_rgb8_abs_delta(roi_preview.value().rgb, cropped_export.value());
     RecordProperty("iq00_raw_roi_vs_full_export_max_packed_abs_delta", max_delta);
-    // Honest packed residual: do not claim interactive ±1 for windowed demosaic
-    // versus full-frame export crop (observed max can far exceed the delta).
-    if (max_delta > kIqGpuCpuPackedRgb8AbsDelta)
+    EXPECT_NE(
+        std::string(kIqRawRoiVersusExportResidual).find("owned_packed_rgb8_within_interactive"),
+        std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("rcd_tile_aligned"),
+              std::string::npos);
+    // Owned packed contract: size-matched full-export crop stays within interactive
+    // abs-delta after tile-aligned demosaic + spatial apron (macOS probe).
+    EXPECT_LE(max_delta, kIqGpuCpuPackedRgb8AbsDelta) << "max_packed_abs_delta=" << max_delta;
+    if (max_delta == 0 && !roi_gpu)
     {
-        RecordProperty("iq00_raw_roi_packed_delta_residual",
-                       "raw_roi_vs_export_crop_exceeds_packed_abs_delta");
-        EXPECT_GT(max_delta, kIqGpuCpuPackedRgb8AbsDelta);
-        EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("windowed_demosaic"),
-                  std::string::npos);
+        EXPECT_TRUE(rgb8_buffers_equal(roi_preview.value().rgb, cropped_export.value()));
+        RecordProperty("iq00_raw_roi_packed_bit_exact", "true");
     }
-    else if (roi_gpu)
+    else
     {
         EXPECT_TRUE(packed_rgb8_within_abs_delta(roi_preview.value().rgb, cropped_export.value(),
                                                  kIqGpuCpuPackedRgb8AbsDelta));
         RecordProperty("iq00_raw_roi_packed_within_documented_delta", "true");
-    }
-    else
-    {
-        EXPECT_TRUE(rgb8_buffers_equal(roi_preview.value().rgb, cropped_export.value()));
-        RecordProperty("iq00_raw_roi_packed_bit_exact", "true");
     }
 }
 

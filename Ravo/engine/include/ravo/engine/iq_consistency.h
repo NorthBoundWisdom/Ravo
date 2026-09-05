@@ -40,7 +40,7 @@ inline constexpr std::string_view kIqGpuAdmittedInteractiveStages[] = {
 
 // Machine-visible residual after admitted-stage packed contracts: full
 // corpus / Win-Linux / proof-monitor / multi-instance GPU remain open; RAW
-// ROI vs export size-match is probed with packed residual documented below.
+// ROI vs export size-match is probed with owned packed-delta documented below.
 // Non-admitted interactive ops run CPU.
 inline constexpr std::string_view kIqGpuInteractiveNonAdmittedPolicy =
     "non_admitted_ops_run_cpu_on_interactive_hybrid; masked_ops_cpu; "
@@ -152,14 +152,17 @@ inline constexpr std::string_view kIqConsistencyGpuLiveResidual =
     "persist_export_reopen_cpu_gold; win_linux_and_full_corpus_open";
 
 // RAW viewport ROI versus CPU-gold export (macOS contract probe):
-// full-resolution export crop size-matches the ROI window; packed RGB8 is
-// compared as owned pixels. Interactive abs-delta (±1) is NOT claimed for this
-// pair — windowed CFA demosaic versus full-frame export crop can exceed it
-// (observed). Scaled/preview-edge export crops remain a size-mismatch residual.
-// Win/Linux / full corpus / Bayer-RCD matrix stay open.
+// full-resolution export crop size-matches the owned ROI window; packed RGB8 is
+// compared as owned pixels. RCD window demosaic aligns to the full-frame tile
+// grid on CPU; ROI processing expands by a spatial apron (sharpen / RapidRAW
+// tone radius) then crops to owned pixels. Size-matched packed channels stay
+// within interactive abs-delta (±1) on the macOS contract probe (observed).
+// Scaled/preview-edge export crops remain a size-mismatch residual. RAW ROI may
+// report GPU for admitted edit stages. Win/Linux / full corpus / Bayer-RCD
+// matrix / GPU-native ROI surface-with-apron stay open.
 inline constexpr std::string_view kIqRawRoiVersusExportResidual =
     "full_export_crop_size_matched_macos_contract; "
-    "packed_rgb8_may_exceed_interactive_abs_delta_windowed_demosaic_vs_full_frame_crop; "
+    "owned_packed_rgb8_within_interactive_abs_delta_rcd_tile_aligned_cpu_demosaic_spatial_apron; "
     "scaled_export_crop_size_mismatch_residual; raw_viewport_roi_may_report_gpu; "
     "persist_export_reopen_cpu_gold; win_linux_and_full_corpus_open";
 
