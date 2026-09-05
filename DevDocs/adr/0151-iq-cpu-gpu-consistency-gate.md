@@ -86,6 +86,19 @@ hooks dated without claiming the full corpus matrix is closed.
   macOS Metal; persist/export/reopen remain CPU gold. Other non-admitted
   interactive ops stay on the CPU hybrid.
 
+
+### Gamma / vibrance / saturation interactive admit (follow-on)
+
+- Schema version **5** adds `ravo.core.gamma`, `ravo.color.vibrance`, and
+  `ravo.color.saturation` to `gpu_admitted_interactive_stages` with Metal/RHI
+  `gamma_rgb` and `vibrance_saturation_rgb` passes that mirror CPU
+  `apply_gamma` / fused `apply_vibrance_saturation`.
+- Owned packed RGB8 stays within `kIqGpuCpuPackedRgb8AbsDelta` vs CPU gold on
+  macOS Metal; persist/export/reopen remain CPU gold. Remaining non-admitted
+  interactive ops (curves/levels, color-balance*, clarity/texture/dehaze,
+  velvia/monochrome/split-toning, effects, equalizers, LUT, masked ops, etc.)
+  stay on the CPU hybrid.
+
 ### Explicit residuals
 
 - Full IQ-00 matrix (RAW corpus, ICC/proof, multi-instance locals, denoise,

@@ -45,6 +45,17 @@ struct GpuContrastRgbParams
     float amount = 0.0F;
 };
 
+struct GpuGammaRgbParams
+{
+    float exponent = 1.0F;
+};
+
+struct GpuVibranceSaturationRgbParams
+{
+    float vibrance_amount = 0.0F;
+    float saturation_amount = 0.0F;
+};
+
 struct GpuSharpenRgbParams
 {
     std::uint32_t width = 0;
@@ -80,6 +91,8 @@ struct GpuRgbPass
         kRapidRawBasicTone = 4,
         kRapidRawToneControls = 5,
         kContrast = 6,
+        kGamma = 7,
+        kVibranceSaturation = 8,
     };
     Kind kind = Kind::kAffine;
     GpuAffineRgbParams affine;
@@ -88,6 +101,8 @@ struct GpuRgbPass
     GpuSharpenRgbParams sharpen;
     GpuRapidRawToneControlsParams rapidraw_tone;
     GpuContrastRgbParams contrast;
+    GpuGammaRgbParams gamma;
+    GpuVibranceSaturationRgbParams vibrance_saturation;
 };
 
 struct GpuRgbApplyOptions

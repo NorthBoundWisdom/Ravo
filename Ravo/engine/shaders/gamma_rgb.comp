@@ -1,0 +1,23 @@
+#version 440
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer Values {
+    float values[];
+};
+
+layout(std140, binding = 1) uniform Params {
+    uvec4 header;
+    vec4 body;
+};
+
+// Match CPU apply_gamma: exponent = 1 / max(0.2, gamma) per linear sample.
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+    if (index >= header.x)
+        return;
+    const float value = values[index];
+    if (value <= 0.0)
+        return;
+    values[index] = pow(value, body.x);
+}

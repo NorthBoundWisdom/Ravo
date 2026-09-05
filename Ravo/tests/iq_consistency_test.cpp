@@ -166,6 +166,36 @@ namespace
     return recipe;
 }
 
+[[nodiscard]] Recipe make_gamma_only_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    recipe.operations.push_back(
+        {"ravo.core.gamma", 1, "gamma-1", true, {{"gamma", ParameterValue{1.35}}}, std::nullopt});
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Recipe make_vibrance_saturation_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    recipe.operations.push_back({"ravo.color.vibrance",
+                                 1,
+                                 "vibrance-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.45}}},
+                                 std::nullopt});
+    recipe.operations.push_back({"ravo.color.saturation",
+                                 1,
+                                 "saturation-1",
+                                 true,
+                                 {{"amount", ParameterValue{-0.2}}},
+                                 std::nullopt});
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
 [[nodiscard]] Recipe make_masked_exposure_sigmoid_recipe()
 {
     Recipe recipe = make_exposure_sigmoid_recipe();
@@ -422,6 +452,22 @@ TEST(IqConsistencyTest, InteractiveGpuContrastPackedDeltaWithinContract)
                                               make_contrast_only_recipe());
 }
 
+TEST(IqConsistencyTest, InteractiveGpuGammaPackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8),
+                                              make_gamma_only_recipe());
+}
+
+TEST(IqConsistencyTest, InteractiveGpuVibranceSaturationPackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8),
+                                              make_vibrance_saturation_recipe());
+}
+
 TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -457,7 +503,7 @@ TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
 
 TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
 {
-    EXPECT_EQ(kIqConsistencySchemaVersion, 4);
+    EXPECT_EQ(kIqConsistencySchemaVersion, 5);
     EXPECT_FALSE(std::string(kIqGpuInteractiveNonAdmittedPolicy).empty());
     EXPECT_NE(std::string(kIqConsistencyGpuLiveResidual).find("admitted_interactive"),
               std::string::npos);
@@ -475,6 +521,9 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
               std::string::npos);
     bool saw_exposure = false;
     bool saw_contrast = false;
+    bool saw_gamma = false;
+    bool saw_vibrance = false;
+    bool saw_saturation = false;
     bool saw_sigmoid = false;
     bool saw_sharpen = false;
     bool saw_rapidraw_controls = false;
@@ -485,6 +534,12 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
             saw_exposure = true;
         if (stage == "ravo.core.contrast")
             saw_contrast = true;
+        if (stage == "ravo.core.gamma")
+            saw_gamma = true;
+        if (stage == "ravo.color.vibrance")
+            saw_vibrance = true;
+        if (stage == "ravo.color.saturation")
+            saw_saturation = true;
         if (stage == "ravo.display.sigmoid")
             saw_sigmoid = true;
         if (stage == "ravo.detail.sharpen")
@@ -496,6 +551,9 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
     }
     EXPECT_TRUE(saw_exposure);
     EXPECT_TRUE(saw_contrast);
+    EXPECT_TRUE(saw_gamma);
+    EXPECT_TRUE(saw_vibrance);
+    EXPECT_TRUE(saw_saturation);
     EXPECT_TRUE(saw_sigmoid);
     EXPECT_TRUE(saw_sharpen);
     EXPECT_TRUE(saw_rapidraw_controls);

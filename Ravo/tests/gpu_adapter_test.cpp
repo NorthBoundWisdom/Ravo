@@ -331,6 +331,80 @@ TEST(EngineFacadeTest, GpuPreviewAppliesContrastOnlyRecipesOnGpuWhenAvailable)
     }
 }
 
+TEST(EngineFacadeTest, GpuPreviewAppliesGammaOnlyRecipesOnGpuWhenAvailable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kMatrix;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = std::string(kInputProfileLinearRec709);
+    profile.has_matrix = true;
+    LinearWorkingBuffer input{1, 1, {0.18F, 0.18F, 0.18F}, profile, {}, {}, {}};
+    Recipe recipe;
+    recipe.asset = {"gpu-preview", "memory:gpu-preview", std::nullopt};
+    recipe.operations.push_back(
+        {"ravo.core.gamma", 1, "gamma-1", true, {{"gamma", ParameterValue{1.25}}}, std::nullopt});
+    recipe.operations.push_back({"ravo.color.output", 1, "output", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
+    const auto persist = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    EXPECT_TRUE(persist.value().gpu_backend.empty());
+    const auto rendered = render_interactive(engine.value(), input, recipe);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    if (gpu_available(engine.value()))
+    {
+        EXPECT_EQ(rendered.value().gpu_backend, engine.value().gpu_backend());
+        EXPECT_NE(rendered.value().gpu_backend, "unavailable");
+    }
+    else
+    {
+        EXPECT_TRUE(rendered.value().gpu_backend.empty());
+    }
+}
+
+TEST(EngineFacadeTest, GpuPreviewAppliesVibranceSaturationOnGpuWhenAvailable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kMatrix;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = std::string(kInputProfileLinearRec709);
+    profile.has_matrix = true;
+    LinearWorkingBuffer input{1, 1, {0.22F, 0.14F, 0.10F}, profile, {}, {}, {}};
+    Recipe recipe;
+    recipe.asset = {"gpu-preview", "memory:gpu-preview", std::nullopt};
+    recipe.operations.push_back({"ravo.color.vibrance",
+                                 1,
+                                 "vibrance-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.5}}},
+                                 std::nullopt});
+    recipe.operations.push_back({"ravo.color.saturation",
+                                 1,
+                                 "saturation-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.15}}},
+                                 std::nullopt});
+    recipe.operations.push_back({"ravo.color.output", 1, "output", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
+    const auto persist = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    EXPECT_TRUE(persist.value().gpu_backend.empty());
+    const auto rendered = render_interactive(engine.value(), input, recipe);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    if (gpu_available(engine.value()))
+    {
+        EXPECT_EQ(rendered.value().gpu_backend, engine.value().gpu_backend());
+        EXPECT_NE(rendered.value().gpu_backend, "unavailable");
+    }
+    else
+    {
+        EXPECT_TRUE(rendered.value().gpu_backend.empty());
+    }
+}
+
 TEST(EngineFacadeTest, GpuPreviewAppliesContrastThenSigmoidOnGpuWhenAvailable)
 {
     const auto engine = EngineFacade::create_phase1();

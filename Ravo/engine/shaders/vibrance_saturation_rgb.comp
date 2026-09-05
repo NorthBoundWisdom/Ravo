@@ -1,0 +1,37 @@
+#version 440
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer Values {
+    float values[];
+};
+
+layout(std140, binding = 1) uniform Params {
+    uvec4 header;
+    vec4 body;
+};
+
+// Match CPU apply_vibrance_saturation (fused vibrance + saturation amounts).
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+    if (index >= header.x)
+        return;
+    const uint base = index * 3u;
+    float r = values[base];
+    float g = values[base + 1u];
+    float b = values[base + 2u];
+    const float vibrance_amount = body.x;
+    const float saturation_amount = body.y;
+    const float average = (r + g + b) / 3.0;
+    const float dr = average - r;
+    const float dg = average - g;
+    const float db = average - b;
+    const float delta = sqrt(dr * dr + dg * dg + db * db);
+    float vibrance_gain = 0.0;
+    if (vibrance_amount != 0.0)
+        vibrance_gain = vibrance_amount * (1.0 - pow(delta, abs(vibrance_amount)));
+    const float gain = 1.0 + saturation_amount + vibrance_gain;
+    values[base] = average + gain * (r - average);
+    values[base + 1u] = average + gain * (g - average);
+    values[base + 2u] = average + gain * (b - average);
+}

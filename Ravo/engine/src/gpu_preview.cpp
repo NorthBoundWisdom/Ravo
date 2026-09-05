@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -108,6 +109,22 @@ enum class PreviewOpClass : std::uint8_t
         return PreviewOpClass::Gpu;
     }
     if (operation.id == "ravo.core.contrast")
+    {
+        if (near(parameter(operation, "amount", 0.0), 0.0))
+        {
+            return PreviewOpClass::Skip;
+        }
+        return PreviewOpClass::Gpu;
+    }
+    if (operation.id == "ravo.core.gamma")
+    {
+        if (near(parameter(operation, "gamma", 1.0), 1.0))
+        {
+            return PreviewOpClass::Skip;
+        }
+        return PreviewOpClass::Gpu;
+    }
+    if (operation.id == "ravo.color.vibrance" || operation.id == "ravo.color.saturation")
     {
         if (near(parameter(operation, "amount", 0.0), 0.0))
         {
@@ -231,6 +248,35 @@ enum class PreviewOpClass : std::uint8_t
         GpuRgbPass pass;
         pass.kind = GpuRgbPass::Kind::kContrast;
         pass.contrast.amount = amount;
+        return pass;
+    }
+    if (operation.id == "ravo.core.gamma")
+    {
+        const double gamma = parameter(operation, "gamma", 1.0);
+        if (!std::isfinite(gamma) || gamma <= 0.0)
+        {
+            return make_error(ErrorCode::kValidation, "GPU gamma is not finite/positive",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kGamma;
+        pass.gamma.exponent = static_cast<float>(1.0 / std::max(0.2, gamma));
+        return pass;
+    }
+    if (operation.id == "ravo.color.vibrance" || operation.id == "ravo.color.saturation")
+    {
+        const float amount = static_cast<float>(parameter(operation, "amount", 0.0));
+        if (!std::isfinite(amount))
+        {
+            return make_error(ErrorCode::kValidation, "GPU vibrance/saturation is not finite",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kVibranceSaturation;
+        if (operation.id == "ravo.color.vibrance")
+            pass.vibrance_saturation.vibrance_amount = amount / 1.4F;
+        else
+            pass.vibrance_saturation.saturation_amount = amount;
         return pass;
     }
     if (operation.id == kSharpenOperationId)
@@ -363,6 +409,71 @@ enum class PreviewOpClass : std::uint8_t
     return pass;
 }
 
+[[nodiscard]] Result<GpuRgbPass> make_vibrance_saturation_pass(const float vibrance_amount,
+                                                               const float saturation_amount)
+{
+    if (!std::isfinite(vibrance_amount) || !std::isfinite(saturation_amount))
+    {
+        return make_error(ErrorCode::kValidation, "GPU vibrance/saturation is not finite",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    GpuRgbPass pass;
+    pass.kind = GpuRgbPass::Kind::kVibranceSaturation;
+    pass.vibrance_saturation.vibrance_amount = vibrance_amount;
+    pass.vibrance_saturation.saturation_amount = saturation_amount;
+    return pass;
+}
+
+// Match CPU image_recipe_ops fusion: adjacent vibrance+saturation become one apply.
+[[nodiscard]] Result<std::pair<GpuRgbPass, std::size_t>>
+make_gpu_pass_consuming(const LinearWorkingBuffer &working, const Recipe &recipe,
+                        const std::size_t index, const CancellationToken &cancellation)
+{
+    if (index >= recipe.operations.size())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "GPU preview pass index is out of range",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
+    const auto &operation = recipe.operations[index];
+    if (operation.id == "ravo.color.vibrance" || operation.id == "ravo.color.saturation")
+    {
+        float vibrance = 0.0F;
+        float saturation = 0.0F;
+        std::size_t consumed = 1U;
+        if (operation.id == "ravo.color.vibrance")
+            vibrance = static_cast<float>(parameter(operation, "amount", 0.0)) / 1.4F;
+        else
+            saturation = static_cast<float>(parameter(operation, "amount", 0.0));
+        const auto next_index = index + 1U;
+        if (next_index < recipe.operations.size())
+        {
+            const auto &next = recipe.operations[next_index];
+            if (next.enabled)
+            {
+                if (operation.id == "ravo.color.vibrance" && next.id == "ravo.color.saturation")
+                {
+                    saturation = static_cast<float>(parameter(next, "amount", 0.0));
+                    consumed = 2U;
+                }
+                else if (operation.id == "ravo.color.saturation" &&
+                         next.id == "ravo.color.vibrance")
+                {
+                    vibrance = static_cast<float>(parameter(next, "amount", 0.0)) / 1.4F;
+                    consumed = 2U;
+                }
+            }
+        }
+        auto pass = make_vibrance_saturation_pass(vibrance, saturation);
+        if (!pass)
+            return pass.error();
+        return std::pair<GpuRgbPass, std::size_t>{std::move(pass).value(), consumed};
+    }
+    auto pass = make_gpu_pass(working, operation, cancellation);
+    if (!pass)
+        return pass.error();
+    return std::pair<GpuRgbPass, std::size_t>{std::move(pass).value(), 1U};
+}
+
 [[nodiscard]] Result<bool> recipe_has_gpu_admissible_rgb(const LinearWorkingBuffer &working,
                                                          const Recipe &recipe)
 {
@@ -388,20 +499,21 @@ gpu_preview_rgb_passes(const LinearWorkingBuffer &working, const Recipe &recipe,
                        const CancellationToken &cancellation)
 {
     std::vector<GpuRgbPass> passes;
-    for (const auto &operation : recipe.operations)
+    for (std::size_t index = 0U; index < recipe.operations.size();)
     {
         auto cancelled = cancellation.check();
         if (!cancelled)
         {
             return cancelled.error();
         }
-        auto classified = classify_preview_operation(working, operation);
+        auto classified = classify_preview_operation(working, recipe.operations[index]);
         if (!classified)
         {
             return classified.error();
         }
         if (classified.value() == PreviewOpClass::Skip)
         {
+            ++index;
             continue;
         }
         if (classified.value() == PreviewOpClass::Cpu)
@@ -412,12 +524,13 @@ gpu_preview_rgb_passes(const LinearWorkingBuffer &working, const Recipe &recipe,
             }
             break;
         }
-        auto pass = make_gpu_pass(working, operation, cancellation);
-        if (!pass)
+        auto consumed = make_gpu_pass_consuming(working, recipe, index, cancellation);
+        if (!consumed)
         {
-            return pass.error();
+            return consumed.error();
         }
-        passes.push_back(std::move(pass).value());
+        passes.push_back(std::move(consumed.value().first));
+        index += consumed.value().second;
     }
     return std::optional<std::vector<GpuRgbPass>>{std::move(passes)};
 }
@@ -539,14 +652,16 @@ apply_preview_rgb(LinearWorkingBuffer working, const Recipe &recipe, const GpuAd
                 {
                     break;
                 }
-                auto pass = make_gpu_pass(working, remaining.operations[cursor], cancellation);
-                if (!pass)
+                auto consumed = make_gpu_pass_consuming(working, remaining, cursor, cancellation);
+                if (!consumed)
                 {
-                    return pass.error();
+                    return consumed.error();
                 }
-                batch.push_back(std::move(pass).value());
-                remaining.operations[cursor].enabled = false;
-                ++cursor;
+                batch.push_back(std::move(consumed.value().first));
+                const std::size_t span = consumed.value().second;
+                for (std::size_t offset = 0U; offset < span; ++offset)
+                    remaining.operations[cursor + offset].enabled = false;
+                cursor += span;
             }
             bool cpu_after = false;
             for (std::size_t look = cursor; look < remaining.operations.size(); ++look)

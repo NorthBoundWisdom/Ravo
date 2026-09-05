@@ -89,7 +89,8 @@ CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
 moves in the intended direction. DISPLAY-01 is C2 with Gallery thumbnail
 monitor convert + macOS GPU native owned-pixel presentation publish landed;
 IQ-00 macOS Metal admitted-stage interactive packed-delta contracts landed
-(Exposure/light/contrast/Lab-USM/Sigmoid/RapidRAW); other non-admitted interactive ops stay
+(Exposure/light/contrast/gamma/vibrance/saturation/Lab-USM/Sigmoid/RapidRAW);
+other non-admitted interactive ops stay
 CPU hybrid; RAW ROI vs full-export owned packed abs-delta closed within
 interactive ±1 on macOS (tile-aligned demosaic + spatial apron); Metal ROI
 apron owned-surface publish landed (gpu_display_* size-matches owned); scaled
@@ -358,14 +359,16 @@ package-size, or CPU-reference regression.
 expansions on `main`: persist preview ↔ export RGB8 bit-exact + ICC identity,
 packed ROI crop reopen/export equality, and **interactive Develop GPU
 packed-delta contracts for admitted Metal stages** (Exposure, highlights/
-shadows/whites/blacks, **contrast**, Lab USM sharpen, linear-sRGB Sigmoid, and RapidRAW
-global tone controls plus Basic display) versus CPU gold
+shadows/whites/blacks, contrast, **gamma**, **vibrance/saturation**, Lab USM
+sharpen, linear-sRGB Sigmoid, and RapidRAW global tone controls plus Basic
+display) versus CPU gold
 owned packed RGB8 (`kIqGpuCpuPackedRgb8AbsDelta=1`), with persist/export/reopen
 remaining CPU gold. Non-admitted interactive ops stay CPU hybrid; masked
 admitted ops run CPU prefix then may GPU the
 admitted suffix within the same packed delta. `catalog probe` `iq_consistency`
-schema_version=4 lists `gpu_admitted_interactive_stages` (includes
-`ravo.core.contrast`) and
+schema_version=5 lists `gpu_admitted_interactive_stages` (includes
+`ravo.core.contrast`, `ravo.core.gamma`, `ravo.color.vibrance`,
+`ravo.color.saturation`) and
 `non_admitted_interactive_policy`; host_scope=`macos_debug_release_contract`,
 `win_linux_hosts_claimed=false`. Catalog probe
 `Iq00RawRoiLiveVersusCpuExportDocumentsResidual` keeps settled/reopen/export
@@ -629,7 +632,12 @@ visible.
 - Residual: interactive Develop GPU **edit-math** packed-delta for admitted
   Metal stages is contracted under IQ-00 (presentation already matches
   Loupe/Develop owned-pixel). Remaining IQ/DISPLAY residuals: non-admitted
-  interactive ops (CPU hybrid), full corpus / Win-Linux, RAW ROI scaled-export
+  interactive ops still CPU hybrid (inventory after schema v5 admits: tone/rgb
+  curves + levels, color-balance*/colorbalancergb, color zones/harmonizer/
+  correction/reconstruction/contrast, velvia/monochrome/split-toning, clarity/
+  texture/dehaze, vignette/grain/bloom/soften/graduatednd, tone/color equalizer,
+  lut3d, masked instances, non-linear-Rec709 sharpen, non-linear-sRGB sigmoid),
+  full corpus / Win-Linux, RAW ROI scaled-export
   same-scale packed closed (cross-scale explicit non-compare), Linux/non-Metal GPU publish,
   packaged Linux monitor discovery, multi-display performance, and SDR/HDR
   policy. RAW ROI vs full-export owned packed abs-delta is closed within
