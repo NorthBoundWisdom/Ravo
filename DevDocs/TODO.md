@@ -294,19 +294,23 @@ Do not commit absolute developer-machine paths as evidence.
 
 ## PERF-01 — End-to-end interaction and large-library budgets
 
-**Status:** Measurement harness exists. Host-local Gallery→viewer→Develop +
-large-library synthetic + PrivatePhoto timings for SHA `55e2a05286f2…` are filed
-under evidence `20260905_130706` (`PERF-01-host-local-budget-notes.json`) —
-**observation-only machine-local Debug notes** (Release `BUILD_TESTING=OFF`, so
-Debug labeled), not admitted product budgets and **not** a PERF-02 admit.
-Updated observation ceilings from that host-local note (`mac_clang_debug`,
-warmups=2 / n=8): warm gallery→loupe P90 ≤40 ms, adjacent revisit P90 ≤40 ms,
-loupe→Develop first-frame P90 ≤25 ms, warm preview P90 ≤5 ms, page P90 ≤2000 µs,
-synthetic large-library page-first N=1000 P90 ≤3000 µs. Measured this SHA (P90):
-gallery warm ~16 ms, adjacent ~17 ms, loupe→Develop ~12 ms, large_library ~1.4 ms,
-warm preview ~1.0 ms, page ~615 µs. Cold gallery→loupe (~4.9 s) and cold settled
-preview (~5.1 s P90 PrivatePhoto) remain separately characterized. Release
-same-corpus freeze and cross-host evidence remain open. Harness expand:
+**Status:** Measurement harness exists. Host-local **Release** Gallery→viewer→
+Develop + large-library synthetic + PrivatePhoto timings for SHA `bedb55b1…`
+(IQ-00 colorcontrast admit) are filed under evidence `20260905_135210`
+(`PERF-01-host-local-budget-notes.json`) — **observation-only**
+(`mac_clang_release` one-shot `-DBUILD_TESTING=ON` for probe binaries; cache
+restored OFF), not admitted product budgets and **not** a PERF-02 admit.
+Prior Debug deepen remains at `20260905_130706` / `55e2a052`. Observation
+ceilings retained (`mac_clang_release`, warmups=2 / n=8): warm gallery→loupe
+P90 ≤40 ms, adjacent revisit P90 ≤40 ms, loupe→Develop first-frame P90 ≤25 ms,
+warm preview P90 ≤5 ms, page P90 ≤2000 µs, synthetic large-library page-first
+N=1000 P90 ≤3000 µs. Measured this Release SHA (P90): gallery warm ~14.6 ms,
+adjacent ~14.9 ms, loupe→Develop ~5.0 ms, large_library ~0.95 ms, warm preview
+~0.38 ms, page ~398 µs. Persistent-catalog “cold” gallery→loupe ~38 ms (not
+empty-cache cold); PrivatePhoto cold settled preview ~0.78 s P90. Cross-host
+evidence and product budget freeze remain open. Safe pointwise IQ GPU admit
+stream is exhausted after schema v7 colorcontrast; remaining interactive GPU
+residuals are hard. Harness expand:
 `LargeLibrarySyntheticPageObservation` seeds synthetic N metadata assets
 (default 1000, override `RAVO_PERF01_LARGE_LIBRARY_N`) and emits observation-only
 `large_library_page_first` samples — **not** a budget admit and **not** PERF-02.
