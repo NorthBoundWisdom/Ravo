@@ -274,6 +274,56 @@ double StudioPresenter::editBlacks() const noexcept
     return develop_.blacks;
 }
 
+bool StudioPresenter::editRapidRawToneControlsEnabled() const noexcept
+{
+    return develop_.rapidraw_tone_controls_enabled;
+}
+
+bool StudioPresenter::editRapidRawBasicToneEnabled() const noexcept
+{
+    return develop_.rapidraw_basic_tone_enabled;
+}
+
+int StudioPresenter::editToneMapperIndex() const noexcept
+{
+    return develop_.sigmoid_enabled ? 1 : 0;
+}
+
+double StudioPresenter::editRapidRawEvShift() const noexcept
+{
+    return develop_.rapidraw_ev_shift;
+}
+
+double StudioPresenter::editRapidRawExposure() const noexcept
+{
+    return develop_.rapidraw_exposure;
+}
+
+double StudioPresenter::editRapidRawContrast() const noexcept
+{
+    return develop_.rapidraw_contrast;
+}
+
+double StudioPresenter::editRapidRawHighlights() const noexcept
+{
+    return develop_.rapidraw_highlights;
+}
+
+double StudioPresenter::editRapidRawShadows() const noexcept
+{
+    return develop_.rapidraw_shadows;
+}
+
+double StudioPresenter::editRapidRawWhites() const noexcept
+{
+    return develop_.rapidraw_whites;
+}
+
+double StudioPresenter::editRapidRawBlacks() const noexcept
+{
+    return develop_.rapidraw_blacks;
+}
+
 double StudioPresenter::editVibrance() const noexcept
 {
     return develop_.vibrance;

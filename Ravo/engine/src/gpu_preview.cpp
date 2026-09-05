@@ -14,6 +14,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 #include "ravo/recipe/sharpen.h"
 #include "image_ops_internal.h"
 
@@ -139,6 +140,13 @@ enum class PreviewOpClass : std::uint8_t
             return validated.error();
         }
         return PreviewOpClass::Gpu;
+    }
+    if (operation.id == kRapidRawToneControlsOperationId)
+    {
+        auto parsed = rapidraw_tone_controls_from_parameters(operation.parameters);
+        if (!parsed)
+            return parsed.error();
+        return parsed.value().is_identity() ? PreviewOpClass::Skip : PreviewOpClass::Gpu;
     }
     return PreviewOpClass::Cpu;
 }
@@ -277,6 +285,36 @@ enum class PreviewOpClass : std::uint8_t
         }
         GpuRgbPass pass;
         pass.kind = GpuRgbPass::Kind::kRapidRawBasicTone;
+        return pass;
+    }
+    if (operation.id == kRapidRawToneControlsOperationId)
+    {
+        auto parsed = rapidraw_tone_controls_from_parameters(operation.parameters);
+        if (!parsed)
+            return parsed.error();
+        if ((parsed.value().shadows != 0.0 || parsed.value().blacks != 0.0) &&
+            !working.canonical_roi_scale.valid())
+        {
+            return make_error(ErrorCode::kValidation,
+                              "RapidRAW shadows and blacks require canonical ROI scale",
+                              {{"reason", "invalid_rapidraw_tone_roi_scale"}});
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kRapidRawToneControls;
+        pass.rapidraw_tone.width = working.width;
+        pass.rapidraw_tone.height = working.height;
+        pass.rapidraw_tone.radius =
+            working.canonical_roi_scale.valid() ?
+                static_cast<std::uint32_t>(std::max(
+                    1, static_cast<int>(std::ceil(3.5F * working.canonical_roi_scale.value())))) :
+                1U;
+        pass.rapidraw_tone.ev_shift = static_cast<float>(parsed.value().ev_shift);
+        pass.rapidraw_tone.exposure = static_cast<float>(parsed.value().exposure);
+        pass.rapidraw_tone.contrast = static_cast<float>(parsed.value().contrast);
+        pass.rapidraw_tone.highlights = static_cast<float>(parsed.value().highlights);
+        pass.rapidraw_tone.shadows = static_cast<float>(parsed.value().shadows);
+        pass.rapidraw_tone.whites = static_cast<float>(parsed.value().whites);
+        pass.rapidraw_tone.blacks = static_cast<float>(parsed.value().blacks);
         return pass;
     }
     if (operation.id != "ravo.display.sigmoid")

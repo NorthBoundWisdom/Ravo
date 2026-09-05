@@ -15,10 +15,10 @@ namespace ravo
 
 // ADR-0151: IQ-00 CPU gold / GPU consistency contract (first Ready).
 inline constexpr std::string_view kIqConsistencyContractVersion = "ravo.iq.consistency/v1";
-inline constexpr std::int64_t kIqConsistencySchemaVersion = 2;
+inline constexpr std::int64_t kIqConsistencySchemaVersion = 3;
 
 // Per-channel absolute tolerance for admitted interactive GPU RGB batches
-// versus CPU gold linear working (Exposure / light / Lab USM / Sigmoid).
+// versus CPU gold linear working (Exposure / light / Lab USM / display tone).
 inline constexpr float kIqGpuCpuWorkingAbsTolerance = 2.0e-3F;
 
 // Interactive Metal GPU edit-math stages admitted under the packed-RGB8
@@ -29,6 +29,7 @@ inline constexpr float kIqGpuCpuWorkingAbsTolerance = 2.0e-3F;
 inline constexpr std::string_view kIqGpuAdmittedInteractiveStages[] = {
     "ravo.core.exposure", "ravo.core.highlights", "ravo.core.shadows",    "ravo.core.whites",
     "ravo.core.blacks",   "ravo.detail.sharpen",  "ravo.display.sigmoid",
+    "ravo.core.rapidraw-tone-controls", "ravo.display.rapidraw-basic",
 };
 
 // Machine-visible residual after admitted-stage packed contracts: full

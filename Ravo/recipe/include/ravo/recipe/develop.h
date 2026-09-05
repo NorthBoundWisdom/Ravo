@@ -454,6 +454,14 @@ struct DevelopParams
     double sigmoid_display_black = kSigmoidDisplayBlackDefault;
     double sigmoid_hue_preservation = kSigmoidHuePreservationDefault;
     bool rapidraw_basic_tone_enabled = false;
+    bool rapidraw_tone_controls_enabled = false;
+    double rapidraw_ev_shift = 0.0;
+    double rapidraw_exposure = 0.0;
+    double rapidraw_contrast = 0.0;
+    double rapidraw_highlights = 0.0;
+    double rapidraw_shadows = 0.0;
+    double rapidraw_whites = 0.0;
+    double rapidraw_blacks = 0.0;
     double raw_highlights = 0.0;
     double raw_highlights_clip = 0.987;
     double raw_denoise_threshold = 0.0;
@@ -527,6 +535,7 @@ struct DevelopParams
 {
     DevelopParams params;
     params.rapidraw_basic_tone_enabled = true;
+    params.rapidraw_tone_controls_enabled = true;
     params.sharpen = SharpenParams{}.amount;
     params.raw_highlights = 1.0;
     params.raw_highlights_clip = 1.0;

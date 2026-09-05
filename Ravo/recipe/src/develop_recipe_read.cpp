@@ -1,6 +1,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 
 #include "develop_internal.h"
 
@@ -33,6 +34,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
     params.masks = recipe.masks;
     bool demosaic_present = false;
     bool perspective_geometry_present = false;
+    bool rapidraw_tone_controls_present = false;
     std::map<std::string, std::pair<bool, bool>, std::less<>> section_flags;
     const auto note_section = [&](const std::string_view section, const bool enabled)
     {
@@ -944,6 +946,35 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.rapidraw_basic_tone_enabled = true;
             note_section("light", operation.enabled);
         }
+        else if (operation.id == kRapidRawToneControlsOperationId)
+        {
+            if (operation.schema_version != kRapidRawToneControlsSchemaVersion)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop RapidRAW tone-controls schema is unsupported",
+                                  {{"schema_version", std::to_string(operation.schema_version)},
+                                   {"reason", "unsupported_rapidraw_tone_controls_schema"}});
+            }
+            if (rapidraw_tone_controls_present)
+            {
+                return make_error(ErrorCode::kConflict,
+                                  "Develop contains duplicate RapidRAW tone controls",
+                                  {{"reason", "duplicate_rapidraw_tone_controls"}});
+            }
+            auto controls = rapidraw_tone_controls_from_parameters(operation.parameters);
+            if (!controls)
+                return controls.error();
+            params.rapidraw_tone_controls_enabled = true;
+            params.rapidraw_ev_shift = controls.value().ev_shift;
+            params.rapidraw_exposure = controls.value().exposure;
+            params.rapidraw_contrast = controls.value().contrast;
+            params.rapidraw_highlights = controls.value().highlights;
+            params.rapidraw_shadows = controls.value().shadows;
+            params.rapidraw_whites = controls.value().whites;
+            params.rapidraw_blacks = controls.value().blacks;
+            rapidraw_tone_controls_present = true;
+            note_section("light", operation.enabled);
+        }
         else if (operation.id == "ravo.raw.highlights")
         {
             params.raw_highlights = number("amount", params.raw_highlights);
@@ -1134,6 +1165,12 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         {
             static_cast<void>(set_develop_section_effect_enabled(params, section, false));
         }
+    }
+    if (params.rapidraw_tone_controls_enabled && !params.rapidraw_basic_tone_enabled)
+    {
+        return make_error(ErrorCode::kConflict,
+                          "RapidRAW tone controls require the RapidRAW Basic mapper",
+                          {{"reason", "rapidraw_tone_mapper_required"}});
     }
     clamp_develop(params);
     return params;

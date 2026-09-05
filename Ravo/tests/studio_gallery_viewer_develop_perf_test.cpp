@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -395,6 +396,84 @@ TEST(StudioGalleryViewerDevelopPerformanceProbe, MeasuresGallerySelectLoupeDevel
                 });
         },
         "warm");
+}
+
+TEST(StudioRapidRawTonePerformanceProbe, MeasuresAllToneControls)
+{
+    const char *catalog_path = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset_id = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (catalog_path == nullptr || asset_id == nullptr)
+        GTEST_SKIP() << "set RAVO_INTERACTIVE_PERF_CATALOG and RAVO_INTERACTIVE_PERF_ASSET_ID";
+
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    const std::size_t runs = recorded_samples_from_env(15U);
+    ASSERT_GT(runs, 0U);
+    StudioPresenter presenter;
+    presenter.openCatalogFromPath(QString::fromUtf8(catalog_path));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    presenter.selectAsset(QString::fromUtf8(asset_id));
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.selectedAssetId() == QString::fromUtf8(asset_id) &&
+                   !presenter.busy();
+        },
+        30000));
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until([&] { return preview_settled(presenter); }, 30000));
+    ASSERT_TRUE(presenter.editRapidRawToneControlsEnabled());
+
+    const std::array<QString, 7> fields{
+        QStringLiteral("rapidrawEvShift"),   QStringLiteral("rapidrawExposure"),
+        QStringLiteral("rapidrawContrast"),  QStringLiteral("rapidrawHighlights"),
+        QStringLiteral("rapidrawShadows"),   QStringLiteral("rapidrawWhites"),
+        QStringLiteral("rapidrawBlacks"),
+    };
+    const std::array<double, 7> baselines{
+        presenter.editRapidRawEvShift(),   presenter.editRapidRawExposure(),
+        presenter.editRapidRawContrast(),  presenter.editRapidRawHighlights(),
+        presenter.editRapidRawShadows(),   presenter.editRapidRawWhites(),
+        presenter.editRapidRawBlacks(),
+    };
+    std::vector<std::int64_t> samples;
+    samples.reserve(runs);
+    for (std::size_t run = 0U; run < runs; ++run)
+    {
+        const std::size_t index = run % fields.size();
+        const std::size_t cycle = run / fields.size();
+        const double direction = cycle % 2U == 0U ? -1.0 : 1.0;
+        const double magnitude = static_cast<double>(cycle / 2U + 1U);
+        const double delta = direction * magnitude * (index < 2U ? 0.01 : 1.0);
+        const QUrl previous = presenter.previewUrl();
+        auto elapsed = measure_until(
+            presenter,
+            [&] { presenter.previewDevelopNumber(fields[index], baselines[index] + delta); },
+            [&]
+            {
+                const QUrl current = presenter.previewUrl();
+                return current != previous && current.scheme() == QLatin1String("image") &&
+                       current.path() == QLatin1String("/live") &&
+                       !presenter.previewImage().isNull();
+            },
+            5000);
+        ASSERT_TRUE(elapsed.has_value()) << presenter.errorText().toStdString();
+        samples.push_back(*elapsed);
+    }
+    CaseMeta meta;
+    meta.case_id = "rapidraw_all_tone_controls";
+    meta.path = "gallery_viewer_develop";
+    meta.unit = "us";
+    meta.cache_state = "warm";
+    meta.source_kind = "raw";
+    meta.warmups = 0U;
+    meta.recorded_samples = runs;
+    meta.asset_id = asset_id;
+    meta.catalog_path = catalog_path;
+    emit_case(meta, samples);
+    if (const char *budget = std::getenv("RAVO_INTERACTIVE_PERF_P90_BUDGET_MS"))
+        EXPECT_LE(interactive_perf_report::summarize(samples).p90, std::stoll(budget) * 1000);
 }
 
 TEST(StudioGalleryViewerDevelopPerformanceProbe, LargeLibrarySyntheticPageObservation)

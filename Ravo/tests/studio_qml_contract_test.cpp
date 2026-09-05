@@ -76,6 +76,11 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     ASSERT_GT(light_end, light_begin);
     const auto light = source.mid(light_begin, light_end - light_begin);
 
+    const auto rapidraw_ev = light.indexOf(QStringLiteral("rapidrawEvShift"));
+    const auto tone_mapper = light.indexOf(QStringLiteral("toneMapperIndex"));
+    const auto rapidraw_exposure = light.indexOf(QStringLiteral("rapidrawExposure"));
+    const auto rapidraw_contrast = light.indexOf(QStringLiteral("rapidrawContrast"));
+    const auto rapidraw_blacks = light.indexOf(QStringLiteral("rapidrawBlacks"));
     const auto exposure = light.indexOf(QStringLiteral("previewDevelopNumber(\"exposure\""));
     const auto exposure_mask = light.indexOf(QStringLiteral("objectName: \"exposureMaskEditor\""));
     const auto sigmoid_contrast =
@@ -103,6 +108,11 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     const auto gamma = light.indexOf(QStringLiteral("previewDevelopNumber(\"gamma\""));
     const auto rgb_levels = light.indexOf(QStringLiteral("qsTr(\"RGB levels\")"));
 
+    ASSERT_GE(tone_mapper, 0);
+    ASSERT_GE(rapidraw_ev, 0);
+    ASSERT_GE(rapidraw_exposure, 0);
+    ASSERT_GE(rapidraw_contrast, 0);
+    ASSERT_GE(rapidraw_blacks, 0);
     ASSERT_GE(exposure, 0);
     ASSERT_GE(exposure_mask, 0);
     ASSERT_GE(sigmoid_contrast, 0);
@@ -124,6 +134,11 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     ASSERT_GE(gamma, 0);
     ASSERT_GE(rgb_levels, 0);
 
+    EXPECT_LT(tone_mapper, rapidraw_ev);
+    EXPECT_LT(rapidraw_ev, rapidraw_exposure);
+    EXPECT_LT(rapidraw_exposure, rapidraw_contrast);
+    EXPECT_LT(rapidraw_contrast, rapidraw_blacks);
+    EXPECT_LT(rapidraw_blacks, exposure);
     EXPECT_LT(exposure, exposure_mask);
     EXPECT_LT(exposure_mask, sigmoid_contrast);
     EXPECT_LT(exposure, sigmoid_contrast);

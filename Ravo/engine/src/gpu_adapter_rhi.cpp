@@ -23,6 +23,8 @@ extern unsigned char const ravo_gpu_sigmoid_rgb_qsb[];
 extern unsigned long long const ravo_gpu_sigmoid_rgb_qsb_size;
 extern unsigned char const ravo_gpu_rapidraw_basic_tone_qsb[];
 extern unsigned long long const ravo_gpu_rapidraw_basic_tone_qsb_size;
+extern unsigned char const ravo_gpu_rapidraw_tone_controls_qsb[];
+extern unsigned long long const ravo_gpu_rapidraw_tone_controls_qsb_size;
 extern unsigned char const ravo_gpu_light_controls_qsb[];
 extern unsigned long long const ravo_gpu_light_controls_qsb_size;
 extern unsigned char const ravo_gpu_sharpen_lab_qsb[];
@@ -113,6 +115,22 @@ struct LightUniforms
     float black_ev = 0.0F;
 };
 
+struct RapidRawToneUniforms
+{
+    quint32 width = 0;
+    quint32 height = 0;
+    quint32 pixel_count = 0;
+    quint32 radius = 1;
+    float ev_shift = 0.0F;
+    float exposure = 0.0F;
+    float contrast = 0.0F;
+    float shadows = 0.0F;
+    float highlights = 0.0F;
+    float pad0 = 0.0F;
+    float whites = 0.0F;
+    float blacks = 0.0F;
+};
+
 struct SharpenUniforms
 {
     quint32 width = 0;
@@ -193,6 +211,7 @@ struct GpuAdapter::Impl
     std::unique_ptr<QRhi> rhi;
     std::unique_ptr<QRhiBuffer> affine_uniforms;
     std::unique_ptr<QRhiBuffer> rapidraw_basic_tone_uniforms;
+    std::unique_ptr<QRhiBuffer> rapidraw_tone_uniforms;
     std::unique_ptr<QRhiBuffer> sigmoid_uniforms;
     std::unique_ptr<QRhiBuffer> light_uniforms[4];
     std::unique_ptr<QRhiBuffer> sharpen_uniforms[4];
@@ -201,12 +220,14 @@ struct GpuAdapter::Impl
     std::unique_ptr<QRhiBuffer> pack_uniforms;
     std::unique_ptr<QRhiShaderResourceBindings> layout_bindings;
     std::unique_ptr<QRhiShaderResourceBindings> sharpen_layout;
+    std::unique_ptr<QRhiShaderResourceBindings> rapidraw_tone_layout;
     std::unique_ptr<QRhiShaderResourceBindings> rcd_layout;
     std::unique_ptr<QRhiShaderResourceBindings> copy_layout;
     std::unique_ptr<QRhiShaderResourceBindings> pack_layout;
     std::unique_ptr<QRhiComputePipeline> affine_pipeline;
     std::unique_ptr<QRhiComputePipeline> sigmoid_pipeline;
     std::unique_ptr<QRhiComputePipeline> rapidraw_basic_tone_pipeline;
+    std::unique_ptr<QRhiComputePipeline> rapidraw_tone_pipeline;
     std::unique_ptr<QRhiComputePipeline> light_pipeline;
     std::unique_ptr<QRhiComputePipeline> sharpen_pipeline;
     std::unique_ptr<QRhiComputePipeline> rcd_pipeline;
@@ -521,6 +542,12 @@ Result<void> GpuAdapter::Impl::open()
     {
         return rapidraw_basic_tone_shader.error();
     }
+    auto rapidraw_tone_shader =
+        load_shader(ravo_gpu_rapidraw_tone_controls_qsb, ravo_gpu_rapidraw_tone_controls_qsb_size);
+    if (!rapidraw_tone_shader)
+    {
+        return rapidraw_tone_shader.error();
+    }
     auto light_shader = load_shader(ravo_gpu_light_controls_qsb, ravo_gpu_light_controls_qsb_size);
     if (!light_shader)
     {
@@ -547,10 +574,13 @@ Result<void> GpuAdapter::Impl::open()
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
     rapidraw_basic_tone_uniforms.reset(
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
+    rapidraw_tone_uniforms.reset(
+        rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
     sigmoid_uniforms.reset(
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
     layout_bindings.reset(rhi->newShaderResourceBindings());
     sharpen_layout.reset(rhi->newShaderResourceBindings());
+    rapidraw_tone_layout.reset(rhi->newShaderResourceBindings());
     bool light_ubos = true;
     for (auto &ubo : light_uniforms)
     {
@@ -572,9 +602,11 @@ Result<void> GpuAdapter::Impl::open()
         }
     }
     if (affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
-        sigmoid_uniforms == nullptr || layout_bindings == nullptr || sharpen_layout == nullptr ||
+        rapidraw_tone_uniforms == nullptr || sigmoid_uniforms == nullptr ||
+        layout_bindings == nullptr || sharpen_layout == nullptr || rapidraw_tone_layout == nullptr ||
         !light_ubos || !sharpen_ubos || !affine_uniforms->create() ||
-        !rapidraw_basic_tone_uniforms->create() || !sigmoid_uniforms->create())
+        !rapidraw_basic_tone_uniforms->create() || !rapidraw_tone_uniforms->create() ||
+        !sigmoid_uniforms->create())
     {
         return make_error(ErrorCode::kIo, "GPU pipeline allocation failed",
                           {{"reason", "gpu_pipeline_failed"}});
@@ -605,6 +637,19 @@ Result<void> GpuAdapter::Impl::open()
         return make_error(ErrorCode::kIo, "GPU resource layout failed",
                           {{"reason", "gpu_pipeline_failed"}});
     }
+    rapidraw_tone_layout->setBindings({
+        QRhiShaderResourceBinding::bufferLoadStore(0, QRhiShaderResourceBinding::ComputeStage,
+                                                   nullptr),
+        QRhiShaderResourceBinding::bufferLoad(1, QRhiShaderResourceBinding::ComputeStage,
+                                              nullptr),
+        QRhiShaderResourceBinding::uniformBuffer(2, QRhiShaderResourceBinding::ComputeStage,
+                                                 rapidraw_tone_uniforms.get()),
+    });
+    if (!rapidraw_tone_layout->create())
+    {
+        return make_error(ErrorCode::kIo, "GPU RapidRAW tone resource layout failed",
+                          {{"reason", "gpu_pipeline_failed"}});
+    }
     auto affine = make_pipeline(affine_shader.value(), layout_bindings.get());
     if (!affine)
     {
@@ -621,6 +666,12 @@ Result<void> GpuAdapter::Impl::open()
     {
         return rapidraw_basic_tone.error();
     }
+    auto rapidraw_tone =
+        make_pipeline(rapidraw_tone_shader.value(), rapidraw_tone_layout.get());
+    if (!rapidraw_tone)
+    {
+        return rapidraw_tone.error();
+    }
     auto light = make_pipeline(light_shader.value(), layout_bindings.get());
     if (!light)
     {
@@ -634,6 +685,7 @@ Result<void> GpuAdapter::Impl::open()
     affine_pipeline = std::move(affine).value();
     sigmoid_pipeline = std::move(sigmoid).value();
     rapidraw_basic_tone_pipeline = std::move(rapidraw_basic_tone).value();
+    rapidraw_tone_pipeline = std::move(rapidraw_tone).value();
     light_pipeline = std::move(light).value();
     sharpen_pipeline = std::move(sharpen).value();
     auto copy_shader = load_shader(ravo_gpu_copy_rgb_qsb, ravo_gpu_copy_rgb_qsb_size);
@@ -755,8 +807,9 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         return cancelled.error();
     }
     if (rhi == nullptr || affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
-        sigmoid_uniforms == nullptr || light_uniforms[0] == nullptr || affine_pipeline == nullptr ||
-        sigmoid_pipeline == nullptr || rapidraw_basic_tone_pipeline == nullptr ||
+        rapidraw_tone_uniforms == nullptr || sigmoid_uniforms == nullptr ||
+        light_uniforms[0] == nullptr || affine_pipeline == nullptr || sigmoid_pipeline == nullptr ||
+        rapidraw_basic_tone_pipeline == nullptr || rapidraw_tone_pipeline == nullptr ||
         light_pipeline == nullptr || sharpen_pipeline == nullptr)
     {
         return make_error(ErrorCode::kUnsupported, "GPU adapter is not initialized",
@@ -774,6 +827,7 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
     }
     bool needs_pixels = false;
     bool needs_sharpen = false;
+    bool needs_rapidraw_tone = false;
     for (const auto &pass : passes)
     {
         if (pass.kind == GpuRgbPass::Kind::kAffine)
@@ -784,6 +838,16 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         if (pass.kind == GpuRgbPass::Kind::kSharpen)
         {
             needs_sharpen = true;
+        }
+        else if (pass.kind == GpuRgbPass::Kind::kRapidRawToneControls)
+        {
+            if (needs_rapidraw_tone)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "GPU accepts one RapidRAW tone pass per batch",
+                                  {{"reason", "gpu_pipeline_failed"}});
+            }
+            needs_rapidraw_tone = true;
         }
         else if (pass.kind != GpuRgbPass::Kind::kSigmoid &&
                  pass.kind != GpuRgbPass::Kind::kRapidRawBasicTone &&
@@ -838,7 +902,7 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
     }
     QRhiBuffer *lab_buffer = nullptr;
     QRhiBuffer *blur_buffer = nullptr;
-    if (needs_sharpen)
+    if (needs_sharpen || needs_rapidraw_tone)
     {
         if (pixels == 0U)
         {
@@ -850,13 +914,16 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         {
             return lab.error();
         }
-        auto blur = ensure_storage(blur_storage, blur_storage_bytes, std::max(blur_bytes, 4U));
-        if (!blur)
+        if (needs_sharpen)
         {
-            return blur.error();
+            auto blur = ensure_storage(blur_storage, blur_storage_bytes, std::max(blur_bytes, 4U));
+            if (!blur)
+            {
+                return blur.error();
+            }
+            blur_buffer = blur.value();
         }
         lab_buffer = lab.value();
-        blur_buffer = blur.value();
     }
     QRhiBuffer *const rgb_buffer = working.value();
     QRhiBuffer *const source_buffer = source.value();
@@ -964,6 +1031,70 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         }
         const auto &pass = passes[pass_index];
         const bool last_pass = pass_index + 1U == passes.size();
+        if (pass.kind == GpuRgbPass::Kind::kRapidRawToneControls)
+        {
+            const auto &tone = pass.rapidraw_tone;
+            if (tone.width == 0U || tone.height == 0U || tone.radius == 0U || tone.radius > 64U ||
+                static_cast<std::uint64_t>(tone.width) * tone.height != pixels ||
+                lab_buffer == nullptr || !std::isfinite(tone.ev_shift) ||
+                !std::isfinite(tone.exposure) || !std::isfinite(tone.contrast) ||
+                !std::isfinite(tone.highlights) || !std::isfinite(tone.shadows) ||
+                !std::isfinite(tone.whites) || !std::isfinite(tone.blacks))
+            {
+                rhi->endOffscreenFrame();
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "GPU RapidRAW tone pass is invalid",
+                                  {{"reason", "gpu_pipeline_failed"}});
+            }
+            QRhiResourceUpdateBatch *copy_updates =
+                pending_updates != nullptr ? pending_updates : rhi->nextResourceUpdateBatch();
+            pending_updates = nullptr;
+            auto copied = copy_rgb_window(command, copy_updates, rgb_buffer, lab_buffer, tone.width,
+                                          tone.height, 0U, 0U, tone.width, tone.height);
+            if (!copied)
+            {
+                return copied.error();
+            }
+            RapidRawToneUniforms params;
+            params.width = tone.width;
+            params.height = tone.height;
+            params.pixel_count = pixels;
+            params.radius = tone.radius;
+            params.ev_shift = tone.ev_shift;
+            params.exposure = tone.exposure;
+            params.contrast = tone.contrast;
+            params.shadows = tone.shadows;
+            params.highlights = tone.highlights;
+            params.whites = tone.whites;
+            params.blacks = tone.blacks;
+            QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
+            updates->updateDynamicBuffer(rapidraw_tone_uniforms.get(), 0, sizeof(params), &params);
+            std::unique_ptr<QRhiShaderResourceBindings> bindings(
+                rhi->newShaderResourceBindings());
+            if (bindings == nullptr)
+            {
+                return fail_bindings();
+            }
+            bindings->setBindings({
+                QRhiShaderResourceBinding::bufferLoadStore(
+                    0, QRhiShaderResourceBinding::ComputeStage, rgb_buffer),
+                QRhiShaderResourceBinding::bufferLoad(1, QRhiShaderResourceBinding::ComputeStage,
+                                                      lab_buffer),
+                QRhiShaderResourceBinding::uniformBuffer(
+                    2, QRhiShaderResourceBinding::ComputeStage, rapidraw_tone_uniforms.get()),
+            });
+            if (!bindings->create())
+            {
+                return fail_bindings();
+            }
+            auto dispatched =
+                dispatch(updates, rapidraw_tone_pipeline.get(), bindings.get(), pixel_groups, false);
+            if (!dispatched)
+            {
+                return dispatched.error();
+            }
+            continue;
+        }
         if (pass.kind == GpuRgbPass::Kind::kSharpen)
         {
             if (pass.sharpen.width == 0U || pass.sharpen.height == 0U ||

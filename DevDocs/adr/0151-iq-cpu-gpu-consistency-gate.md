@@ -69,6 +69,14 @@ hooks dated without claiming the full corpus matrix is closed.
   gold bit-exact on the interactive hybrid. Persist/export/reopen stay CPU
   gold. Win/Linux hosts are not claimed.
 
+### RapidRAW tone-stage admission (follow-on)
+
+- Schema version **3** adds `ravo.core.rapidraw-tone-controls` and
+  `ravo.display.rapidraw-basic` to `gpu_admitted_interactive_stages`.
+- The all-control stack is compared with CPU gold at the same working-float
+  tolerance and packed-RGB8 delta. Persist, export, and reopen remain CPU gold;
+  the wider platform/corpus residual is unchanged.
+
 ### Explicit residuals
 
 - Full IQ-00 matrix (RAW corpus, ICC/proof, multi-instance locals, denoise,

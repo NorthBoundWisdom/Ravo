@@ -34,6 +34,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 
 #include "color_balance_fixture.h"
 #include "capability_ops.h"
@@ -207,6 +208,20 @@ sigmoid_operation(const double contrast = kSigmoidContrastDefault,
             std::nullopt};
 }
 
+[[nodiscard]] OperationInstance
+rapidraw_tone_controls_operation(const RapidRawToneControlsParams &params)
+{
+    auto parameters = rapidraw_tone_controls_to_parameters(params);
+    if (!parameters)
+        return {};
+    return {std::string(kRapidRawToneControlsOperationId),
+            kRapidRawToneControlsSchemaVersion,
+            "rapidraw-tone-controls-1",
+            true,
+            std::move(parameters).value(),
+            std::nullopt};
+}
+
 TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -267,6 +282,88 @@ TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
     EXPECT_EQ(rejected.error().context.at("reason"), "invalid_rapidraw_basic_tone_parameters");
+
+    const auto apply_rapidraw_controls = [&](const RapidRawToneControlsParams &params)
+    {
+        WorkingImage input;
+        input.width = 3U;
+        input.height = 1U;
+        input.rgb = {0.05F, 0.05F, 0.05F, 0.18F, 0.18F,
+                     0.18F, 0.75F, 0.75F, 0.75F};
+        input.canonical_roi_scale =
+            CanonicalRoiScale::from_scaled_dimensions(3U, 1U, 3U, 1U);
+        Recipe recipe;
+        recipe.operations.push_back(rapidraw_tone_controls_operation(params));
+        return apply_recipe_ops(std::move(input), recipe, CancellationToken{});
+    };
+    RapidRawToneControlsParams controls;
+    controls.ev_shift = 0.8;
+    auto shifted_controls = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(shifted_controls) << shifted_controls.error().message;
+    EXPECT_NEAR(shifted_controls.value().rgb[0], 0.1F, 1.0e-6F);
+    EXPECT_NEAR(shifted_controls.value().rgb[3], 0.36F, 1.0e-6F);
+
+    controls = {};
+    controls.exposure = 0.8;
+    auto exposed_controls = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(exposed_controls) << exposed_controls.error().message;
+    EXPECT_NEAR(exposed_controls.value().rgb[0], 0.10794678F, 2.0e-6F);
+    EXPECT_NEAR(exposed_controls.value().rgb[3], 0.34097303F, 2.0e-6F);
+    EXPECT_NEAR(exposed_controls.value().rgb[6], 0.92406817F, 2.0e-6F);
+
+    controls = {};
+    controls.contrast = 100.0;
+    auto contrasted_controls = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(contrasted_controls) << contrasted_controls.error().message;
+    EXPECT_NEAR(contrasted_controls.value().rgb[0], 0.00658398F, 2.0e-6F);
+    EXPECT_NEAR(contrasted_controls.value().rgb[3], 0.13854996F, 2.0e-6F);
+    EXPECT_NEAR(contrasted_controls.value().rgb[6], 0.96157659F, 2.0e-6F);
+
+    controls = {};
+    controls.highlights = -100.0;
+    auto lowered_highlights = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(lowered_highlights) << lowered_highlights.error().message;
+    EXPECT_NEAR(lowered_highlights.value().rgb[6], 0.52392403F, 2.0e-6F);
+
+    controls = {};
+    controls.shadows = 100.0;
+    auto lifted_shadows = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(lifted_shadows) << lifted_shadows.error().message;
+    EXPECT_NEAR(lifted_shadows.value().rgb[0], 0.07866573F, 2.0e-5F);
+    EXPECT_NEAR(lifted_shadows.value().rgb[3], 0.20559042F, 2.0e-5F);
+
+    controls = {};
+    controls.whites = 30.0;
+    auto raised_whites = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(raised_whites) << raised_whites.error().message;
+    EXPECT_NEAR(raised_whites.value().rgb[3], 0.24F, 1.0e-6F);
+
+    controls = {};
+    controls.blacks = 40.0;
+    auto lifted_blacks = apply_rapidraw_controls(controls);
+    ASSERT_TRUE(lifted_blacks) << lifted_blacks.error().message;
+    EXPECT_NEAR(lifted_blacks.value().rgb[0], 0.05321993F, 2.0e-5F);
+    EXPECT_NEAR(lifted_blacks.value().rgb[3], 0.18032259F, 2.0e-5F);
+
+    auto invalid_controls = rapidraw_tone_controls_operation(controls);
+    invalid_controls.parameters["blacks"] =
+        ParameterValue{std::numeric_limits<double>::quiet_NaN()};
+    Recipe invalid_controls_recipe;
+    invalid_controls_recipe.operations.push_back(std::move(invalid_controls));
+    auto invalid_controls_result =
+        apply_recipe_ops(rapidraw_source, invalid_controls_recipe, CancellationToken{});
+    ASSERT_FALSE(invalid_controls_result);
+    EXPECT_EQ(invalid_controls_result.error().context.at("reason"),
+              "invalid_rapidraw_tone_controls");
+
+    CancellationSource cancelled_controls;
+    ASSERT_TRUE(cancelled_controls.cancel("rapidraw controls"));
+    Recipe cancelled_controls_recipe;
+    cancelled_controls_recipe.operations.push_back(rapidraw_tone_controls_operation(controls));
+    auto cancelled_controls_result = apply_recipe_ops(rapidraw_source, cancelled_controls_recipe,
+                                                       cancelled_controls.token());
+    ASSERT_FALSE(cancelled_controls_result);
+    EXPECT_EQ(cancelled_controls_result.error().code, ErrorCode::kCancelled);
 }
 
 TEST(EngineFacadeTest, SigmoidHasARealRawReference)

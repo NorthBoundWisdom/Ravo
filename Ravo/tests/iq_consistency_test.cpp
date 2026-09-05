@@ -471,13 +471,15 @@ TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
 
 TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
 {
-    EXPECT_EQ(kIqConsistencySchemaVersion, 2);
+    EXPECT_EQ(kIqConsistencySchemaVersion, 3);
     EXPECT_FALSE(std::string(kIqGpuInteractiveNonAdmittedPolicy).empty());
     EXPECT_NE(std::string(kIqConsistencyGpuLiveResidual).find("admitted_interactive"),
               std::string::npos);
     bool saw_exposure = false;
     bool saw_sigmoid = false;
     bool saw_sharpen = false;
+    bool saw_rapidraw_controls = false;
+    bool saw_rapidraw_display = false;
     for (const auto stage : kIqGpuAdmittedInteractiveStages)
     {
         if (stage == "ravo.core.exposure")
@@ -486,10 +488,16 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
             saw_sigmoid = true;
         if (stage == "ravo.detail.sharpen")
             saw_sharpen = true;
+        if (stage == "ravo.core.rapidraw-tone-controls")
+            saw_rapidraw_controls = true;
+        if (stage == "ravo.display.rapidraw-basic")
+            saw_rapidraw_display = true;
     }
     EXPECT_TRUE(saw_exposure);
     EXPECT_TRUE(saw_sigmoid);
     EXPECT_TRUE(saw_sharpen);
+    EXPECT_TRUE(saw_rapidraw_controls);
+    EXPECT_TRUE(saw_rapidraw_display);
 }
 
 } // namespace ravo

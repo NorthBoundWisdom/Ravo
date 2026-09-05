@@ -21,6 +21,7 @@
 #include "ravo/recipe/perspective.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/sharpen.h"
@@ -970,6 +971,27 @@ Result<OperationRegistry> make_phase1_registry()
          kRapidRawBasicToneSchemaVersion,
          {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt,
            std::nullopt}},
+         false,
+         true},
+        {std::string(kRapidRawToneControlsOperationId),
+         "RapidRAW global tone controls",
+         kRapidRawToneControlsSchemaVersion,
+         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"ev_shift", ParameterType::kNumber, true, std::nullopt, kRapidRawExposureMin,
+           kRapidRawExposureMax},
+          {"exposure", ParameterType::kNumber, true, std::nullopt, kRapidRawExposureMin,
+           kRapidRawExposureMax},
+          {"contrast", ParameterType::kNumber, true, std::nullopt, kRapidRawToneMin,
+           kRapidRawToneMax},
+          {"highlights", ParameterType::kNumber, true, std::nullopt, kRapidRawToneMin,
+           kRapidRawToneMax},
+          {"shadows", ParameterType::kNumber, true, std::nullopt, kRapidRawToneMin,
+           kRapidRawToneMax},
+          {"whites", ParameterType::kNumber, true, std::nullopt, kRapidRawToneMin,
+           kRapidRawToneMax},
+          {"blacks", ParameterType::kNumber, true, std::nullopt, kRapidRawToneMin,
+           kRapidRawToneMax}},
          false,
          true},
         {"ravo.raw.highlights",

@@ -21,6 +21,8 @@
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
+#include "ravo/recipe/rapidraw_tone.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/recipe/style.h"
 
@@ -364,6 +366,87 @@ TEST(RecipeTest, SigmoidRoundTripRequiresExplicitFiniteColorPolicy)
     const auto rejected_non_finite = validate_recipe(non_finite, registry.value());
     ASSERT_FALSE(rejected_non_finite);
     EXPECT_EQ(rejected_non_finite.error().code, ErrorCode::kValidation);
+
+    auto rapidraw = develop_raw_import_baseline();
+    ASSERT_TRUE(apply_develop_field(rapidraw, "rapidrawEvShift", 0.8));
+    ASSERT_TRUE(apply_develop_field(rapidraw, "rapidrawExposure", 1.25));
+    ASSERT_TRUE(apply_develop_field(rapidraw, "rapidrawContrast", 35.0));
+    ASSERT_TRUE(apply_develop_field(rapidraw, "rapidrawHighlights", -42.0));
+    ASSERT_TRUE(apply_develop_field(rapidraw, "rapidrawShadows", 27.0));
+    ASSERT_TRUE(apply_develop_field(rapidraw, "rapidrawWhites", 18.0));
+    ASSERT_TRUE(apply_develop_field(rapidraw, "rapidrawBlacks", -11.0));
+    auto rapidraw_recipe =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, rapidraw);
+    ASSERT_TRUE(rapidraw_recipe) << rapidraw_recipe.error().message;
+    auto *rapidraw_controls =
+        operation_by_id(rapidraw_recipe.value(), kRapidRawToneControlsOperationId);
+    ASSERT_NE(rapidraw_controls, nullptr);
+    ASSERT_TRUE(validate_recipe(rapidraw_recipe.value(), registry.value()));
+    auto rapidraw_restored = develop_from_recipe(rapidraw_recipe.value());
+    ASSERT_TRUE(rapidraw_restored) << rapidraw_restored.error().message;
+    EXPECT_TRUE(rapidraw_restored.value().rapidraw_tone_controls_enabled);
+    EXPECT_DOUBLE_EQ(rapidraw_restored.value().rapidraw_ev_shift, 0.8);
+    EXPECT_DOUBLE_EQ(rapidraw_restored.value().rapidraw_exposure, 1.25);
+    EXPECT_DOUBLE_EQ(rapidraw_restored.value().rapidraw_contrast, 35.0);
+    EXPECT_DOUBLE_EQ(rapidraw_restored.value().rapidraw_highlights, -42.0);
+    EXPECT_DOUBLE_EQ(rapidraw_restored.value().rapidraw_shadows, 27.0);
+    EXPECT_DOUBLE_EQ(rapidraw_restored.value().rapidraw_whites, 18.0);
+    EXPECT_DOUBLE_EQ(rapidraw_restored.value().rapidraw_blacks, -11.0);
+
+    auto invalid_rapidraw_recipe = rapidraw_recipe.value();
+    auto *invalid_controls =
+        operation_by_id(invalid_rapidraw_recipe, kRapidRawToneControlsOperationId);
+    ASSERT_NE(invalid_controls, nullptr);
+    invalid_controls->parameters.erase("shadows");
+    auto rejected_rapidraw = validate_recipe(invalid_rapidraw_recipe, registry.value());
+    ASSERT_FALSE(rejected_rapidraw);
+    EXPECT_EQ(rejected_rapidraw.error().code, ErrorCode::kValidation);
+
+    auto missing_rapidraw_mapper = rapidraw_recipe.value();
+    missing_rapidraw_mapper.operations.erase(
+        std::remove_if(missing_rapidraw_mapper.operations.begin(),
+                       missing_rapidraw_mapper.operations.end(),
+                       [](const OperationInstance &operation)
+                       { return operation.id == kRapidRawBasicToneOperationId; }),
+        missing_rapidraw_mapper.operations.end());
+    auto rejected_order = validate_recipe(missing_rapidraw_mapper, registry.value());
+    ASSERT_FALSE(rejected_order);
+    EXPECT_EQ(rejected_order.error().context.at("reason"), "invalid_rapidraw_tone_order");
+
+    DevelopParams switched;
+    switched.sigmoid_enabled = true;
+    ASSERT_TRUE(apply_develop_field_strict(switched, "toneMapperIndex", 0.0));
+    EXPECT_FALSE(switched.sigmoid_enabled);
+    EXPECT_TRUE(switched.rapidraw_basic_tone_enabled);
+    EXPECT_TRUE(switched.rapidraw_tone_controls_enabled);
+    ASSERT_TRUE(apply_develop_field_strict(switched, "toneMapperIndex", 1.0));
+    EXPECT_TRUE(switched.sigmoid_enabled);
+    EXPECT_FALSE(switched.rapidraw_basic_tone_enabled);
+    EXPECT_FALSE(switched.rapidraw_tone_controls_enabled);
+
+    DevelopParams basic_only;
+    basic_only.rapidraw_basic_tone_enabled = true;
+    auto basic_only_recipe =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, basic_only);
+    ASSERT_TRUE(basic_only_recipe) << basic_only_recipe.error().message;
+    EXPECT_EQ(operation_by_id(basic_only_recipe.value(), kRapidRawToneControlsOperationId),
+              nullptr);
+    auto basic_only_restored = develop_from_recipe(basic_only_recipe.value());
+    ASSERT_TRUE(basic_only_restored) << basic_only_restored.error().message;
+    EXPECT_TRUE(basic_only_restored.value().rapidraw_basic_tone_enabled);
+    EXPECT_FALSE(basic_only_restored.value().rapidraw_tone_controls_enabled);
+
+    auto reset_rapidraw = rapidraw_restored.value();
+    ASSERT_TRUE(reset_develop_section(reset_rapidraw, "light"));
+    EXPECT_TRUE(reset_rapidraw.rapidraw_basic_tone_enabled);
+    EXPECT_TRUE(reset_rapidraw.rapidraw_tone_controls_enabled);
+    EXPECT_DOUBLE_EQ(reset_rapidraw.rapidraw_ev_shift, 0.0);
+    EXPECT_DOUBLE_EQ(reset_rapidraw.rapidraw_exposure, 0.0);
+    EXPECT_DOUBLE_EQ(reset_rapidraw.rapidraw_contrast, 0.0);
+    EXPECT_DOUBLE_EQ(reset_rapidraw.rapidraw_highlights, 0.0);
+    EXPECT_DOUBLE_EQ(reset_rapidraw.rapidraw_shadows, 0.0);
+    EXPECT_DOUBLE_EQ(reset_rapidraw.rapidraw_whites, 0.0);
+    EXPECT_DOUBLE_EQ(reset_rapidraw.rapidraw_blacks, 0.0);
 }
 
 TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)

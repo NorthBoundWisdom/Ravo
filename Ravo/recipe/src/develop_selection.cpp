@@ -46,6 +46,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
     "gamma",
     "rgbLevels",
     "sigmoid",
+    "rapidrawTone",
     "toneEqual",
     "rgbCurve",
     "toneCurve",
@@ -159,6 +160,20 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
     {
         destination.contrast = source.contrast;
     }
+    else if (field == "rapidrawTone")
+    {
+        destination.rapidraw_basic_tone_enabled = source.rapidraw_basic_tone_enabled;
+        destination.rapidraw_tone_controls_enabled = source.rapidraw_tone_controls_enabled;
+        destination.rapidraw_ev_shift = source.rapidraw_ev_shift;
+        destination.rapidraw_exposure = source.rapidraw_exposure;
+        destination.rapidraw_contrast = source.rapidraw_contrast;
+        destination.rapidraw_highlights = source.rapidraw_highlights;
+        destination.rapidraw_shadows = source.rapidraw_shadows;
+        destination.rapidraw_whites = source.rapidraw_whites;
+        destination.rapidraw_blacks = source.rapidraw_blacks;
+        if (source.rapidraw_basic_tone_enabled)
+            destination.sigmoid_enabled = false;
+    }
     else if (field == "highlights")
     {
         destination.highlights = source.highlights;
@@ -195,6 +210,11 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
         destination.sigmoid_display_white = source.sigmoid_display_white;
         destination.sigmoid_display_black = source.sigmoid_display_black;
         destination.sigmoid_hue_preservation = source.sigmoid_hue_preservation;
+        if (source.sigmoid_enabled)
+        {
+            destination.rapidraw_basic_tone_enabled = false;
+            destination.rapidraw_tone_controls_enabled = false;
+        }
     }
     else if (field == "toneEqual")
     {

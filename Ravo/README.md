@@ -607,6 +607,12 @@ Current implementation status:
   shared DWT/heal/bilateral and historic mask/order consumers remain.
 - New RAW preview/export uses `ravo.display.rapidraw-basic` v1 as its sole
   display transform, adapted from the pinned RapidRAW source under AGPLv3.
+  `ravo.core.rapidraw-tone-controls` v1 gives Studio and CLI the matching EV
+  Shift, Exposure, Contrast, Highlights, Shadows, Whites, and Blacks response
+  in RapidRAW's native slider units. Shadows and Blacks use its scale-aware
+  3.5-pixel tonal blur. The Light tone-mapper selector lets an existing
+  Sigmoid recipe opt into this pair explicitly; merely reopening an old recipe
+  never changes it.
   Existing recipes with `ravo.display.sigmoid` v1 keep their prior
   contrast/skew/hue-preservation response. The default baseline is not marked
   as a user edit. The RAW baseline runs

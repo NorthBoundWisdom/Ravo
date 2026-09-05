@@ -229,7 +229,8 @@ re-request that window; they do not wait for a pan. The CFA-window linear
 working is retained across RGB-only edits so sliders do not remosaic. Lens,
 perspective, and full-frame ROIs reject and keep the 1600 preview. GPU is an
 Engine-owned QRhi adapter (ADR-0133/0134): one process-wide device. Unmasked
-Exposure, light controls, Lab USM Sharpen, Sigmoid, and RapidRAW Basic tone run on the GPU during
+Exposure, light controls, Lab USM Sharpen, Sigmoid, RapidRAW global tone controls,
+and RapidRAW Basic tone run on the GPU during
 preview in one SSBO session, interleaved with remaining CPU RGB ops. The
 process-wide adapter reuses grow-only SSBOs, keeps the current CFA-window or
 interactive-prefix RGB resident as a GPU source so RGB sliders copy+apply
@@ -768,6 +769,16 @@ response and are never silently reinterpreted. A restricted imported
 display-sRGB point curve may follow either transform before output-profile
 encoding. Sigmoid-only Studio and CRS Contrast map logarithmically around the
 1.5 default to a +100 endpoint of 3.25.
+New baselines also carry identity-present `ravo.core.rapidraw-tone-controls`
+v1, which owns RapidRAW's exact UI units and ordered EV Shift, filmic Exposure,
+Contrast, Highlights, Shadows, Whites, and Blacks equations. Shadows/Blacks use
+the canonical-scale 3.5-pixel Gaussian tonal reference. Its CPU path owns two
+bounded RGB blur planes; QRhi snapshots the current RGB buffer before the
+neighbourhood shader and uses a dedicated uniform buffer. Basic-only recipes
+created before this operation remain Basic-only after reopen.
+Studio exposes an explicit RapidRAW/Sigmoid selector for RAW recipes. Selecting
+RapidRAW authors both new operation identities; selecting Sigmoid removes the
+RapidRAW pair instead of retaining two competing display owners.
 `ravo.core.contrast` serves
 display-referred raster input and old recipes. Highlights/shadows/whites/blacks
 are scene controls before the transform; the narrower Whites/Blacks envelopes
@@ -1539,7 +1550,8 @@ CLI and Studio project that contract without expanding paths themselves. See
   old-catalog migration.
 - GPU is an Engine QRhi adapter (ADR-0133/0134). CPU remains the correctness
   reference. Preview keeps unmasked Exposure, light controls, Lab USM, and
-  Sigmoid or RapidRAW Basic tone on one GPU SSBO session; other RGB ops stay CPU. Bayer window RCD
+  Sigmoid or RapidRAW global controls plus Basic tone on one GPU SSBO session;
+  other RGB ops stay CPU. Bayer window RCD
   for ROI 1:1 is GPU when a compute backend exists; PPG and export stay CPU.
   Interactive Studio may sample an Engine-published IOSurface instead of a
   CPU `QImage`; missing display transport downloads pixels rather than

@@ -12,11 +12,105 @@ DevelopSection {
     ColumnLayout {
         Layout.fillWidth: true
         width: parent.width
+        CustomComboBox {
+            Layout.fillWidth: true
+            model: ["RapidRAW", "Sigmoid"]
+            visible: panel.hasPresenter
+                     && (panel.presenter.editRapidRawBasicToneEnabled
+                         || panel.presenter.editSigmoidEnabled)
+            enabled: panel.hasSelection
+            currentIndex: panel.hasPresenter ? panel.presenter.editToneMapperIndex : 0
+            onActivated: if (panel.commands)
+                panel.commands.setDevelopNumber("toneMapperIndex", currentIndex)
+        }
+        CustomSlider {
+            Layout.fillWidth: true
+            title: qsTr("Exposure") + " EV"
+            from: -5
+            to: 5
+            stepSize: 0.01
+            validatorDecimals: 2
+            showReset: true
+            resetValue: 0
+            delayedCommit: true
+            visible: panel.hasPresenter && panel.presenter.editRapidRawBasicToneEnabled
+            enabled: panel.hasSelection
+            value: panel.hasPresenter ? panel.presenter.editRapidRawEvShift : 0
+            onValueEdited: function (value) {
+                if (panel.liveReady && panel.commands)
+                    panel.commands.previewDevelopNumber("rapidrawEvShift", value);
+            }
+            onValueCommitted: function (value) {
+                if (panel.commands)
+                    panel.commands.setDevelopNumber("rapidrawEvShift", value);
+            }
+            onResetRequested: if (panel.commands)
+                panel.commands.resetControl("rapidrawEvShift")
+        }
+        CustomSlider {
+            Layout.fillWidth: true
+            title: qsTr("Exposure")
+            from: -5
+            to: 5
+            stepSize: 0.01
+            validatorDecimals: 2
+            showReset: true
+            resetValue: 0
+            delayedCommit: true
+            visible: panel.hasPresenter && panel.presenter.editRapidRawBasicToneEnabled
+            enabled: panel.hasSelection
+            value: panel.hasPresenter ? panel.presenter.editRapidRawExposure : 0
+            onValueEdited: function (value) {
+                if (panel.liveReady && panel.commands)
+                    panel.commands.previewDevelopNumber("rapidrawExposure", value);
+            }
+            onValueCommitted: function (value) {
+                if (panel.commands)
+                    panel.commands.setDevelopNumber("rapidrawExposure", value);
+            }
+            onResetRequested: if (panel.commands)
+                panel.commands.resetControl("rapidrawExposure")
+        }
+        Repeater {
+            model: [
+                { title: qsTr("Contrast"), field: "rapidrawContrast", property: "editRapidRawContrast" },
+                { title: qsTr("Highlights"), field: "rapidrawHighlights", property: "editRapidRawHighlights" },
+                { title: qsTr("Shadows"), field: "rapidrawShadows", property: "editRapidRawShadows" },
+                { title: qsTr("Whites"), field: "rapidrawWhites", property: "editRapidRawWhites" },
+                { title: qsTr("Blacks"), field: "rapidrawBlacks", property: "editRapidRawBlacks" }
+            ]
+            delegate: CustomSlider {
+                required property var modelData
+                Layout.fillWidth: true
+                title: modelData.title
+                from: -100
+                to: 100
+                stepSize: 1
+                validatorDecimals: 0
+                showReset: true
+                resetValue: 0
+                delayedCommit: true
+                visible: panel.hasPresenter && panel.presenter.editRapidRawBasicToneEnabled
+                enabled: panel.hasSelection
+                value: panel.hasPresenter ? panel.presenter[modelData.property] : 0
+                onValueEdited: function (value) {
+                    if (panel.liveReady && panel.commands)
+                        panel.commands.previewDevelopNumber(modelData.field, value);
+                }
+                onValueCommitted: function (value) {
+                    if (panel.commands)
+                        panel.commands.setDevelopNumber(modelData.field, value);
+                }
+                onResetRequested: if (panel.commands)
+                    panel.commands.resetControl(modelData.field)
+            }
+        }
         DevelopInstanceChrome {
             objectName: "exposureInstanceChrome"
             panel: sectionRoot.panel
             operation: "exposure"
             Layout.fillWidth: true
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
         }
         CustomSlider {
             Layout.fillWidth: true
@@ -28,7 +122,8 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: !panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0
+            visible: (!panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled)
+                     && (!panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0)
             enabled: panel.hasSelection
             value: panel.hasPresenter ? panel.presenter.editExposureParams.exposureEv : 0
             onValueEdited: function (value) {
@@ -46,6 +141,7 @@ DevelopSection {
             panel: sectionRoot.panel
             objectName: "exposureMaskEditor"
             mask: panel.hasPresenter ? panel.presenter.editExposureMask : ({})
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
         }
         CustomSlider {
             Layout.fillWidth: true
@@ -80,6 +176,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             visible: panel.hasPresenter && !panel.presenter.editSigmoidEnabled
+                     && !panel.presenter.editRapidRawBasicToneEnabled
             enabled: panel.hasSelection
             value: panel.hasPresenter ? panel.presenter.editContrast : 0
             onValueEdited: function (value) {
@@ -96,6 +193,7 @@ DevelopSection {
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Highlights")
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
@@ -118,10 +216,12 @@ DevelopSection {
             panel: sectionRoot.panel
             objectName: "highlightsMaskEditor"
             mask: panel.hasPresenter ? panel.presenter.editHighlightsMask : ({})
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
         }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Shadows")
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
@@ -144,10 +244,12 @@ DevelopSection {
             panel: sectionRoot.panel
             objectName: "shadowsMaskEditor"
             mask: panel.hasPresenter ? panel.presenter.editShadowsMask : ({})
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
         }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Whites")
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
@@ -170,10 +272,12 @@ DevelopSection {
             panel: sectionRoot.panel
             objectName: "whitesMaskEditor"
             mask: panel.hasPresenter ? panel.presenter.editWhitesMask : ({})
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
         }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Blacks")
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
             from: -0.1
             to: 0.1
             stepSize: 0.001
@@ -198,6 +302,7 @@ DevelopSection {
             panel: sectionRoot.panel
             objectName: "blacksMaskEditor"
             mask: panel.hasPresenter ? panel.presenter.editBlacksMask : ({})
+            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
         }
         CustomLabel {
             Layout.fillWidth: true

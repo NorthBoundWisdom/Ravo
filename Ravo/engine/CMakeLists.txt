@@ -73,6 +73,8 @@ target_sources(ravo_engine
     src/raw_denoise.cpp
     src/raw_denoise.h
     src/raw_pipeline.cpp
+    src/rapidraw_tone_controls.cpp
+    src/rapidraw_tone_controls.h
     src/raw_metadata.cpp
     src/recursive_gaussian.cpp
     src/recursive_gaussian.h
@@ -147,6 +149,7 @@ endfunction()
 ravo_embed_gpu_shader(affine_rgb)
 ravo_embed_gpu_shader(sigmoid_rgb)
 ravo_embed_gpu_shader(rapidraw_basic_tone)
+ravo_embed_gpu_shader(rapidraw_tone_controls)
 ravo_embed_gpu_shader(light_controls)
 ravo_embed_gpu_shader(sharpen_lab)
 ravo_embed_gpu_shader(rcd_demosaic)

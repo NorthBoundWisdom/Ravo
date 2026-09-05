@@ -231,6 +231,22 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_toggle_change(changes, "sigmoid", before.sigmoid_enabled, after.sigmoid_enabled);
     add_toggle_change(changes, "rapidrawToneMapper", before.rapidraw_basic_tone_enabled,
                       after.rapidraw_basic_tone_enabled);
+    add_toggle_change(changes, "rapidrawToneControls", before.rapidraw_tone_controls_enabled,
+                      after.rapidraw_tone_controls_enabled);
+    add_scaled_change(changes, "rapidrawEvShift", before.rapidraw_ev_shift,
+                      after.rapidraw_ev_shift, 1.0);
+    add_scaled_change(changes, "rapidrawExposure", before.rapidraw_exposure,
+                      after.rapidraw_exposure, 1.0);
+    add_scaled_change(changes, "rapidrawContrast", before.rapidraw_contrast,
+                      after.rapidraw_contrast, 1.0);
+    add_scaled_change(changes, "rapidrawHighlights", before.rapidraw_highlights,
+                      after.rapidraw_highlights, 1.0);
+    add_scaled_change(changes, "rapidrawShadows", before.rapidraw_shadows,
+                      after.rapidraw_shadows, 1.0);
+    add_scaled_change(changes, "rapidrawWhites", before.rapidraw_whites,
+                      after.rapidraw_whites, 1.0);
+    add_scaled_change(changes, "rapidrawBlacks", before.rapidraw_blacks,
+                      after.rapidraw_blacks, 1.0);
     add_toggle_change(changes, "light", before.light_effect_enabled, after.light_effect_enabled);
     add_toggle_change(changes, "color", before.color_effect_enabled, after.color_effect_enabled);
     add_toggle_change(changes, "detail", before.detail_effect_enabled, after.detail_effect_enabled);

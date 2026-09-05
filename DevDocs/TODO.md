@@ -346,12 +346,13 @@ package-size, or CPU-reference regression.
 expansions on `main`: persist preview ↔ export RGB8 bit-exact + ICC identity,
 packed ROI crop reopen/export equality, and **interactive Develop GPU
 packed-delta contracts for admitted Metal stages** (Exposure, highlights/
-shadows/whites/blacks, Lab USM sharpen, linear-sRGB Sigmoid) versus CPU gold
+shadows/whites/blacks, Lab USM sharpen, linear-sRGB Sigmoid, and RapidRAW
+global tone controls plus Basic display) versus CPU gold
 owned packed RGB8 (`kIqGpuCpuPackedRgb8AbsDelta=1`), with persist/export/reopen
 remaining CPU gold. Non-admitted interactive ops (e.g. contrast-only) stay
 CPU-gold bit-exact; masked admitted ops run CPU prefix then may GPU the
 admitted suffix within the same packed delta. `catalog probe` `iq_consistency`
-schema_version=2 lists `gpu_admitted_interactive_stages` and
+schema_version=3 lists `gpu_admitted_interactive_stages` and
 `non_admitted_interactive_policy`; host_scope=`macos_debug_release_contract`,
 `win_linux_hosts_claimed=false`. Catalog probe
 `Iq00RawRoiLiveVersusCpuExportDocumentsResidual` records settled/reopen CPU

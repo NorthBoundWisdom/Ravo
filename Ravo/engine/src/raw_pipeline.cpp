@@ -43,6 +43,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/profile_gamma.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 
 #include "color_reconstruction.h"
 #include "dehaze.h"
@@ -1314,6 +1315,23 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
             assign_number("amount", params.amount);
             assign_number("threshold", params.threshold);
             add_working_bytes(detail::sharpen_working_bytes(width, height, params));
+        }
+        if (operation.id == kRapidRawToneControlsOperationId)
+        {
+            const auto nonzero = [&](const char *name) noexcept
+            {
+                const auto found = operation.parameters.find(name);
+                if (found == operation.parameters.end())
+                    return false;
+                if (const auto *value = std::get_if<double>(&found->second.value))
+                    return *value != 0.0;
+                if (const auto *value = std::get_if<std::int64_t>(&found->second.value))
+                    return *value != 0;
+                return false;
+            };
+            // Shadows/Blacks own horizontal and vertical RGB blur planes.
+            if (nonzero("shadows") || nonzero("blacks"))
+                add_working_bytes(saturating_multiply(2U, float_rgb_bytes));
         }
         if (operation.id == kTextureOperationId)
         {

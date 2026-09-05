@@ -6,17 +6,18 @@ Specification: <https://helpx.adobe.com/camera-raw/digital-negative.html>
 
 This product includes DNG technology under license by Adobe.
 
-## RapidRAW Basic tone mapper
+## RapidRAW tone pipeline
 
 Source: RapidRAW commit
 `d6d8daa999f81198fb49e99b7e8ff43b47a6ffcd`,
-`src-tauri/src/shaders/shader.wgsl` and
+`src-tauri/src/shaders/shader.wgsl`, `src-tauri/src/shaders/blur.wgsl`, and
 `src-tauri/src/image_processing.rs`,
 <https://github.com/CyberTimon/RapidRAW>.
 
 Copyright (c) Timon Käch and RapidRAW contributors. Used under the GNU Affero
 General Public License, version 3. Ravo's C++20/QRhi adaptation retains the
-Basic RAW display curve while replacing the
+Basic RAW display curve, global tone functions, 3.5-pixel tonal blur, and
+declared UI normalization while replacing the
 Rust/Tauri/wgpu application, worker, texture, and state owners with Ravo's
 versioned Recipe, Engine CPU-gold, QRhi preview, cancellation, bounded memory,
 and structured-error contracts. Ravo distributes the combined product under

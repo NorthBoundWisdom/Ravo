@@ -33,25 +33,29 @@ copy the response.
   pixel mathematics, Services own cache/cancellation/publication, and Desktop
   only presents state and intents. Rust/Tauri workers, wgpu device state, UI,
   masks, caches, and sidecars do not enter Ravo.
-- The first production tranche is a separately identified Basic RAW tone
-  mapper. It wraps RapidRAW's display-sRGB response back into linear sRGB so
-  Ravo's existing output-profile owner performs the single final encoding.
-  Existing explicit `ravo.display.sigmoid` recipes retain their exact meaning;
-  no stored Recipe is silently reinterpreted.
+- Production uses two separately identified operations. The identity-present
+  `ravo.core.rapidraw-tone-controls` v1 owns EV Shift, Exposure, Contrast,
+  Highlights, Shadows, Whites, and Blacks in RapidRAW UI units and preserves
+  the source normalization and evaluation order. `ravo.display.rapidraw-basic`
+  v1 wraps the Basic RAW display-sRGB response back into linear sRGB so Ravo's
+  output-profile owner performs the single final encoding. Existing explicit
+  Sigmoid and first-tranche Basic-only recipes retain their exact meaning; no
+  stored Recipe is silently reinterpreted.
 - CPU remains the durable preview/export gold. The QRhi interactive pass uses
   the same constants and equations and is gated against CPU display RGB. A GPU
   initialization, dispatch, surface, or numerical failure remains structured;
   there is no silent alternative algorithm.
-- Later Exposure/Brightness and Highlights/Shadows/Whites/Blacks tranches must
-  preserve RapidRAW's units and operation order, add explicit Recipe versions,
-  and pass real-RAW response, monotonicity, cancellation, memory, and GPU/CPU
-  consistency gates before replacing another Ravo default.
+- New RAW Studio controls expose RapidRAW's `[-5,5]` EV Shift/Exposure and
+  `[-100,100]` tonal units. Shadows/Blacks use the scale-aware 3.5-pixel
+  Gaussian tonal reference. CPU preflight owns both blur planes; Metal snapshots
+  the current RGB buffer before the neighbourhood read so a dispatch never races
+  adjacent writes.
 
 ## Consequences
 
-Ravo can reuse RapidRAW's exact response while keeping one C++ service and
-rendering architecture. New RAW baselines may select the new mapper, while old
-Sigmoid-authored edits reopen unchanged. Network distribution and remote use
+Ravo reuses RapidRAW's global Basic response while keeping one C++ service and
+rendering architecture. New RAW baselines select the control and display pair,
+while old Sigmoid-authored and Basic-only edits reopen unchanged. Network distribution and remote use
 must follow AGPLv3 section 13; package and source publication must not describe
 the product as GPL-only.
 

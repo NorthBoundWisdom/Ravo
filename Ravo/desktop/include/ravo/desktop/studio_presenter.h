@@ -256,6 +256,16 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSigmoidContrast READ editSigmoidContrast NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidSkew READ editSigmoidSkew NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidHuePreservation READ editSigmoidHuePreservation NOTIFY editChanged)
+    Q_PROPERTY(bool editRapidRawToneControlsEnabled READ editRapidRawToneControlsEnabled NOTIFY editChanged)
+    Q_PROPERTY(bool editRapidRawBasicToneEnabled READ editRapidRawBasicToneEnabled NOTIFY editChanged)
+    Q_PROPERTY(int editToneMapperIndex READ editToneMapperIndex NOTIFY editChanged)
+    Q_PROPERTY(double editRapidRawEvShift READ editRapidRawEvShift NOTIFY editChanged)
+    Q_PROPERTY(double editRapidRawExposure READ editRapidRawExposure NOTIFY editChanged)
+    Q_PROPERTY(double editRapidRawContrast READ editRapidRawContrast NOTIFY editChanged)
+    Q_PROPERTY(double editRapidRawHighlights READ editRapidRawHighlights NOTIFY editChanged)
+    Q_PROPERTY(double editRapidRawShadows READ editRapidRawShadows NOTIFY editChanged)
+    Q_PROPERTY(double editRapidRawWhites READ editRapidRawWhites NOTIFY editChanged)
+    Q_PROPERTY(double editRapidRawBlacks READ editRapidRawBlacks NOTIFY editChanged)
     Q_PROPERTY(int editDemosaicModeIndex READ editDemosaicModeIndex NOTIFY editChanged)
     Q_PROPERTY(double editRawHighlights READ editRawHighlights NOTIFY editChanged)
     Q_PROPERTY(double editRawDenoiseThreshold READ editRawDenoiseThreshold NOTIFY editChanged)
@@ -546,6 +556,16 @@ public:
     [[nodiscard]] double editShadows() const noexcept;
     [[nodiscard]] double editWhites() const noexcept;
     [[nodiscard]] double editBlacks() const noexcept;
+    [[nodiscard]] bool editRapidRawToneControlsEnabled() const noexcept;
+    [[nodiscard]] bool editRapidRawBasicToneEnabled() const noexcept;
+    [[nodiscard]] int editToneMapperIndex() const noexcept;
+    [[nodiscard]] double editRapidRawEvShift() const noexcept;
+    [[nodiscard]] double editRapidRawExposure() const noexcept;
+    [[nodiscard]] double editRapidRawContrast() const noexcept;
+    [[nodiscard]] double editRapidRawHighlights() const noexcept;
+    [[nodiscard]] double editRapidRawShadows() const noexcept;
+    [[nodiscard]] double editRapidRawWhites() const noexcept;
+    [[nodiscard]] double editRapidRawBlacks() const noexcept;
     [[nodiscard]] double editVibrance() const noexcept;
     [[nodiscard]] double editSaturation() const noexcept;
     [[nodiscard]] int editRotateQuarters() const noexcept;

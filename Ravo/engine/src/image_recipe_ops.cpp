@@ -39,6 +39,7 @@
 #include "perspective_transform.h"
 #include "primaries.h"
 #include "raw_temperature.h"
+#include "rapidraw_tone_controls.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/output_dither.h"
 #include "ravo/recipe/watermark.h"
@@ -49,6 +50,7 @@
 #include "velvia.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 
 #include "image_ops_internal.h"
 
@@ -563,6 +565,15 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.id == kRapidRawBasicToneOperationId)
         {
             auto transformed = apply_rapidraw_basic_tone(image, operation, cancellation);
+            if (!transformed)
+            {
+                return transformed.error();
+            }
+            continue;
+        }
+        if (operation.id == kRapidRawToneControlsOperationId)
+        {
+            auto transformed = apply_rapidraw_tone_controls(image, operation, cancellation);
             if (!transformed)
             {
                 return transformed.error();

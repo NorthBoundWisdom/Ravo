@@ -369,6 +369,40 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.blacks = identity.blacks;
     }
+    else if (name == "rapidrawEvShift")
+    {
+        params.rapidraw_ev_shift = identity.rapidraw_ev_shift;
+    }
+    else if (name == "rapidrawExposure")
+    {
+        params.rapidraw_exposure = identity.rapidraw_exposure;
+    }
+    else if (name == "rapidrawContrast")
+    {
+        params.rapidraw_contrast = identity.rapidraw_contrast;
+    }
+    else if (name == "rapidrawHighlights")
+    {
+        params.rapidraw_highlights = identity.rapidraw_highlights;
+    }
+    else if (name == "rapidrawShadows")
+    {
+        params.rapidraw_shadows = identity.rapidraw_shadows;
+    }
+    else if (name == "rapidrawWhites")
+    {
+        params.rapidraw_whites = identity.rapidraw_whites;
+    }
+    else if (name == "rapidrawBlacks")
+    {
+        params.rapidraw_blacks = identity.rapidraw_blacks;
+    }
+    else if (name == "toneMapperIndex")
+    {
+        params.rapidraw_basic_tone_enabled = true;
+        params.rapidraw_tone_controls_enabled = true;
+        params.sigmoid_enabled = false;
+    }
     else if (name == "vibrance")
     {
         params.vibrance = identity.vibrance;
@@ -897,6 +931,13 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.sigmoid_display_white = identity.sigmoid_display_white;
         params.sigmoid_display_black = identity.sigmoid_display_black;
         params.sigmoid_hue_preservation = identity.sigmoid_hue_preservation;
+        params.rapidraw_ev_shift = identity.rapidraw_ev_shift;
+        params.rapidraw_exposure = identity.rapidraw_exposure;
+        params.rapidraw_contrast = identity.rapidraw_contrast;
+        params.rapidraw_highlights = identity.rapidraw_highlights;
+        params.rapidraw_shadows = identity.rapidraw_shadows;
+        params.rapidraw_whites = identity.rapidraw_whites;
+        params.rapidraw_blacks = identity.rapidraw_blacks;
         params.tone_eq_blacks = identity.tone_eq_blacks;
         params.tone_eq_shadows = identity.tone_eq_shadows;
         params.tone_eq_midtones = identity.tone_eq_midtones;
@@ -1101,7 +1142,11 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
                !near(params.sigmoid_display_white, identity.sigmoid_display_white) ||
                !near(params.sigmoid_display_black, identity.sigmoid_display_black) ||
                !near(params.sigmoid_hue_preservation, identity.sigmoid_hue_preservation) ||
-               params.rapidraw_basic_tone_enabled;
+               params.rapidraw_basic_tone_enabled || params.rapidraw_tone_controls_enabled ||
+               !near(params.rapidraw_ev_shift, 0.0) || !near(params.rapidraw_exposure, 0.0) ||
+               !near(params.rapidraw_contrast, 0.0) || !near(params.rapidraw_highlights, 0.0) ||
+               !near(params.rapidraw_shadows, 0.0) || !near(params.rapidraw_whites, 0.0) ||
+               !near(params.rapidraw_blacks, 0.0);
     }
     if (section == "curves")
     {

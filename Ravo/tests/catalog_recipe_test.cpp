@@ -51,6 +51,7 @@
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/texture.h"
 #include "ravo/services/catalog_service.h"
@@ -569,7 +570,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto baseline = service->load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_EQ(baseline.value().operations.size(), 6U);
+    ASSERT_EQ(baseline.value().operations.size(), 7U);
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == "ravo.color.temperature"; }),
@@ -581,6 +582,10 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == kRapidRawBasicToneOperationId; }),
+              baseline.value().operations.end());
+    EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == kRapidRawToneControlsOperationId; }),
               baseline.value().operations.end());
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
@@ -598,6 +603,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     ASSERT_TRUE(baseline_params) << baseline_params.error().message;
     EXPECT_FALSE(baseline_params.value().sigmoid_enabled);
     EXPECT_TRUE(baseline_params.value().rapidraw_basic_tone_enabled);
+    EXPECT_TRUE(baseline_params.value().rapidraw_tone_controls_enabled);
     EXPECT_NEAR(baseline_params.value().sharpen, SharpenParams{}.amount, 1e-9);
     EXPECT_NEAR(baseline_params.value().sharpen_radius, SharpenParams{}.radius, 1e-9);
     EXPECT_NEAR(baseline_params.value().sharpen_threshold, SharpenParams{}.threshold, 1e-9);
@@ -610,6 +616,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto prior_params = baseline_params.value();
     prior_params.rapidraw_basic_tone_enabled = false;
+    prior_params.rapidraw_tone_controls_enabled = false;
     prior_params.sigmoid_enabled = true;
     prior_params.sigmoid_skew = -0.2;
     prior_params.raw_highlights = 0.0;
@@ -652,7 +659,12 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
               prior_parsed.value().operations.end());
 
     auto adjusted = baseline_params.value();
-    adjusted.exposure_ev = -0.35;
+    adjusted.rapidraw_exposure = -0.35;
+    adjusted.rapidraw_contrast = 18.0;
+    adjusted.rapidraw_highlights = -24.0;
+    adjusted.rapidraw_shadows = 21.0;
+    adjusted.rapidraw_whites = 9.0;
+    adjusted.rapidraw_blacks = -7.0;
     auto saved = service->save_develop(asset_id, adjusted);
     ASSERT_TRUE(saved) << saved.error().message;
     EXPECT_TRUE(saved.value().has_edits);
@@ -665,8 +677,55 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     ASSERT_TRUE(restored) << restored.error().message;
     auto restored_params = develop_from_recipe(restored.value());
     ASSERT_TRUE(restored_params) << restored_params.error().message;
-    EXPECT_NEAR(restored_params.value().exposure_ev, -0.35, 1e-9);
+    EXPECT_NEAR(restored_params.value().rapidraw_exposure, -0.35, 1e-9);
+    EXPECT_DOUBLE_EQ(restored_params.value().rapidraw_contrast, 18.0);
+    EXPECT_DOUBLE_EQ(restored_params.value().rapidraw_highlights, -24.0);
+    EXPECT_DOUBLE_EQ(restored_params.value().rapidraw_shadows, 21.0);
+    EXPECT_DOUBLE_EQ(restored_params.value().rapidraw_whites, 9.0);
+    EXPECT_DOUBLE_EQ(restored_params.value().rapidraw_blacks, -7.0);
     EXPECT_TRUE(restored_params.value().rapidraw_basic_tone_enabled);
+    EXPECT_TRUE(restored_params.value().rapidraw_tone_controls_enabled);
+
+    PreviewRequest rapidraw_preview_request;
+    rapidraw_preview_request.asset_id = asset_id;
+    rapidraw_preview_request.max_edge = 64U;
+    rapidraw_preview_request.persist_preview_record = false;
+    auto rapidraw_preview = service->request_preview(rapidraw_preview_request);
+    ASSERT_TRUE(rapidraw_preview) << rapidraw_preview.error().message;
+    ASSERT_FALSE(rapidraw_preview.value().rgb.empty());
+    ExportRequest rapidraw_export;
+    rapidraw_export.asset_id = asset_id;
+    rapidraw_export.output_path = (root / "rapidraw-tone-controls.png").string();
+    rapidraw_export.format = ExportFormat::kPng;
+    rapidraw_export.max_edge = 64U;
+    auto rapidraw_exported = service->export_asset(rapidraw_export);
+    ASSERT_TRUE(rapidraw_exported) << rapidraw_exported.error().message;
+    const QImage rapidraw_export_image(QString::fromStdString(rapidraw_export.output_path));
+    ASSERT_FALSE(rapidraw_export_image.isNull());
+    ASSERT_EQ(rapidraw_export_image.width(), static_cast<int>(rapidraw_preview.value().width));
+    ASSERT_EQ(rapidraw_export_image.height(), static_cast<int>(rapidraw_preview.value().height));
+    const QImage rapidraw_preview_image(
+        rapidraw_preview.value().rgb.data(), static_cast<int>(rapidraw_preview.value().width),
+        static_cast<int>(rapidraw_preview.value().height),
+        static_cast<int>(rapidraw_preview.value().width * 3U), QImage::Format_RGB888);
+    const QImage rapidraw_export_rgb =
+        rapidraw_export_image.convertToFormat(QImage::Format_RGB888);
+    bool within_gpu_delta = true;
+    for (int row = 0; row < rapidraw_export_rgb.height() && within_gpu_delta; ++row)
+    {
+        const auto *export_row = rapidraw_export_rgb.constScanLine(row);
+        const auto *preview_row = rapidraw_preview_image.constScanLine(row);
+        for (int sample = 0; sample < rapidraw_export_rgb.width() * 3; ++sample)
+        {
+            if (std::abs(static_cast<int>(export_row[sample]) -
+                         static_cast<int>(preview_row[sample])) > 1)
+            {
+                within_gpu_delta = false;
+                break;
+            }
+        }
+    }
+    EXPECT_TRUE(within_gpu_delta);
 
     auto reset = service->reset_recipe(asset_id);
     ASSERT_TRUE(reset) << reset.error().message;
@@ -677,6 +736,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     ASSERT_TRUE(reset_params) << reset_params.error().message;
     EXPECT_FALSE(reset_params.value().sigmoid_enabled);
     EXPECT_TRUE(reset_params.value().rapidraw_basic_tone_enabled);
+    EXPECT_TRUE(reset_params.value().rapidraw_tone_controls_enabled);
     EXPECT_NEAR(reset_params.value().sharpen, SharpenParams{}.amount, 1e-9);
     EXPECT_DOUBLE_EQ(reset_params.value().raw_highlights, 1.0);
 }

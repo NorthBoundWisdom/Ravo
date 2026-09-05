@@ -30,6 +30,7 @@
 #include "ravo/recipe/perspective.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/sharpen.h"
@@ -1086,6 +1087,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == kRapidRawToneControlsOperationId)
+        {
+            auto controls = validate_rapidraw_tone_controls_parameters(operation.parameters);
+            if (!controls)
+            {
+                auto error = controls.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == "ravo.color.channelmixerrgb")
         {
             auto mixer = validate_channel_mixer_parameters(operation.parameters);
@@ -1388,6 +1399,9 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
     std::optional<std::size_t> frame_index;
     std::optional<std::size_t> watermark_index;
     std::optional<std::size_t> canvas_index;
+    std::optional<std::size_t> sigmoid_index;
+    std::optional<std::size_t> rapidraw_basic_index;
+    std::optional<std::size_t> rapidraw_controls_index;
     for (std::size_t index = 0; index < recipe.operations.size(); ++index)
     {
         const auto &operation = recipe.operations[index];
@@ -1422,6 +1436,39 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                                   {{"operation_id", operation.id}, {"reason", "duplicate_canvas"}});
             canvas_index = index;
         }
+        else if (operation.id == "ravo.display.sigmoid")
+        {
+            if (sigmoid_index)
+                return make_error(ErrorCode::kConflict, "Recipe contains duplicate Sigmoid",
+                                  {{"reason", "duplicate_display_tone_mapper"}});
+            sigmoid_index = index;
+        }
+        else if (operation.id == kRapidRawBasicToneOperationId)
+        {
+            if (rapidraw_basic_index)
+                return make_error(ErrorCode::kConflict,
+                                  "Recipe contains duplicate RapidRAW Basic tone",
+                                  {{"reason", "duplicate_display_tone_mapper"}});
+            rapidraw_basic_index = index;
+        }
+        else if (operation.id == kRapidRawToneControlsOperationId)
+        {
+            if (rapidraw_controls_index)
+                return make_error(ErrorCode::kConflict,
+                                  "Recipe contains duplicate RapidRAW tone controls",
+                                  {{"reason", "duplicate_rapidraw_tone_controls"}});
+            rapidraw_controls_index = index;
+        }
+    }
+    if (sigmoid_index && rapidraw_basic_index)
+        return make_error(ErrorCode::kConflict, "Recipe contains competing display tone mappers",
+                          {{"reason", "duplicate_display_tone_mapper"}});
+    if (rapidraw_controls_index &&
+        (!rapidraw_basic_index || *rapidraw_controls_index > *rapidraw_basic_index))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "RapidRAW tone controls must precede RapidRAW Basic tone",
+                          {{"reason", "invalid_rapidraw_tone_order"}});
     }
     if (output_dither_index)
     {

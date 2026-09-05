@@ -1,6 +1,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 
 #include "develop_internal.h"
 
@@ -38,6 +39,12 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     {
         return make_error(ErrorCode::kConflict, "Develop cannot enable two display tone mappers",
                           {{"reason", "duplicate_display_tone_mapper"}});
+    }
+    if (clamped.rapidraw_tone_controls_enabled && !clamped.rapidraw_basic_tone_enabled)
+    {
+        return make_error(ErrorCode::kConflict,
+                          "RapidRAW tone controls require the RapidRAW Basic mapper",
+                          {{"reason", "rapidraw_tone_mapper_required"}});
     }
     if (clamped.demosaic_mode != kDemosaicModeRcd)
     {
@@ -578,6 +585,24 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
              {"display_black_target", ParameterValue{clamped.sigmoid_display_black}},
              {"hue_preservation", ParameterValue{clamped.sigmoid_hue_preservation}}},
             1, std::nullopt, clamped.light_effect_enabled);
+    }
+    if (clamped.rapidraw_tone_controls_enabled)
+    {
+        RapidRawToneControlsParams controls;
+        controls.ev_shift = clamped.rapidraw_ev_shift;
+        controls.exposure = clamped.rapidraw_exposure;
+        controls.contrast = clamped.rapidraw_contrast;
+        controls.highlights = clamped.rapidraw_highlights;
+        controls.shadows = clamped.rapidraw_shadows;
+        controls.whites = clamped.rapidraw_whites;
+        controls.blacks = clamped.rapidraw_blacks;
+        auto parameters = rapidraw_tone_controls_to_parameters(controls);
+        if (!parameters)
+            return parameters.error();
+        add_operation(recipe, std::string(kRapidRawToneControlsOperationId),
+                      "rapidraw-tone-controls-1", std::move(parameters).value(),
+                      kRapidRawToneControlsSchemaVersion, std::nullopt,
+                      clamped.light_effect_enabled);
     }
     if (clamped.rapidraw_basic_tone_enabled)
     {

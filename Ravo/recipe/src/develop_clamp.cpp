@@ -1,5 +1,6 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 
 #include "develop_internal.h"
 
@@ -28,6 +29,15 @@ using namespace develop_internal;
 
 void clamp_develop(DevelopParams &params) noexcept
 {
+    const auto clamp_rapidraw = [](double &value, const double minimum, const double maximum)
+    { value = std::isfinite(value) ? clamp_value(value, minimum, maximum) : 0.0; };
+    clamp_rapidraw(params.rapidraw_ev_shift, kRapidRawExposureMin, kRapidRawExposureMax);
+    clamp_rapidraw(params.rapidraw_exposure, kRapidRawExposureMin, kRapidRawExposureMax);
+    clamp_rapidraw(params.rapidraw_contrast, kRapidRawToneMin, kRapidRawToneMax);
+    clamp_rapidraw(params.rapidraw_highlights, kRapidRawToneMin, kRapidRawToneMax);
+    clamp_rapidraw(params.rapidraw_shadows, kRapidRawToneMin, kRapidRawToneMax);
+    clamp_rapidraw(params.rapidraw_whites, kRapidRawToneMin, kRapidRawToneMax);
+    clamp_rapidraw(params.rapidraw_blacks, kRapidRawToneMin, kRapidRawToneMax);
     if (params.demosaic_mode != kDemosaicModeRcd && params.demosaic_mode != kDemosaicModePpg &&
         params.demosaic_mode != kDemosaicModeMarkesteijn1 &&
         params.demosaic_mode != kDemosaicModeMarkesteijn3)
@@ -475,7 +485,12 @@ bool DevelopParams::is_identity() const noexcept
            rgb_levels.is_identity() && rgb_curve.is_identity() && !rgb_curve_mask_id.has_value() &&
            !tone_curve_mask_id.has_value() && tone_curve_is_identity(tone_curve) &&
            tone_curve_is_identity(tone_curve_a) && tone_curve_is_identity(tone_curve_b) &&
-           !sigmoid_enabled && !rapidraw_basic_tone_enabled && near(raw_highlights, 0.0) &&
+           !sigmoid_enabled && !rapidraw_basic_tone_enabled &&
+           !rapidraw_tone_controls_enabled && near(rapidraw_ev_shift, 0.0) &&
+           near(rapidraw_exposure, 0.0) && near(rapidraw_contrast, 0.0) &&
+           near(rapidraw_highlights, 0.0) && near(rapidraw_shadows, 0.0) &&
+           near(rapidraw_whites, 0.0) && near(rapidraw_blacks, 0.0) &&
+           near(raw_highlights, 0.0) &&
            near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
            near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) && near(lens_k1, 0.0) &&
            near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&

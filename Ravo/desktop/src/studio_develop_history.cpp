@@ -186,6 +186,18 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Unbreak input profile");
     if (field == "sigmoid")
         return QCoreApplication::translate("DevelopPanel", "Sigmoid");
+    if (field == "rapidrawEvShift" || field == "rapidrawExposure")
+        return QCoreApplication::translate("DevelopPanel", "Exposure");
+    if (field == "rapidrawContrast")
+        return QCoreApplication::translate("DevelopPanel", "Contrast");
+    if (field == "rapidrawHighlights")
+        return QCoreApplication::translate("DevelopPanel", "Highlights");
+    if (field == "rapidrawShadows")
+        return QCoreApplication::translate("DevelopPanel", "Shadows");
+    if (field == "rapidrawWhites")
+        return QCoreApplication::translate("DevelopPanel", "Whites");
+    if (field == "rapidrawBlacks")
+        return QCoreApplication::translate("DevelopPanel", "Blacks");
     if (field == "light")
         return QCoreApplication::translate("DevelopPanel", "Light");
     if (field == "color")
@@ -218,7 +230,8 @@ QString preset_field_group(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Camera Calibration");
     if (field == "exposure" || field == "contrast" || field == "highlights" || field == "shadows" ||
         field == "whites" || field == "blacks" || field == "gamma" || field == "rgbLevels" ||
-        field == "sigmoid" || field == "toneEqual" || field == "lightSectionState" ||
+        field == "sigmoid" || field == "rapidrawTone" || field == "toneEqual" ||
+        field == "lightSectionState" ||
         field == "toneEqualSectionState")
         return QCoreApplication::translate("DevelopPanel", "Light");
     if (field == "rgbCurve" || field == "toneCurve" || field == "curvesSectionState")

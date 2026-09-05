@@ -19,6 +19,7 @@ target_sources(ravo_recipe
     src/develop_legacy.cpp
     src/profile_gamma.cpp
     src/rapidraw_tone.cpp
+    src/rapidraw_tone_controls.cpp
     src/primaries.cpp
     src/operation.cpp
     src/output_dither.cpp

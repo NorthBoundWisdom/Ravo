@@ -14,6 +14,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/rapidraw_tone.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 
 namespace ravo
 {
@@ -380,6 +381,10 @@ TEST(EngineFacadeTest, GpuPreviewDefaultRawBaselineReportsBackend)
                            [](const OperationInstance &operation)
                            { return operation.id == kRapidRawBasicToneOperationId; }),
               recipe.value().operations.end());
+    EXPECT_NE(std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == kRapidRawToneControlsOperationId; }),
+              recipe.value().operations.end());
     auto gpu = GpuAdapter::try_create();
     std::string gpu_backend;
     const auto mixed = apply_preview_rgb(input, recipe.value(), gpu ? gpu.value().get() : nullptr,
@@ -500,8 +505,13 @@ TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
     const auto input = make_preview_working(32, 32);
     DevelopParams develop = develop_raw_import_baseline();
     develop.raw_highlights = 0.0;
-    develop.exposure_ev = 0.847;
-    develop.shadows = 0.214;
+    develop.rapidraw_ev_shift = 0.32;
+    develop.rapidraw_exposure = 0.47;
+    develop.rapidraw_contrast = 23.0;
+    develop.rapidraw_highlights = -31.0;
+    develop.rapidraw_shadows = 28.0;
+    develop.rapidraw_whites = 12.0;
+    develop.rapidraw_blacks = -9.0;
     auto recipe = recipe_from_develop({"gpu-preview", "memory:gpu-preview", std::nullopt}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto gpu = GpuAdapter::try_create();
@@ -523,9 +533,8 @@ TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
         ASSERT_TRUE(passes) << passes.error().message;
         ASSERT_TRUE(passes.value().has_value());
         ASSERT_GE(passes.value()->size(), 3U);
-        EXPECT_EQ(passes.value()->at(0).kind, GpuRgbPass::Kind::kAffine);
-        EXPECT_EQ(passes.value()->at(1).kind, GpuRgbPass::Kind::kLightControls);
-        EXPECT_EQ(passes.value()->at(2).kind, GpuRgbPass::Kind::kSharpen);
+        EXPECT_EQ(passes.value()->at(0).kind, GpuRgbPass::Kind::kSharpen);
+        EXPECT_EQ(passes.value()->at(1).kind, GpuRgbPass::Kind::kRapidRawToneControls);
         EXPECT_EQ(passes.value()->back().kind, GpuRgbPass::Kind::kRapidRawBasicTone);
     }
     else

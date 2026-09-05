@@ -50,6 +50,20 @@ struct GpuSharpenRgbParams
     std::array<float, 25> kernel{};
 };
 
+struct GpuRapidRawToneControlsParams
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t radius = 1;
+    float ev_shift = 0.0F;
+    float exposure = 0.0F;
+    float contrast = 0.0F;
+    float highlights = 0.0F;
+    float shadows = 0.0F;
+    float whites = 0.0F;
+    float blacks = 0.0F;
+};
+
 struct GpuRgbPass
 {
     enum class Kind : std::uint8_t
@@ -59,12 +73,14 @@ struct GpuRgbPass
         kLightControls = 2,
         kSharpen = 3,
         kRapidRawBasicTone = 4,
+        kRapidRawToneControls = 5,
     };
     Kind kind = Kind::kAffine;
     GpuAffineRgbParams affine;
     GpuSigmoidRgbParams sigmoid;
     GpuLightControlsParams light;
     GpuSharpenRgbParams sharpen;
+    GpuRapidRawToneControlsParams rapidraw_tone;
 };
 
 struct GpuRgbApplyOptions

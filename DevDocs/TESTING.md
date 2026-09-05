@@ -149,8 +149,8 @@ Engine GPU adapter tests require `create_phase1` to succeed whether or not a
 device exists, honor cancellation before dispatch, and reject size-mismatched
 opt-in copies. When QRhi reports a compute backend, identity copies are
 bit-exact and Exposure affine RGB, unmasked light controls, Lab USM Sharpen,
-and the active display mapper (RapidRAW Basic for new RAW, Sigmoid for stored
-legacy recipes) are RMSE-gated against the CPU gold.
+RapidRAW global tone controls, and the active display mapper (RapidRAW Basic
+for new RAW, Sigmoid for stored legacy recipes) are RMSE-gated against the CPU gold.
 `render_interactive_linear_working` reports `gpu_backend` when those GPU RGB
 passes ran, including the default RAW baseline that keeps Sharpen and RapidRAW
 Basic tone on the GPU. `render_linear_working` and export stay on CPU even when a
@@ -668,8 +668,10 @@ gated (ADR-0096).
 - RAW preview contract v10 validates complete decode, explicit input/output
   profiles, default opposed highlight reconstruction, and default RapidRAW
   Basic tone; the raster baseline must not receive a second display transform.
-  RapidRAW Basic requires strict schema validation, fixed synthetic samples,
-  CPU/GPU comparison, and catalog reset/reopen. Stored Sigmoid compatibility
+  RapidRAW tone requires strict schema validation, fixed normalization and
+  directional samples for every global control, CPU/GPU comparison, bounded
+  blur memory, all-control Debug/Release latency, and catalog reset/reopen/export.
+  Stored Sigmoid compatibility
   retains its synthetic colour patches, `mire1.cr2` channel-sum reference, and
   catalog reopen coverage.
 - Profile Denoise tests require deterministic MAD calibration to reduce flat

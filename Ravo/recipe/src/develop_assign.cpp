@@ -1,5 +1,6 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/rapidraw_tone_controls.h"
 
 #include "develop_internal.h"
 
@@ -474,6 +475,68 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.contrast = value;
 
+        return true;
+    }
+    if (name == "rapidrawEvShift")
+    {
+        if (!std::isfinite(value) || value < kRapidRawExposureMin ||
+            value > kRapidRawExposureMax)
+            return false;
+        params.rapidraw_basic_tone_enabled = true;
+        params.rapidraw_tone_controls_enabled = true;
+        params.sigmoid_enabled = false;
+        params.rapidraw_ev_shift = value;
+        return true;
+    }
+    if (name == "toneMapperIndex")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        const bool rapidraw = value == 0.0;
+        params.rapidraw_basic_tone_enabled = rapidraw;
+        params.rapidraw_tone_controls_enabled = rapidraw;
+        params.sigmoid_enabled = !rapidraw;
+        if (!rapidraw)
+        {
+            params.rapidraw_ev_shift = 0.0;
+            params.rapidraw_exposure = 0.0;
+            params.rapidraw_contrast = 0.0;
+            params.rapidraw_highlights = 0.0;
+            params.rapidraw_shadows = 0.0;
+            params.rapidraw_whites = 0.0;
+            params.rapidraw_blacks = 0.0;
+        }
+        return true;
+    }
+    if (name == "rapidrawExposure")
+    {
+        if (!std::isfinite(value) || value < kRapidRawExposureMin ||
+            value > kRapidRawExposureMax)
+            return false;
+        params.rapidraw_basic_tone_enabled = true;
+        params.rapidraw_tone_controls_enabled = true;
+        params.sigmoid_enabled = false;
+        params.rapidraw_exposure = value;
+        return true;
+    }
+    if (name == "rapidrawContrast" || name == "rapidrawHighlights" ||
+        name == "rapidrawShadows" || name == "rapidrawWhites" || name == "rapidrawBlacks")
+    {
+        if (!std::isfinite(value) || value < kRapidRawToneMin || value > kRapidRawToneMax)
+            return false;
+        params.rapidraw_basic_tone_enabled = true;
+        params.rapidraw_tone_controls_enabled = true;
+        params.sigmoid_enabled = false;
+        if (name == "rapidrawContrast")
+            params.rapidraw_contrast = value;
+        else if (name == "rapidrawHighlights")
+            params.rapidraw_highlights = value;
+        else if (name == "rapidrawShadows")
+            params.rapidraw_shadows = value;
+        else if (name == "rapidrawWhites")
+            params.rapidraw_whites = value;
+        else
+            params.rapidraw_blacks = value;
         return true;
     }
     if (name == "highlights")
