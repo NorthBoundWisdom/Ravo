@@ -935,14 +935,19 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     if (edited.value().exposure_instances.empty() && comparable.exposure_instances.size() == 1U)
     {
         EXPECT_EQ(comparable.exposure_instances.front().exposure_ev, comparable.exposure_ev);
+        EXPECT_EQ(comparable.exposure_instance_id_high_water, 1U);
         comparable.exposure_instances.clear();
+        comparable.exposure_instance_id_high_water = edited.value().exposure_instance_id_high_water;
     }
     if (edited.value().color_balance_rgb_instances.empty() &&
         comparable.color_balance_rgb_instances.size() == 1U)
     {
         EXPECT_EQ(comparable.color_balance_rgb_instances.front().params,
                   comparable.color_balance_rgb);
+        EXPECT_EQ(comparable.color_balance_rgb_instance_id_high_water, 1U);
         comparable.color_balance_rgb_instances.clear();
+        comparable.color_balance_rgb_instance_id_high_water =
+            edited.value().color_balance_rgb_instance_id_high_water;
     }
     EXPECT_EQ(comparable, edited.value());
 

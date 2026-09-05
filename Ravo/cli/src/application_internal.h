@@ -179,6 +179,9 @@ struct AppliedDevelopOverride
 [[nodiscard]] Result<std::uint64_t> parse_uint64_flag(std::string_view text,
                                                       std::string_view option);
 [[nodiscard]] Result<double> parse_double_flag(std::string_view text, std::string_view option);
+[[nodiscard]] Result<bool> parse_catalog_metadata_flag(CatalogCliArguments &result,
+                                                       std::string_view option,
+                                                       std::string_view value);
 [[nodiscard]] Result<CatalogCliArguments>
 parse_catalog_flags(std::span<const std::string_view> positional);
 [[nodiscard]] Result<ExportFormat> resolved_export_format(const CatalogCliArguments &flags);

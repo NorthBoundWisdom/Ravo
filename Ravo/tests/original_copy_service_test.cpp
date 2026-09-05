@@ -361,20 +361,6 @@ TEST_F(OriginalCopyServiceTest, CopiesMultipleChunksWithoutChangingSourceOrCopyi
     const auto output = temporary.path() / "copy.png";
     write_large_png(source);
 
-    const auto database = (temporary.path() / "library.sqlite").string();
-    auto repository = SqliteCatalogRepository::create(database);
-    ASSERT_TRUE(repository) << repository.error().message;
-    auto cache = FilesystemPreviewCache::create(database + ".preview");
-    ASSERT_TRUE(cache) << cache.error().message;
-    auto recovery = FilesystemRecoveryStore::create_for_catalog(database);
-    ASSERT_TRUE(recovery) << recovery.error().message;
-    CatalogService service(engine_, std::move(repository).value(),
-                           std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
-                           std::move(recovery).value());
-    const auto imported = service.import_one(source.string(), CancellationToken{});
-    ASSERT_TRUE(imported) << imported.error().message;
-    ASSERT_TRUE(imported.value().asset);
-
 #if defined(__APPLE__) || defined(__linux__)
     ASSERT_EQ(set_test_xattr(source, "source-only"), 0) << std::strerror(errno);
 #endif
@@ -388,6 +374,20 @@ TEST_F(OriginalCopyServiceTest, CopiesMultipleChunksWithoutChangingSourceOrCopyi
         std::filesystem::perm_options::replace, metadata_error);
     ASSERT_FALSE(metadata_error);
 #endif
+
+    const auto database = (temporary.path() / "library.sqlite").string();
+    auto repository = SqliteCatalogRepository::create(database);
+    ASSERT_TRUE(repository) << repository.error().message;
+    auto cache = FilesystemPreviewCache::create(database + ".preview");
+    ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(database);
+    ASSERT_TRUE(recovery) << recovery.error().message;
+    CatalogService service(engine_, std::move(repository).value(),
+                           std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                           std::move(recovery).value());
+    const auto imported = service.import_one(source.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
     const auto bytes_before = read_file(source);
     const auto hash_before = sha256(source);
     const auto size_before = std::filesystem::file_size(source);
@@ -444,6 +444,7 @@ TEST_F(OriginalCopyServiceTest, CatalogServiceClassifiesOriginalSourceFailuresWi
     const auto imported = service.import_one(source.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
+    const auto catalog_mtime = std::filesystem::last_write_time(source);
     const auto normalized_source = normalize_local_input(source.string());
     ASSERT_TRUE(normalized_source) << normalized_source.error().message;
     const std::filesystem::path expected_source(normalized_source.value().path);
@@ -462,6 +463,13 @@ TEST_F(OriginalCopyServiceTest, CatalogServiceClassifiesOriginalSourceFailuresWi
         EXPECT_TRUE(normalized) << normalized.error().message;
         return std::filesystem::path(normalized ? normalized.value().path : output.string());
     };
+    const auto restore_catalog_source = [&]
+    {
+        write_file(source, valid_png);
+        std::error_code restore_error;
+        std::filesystem::last_write_time(source, catalog_mtime, restore_error);
+        ASSERT_FALSE(restore_error);
+    };
 
     std::error_code filesystem_error;
     ASSERT_TRUE(std::filesystem::remove(source, filesystem_error));
@@ -471,7 +479,7 @@ TEST_F(OriginalCopyServiceTest, CatalogServiceClassifiesOriginalSourceFailuresWi
                       "original_copy_source_missing", expected_source,
                       expected_output(missing_output));
     EXPECT_FALSE(std::filesystem::exists(missing_output));
-    write_file(source, valid_png);
+    restore_catalog_source();
 
     ASSERT_TRUE(std::filesystem::remove(source, filesystem_error));
     ASSERT_FALSE(filesystem_error);
@@ -484,7 +492,7 @@ TEST_F(OriginalCopyServiceTest, CatalogServiceClassifiesOriginalSourceFailuresWi
     EXPECT_FALSE(std::filesystem::exists(directory_output));
     ASSERT_EQ(std::filesystem::remove_all(source, filesystem_error), 1U);
     ASSERT_FALSE(filesystem_error);
-    write_file(source, valid_png);
+    restore_catalog_source();
 
 #ifndef _WIN32
     ASSERT_TRUE(std::filesystem::remove(source, filesystem_error));
@@ -496,7 +504,7 @@ TEST_F(OriginalCopyServiceTest, CatalogServiceClassifiesOriginalSourceFailuresWi
                       expected_output(nonregular_output));
     EXPECT_FALSE(std::filesystem::exists(nonregular_output));
     ASSERT_EQ(::unlink(source.c_str()), 0) << std::strerror(errno);
-    write_file(source, valid_png);
+    restore_catalog_source();
 
     std::filesystem::permissions(source, std::filesystem::perms::none,
                                  std::filesystem::perm_options::replace, filesystem_error);

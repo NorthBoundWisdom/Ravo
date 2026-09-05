@@ -5,6 +5,7 @@ target_sources(ravo_cli
     src/application.cpp
     src/application_catalog.cpp
     src/application_catalog_args.cpp
+    src/application_catalog_metadata_args.cpp
     src/application_catalog_support.cpp
     src/application_catalog_xmp.cpp
     src/application_catalog_editor.cpp

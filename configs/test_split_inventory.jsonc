@@ -31,8 +31,8 @@
         "Ravo/tests/catalog_capture_test.cpp",
         "Ravo/tests/catalog_import_test.cpp"
       ],
-      "case_count": 151,
-      "case_sha256": "14ef8d132927e280f986fdd6b9ae0d8c2eed2b10aafeae572cc9954554dd78b6"
+      "case_count": 152,
+      "case_sha256": "efd044b5bff03d501e8a57a4cdbdbef0405fb2158d43987ad3c5403662ae69d8"
     },
     {
       "sources": [
@@ -52,6 +52,7 @@
       "sources": [
         "Ravo/tests/studio_command_test.cpp",
         "Ravo/tests/studio_presenter_test.cpp",
+        "Ravo/tests/studio_presenter_workflow_test.cpp",
         "Ravo/tests/studio_iq_quality_test.cpp",
         "Ravo/tests/studio_qml_contract_test.cpp",
         "Ravo/tests/studio_live_control_test.cpp",

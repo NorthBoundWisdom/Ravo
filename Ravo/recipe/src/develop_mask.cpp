@@ -341,34 +341,18 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
                                                    const DevelopMaskTarget target,
                                                    const std::string_view id) noexcept
 {
-    std::size_t refs = 0U;
+    const auto has_sibling_reference = [id](const auto &instances)
+    {
+        return std::count_if(instances.begin(), instances.end(), [id](const auto &instance)
+                             { return instance.mask_id && *instance.mask_id == id; }) > 1;
+    };
     if (target == DevelopMaskTarget::kExposure)
     {
-        for (const auto &instance : params.exposure_instances)
-        {
-            if (instance.mask_id.has_value() && *instance.mask_id == id)
-            {
-                ++refs;
-                if (refs > 1U)
-                {
-                    return true;
-                }
-            }
-        }
+        return has_sibling_reference(params.exposure_instances);
     }
-    else if (target == DevelopMaskTarget::kColorBalanceRgb)
+    if (target == DevelopMaskTarget::kColorBalanceRgb)
     {
-        for (const auto &instance : params.color_balance_rgb_instances)
-        {
-            if (instance.mask_id.has_value() && *instance.mask_id == id)
-            {
-                ++refs;
-                if (refs > 1U)
-                {
-                    return true;
-                }
-            }
-        }
+        return has_sibling_reference(params.color_balance_rgb_instances);
     }
     return false;
 }
