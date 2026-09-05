@@ -2,6 +2,79 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ko_KR">
     <context>
+        <name>AiProposalDialog</name>
+        <message>
+            <source>AI Proposal</source>
+            <translation>AI 제안</translation>
+        </message>
+        <message>
+            <source>Global edit (stub)</source>
+            <translation>전역 편집(스텁)</translation>
+        </message>
+        <message>
+            <source>Semantic mask (stub)</source>
+            <translation>시맨틱 마스크(스텁)</translation>
+        </message>
+        <message>
+            <source>Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.</source>
+            <translation>스텁 제안만 해당(ADR-0121). 네트워크도 없고 모델 가중치도 없습니다. 필드 차이를 검사한 후 적용, 거부 또는 취소합니다.</translation>
+        </message>
+        <message>
+            <source>Create</source>
+            <translation>만들기</translation>
+        </message>
+        <message>
+            <source>Label</source>
+            <translation>라벨</translation>
+        </message>
+        <message>
+            <source>Proposals for selection</source>
+            <translation>선정 제안</translation>
+        </message>
+        <message>
+            <source>%1 · %2 · %3</source>
+            <translation>%1 · %2 · %3</translation>
+        </message>
+        <message>
+            <source>No proposal selected.</source>
+            <translation>선택된 제안이 없습니다.</translation>
+        </message>
+        <message>
+            <source>Selected %1 (%2)
+Provider %3 / %4
+Fields: %5
+Diff: %6</source>
+            <translation>%1(%2)을(를) 선택했습니다
+공급자%3/%4
+필드: %5
+차이: %6</translation>
+        </message>
+        <message>
+            <source>Refresh</source>
+            <translation>새로고침</translation>
+        </message>
+        <message>
+            <source>Create Stub</source>
+            <translation>스텁 생성</translation>
+        </message>
+        <message>
+            <source>Cancel Proposal</source>
+            <translation>제안 취소</translation>
+        </message>
+        <message>
+            <source>Reject</source>
+            <translation>거부</translation>
+        </message>
+        <message>
+            <source>Apply</source>
+            <translation>적용</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>닫기</translation>
+        </message>
+    </context>
+    <context>
         <name>AssistantPanel</name>
         <message>
             <source>Assistant</source>
@@ -209,6 +282,22 @@
             <translation>마스크 오버레이 표시</translation>
         </message>
         <message>
+            <source>Place on photo</source>
+            <translation>사진에 배치</translation>
+        </message>
+        <message>
+            <source>Click the photo to place the circle, ellipse, or gradient. Canvas, Perspective, straighten, rotate, and flip must be off.</source>
+            <translation>원, 타원 또는 그라데이션을 배치하려면 사진을 클릭하세요. 캔버스, 원근감, 직선화, 회전 및 뒤집기가 꺼져 있어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Assist from photo</source>
+            <translation>사진의 도움</translation>
+        </message>
+        <message>
+            <source>Click the photo to set parametric thresholds from the display histogram channel. Canvas, Perspective, straighten, rotate, and flip must be off.</source>
+            <translation>디스플레이 히스토그램 채널에서 매개변수 임계값을 설정하려면 사진을 클릭하세요. 캔버스, 원근감, 직선화, 회전 및 뒤집기가 꺼져 있어야 합니다.</translation>
+        </message>
+        <message>
             <source>Group child</source>
             <translation>그룹 하위 항목</translation>
         </message>
@@ -327,6 +416,10 @@
         <message>
             <source>Exposure</source>
             <translation>노출</translation>
+        </message>
+        <message>
+            <source>EV Shift</source>
+            <translation>EV 시프트</translation>
         </message>
         <message>
             <source>Compensate exposure bias</source>
@@ -2449,6 +2542,46 @@
             <translation>노드 채도 4</translation>
         </message>
         <message>
+            <source>Mask click placement has no overlay target</source>
+            <translation>마스크 클릭 위치에 오버레이 타겟이 없습니다.</translation>
+        </message>
+        <message>
+            <source>Mask click placement was rejected</source>
+            <translation>마스크 클릭 배치가 거부되었습니다.</translation>
+        </message>
+        <message>
+            <source>Mask click placement requires an editable attached mask</source>
+            <translation>마스크 클릭 배치에는 편집 가능한 부착된 마스크가 필요합니다.</translation>
+        </message>
+        <message>
+            <source>Mask click placement supports circle, ellipse, or linear gradient</source>
+            <translation>마스크 클릭 배치는 원, 타원 또는 선형 그래디언트를 지원합니다.</translation>
+        </message>
+        <message>
+            <source>Parametric assist has no overlay target</source>
+            <translation>파라메트릭 지원에는 오버레이 대상이 없습니다.</translation>
+        </message>
+        <message>
+            <source>Parametric assist is not available for this operation</source>
+            <translation>이 작업에는 파라메트릭 지원을 사용할 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Parametric assist is unavailable with Canvas, Perspective, straighten, rotate, or flip</source>
+            <translation>Canvas, Perspective, 직선화, 회전 또는 뒤집기에서는 파라메트릭 지원을 사용할 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Parametric assist was rejected</source>
+            <translation>파라메트릭 지원이 거부되었습니다.</translation>
+        </message>
+        <message>
+            <source>Parametric assist requires an editable attached parametric mask</source>
+            <translation>파라메트릭 지원에는 편집 가능한 부착된 파라메트릭 마스크가 필요합니다.</translation>
+        </message>
+        <message>
+            <source>Parametric assist needs a preview</source>
+            <translation>파라메트릭 지원에는 미리보기가 필요합니다.</translation>
+        </message>
+        <message>
             <source>Orange</source>
             <translation>주황</translation>
         </message>
@@ -2593,6 +2726,14 @@
             <translation>마스크</translation>
         </message>
         <message>
+            <source>Exposure instances</source>
+            <translation>노출 인스턴스</translation>
+        </message>
+        <message>
+            <source>Color Balance RGB instances</source>
+            <translation>색상 균형 RGB 인스턴스</translation>
+        </message>
+        <message>
             <source>Section bypass state</source>
             <translation>섹션 우회 상태</translation>
         </message>
@@ -2615,6 +2756,46 @@
         <message>
             <source>Mask reset was rejected</source>
             <translation>마스크 재설정이 거부되었습니다</translation>
+        </message>
+        <message>
+            <source>Instances</source>
+            <translation>인스턴스</translation>
+        </message>
+        <message>
+            <source>Add</source>
+            <translation>추가</translation>
+        </message>
+        <message>
+            <source>Duplicate</source>
+            <translation>중복</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>켜짐</translation>
+        </message>
+        <message>
+            <source>Bypass</source>
+            <translation>우회</translation>
+        </message>
+        <message>
+            <source>Delete</source>
+            <translation>삭제</translation>
+        </message>
+        <message>
+            <source>Rename selected instance</source>
+            <translation>선택한 인스턴스 이름 바꾸기</translation>
+        </message>
+        <message>
+            <source>Rename</source>
+            <translation>이름 바꾸기</translation>
+        </message>
+        <message>
+            <source>Exposure instance was not found.</source>
+            <translation>노출 인스턴스를 찾을 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Color Balance RGB instance was not found.</source>
+            <translation>색상 균형 RGB 인스턴스를 찾을 수 없습니다.</translation>
         </message>
     </context>
     <context>
@@ -2646,6 +2827,157 @@
         <message>
             <source>Copy Preset Info</source>
             <translation>프리셋 정보 복사</translation>
+        </message>
+    </context>
+    <context>
+        <name>EditInDialog</name>
+        <message>
+            <source>Edit in…</source>
+            <translation>편집 위치:</translation>
+        </message>
+        <message>
+            <source>8-bit</source>
+            <translation>8비트</translation>
+        </message>
+        <message>
+            <source>16-bit</source>
+            <translation>16비트</translation>
+        </message>
+        <message>
+            <source>Create a catalog-owned TIFF working copy, open it in an external editor, then check the returned file. Originals stay byte-identical.</source>
+            <translation>카탈로그 소유의 TIFF 작업 복사본을 만들고 외부 편집기에서 연 다음 반환된 파일을 확인합니다. 원본은 바이트 동일하게 유지됩니다.</translation>
+        </message>
+        <message>
+            <source>Editor id</source>
+            <translation>편집자 ID</translation>
+        </message>
+        <message>
+            <source>External editor id</source>
+            <translation>외부 편집자 ID</translation>
+        </message>
+        <message>
+            <source>Editor version</source>
+            <translation>에디터 버전</translation>
+        </message>
+        <message>
+            <source>External editor version</source>
+            <translation>외부 편집기 버전</translation>
+        </message>
+        <message>
+            <source>Application</source>
+            <translation>신청</translation>
+        </message>
+        <message>
+            <source>External editor application path</source>
+            <translation>외부 편집기 적용 경로</translation>
+        </message>
+        <message>
+            <source>Optional path (empty uses OS default)</source>
+            <translation>선택적 경로(비어 있으면 OS 기본값 사용)</translation>
+        </message>
+        <message>
+            <source>TIFF sample</source>
+            <translation>TIFF 샘플</translation>
+        </message>
+        <message>
+            <source>Working-copy TIFF sample type</source>
+            <translation>작업 사본 TIFF 샘플 유형</translation>
+        </message>
+        <message>
+            <source>Profile</source>
+            <translation>프로필</translation>
+        </message>
+        <message>
+            <source>sRGB (v1 only)</source>
+            <translation>sRGB(v1만 해당)</translation>
+        </message>
+        <message>
+            <source>Max edge</source>
+            <translation>최대 가장자리</translation>
+        </message>
+        <message>
+            <source>Working-copy max edge</source>
+            <translation>작업 사본 최대 가장자리</translation>
+        </message>
+        <message>
+            <source>Auto-stack derived pair on return</source>
+            <translation>반환 시 자동 스택 파생 쌍</translation>
+        </message>
+        <message>
+            <source>Open working copy after prepare</source>
+            <translation>준비 후 작업 복사본 열기</translation>
+        </message>
+        <message>
+            <source>Registered derived %1 — auto-stacked as pick</source>
+            <translation>파생된 %1 등록 — 선택 항목으로 자동 스택됨</translation>
+        </message>
+        <message>
+            <source>Registered derived %1</source>
+            <translation>파생된 %1을(를) 등록했습니다</translation>
+        </message>
+        <message>
+            <source>Session %1 (registered)</source>
+            <translation>세션 %1(등록됨)</translation>
+        </message>
+        <message>
+            <source>Working copy missing — reopen unavailable until restored</source>
+            <translation>작업 복사본이 없습니다. 복원될 때까지 다시 열 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Source original changed — return blocked</source>
+            <translation>원본 원본이 변경됨 — 반환이 차단됨</translation>
+        </message>
+        <message>
+            <source>Catalog revision stale — refresh or reopen</source>
+            <translation>카탈로그 개정판이 오래됨 - 새로 고침 또는 다시 열기</translation>
+        </message>
+        <message>
+            <source>Returned file unchanged — edit then check returned</source>
+            <translation>변경되지 않은 상태로 반환된 파일 - 편집 후 확인 결과가 반환됨</translation>
+        </message>
+        <message>
+            <source>Returned file missing</source>
+            <translation>반환된 파일이 누락되었습니다.</translation>
+        </message>
+        <message>
+            <source>Source mutated during return — publication blocked</source>
+            <translation>반환 중 소스가 변경됨 - 게시가 차단됨</translation>
+        </message>
+        <message>
+            <source>Working copy modified — ready to check returned</source>
+            <translation>작업 사본이 수정됨 - 반환된 것을 확인할 준비가 됨</translation>
+        </message>
+        <message>
+            <source>Working copy pending — open editor, then check returned</source>
+            <translation>작업 복사본 보류 중 - 편집기를 연 다음 반환된 확인을 확인하세요.</translation>
+        </message>
+        <message>
+            <source>Session %1 — %2</source>
+            <translation>세션 %1 — %2</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>취소</translation>
+        </message>
+        <message>
+            <source>Abandon</source>
+            <translation>포기하다</translation>
+        </message>
+        <message>
+            <source>Reopen</source>
+            <translation>재개설</translation>
+        </message>
+        <message>
+            <source>Refresh Status</source>
+            <translation>상태 새로 고침</translation>
+        </message>
+        <message>
+            <source>Check Returned</source>
+            <translation>수표가 반환됨</translation>
+        </message>
+        <message>
+            <source>Prepare Working Copy</source>
+            <translation>작업 사본 준비</translation>
         </message>
     </context>
     <context>
@@ -2681,6 +3013,158 @@
         <message>
             <source>Metadata privacy</source>
             <translation>메타데이터 개인정보 보호</translation>
+        </message>
+        <message>
+            <source>Long edge</source>
+            <translation>긴 가장자리</translation>
+        </message>
+        <message>
+            <source>Maximum long edge</source>
+            <translation>최대 긴 가장자리</translation>
+        </message>
+        <message>
+            <source>Maximum long edge (0 keeps the rendered size)</source>
+            <translation>최대 긴 가장자리(0은 렌더링된 크기를 유지함)</translation>
+        </message>
+        <message>
+            <source>Max width</source>
+            <translation>최대 너비</translation>
+        </message>
+        <message>
+            <source>Maximum export width</source>
+            <translation>최대 내보내기 너비</translation>
+        </message>
+        <message>
+            <source>Maximum width (0 unconstrained)</source>
+            <translation>최대 너비(0, 무제한)</translation>
+        </message>
+        <message>
+            <source>Max height</source>
+            <translation>최대 높이</translation>
+        </message>
+        <message>
+            <source>Maximum export height</source>
+            <translation>최대 내보내기 높이</translation>
+        </message>
+        <message>
+            <source>Maximum height (0 unconstrained)</source>
+            <translation>최대 높이(제약 없음 0)</translation>
+        </message>
+        <message>
+            <source>Output sharpen</source>
+            <translation>출력 선명하게</translation>
+        </message>
+        <message>
+            <source>Enable export output sharpen</source>
+            <translation>내보내기 출력 선명도 활성화</translation>
+        </message>
+        <message>
+            <source>After resize</source>
+            <translation>크기 조정 후</translation>
+        </message>
+        <message>
+            <source>Enable output sharpen after resize</source>
+            <translation>크기 조정 후 출력 선명도 활성화</translation>
+        </message>
+        <message>
+            <source>Sharpen amount</source>
+            <translation>선명도</translation>
+        </message>
+        <message>
+            <source>Sharpen radius</source>
+            <translation>반경 선명하게 하기</translation>
+        </message>
+        <message>
+            <source>Sharpen threshold</source>
+            <translation>임계값 선명하게 하기</translation>
+        </message>
+        <message>
+            <source>Delivery colour</source>
+            <translation>배송 색상</translation>
+        </message>
+        <message>
+            <source>Enable export delivery colour override</source>
+            <translation>수출 배송 색상 재정의 활성화</translation>
+        </message>
+        <message>
+            <source>Override output profile</source>
+            <translation>출력 프로필 재정의</translation>
+        </message>
+        <message>
+            <source>Enable delivery colour override for this export</source>
+            <translation>이 내보내기에 대해 배송 색상 재정의를 활성화합니다.</translation>
+        </message>
+        <message>
+            <source>Output profile</source>
+            <translation>출력 프로필</translation>
+        </message>
+        <message>
+            <source>Delivery output colour profile</source>
+            <translation>납품 출력 색상 프로필</translation>
+        </message>
+        <message>
+            <source>Rendering intent</source>
+            <translation>렌더링 의도</translation>
+        </message>
+        <message>
+            <source>Delivery colour rendering intent</source>
+            <translation>납품 색상 렌더링 의도</translation>
+        </message>
+        <message>
+            <source>Delivery frame</source>
+            <translation>배송 프레임</translation>
+        </message>
+        <message>
+            <source>Enable export delivery frame</source>
+            <translation>내보내기 전달 프레임 활성화</translation>
+        </message>
+        <message>
+            <source>After sharpen</source>
+            <translation>샤프닝 후</translation>
+        </message>
+        <message>
+            <source>Enable delivery frame after sharpen before watermark</source>
+            <translation>워터마크 전 선명화 후 전달 프레임 활성화</translation>
+        </message>
+        <message>
+            <source>Frame size</source>
+            <translation>프레임 크기</translation>
+        </message>
+        <message>
+            <source>Delivery watermark</source>
+            <translation>배송 워터마크</translation>
+        </message>
+        <message>
+            <source>Enable export delivery watermark</source>
+            <translation>내보내기 배달 워터마크 활성화</translation>
+        </message>
+        <message>
+            <source>Enable delivery watermark after sharpen</source>
+            <translation>선명하게 한 후 전달 워터마크 활성화</translation>
+        </message>
+        <message>
+            <source>Watermark text</source>
+            <translation>워터마크 텍스트</translation>
+        </message>
+        <message>
+            <source>Delivery watermark text</source>
+            <translation>배송 워터마크 텍스트</translation>
+        </message>
+        <message>
+            <source>Watermark opacity</source>
+            <translation>워터마크 불투명도</translation>
+        </message>
+        <message>
+            <source>Watermark scale</source>
+            <translation>워터마크 규모</translation>
+        </message>
+        <message>
+            <source>Watermark alignment</source>
+            <translation>워터마크 정렬</translation>
+        </message>
+        <message>
+            <source>Delivery watermark alignment</source>
+            <translation>배송 워터마크 정렬</translation>
         </message>
         <message>
             <source>Quality</source>
@@ -2842,6 +3326,73 @@
             <source>No public metadata</source>
             <translation>공개 메타데이터 없음</translation>
         </message>
+        <message>
+            <source>Top left</source>
+            <translation>왼쪽 위</translation>
+        </message>
+        <message>
+            <source>Top center</source>
+            <translation>가운데 위</translation>
+        </message>
+        <message>
+            <source>Top right</source>
+            <translation>오른쪽 위</translation>
+        </message>
+        <message>
+            <source>Center left</source>
+            <translation>왼쪽 가운데</translation>
+        </message>
+        <message>
+            <source>Center</source>
+            <translation>가운데</translation>
+        </message>
+        <message>
+            <source>Center right</source>
+            <translation>오른쪽 가운데</translation>
+        </message>
+        <message>
+            <source>Bottom left</source>
+            <translation>왼쪽 아래</translation>
+        </message>
+        <message>
+            <source>Bottom center</source>
+            <translation>가운데 아래</translation>
+        </message>
+        <message>
+            <source>Bottom right</source>
+            <translation>오른쪽 아래</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderContextMenu</name>
+        <message>
+            <source>Show in File Manager</source>
+            <translation>파일 관리자에 표시</translation>
+        </message>
+        <message>
+            <source>Import Photos...</source>
+            <translation>사진 가져오기...</translation>
+        </message>
+        <message>
+            <source>Import Photos from This Folder...</source>
+            <translation>이 폴더에서 사진 가져오기...</translation>
+        </message>
+        <message>
+            <source>Update Folder Location...</source>
+            <translation>폴더 위치 업데이트...</translation>
+        </message>
+        <message>
+            <source>Expand</source>
+            <translation>펼치기</translation>
+        </message>
+        <message>
+            <source>Collapse</source>
+            <translation>접기</translation>
+        </message>
+        <message>
+            <source>Remove from Catalog...</source>
+            <translation>카탈로그에서 제거...</translation>
+        </message>
     </context>
     <context>
         <name>FolderDialogPage</name>
@@ -2852,6 +3403,10 @@
     </context>
     <context>
         <name>GalleryReviewBar</name>
+        <message>
+            <source>More</source>
+            <translation>더보기</translation>
+        </message>
         <message>
             <source>Y|Y</source>
             <translation>예|Y</translation>
@@ -2873,6 +3428,18 @@
             <translation>크기</translation>
         </message>
         <message>
+            <source>Rating</source>
+            <translation>등급</translation>
+        </message>
+        <message>
+            <source>Rating %1</source>
+            <translation>등급 %1</translation>
+        </message>
+        <message>
+            <source>Color label</source>
+            <translation>컬러 라벨</translation>
+        </message>
+        <message>
             <source>Keep</source>
             <translation>유지</translation>
         </message>
@@ -2881,12 +3448,23 @@
             <translation>거부</translation>
         </message>
         <message>
+            <source>Pick</source>
+            <translation>선택</translation>
+        </message>
+        <message>
             <source>Previous</source>
             <translation>이전</translation>
         </message>
         <message>
             <source>Next</source>
             <translation>다음</translation>
+        </message>
+    </context>
+    <context>
+        <name>ImportFolderTree</name>
+        <message>
+            <source>No folders</source>
+            <translation>폴더 없음</translation>
         </message>
     </context>
     <context>
@@ -2918,10 +3496,6 @@
         <message>
             <source>Choose Source…</source>
             <translation>원본 선택…</translation>
-        </message>
-        <message>
-            <source>No source selected</source>
-            <translation>원본이 선택되지 않음</translation>
         </message>
         <message>
             <source>Include subfolders</source>
@@ -2984,10 +3558,6 @@
             <translation>대상 선택…</translation>
         </message>
         <message>
-            <source>No destination selected</source>
-            <translation>대상이 선택되지 않음</translation>
-        </message>
-        <message>
             <source>Organize</source>
             <translation>정리</translation>
         </message>
@@ -3002,6 +3572,10 @@
         <message>
             <source>By date (YYYY/MM/DD)</source>
             <translation>날짜별 (YYYY/MM/DD)</translation>
+        </message>
+        <message>
+            <source>By month (YYYY/MM)</source>
+            <translation>월별(YYYY/MM)</translation>
         </message>
         <message>
             <source>Rename template</source>
@@ -3042,6 +3616,14 @@
         <message>
             <source>Importing %1 / %2…</source>
             <translation>%1 / %2 가져오는 중…</translation>
+        </message>
+        <message>
+            <source>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</source>
+            <translation>마지막 수집 %1: %2 가져오기, %3 중복, %4 건너뛰기, %5 실패.</translation>
+        </message>
+        <message>
+            <source>Resume batch %1.</source>
+            <translation>일괄 %1을(를) 재개합니다.</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -3119,6 +3701,78 @@
             <translation>만</translation>
         </message>
         <message>
+            <source>Any review</source>
+            <translation>모든 리뷰</translation>
+        </message>
+        <message>
+            <source>Picked</source>
+            <translation>선택됨</translation>
+        </message>
+        <message>
+            <source>Unreviewed</source>
+            <translation>검토되지 않음</translation>
+        </message>
+        <message>
+            <source>No suggestion</source>
+            <translation>제안 없음</translation>
+        </message>
+        <message>
+            <source>Exact byte duplicate</source>
+            <translation>정확한 바이트 중복</translation>
+        </message>
+        <message>
+            <source>Near duplicate (heuristic)</source>
+            <translation>거의 중복됨(휴리스틱)</translation>
+        </message>
+        <message>
+            <source>Burst</source>
+            <translation>버스트</translation>
+        </message>
+        <message>
+            <source>Camera make</source>
+            <translation>카메라 제조사</translation>
+        </message>
+        <message>
+            <source>Camera model</source>
+            <translation>카메라 모델</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>%1 사진</translation>
+        </message>
+        <message>
+            <source>Focal mm</source>
+            <translation>초점 mm</translation>
+        </message>
+        <message>
+            <source>Lens make</source>
+            <translation>렌즈 제조사</translation>
+        </message>
+        <message>
+            <source>Lens model</source>
+            <translation>렌즈 모델</translation>
+        </message>
+        <message>
+            <source>YYYY:MM:DD</source>
+            <translation>YYYY:MM:DD</translation>
+        </message>
+        <message>
+            <source>Country</source>
+            <translation>국가</translation>
+        </message>
+        <message>
+            <source>State</source>
+            <translation>상태</translation>
+        </message>
+        <message>
+            <source>City</source>
+            <translation>도시</translation>
+        </message>
+        <message>
+            <source>Sublocation</source>
+            <translation>하위 위치</translation>
+        </message>
+        <message>
             <source>Add filter</source>
             <translation>필터 추가</translation>
         </message>
@@ -3141,6 +3795,26 @@
         <message>
             <source>Rejected</source>
             <translation>거부됨</translation>
+        </message>
+        <message>
+            <source>Camera</source>
+            <translation>카메라</translation>
+        </message>
+        <message>
+            <source>Lens</source>
+            <translation>렌즈</translation>
+        </message>
+        <message>
+            <source>Lens name</source>
+            <translation>렌즈명</translation>
+        </message>
+        <message>
+            <source>Capture date</source>
+            <translation>캡처 날짜</translation>
+        </message>
+        <message>
+            <source>Location</source>
+            <translation>위치</translation>
         </message>
         <message>
             <source>Import time</source>
@@ -3349,6 +4023,10 @@
             <translation>원본 복사 (*)</translation>
         </message>
         <message>
+            <source>Remove “%1” and its photos from the library? Original files on disk will not be deleted.</source>
+            <translation>라이브러리에서 "%1" 및 해당 사진을 제거하시겠습니까? 디스크에 있는 원본 파일은 삭제되지 않습니다.</translation>
+        </message>
+        <message>
             <source>Remove %1 photos from the library? Original files on disk will not be deleted.</source>
             <translation>라이브러리에서 사진 %1장을 제거할까요? 디스크의 원본 파일은 삭제되지 않습니다.</translation>
         </message>
@@ -3419,6 +4097,14 @@
         <message>
             <source>Create or open a library to import photos.</source>
             <translation>사진을 가져오려면 라이브러리를 만들거나 여세요.</translation>
+        </message>
+        <message>
+            <source>Remove Folder from Catalog</source>
+            <translation>카탈로그에서 폴더 제거</translation>
+        </message>
+        <message>
+            <source>Remove this folder and its photos from the library? Original files on disk will not be deleted.</source>
+            <translation>이 폴더와 해당 사진을 라이브러리에서 삭제하시겠습니까? 디스크에 있는 원본 파일은 삭제되지 않습니다.</translation>
         </message>
         <message>
             <source>Choose Import Source</source>
@@ -3554,6 +4240,85 @@
         </message>
     </context>
     <context>
+        <name>OfflineEditDialog</name>
+        <message>
+            <source>Offline-edit proxies</source>
+            <translation>오프라인 편집 프록시</translation>
+        </message>
+        <message>
+            <source>Select a photo.</source>
+            <translation>사진을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>pinned</source>
+            <translation>고정된</translation>
+        </message>
+        <message>
+            <source>unpinned</source>
+            <translation>고정 해제됨</translation>
+        </message>
+        <message>
+            <source>media_state=%1 · %2 · %3 · %4</source>
+            <translation>media_state=%1 · %2 · %3 · %4</translation>
+        </message>
+        <message>
+            <source>media_state=%1 · %2 · %3</source>
+            <translation>media_state=%1 · %2 · %3</translation>
+        </message>
+        <message>
+            <source>Baked sRGB proxy: Develop applies identity while media_state=proxy (no double-grade). Export stays fail-closed until reconnect. Before/After and scopes consume the same verified proxy.</source>
+            <translation>구운 sRGB 프록시: 개발은 media_state=proxy(이중 등급 없음)인 동안 ID를 적용합니다. 내보내기는 다시 연결될 때까지 장애가 발생한 상태로 유지됩니다. 이전/이후 및 범위는 동일한 확인된 프록시를 사용합니다.</translation>
+        </message>
+        <message>
+            <source>%1 prox%2 listed</source>
+            <translation>%1 prox%2 나열됨</translation>
+        </message>
+        <message>
+            <source>y</source>
+            <translation>와이</translation>
+        </message>
+        <message>
+            <source>ies</source>
+            <translation>즉</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>닫기</translation>
+        </message>
+        <message>
+            <source>Refresh</source>
+            <translation>새로고침</translation>
+        </message>
+        <message>
+            <source>Create</source>
+            <translation>만들기</translation>
+        </message>
+        <message>
+            <source>Unpin</source>
+            <translation>고정 해제</translation>
+        </message>
+        <message>
+            <source>Pin</source>
+            <translation>핀</translation>
+        </message>
+        <message>
+            <source>Delete</source>
+            <translation>삭제</translation>
+        </message>
+        <message>
+            <source>Reconnect</source>
+            <translation>다시 연결</translation>
+        </message>
+        <message>
+            <source>Reconnect + clear</source>
+            <translation>다시 연결 + 삭제</translation>
+        </message>
+        <message>
+            <source>Evict unpinned</source>
+            <translation>고정 해제된 퇴거</translation>
+        </message>
+    </context>
+    <context>
         <name>PhotoContextMenu</name>
         <message>
             <source>View Photo</source>
@@ -3570,6 +4335,18 @@
         <message>
             <source>Color Label</source>
             <translation>색상 레이블</translation>
+        </message>
+        <message>
+            <source>Edit in…</source>
+            <translation>편집 위치:</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxies…</source>
+            <translation>오프라인 편집 프록시…</translation>
+        </message>
+        <message>
+            <source>Inspect AI Proposal…</source>
+            <translation>AI 제안 검사…</translation>
         </message>
     </context>
     <context>
@@ -3615,12 +4392,56 @@
             <translation>태그 &amp; 메타데이터</translation>
         </message>
         <message>
-            <source>tags, comma separated</source>
-            <translation>태그, 쉼표로 구분</translation>
+            <source>keywords, comma separated; use | for hierarchy</source>
+            <translation>키워드, 쉼표로 구분; 사용 | 계층 구조에 대한</translation>
+        </message>
+        <message>
+            <source>Credit</source>
+            <translation>신용</translation>
+        </message>
+        <message>
+            <source>Source</source>
+            <translation>소스</translation>
+        </message>
+        <message>
+            <source>Instructions</source>
+            <translation>지침</translation>
+        </message>
+        <message>
+            <source>Usage Terms</source>
+            <translation>이용약관</translation>
+        </message>
+        <message>
+            <source>Job ID</source>
+            <translation>작업 ID</translation>
+        </message>
+        <message>
+            <source>Country</source>
+            <translation>국가</translation>
+        </message>
+        <message>
+            <source>Province / State</source>
+            <translation>지방 / 주</translation>
+        </message>
+        <message>
+            <source>City</source>
+            <translation>도시</translation>
+        </message>
+        <message>
+            <source>Sublocation</source>
+            <translation>하위 위치</translation>
         </message>
         <message>
             <source>Title</source>
             <translation>제목</translation>
+        </message>
+        <message>
+            <source>Headline</source>
+            <translation>헤드라인</translation>
+        </message>
+        <message>
+            <source>Description</source>
+            <translation>설명</translation>
         </message>
         <message>
             <source>Creator</source>
@@ -4020,6 +4841,10 @@
             <translation>먼저 사진을 선택하세요.</translation>
         </message>
         <message>
+            <source>No photos to select.</source>
+            <translation>선택할 사진이 없습니다.</translation>
+        </message>
+        <message>
             <source>Open a photo first.</source>
             <translation>먼저 사진을 여세요.</translation>
         </message>
@@ -4034,6 +4859,10 @@
         <message>
             <source>Nothing to redo.</source>
             <translation>다시 실행할 항목이 없습니다.</translation>
+        </message>
+        <message>
+            <source>Select at least two photos first.</source>
+            <translation>먼저 사진을 두 장 이상 선택하세요.</translation>
         </message>
         <message>
             <source>The selected originals cannot be deleted.</source>
@@ -4066,6 +4895,18 @@
         <message>
             <source>Unknown command source: %1</source>
             <translation>알 수 없는 명령 소스: %1</translation>
+        </message>
+        <message>
+            <source>Show in Finder</source>
+            <translation>Finder에 표시</translation>
+        </message>
+        <message>
+            <source>Show in Explorer</source>
+            <translation>탐색기에 표시</translation>
+        </message>
+        <message>
+            <source>Show in File Manager</source>
+            <translation>파일 관리자에 표시</translation>
         </message>
         <message>
             <source>File</source>
@@ -4172,6 +5013,10 @@
             <translation>다시 실행</translation>
         </message>
         <message>
+            <source>Paste Parameters to Selection</source>
+            <translation>매개변수를 선택 항목에 붙여넣기</translation>
+        </message>
+        <message>
             <source>Reset All Edits</source>
             <translation>모든 편집 초기화</translation>
         </message>
@@ -4186,6 +5031,18 @@
         <message>
             <source>Survey</source>
             <translation>비교 보기</translation>
+        </message>
+        <message>
+            <source>Burst Compare</source>
+            <translation>버스트 비교</translation>
+        </message>
+        <message>
+            <source>Burst Compare Previous</source>
+            <translation>버스트 비교 이전</translation>
+        </message>
+        <message>
+            <source>Burst Compare Next</source>
+            <translation>버스트 비교 다음</translation>
         </message>
         <message>
             <source>Fit</source>
@@ -4222,6 +5079,10 @@
         <message>
             <source>Next Photo</source>
             <translation>다음 사진</translation>
+        </message>
+        <message>
+            <source>Select All</source>
+            <translation>모두 선택</translation>
         </message>
         <message>
             <source>Extend Selection to Previous</source>
@@ -4280,8 +5141,16 @@
             <translation>보라</translation>
         </message>
         <message>
+            <source>Pick</source>
+            <translation>선택</translation>
+        </message>
+        <message>
             <source>Reject</source>
             <translation>거부</translation>
+        </message>
+        <message>
+            <source>Unflag</source>
+            <translation>플래그 해제</translation>
         </message>
         <message>
             <source>Copy Info</source>
@@ -4328,6 +5197,62 @@
             <translation>매개변수 붙여넣기</translation>
         </message>
         <message>
+            <source>Edit in...</source>
+            <translation>편집 위치:</translation>
+        </message>
+        <message>
+            <source>Check Returned External Edit</source>
+            <translation>반환된 외부 편집 확인</translation>
+        </message>
+        <message>
+            <source>Abandon External Edit Session</source>
+            <translation>외부 편집 세션 중단</translation>
+        </message>
+        <message>
+            <source>Reopen External Edit Session</source>
+            <translation>외부 편집 세션 다시 열기</translation>
+        </message>
+        <message>
+            <source>Refresh External Edit Status</source>
+            <translation>외부 편집 상태 새로 고침</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxies...</source>
+            <translation>오프라인 편집 프록시...</translation>
+        </message>
+        <message>
+            <source>Create Offline-edit Proxy</source>
+            <translation>오프라인 편집 프록시 만들기</translation>
+        </message>
+        <message>
+            <source>Reconnect Original</source>
+            <translation>원본 다시 연결</translation>
+        </message>
+        <message>
+            <source>Delete Offline-edit Proxy</source>
+            <translation>오프라인 편집 프록시 삭제</translation>
+        </message>
+        <message>
+            <source>Inspect AI Proposal...</source>
+            <translation>AI 제안 검사...</translation>
+        </message>
+        <message>
+            <source>Create Stub AI Proposal</source>
+            <translation>스텁 AI 제안 생성</translation>
+        </message>
+        <message>
+            <source>Apply AI Proposal</source>
+            <translation>AI 제안 적용</translation>
+        </message>
+        <message>
+            <source>Reject AI Proposal</source>
+            <translation>AI 제안 거부</translation>
+        </message>
+        <message>
+            <source>Cancel AI Proposal</source>
+            <translation>AI 제안 취소</translation>
+        </message>
+        <message>
             <source>Remove from Catalog...</source>
             <translation>카탈로그에서 제거...</translation>
         </message>
@@ -4366,6 +5291,10 @@
         <message>
             <source>Library</source>
             <translation>라이브러리</translation>
+        </message>
+        <message>
+            <source>Remove Folder from Catalog...</source>
+            <translation>카탈로그에서 폴더 제거...</translation>
         </message>
         <message>
             <source>About Ravo Studio</source>
@@ -4423,6 +5352,14 @@
             <source>Export filename template must be a string.</source>
             <translation>내보내기 파일 이름 템플릿은 문자열이어야 합니다.</translation>
         </message>
+        <message>
+            <source>External editor id must not be empty.</source>
+            <translation>외부 편집자 ID는 비워둘 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>A proposal id is required.</source>
+            <translation>제안서 ID가 필요합니다.</translation>
+        </message>
     </context>
     <context>
         <name>StudioExport</name>
@@ -4459,6 +5396,10 @@
             <translation>TIFF 해상도는 72에서 9600 DPI 사이여야 합니다.</translation>
         </message>
         <message>
+            <source>Long edge must be between 0 and 65535</source>
+            <translation>긴 가장자리는 0에서 65535 사이여야 합니다.</translation>
+        </message>
+        <message>
             <source>Export option must be an integer</source>
             <translation>내보내기 옵션은 정수여야 합니다</translation>
         </message>
@@ -4473,6 +5414,14 @@
         <message>
             <source>Export option has an unsupported value type</source>
             <translation>내보내기 옵션에 지원되지 않는 값 형식이 지정되었습니다</translation>
+        </message>
+        <message>
+            <source>Export option must be a number</source>
+            <translation>내보내기 옵션은 숫자여야 합니다.</translation>
+        </message>
+        <message>
+            <source>Export option must be a finite number</source>
+            <translation>내보내기 옵션은 유한한 숫자여야 합니다.</translation>
         </message>
         <message>
             <source>Export option must be a boolean</source>
@@ -4493,6 +5442,30 @@
         <message>
             <source>Unknown export format</source>
             <translation>알 수 없는 내보내기 형식입니다</translation>
+        </message>
+        <message>
+            <source>Max width must be between 0 and 65535</source>
+            <translation>최대 너비는 0에서 65535 사이여야 합니다.</translation>
+        </message>
+        <message>
+            <source>Max height must be between 0 and 65535</source>
+            <translation>최대 높이는 0에서 65535 사이여야 합니다.</translation>
+        </message>
+        <message>
+            <source>Output sharpen enabled must be a boolean</source>
+            <translation>활성화된 출력 선명도는 부울이어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Watermark enabled must be a boolean</source>
+            <translation>워터마크 활성화는 부울이어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Output colour enabled must be a boolean</source>
+            <translation>활성화된 출력 색상은 부울이어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Frame enabled must be a boolean</source>
+            <translation>활성화된 프레임은 부울이어야 합니다.</translation>
         </message>
         <message>
             <source>Export options map was mutated during conversion</source>
@@ -4680,6 +5653,22 @@
             <translation>매개변수를 붙여넣었습니다.</translation>
         </message>
         <message>
+            <source>Applying parameters to selection…</source>
+            <translation>선택 항목에 매개변수를 적용하는 중…</translation>
+        </message>
+        <message>
+            <source>Applying parameters to selection failed.</source>
+            <translation>선택 항목에 매개변수를 적용하지 못했습니다.</translation>
+        </message>
+        <message>
+            <source>Applied parameters to %1 of %2 selected photos.</source>
+            <translation>선택한 사진 %2개 중 %1개에 매개변수를 적용했습니다.</translation>
+        </message>
+        <message>
+            <source>Parameters applied to the selection.</source>
+            <translation>선택 항목에 적용되는 매개변수입니다.</translation>
+        </message>
+        <message>
             <source>Preset folder could not be created.</source>
             <translation>프리셋 폴더를 만들 수 없습니다.</translation>
         </message>
@@ -4860,8 +5849,20 @@
             <translation>가져올 대상을 선택하세요.</translation>
         </message>
         <message>
+            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
+            <translation>수집 전송은 복사 전용입니다. 이동 및 카메라 삭제는 계속 거부됩니다.</translation>
+        </message>
+        <message>
+            <source>Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the ptp-stub fixture.</source>
+            <translation>기본 PTP/MTP 어댑터가 패키지되어 있지 않습니다(%1). 파일 시스템 카드 또는 ptp-stub 고정 장치를 사용하십시오.</translation>
+        </message>
+        <message>
             <source>Importing 0 / %1…</source>
             <translation>가져오는 중 0 / %1…</translation>
+        </message>
+        <message>
+            <source>Ingest failed.</source>
+            <translation>수집에 실패했습니다.</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -4892,8 +5893,24 @@
             <translation>스택 대표를 업데이트했습니다.</translation>
         </message>
         <message>
+            <source>Cull review flag must be pick, reject, unflag, or unchanged.</source>
+            <translation>선별 검토 플래그는 선택, 거부, 플래그 해제 또는 변경되지 않아야 합니다.</translation>
+        </message>
+        <message>
+            <source>Rating must be an integer between 0 and 5.</source>
+            <translation>등급은 0에서 5 사이의 정수여야 합니다.</translation>
+        </message>
+        <message>
             <source>Capture metadata refreshed.</source>
             <translation>촬영 메타데이터를 새로 고쳤습니다.</translation>
+        </message>
+        <message>
+            <source>Cull flag filter must be any, picked, rejected, or unreviewed.</source>
+            <translation>선별 플래그 필터는 임의, 선택, 거부 또는 검토되지 않음이어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Cull suggestion filter must be none, exact_duplicate, near_duplicate, or burst.</source>
+            <translation>선별 제안 필터는 none, Exact_duplicate, Near_duplicate 또는 Burst여야 합니다.</translation>
         </message>
         <message>
             <source>Unknown media filter mode.</source>
@@ -4904,6 +5921,34 @@
             <translation>알 수 없는 편집 필터 모드입니다.</translation>
         </message>
         <message>
+            <source>Lens facet must be a focal length in millimeters.</source>
+            <translation>렌즈 면은 밀리미터 단위의 초점 거리여야 합니다.</translation>
+        </message>
+        <message>
+            <source>Select a folder first.</source>
+            <translation>먼저 폴더를 선택하세요.</translation>
+        </message>
+        <message>
+            <source>The selected folder has no local path.</source>
+            <translation>선택한 폴더에 로컬 경로가 없습니다.</translation>
+        </message>
+        <message>
+            <source>The folder is missing and cannot be shown in the file manager.</source>
+            <translation>폴더가 없어 파일 관리자에 표시할 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Showing the folder.</source>
+            <translation>폴더를 표시합니다.</translation>
+        </message>
+        <message>
+            <source>Removing folder…</source>
+            <translation>폴더 삭제 중…</translation>
+        </message>
+        <message>
+            <source>Folder removal failed.</source>
+            <translation>폴더 제거에 실패했습니다.</translation>
+        </message>
+        <message>
             <source>Removed from catalog. Original file was not deleted.</source>
             <translation>카탈로그에서 제거했습니다. 원본 파일은 삭제되지 않았습니다.</translation>
         </message>
@@ -4912,16 +5957,16 @@
             <translation>사진 %1장을 카탈로그에서 제거했습니다. 원본 파일은 삭제되지 않았습니다.</translation>
         </message>
         <message>
+            <source>Burst compare (Survey pair).</source>
+            <translation>버스트 비교(설문조사 쌍).</translation>
+        </message>
+        <message>
             <source>Deleted original file and catalog record.</source>
             <translation>원본 파일과 카탈로그 레코드를 삭제했습니다.</translation>
         </message>
         <message>
             <source>Deleted %1 original files and catalog records.</source>
             <translation>원본 파일 %1개와 카탈로그 레코드를 삭제했습니다.</translation>
-        </message>
-        <message>
-            <source>Imported %1, duplicate %2, unsupported %3, failed %4</source>
-            <translation>가져옴 %1, 중복 %2, 미지원 %3, 실패 %4</translation>
         </message>
         <message>
             <source>Verifying backup…</source>
@@ -5078,6 +6123,241 @@
         <message>
             <source>Cancelling catalog operation…</source>
             <translation>카탈로그 작업 취소 중…</translation>
+        </message>
+        <message>
+            <source>Refreshing AI proposals…</source>
+            <translation>AI 제안을 새롭게…</translation>
+        </message>
+        <message>
+            <source>AI proposal refresh failed.</source>
+            <translation>AI 제안 새로고침에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Loaded %1 AI proposal(s).</source>
+            <translation>%1개의 AI 제안을 로드했습니다.</translation>
+        </message>
+        <message>
+            <source>Creating stub AI proposal…</source>
+            <translation>스텁 AI 제안 생성 중…</translation>
+        </message>
+        <message>
+            <source>AI proposal create failed.</source>
+            <translation>AI 제안 생성에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Created stub AI proposal %1</source>
+            <translation>스텁 AI 제안 %1을(를) 만들었습니다</translation>
+        </message>
+        <message>
+            <source>Select an AI proposal first.</source>
+            <translation>먼저 AI 제안을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Applying AI proposal…</source>
+            <translation>AI 제안 적용 중…</translation>
+        </message>
+        <message>
+            <source>AI proposal apply failed.</source>
+            <translation>AI 제안 적용에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Applied AI proposal.</source>
+            <translation>AI 제안을 적용했습니다.</translation>
+        </message>
+        <message>
+            <source>Rejecting AI proposal…</source>
+            <translation>AI 제안 거부 중…</translation>
+        </message>
+        <message>
+            <source>AI proposal reject failed.</source>
+            <translation>AI 제안 거부에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Rejected AI proposal.</source>
+            <translation>AI 제안을 거부했습니다.</translation>
+        </message>
+        <message>
+            <source>Cancelling AI proposal…</source>
+            <translation>AI 제안 취소 중…</translation>
+        </message>
+        <message>
+            <source>AI proposal cancel failed.</source>
+            <translation>AI 제안 취소에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Cancelled AI proposal.</source>
+            <translation>AI 제안이 취소되었습니다.</translation>
+        </message>
+        <message>
+            <source>External editor id must not be empty.</source>
+            <translation>외부 편집자 ID는 비워둘 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Edit in… v1 only supports the sRGB working-copy profile.</source>
+            <translation>편집… v1은 sRGB 작업 복사본 프로필만 지원합니다.</translation>
+        </message>
+        <message>
+            <source>Preparing Edit in… working copy…</source>
+            <translation>편집 중… 작업 사본 준비 중…</translation>
+        </message>
+        <message>
+            <source>Edit in… working-copy prepare failed.</source>
+            <translation>편집… 작업 복사본 준비에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Prepared Edit in… working copy %1</source>
+            <translation>외부 편집 작업 사본 %1을(를) 준비했습니다</translation>
+        </message>
+        <message>
+            <source>The external editor could not be opened.</source>
+            <translation>외부 편집기를 열 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Opened working copy in editor.</source>
+            <translation>편집기에서 작업 복사본을 열었습니다.</translation>
+        </message>
+        <message>
+            <source>No Edit in… working-copy session is active.</source>
+            <translation>편집 없음… 작업 복사본 세션이 활성화되어 있습니다.</translation>
+        </message>
+        <message>
+            <source>Checking returned editor output…</source>
+            <translation>반환된 편집기 출력을 확인하는 중…</translation>
+        </message>
+        <message>
+            <source>Edit in… check-returned failed.</source>
+            <translation>편집… 확인 반환에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Edit in… check-returned failed: %1</source>
+            <translation>편집... 반환 확인 실패: %1</translation>
+        </message>
+        <message>
+            <source>Registered derived %1 and auto-stacked as pick</source>
+            <translation>파생된 %1을(를) 등록하고 선택 항목으로 자동 스택됨</translation>
+        </message>
+        <message>
+            <source>Registered returned editor output as %1</source>
+            <translation>반환된 편집기 출력을 %1(으)로 등록했습니다</translation>
+        </message>
+        <message>
+            <source>Abandoning Edit in… session…</source>
+            <translation>다음 위치에서 편집을 중단하는 중… 세션 중…</translation>
+        </message>
+        <message>
+            <source>Edit in… abandon failed.</source>
+            <translation>편집… 포기에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Abandoned Edit in… working-copy session.</source>
+            <translation>편집 위치… 작업 복사본 세션을 중단했습니다.</translation>
+        </message>
+        <message>
+            <source>Reopening Edit in… session…</source>
+            <translation>다음에서 편집을 다시 여는 중... 세션...</translation>
+        </message>
+        <message>
+            <source>Edit in… reopen failed.</source>
+            <translation>다음에서 수정… 다시 열 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Reopened Edit in… session (%1)</source>
+            <translation>편집 위치... 세션(%1)을 다시 열었습니다.</translation>
+        </message>
+        <message>
+            <source>Refreshing Edit in… status…</source>
+            <translation>편집 위치… 상태를 새로 고치는 중…</translation>
+        </message>
+        <message>
+            <source>Edit in… status refresh failed.</source>
+            <translation>편집... 상태 새로고침에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Edit in… session status: %1</source>
+            <translation>편집... 세션 상태: %1</translation>
+        </message>
+        <message>
+            <source>Select a photo first.</source>
+            <translation>먼저 사진을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>The selected photo has no local file path.</source>
+            <translation>선택한 사진에는 로컬 파일 경로가 없습니다.</translation>
+        </message>
+        <message>
+            <source>The original file is missing and cannot be shown in the file manager.</source>
+            <translation>원본 파일이 누락되어 파일 관리자에 표시될 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>The file manager could not be opened.</source>
+            <translation>파일 관리자를 열 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Showing the original file.</source>
+            <translation>원본 파일을 보여줍니다.</translation>
+        </message>
+        <message>
+            <source>Creating offline-edit proxy…</source>
+            <translation>오프라인 편집 프록시 생성 중…</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy created.</source>
+            <translation>오프라인 편집 프록시가 생성되었습니다.</translation>
+        </message>
+        <message>
+            <source>Reconnecting original…</source>
+            <translation>원본을 다시 연결하는 중…</translation>
+        </message>
+        <message>
+            <source>Original reconnected; offline state cleared.</source>
+            <translation>원본이 다시 연결되었습니다. 오프라인 상태가 삭제되었습니다.</translation>
+        </message>
+        <message>
+            <source>Deleting offline-edit proxy…</source>
+            <translation>오프라인 수정 프록시 삭제 중…</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy deleted.</source>
+            <translation>오프라인 편집 프록시가 삭제되었습니다.</translation>
+        </message>
+        <message>
+            <source>Pinning offline-edit proxy…</source>
+            <translation>오프라인 수정 프록시를 고정하는 중…</translation>
+        </message>
+        <message>
+            <source>Unpinning offline-edit proxy…</source>
+            <translation>오프라인 수정 프록시를 고정 해제하는 중…</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy pin updated.</source>
+            <translation>오프라인 편집 프록시 핀이 업데이트되었습니다.</translation>
+        </message>
+        <message>
+            <source>Evicting unpinned offline proxies…</source>
+            <translation>고정 해제된 오프라인 프록시를 제거하는 중…</translation>
+        </message>
+        <message>
+            <source>Evicted %1 unpinned offline-edit prox%2.</source>
+            <translation>고정 해제된 오프라인 편집 prox%2 %1을(를) 제거했습니다.</translation>
+        </message>
+        <message>
+            <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
+            <translation>%1 가져옴, 중복 %2, 건너뛰었습니다 %3, 지원되지 않음 %4, 실패 %5</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioWindowGeometry</name>
+        <message>
+            <source>Window size or position is invalid.</source>
+            <translation>창 크기 또는 위치가 잘못되었습니다.</translation>
+        </message>
+        <message>
+            <source>Unable to save the window position.</source>
+            <translation>창 위치를 저장할 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Unable to repair the stored window position.</source>
+            <translation>저장된 창 위치를 복구할 수 없습니다.</translation>
         </message>
     </context>
     <context>

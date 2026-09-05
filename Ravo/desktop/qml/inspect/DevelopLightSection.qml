@@ -27,7 +27,7 @@ DevelopSection {
             Layout.fillWidth: true
             // RapidRAW exposes this as a separate technical control. Keep the
             // source name verbatim so it cannot be mistaken for filmic Exposure.
-            title: "EV Shift"
+            title: qsTr("EV Shift")
             from: -5
             to: 5
             stepSize: 0.01

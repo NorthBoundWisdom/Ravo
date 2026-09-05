@@ -2,6 +2,79 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="fr_FR">
     <context>
+        <name>AiProposalDialog</name>
+        <message>
+            <source>AI Proposal</source>
+            <translation>Proposition d'IA</translation>
+        </message>
+        <message>
+            <source>Global edit (stub)</source>
+            <translation>Modification globale (stub)</translation>
+        </message>
+        <message>
+            <source>Semantic mask (stub)</source>
+            <translation>Masque sémantique (stub)</translation>
+        </message>
+        <message>
+            <source>Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.</source>
+            <translation>Propositions tronquées uniquement (ADR-0121). Pas de réseau et pas de poids de modèle. Inspectez le champ de comparaison, puis appliquez, rejetez ou annulez.</translation>
+        </message>
+        <message>
+            <source>Create</source>
+            <translation>Créer</translation>
+        </message>
+        <message>
+            <source>Label</source>
+            <translation>Étiquette</translation>
+        </message>
+        <message>
+            <source>Proposals for selection</source>
+            <translation>Propositions de sélection</translation>
+        </message>
+        <message>
+            <source>%1 · %2 · %3</source>
+            <translation>%1 · %2 · %3</translation>
+        </message>
+        <message>
+            <source>No proposal selected.</source>
+            <translation>Aucune proposition sélectionnée.</translation>
+        </message>
+        <message>
+            <source>Selected %1 (%2)
+Provider %3 / %4
+Fields: %5
+Diff: %6</source>
+            <translation>%1 sélectionné (%2)
+Fournisseur %3 / %4
+Champs : %5
+Différence : %6</translation>
+        </message>
+        <message>
+            <source>Refresh</source>
+            <translation>Actualiser</translation>
+        </message>
+        <message>
+            <source>Create Stub</source>
+            <translation>Créer un talon</translation>
+        </message>
+        <message>
+            <source>Cancel Proposal</source>
+            <translation>Annuler la proposition</translation>
+        </message>
+        <message>
+            <source>Reject</source>
+            <translation>Reject</translation>
+        </message>
+        <message>
+            <source>Apply</source>
+            <translation>Postuler</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Fermer</translation>
+        </message>
+    </context>
+    <context>
         <name>AssistantPanel</name>
         <message>
             <source>Assistant</source>
@@ -209,6 +282,22 @@
             <translation>Afficher le masque superposé</translation>
         </message>
         <message>
+            <source>Place on photo</source>
+            <translation>Placer sur la photo</translation>
+        </message>
+        <message>
+            <source>Click the photo to place the circle, ellipse, or gradient. Canvas, Perspective, straighten, rotate, and flip must be off.</source>
+            <translation>Cliquez sur la photo pour placer le cercle, l'ellipse ou le dégradé. Toile, Perspective, redresser, faire pivoter et retourner doivent être désactivés.</translation>
+        </message>
+        <message>
+            <source>Assist from photo</source>
+            <translation>Aide à partir d'une photo</translation>
+        </message>
+        <message>
+            <source>Click the photo to set parametric thresholds from the display histogram channel. Canvas, Perspective, straighten, rotate, and flip must be off.</source>
+            <translation>Cliquez sur la photo pour définir les seuils paramétriques à partir du canal d'affichage de l'histogramme. Toile, Perspective, redresser, faire pivoter et retourner doivent être désactivés.</translation>
+        </message>
+        <message>
             <source>Group child</source>
             <translation>Enfant du groupe</translation>
         </message>
@@ -327,6 +416,10 @@
         <message>
             <source>Exposure</source>
             <translation>Exposition</translation>
+        </message>
+        <message>
+            <source>EV Shift</source>
+            <translation>Changement EV</translation>
         </message>
         <message>
             <source>Compensate exposure bias</source>
@@ -2449,6 +2542,46 @@
             <translation>Saturation du nœud 4</translation>
         </message>
         <message>
+            <source>Mask click placement has no overlay target</source>
+            <translation>Le placement du clic du masque n'a pas de cible de superposition</translation>
+        </message>
+        <message>
+            <source>Mask click placement was rejected</source>
+            <translation>Le placement du clic sur le masque a été refusé</translation>
+        </message>
+        <message>
+            <source>Mask click placement requires an editable attached mask</source>
+            <translation>Le placement du clic sur le masque nécessite un masque attaché modifiable</translation>
+        </message>
+        <message>
+            <source>Mask click placement supports circle, ellipse, or linear gradient</source>
+            <translation>Le placement du clic du masque prend en charge le cercle, l'ellipse ou le dégradé linéaire</translation>
+        </message>
+        <message>
+            <source>Parametric assist has no overlay target</source>
+            <translation>L'assistance paramétrique n'a pas de cible de superposition</translation>
+        </message>
+        <message>
+            <source>Parametric assist is not available for this operation</source>
+            <translation>L'assistance paramétrique n'est pas disponible pour cette opération</translation>
+        </message>
+        <message>
+            <source>Parametric assist is unavailable with Canvas, Perspective, straighten, rotate, or flip</source>
+            <translation>L'assistance paramétrique n'est pas disponible avec Canvas, Perspective, redresser, faire pivoter ou retourner.</translation>
+        </message>
+        <message>
+            <source>Parametric assist was rejected</source>
+            <translation>L'assistance paramétrique a été rejetée</translation>
+        </message>
+        <message>
+            <source>Parametric assist requires an editable attached parametric mask</source>
+            <translation>L'assistance paramétrique nécessite un masque paramétrique attaché modifiable</translation>
+        </message>
+        <message>
+            <source>Parametric assist needs a preview</source>
+            <translation>L'assistance paramétrique a besoin d'un aperçu</translation>
+        </message>
+        <message>
             <source>Orange</source>
             <translation>Orange</translation>
         </message>
@@ -2593,6 +2726,14 @@
             <translation>Masques</translation>
         </message>
         <message>
+            <source>Exposure instances</source>
+            <translation>Instances d'exposition</translation>
+        </message>
+        <message>
+            <source>Color Balance RGB instances</source>
+            <translation>Instances RVB de balance des couleurs</translation>
+        </message>
+        <message>
             <source>Section bypass state</source>
             <translation>État de contournement des sections</translation>
         </message>
@@ -2615,6 +2756,46 @@
         <message>
             <source>Mask reset was rejected</source>
             <translation>Masque reset was rejected</translation>
+        </message>
+        <message>
+            <source>Instances</source>
+            <translation>Instances</translation>
+        </message>
+        <message>
+            <source>Add</source>
+            <translation>Ajouter</translation>
+        </message>
+        <message>
+            <source>Duplicate</source>
+            <translation>Dupliquer</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>Activées</translation>
+        </message>
+        <message>
+            <source>Bypass</source>
+            <translation>Contourner</translation>
+        </message>
+        <message>
+            <source>Delete</source>
+            <translation>Supprimer</translation>
+        </message>
+        <message>
+            <source>Rename selected instance</source>
+            <translation>Renommer l'instance sélectionnée</translation>
+        </message>
+        <message>
+            <source>Rename</source>
+            <translation>Renommer</translation>
+        </message>
+        <message>
+            <source>Exposure instance was not found.</source>
+            <translation>L'instance d'exposition n'a pas été trouvée.</translation>
+        </message>
+        <message>
+            <source>Color Balance RGB instance was not found.</source>
+            <translation>L'instance RVB de la balance des couleurs n'a pas été trouvée.</translation>
         </message>
     </context>
     <context>
@@ -2646,6 +2827,157 @@
         <message>
             <source>Copy Preset Info</source>
             <translation>Copier les informations du préréglage</translation>
+        </message>
+    </context>
+    <context>
+        <name>EditInDialog</name>
+        <message>
+            <source>Edit in…</source>
+            <translation>Modifier dans…</translation>
+        </message>
+        <message>
+            <source>8-bit</source>
+            <translation>8-bit</translation>
+        </message>
+        <message>
+            <source>16-bit</source>
+            <translation>16-bit</translation>
+        </message>
+        <message>
+            <source>Create a catalog-owned TIFF working copy, open it in an external editor, then check the returned file. Originals stay byte-identical.</source>
+            <translation>Créez une copie de travail TIFF appartenant au catalogue, ouvrez-la dans un éditeur externe, puis vérifiez le fichier renvoyé. Les originaux restent identiques en octets.</translation>
+        </message>
+        <message>
+            <source>Editor id</source>
+            <translation>Identifiant de l'éditeur</translation>
+        </message>
+        <message>
+            <source>External editor id</source>
+            <translation>Identifiant de l'éditeur externe</translation>
+        </message>
+        <message>
+            <source>Editor version</source>
+            <translation>Version éditeur</translation>
+        </message>
+        <message>
+            <source>External editor version</source>
+            <translation>Version éditeur externe</translation>
+        </message>
+        <message>
+            <source>Application</source>
+            <translation>Demande</translation>
+        </message>
+        <message>
+            <source>External editor application path</source>
+            <translation>Chemin de l'application de l'éditeur externe</translation>
+        </message>
+        <message>
+            <source>Optional path (empty uses OS default)</source>
+            <translation>Chemin facultatif (vide utilise la valeur par défaut du système d'exploitation)</translation>
+        </message>
+        <message>
+            <source>TIFF sample</source>
+            <translation>Échantillon TIFF</translation>
+        </message>
+        <message>
+            <source>Working-copy TIFF sample type</source>
+            <translation>Type d'échantillon TIFF de copie de travail</translation>
+        </message>
+        <message>
+            <source>Profile</source>
+            <translation>Profil</translation>
+        </message>
+        <message>
+            <source>sRGB (v1 only)</source>
+            <translation>sRGB (v1 uniquement)</translation>
+        </message>
+        <message>
+            <source>Max edge</source>
+            <translation>Bord maximum</translation>
+        </message>
+        <message>
+            <source>Working-copy max edge</source>
+            <translation>Bord maximum de la copie de travail</translation>
+        </message>
+        <message>
+            <source>Auto-stack derived pair on return</source>
+            <translation>Paire dérivée à pile automatique au retour</translation>
+        </message>
+        <message>
+            <source>Open working copy after prepare</source>
+            <translation>Ouvrir la copie de travail après la préparation</translation>
+        </message>
+        <message>
+            <source>Registered derived %1 — auto-stacked as pick</source>
+            <translation>Dérivé enregistré %1 — empilé automatiquement en tant que sélection</translation>
+        </message>
+        <message>
+            <source>Registered derived %1</source>
+            <translation>Dérivé enregistré %1</translation>
+        </message>
+        <message>
+            <source>Session %1 (registered)</source>
+            <translation>Session %1 (enregistrée)</translation>
+        </message>
+        <message>
+            <source>Working copy missing — reopen unavailable until restored</source>
+            <translation>Copie de travail manquante – réouverture indisponible jusqu'à la restauration</translation>
+        </message>
+        <message>
+            <source>Source original changed — return blocked</source>
+            <translation>Source originale modifiée — retour bloqué</translation>
+        </message>
+        <message>
+            <source>Catalog revision stale — refresh or reopen</source>
+            <translation>Révision du catalogue obsolète : actualiser ou rouvrir</translation>
+        </message>
+        <message>
+            <source>Returned file unchanged — edit then check returned</source>
+            <translation>Fichier renvoyé inchangé - modification puis vérification renvoyée</translation>
+        </message>
+        <message>
+            <source>Returned file missing</source>
+            <translation>Fichier renvoyé manquant</translation>
+        </message>
+        <message>
+            <source>Source mutated during return — publication blocked</source>
+            <translation>Source mutée lors du retour — publication bloquée</translation>
+        </message>
+        <message>
+            <source>Working copy modified — ready to check returned</source>
+            <translation>Copie de travail modifiée — prête à vérifier renvoyée</translation>
+        </message>
+        <message>
+            <source>Working copy pending — open editor, then check returned</source>
+            <translation>Copie de travail en attente – ouvrir l'éditeur, puis chèque renvoyé</translation>
+        </message>
+        <message>
+            <source>Session %1 — %2</source>
+            <translation>Séance %1 — %2</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Annuler</translation>
+        </message>
+        <message>
+            <source>Abandon</source>
+            <translation>Abandonner</translation>
+        </message>
+        <message>
+            <source>Reopen</source>
+            <translation>Réouvrir</translation>
+        </message>
+        <message>
+            <source>Refresh Status</source>
+            <translation>Actualiser le statut</translation>
+        </message>
+        <message>
+            <source>Check Returned</source>
+            <translation>Chèque retourné</translation>
+        </message>
+        <message>
+            <source>Prepare Working Copy</source>
+            <translation>Préparer une copie de travail</translation>
         </message>
     </context>
     <context>
@@ -2681,6 +3013,158 @@
         <message>
             <source>Metadata privacy</source>
             <translation>Confidentialité des métadonnées</translation>
+        </message>
+        <message>
+            <source>Long edge</source>
+            <translation>Bord long</translation>
+        </message>
+        <message>
+            <source>Maximum long edge</source>
+            <translation>Bord long maximum</translation>
+        </message>
+        <message>
+            <source>Maximum long edge (0 keeps the rendered size)</source>
+            <translation>Bord long maximum (0 conserve la taille du rendu)</translation>
+        </message>
+        <message>
+            <source>Max width</source>
+            <translation>Largeur maximale</translation>
+        </message>
+        <message>
+            <source>Maximum export width</source>
+            <translation>Largeur d'exportation maximale</translation>
+        </message>
+        <message>
+            <source>Maximum width (0 unconstrained)</source>
+            <translation>Largeur maximale (0 sans contrainte)</translation>
+        </message>
+        <message>
+            <source>Max height</source>
+            <translation>Hauteur maximale</translation>
+        </message>
+        <message>
+            <source>Maximum export height</source>
+            <translation>Hauteur d'exportation maximale</translation>
+        </message>
+        <message>
+            <source>Maximum height (0 unconstrained)</source>
+            <translation>Hauteur maximale (0 sans contrainte)</translation>
+        </message>
+        <message>
+            <source>Output sharpen</source>
+            <translation>Renforcement de la sortie</translation>
+        </message>
+        <message>
+            <source>Enable export output sharpen</source>
+            <translation>Activer la netteté de la production à l’exportation</translation>
+        </message>
+        <message>
+            <source>After resize</source>
+            <translation>Après redimensionnement</translation>
+        </message>
+        <message>
+            <source>Enable output sharpen after resize</source>
+            <translation>Activer la netteté de la sortie après le redimensionnement</translation>
+        </message>
+        <message>
+            <source>Sharpen amount</source>
+            <translation>Montant d'affûtage</translation>
+        </message>
+        <message>
+            <source>Sharpen radius</source>
+            <translation>Rayon d'affûtage</translation>
+        </message>
+        <message>
+            <source>Sharpen threshold</source>
+            <translation>Aiguiser le seuil</translation>
+        </message>
+        <message>
+            <source>Delivery colour</source>
+            <translation>Couleur de livraison</translation>
+        </message>
+        <message>
+            <source>Enable export delivery colour override</source>
+            <translation>Activer le remplacement des couleurs de livraison à l'exportation</translation>
+        </message>
+        <message>
+            <source>Override output profile</source>
+            <translation>Remplacer le profil de sortie</translation>
+        </message>
+        <message>
+            <source>Enable delivery colour override for this export</source>
+            <translation>Activer le remplacement des couleurs de livraison pour cette exportation</translation>
+        </message>
+        <message>
+            <source>Output profile</source>
+            <translation>Profil de sortie</translation>
+        </message>
+        <message>
+            <source>Delivery output colour profile</source>
+            <translation>Profil de couleur de sortie de livraison</translation>
+        </message>
+        <message>
+            <source>Rendering intent</source>
+            <translation>Intention de rendu</translation>
+        </message>
+        <message>
+            <source>Delivery colour rendering intent</source>
+            <translation>Intention de rendu des couleurs de livraison</translation>
+        </message>
+        <message>
+            <source>Delivery frame</source>
+            <translation>Cadre de livraison</translation>
+        </message>
+        <message>
+            <source>Enable export delivery frame</source>
+            <translation>Activer le cadre de livraison export</translation>
+        </message>
+        <message>
+            <source>After sharpen</source>
+            <translation>Après avoir aiguisé</translation>
+        </message>
+        <message>
+            <source>Enable delivery frame after sharpen before watermark</source>
+            <translation>Activer le cadre de livraison après la netteté avant le filigrane</translation>
+        </message>
+        <message>
+            <source>Frame size</source>
+            <translation>Taille du cadre</translation>
+        </message>
+        <message>
+            <source>Delivery watermark</source>
+            <translation>Filigrane de livraison</translation>
+        </message>
+        <message>
+            <source>Enable export delivery watermark</source>
+            <translation>Activer le filigrane de livraison à l'exportation</translation>
+        </message>
+        <message>
+            <source>Enable delivery watermark after sharpen</source>
+            <translation>Activer le filigrane de livraison après la netteté</translation>
+        </message>
+        <message>
+            <source>Watermark text</source>
+            <translation>Texte en filigrane</translation>
+        </message>
+        <message>
+            <source>Delivery watermark text</source>
+            <translation>Texte en filigrane de livraison</translation>
+        </message>
+        <message>
+            <source>Watermark opacity</source>
+            <translation>Opacité du filigrane</translation>
+        </message>
+        <message>
+            <source>Watermark scale</source>
+            <translation>Échelle du filigrane</translation>
+        </message>
+        <message>
+            <source>Watermark alignment</source>
+            <translation>Alignement du filigrane</translation>
+        </message>
+        <message>
+            <source>Delivery watermark alignment</source>
+            <translation>Alignement du filigrane de livraison</translation>
         </message>
         <message>
             <source>Quality</source>
@@ -2842,6 +3326,73 @@
             <source>No public metadata</source>
             <translation>Pas de métadonnées publiques</translation>
         </message>
+        <message>
+            <source>Top left</source>
+            <translation>En haut à gauche</translation>
+        </message>
+        <message>
+            <source>Top center</source>
+            <translation>En haut au centre</translation>
+        </message>
+        <message>
+            <source>Top right</source>
+            <translation>En haut à droite</translation>
+        </message>
+        <message>
+            <source>Center left</source>
+            <translation>Au centre à gauche</translation>
+        </message>
+        <message>
+            <source>Center</source>
+            <translation>Centre</translation>
+        </message>
+        <message>
+            <source>Center right</source>
+            <translation>Au centre à droite</translation>
+        </message>
+        <message>
+            <source>Bottom left</source>
+            <translation>En bas à gauche</translation>
+        </message>
+        <message>
+            <source>Bottom center</source>
+            <translation>En bas au centre</translation>
+        </message>
+        <message>
+            <source>Bottom right</source>
+            <translation>En bas à droite</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderContextMenu</name>
+        <message>
+            <source>Show in File Manager</source>
+            <translation>Afficher dans le gestionnaire de fichiers</translation>
+        </message>
+        <message>
+            <source>Import Photos...</source>
+            <translation>Importer Photos...</translation>
+        </message>
+        <message>
+            <source>Import Photos from This Folder...</source>
+            <translation>Importer des photos à partir de ce dossier...</translation>
+        </message>
+        <message>
+            <source>Update Folder Location...</source>
+            <translation>Mettre à jour l'emplacement du dossier...</translation>
+        </message>
+        <message>
+            <source>Expand</source>
+            <translation>Développer</translation>
+        </message>
+        <message>
+            <source>Collapse</source>
+            <translation>Réduire</translation>
+        </message>
+        <message>
+            <source>Remove from Catalog...</source>
+            <translation>Supprimer from Catalog...</translation>
+        </message>
     </context>
     <context>
         <name>FolderDialogPage</name>
@@ -2852,6 +3403,10 @@
     </context>
     <context>
         <name>GalleryReviewBar</name>
+        <message>
+            <source>More</source>
+            <translation>Plus</translation>
+        </message>
         <message>
             <source>Y|Y</source>
             <translation>Y|Y</translation>
@@ -2873,6 +3428,18 @@
             <translation>Taille</translation>
         </message>
         <message>
+            <source>Rating</source>
+            <translation>Note</translation>
+        </message>
+        <message>
+            <source>Rating %1</source>
+            <translation>Note %1</translation>
+        </message>
+        <message>
+            <source>Color label</source>
+            <translation>Étiquette de couleur</translation>
+        </message>
+        <message>
             <source>Keep</source>
             <translation>Conserver</translation>
         </message>
@@ -2881,12 +3448,23 @@
             <translation>Reject</translation>
         </message>
         <message>
+            <source>Pick</source>
+            <translation>Choisir</translation>
+        </message>
+        <message>
             <source>Previous</source>
             <translation>Précédente</translation>
         </message>
         <message>
             <source>Next</source>
             <translation>Suivante</translation>
+        </message>
+    </context>
+    <context>
+        <name>ImportFolderTree</name>
+        <message>
+            <source>No folders</source>
+            <translation>Aucun dossier</translation>
         </message>
     </context>
     <context>
@@ -2918,10 +3496,6 @@
         <message>
             <source>Choose Source…</source>
             <translation>Choisir la source…</translation>
-        </message>
-        <message>
-            <source>No source selected</source>
-            <translation>Aucune source sélectionnée</translation>
         </message>
         <message>
             <source>Include subfolders</source>
@@ -2984,10 +3558,6 @@
             <translation>Choisir la destination…</translation>
         </message>
         <message>
-            <source>No destination selected</source>
-            <translation>Aucune destination sélectionnée</translation>
-        </message>
-        <message>
             <source>Organize</source>
             <translation>Organiser</translation>
         </message>
@@ -3002,6 +3572,10 @@
         <message>
             <source>By date (YYYY/MM/DD)</source>
             <translation>Par date (YYYY/MM/DD)</translation>
+        </message>
+        <message>
+            <source>By month (YYYY/MM)</source>
+            <translation>Par mois (AAAA/MM)</translation>
         </message>
         <message>
             <source>Rename template</source>
@@ -3042,6 +3616,14 @@
         <message>
             <source>Importing %1 / %2…</source>
             <translation>Importering %1 / %2…</translation>
+        </message>
+        <message>
+            <source>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</source>
+            <translation>Dernière acquisition %1 : %2 importé, %3 en double, %4 ignoré, échec %5.</translation>
+        </message>
+        <message>
+            <source>Resume batch %1.</source>
+            <translation>Reprendre le lot %1.</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -3119,6 +3701,78 @@
             <translation>Uniquement</translation>
         </message>
         <message>
+            <source>Any review</source>
+            <translation>Tout avis</translation>
+        </message>
+        <message>
+            <source>Picked</source>
+            <translation>Choisi</translation>
+        </message>
+        <message>
+            <source>Unreviewed</source>
+            <translation>Non révisé</translation>
+        </message>
+        <message>
+            <source>No suggestion</source>
+            <translation>Aucune suggestion</translation>
+        </message>
+        <message>
+            <source>Exact byte duplicate</source>
+            <translation>Duplication exacte d'octets</translation>
+        </message>
+        <message>
+            <source>Near duplicate (heuristic)</source>
+            <translation>Quasi-double (heuristique)</translation>
+        </message>
+        <message>
+            <source>Burst</source>
+            <translation>Éclater</translation>
+        </message>
+        <message>
+            <source>Camera make</source>
+            <translation>Marque de l'appareil photo</translation>
+        </message>
+        <message>
+            <source>Camera model</source>
+            <translation>Modèle de caméra</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>%1 photos</translation>
+        </message>
+        <message>
+            <source>Focal mm</source>
+            <translation>Focale mm</translation>
+        </message>
+        <message>
+            <source>Lens make</source>
+            <translation>Marque d'objectif</translation>
+        </message>
+        <message>
+            <source>Lens model</source>
+            <translation>Modèle d'objectif</translation>
+        </message>
+        <message>
+            <source>YYYY:MM:DD</source>
+            <translation>AAAA : MM : JJ</translation>
+        </message>
+        <message>
+            <source>Country</source>
+            <translation>Pays</translation>
+        </message>
+        <message>
+            <source>State</source>
+            <translation>État</translation>
+        </message>
+        <message>
+            <source>City</source>
+            <translation>Ville</translation>
+        </message>
+        <message>
+            <source>Sublocation</source>
+            <translation>Sous-location</translation>
+        </message>
+        <message>
             <source>Add filter</source>
             <translation>Ajouter un filtre</translation>
         </message>
@@ -3141,6 +3795,26 @@
         <message>
             <source>Rejected</source>
             <translation>Rejetée</translation>
+        </message>
+        <message>
+            <source>Camera</source>
+            <translation>Appareil photo</translation>
+        </message>
+        <message>
+            <source>Lens</source>
+            <translation>Objectif</translation>
+        </message>
+        <message>
+            <source>Lens name</source>
+            <translation>Nom de l'objectif</translation>
+        </message>
+        <message>
+            <source>Capture date</source>
+            <translation>Date de capture</translation>
+        </message>
+        <message>
+            <source>Location</source>
+            <translation>Emplacement</translation>
         </message>
         <message>
             <source>Import time</source>
@@ -3349,6 +4023,10 @@
             <translation>Copie originale (*)</translation>
         </message>
         <message>
+            <source>Remove “%1” and its photos from the library? Original files on disk will not be deleted.</source>
+            <translation>Supprimer « %1 » et ses photos de la bibliothèque ? Les fichiers originaux sur le disque ne seront pas supprimés.</translation>
+        </message>
+        <message>
             <source>Remove %1 photos from the library? Original files on disk will not be deleted.</source>
             <translation>Retirer %1 photos de la bibliothèque ? Les fichiers originaux sur le disque ne seront pas supprimés.</translation>
         </message>
@@ -3419,6 +4097,14 @@
         <message>
             <source>Create or open a library to import photos.</source>
             <translation>Créez ou ouvrez une bibliothèque pour importer des photos.</translation>
+        </message>
+        <message>
+            <source>Remove Folder from Catalog</source>
+            <translation>Supprimer le dossier du catalogue</translation>
+        </message>
+        <message>
+            <source>Remove this folder and its photos from the library? Original files on disk will not be deleted.</source>
+            <translation>Supprimer ce dossier et ses photos de la bibliothèque ? Les fichiers originaux sur le disque ne seront pas supprimés.</translation>
         </message>
         <message>
             <source>Choose Import Source</source>
@@ -3554,6 +4240,85 @@
         </message>
     </context>
     <context>
+        <name>OfflineEditDialog</name>
+        <message>
+            <source>Offline-edit proxies</source>
+            <translation>Proxies d'édition hors ligne</translation>
+        </message>
+        <message>
+            <source>Select a photo.</source>
+            <translation>Sélectionnez une photo.</translation>
+        </message>
+        <message>
+            <source>pinned</source>
+            <translation>épinglé</translation>
+        </message>
+        <message>
+            <source>unpinned</source>
+            <translation>non épinglé</translation>
+        </message>
+        <message>
+            <source>media_state=%1 · %2 · %3 · %4</source>
+            <translation>media_state=%1 · %2 · %3 · %4</translation>
+        </message>
+        <message>
+            <source>media_state=%1 · %2 · %3</source>
+            <translation>état_média=%1 · %2 · %3</translation>
+        </message>
+        <message>
+            <source>Baked sRGB proxy: Develop applies identity while media_state=proxy (no double-grade). Export stays fail-closed until reconnect. Before/After and scopes consume the same verified proxy.</source>
+            <translation>Proxy sRGB cuit : le développement applique l'identité tandis que media_state = proxy (pas de double qualité). L'exportation reste fermée jusqu'à la reconnexion. Avant/Après et les étendues consomment le même proxy vérifié.</translation>
+        </message>
+        <message>
+            <source>%1 prox%2 listed</source>
+            <translation>%1 près%2 répertorié</translation>
+        </message>
+        <message>
+            <source>y</source>
+            <translation>oui</translation>
+        </message>
+        <message>
+            <source>ies</source>
+            <translation>ies</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Fermer</translation>
+        </message>
+        <message>
+            <source>Refresh</source>
+            <translation>Actualiser</translation>
+        </message>
+        <message>
+            <source>Create</source>
+            <translation>Créer</translation>
+        </message>
+        <message>
+            <source>Unpin</source>
+            <translation>Désépingler</translation>
+        </message>
+        <message>
+            <source>Pin</source>
+            <translation>Épingle</translation>
+        </message>
+        <message>
+            <source>Delete</source>
+            <translation>Supprimer</translation>
+        </message>
+        <message>
+            <source>Reconnect</source>
+            <translation>Reconnecter</translation>
+        </message>
+        <message>
+            <source>Reconnect + clear</source>
+            <translation>Reconnecter + effacer</translation>
+        </message>
+        <message>
+            <source>Evict unpinned</source>
+            <translation>Expulser non épinglé</translation>
+        </message>
+    </context>
+    <context>
         <name>PhotoContextMenu</name>
         <message>
             <source>View Photo</source>
@@ -3570,6 +4335,18 @@
         <message>
             <source>Color Label</source>
             <translation>Étiquette de couleur</translation>
+        </message>
+        <message>
+            <source>Edit in…</source>
+            <translation>Modifier dans…</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxies…</source>
+            <translation>Proxies d'édition hors ligne…</translation>
+        </message>
+        <message>
+            <source>Inspect AI Proposal…</source>
+            <translation>Inspecter la proposition d’IA…</translation>
         </message>
     </context>
     <context>
@@ -3615,12 +4392,56 @@
             <translation>Étiquettes et métadonnées</translation>
         </message>
         <message>
-            <source>tags, comma separated</source>
-            <translation>étiquettes, séparées par des virgules</translation>
+            <source>keywords, comma separated; use | for hierarchy</source>
+            <translation>mots-clés, séparés par des virgules ; utiliser | pour la hiérarchie</translation>
+        </message>
+        <message>
+            <source>Credit</source>
+            <translation>Crédit</translation>
+        </message>
+        <message>
+            <source>Source</source>
+            <translation>Source</translation>
+        </message>
+        <message>
+            <source>Instructions</source>
+            <translation>Instructions</translation>
+        </message>
+        <message>
+            <source>Usage Terms</source>
+            <translation>Conditions d'utilisation</translation>
+        </message>
+        <message>
+            <source>Job ID</source>
+            <translation>ID de travail</translation>
+        </message>
+        <message>
+            <source>Country</source>
+            <translation>Pays</translation>
+        </message>
+        <message>
+            <source>Province / State</source>
+            <translation>Province/État</translation>
+        </message>
+        <message>
+            <source>City</source>
+            <translation>Ville</translation>
+        </message>
+        <message>
+            <source>Sublocation</source>
+            <translation>Sous-location</translation>
         </message>
         <message>
             <source>Title</source>
             <translation>Titre</translation>
+        </message>
+        <message>
+            <source>Headline</source>
+            <translation>Titre</translation>
+        </message>
+        <message>
+            <source>Description</source>
+            <translation>Descriptif</translation>
         </message>
         <message>
             <source>Creator</source>
@@ -4020,6 +4841,10 @@
             <translation>Sélectionnez d’abord une photo.</translation>
         </message>
         <message>
+            <source>No photos to select.</source>
+            <translation>Aucune photo à sélectionner.</translation>
+        </message>
+        <message>
             <source>Open a photo first.</source>
             <translation>Ouvrez d’abord une photo.</translation>
         </message>
@@ -4034,6 +4859,10 @@
         <message>
             <source>Nothing to redo.</source>
             <translation>Rien à rétablir.</translation>
+        </message>
+        <message>
+            <source>Select at least two photos first.</source>
+            <translation>Sélectionnez d'abord au moins deux photos.</translation>
         </message>
         <message>
             <source>The selected originals cannot be deleted.</source>
@@ -4066,6 +4895,18 @@
         <message>
             <source>Unknown command source: %1</source>
             <translation>Source de commande inconnue : %1</translation>
+        </message>
+        <message>
+            <source>Show in Finder</source>
+            <translation>Afficher dans le Finder</translation>
+        </message>
+        <message>
+            <source>Show in Explorer</source>
+            <translation>Afficher dans l'Explorateur</translation>
+        </message>
+        <message>
+            <source>Show in File Manager</source>
+            <translation>Afficher dans le gestionnaire de fichiers</translation>
         </message>
         <message>
             <source>File</source>
@@ -4172,6 +5013,10 @@
             <translation>Rétablir</translation>
         </message>
         <message>
+            <source>Paste Parameters to Selection</source>
+            <translation>Coller les paramètres dans la sélection</translation>
+        </message>
+        <message>
             <source>Reset All Edits</source>
             <translation>Réinitialiser Tous Modifiers</translation>
         </message>
@@ -4186,6 +5031,18 @@
         <message>
             <source>Survey</source>
             <translation>Comparaison</translation>
+        </message>
+        <message>
+            <source>Burst Compare</source>
+            <translation>Comparaison en rafale</translation>
+        </message>
+        <message>
+            <source>Burst Compare Previous</source>
+            <translation>Rafale Comparer Précédent</translation>
+        </message>
+        <message>
+            <source>Burst Compare Next</source>
+            <translation>Rafale Comparer Suivant</translation>
         </message>
         <message>
             <source>Fit</source>
@@ -4222,6 +5079,10 @@
         <message>
             <source>Next Photo</source>
             <translation>Suivante Photo</translation>
+        </message>
+        <message>
+            <source>Select All</source>
+            <translation>Sélectionner tout</translation>
         </message>
         <message>
             <source>Extend Selection to Previous</source>
@@ -4280,8 +5141,16 @@
             <translation>Purple</translation>
         </message>
         <message>
+            <source>Pick</source>
+            <translation>Choisir</translation>
+        </message>
+        <message>
             <source>Reject</source>
             <translation>Reject</translation>
+        </message>
+        <message>
+            <source>Unflag</source>
+            <translation>Supprimer le drapeau</translation>
         </message>
         <message>
             <source>Copy Info</source>
@@ -4328,6 +5197,62 @@
             <translation>Coller les paramètres</translation>
         </message>
         <message>
+            <source>Edit in...</source>
+            <translation>Modifier dans...</translation>
+        </message>
+        <message>
+            <source>Check Returned External Edit</source>
+            <translation>Chèque renvoyé Modification externe</translation>
+        </message>
+        <message>
+            <source>Abandon External Edit Session</source>
+            <translation>Abandonner la session d'édition externe</translation>
+        </message>
+        <message>
+            <source>Reopen External Edit Session</source>
+            <translation>Rouvrir la session de modification externe</translation>
+        </message>
+        <message>
+            <source>Refresh External Edit Status</source>
+            <translation>Actualiser le statut de modification externe</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxies...</source>
+            <translation>Proxies d'édition hors ligne...</translation>
+        </message>
+        <message>
+            <source>Create Offline-edit Proxy</source>
+            <translation>Créer un proxy d'édition hors ligne</translation>
+        </message>
+        <message>
+            <source>Reconnect Original</source>
+            <translation>Reconnecter l'original</translation>
+        </message>
+        <message>
+            <source>Delete Offline-edit Proxy</source>
+            <translation>Supprimer le proxy hors ligne</translation>
+        </message>
+        <message>
+            <source>Inspect AI Proposal...</source>
+            <translation>Inspecter la proposition d'IA...</translation>
+        </message>
+        <message>
+            <source>Create Stub AI Proposal</source>
+            <translation>Créer une proposition IA stub</translation>
+        </message>
+        <message>
+            <source>Apply AI Proposal</source>
+            <translation>Appliquer la proposition d'IA</translation>
+        </message>
+        <message>
+            <source>Reject AI Proposal</source>
+            <translation>Rejeter la proposition d'IA</translation>
+        </message>
+        <message>
+            <source>Cancel AI Proposal</source>
+            <translation>Annuler la proposition d'IA</translation>
+        </message>
+        <message>
             <source>Remove from Catalog...</source>
             <translation>Supprimer from Catalog...</translation>
         </message>
@@ -4366,6 +5291,10 @@
         <message>
             <source>Library</source>
             <translation>Bibliothèque</translation>
+        </message>
+        <message>
+            <source>Remove Folder from Catalog...</source>
+            <translation>Supprimer le dossier du catalogue...</translation>
         </message>
         <message>
             <source>About Ravo Studio</source>
@@ -4423,6 +5352,14 @@
             <source>Export filename template must be a string.</source>
             <translation>Exporter filename template must be a string.</translation>
         </message>
+        <message>
+            <source>External editor id must not be empty.</source>
+            <translation>L’identifiant de l’éditeur externe ne doit pas être vide.</translation>
+        </message>
+        <message>
+            <source>A proposal id is required.</source>
+            <translation>Un identifiant de proposition est requis.</translation>
+        </message>
     </context>
     <context>
         <name>StudioExport</name>
@@ -4459,6 +5396,10 @@
             <translation>La résolution TIFF doit être comprise entre 72 et 9600 DPI</translation>
         </message>
         <message>
+            <source>Long edge must be between 0 and 65535</source>
+            <translation>Le bord long doit être compris entre 0 et 65535</translation>
+        </message>
+        <message>
             <source>Export option must be an integer</source>
             <translation>Exporter option must be an integer</translation>
         </message>
@@ -4473,6 +5414,14 @@
         <message>
             <source>Export option has an unsupported value type</source>
             <translation>Exporter option has an unsupported value type</translation>
+        </message>
+        <message>
+            <source>Export option must be a number</source>
+            <translation>L'option d'exportation doit être un nombre</translation>
+        </message>
+        <message>
+            <source>Export option must be a finite number</source>
+            <translation>L'option d'exportation doit être un nombre fini</translation>
         </message>
         <message>
             <source>Export option must be a boolean</source>
@@ -4493,6 +5442,30 @@
         <message>
             <source>Unknown export format</source>
             <translation>Inconnu export format</translation>
+        </message>
+        <message>
+            <source>Max width must be between 0 and 65535</source>
+            <translation>La largeur maximale doit être comprise entre 0 et 65535</translation>
+        </message>
+        <message>
+            <source>Max height must be between 0 and 65535</source>
+            <translation>La hauteur maximale doit être comprise entre 0 et 65535</translation>
+        </message>
+        <message>
+            <source>Output sharpen enabled must be a boolean</source>
+            <translation>La netteté de sortie activée doit être un booléen</translation>
+        </message>
+        <message>
+            <source>Watermark enabled must be a boolean</source>
+            <translation>Le filigrane activé doit être un booléen</translation>
+        </message>
+        <message>
+            <source>Output colour enabled must be a boolean</source>
+            <translation>La couleur de sortie activée doit être un booléen</translation>
+        </message>
+        <message>
+            <source>Frame enabled must be a boolean</source>
+            <translation>Le cadre activé doit être un booléen</translation>
         </message>
         <message>
             <source>Export options map was mutated during conversion</source>
@@ -4680,6 +5653,22 @@
             <translation>Paramètres collés.</translation>
         </message>
         <message>
+            <source>Applying parameters to selection…</source>
+            <translation>Application des paramètres à la sélection…</translation>
+        </message>
+        <message>
+            <source>Applying parameters to selection failed.</source>
+            <translation>L'application des paramètres à la sélection a échoué.</translation>
+        </message>
+        <message>
+            <source>Applied parameters to %1 of %2 selected photos.</source>
+            <translation>Paramètres appliqués à %1 des %2 photos sélectionnées.</translation>
+        </message>
+        <message>
+            <source>Parameters applied to the selection.</source>
+            <translation>Paramètres appliqués à la sélection.</translation>
+        </message>
+        <message>
             <source>Preset folder could not be created.</source>
             <translation>Impossible de créer le dossier des préréglages.</translation>
         </message>
@@ -4860,8 +5849,20 @@
             <translation>Choisissez une destination d’importation.</translation>
         </message>
         <message>
+            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
+            <translation>Les transports d'ingestion sont en copie uniquement ; Le déplacement et la suppression de la caméra restent rejetés.</translation>
+        </message>
+        <message>
+            <source>Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the ptp-stub fixture.</source>
+            <translation>L'adaptateur PTP/MTP natif n'est pas empaqueté (%1). Utilisez la carte du système de fichiers ou le luminaire ptp-stub.</translation>
+        </message>
+        <message>
             <source>Importing 0 / %1…</source>
             <translation>Importation de 0 / %1…</translation>
+        </message>
+        <message>
+            <source>Ingest failed.</source>
+            <translation>L'ingestion a échoué.</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -4892,8 +5893,24 @@
             <translation>Photo principale de la pile mise à jour.</translation>
         </message>
         <message>
+            <source>Cull review flag must be pick, reject, unflag, or unchanged.</source>
+            <translation>L’indicateur de révision de suppression doit être sélectionné, rejeté, annulé ou inchangé.</translation>
+        </message>
+        <message>
+            <source>Rating must be an integer between 0 and 5.</source>
+            <translation>La note doit être un entier compris entre 0 et 5.</translation>
+        </message>
+        <message>
             <source>Capture metadata refreshed.</source>
             <translation>Métadonnées de prise de vue actualisées.</translation>
+        </message>
+        <message>
+            <source>Cull flag filter must be any, picked, rejected, or unreviewed.</source>
+            <translation>Le filtre d'indicateur de suppression doit être n'importe lequel, sélectionné, rejeté ou non révisé.</translation>
+        </message>
+        <message>
+            <source>Cull suggestion filter must be none, exact_duplicate, near_duplicate, or burst.</source>
+            <translation>Le filtre de suggestion de suppression doit être none, exact_duplicate, near_duplicate ou burst.</translation>
         </message>
         <message>
             <source>Unknown media filter mode.</source>
@@ -4904,6 +5921,34 @@
             <translation>Inconnu edit filter mode.</translation>
         </message>
         <message>
+            <source>Lens facet must be a focal length in millimeters.</source>
+            <translation>La facette de l'objectif doit être une distance focale en millimètres.</translation>
+        </message>
+        <message>
+            <source>Select a folder first.</source>
+            <translation>Sélectionnez d'abord un dossier.</translation>
+        </message>
+        <message>
+            <source>The selected folder has no local path.</source>
+            <translation>Le dossier sélectionné n'a pas de chemin local.</translation>
+        </message>
+        <message>
+            <source>The folder is missing and cannot be shown in the file manager.</source>
+            <translation>Le dossier est manquant et ne peut pas être affiché dans le gestionnaire de fichiers.</translation>
+        </message>
+        <message>
+            <source>Showing the folder.</source>
+            <translation>Affichage du dossier.</translation>
+        </message>
+        <message>
+            <source>Removing folder…</source>
+            <translation>Suppression du dossier…</translation>
+        </message>
+        <message>
+            <source>Folder removal failed.</source>
+            <translation>La suppression du dossier a échoué.</translation>
+        </message>
+        <message>
             <source>Removed from catalog. Original file was not deleted.</source>
             <translation>Supprimerd from catalog. Original file was not deleted.</translation>
         </message>
@@ -4912,16 +5957,16 @@
             <translation>Supprimerd %1 photos from catalog. Original files were not deleted.</translation>
         </message>
         <message>
+            <source>Burst compare (Survey pair).</source>
+            <translation>Comparaison en rafale (paire d'enquête).</translation>
+        </message>
+        <message>
             <source>Deleted original file and catalog record.</source>
             <translation>Supprimerd original file and catalog record.</translation>
         </message>
         <message>
             <source>Deleted %1 original files and catalog records.</source>
             <translation>Supprimerd %1 original files and catalog records.</translation>
-        </message>
-        <message>
-            <source>Imported %1, duplicate %2, unsupported %3, failed %4</source>
-            <translation>Importerés : %1 ; doublons : %2 ; non pris en charge : %3 ; échecs : %4</translation>
         </message>
         <message>
             <source>Verifying backup…</source>
@@ -5078,6 +6123,241 @@
         <message>
             <source>Cancelling catalog operation…</source>
             <translation>Annulation de l’opération de catalogue…</translation>
+        </message>
+        <message>
+            <source>Refreshing AI proposals…</source>
+            <translation>Des propositions d’IA rafraîchissantes…</translation>
+        </message>
+        <message>
+            <source>AI proposal refresh failed.</source>
+            <translation>L'actualisation de la proposition d'IA a échoué.</translation>
+        </message>
+        <message>
+            <source>Loaded %1 AI proposal(s).</source>
+            <translation>%1 proposition(s) d'IA chargée(s).</translation>
+        </message>
+        <message>
+            <source>Creating stub AI proposal…</source>
+            <translation>Création d'une proposition d'IA stub…</translation>
+        </message>
+        <message>
+            <source>AI proposal create failed.</source>
+            <translation>La création de la proposition d'IA a échoué.</translation>
+        </message>
+        <message>
+            <source>Created stub AI proposal %1</source>
+            <translation>Proposition IA de stub %1 créée</translation>
+        </message>
+        <message>
+            <source>Select an AI proposal first.</source>
+            <translation>Sélectionnez d’abord une proposition d’IA.</translation>
+        </message>
+        <message>
+            <source>Applying AI proposal…</source>
+            <translation>Application de la proposition d’IA…</translation>
+        </message>
+        <message>
+            <source>AI proposal apply failed.</source>
+            <translation>L'application de la proposition d'IA a échoué.</translation>
+        </message>
+        <message>
+            <source>Applied AI proposal.</source>
+            <translation>Proposition d'IA appliquée.</translation>
+        </message>
+        <message>
+            <source>Rejecting AI proposal…</source>
+            <translation>Rejeter la proposition d’IA…</translation>
+        </message>
+        <message>
+            <source>AI proposal reject failed.</source>
+            <translation>Le rejet de la proposition d'IA a échoué.</translation>
+        </message>
+        <message>
+            <source>Rejected AI proposal.</source>
+            <translation>Proposition d'IA rejetée.</translation>
+        </message>
+        <message>
+            <source>Cancelling AI proposal…</source>
+            <translation>Annulation de la proposition d'IA…</translation>
+        </message>
+        <message>
+            <source>AI proposal cancel failed.</source>
+            <translation>L'annulation de la proposition d'IA a échoué.</translation>
+        </message>
+        <message>
+            <source>Cancelled AI proposal.</source>
+            <translation>Proposition d'IA annulée.</translation>
+        </message>
+        <message>
+            <source>External editor id must not be empty.</source>
+            <translation>L’identifiant de l’éditeur externe ne doit pas être vide.</translation>
+        </message>
+        <message>
+            <source>Edit in… v1 only supports the sRGB working-copy profile.</source>
+            <translation>Modifier dans… v1 ne prend en charge que le profil de copie de travail sRGB.</translation>
+        </message>
+        <message>
+            <source>Preparing Edit in… working copy…</source>
+            <translation>Préparation de l'édition dans… copie de travail…</translation>
+        </message>
+        <message>
+            <source>Edit in… working-copy prepare failed.</source>
+            <translation>Modifier dans… échec de la préparation de la copie de travail.</translation>
+        </message>
+        <message>
+            <source>Prepared Edit in… working copy %1</source>
+            <translation>Modification préparée dans… copie de travail %1</translation>
+        </message>
+        <message>
+            <source>The external editor could not be opened.</source>
+            <translation>L'éditeur externe n'a pas pu être ouvert.</translation>
+        </message>
+        <message>
+            <source>Opened working copy in editor.</source>
+            <translation>Copie de travail ouverte dans l'éditeur.</translation>
+        </message>
+        <message>
+            <source>No Edit in… working-copy session is active.</source>
+            <translation>Aucune édition dans… la session de copie de travail est active.</translation>
+        </message>
+        <message>
+            <source>Checking returned editor output…</source>
+            <translation>Vérification de la sortie de l'éditeur renvoyée…</translation>
+        </message>
+        <message>
+            <source>Edit in… check-returned failed.</source>
+            <translation>Modifier dans… échec du chèque renvoyé.</translation>
+        </message>
+        <message>
+            <source>Edit in… check-returned failed: %1</source>
+            <translation>Modification dans… échec du chèque renvoyé : %1</translation>
+        </message>
+        <message>
+            <source>Registered derived %1 and auto-stacked as pick</source>
+            <translation>Dérivé %1 enregistré et empilé automatiquement en tant que sélection</translation>
+        </message>
+        <message>
+            <source>Registered returned editor output as %1</source>
+            <translation>Sortie de l'éditeur renvoyée enregistrée en tant que %1</translation>
+        </message>
+        <message>
+            <source>Abandoning Edit in… session…</source>
+            <translation>Abandon de la modification dans… session…</translation>
+        </message>
+        <message>
+            <source>Edit in… abandon failed.</source>
+            <translation>Modification dans… échec de l'abandon.</translation>
+        </message>
+        <message>
+            <source>Abandoned Edit in… working-copy session.</source>
+            <translation>Modification abandonnée dans… session de copie de travail.</translation>
+        </message>
+        <message>
+            <source>Reopening Edit in… session…</source>
+            <translation>Réouverture de Modifier dans… session…</translation>
+        </message>
+        <message>
+            <source>Edit in… reopen failed.</source>
+            <translation>Modifier dans… échec de la réouverture.</translation>
+        </message>
+        <message>
+            <source>Reopened Edit in… session (%1)</source>
+            <translation>Modification rouverte dans… session (%1)</translation>
+        </message>
+        <message>
+            <source>Refreshing Edit in… status…</source>
+            <translation>Actualisation de la modification dans… statut…</translation>
+        </message>
+        <message>
+            <source>Edit in… status refresh failed.</source>
+            <translation>Échec de l'actualisation de l'état de la modification dans….</translation>
+        </message>
+        <message>
+            <source>Edit in… session status: %1</source>
+            <translation>Modifier dans… état de la session : %1</translation>
+        </message>
+        <message>
+            <source>Select a photo first.</source>
+            <translation>Sélectionnez d’abord une photo.</translation>
+        </message>
+        <message>
+            <source>The selected photo has no local file path.</source>
+            <translation>La photo sélectionnée n'a pas de chemin de fichier local.</translation>
+        </message>
+        <message>
+            <source>The original file is missing and cannot be shown in the file manager.</source>
+            <translation>Le fichier original est manquant et ne peut pas être affiché dans le gestionnaire de fichiers.</translation>
+        </message>
+        <message>
+            <source>The file manager could not be opened.</source>
+            <translation>Le gestionnaire de fichiers n'a pas pu être ouvert.</translation>
+        </message>
+        <message>
+            <source>Showing the original file.</source>
+            <translation>Affichage du fichier original.</translation>
+        </message>
+        <message>
+            <source>Creating offline-edit proxy…</source>
+            <translation>Création d'un proxy d'édition hors ligne…</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy created.</source>
+            <translation>Proxy d'édition hors ligne créé.</translation>
+        </message>
+        <message>
+            <source>Reconnecting original…</source>
+            <translation>Reconnexion de l'original…</translation>
+        </message>
+        <message>
+            <source>Original reconnected; offline state cleared.</source>
+            <translation>Original reconnecté ; état hors ligne effacé.</translation>
+        </message>
+        <message>
+            <source>Deleting offline-edit proxy…</source>
+            <translation>Suppression du proxy de modification hors ligne…</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy deleted.</source>
+            <translation>Proxy d'édition hors ligne supprimé.</translation>
+        </message>
+        <message>
+            <source>Pinning offline-edit proxy…</source>
+            <translation>Épingler le proxy de modification hors ligne…</translation>
+        </message>
+        <message>
+            <source>Unpinning offline-edit proxy…</source>
+            <translation>Désépinglage du proxy de modification hors ligne…</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy pin updated.</source>
+            <translation>Broche de proxy d'édition hors ligne mise à jour.</translation>
+        </message>
+        <message>
+            <source>Evicting unpinned offline proxies…</source>
+            <translation>Expulsion des proxys hors ligne non épinglés…</translation>
+        </message>
+        <message>
+            <source>Evicted %1 unpinned offline-edit prox%2.</source>
+            <translation>%1 expulsé, non épinglé, modification hors ligne prox%2.</translation>
+        </message>
+        <message>
+            <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
+            <translation>Importé %1, dupliqué %2, ignoré %3, non pris en charge %4, échec %5</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioWindowGeometry</name>
+        <message>
+            <source>Window size or position is invalid.</source>
+            <translation>La taille ou la position de la fenêtre n'est pas valide.</translation>
+        </message>
+        <message>
+            <source>Unable to save the window position.</source>
+            <translation>Impossible d'enregistrer la position de la fenêtre.</translation>
+        </message>
+        <message>
+            <source>Unable to repair the stored window position.</source>
+            <translation>Impossible de réparer la position de la fenêtre stockée.</translation>
         </message>
     </context>
     <context>

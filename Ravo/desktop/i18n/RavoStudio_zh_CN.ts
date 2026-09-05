@@ -2,6 +2,79 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
     <context>
+        <name>AiProposalDialog</name>
+        <message>
+            <source>AI Proposal</source>
+            <translation>人工智能提案</translation>
+        </message>
+        <message>
+            <source>Global edit (stub)</source>
+            <translation>全局编辑（存根）</translation>
+        </message>
+        <message>
+            <source>Semantic mask (stub)</source>
+            <translation>语义掩码（存根）</translation>
+        </message>
+        <message>
+            <source>Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.</source>
+            <translation>仅存根提案 (ADR-0121)。没有网络，也没有模型权重。检查字段差异，然后应用、拒绝或取消。</translation>
+        </message>
+        <message>
+            <source>Create</source>
+            <translation>创建</translation>
+        </message>
+        <message>
+            <source>Label</source>
+            <translation>标签</translation>
+        </message>
+        <message>
+            <source>Proposals for selection</source>
+            <translation>所选照片的提案</translation>
+        </message>
+        <message>
+            <source>%1 · %2 · %3</source>
+            <translation>%1·%2·%3</translation>
+        </message>
+        <message>
+            <source>No proposal selected.</source>
+            <translation>未选择任何提案。</translation>
+        </message>
+        <message>
+            <source>Selected %1 (%2)
+Provider %3 / %4
+Fields: %5
+Diff: %6</source>
+            <translation>已选择%1 (%2)
+提供者 %3 / %4
+字段：%5
+差异：%6</translation>
+        </message>
+        <message>
+            <source>Refresh</source>
+            <translation>刷新</translation>
+        </message>
+        <message>
+            <source>Create Stub</source>
+            <translation>创建存根</translation>
+        </message>
+        <message>
+            <source>Cancel Proposal</source>
+            <translation>取消提案</translation>
+        </message>
+        <message>
+            <source>Reject</source>
+            <translation>拒绝</translation>
+        </message>
+        <message>
+            <source>Apply</source>
+            <translation>应用</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>关闭</translation>
+        </message>
+    </context>
+    <context>
         <name>AssistantPanel</name>
         <message>
             <source>Assistant</source>
@@ -299,6 +372,10 @@
         <message>
             <source>Exposure</source>
             <translation>曝光</translation>
+        </message>
+        <message>
+            <source>EV Shift</source>
+            <translation>EV 偏移</translation>
         </message>
         <message>
             <source>Compensate exposure bias</source>
@@ -1357,6 +1434,22 @@
             <translation>显示蒙版叠加</translation>
         </message>
         <message>
+            <source>Place on photo</source>
+            <translation>在照片上放置</translation>
+        </message>
+        <message>
+            <source>Click the photo to place the circle, ellipse, or gradient. Canvas, Perspective, straighten, rotate, and flip must be off.</source>
+            <translation>单击照片以放置圆形、椭圆形或渐变。画布、透视、拉直、旋转和翻转必须关闭。</translation>
+        </message>
+        <message>
+            <source>Assist from photo</source>
+            <translation>从照片辅助确定</translation>
+        </message>
+        <message>
+            <source>Click the photo to set parametric thresholds from the display histogram channel. Canvas, Perspective, straighten, rotate, and flip must be off.</source>
+            <translation>单击照片可从显示直方图通道设置参数阈值。画布、透视、拉直、旋转和翻转必须关闭。</translation>
+        </message>
+        <message>
             <source>Group child</source>
             <translation>组子项</translation>
         </message>
@@ -2081,6 +2174,46 @@
             <translation>方形</translation>
         </message>
         <message>
+            <source>Mask click placement has no overlay target</source>
+            <translation>没有可放置蒙版的叠加目标</translation>
+        </message>
+        <message>
+            <source>Mask click placement was rejected</source>
+            <translation>蒙版点击放置被拒绝</translation>
+        </message>
+        <message>
+            <source>Mask click placement requires an editable attached mask</source>
+            <translation>蒙版单击放置需要可编辑的附加蒙版</translation>
+        </message>
+        <message>
+            <source>Mask click placement supports circle, ellipse, or linear gradient</source>
+            <translation>蒙版单击放置支持圆形、椭圆形或线性渐变</translation>
+        </message>
+        <message>
+            <source>Parametric assist has no overlay target</source>
+            <translation>参数辅助没有叠加目标</translation>
+        </message>
+        <message>
+            <source>Parametric assist is not available for this operation</source>
+            <translation>参数辅助不适用于此操作</translation>
+        </message>
+        <message>
+            <source>Parametric assist is unavailable with Canvas, Perspective, straighten, rotate, or flip</source>
+            <translation>参数辅助不适用于“画布”、“透视”、拉直、旋转或翻转</translation>
+        </message>
+        <message>
+            <source>Parametric assist was rejected</source>
+            <translation>参数辅助被拒绝</translation>
+        </message>
+        <message>
+            <source>Parametric assist requires an editable attached parametric mask</source>
+            <translation>参数辅助需要可编辑的附加参数蒙版</translation>
+        </message>
+        <message>
+            <source>Parametric assist needs a preview</source>
+            <translation>参数辅助需要预览</translation>
+        </message>
+        <message>
             <source>Custom</source>
             <translation>自定义</translation>
         </message>
@@ -2593,6 +2726,14 @@
             <translation>蒙版</translation>
         </message>
         <message>
+            <source>Exposure instances</source>
+            <translation>曝光实例</translation>
+        </message>
+        <message>
+            <source>Color Balance RGB instances</source>
+            <translation>色彩平衡 RGB 实例</translation>
+        </message>
+        <message>
             <source>Section bypass state</source>
             <translation>分区旁路状态</translation>
         </message>
@@ -2615,6 +2756,46 @@
         <message>
             <source>Mask reset was rejected</source>
             <translation>蒙版重置被拒绝</translation>
+        </message>
+        <message>
+            <source>Instances</source>
+            <translation>实例</translation>
+        </message>
+        <message>
+            <source>Add</source>
+            <translation>添加</translation>
+        </message>
+        <message>
+            <source>Duplicate</source>
+            <translation>复制</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>开</translation>
+        </message>
+        <message>
+            <source>Bypass</source>
+            <translation>旁路</translation>
+        </message>
+        <message>
+            <source>Delete</source>
+            <translation>删除</translation>
+        </message>
+        <message>
+            <source>Rename selected instance</source>
+            <translation>重命名选定的实例</translation>
+        </message>
+        <message>
+            <source>Rename</source>
+            <translation>重命名</translation>
+        </message>
+        <message>
+            <source>Exposure instance was not found.</source>
+            <translation>未找到曝光实例。</translation>
+        </message>
+        <message>
+            <source>Color Balance RGB instance was not found.</source>
+            <translation>未找到色彩平衡 RGB 实例。</translation>
         </message>
     </context>
     <context>
@@ -2646,6 +2827,157 @@
         <message>
             <source>Copy Preset Info</source>
             <translation>复制预设信息</translation>
+        </message>
+    </context>
+    <context>
+        <name>EditInDialog</name>
+        <message>
+            <source>Edit in…</source>
+            <translation>使用外部编辑器编辑…</translation>
+        </message>
+        <message>
+            <source>8-bit</source>
+            <translation>8 位</translation>
+        </message>
+        <message>
+            <source>16-bit</source>
+            <translation>16 位</translation>
+        </message>
+        <message>
+            <source>Create a catalog-owned TIFF working copy, open it in an external editor, then check the returned file. Originals stay byte-identical.</source>
+            <translation>创建目录拥有的 TIFF 工作副本，在外部编辑器中打开它，然后检查返回的文件。原始数据保持字节相同。</translation>
+        </message>
+        <message>
+            <source>Editor id</source>
+            <translation>编辑器 ID</translation>
+        </message>
+        <message>
+            <source>External editor id</source>
+            <translation>外部编辑 ID</translation>
+        </message>
+        <message>
+            <source>Editor version</source>
+            <translation>编辑器版本</translation>
+        </message>
+        <message>
+            <source>External editor version</source>
+            <translation>外部编辑器版本</translation>
+        </message>
+        <message>
+            <source>Application</source>
+            <translation>应用程序</translation>
+        </message>
+        <message>
+            <source>External editor application path</source>
+            <translation>外部编辑器应用程序路径</translation>
+        </message>
+        <message>
+            <source>Optional path (empty uses OS default)</source>
+            <translation>可选路径（空使用操作系统默认值）</translation>
+        </message>
+        <message>
+            <source>TIFF sample</source>
+            <translation>TIFF 样本</translation>
+        </message>
+        <message>
+            <source>Working-copy TIFF sample type</source>
+            <translation>工作副本 TIFF 样本类型</translation>
+        </message>
+        <message>
+            <source>Profile</source>
+            <translation>配置文件</translation>
+        </message>
+        <message>
+            <source>sRGB (v1 only)</source>
+            <translation>sRGB（仅限 v1）</translation>
+        </message>
+        <message>
+            <source>Max edge</source>
+            <translation>最大边长</translation>
+        </message>
+        <message>
+            <source>Working-copy max edge</source>
+            <translation>工作副本最大边长</translation>
+        </message>
+        <message>
+            <source>Auto-stack derived pair on return</source>
+            <translation>返回时自动堆叠派生照片对</translation>
+        </message>
+        <message>
+            <source>Open working copy after prepare</source>
+            <translation>准备好后打开工作副本</translation>
+        </message>
+        <message>
+            <source>Registered derived %1 — auto-stacked as pick</source>
+            <translation>已注册派生照片 %1 — 自动堆叠并设为选中</translation>
+        </message>
+        <message>
+            <source>Registered derived %1</source>
+            <translation>已注册派生照片 %1</translation>
+        </message>
+        <message>
+            <source>Session %1 (registered)</source>
+            <translation>会话 %1（已注册）</translation>
+        </message>
+        <message>
+            <source>Working copy missing — reopen unavailable until restored</source>
+            <translation>工作副本丢失，恢复前无法重新打开</translation>
+        </message>
+        <message>
+            <source>Source original changed — return blocked</source>
+            <translation>源原始文件已更改，无法返回</translation>
+        </message>
+        <message>
+            <source>Catalog revision stale — refresh or reopen</source>
+            <translation>目录修订已过期，请刷新或重新打开</translation>
+        </message>
+        <message>
+            <source>Returned file unchanged — edit then check returned</source>
+            <translation>返回的文件未更改，请编辑后再检查</translation>
+        </message>
+        <message>
+            <source>Returned file missing</source>
+            <translation>返回的文件丢失</translation>
+        </message>
+        <message>
+            <source>Source mutated during return — publication blocked</source>
+            <translation>返回期间源文件发生更改，无法发布</translation>
+        </message>
+        <message>
+            <source>Working copy modified — ready to check returned</source>
+            <translation>工作副本已修改，可以检查返回文件</translation>
+        </message>
+        <message>
+            <source>Working copy pending — open editor, then check returned</source>
+            <translation>工作副本待处理，请打开编辑器后再检查返回文件</translation>
+        </message>
+        <message>
+            <source>Session %1 — %2</source>
+            <translation>会话 %1 — %2</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+        <message>
+            <source>Abandon</source>
+            <translation>放弃</translation>
+        </message>
+        <message>
+            <source>Reopen</source>
+            <translation>重新打开</translation>
+        </message>
+        <message>
+            <source>Refresh Status</source>
+            <translation>刷新状态</translation>
+        </message>
+        <message>
+            <source>Check Returned</source>
+            <translation>检查返回文件</translation>
+        </message>
+        <message>
+            <source>Prepare Working Copy</source>
+            <translation>准备工作副本</translation>
         </message>
     </context>
     <context>
@@ -2681,6 +3013,158 @@
         <message>
             <source>Metadata privacy</source>
             <translation>元数据隐私</translation>
+        </message>
+        <message>
+            <source>Long edge</source>
+            <translation>长边</translation>
+        </message>
+        <message>
+            <source>Maximum long edge</source>
+            <translation>最大长边</translation>
+        </message>
+        <message>
+            <source>Maximum long edge (0 keeps the rendered size)</source>
+            <translation>最大长边（0保持渲染尺寸）</translation>
+        </message>
+        <message>
+            <source>Max width</source>
+            <translation>最大宽度</translation>
+        </message>
+        <message>
+            <source>Maximum export width</source>
+            <translation>最大导出宽度</translation>
+        </message>
+        <message>
+            <source>Maximum width (0 unconstrained)</source>
+            <translation>最大宽度（0 无约束）</translation>
+        </message>
+        <message>
+            <source>Max height</source>
+            <translation>最大高度</translation>
+        </message>
+        <message>
+            <source>Maximum export height</source>
+            <translation>最大出口高度</translation>
+        </message>
+        <message>
+            <source>Maximum height (0 unconstrained)</source>
+            <translation>最大高度（0 无约束）</translation>
+        </message>
+        <message>
+            <source>Output sharpen</source>
+            <translation>输出锐化</translation>
+        </message>
+        <message>
+            <source>Enable export output sharpen</source>
+            <translation>启用导出输出锐化</translation>
+        </message>
+        <message>
+            <source>After resize</source>
+            <translation>调整大小后</translation>
+        </message>
+        <message>
+            <source>Enable output sharpen after resize</source>
+            <translation>调整大小后启用输出锐化</translation>
+        </message>
+        <message>
+            <source>Sharpen amount</source>
+            <translation>锐化量</translation>
+        </message>
+        <message>
+            <source>Sharpen radius</source>
+            <translation>锐化半径</translation>
+        </message>
+        <message>
+            <source>Sharpen threshold</source>
+            <translation>锐化阈值</translation>
+        </message>
+        <message>
+            <source>Delivery colour</source>
+            <translation>交付色彩</translation>
+        </message>
+        <message>
+            <source>Enable export delivery colour override</source>
+            <translation>启用导出交付色彩覆盖</translation>
+        </message>
+        <message>
+            <source>Override output profile</source>
+            <translation>覆盖输出配置文件</translation>
+        </message>
+        <message>
+            <source>Enable delivery colour override for this export</source>
+            <translation>为此导出启用交付色彩覆盖</translation>
+        </message>
+        <message>
+            <source>Output profile</source>
+            <translation>输出配置文件</translation>
+        </message>
+        <message>
+            <source>Delivery output colour profile</source>
+            <translation>交付输出色彩配置文件</translation>
+        </message>
+        <message>
+            <source>Rendering intent</source>
+            <translation>渲染意图</translation>
+        </message>
+        <message>
+            <source>Delivery colour rendering intent</source>
+            <translation>交付色彩渲染意图</translation>
+        </message>
+        <message>
+            <source>Delivery frame</source>
+            <translation>交付边框</translation>
+        </message>
+        <message>
+            <source>Enable export delivery frame</source>
+            <translation>启用导出交付边框</translation>
+        </message>
+        <message>
+            <source>After sharpen</source>
+            <translation>锐化后</translation>
+        </message>
+        <message>
+            <source>Enable delivery frame after sharpen before watermark</source>
+            <translation>在锐化后、水印前启用交付边框</translation>
+        </message>
+        <message>
+            <source>Frame size</source>
+            <translation>边框尺寸</translation>
+        </message>
+        <message>
+            <source>Delivery watermark</source>
+            <translation>交付水印</translation>
+        </message>
+        <message>
+            <source>Enable export delivery watermark</source>
+            <translation>启用导出交付水印</translation>
+        </message>
+        <message>
+            <source>Enable delivery watermark after sharpen</source>
+            <translation>在锐化后启用交付水印</translation>
+        </message>
+        <message>
+            <source>Watermark text</source>
+            <translation>水印文字</translation>
+        </message>
+        <message>
+            <source>Delivery watermark text</source>
+            <translation>交付水印文字</translation>
+        </message>
+        <message>
+            <source>Watermark opacity</source>
+            <translation>水印不透明度</translation>
+        </message>
+        <message>
+            <source>Watermark scale</source>
+            <translation>水印比例</translation>
+        </message>
+        <message>
+            <source>Watermark alignment</source>
+            <translation>水印对齐</translation>
+        </message>
+        <message>
+            <source>Delivery watermark alignment</source>
+            <translation>交付水印对齐方式</translation>
         </message>
         <message>
             <source>Quality</source>
@@ -2842,6 +3326,73 @@
             <source>No public metadata</source>
             <translation>不含公开元数据</translation>
         </message>
+        <message>
+            <source>Top left</source>
+            <translation>左上</translation>
+        </message>
+        <message>
+            <source>Top center</source>
+            <translation>顶部居中</translation>
+        </message>
+        <message>
+            <source>Top right</source>
+            <translation>右上</translation>
+        </message>
+        <message>
+            <source>Center left</source>
+            <translation>左侧居中</translation>
+        </message>
+        <message>
+            <source>Center</source>
+            <translation>居中</translation>
+        </message>
+        <message>
+            <source>Center right</source>
+            <translation>右侧居中</translation>
+        </message>
+        <message>
+            <source>Bottom left</source>
+            <translation>左下</translation>
+        </message>
+        <message>
+            <source>Bottom center</source>
+            <translation>底部居中</translation>
+        </message>
+        <message>
+            <source>Bottom right</source>
+            <translation>右下</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderContextMenu</name>
+        <message>
+            <source>Show in File Manager</source>
+            <translation>在文件管理器中显示</translation>
+        </message>
+        <message>
+            <source>Import Photos...</source>
+            <translation>导入照片…</translation>
+        </message>
+        <message>
+            <source>Import Photos from This Folder...</source>
+            <translation>从此文件夹导入照片...</translation>
+        </message>
+        <message>
+            <source>Update Folder Location...</source>
+            <translation>更新文件夹位置...</translation>
+        </message>
+        <message>
+            <source>Expand</source>
+            <translation>展开</translation>
+        </message>
+        <message>
+            <source>Collapse</source>
+            <translation>折叠</translation>
+        </message>
+        <message>
+            <source>Remove from Catalog...</source>
+            <translation>从图库中移除…</translation>
+        </message>
     </context>
     <context>
         <name>FolderDialogPage</name>
@@ -2852,6 +3403,10 @@
     </context>
     <context>
         <name>GalleryReviewBar</name>
+        <message>
+            <source>More</source>
+            <translation>更多</translation>
+        </message>
         <message>
             <source>Y|Y</source>
             <translation>Y|Y</translation>
@@ -2873,6 +3428,18 @@
             <translation>大小</translation>
         </message>
         <message>
+            <source>Rating</source>
+            <translation>评分</translation>
+        </message>
+        <message>
+            <source>Rating %1</source>
+            <translation>评分 %1</translation>
+        </message>
+        <message>
+            <source>Color label</source>
+            <translation>颜色标签</translation>
+        </message>
+        <message>
             <source>Keep</source>
             <translation>保留</translation>
         </message>
@@ -2881,12 +3448,23 @@
             <translation>拒绝</translation>
         </message>
         <message>
+            <source>Pick</source>
+            <translation>选中</translation>
+        </message>
+        <message>
             <source>Previous</source>
             <translation>上一张</translation>
         </message>
         <message>
             <source>Next</source>
             <translation>下一张</translation>
+        </message>
+    </context>
+    <context>
+        <name>ImportFolderTree</name>
+        <message>
+            <source>No folders</source>
+            <translation>无文件夹</translation>
         </message>
     </context>
     <context>
@@ -2918,10 +3496,6 @@
         <message>
             <source>Choose Source…</source>
             <translation>选择来源…</translation>
-        </message>
-        <message>
-            <source>No source selected</source>
-            <translation>未选择来源</translation>
         </message>
         <message>
             <source>Include subfolders</source>
@@ -2984,10 +3558,6 @@
             <translation>选择目标位置…</translation>
         </message>
         <message>
-            <source>No destination selected</source>
-            <translation>未选择目标位置</translation>
-        </message>
-        <message>
             <source>Organize</source>
             <translation>组织方式</translation>
         </message>
@@ -3002,6 +3572,10 @@
         <message>
             <source>By date (YYYY/MM/DD)</source>
             <translation>按日期 (YYYY/MM/DD)</translation>
+        </message>
+        <message>
+            <source>By month (YYYY/MM)</source>
+            <translation>按月 (YYYY/MM)</translation>
         </message>
         <message>
             <source>Rename template</source>
@@ -3042,6 +3616,14 @@
         <message>
             <source>Importing %1 / %2…</source>
             <translation>正在导入 %1 / %2…</translation>
+        </message>
+        <message>
+            <source>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</source>
+            <translation>上次导入 %1：已导入 %2，重复 %3，跳过 %4，失败 %5。</translation>
+        </message>
+        <message>
+            <source>Resume batch %1.</source>
+            <translation>恢复批次 %1。</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -3119,6 +3701,78 @@
             <translation>仅</translation>
         </message>
         <message>
+            <source>Any review</source>
+            <translation>任意审核状态</translation>
+        </message>
+        <message>
+            <source>Picked</source>
+            <translation>已选中</translation>
+        </message>
+        <message>
+            <source>Unreviewed</source>
+            <translation>未审核</translation>
+        </message>
+        <message>
+            <source>No suggestion</source>
+            <translation>没有建议</translation>
+        </message>
+        <message>
+            <source>Exact byte duplicate</source>
+            <translation>精确的字节重复</translation>
+        </message>
+        <message>
+            <source>Near duplicate (heuristic)</source>
+            <translation>接近重复（启发式）</translation>
+        </message>
+        <message>
+            <source>Burst</source>
+            <translation>连拍</translation>
+        </message>
+        <message>
+            <source>Camera make</source>
+            <translation>相机品牌</translation>
+        </message>
+        <message>
+            <source>Camera model</source>
+            <translation>相机型号</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>%1 张照片</translation>
+        </message>
+        <message>
+            <source>Focal mm</source>
+            <translation>焦距mm</translation>
+        </message>
+        <message>
+            <source>Lens make</source>
+            <translation>镜头品牌</translation>
+        </message>
+        <message>
+            <source>Lens model</source>
+            <translation>镜头型号</translation>
+        </message>
+        <message>
+            <source>YYYY:MM:DD</source>
+            <translation>年:月:日</translation>
+        </message>
+        <message>
+            <source>Country</source>
+            <translation>国家</translation>
+        </message>
+        <message>
+            <source>State</source>
+            <translation>状态</translation>
+        </message>
+        <message>
+            <source>City</source>
+            <translation>城市</translation>
+        </message>
+        <message>
+            <source>Sublocation</source>
+            <translation>详细地点</translation>
+        </message>
+        <message>
             <source>Add filter</source>
             <translation>添加筛选器</translation>
         </message>
@@ -3141,6 +3795,26 @@
         <message>
             <source>Rejected</source>
             <translation>已拒绝</translation>
+        </message>
+        <message>
+            <source>Camera</source>
+            <translation>相机</translation>
+        </message>
+        <message>
+            <source>Lens</source>
+            <translation>镜头</translation>
+        </message>
+        <message>
+            <source>Lens name</source>
+            <translation>镜头名称</translation>
+        </message>
+        <message>
+            <source>Capture date</source>
+            <translation>拍摄日期</translation>
+        </message>
+        <message>
+            <source>Location</source>
+            <translation>地点</translation>
         </message>
         <message>
             <source>Import time</source>
@@ -3349,6 +4023,10 @@
             <translation>原始副本 (*)</translation>
         </message>
         <message>
+            <source>Remove “%1” and its photos from the library? Original files on disk will not be deleted.</source>
+            <translation>从库中删除“%1”及其照片吗？磁盘上的原始文件不会被删除。</translation>
+        </message>
+        <message>
             <source>Remove %1 photos from the library? Original files on disk will not be deleted.</source>
             <translation>从图库中移除 %1 张照片？不会删除磁盘上的原始文件。</translation>
         </message>
@@ -3419,6 +4097,14 @@
         <message>
             <source>Create or open a library to import photos.</source>
             <translation>创建或打开图库以导入照片。</translation>
+        </message>
+        <message>
+            <source>Remove Folder from Catalog</source>
+            <translation>从目录中删除文件夹</translation>
+        </message>
+        <message>
+            <source>Remove this folder and its photos from the library? Original files on disk will not be deleted.</source>
+            <translation>从库中删除此文件夹及其照片吗？磁盘上的原始文件不会被删除。</translation>
         </message>
         <message>
             <source>Choose Import Source</source>
@@ -3554,6 +4240,85 @@
         </message>
     </context>
     <context>
+        <name>OfflineEditDialog</name>
+        <message>
+            <source>Offline-edit proxies</source>
+            <translation>离线编辑代理</translation>
+        </message>
+        <message>
+            <source>Select a photo.</source>
+            <translation>选择一张照片。</translation>
+        </message>
+        <message>
+            <source>pinned</source>
+            <translation>已固定</translation>
+        </message>
+        <message>
+            <source>unpinned</source>
+            <translation>未固定</translation>
+        </message>
+        <message>
+            <source>media_state=%1 · %2 · %3 · %4</source>
+            <translation>media_state=%1 · %2 · %3 · %4</translation>
+        </message>
+        <message>
+            <source>media_state=%1 · %2 · %3</source>
+            <translation>media_state=%1·%2·%3</translation>
+        </message>
+        <message>
+            <source>Baked sRGB proxy: Develop applies identity while media_state=proxy (no double-grade). Export stays fail-closed until reconnect. Before/After and scopes consume the same verified proxy.</source>
+            <translation>烘焙式 sRGB 代理：当 media_state=proxy 时，显影使用恒等处理（避免重复调色）。重新连接前导出仍会明确失败。前/后对比和示波器使用同一份已验证的代理。</translation>
+        </message>
+        <message>
+            <source>%1 prox%2 listed</source>
+            <translation>已列出 %1 个%2</translation>
+        </message>
+        <message>
+            <source>y</source>
+            <translation>代理</translation>
+        </message>
+        <message>
+            <source>ies</source>
+            <translation>代理</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>关闭</translation>
+        </message>
+        <message>
+            <source>Refresh</source>
+            <translation>刷新</translation>
+        </message>
+        <message>
+            <source>Create</source>
+            <translation>创建</translation>
+        </message>
+        <message>
+            <source>Unpin</source>
+            <translation>取消固定</translation>
+        </message>
+        <message>
+            <source>Pin</source>
+            <translation>固定</translation>
+        </message>
+        <message>
+            <source>Delete</source>
+            <translation>删除</translation>
+        </message>
+        <message>
+            <source>Reconnect</source>
+            <translation>重新连接</translation>
+        </message>
+        <message>
+            <source>Reconnect + clear</source>
+            <translation>重新连接+清除</translation>
+        </message>
+        <message>
+            <source>Evict unpinned</source>
+            <translation>取消固定驱逐</translation>
+        </message>
+    </context>
+    <context>
         <name>PhotoContextMenu</name>
         <message>
             <source>View Photo</source>
@@ -3570,6 +4335,18 @@
         <message>
             <source>Color Label</source>
             <translation>颜色标签</translation>
+        </message>
+        <message>
+            <source>Edit in…</source>
+            <translation>编辑于...</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxies…</source>
+            <translation>离线编辑代理...</translation>
+        </message>
+        <message>
+            <source>Inspect AI Proposal…</source>
+            <translation>检查人工智能提案...</translation>
         </message>
     </context>
     <context>
@@ -3615,12 +4392,56 @@
             <translation>标签和元数据</translation>
         </message>
         <message>
-            <source>tags, comma separated</source>
-            <translation>标签，以逗号分隔</translation>
+            <source>keywords, comma separated; use | for hierarchy</source>
+            <translation>关键字，以逗号分隔；使用 | 表示层级</translation>
+        </message>
+        <message>
+            <source>Credit</source>
+            <translation>署名</translation>
+        </message>
+        <message>
+            <source>Source</source>
+            <translation>来源</translation>
+        </message>
+        <message>
+            <source>Instructions</source>
+            <translation>使用说明</translation>
+        </message>
+        <message>
+            <source>Usage Terms</source>
+            <translation>使用条款</translation>
+        </message>
+        <message>
+            <source>Job ID</source>
+            <translation>作业 ID</translation>
+        </message>
+        <message>
+            <source>Country</source>
+            <translation>国家</translation>
+        </message>
+        <message>
+            <source>Province / State</source>
+            <translation>省/州</translation>
+        </message>
+        <message>
+            <source>City</source>
+            <translation>城市</translation>
+        </message>
+        <message>
+            <source>Sublocation</source>
+            <translation>详细地点</translation>
         </message>
         <message>
             <source>Title</source>
             <translation>标题</translation>
+        </message>
+        <message>
+            <source>Headline</source>
+            <translation>标题</translation>
+        </message>
+        <message>
+            <source>Description</source>
+            <translation>描述</translation>
         </message>
         <message>
             <source>Creator</source>
@@ -4180,6 +5001,14 @@
             <translation>文件夹标识和替代路径不能为空。</translation>
         </message>
         <message>
+            <source>External editor id must not be empty.</source>
+            <translation>外部编辑器 ID 不能为空。</translation>
+        </message>
+        <message>
+            <source>A proposal id is required.</source>
+            <translation>需要提案 ID。</translation>
+        </message>
+        <message>
             <source>Copy Parameters</source>
             <translation>复制参数</translation>
         </message>
@@ -4208,8 +5037,28 @@
             <translation>没有可复制的已修改参数。</translation>
         </message>
         <message>
+            <source>No photos to select.</source>
+            <translation>没有照片可供选择。</translation>
+        </message>
+        <message>
             <source>Copy parameters first.</source>
             <translation>请先复制参数。</translation>
+        </message>
+        <message>
+            <source>Select at least two photos first.</source>
+            <translation>首先选择至少两张照片。</translation>
+        </message>
+        <message>
+            <source>Show in Finder</source>
+            <translation>在 Finder 中显示</translation>
+        </message>
+        <message>
+            <source>Show in Explorer</source>
+            <translation>在文件资源管理器中显示</translation>
+        </message>
+        <message>
+            <source>Show in File Manager</source>
+            <translation>在文件管理器中显示</translation>
         </message>
         <message>
             <source>Import...</source>
@@ -4244,6 +5093,10 @@
             <translation>粘贴参数</translation>
         </message>
         <message>
+            <source>Paste Parameters to Selection</source>
+            <translation>将参数粘贴到所选照片</translation>
+        </message>
+        <message>
             <source>Reset All Edits</source>
             <translation>重置所有编辑</translation>
         </message>
@@ -4254,6 +5107,18 @@
         <message>
             <source>Loupe</source>
             <translation>放大查看</translation>
+        </message>
+        <message>
+            <source>Burst Compare</source>
+            <translation>连拍比较</translation>
+        </message>
+        <message>
+            <source>Burst Compare Previous</source>
+            <translation>比较上一张连拍照片</translation>
+        </message>
+        <message>
+            <source>Burst Compare Next</source>
+            <translation>比较下一张连拍照片</translation>
         </message>
         <message>
             <source>Fit</source>
@@ -4282,6 +5147,10 @@
         <message>
             <source>Next Photo</source>
             <translation>下一张照片</translation>
+        </message>
+        <message>
+            <source>Select All</source>
+            <translation>选择全部</translation>
         </message>
         <message>
             <source>Extend Selection to Previous</source>
@@ -4340,8 +5209,72 @@
             <translation>紫色</translation>
         </message>
         <message>
+            <source>Pick</source>
+            <translation>选中</translation>
+        </message>
+        <message>
             <source>Reject</source>
             <translation>拒绝</translation>
+        </message>
+        <message>
+            <source>Unflag</source>
+            <translation>取消标记</translation>
+        </message>
+        <message>
+            <source>Edit in...</source>
+            <translation>编辑于...</translation>
+        </message>
+        <message>
+            <source>Check Returned External Edit</source>
+            <translation>检查返回的外部编辑</translation>
+        </message>
+        <message>
+            <source>Abandon External Edit Session</source>
+            <translation>放弃外部编辑会话</translation>
+        </message>
+        <message>
+            <source>Reopen External Edit Session</source>
+            <translation>重新打开外部编辑会话</translation>
+        </message>
+        <message>
+            <source>Refresh External Edit Status</source>
+            <translation>刷新外部编辑状态</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxies...</source>
+            <translation>离线编辑代理…</translation>
+        </message>
+        <message>
+            <source>Create Offline-edit Proxy</source>
+            <translation>创建离线编辑代理</translation>
+        </message>
+        <message>
+            <source>Reconnect Original</source>
+            <translation>重新连接原始文件</translation>
+        </message>
+        <message>
+            <source>Delete Offline-edit Proxy</source>
+            <translation>删除离线编辑代理</translation>
+        </message>
+        <message>
+            <source>Inspect AI Proposal...</source>
+            <translation>检查人工智能提案...</translation>
+        </message>
+        <message>
+            <source>Create Stub AI Proposal</source>
+            <translation>创建存根 AI 提案</translation>
+        </message>
+        <message>
+            <source>Apply AI Proposal</source>
+            <translation>应用人工智能提案</translation>
+        </message>
+        <message>
+            <source>Reject AI Proposal</source>
+            <translation>拒绝人工智能提案</translation>
+        </message>
+        <message>
+            <source>Cancel AI Proposal</source>
+            <translation>取消人工智能提案</translation>
         </message>
         <message>
             <source>Remove from Catalog...</source>
@@ -4382,6 +5315,10 @@
         <message>
             <source>Library</source>
             <translation>图库</translation>
+        </message>
+        <message>
+            <source>Remove Folder from Catalog...</source>
+            <translation>从目录中移除文件夹…</translation>
         </message>
         <message>
             <source>About Ravo Studio</source>
@@ -4459,6 +5396,10 @@
             <translation>TIFF 分辨率必须在 72 到 9600 DPI 之间</translation>
         </message>
         <message>
+            <source>Long edge must be between 0 and 65535</source>
+            <translation>长边必须介于 0 到 65535 之间</translation>
+        </message>
+        <message>
             <source>Export option must be an integer</source>
             <translation>导出选项必须是整数</translation>
         </message>
@@ -4473,6 +5414,14 @@
         <message>
             <source>Export option has an unsupported value type</source>
             <translation>导出选项的值类型不受支持</translation>
+        </message>
+        <message>
+            <source>Export option must be a number</source>
+            <translation>导出选项必须是数字</translation>
+        </message>
+        <message>
+            <source>Export option must be a finite number</source>
+            <translation>导出选项必须是有限数量</translation>
         </message>
         <message>
             <source>Export option must be a boolean</source>
@@ -4493,6 +5442,30 @@
         <message>
             <source>Unknown export format</source>
             <translation>未知的导出格式</translation>
+        </message>
+        <message>
+            <source>Max width must be between 0 and 65535</source>
+            <translation>最大宽度必须介于 0 到 65535 之间</translation>
+        </message>
+        <message>
+            <source>Max height must be between 0 and 65535</source>
+            <translation>最大高度必须介于 0 到 65535 之间</translation>
+        </message>
+        <message>
+            <source>Output sharpen enabled must be a boolean</source>
+            <translation>启用输出锐化必须是布尔值</translation>
+        </message>
+        <message>
+            <source>Watermark enabled must be a boolean</source>
+            <translation>启用水印必须是布尔值</translation>
+        </message>
+        <message>
+            <source>Output colour enabled must be a boolean</source>
+            <translation>输出色彩启用状态必须为布尔值</translation>
+        </message>
+        <message>
+            <source>Frame enabled must be a boolean</source>
+            <translation>边框启用状态必须为布尔值</translation>
         </message>
         <message>
             <source>Export options map was mutated during conversion</source>
@@ -4692,8 +5665,20 @@
             <translation>请选择导入目标位置。</translation>
         </message>
         <message>
+            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
+            <translation>摄取传输仅限复制；移动和相机删除仍被拒绝。</translation>
+        </message>
+        <message>
+            <source>Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the ptp-stub fixture.</source>
+            <translation>本机 PTP/MTP 适配器未打包 (%1)。使用 filesystem-card 或 ptp-stub 固定装置。</translation>
+        </message>
+        <message>
             <source>Importing 0 / %1…</source>
             <translation>正在导入 0 / %1…</translation>
+        </message>
+        <message>
+            <source>Ingest failed.</source>
+            <translation>摄取失败。</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -4724,8 +5709,24 @@
             <translation>已更新堆栈代表。</translation>
         </message>
         <message>
+            <source>Cull review flag must be pick, reject, unflag, or unchanged.</source>
+            <translation>筛选审核标记必须为 pick、reject、unflag 或 unchanged。</translation>
+        </message>
+        <message>
+            <source>Rating must be an integer between 0 and 5.</source>
+            <translation>评分必须是 0 到 5 的整数。</translation>
+        </message>
+        <message>
             <source>Capture metadata refreshed.</source>
             <translation>拍摄元数据已刷新。</translation>
+        </message>
+        <message>
+            <source>Cull flag filter must be any, picked, rejected, or unreviewed.</source>
+            <translation>筛选标记过滤器必须为 any、picked、rejected 或 unreviewed。</translation>
+        </message>
+        <message>
+            <source>Cull suggestion filter must be none, exact_duplicate, near_duplicate, or burst.</source>
+            <translation>筛选建议过滤器必须为 none、exact_duplicate、near_duplicate 或 burst。</translation>
         </message>
         <message>
             <source>Unknown media filter mode.</source>
@@ -4736,6 +5737,34 @@
             <translation>未知的编辑状态筛选模式。</translation>
         </message>
         <message>
+            <source>Lens facet must be a focal length in millimeters.</source>
+            <translation>镜头筛选项必须为以毫米表示的焦距。</translation>
+        </message>
+        <message>
+            <source>Select a folder first.</source>
+            <translation>首先选择一个文件夹。</translation>
+        </message>
+        <message>
+            <source>The selected folder has no local path.</source>
+            <translation>所选文件夹没有本地路径。</translation>
+        </message>
+        <message>
+            <source>The folder is missing and cannot be shown in the file manager.</source>
+            <translation>该文件夹丢失并且无法在文件管理器中显示。</translation>
+        </message>
+        <message>
+            <source>Showing the folder.</source>
+            <translation>显示文件夹。</translation>
+        </message>
+        <message>
+            <source>Removing folder…</source>
+            <translation>正在删除文件夹...</translation>
+        </message>
+        <message>
+            <source>Folder removal failed.</source>
+            <translation>文件夹删除失败。</translation>
+        </message>
+        <message>
             <source>Removed from catalog. Original file was not deleted.</source>
             <translation>已从图库中移除。未删除原始文件。</translation>
         </message>
@@ -4744,16 +5773,16 @@
             <translation>已从图库中移除 %1 张照片。未删除原始文件。</translation>
         </message>
         <message>
+            <source>Burst compare (Survey pair).</source>
+            <translation>连拍比较（查看一对照片）。</translation>
+        </message>
+        <message>
             <source>Deleted original file and catalog record.</source>
             <translation>已删除原始文件和图库记录。</translation>
         </message>
         <message>
             <source>Deleted %1 original files and catalog records.</source>
             <translation>已删除 %1 个原始文件和图库记录。</translation>
-        </message>
-        <message>
-            <source>Imported %1, duplicate %2, unsupported %3, failed %4</source>
-            <translation>已导入 %1，重复 %2，不支持 %3，失败 %4</translation>
         </message>
         <message>
             <source>White balance sampled.</source>
@@ -4842,6 +5871,22 @@
         <message>
             <source>Parameters pasted.</source>
             <translation>参数已粘贴。</translation>
+        </message>
+        <message>
+            <source>Applying parameters to selection…</source>
+            <translation>将参数应用于选择...</translation>
+        </message>
+        <message>
+            <source>Applying parameters to selection failed.</source>
+            <translation>将参数应用于选择失败。</translation>
+        </message>
+        <message>
+            <source>Applied parameters to %1 of %2 selected photos.</source>
+            <translation>已将参数应用于所选照片中的 %1 张（共 %2 张）。</translation>
+        </message>
+        <message>
+            <source>Parameters applied to the selection.</source>
+            <translation>应用于选择的参数。</translation>
         </message>
         <message>
             <source>Preset folder could not be created.</source>
@@ -5078,6 +6123,241 @@
         <message>
             <source>Cancelling catalog operation…</source>
             <translation>正在取消图库操作…</translation>
+        </message>
+        <message>
+            <source>Refreshing AI proposals…</source>
+            <translation>刷新人工智能提案……</translation>
+        </message>
+        <message>
+            <source>AI proposal refresh failed.</source>
+            <translation>AI提案刷新失败。</translation>
+        </message>
+        <message>
+            <source>Loaded %1 AI proposal(s).</source>
+            <translation>已加载 %1 个 AI 提案。</translation>
+        </message>
+        <message>
+            <source>Creating stub AI proposal…</source>
+            <translation>创建存根 AI 提案...</translation>
+        </message>
+        <message>
+            <source>AI proposal create failed.</source>
+            <translation>AI提案创建失败。</translation>
+        </message>
+        <message>
+            <source>Created stub AI proposal %1</source>
+            <translation>已创建存根 AI 提案 %1</translation>
+        </message>
+        <message>
+            <source>Select an AI proposal first.</source>
+            <translation>首先选择一个 AI 提案。</translation>
+        </message>
+        <message>
+            <source>Applying AI proposal…</source>
+            <translation>应用人工智能提案...</translation>
+        </message>
+        <message>
+            <source>AI proposal apply failed.</source>
+            <translation>应用 AI 提案失败。</translation>
+        </message>
+        <message>
+            <source>Applied AI proposal.</source>
+            <translation>已应用 AI 提案。</translation>
+        </message>
+        <message>
+            <source>Rejecting AI proposal…</source>
+            <translation>拒绝人工智能提案……</translation>
+        </message>
+        <message>
+            <source>AI proposal reject failed.</source>
+            <translation>AI提案拒绝失败。</translation>
+        </message>
+        <message>
+            <source>Rejected AI proposal.</source>
+            <translation>拒绝人工智能提案。</translation>
+        </message>
+        <message>
+            <source>Cancelling AI proposal…</source>
+            <translation>取消人工智能提案……</translation>
+        </message>
+        <message>
+            <source>AI proposal cancel failed.</source>
+            <translation>AI提案取消失败。</translation>
+        </message>
+        <message>
+            <source>Cancelled AI proposal.</source>
+            <translation>取消了人工智能提案。</translation>
+        </message>
+        <message>
+            <source>External editor id must not be empty.</source>
+            <translation>外部编辑器 ID 不能为空。</translation>
+        </message>
+        <message>
+            <source>Edit in… v1 only supports the sRGB working-copy profile.</source>
+            <translation>“使用外部编辑器编辑…”v1 仅支持 sRGB 工作副本配置文件。</translation>
+        </message>
+        <message>
+            <source>Preparing Edit in… working copy…</source>
+            <translation>正在准备外部编辑工作副本…</translation>
+        </message>
+        <message>
+            <source>Edit in… working-copy prepare failed.</source>
+            <translation>外部编辑工作副本准备失败。</translation>
+        </message>
+        <message>
+            <source>Prepared Edit in… working copy %1</source>
+            <translation>已准备外部编辑工作副本 %1</translation>
+        </message>
+        <message>
+            <source>The external editor could not be opened.</source>
+            <translation>无法打开外部编辑器。</translation>
+        </message>
+        <message>
+            <source>Opened working copy in editor.</source>
+            <translation>在编辑器中打开工作副本。</translation>
+        </message>
+        <message>
+            <source>No Edit in… working-copy session is active.</source>
+            <translation>没有活动的外部编辑工作副本会话。</translation>
+        </message>
+        <message>
+            <source>Checking returned editor output…</source>
+            <translation>检查返回的编辑器输出...</translation>
+        </message>
+        <message>
+            <source>Edit in… check-returned failed.</source>
+            <translation>外部编辑返回文件检查失败。</translation>
+        </message>
+        <message>
+            <source>Edit in… check-returned failed: %1</source>
+            <translation>外部编辑返回文件检查失败：%1</translation>
+        </message>
+        <message>
+            <source>Registered derived %1 and auto-stacked as pick</source>
+            <translation>已注册派生 %1 并自动堆叠为拾取</translation>
+        </message>
+        <message>
+            <source>Registered returned editor output as %1</source>
+            <translation>将返回的编辑器输出注册为 %1</translation>
+        </message>
+        <message>
+            <source>Abandoning Edit in… session…</source>
+            <translation>正在放弃外部编辑会话…</translation>
+        </message>
+        <message>
+            <source>Edit in… abandon failed.</source>
+            <translation>放弃外部编辑会话失败。</translation>
+        </message>
+        <message>
+            <source>Abandoned Edit in… working-copy session.</source>
+            <translation>已放弃外部编辑工作副本会话。</translation>
+        </message>
+        <message>
+            <source>Reopening Edit in… session…</source>
+            <translation>正在重新打开外部编辑会话…</translation>
+        </message>
+        <message>
+            <source>Edit in… reopen failed.</source>
+            <translation>重新打开外部编辑会话失败。</translation>
+        </message>
+        <message>
+            <source>Reopened Edit in… session (%1)</source>
+            <translation>已重新打开外部编辑会话（%1）</translation>
+        </message>
+        <message>
+            <source>Refreshing Edit in… status…</source>
+            <translation>正在刷新外部编辑状态…</translation>
+        </message>
+        <message>
+            <source>Edit in… status refresh failed.</source>
+            <translation>外部编辑状态刷新失败。</translation>
+        </message>
+        <message>
+            <source>Edit in… session status: %1</source>
+            <translation>外部编辑会话状态：%1</translation>
+        </message>
+        <message>
+            <source>Select a photo first.</source>
+            <translation>请先选择照片。</translation>
+        </message>
+        <message>
+            <source>The selected photo has no local file path.</source>
+            <translation>所选照片没有本地文件路径。</translation>
+        </message>
+        <message>
+            <source>The original file is missing and cannot be shown in the file manager.</source>
+            <translation>原始文件丢失，无法在文件管理器中显示。</translation>
+        </message>
+        <message>
+            <source>The file manager could not be opened.</source>
+            <translation>无法打开文件管理器。</translation>
+        </message>
+        <message>
+            <source>Showing the original file.</source>
+            <translation>显示原始文件。</translation>
+        </message>
+        <message>
+            <source>Creating offline-edit proxy…</source>
+            <translation>创建离线编辑代理...</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy created.</source>
+            <translation>创建离线编辑代理。</translation>
+        </message>
+        <message>
+            <source>Reconnecting original…</source>
+            <translation>正在重新连接原始文件…</translation>
+        </message>
+        <message>
+            <source>Original reconnected; offline state cleared.</source>
+            <translation>原始文件已重新连接；离线状态已清除。</translation>
+        </message>
+        <message>
+            <source>Deleting offline-edit proxy…</source>
+            <translation>正在删除离线编辑代理...</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy deleted.</source>
+            <translation>离线编辑代理已删除。</translation>
+        </message>
+        <message>
+            <source>Pinning offline-edit proxy…</source>
+            <translation>固定离线编辑代理...</translation>
+        </message>
+        <message>
+            <source>Unpinning offline-edit proxy…</source>
+            <translation>取消固定离线编辑代理...</translation>
+        </message>
+        <message>
+            <source>Offline-edit proxy pin updated.</source>
+            <translation>离线编辑代理固定状态已更新。</translation>
+        </message>
+        <message>
+            <source>Evicting unpinned offline proxies…</source>
+            <translation>驱逐未固定的离线代理...</translation>
+        </message>
+        <message>
+            <source>Evicted %1 unpinned offline-edit prox%2.</source>
+            <translation>已移除 %1 个未固定的离线编辑代理%2。</translation>
+        </message>
+        <message>
+            <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
+            <translation>已导入 %1，重复 %2，跳过 %3，不受支持 %4，失败 %5</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioWindowGeometry</name>
+        <message>
+            <source>Window size or position is invalid.</source>
+            <translation>窗口大小或位置无效。</translation>
+        </message>
+        <message>
+            <source>Unable to save the window position.</source>
+            <translation>无法保存窗口位置。</translation>
+        </message>
+        <message>
+            <source>Unable to repair the stored window position.</source>
+            <translation>无法修复存储的窗口位置。</translation>
         </message>
     </context>
     <context>
