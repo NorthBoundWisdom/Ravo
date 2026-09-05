@@ -99,6 +99,20 @@ hooks dated without claiming the full corpus matrix is closed.
   velvia/monochrome/split-toning, effects, equalizers, LUT, masked ops, etc.)
   stay on the CPU hybrid.
 
+
+
+### Velvia / split-toning interactive admit (follow-on)
+
+- Schema version **6** adds `ravo.color.velvia` and `ravo.color.splittoning` to
+  `gpu_admitted_interactive_stages` with Metal/RHI `velvia_rgb` and
+  `split_toning_rgb` passes that mirror CPU `apply_velvia` /
+  `apply_split_toning` (pointwise HSL for split-toning).
+- Owned packed RGB8 stays within `kIqGpuCpuPackedRgb8AbsDelta` vs CPU gold on
+  macOS Metal; persist/export/reopen remain CPU gold. Monochrome stays hybrid
+  (Lab convert + bilateral filter residual). Other non-admitted interactive ops
+  (curves/levels, color-balance*, clarity/texture/dehaze, effects, equalizers,
+  LUT, masked ops, etc.) stay on the CPU hybrid.
+
 ### Explicit residuals
 
 - Full IQ-00 matrix (RAW corpus, ICC/proof, multi-instance locals, denoise,

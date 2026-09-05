@@ -13,6 +13,8 @@
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/mask.h"
 #include "ravo/recipe/sharpen.h"
+#include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/velvia.h"
 
 namespace ravo
 {
@@ -192,6 +194,44 @@ namespace
                                  true,
                                  {{"amount", ParameterValue{-0.2}}},
                                  std::nullopt});
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Result<Recipe> make_velvia_only_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    VelviaParams params;
+    params.strength = 40.0;
+    params.bias = 0.75;
+    auto encoded = velvia_to_parameters(params);
+    if (!encoded)
+        return encoded.error();
+    recipe.operations.push_back({std::string(kVelviaOperationId), kVelviaOperationSchemaVersion,
+                                 "velvia-1", true, encoded.value(), std::nullopt});
+    recipe.operations.push_back(output_operation());
+    return recipe;
+}
+
+[[nodiscard]] Result<Recipe> make_split_toning_only_recipe()
+{
+    Recipe recipe;
+    recipe.asset = {"iq-consistency", "memory:iq-consistency", std::nullopt};
+    SplitToningParams params;
+    params.shadow_hue = 0.55;
+    params.shadow_saturation = 0.35;
+    params.highlight_hue = 0.08;
+    params.highlight_saturation = 0.4;
+    params.balance = 0.48;
+    params.compress = 28.0;
+    params.mix = 0.85;
+    auto encoded = split_toning_to_parameters(params);
+    if (!encoded)
+        return encoded.error();
+    recipe.operations.push_back({std::string(kSplitToningOperationId),
+                                 kSplitToningOperationSchemaVersion, "split-1", true,
+                                 encoded.value(), std::nullopt});
     recipe.operations.push_back(output_operation());
     return recipe;
 }
@@ -468,6 +508,24 @@ TEST(IqConsistencyTest, InteractiveGpuVibranceSaturationPackedDeltaWithinContrac
                                               make_vibrance_saturation_recipe());
 }
 
+TEST(IqConsistencyTest, InteractiveGpuVelviaPackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto recipe = make_velvia_only_recipe();
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8), recipe.value());
+}
+
+TEST(IqConsistencyTest, InteractiveGpuSplitToningPackedDeltaWithinContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto recipe = make_split_toning_only_recipe();
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8), recipe.value());
+}
+
 TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -503,7 +561,7 @@ TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
 
 TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
 {
-    EXPECT_EQ(kIqConsistencySchemaVersion, 5);
+    EXPECT_EQ(kIqConsistencySchemaVersion, 6);
     EXPECT_FALSE(std::string(kIqGpuInteractiveNonAdmittedPolicy).empty());
     EXPECT_NE(std::string(kIqConsistencyGpuLiveResidual).find("admitted_interactive"),
               std::string::npos);
@@ -524,6 +582,8 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
     bool saw_gamma = false;
     bool saw_vibrance = false;
     bool saw_saturation = false;
+    bool saw_velvia = false;
+    bool saw_split_toning = false;
     bool saw_sigmoid = false;
     bool saw_sharpen = false;
     bool saw_rapidraw_controls = false;
@@ -540,6 +600,10 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
             saw_vibrance = true;
         if (stage == "ravo.color.saturation")
             saw_saturation = true;
+        if (stage == "ravo.color.velvia")
+            saw_velvia = true;
+        if (stage == "ravo.color.splittoning")
+            saw_split_toning = true;
         if (stage == "ravo.display.sigmoid")
             saw_sigmoid = true;
         if (stage == "ravo.detail.sharpen")
@@ -554,6 +618,8 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
     EXPECT_TRUE(saw_gamma);
     EXPECT_TRUE(saw_vibrance);
     EXPECT_TRUE(saw_saturation);
+    EXPECT_TRUE(saw_velvia);
+    EXPECT_TRUE(saw_split_toning);
     EXPECT_TRUE(saw_sigmoid);
     EXPECT_TRUE(saw_sharpen);
     EXPECT_TRUE(saw_rapidraw_controls);

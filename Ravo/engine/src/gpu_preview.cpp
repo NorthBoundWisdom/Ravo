@@ -17,6 +17,8 @@
 #include "ravo/recipe/rapidraw_tone.h"
 #include "ravo/recipe/rapidraw_tone_controls.h"
 #include "ravo/recipe/sharpen.h"
+#include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/velvia.h"
 #include "image_ops_internal.h"
 
 namespace ravo
@@ -130,6 +132,22 @@ enum class PreviewOpClass : std::uint8_t
         {
             return PreviewOpClass::Skip;
         }
+        return PreviewOpClass::Gpu;
+    }
+    if (operation.id == kVelviaOperationId)
+    {
+        if (!linear_rec709_working(working))
+            return PreviewOpClass::Cpu;
+        if (near(parameter(operation, "strength", 0.0), 0.0))
+            return PreviewOpClass::Skip;
+        return PreviewOpClass::Gpu;
+    }
+    if (operation.id == kSplitToningOperationId)
+    {
+        if (!linear_rec709_working(working))
+            return PreviewOpClass::Cpu;
+        if (near(parameter(operation, "mix", 0.0), 0.0))
+            return PreviewOpClass::Skip;
         return PreviewOpClass::Gpu;
     }
     if (operation.id == kSharpenOperationId)
@@ -277,6 +295,51 @@ enum class PreviewOpClass : std::uint8_t
             pass.vibrance_saturation.vibrance_amount = amount / 1.4F;
         else
             pass.vibrance_saturation.saturation_amount = amount;
+        return pass;
+    }
+    if (operation.id == kVelviaOperationId)
+    {
+        const float strength = static_cast<float>(parameter(operation, "strength", 0.0) / 100.0);
+        const float bias = static_cast<float>(parameter(operation, "bias", 1.0));
+        if (!std::isfinite(strength) || !std::isfinite(bias))
+        {
+            return make_error(ErrorCode::kValidation, "GPU velvia is not finite",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kVelvia;
+        pass.velvia.strength = strength;
+        pass.velvia.bias = bias;
+        return pass;
+    }
+    if (operation.id == kSplitToningOperationId)
+    {
+        const float shadow_hue = static_cast<float>(parameter(operation, "shadow_hue", 0.0));
+        const float shadow_saturation =
+            static_cast<float>(parameter(operation, "shadow_saturation", 0.5));
+        const float highlight_hue = static_cast<float>(parameter(operation, "highlight_hue", 0.2));
+        const float highlight_saturation =
+            static_cast<float>(parameter(operation, "highlight_saturation", 0.5));
+        const float balance = static_cast<float>(parameter(operation, "balance", 0.5));
+        const float compression =
+            static_cast<float>(parameter(operation, "compress", 33.0) / 110.0 / 2.0);
+        const float mix = static_cast<float>(parameter(operation, "mix", 1.0));
+        if (!std::isfinite(shadow_hue) || !std::isfinite(shadow_saturation) ||
+            !std::isfinite(highlight_hue) || !std::isfinite(highlight_saturation) ||
+            !std::isfinite(balance) || !std::isfinite(compression) || !std::isfinite(mix))
+        {
+            return make_error(ErrorCode::kValidation, "GPU split toning is not finite",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kSplitToning;
+        pass.split_toning.shadow_hue = shadow_hue;
+        pass.split_toning.shadow_saturation = shadow_saturation;
+        pass.split_toning.highlight_hue = highlight_hue;
+        pass.split_toning.highlight_saturation = highlight_saturation;
+        pass.split_toning.balance = balance;
+        pass.split_toning.compression = compression;
+        pass.split_toning.mix = mix;
         return pass;
     }
     if (operation.id == kSharpenOperationId)

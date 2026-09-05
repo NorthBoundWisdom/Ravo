@@ -10,6 +10,8 @@
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/color_input.h"
+#include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/velvia.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
@@ -387,6 +389,86 @@ TEST(EngineFacadeTest, GpuPreviewAppliesVibranceSaturationOnGpuWhenAvailable)
                                  true,
                                  {{"amount", ParameterValue{0.15}}},
                                  std::nullopt});
+    recipe.operations.push_back({"ravo.color.output", 1, "output", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
+    const auto persist = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    EXPECT_TRUE(persist.value().gpu_backend.empty());
+    const auto rendered = render_interactive(engine.value(), input, recipe);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    if (gpu_available(engine.value()))
+    {
+        EXPECT_EQ(rendered.value().gpu_backend, engine.value().gpu_backend());
+        EXPECT_NE(rendered.value().gpu_backend, "unavailable");
+    }
+    else
+    {
+        EXPECT_TRUE(rendered.value().gpu_backend.empty());
+    }
+}
+
+TEST(EngineFacadeTest, GpuPreviewAppliesVelviaOnlyRecipesOnGpuWhenAvailable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kMatrix;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = std::string(kInputProfileLinearRec709);
+    profile.has_matrix = true;
+    LinearWorkingBuffer input{1, 1, {0.20F, 0.12F, 0.08F}, profile, {}, {}, {}};
+    Recipe recipe;
+    recipe.asset = {"gpu-preview", "memory:gpu-preview", std::nullopt};
+    VelviaParams params;
+    params.strength = 35.0;
+    params.bias = 0.8;
+    auto encoded = velvia_to_parameters(params);
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    recipe.operations.push_back({std::string(kVelviaOperationId), kVelviaOperationSchemaVersion,
+                                 "velvia-1", true, encoded.value(), std::nullopt});
+    recipe.operations.push_back({"ravo.color.output", 1, "output", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
+    const auto persist = engine.value().render_linear_working(input, recipe, CancellationToken{});
+    ASSERT_TRUE(persist) << persist.error().message;
+    EXPECT_TRUE(persist.value().gpu_backend.empty());
+    const auto rendered = render_interactive(engine.value(), input, recipe);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    if (gpu_available(engine.value()))
+    {
+        EXPECT_EQ(rendered.value().gpu_backend, engine.value().gpu_backend());
+        EXPECT_NE(rendered.value().gpu_backend, "unavailable");
+    }
+    else
+    {
+        EXPECT_TRUE(rendered.value().gpu_backend.empty());
+    }
+}
+
+TEST(EngineFacadeTest, GpuPreviewAppliesSplitToningOnlyRecipesOnGpuWhenAvailable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kMatrix;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = std::string(kInputProfileLinearRec709);
+    profile.has_matrix = true;
+    LinearWorkingBuffer input{1, 1, {0.16F, 0.14F, 0.22F}, profile, {}, {}, {}};
+    Recipe recipe;
+    recipe.asset = {"gpu-preview", "memory:gpu-preview", std::nullopt};
+    SplitToningParams params;
+    params.shadow_hue = 0.6;
+    params.shadow_saturation = 0.4;
+    params.highlight_hue = 0.1;
+    params.highlight_saturation = 0.35;
+    params.balance = 0.5;
+    params.compress = 30.0;
+    params.mix = 0.9;
+    auto encoded = split_toning_to_parameters(params);
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    recipe.operations.push_back({std::string(kSplitToningOperationId),
+                                 kSplitToningOperationSchemaVersion, "split-1", true,
+                                 encoded.value(), std::nullopt});
     recipe.operations.push_back({"ravo.color.output", 1, "output", true,
                                  output_color_to_parameters(OutputColorParams{}), std::nullopt});
     const auto persist = engine.value().render_linear_working(input, recipe, CancellationToken{});

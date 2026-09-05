@@ -56,6 +56,23 @@ struct GpuVibranceSaturationRgbParams
     float saturation_amount = 0.0F;
 };
 
+struct GpuVelviaRgbParams
+{
+    float strength = 0.0F;
+    float bias = 1.0F;
+};
+
+struct GpuSplitToningRgbParams
+{
+    float shadow_hue = 0.0F;
+    float shadow_saturation = 0.5F;
+    float highlight_hue = 0.2F;
+    float highlight_saturation = 0.5F;
+    float balance = 0.5F;
+    float compression = 0.0F;
+    float mix = 1.0F;
+};
+
 struct GpuSharpenRgbParams
 {
     std::uint32_t width = 0;
@@ -93,6 +110,8 @@ struct GpuRgbPass
         kContrast = 6,
         kGamma = 7,
         kVibranceSaturation = 8,
+        kVelvia = 9,
+        kSplitToning = 10,
     };
     Kind kind = Kind::kAffine;
     GpuAffineRgbParams affine;
@@ -103,6 +122,8 @@ struct GpuRgbPass
     GpuContrastRgbParams contrast;
     GpuGammaRgbParams gamma;
     GpuVibranceSaturationRgbParams vibrance_saturation;
+    GpuVelviaRgbParams velvia;
+    GpuSplitToningRgbParams split_toning;
 };
 
 struct GpuRgbApplyOptions

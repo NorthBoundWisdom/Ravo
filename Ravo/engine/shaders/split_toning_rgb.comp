@@ -1,0 +1,104 @@
+#version 440
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer Values {
+    float values[];
+};
+
+layout(std140, binding = 1) uniform Params {
+    uvec4 header;
+    vec4 tones;       // shadow_hue, shadow_saturation, highlight_hue, highlight_saturation
+    vec4 mix_params;  // balance, compression (compress/110/2), mix, unused
+};
+
+float hue_to_rgb(const float p, const float q, float value)
+{
+    if (value < 0.0)
+        value += 1.0;
+    if (value > 1.0)
+        value -= 1.0;
+    if (value < 1.0 / 6.0)
+        return p + (q - p) * 6.0 * value;
+    if (value < 0.5)
+        return q;
+    if (value < 2.0 / 3.0)
+        return p + (q - p) * (2.0 / 3.0 - value) * 6.0;
+    return p;
+}
+
+void rgb_to_hsl(const float red, const float green, const float blue, out float hue,
+                out float saturation, out float lightness)
+{
+    const float maximum = max(red, max(green, blue));
+    const float minimum = min(red, min(green, blue));
+    lightness = (maximum + minimum) * 0.5;
+    if (maximum <= minimum + 1.0e-6)
+    {
+        hue = 0.0;
+        saturation = 0.0;
+        return;
+    }
+    const float delta = maximum - minimum;
+    saturation =
+        lightness > 0.5 ? delta / (2.0 - maximum - minimum) : delta / (maximum + minimum);
+    if (maximum == red)
+        hue = (green - blue) / delta + (green < blue ? 6.0 : 0.0);
+    else if (maximum == green)
+        hue = (blue - red) / delta + 2.0;
+    else
+        hue = (red - green) / delta + 4.0;
+    hue /= 6.0;
+}
+
+void hsl_to_rgb(const float hue, const float saturation, const float lightness, out float red,
+                out float green, out float blue)
+{
+    if (saturation <= 1.0e-6)
+    {
+        red = green = blue = lightness;
+        return;
+    }
+    const float q = lightness < 0.5 ? lightness * (1.0 + saturation) :
+                                      lightness + saturation - lightness * saturation;
+    const float p = 2.0 * lightness - q;
+    red = hue_to_rgb(p, q, hue + 1.0 / 3.0);
+    green = hue_to_rgb(p, q, hue);
+    blue = hue_to_rgb(p, q, hue - 1.0 / 3.0);
+}
+
+// Match CPU apply_split_toning.
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+    if (index >= header.x)
+        return;
+    const uint base = index * 3u;
+    const float red = values[base];
+    const float green = values[base + 1u];
+    const float blue = values[base + 2u];
+    float hue = 0.0;
+    float saturation = 0.0;
+    float lightness = 0.0;
+    rgb_to_hsl(red, green, blue, hue, saturation, lightness);
+    float toned_red = red;
+    float toned_green = green;
+    float toned_blue = blue;
+    float weight = 0.0;
+    const float balance = mix_params.x;
+    const float compression = mix_params.y;
+    const float mix = mix_params.z;
+    if (lightness < balance - compression)
+    {
+        hsl_to_rgb(tones.x, tones.y, lightness, toned_red, toned_green, toned_blue);
+        weight = clamp((balance - compression - lightness) * 2.0, 0.0, 1.0);
+    }
+    else if (lightness > balance + compression)
+    {
+        hsl_to_rgb(tones.z, tones.w, lightness, toned_red, toned_green, toned_blue);
+        weight = clamp((lightness - (balance + compression)) * 2.0, 0.0, 1.0);
+    }
+    weight *= mix;
+    values[base] = clamp(red * (1.0 - weight) + toned_red * weight, 0.0, 1.0);
+    values[base + 1u] = clamp(green * (1.0 - weight) + toned_green * weight, 0.0, 1.0);
+    values[base + 2u] = clamp(blue * (1.0 - weight) + toned_blue * weight, 0.0, 1.0);
+}

@@ -33,6 +33,10 @@ extern unsigned char const ravo_gpu_gamma_rgb_qsb[];
 extern unsigned long long const ravo_gpu_gamma_rgb_qsb_size;
 extern unsigned char const ravo_gpu_vibrance_saturation_rgb_qsb[];
 extern unsigned long long const ravo_gpu_vibrance_saturation_rgb_qsb_size;
+extern unsigned char const ravo_gpu_velvia_rgb_qsb[];
+extern unsigned long long const ravo_gpu_velvia_rgb_qsb_size;
+extern unsigned char const ravo_gpu_split_toning_rgb_qsb[];
+extern unsigned long long const ravo_gpu_split_toning_rgb_qsb_size;
 extern unsigned char const ravo_gpu_sharpen_lab_qsb[];
 extern unsigned long long const ravo_gpu_sharpen_lab_qsb_size;
 extern unsigned char const ravo_gpu_rcd_demosaic_qsb[];
@@ -146,6 +150,29 @@ struct VibranceSaturationUniforms
     float pad1[2] = {};
 };
 
+struct VelviaUniforms
+{
+    quint32 pixel_count = 0;
+    quint32 pad0[3] = {};
+    float strength = 0.0F;
+    float bias = 1.0F;
+    float pad1[2] = {};
+};
+
+struct SplitToningUniforms
+{
+    quint32 pixel_count = 0;
+    quint32 pad0[3] = {};
+    float shadow_hue = 0.0F;
+    float shadow_saturation = 0.5F;
+    float highlight_hue = 0.2F;
+    float highlight_saturation = 0.5F;
+    float balance = 0.5F;
+    float compression = 0.0F;
+    float mix = 1.0F;
+    float pad1 = 0.0F;
+};
+
 struct RapidRawToneUniforms
 {
     quint32 width = 0;
@@ -179,6 +206,9 @@ static_assert(sizeof(ContrastUniforms) == 32U, "contrast UBO must match std140 v
 static_assert(sizeof(GammaUniforms) == 32U, "gamma UBO must match std140 vec4 packing");
 static_assert(sizeof(VibranceSaturationUniforms) == 32U,
               "vibrance/saturation UBO must match std140 vec4 packing");
+static_assert(sizeof(VelviaUniforms) == 32U, "velvia UBO must match std140 vec4 packing");
+static_assert(sizeof(SplitToningUniforms) == 48U,
+              "split toning UBO must match std140 vec4 packing");
 static_assert(sizeof(SharpenUniforms) == 144U, "sharpen UBO must match std140 kernel[7]");
 
 struct RcdUniforms
@@ -252,6 +282,8 @@ struct GpuAdapter::Impl
     std::unique_ptr<QRhiBuffer> contrast_uniforms;
     std::unique_ptr<QRhiBuffer> gamma_uniforms;
     std::unique_ptr<QRhiBuffer> vibrance_saturation_uniforms;
+    std::unique_ptr<QRhiBuffer> velvia_uniforms;
+    std::unique_ptr<QRhiBuffer> split_toning_uniforms;
     std::unique_ptr<QRhiBuffer> sharpen_uniforms[4];
     std::unique_ptr<QRhiBuffer> rcd_uniforms[9];
     std::unique_ptr<QRhiBuffer> copy_uniforms;
@@ -270,6 +302,8 @@ struct GpuAdapter::Impl
     std::unique_ptr<QRhiComputePipeline> contrast_pipeline;
     std::unique_ptr<QRhiComputePipeline> gamma_pipeline;
     std::unique_ptr<QRhiComputePipeline> vibrance_saturation_pipeline;
+    std::unique_ptr<QRhiComputePipeline> velvia_pipeline;
+    std::unique_ptr<QRhiComputePipeline> split_toning_pipeline;
     std::unique_ptr<QRhiComputePipeline> sharpen_pipeline;
     std::unique_ptr<QRhiComputePipeline> rcd_pipeline;
     std::unique_ptr<QRhiComputePipeline> copy_pipeline;
@@ -610,6 +644,17 @@ Result<void> GpuAdapter::Impl::open()
     {
         return vibrance_saturation_shader.error();
     }
+    auto velvia_shader = load_shader(ravo_gpu_velvia_rgb_qsb, ravo_gpu_velvia_rgb_qsb_size);
+    if (!velvia_shader)
+    {
+        return velvia_shader.error();
+    }
+    auto split_toning_shader =
+        load_shader(ravo_gpu_split_toning_rgb_qsb, ravo_gpu_split_toning_rgb_qsb_size);
+    if (!split_toning_shader)
+    {
+        return split_toning_shader.error();
+    }
     auto sharpen_shader = load_shader(ravo_gpu_sharpen_lab_qsb, ravo_gpu_sharpen_lab_qsb_size);
     if (!sharpen_shader)
     {
@@ -641,6 +686,10 @@ Result<void> GpuAdapter::Impl::open()
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
     vibrance_saturation_uniforms.reset(
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
+    velvia_uniforms.reset(
+        rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
+    split_toning_uniforms.reset(
+        rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
     layout_bindings.reset(rhi->newShaderResourceBindings());
     sharpen_layout.reset(rhi->newShaderResourceBindings());
     rapidraw_tone_layout.reset(rhi->newShaderResourceBindings());
@@ -667,12 +716,14 @@ Result<void> GpuAdapter::Impl::open()
     if (affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
         rapidraw_tone_uniforms == nullptr || sigmoid_uniforms == nullptr ||
         contrast_uniforms == nullptr || gamma_uniforms == nullptr ||
-        vibrance_saturation_uniforms == nullptr || layout_bindings == nullptr ||
+        vibrance_saturation_uniforms == nullptr || velvia_uniforms == nullptr ||
+        split_toning_uniforms == nullptr || layout_bindings == nullptr ||
         sharpen_layout == nullptr || rapidraw_tone_layout == nullptr || !light_ubos ||
         !sharpen_ubos || !affine_uniforms->create() || !rapidraw_basic_tone_uniforms->create() ||
         !rapidraw_tone_uniforms->create() || !sigmoid_uniforms->create() ||
         !contrast_uniforms->create() || !gamma_uniforms->create() ||
-        !vibrance_saturation_uniforms->create())
+        !vibrance_saturation_uniforms->create() || !velvia_uniforms->create() ||
+        !split_toning_uniforms->create())
     {
         return make_error(ErrorCode::kIo, "GPU pipeline allocation failed",
                           {{"reason", "gpu_pipeline_failed"}});
@@ -757,6 +808,16 @@ Result<void> GpuAdapter::Impl::open()
     {
         return vibrance_saturation.error();
     }
+    auto velvia = make_pipeline(velvia_shader.value(), layout_bindings.get());
+    if (!velvia)
+    {
+        return velvia.error();
+    }
+    auto split_toning = make_pipeline(split_toning_shader.value(), layout_bindings.get());
+    if (!split_toning)
+    {
+        return split_toning.error();
+    }
     auto sharpen = make_pipeline(sharpen_shader.value(), sharpen_layout.get());
     if (!sharpen)
     {
@@ -770,6 +831,8 @@ Result<void> GpuAdapter::Impl::open()
     contrast_pipeline = std::move(contrast).value();
     gamma_pipeline = std::move(gamma).value();
     vibrance_saturation_pipeline = std::move(vibrance_saturation).value();
+    velvia_pipeline = std::move(velvia).value();
+    split_toning_pipeline = std::move(split_toning).value();
     sharpen_pipeline = std::move(sharpen).value();
     auto copy_shader = load_shader(ravo_gpu_copy_rgb_qsb, ravo_gpu_copy_rgb_qsb_size);
     if (!copy_shader)
@@ -892,11 +955,13 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
     if (rhi == nullptr || affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
         rapidraw_tone_uniforms == nullptr || sigmoid_uniforms == nullptr ||
         contrast_uniforms == nullptr || gamma_uniforms == nullptr ||
-        vibrance_saturation_uniforms == nullptr || light_uniforms[0] == nullptr ||
+        vibrance_saturation_uniforms == nullptr || velvia_uniforms == nullptr ||
+        split_toning_uniforms == nullptr || light_uniforms[0] == nullptr ||
         affine_pipeline == nullptr || sigmoid_pipeline == nullptr ||
         rapidraw_basic_tone_pipeline == nullptr || rapidraw_tone_pipeline == nullptr ||
         light_pipeline == nullptr || contrast_pipeline == nullptr || gamma_pipeline == nullptr ||
-        vibrance_saturation_pipeline == nullptr || sharpen_pipeline == nullptr)
+        vibrance_saturation_pipeline == nullptr || velvia_pipeline == nullptr ||
+        split_toning_pipeline == nullptr || sharpen_pipeline == nullptr)
     {
         return make_error(ErrorCode::kUnsupported, "GPU adapter is not initialized",
                           {{"reason", "gpu_unavailable"}});
@@ -940,7 +1005,9 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                  pass.kind != GpuRgbPass::Kind::kLightControls &&
                  pass.kind != GpuRgbPass::Kind::kContrast &&
                  pass.kind != GpuRgbPass::Kind::kGamma &&
-                 pass.kind != GpuRgbPass::Kind::kVibranceSaturation)
+                 pass.kind != GpuRgbPass::Kind::kVibranceSaturation &&
+                 pass.kind != GpuRgbPass::Kind::kVelvia &&
+                 pass.kind != GpuRgbPass::Kind::kSplitToning)
         {
             return make_error(ErrorCode::kInvalidArgument, "GPU RGB pass kind is unsupported",
                               {{"reason", "gpu_pipeline_failed"}});
@@ -1350,6 +1417,52 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                                          &params);
             pipeline = vibrance_saturation_pipeline.get();
             ubo = vibrance_saturation_uniforms.get();
+            groups = pixel_groups;
+        }
+        else if (pass.kind == GpuRgbPass::Kind::kVelvia)
+        {
+            if (!std::isfinite(pass.velvia.strength) || !std::isfinite(pass.velvia.bias))
+            {
+                rhi->endOffscreenFrame();
+                return make_error(ErrorCode::kInvalidArgument, "GPU velvia params must be finite",
+                                  {{"reason", "gpu_pipeline_failed"}});
+            }
+            VelviaUniforms params;
+            params.pixel_count = pixels;
+            params.strength = pass.velvia.strength;
+            params.bias = pass.velvia.bias;
+            updates->updateDynamicBuffer(velvia_uniforms.get(), 0, sizeof(params), &params);
+            pipeline = velvia_pipeline.get();
+            ubo = velvia_uniforms.get();
+            groups = pixel_groups;
+        }
+        else if (pass.kind == GpuRgbPass::Kind::kSplitToning)
+        {
+            if (!std::isfinite(pass.split_toning.shadow_hue) ||
+                !std::isfinite(pass.split_toning.shadow_saturation) ||
+                !std::isfinite(pass.split_toning.highlight_hue) ||
+                !std::isfinite(pass.split_toning.highlight_saturation) ||
+                !std::isfinite(pass.split_toning.balance) ||
+                !std::isfinite(pass.split_toning.compression) ||
+                !std::isfinite(pass.split_toning.mix))
+            {
+                rhi->endOffscreenFrame();
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "GPU split toning params must be finite",
+                                  {{"reason", "gpu_pipeline_failed"}});
+            }
+            SplitToningUniforms params;
+            params.pixel_count = pixels;
+            params.shadow_hue = pass.split_toning.shadow_hue;
+            params.shadow_saturation = pass.split_toning.shadow_saturation;
+            params.highlight_hue = pass.split_toning.highlight_hue;
+            params.highlight_saturation = pass.split_toning.highlight_saturation;
+            params.balance = pass.split_toning.balance;
+            params.compression = pass.split_toning.compression;
+            params.mix = pass.split_toning.mix;
+            updates->updateDynamicBuffer(split_toning_uniforms.get(), 0, sizeof(params), &params);
+            pipeline = split_toning_pipeline.get();
+            ubo = split_toning_uniforms.get();
             groups = pixel_groups;
         }
         else

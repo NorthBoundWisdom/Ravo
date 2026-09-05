@@ -1,0 +1,42 @@
+#version 440
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer Values {
+    float values[];
+};
+
+layout(std140, binding = 1) uniform Params {
+    uvec4 header;
+    vec4 body;
+};
+
+// Match CPU apply_velvia (strength already /100; bias unmodified).
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+    if (index >= header.x)
+        return;
+    const uint base = index * 3u;
+    const float red = values[base];
+    const float green = values[base + 1u];
+    const float blue = values[base + 2u];
+    const float strength = body.x;
+    const float bias = body.y;
+    const float maximum = max(red, max(green, blue));
+    const float minimum = min(red, min(green, blue));
+    const float luminance = (maximum + minimum) * 0.5;
+    float saturation = 0.0;
+    if (luminance <= 0.5)
+        saturation = (maximum - minimum) / (1.0e-5 + maximum + minimum);
+    else
+        saturation = (maximum - minimum) / (1.0e-5 + max(0.0, 2.0 - maximum - minimum));
+    const float weight = clamp(
+        ((1.0 - 1.5 * saturation) +
+         (1.0 + abs(luminance - 0.5) * 2.0) * (1.0 - bias)) /
+            (1.0 + (1.0 - bias)),
+        0.0, 1.0);
+    const float amount = strength * weight;
+    values[base] = clamp(red + amount * (red - 0.5 * (green + blue)), 0.0, 1.0);
+    values[base + 1u] = clamp(green + amount * (green - 0.5 * (red + blue)), 0.0, 1.0);
+    values[base + 2u] = clamp(blue + amount * (blue - 0.5 * (red + green)), 0.0, 1.0);
+}
