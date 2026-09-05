@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 import subprocess
 import sys
 
@@ -19,6 +20,18 @@ def main() -> int:
     env["QT_QPA_PLATFORM"] = "offscreen"
     env.setdefault("QSG_RHI_BACKEND", "software")
     env.setdefault("QT_QUICK_BACKEND", "software")
+    if os.name == "nt":
+        windows_root = env.get("WINDIR") or env.get("SystemRoot")
+        font_dir = Path(env.get("QT_QPA_FONTDIR", "")) if env.get("QT_QPA_FONTDIR") else None
+        if font_dir is None and windows_root:
+            font_dir = Path(windows_root) / "Fonts"
+        if font_dir is None or not font_dir.is_dir():
+            print(
+                f"Ravo Studio smoke Windows font directory is missing: {font_dir or '<unset>'}",
+                file=sys.stderr,
+            )
+            return 1
+        env["QT_QPA_FONTDIR"] = str(font_dir)
     # Windows Debug instantiates the same complete root QML tree but is much
     # slower under the hosted runner. Fatal Qt messages still exit immediately
     # through main.cpp's smoke-only message handler.

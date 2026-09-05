@@ -215,7 +215,10 @@ fails the target build. Smoke mode installs a fatal-message handler that writes
 the Qt diagnostic and exits immediately, including on Windows where an
 interactive crash dialog would otherwise look like a hang. The full Windows
 Debug root-QML instantiation has a 300-second subprocess bound and a 330-second
-CTest bound; macOS and Linux retain 90 seconds. The same check is
+CTest bound; macOS and Linux retain 90 seconds. Windows offscreen smoke binds
+`QT_QPA_FONTDIR` to an existing explicit or `%WINDIR%/Fonts` directory and
+fails before launch when neither is available; it does not use Qt's absent
+`lib/fonts` default. The same check is
 `ravo_studio_qml_smoke` in CTest so GitHub Actions exercises it after
 configure/build. Manual check:
 `$<TARGET_FILE:ravo_studio> --smoke`.
