@@ -211,8 +211,13 @@ local manual Studio Fit/100%/Develop acceptance. Each successful link of
 `ravo_studio` runs `--smoke` on the `offscreen` software backend to instantiate
 the root QML and exit before `QGuiApplication::exec()` so Windows CI cannot
 block in the Qt Quick scene-graph loop; a QML or command-registry failure
-fails the target build. The same check is `ravo_studio_qml_smoke` in CTest so
-GitHub Actions exercises it after configure/build. Manual check:
+fails the target build. Smoke mode installs a fatal-message handler that writes
+the Qt diagnostic and exits immediately, including on Windows where an
+interactive crash dialog would otherwise look like a hang. The full Windows
+Debug root-QML instantiation has a 300-second subprocess bound and a 330-second
+CTest bound; macOS and Linux retain 90 seconds. The same check is
+`ravo_studio_qml_smoke` in CTest so GitHub Actions exercises it after
+configure/build. Manual check:
 `$<TARGET_FILE:ravo_studio> --smoke`.
 `ravo_desktop_command_tests` validates built-in command/action coverage,
 stable IDs, runtime-state rechecks, invalid dispatch, shortcut conflicts,

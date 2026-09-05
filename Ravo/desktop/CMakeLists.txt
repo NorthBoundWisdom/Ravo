@@ -254,6 +254,11 @@ if(NOT Python3_Interpreter_FOUND)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
 endif()
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/StudioTranslations.cmake")
+if(WIN32)
+  set(RAVO_STUDIO_SMOKE_CTEST_TIMEOUT 330)
+else()
+  set(RAVO_STUDIO_SMOKE_CTEST_TIMEOUT 90)
+endif()
 add_custom_command(
   TARGET ravo_studio
   POST_BUILD
@@ -274,7 +279,7 @@ if(BUILD_TESTING)
             "$<TARGET_FILE:ravo_studio>")
   set_tests_properties(ravo_studio_qml_smoke PROPERTIES
     LABELS "ravo-desktop-smoke"
-    TIMEOUT 90
+    TIMEOUT ${RAVO_STUDIO_SMOKE_CTEST_TIMEOUT}
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:ravo_studio>"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QSG_RHI_BACKEND=software;QT_QUICK_BACKEND=software")
 endif()

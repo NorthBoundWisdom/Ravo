@@ -1,10 +1,13 @@
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string_view>
 
+#include <QByteArray>
 #include <QColor>
 #include <QColorSpace>
 #include <QCoreApplication>
@@ -22,6 +25,7 @@
 #include <QStyleHints>
 #include <QSurfaceFormat>
 #include <QUrl>
+#include <QtLogging>
 
 #include "ravo/desktop/studio_assistant_controller.h"
 #include "ravo/desktop/studio_command_controller.h"
@@ -45,6 +49,16 @@ struct PreviewPresentationTrace
     std::chrono::steady_clock::time_point intent_started_at{};
     std::int64_t intent_to_image_us = 0;
 };
+
+void smoke_message_handler(const QtMsgType type, const QMessageLogContext &, const QString &message)
+{
+    const QByteArray utf8 = message.toUtf8();
+    std::fwrite(utf8.constData(), 1U, static_cast<std::size_t>(utf8.size()), stderr);
+    std::fputc('\n', stderr);
+    std::fflush(stderr);
+    if (type == QtFatalMsg)
+        std::_Exit(EXIT_FAILURE);
+}
 
 bool generic_font_family(const QString &family)
 {
@@ -229,6 +243,9 @@ int main(int argc, char *argv[])
         qputenv("QT_QPA_PLATFORM", "offscreen");
         qputenv("QSG_RHI_BACKEND", "software");
         qputenv("QT_QUICK_BACKEND", "software");
+        // Windows can otherwise surface a Qt fatal through an interactive crash
+        // dialog, turning a real QML/registry failure into an opaque timeout.
+        qInstallMessageHandler(smoke_message_handler);
     }
 
     // GeoControls is a static NO_PLUGIN QML module under qrc:/GeoControls, not
@@ -378,6 +395,8 @@ int main(int argc, char *argv[])
         ravo::shutdown_logging();
         return 1;
     }
+    if (smoke)
+        LOG_INFO(ravo::logger(), "Ravo Studio smoke C++ owners ready");
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
                      &command_controller, &ravo::StudioCommandController::retranslate);
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &presenter,
@@ -457,6 +476,8 @@ int main(int argc, char *argv[])
                 });
         },
         Qt::QueuedConnection);
+    if (smoke)
+        LOG_INFO(ravo::logger(), "Ravo Studio smoke loading root QML");
     engine.loadFromModule("Ravo.Studio", "Main");
     if (smoke)
     {

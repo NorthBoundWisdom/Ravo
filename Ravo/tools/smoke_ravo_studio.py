@@ -19,15 +19,22 @@ def main() -> int:
     env["QT_QPA_PLATFORM"] = "offscreen"
     env.setdefault("QSG_RHI_BACKEND", "software")
     env.setdefault("QT_QUICK_BACKEND", "software")
+    # Windows Debug instantiates the same complete root QML tree but is much
+    # slower under the hosted runner. Fatal Qt messages still exit immediately
+    # through main.cpp's smoke-only message handler.
+    timeout_seconds = 300 if os.name == "nt" else 90
     languages: list[str | None] = args.language or [None]
     for language in languages:
         command = [args.binary, "--smoke"]
         if language is not None:
             command.extend(("--language", language))
         try:
-            completed = subprocess.run(command, env=env, check=False, timeout=90)
+            completed = subprocess.run(command, env=env, check=False, timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
-            print(f"Ravo Studio smoke timed out: {' '.join(command)}", file=sys.stderr)
+            print(
+                f"Ravo Studio smoke timed out after {timeout_seconds}s: {' '.join(command)}",
+                file=sys.stderr,
+            )
             return 1
         except OSError as error:
             print(f"Ravo Studio smoke failed to start {args.binary}: {error}", file=sys.stderr)
