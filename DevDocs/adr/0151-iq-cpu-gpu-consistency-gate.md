@@ -65,7 +65,7 @@ hooks dated without claiming the full corpus matrix is closed.
   `non_admitted_interactive_policy`.
 - Owned-pixel interactive vs CPU-gold packed RGB8 stays within
   `kIqGpuCpuPackedRgb8AbsDelta` for those stages (and an admitted develop
-  stack) on macOS Metal; non-admitted ops (e.g. contrast-only) remain CPU
+  stack) on macOS Metal; non-admitted ops remain CPU
   gold bit-exact on the interactive hybrid. Persist/export/reopen stay CPU
   gold. Win/Linux hosts are not claimed.
 
@@ -76,6 +76,15 @@ hooks dated without claiming the full corpus matrix is closed.
 - The all-control stack is compared with CPU gold at the same working-float
   tolerance and packed-RGB8 delta. Persist, export, and reopen remain CPU gold;
   the wider platform/corpus residual is unchanged.
+
+### Contrast interactive admit (follow-on)
+
+- Schema version **4** adds `ravo.core.contrast` to
+  `gpu_admitted_interactive_stages` with a Metal/RHI `contrast_rgb` pass that
+  mirrors CPU middle-grey luminance power contrast.
+- Owned packed RGB8 stays within `kIqGpuCpuPackedRgb8AbsDelta` vs CPU gold on
+  macOS Metal; persist/export/reopen remain CPU gold. Other non-admitted
+  interactive ops stay on the CPU hybrid.
 
 ### Explicit residuals
 

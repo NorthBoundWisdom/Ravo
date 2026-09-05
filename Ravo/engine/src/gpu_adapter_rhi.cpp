@@ -27,6 +27,8 @@ extern unsigned char const ravo_gpu_rapidraw_tone_controls_qsb[];
 extern unsigned long long const ravo_gpu_rapidraw_tone_controls_qsb_size;
 extern unsigned char const ravo_gpu_light_controls_qsb[];
 extern unsigned long long const ravo_gpu_light_controls_qsb_size;
+extern unsigned char const ravo_gpu_contrast_rgb_qsb[];
+extern unsigned long long const ravo_gpu_contrast_rgb_qsb_size;
 extern unsigned char const ravo_gpu_sharpen_lab_qsb[];
 extern unsigned long long const ravo_gpu_sharpen_lab_qsb_size;
 extern unsigned char const ravo_gpu_rcd_demosaic_qsb[];
@@ -115,6 +117,14 @@ struct LightUniforms
     float black_ev = 0.0F;
 };
 
+struct ContrastUniforms
+{
+    quint32 pixel_count = 0;
+    quint32 pad0[3] = {};
+    float amount = 0.0F;
+    float pad1[3] = {};
+};
+
 struct RapidRawToneUniforms
 {
     quint32 width = 0;
@@ -144,6 +154,7 @@ struct SharpenUniforms
 };
 
 static_assert(sizeof(LightUniforms) == 32U, "light UBO must match std140 vec4 packing");
+static_assert(sizeof(ContrastUniforms) == 32U, "contrast UBO must match std140 vec4 packing");
 static_assert(sizeof(SharpenUniforms) == 144U, "sharpen UBO must match std140 kernel[7]");
 
 struct RcdUniforms
@@ -214,6 +225,7 @@ struct GpuAdapter::Impl
     std::unique_ptr<QRhiBuffer> rapidraw_tone_uniforms;
     std::unique_ptr<QRhiBuffer> sigmoid_uniforms;
     std::unique_ptr<QRhiBuffer> light_uniforms[4];
+    std::unique_ptr<QRhiBuffer> contrast_uniforms;
     std::unique_ptr<QRhiBuffer> sharpen_uniforms[4];
     std::unique_ptr<QRhiBuffer> rcd_uniforms[9];
     std::unique_ptr<QRhiBuffer> copy_uniforms;
@@ -229,6 +241,7 @@ struct GpuAdapter::Impl
     std::unique_ptr<QRhiComputePipeline> rapidraw_basic_tone_pipeline;
     std::unique_ptr<QRhiComputePipeline> rapidraw_tone_pipeline;
     std::unique_ptr<QRhiComputePipeline> light_pipeline;
+    std::unique_ptr<QRhiComputePipeline> contrast_pipeline;
     std::unique_ptr<QRhiComputePipeline> sharpen_pipeline;
     std::unique_ptr<QRhiComputePipeline> rcd_pipeline;
     std::unique_ptr<QRhiComputePipeline> copy_pipeline;
@@ -553,6 +566,11 @@ Result<void> GpuAdapter::Impl::open()
     {
         return light_shader.error();
     }
+    auto contrast_shader = load_shader(ravo_gpu_contrast_rgb_qsb, ravo_gpu_contrast_rgb_qsb_size);
+    if (!contrast_shader)
+    {
+        return contrast_shader.error();
+    }
     auto sharpen_shader = load_shader(ravo_gpu_sharpen_lab_qsb, ravo_gpu_sharpen_lab_qsb_size);
     if (!sharpen_shader)
     {
@@ -577,6 +595,8 @@ Result<void> GpuAdapter::Impl::open()
     rapidraw_tone_uniforms.reset(
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
     sigmoid_uniforms.reset(
+        rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
+    contrast_uniforms.reset(
         rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, ubo_aligned));
     layout_bindings.reset(rhi->newShaderResourceBindings());
     sharpen_layout.reset(rhi->newShaderResourceBindings());
@@ -603,10 +623,11 @@ Result<void> GpuAdapter::Impl::open()
     }
     if (affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
         rapidraw_tone_uniforms == nullptr || sigmoid_uniforms == nullptr ||
-        layout_bindings == nullptr || sharpen_layout == nullptr ||
+        contrast_uniforms == nullptr || layout_bindings == nullptr || sharpen_layout == nullptr ||
         rapidraw_tone_layout == nullptr || !light_ubos || !sharpen_ubos ||
         !affine_uniforms->create() || !rapidraw_basic_tone_uniforms->create() ||
-        !rapidraw_tone_uniforms->create() || !sigmoid_uniforms->create())
+        !rapidraw_tone_uniforms->create() || !sigmoid_uniforms->create() ||
+        !contrast_uniforms->create())
     {
         return make_error(ErrorCode::kIo, "GPU pipeline allocation failed",
                           {{"reason", "gpu_pipeline_failed"}});
@@ -675,6 +696,11 @@ Result<void> GpuAdapter::Impl::open()
     {
         return light.error();
     }
+    auto contrast = make_pipeline(contrast_shader.value(), layout_bindings.get());
+    if (!contrast)
+    {
+        return contrast.error();
+    }
     auto sharpen = make_pipeline(sharpen_shader.value(), sharpen_layout.get());
     if (!sharpen)
     {
@@ -685,6 +711,7 @@ Result<void> GpuAdapter::Impl::open()
     rapidraw_basic_tone_pipeline = std::move(rapidraw_basic_tone).value();
     rapidraw_tone_pipeline = std::move(rapidraw_tone).value();
     light_pipeline = std::move(light).value();
+    contrast_pipeline = std::move(contrast).value();
     sharpen_pipeline = std::move(sharpen).value();
     auto copy_shader = load_shader(ravo_gpu_copy_rgb_qsb, ravo_gpu_copy_rgb_qsb_size);
     if (!copy_shader)
@@ -806,9 +833,10 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
     }
     if (rhi == nullptr || affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
         rapidraw_tone_uniforms == nullptr || sigmoid_uniforms == nullptr ||
-        light_uniforms[0] == nullptr || affine_pipeline == nullptr || sigmoid_pipeline == nullptr ||
+        contrast_uniforms == nullptr || light_uniforms[0] == nullptr ||
+        affine_pipeline == nullptr || sigmoid_pipeline == nullptr ||
         rapidraw_basic_tone_pipeline == nullptr || rapidraw_tone_pipeline == nullptr ||
-        light_pipeline == nullptr || sharpen_pipeline == nullptr)
+        light_pipeline == nullptr || contrast_pipeline == nullptr || sharpen_pipeline == nullptr)
     {
         return make_error(ErrorCode::kUnsupported, "GPU adapter is not initialized",
                           {{"reason", "gpu_unavailable"}});
@@ -849,7 +877,8 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         }
         else if (pass.kind != GpuRgbPass::Kind::kSigmoid &&
                  pass.kind != GpuRgbPass::Kind::kRapidRawBasicTone &&
-                 pass.kind != GpuRgbPass::Kind::kLightControls)
+                 pass.kind != GpuRgbPass::Kind::kLightControls &&
+                 pass.kind != GpuRgbPass::Kind::kContrast)
         {
             return make_error(ErrorCode::kInvalidArgument, "GPU RGB pass kind is unsupported",
                               {{"reason", "gpu_pipeline_failed"}});
@@ -1208,6 +1237,22 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             ubo = light_uniforms[light_slot].get();
             groups = pixel_groups;
             ++light_slot;
+        }
+        else if (pass.kind == GpuRgbPass::Kind::kContrast)
+        {
+            if (!std::isfinite(pass.contrast.amount))
+            {
+                rhi->endOffscreenFrame();
+                return make_error(ErrorCode::kInvalidArgument, "GPU contrast amount must be finite",
+                                  {{"reason", "gpu_pipeline_failed"}});
+            }
+            ContrastUniforms params;
+            params.pixel_count = pixels;
+            params.amount = pass.contrast.amount;
+            updates->updateDynamicBuffer(contrast_uniforms.get(), 0, sizeof(params), &params);
+            pipeline = contrast_pipeline.get();
+            ubo = contrast_uniforms.get();
+            groups = pixel_groups;
         }
         else
         {

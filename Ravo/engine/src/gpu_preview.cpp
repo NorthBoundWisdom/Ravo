@@ -107,6 +107,14 @@ enum class PreviewOpClass : std::uint8_t
         }
         return PreviewOpClass::Gpu;
     }
+    if (operation.id == "ravo.core.contrast")
+    {
+        if (near(parameter(operation, "amount", 0.0), 0.0))
+        {
+            return PreviewOpClass::Skip;
+        }
+        return PreviewOpClass::Gpu;
+    }
     if (operation.id == kSharpenOperationId)
     {
         if (linear_rec709_working(working))
@@ -210,6 +218,19 @@ enum class PreviewOpClass : std::uint8_t
         {
             pass.light.black_ev = ev;
         }
+        return pass;
+    }
+    if (operation.id == "ravo.core.contrast")
+    {
+        const float amount = static_cast<float>(parameter(operation, "amount", 0.0));
+        if (!std::isfinite(amount))
+        {
+            return make_error(ErrorCode::kValidation, "GPU contrast amount is not finite",
+                              {{"reason", "gpu_pipeline_failed"}});
+        }
+        GpuRgbPass pass;
+        pass.kind = GpuRgbPass::Kind::kContrast;
+        pass.contrast.amount = amount;
         return pass;
     }
     if (operation.id == kSharpenOperationId)

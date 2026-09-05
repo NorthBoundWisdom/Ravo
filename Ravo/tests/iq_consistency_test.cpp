@@ -414,26 +414,12 @@ TEST(IqConsistencyTest, InteractiveGpuAdmittedDevelopStackPackedDeltaWithinContr
     expect_interactive_packed_within_contract(engine.value(), make_working(16, 16), recipe.value());
 }
 
-TEST(IqConsistencyTest, InteractiveNonAdmittedContrastStaysCpuGoldBitExact)
+TEST(IqConsistencyTest, InteractiveGpuContrastPackedDeltaWithinContract)
 {
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
-    const auto working = make_working(8, 8);
-    const auto recipe = make_contrast_only_recipe();
-
-    const auto cpu = engine.value().render_linear_working(working, recipe, CancellationToken{});
-    ASSERT_TRUE(cpu) << cpu.error().message;
-    ASSERT_TRUE(require_cpu_gold_backend(cpu.value().gpu_backend, "cpu_reference"));
-
-    InteractivePreviewRenderCache cache;
-    const auto interactive = engine.value().render_interactive_linear_working(
-        working, recipe, cache, CancellationToken{}, std::nullopt, true);
-    ASSERT_TRUE(interactive) << interactive.error().message;
-    // Contrast is not an admitted GPU stage: interactive must stay CPU gold and
-    // bit-exact (machine-visible: empty gpu_backend), not a silent GPU path.
-    EXPECT_TRUE(interactive.value().gpu_backend.empty());
-    EXPECT_TRUE(is_cpu_gold_backend(interactive.value().gpu_backend));
-    EXPECT_TRUE(rgb8_buffers_equal(interactive.value().rgb, cpu.value().rgb));
+    expect_interactive_packed_within_contract(engine.value(), make_working(8, 8),
+                                              make_contrast_only_recipe());
 }
 
 TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
@@ -471,7 +457,7 @@ TEST(IqConsistencyTest, InteractiveMaskedExposureStaysCpuGoldBitExact)
 
 TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
 {
-    EXPECT_EQ(kIqConsistencySchemaVersion, 3);
+    EXPECT_EQ(kIqConsistencySchemaVersion, 4);
     EXPECT_FALSE(std::string(kIqGpuInteractiveNonAdmittedPolicy).empty());
     EXPECT_NE(std::string(kIqConsistencyGpuLiveResidual).find("admitted_interactive"),
               std::string::npos);
@@ -488,6 +474,7 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
                   .find("cross_scale_roi_vs_scaled_export_explicit_non_compare"),
               std::string::npos);
     bool saw_exposure = false;
+    bool saw_contrast = false;
     bool saw_sigmoid = false;
     bool saw_sharpen = false;
     bool saw_rapidraw_controls = false;
@@ -496,6 +483,8 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
     {
         if (stage == "ravo.core.exposure")
             saw_exposure = true;
+        if (stage == "ravo.core.contrast")
+            saw_contrast = true;
         if (stage == "ravo.display.sigmoid")
             saw_sigmoid = true;
         if (stage == "ravo.detail.sharpen")
@@ -506,6 +495,7 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
             saw_rapidraw_display = true;
     }
     EXPECT_TRUE(saw_exposure);
+    EXPECT_TRUE(saw_contrast);
     EXPECT_TRUE(saw_sigmoid);
     EXPECT_TRUE(saw_sharpen);
     EXPECT_TRUE(saw_rapidraw_controls);

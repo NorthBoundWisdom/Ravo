@@ -87,7 +87,7 @@ CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
 moves in the intended direction. DISPLAY-01 is C2 with Gallery thumbnail
 monitor convert + macOS GPU native owned-pixel presentation publish landed;
 IQ-00 macOS Metal admitted-stage interactive packed-delta contracts landed
-(Exposure/light/Lab-USM/Sigmoid/RapidRAW); non-admitted interactive ops stay
+(Exposure/light/contrast/Lab-USM/Sigmoid/RapidRAW); other non-admitted interactive ops stay
 CPU hybrid; RAW ROI vs full-export owned packed abs-delta closed within
 interactive ±1 on macOS (tile-aligned demosaic + spatial apron); Metal ROI
 apron owned-surface publish landed (gpu_display_* size-matches owned); scaled
@@ -352,14 +352,14 @@ package-size, or CPU-reference regression.
 expansions on `main`: persist preview ↔ export RGB8 bit-exact + ICC identity,
 packed ROI crop reopen/export equality, and **interactive Develop GPU
 packed-delta contracts for admitted Metal stages** (Exposure, highlights/
-shadows/whites/blacks, Lab USM sharpen, linear-sRGB Sigmoid, and RapidRAW
+shadows/whites/blacks, **contrast**, Lab USM sharpen, linear-sRGB Sigmoid, and RapidRAW
 global tone controls plus Basic display) versus CPU gold
 owned packed RGB8 (`kIqGpuCpuPackedRgb8AbsDelta=1`), with persist/export/reopen
-remaining CPU gold. Non-admitted interactive ops (e.g. contrast-only) stay
-CPU-gold bit-exact / interactive hybrid (20260905_130706: no Metal contrast path
-ready for packed ±1 admit — left hybrid); masked admitted ops run CPU prefix then may GPU the
+remaining CPU gold. Non-admitted interactive ops stay CPU hybrid; masked
+admitted ops run CPU prefix then may GPU the
 admitted suffix within the same packed delta. `catalog probe` `iq_consistency`
-schema_version=3 lists `gpu_admitted_interactive_stages` and
+schema_version=4 lists `gpu_admitted_interactive_stages` (includes
+`ravo.core.contrast`) and
 `non_admitted_interactive_policy`; host_scope=`macos_debug_release_contract`,
 `win_linux_hosts_claimed=false`. Catalog probe
 `Iq00RawRoiLiveVersusCpuExportDocumentsResidual` keeps settled/reopen/export

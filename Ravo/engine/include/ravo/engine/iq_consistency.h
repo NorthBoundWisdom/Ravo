@@ -15,7 +15,7 @@ namespace ravo
 
 // ADR-0151: IQ-00 CPU gold / GPU consistency contract (first Ready).
 inline constexpr std::string_view kIqConsistencyContractVersion = "ravo.iq.consistency/v1";
-inline constexpr std::int64_t kIqConsistencySchemaVersion = 3;
+inline constexpr std::int64_t kIqConsistencySchemaVersion = 4;
 
 // Per-channel absolute tolerance for admitted interactive GPU RGB batches
 // versus CPU gold linear working (Exposure / light / Lab USM / display tone).
@@ -32,6 +32,7 @@ inline constexpr std::string_view kIqGpuAdmittedInteractiveStages[] = {
     "ravo.core.shadows",
     "ravo.core.whites",
     "ravo.core.blacks",
+    "ravo.core.contrast",
     "ravo.detail.sharpen",
     "ravo.display.sigmoid",
     "ravo.core.rapidraw-tone-controls",
@@ -41,7 +42,7 @@ inline constexpr std::string_view kIqGpuAdmittedInteractiveStages[] = {
 // Machine-visible residual after admitted-stage packed contracts: full
 // corpus / Win-Linux / proof-monitor / multi-instance GPU remain open; RAW
 // ROI vs export owned packed-delta + same-scale scaled-export compare are
-// documented below. Non-admitted interactive ops (e.g. contrast) run CPU.
+// documented below. Non-admitted interactive ops run CPU.
 inline constexpr std::string_view kIqGpuInteractiveNonAdmittedPolicy =
     "non_admitted_ops_run_cpu_on_interactive_hybrid; masked_ops_cpu; "
     "non_linear_rec709_sharpen_cpu; non_linear_srgb_sigmoid_working_space_cpu; "

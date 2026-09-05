@@ -1,0 +1,37 @@
+#version 440
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer Values {
+    float values[];
+};
+
+layout(std140, binding = 1) uniform Params {
+    uvec4 header;
+    vec4 body;
+};
+
+// Match CPU apply_contrast / working_luminance (linear Rec709).
+const float kMiddleGrey = 0.1842;
+const float kLumaR = 0.2225045;
+const float kLumaG = 0.7168786;
+const float kLumaB = 0.0606169;
+
+void main()
+{
+    const uint index = gl_GlobalInvocationID.x;
+    if (index >= header.x)
+        return;
+    const uint base = index * 3u;
+    const float r = values[base];
+    const float g = values[base + 1u];
+    const float b = values[base + 2u];
+    const float luminance = kLumaR * r + kLumaG * g + kLumaB * b;
+    if (luminance <= 0.0)
+        return;
+    const float contrast = 1.0 + body.x;
+    const float adjusted = pow(luminance / kMiddleGrey, contrast) * kMiddleGrey;
+    const float scale = adjusted / luminance;
+    values[base] = r * scale;
+    values[base + 1u] = g * scale;
+    values[base + 2u] = b * scale;
+}

@@ -40,6 +40,11 @@ struct GpuLightControlsParams
     float black_ev = 0.0F;
 };
 
+struct GpuContrastRgbParams
+{
+    float amount = 0.0F;
+};
+
 struct GpuSharpenRgbParams
 {
     std::uint32_t width = 0;
@@ -74,6 +79,7 @@ struct GpuRgbPass
         kSharpen = 3,
         kRapidRawBasicTone = 4,
         kRapidRawToneControls = 5,
+        kContrast = 6,
     };
     Kind kind = Kind::kAffine;
     GpuAffineRgbParams affine;
@@ -81,6 +87,7 @@ struct GpuRgbPass
     GpuLightControlsParams light;
     GpuSharpenRgbParams sharpen;
     GpuRapidRawToneControlsParams rapidraw_tone;
+    GpuContrastRgbParams contrast;
 };
 
 struct GpuRgbApplyOptions

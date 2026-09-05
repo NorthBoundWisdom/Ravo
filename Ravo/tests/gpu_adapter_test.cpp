@@ -295,7 +295,7 @@ TEST(EngineFacadeTest, GpuPreviewRenderReportsBackendForAdmissibleRecipe)
     }
 }
 
-TEST(EngineFacadeTest, GpuPreviewLeavesContrastOnlyRecipesOnCpu)
+TEST(EngineFacadeTest, GpuPreviewAppliesContrastOnlyRecipesOnGpuWhenAvailable)
 {
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
@@ -320,10 +320,18 @@ TEST(EngineFacadeTest, GpuPreviewLeavesContrastOnlyRecipesOnCpu)
     EXPECT_TRUE(persist.value().gpu_backend.empty());
     const auto rendered = render_interactive(engine.value(), input, recipe);
     ASSERT_TRUE(rendered) << rendered.error().message;
-    EXPECT_TRUE(rendered.value().gpu_backend.empty());
+    if (gpu_available(engine.value()))
+    {
+        EXPECT_EQ(rendered.value().gpu_backend, engine.value().gpu_backend());
+        EXPECT_NE(rendered.value().gpu_backend, "unavailable");
+    }
+    else
+    {
+        EXPECT_TRUE(rendered.value().gpu_backend.empty());
+    }
 }
 
-TEST(EngineFacadeTest, GpuPreviewAppliesSigmoidOnGpuAfterCpuOps)
+TEST(EngineFacadeTest, GpuPreviewAppliesContrastThenSigmoidOnGpuWhenAvailable)
 {
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
