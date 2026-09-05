@@ -1339,9 +1339,11 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     // size-matches the owned ROI window and is compared as owned packed RGB8;
     // RCD tile-aligned CPU demosaic + spatial processing apron keep packed
     // channels within interactive abs-delta (±1) on this host
-    // (kIqRawRoiVersusExportResidual). Scaled export crops stay a size-mismatch
-    // residual. Win/Linux / Bayer-RCD matrix / GPU-native apron surface are not
-    // claimed.
+    // (kIqRawRoiVersusExportResidual). Metal ROI publish crops the same owned
+    // window after the apron (gpu_display_* size-matches owned). Scaled export
+    // crops stay a size-mismatch residual when max_edge forces scale (probe
+    // fields only; CPU-gold authority unchanged). Win/Linux / Bayer-RCD matrix
+    // are not claimed.
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
@@ -1458,10 +1460,28 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     RecordProperty("iq00_raw_roi_gpu_backend", roi_preview.value().gpu_backend);
     RecordProperty("iq00_raw_roi_width", static_cast<int>(roi_preview.value().width));
     RecordProperty("iq00_raw_roi_height", static_cast<int>(roi_preview.value().height));
+    RecordProperty("iq00_raw_roi_gpu_display_generation",
+                   static_cast<int>(roi_preview.value().gpu_display_generation));
+    RecordProperty("iq00_raw_roi_gpu_display_width",
+                   static_cast<int>(roi_preview.value().gpu_display_width));
+    RecordProperty("iq00_raw_roi_gpu_display_height",
+                   static_cast<int>(roi_preview.value().gpu_display_height));
     if (roi_gpu)
         EXPECT_FALSE(is_cpu_gold_backend(roi_preview.value().gpu_backend));
     else
         EXPECT_TRUE(is_cpu_gold_backend(roi_preview.value().gpu_backend));
+    if (roi_preview.value().gpu_display_generation != 0U)
+    {
+        EXPECT_EQ(roi_preview.value().gpu_display_width, roi_preview.value().width);
+        EXPECT_EQ(roi_preview.value().gpu_display_height, roi_preview.value().height);
+        EXPECT_NE(roi_preview.value().gpu_display_native_surface, 0U);
+        RecordProperty("iq00_raw_roi_gpu_apron_owned_surface", "true");
+    }
+    else
+    {
+        RecordProperty("iq00_raw_roi_gpu_apron_owned_surface",
+                       roi_gpu ? "gpu_backend_without_owned_surface" : "cpu_path_no_gpu_surface");
+    }
 
     const QImage scaled_image(QString::fromStdString(scaled_export_path));
     ASSERT_FALSE(scaled_image.isNull());
@@ -1503,6 +1523,11 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
         std::string::npos);
     EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("rcd_tile_aligned"),
               std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("gpu_native_roi_apron_owned_surface"),
+              std::string::npos);
+    EXPECT_NE(
+        std::string(kIqRawRoiVersusExportResidual).find("scaled_export_max_edge_size_mismatch"),
+        std::string::npos);
     // Owned packed contract: size-matched full-export crop stays within interactive
     // abs-delta after tile-aligned demosaic + spatial apron (macOS probe).
     EXPECT_LE(max_delta, kIqGpuCpuPackedRgb8AbsDelta) << "max_packed_abs_delta=" << max_delta;
@@ -1517,6 +1542,44 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
                                                  kIqGpuCpuPackedRgb8AbsDelta));
         RecordProperty("iq00_raw_roi_packed_within_documented_delta", "true");
     }
+
+    // Dedicated Metal apron-surface probe: admitted Exposure, GPU-only pixels.
+    // Packed authority above stays on the baseline recipe / CPU-gold export crop.
+    auto live = service->load_recipe(asset_id);
+    ASSERT_TRUE(live) << live.error().message;
+    auto live_params = develop_from_recipe(live.value());
+    ASSERT_TRUE(live_params) << live_params.error().message;
+    live_params.value().exposure_ev = 0.35;
+    auto admitted = recipe_from_develop(live.value().asset, live_params.value());
+    ASSERT_TRUE(admitted) << admitted.error().message;
+    auto saved = service->save_recipe(asset_id, admitted.value());
+    ASSERT_TRUE(saved) << saved.error().message;
+
+    PreviewRequest roi_gpu_only;
+    roi_gpu_only.asset_id = asset_id;
+    roi_gpu_only.persist_preview_record = false;
+    roi_gpu_only.prefer_embedded_preview = false;
+    roi_gpu_only.need_cpu_pixels = false;
+    roi_gpu_only.roi = roi_rect;
+    auto roi_gpu_preview = service->request_preview(roi_gpu_only);
+    ASSERT_TRUE(roi_gpu_preview) << roi_gpu_preview.error().message;
+    EXPECT_EQ(roi_gpu_preview.value().width, roi_preview.value().width);
+    EXPECT_EQ(roi_gpu_preview.value().height, roi_preview.value().height);
+    RecordProperty("iq00_raw_roi_gpu_only_backend", roi_gpu_preview.value().gpu_backend);
+    RecordProperty("iq00_raw_roi_gpu_only_generation",
+                   static_cast<int>(roi_gpu_preview.value().gpu_display_generation));
+    RecordProperty("iq00_raw_roi_gpu_only_width",
+                   static_cast<int>(roi_gpu_preview.value().gpu_display_width));
+    RecordProperty("iq00_raw_roi_gpu_only_height",
+                   static_cast<int>(roi_gpu_preview.value().gpu_display_height));
+    ASSERT_FALSE(is_cpu_gold_backend(roi_gpu_preview.value().gpu_backend))
+        << "admitted Exposure should publish Metal ROI";
+    EXPECT_TRUE(roi_gpu_preview.value().rgb.empty());
+    EXPECT_NE(roi_gpu_preview.value().gpu_display_generation, 0U);
+    EXPECT_EQ(roi_gpu_preview.value().gpu_display_width, roi_preview.value().width);
+    EXPECT_EQ(roi_gpu_preview.value().gpu_display_height, roi_preview.value().height);
+    EXPECT_NE(roi_gpu_preview.value().gpu_display_native_surface, 0U);
+    RecordProperty("iq00_raw_roi_gpu_only_apron_owned_surface", "true");
 }
 
 TEST_F(CatalogServiceTest, RawPreviewRoiReusesLinearWorkingForRgbEdits)

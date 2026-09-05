@@ -511,6 +511,16 @@ struct EngineCaptureMetadata
     [[nodiscard]] bool operator==(const EngineCaptureMetadata &) const noexcept = default;
 };
 
+// Optional owned-window crop for Metal display publish (ROI spatial apron).
+// Zero width/height publishes the full interactive working buffer.
+struct GpuDisplayPublishCrop
+{
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+};
+
 class EngineFacade
 {
 public:
@@ -605,7 +615,8 @@ public:
         const LinearWorkingBuffer &working, const Recipe &recipe,
         InteractivePreviewRenderCache &cache, const CancellationToken &cancellation,
         std::optional<std::string> overlay_mask_id = {}, bool need_cpu_pixels = true,
-        GpuDisplayKind display_kind = GpuDisplayKind::kPreview) const;
+        GpuDisplayKind display_kind = GpuDisplayKind::kPreview,
+        GpuDisplayPublishCrop display_publish_crop = {}) const;
     // Same recipe/output-colour stage as render_linear_working; packs the owned
     // ProfiledOutputBuffer to the requested sample kind. Preview callers stay on
     // the RGB8 APIs above.

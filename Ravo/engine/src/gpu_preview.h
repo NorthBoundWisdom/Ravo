@@ -23,6 +23,6 @@ apply_gpu_preview_rgb(const LinearWorkingBuffer &working, std::span<const GpuRgb
 apply_preview_rgb(LinearWorkingBuffer working, const Recipe &recipe, const GpuAdapter *gpu,
                   std::string *gpu_backend, const CancellationToken &cancellation,
                   bool need_cpu_pixels = true, std::uint32_t display_slot = 0,
-                  bool prefer_retained_source = false);
+                  bool prefer_retained_source = false, GpuDisplayPublishCrop publish_crop = {});
 
 } // namespace ravo

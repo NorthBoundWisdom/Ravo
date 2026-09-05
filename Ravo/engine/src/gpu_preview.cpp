@@ -448,12 +448,11 @@ Result<LinearWorkingBuffer> apply_gpu_preview_rgb(const LinearWorkingBuffer &wor
     return output;
 }
 
-Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const Recipe &recipe,
-                                              const GpuAdapter *gpu, std::string *gpu_backend,
-                                              const CancellationToken &cancellation,
-                                              const bool need_cpu_pixels,
-                                              const std::uint32_t display_slot,
-                                              const bool prefer_retained_source)
+Result<LinearWorkingBuffer>
+apply_preview_rgb(LinearWorkingBuffer working, const Recipe &recipe, const GpuAdapter *gpu,
+                  std::string *gpu_backend, const CancellationToken &cancellation,
+                  const bool need_cpu_pixels, const std::uint32_t display_slot,
+                  const bool prefer_retained_source, const GpuDisplayPublishCrop publish_crop)
 {
     if (gpu_backend != nullptr)
     {
@@ -557,6 +556,10 @@ Result<LinearWorkingBuffer> apply_preview_rgb(LinearWorkingBuffer working, const
             gpu_options.width = working.width;
             gpu_options.height = working.height;
             gpu_options.display_slot = display_slot;
+            gpu_options.publish_crop_x = publish_crop.x;
+            gpu_options.publish_crop_y = publish_crop.y;
+            gpu_options.publish_crop_w = publish_crop.width;
+            gpu_options.publish_crop_h = publish_crop.height;
             auto gpu_image = apply_gpu_preview_rgb(working, batch, *gpu, cancellation, gpu_options);
             if (!gpu_image)
             {

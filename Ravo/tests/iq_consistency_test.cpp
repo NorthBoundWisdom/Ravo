@@ -479,6 +479,11 @@ TEST(IqConsistencyTest, AdmittedInteractiveStagesAreDocumented)
               std::string::npos);
     EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("rcd_tile_aligned"),
               std::string::npos);
+    EXPECT_NE(std::string(kIqRawRoiVersusExportResidual).find("gpu_native_roi_apron_owned_surface"),
+              std::string::npos);
+    EXPECT_NE(
+        std::string(kIqRawRoiVersusExportResidual).find("scaled_export_max_edge_size_mismatch"),
+        std::string::npos);
     bool saw_exposure = false;
     bool saw_sigmoid = false;
     bool saw_sharpen = false;

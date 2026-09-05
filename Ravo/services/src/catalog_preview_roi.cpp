@@ -357,13 +357,16 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     }
     Recipe rgb_recipe = window_recipe;
     disable_raw_preprocess(rgb_recipe);
-    // Spatial apron requires a CPU owned-pixel crop; request pixels even when the
-    // caller only wanted a GPU surface for the unexpanded window.
-    const bool need_cpu_pixels = request.need_cpu_pixels || spatial_apron > 0U;
+    // Metal publishes an owned-size IOSurface after the spatial apron via
+    // GpuDisplayPublishCrop. CPU pixels are only required when the caller asks
+    // for them (IQ probes) or when GPU-native publish is unavailable and the
+    // owned window must be cropped from the expanded CPU render.
+    const bool need_cpu_pixels = request.need_cpu_pixels;
+    const GpuDisplayPublishCrop display_crop{crop_x_px, crop_y_px, pw, ph};
     auto applied = engine_->render_interactive_linear_working(
         linear.value()->buffer, rgb_recipe, linear.value()->interactive_render_cache,
         request.cancellation, request.overlay_mask_id, need_cpu_pixels,
-        EngineFacade::GpuDisplayKind::kRoi);
+        EngineFacade::GpuDisplayKind::kRoi, display_crop);
     if (!applied)
     {
         return applied.error();
@@ -390,9 +393,36 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
     result.height = ph;
     result.color_profile = std::move(applied.value().color_profile);
     result.gpu_backend = applied.value().gpu_backend;
-    // Expanded renders publish a larger GPU surface; drop the native surface so
-    // callers that need owned pixels use the cropped CPU RGB (need_cpu_pixels).
-    result.gpu_display_generation = 0U;
+    result.gpu_display_generation = applied.value().gpu_display_generation;
+    if (result.gpu_display_generation != 0U)
+    {
+        const auto frame = engine_->gpu_display_frame(EngineFacade::GpuDisplayKind::kRoi);
+        if (frame.generation == result.gpu_display_generation && frame.width == pw &&
+            frame.height == ph && frame.native_surface != 0U)
+        {
+            result.gpu_display_width = frame.width;
+            result.gpu_display_height = frame.height;
+            result.gpu_display_native_surface = frame.native_surface;
+        }
+        else
+        {
+            // Owned-size Metal surface missing/mismatched: fall back to CPU crop.
+            result.gpu_display_generation = 0U;
+            result.gpu_display_width = 0U;
+            result.gpu_display_height = 0U;
+            result.gpu_display_native_surface = 0U;
+            if (applied.value().rgb.empty())
+            {
+                return make_error(ErrorCode::kIo,
+                                  "Preview ROI GPU surface is not owned-size after apron publish",
+                                  {{"reason", "preview_roi_gpu_apron_surface_mismatch"},
+                                   {"frame_width", std::to_string(frame.width)},
+                                   {"frame_height", std::to_string(frame.height)},
+                                   {"owned_width", std::to_string(pw)},
+                                   {"owned_height", std::to_string(ph)}});
+            }
+        }
+    }
     if (!applied.value().rgb.empty())
     {
         result.rgb.resize(static_cast<std::size_t>(pw) * ph * 3U);
@@ -406,6 +436,11 @@ Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &as
                         static_cast<std::size_t>(pw) * 3U,
                         result.rgb.begin() + static_cast<std::ptrdiff_t>(dst));
         }
+    }
+    else if (result.gpu_display_generation == 0U)
+    {
+        return make_error(ErrorCode::kIo, "Preview ROI render produced neither CPU nor GPU pixels",
+                          {{"reason", "preview_roi_pixels_missing"}});
     }
     if (!applied.value().mask_alpha.empty())
     {

@@ -157,13 +157,18 @@ inline constexpr std::string_view kIqConsistencyGpuLiveResidual =
 // grid on CPU; ROI processing expands by a spatial apron (sharpen / RapidRAW
 // tone radius) then crops to owned pixels. Size-matched packed channels stay
 // within interactive abs-delta (±1) on the macOS contract probe (observed).
-// Scaled/preview-edge export crops remain a size-mismatch residual. RAW ROI may
-// report GPU for admitted edit stages. Win/Linux / full corpus / Bayer-RCD
-// matrix / GPU-native ROI surface-with-apron stay open.
+// Metal ROI display publish crops the same owned window after the apron so
+// gpu_display_* matches owned packed size when admitted stages publish.
+// Scaled/preview-edge export crops remain a size-mismatch residual when
+// max_edge forces scale (probe fields: iq00_scaled_export_crop_w/h vs ROI);
+// CPU-gold authority is not weakened by resampling the export crop.
+// RAW ROI may report GPU for admitted edit stages. Win/Linux / full corpus /
+// Bayer-RCD matrix stay open.
 inline constexpr std::string_view kIqRawRoiVersusExportResidual =
     "full_export_crop_size_matched_macos_contract; "
     "owned_packed_rgb8_within_interactive_abs_delta_rcd_tile_aligned_cpu_demosaic_spatial_apron; "
-    "scaled_export_crop_size_mismatch_residual; raw_viewport_roi_may_report_gpu; "
+    "gpu_native_roi_apron_owned_surface_publish_macos_metal; "
+    "scaled_export_max_edge_size_mismatch_probe_fields; raw_viewport_roi_may_report_gpu; "
     "persist_export_reopen_cpu_gold; win_linux_and_full_corpus_open";
 
 } // namespace ravo

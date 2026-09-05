@@ -603,10 +603,10 @@ Result<void> GpuAdapter::Impl::open()
     }
     if (affine_uniforms == nullptr || rapidraw_basic_tone_uniforms == nullptr ||
         rapidraw_tone_uniforms == nullptr || sigmoid_uniforms == nullptr ||
-        layout_bindings == nullptr || sharpen_layout == nullptr || rapidraw_tone_layout == nullptr ||
-        !light_ubos || !sharpen_ubos || !affine_uniforms->create() ||
-        !rapidraw_basic_tone_uniforms->create() || !rapidraw_tone_uniforms->create() ||
-        !sigmoid_uniforms->create())
+        layout_bindings == nullptr || sharpen_layout == nullptr ||
+        rapidraw_tone_layout == nullptr || !light_ubos || !sharpen_ubos ||
+        !affine_uniforms->create() || !rapidraw_basic_tone_uniforms->create() ||
+        !rapidraw_tone_uniforms->create() || !sigmoid_uniforms->create())
     {
         return make_error(ErrorCode::kIo, "GPU pipeline allocation failed",
                           {{"reason", "gpu_pipeline_failed"}});
@@ -640,8 +640,7 @@ Result<void> GpuAdapter::Impl::open()
     rapidraw_tone_layout->setBindings({
         QRhiShaderResourceBinding::bufferLoadStore(0, QRhiShaderResourceBinding::ComputeStage,
                                                    nullptr),
-        QRhiShaderResourceBinding::bufferLoad(1, QRhiShaderResourceBinding::ComputeStage,
-                                              nullptr),
+        QRhiShaderResourceBinding::bufferLoad(1, QRhiShaderResourceBinding::ComputeStage, nullptr),
         QRhiShaderResourceBinding::uniformBuffer(2, QRhiShaderResourceBinding::ComputeStage,
                                                  rapidraw_tone_uniforms.get()),
     });
@@ -666,8 +665,7 @@ Result<void> GpuAdapter::Impl::open()
     {
         return rapidraw_basic_tone.error();
     }
-    auto rapidraw_tone =
-        make_pipeline(rapidraw_tone_shader.value(), rapidraw_tone_layout.get());
+    auto rapidraw_tone = make_pipeline(rapidraw_tone_shader.value(), rapidraw_tone_layout.get());
     if (!rapidraw_tone)
     {
         return rapidraw_tone.error();
@@ -1042,8 +1040,7 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                 !std::isfinite(tone.whites) || !std::isfinite(tone.blacks))
             {
                 rhi->endOffscreenFrame();
-                return make_error(ErrorCode::kInvalidArgument,
-                                  "GPU RapidRAW tone pass is invalid",
+                return make_error(ErrorCode::kInvalidArgument, "GPU RapidRAW tone pass is invalid",
                                   {{"reason", "gpu_pipeline_failed"}});
             }
             QRhiResourceUpdateBatch *copy_updates =
@@ -1069,8 +1066,7 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             params.blacks = tone.blacks;
             QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
             updates->updateDynamicBuffer(rapidraw_tone_uniforms.get(), 0, sizeof(params), &params);
-            std::unique_ptr<QRhiShaderResourceBindings> bindings(
-                rhi->newShaderResourceBindings());
+            std::unique_ptr<QRhiShaderResourceBindings> bindings(rhi->newShaderResourceBindings());
             if (bindings == nullptr)
             {
                 return fail_bindings();
@@ -1080,15 +1076,15 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
                     0, QRhiShaderResourceBinding::ComputeStage, rgb_buffer),
                 QRhiShaderResourceBinding::bufferLoad(1, QRhiShaderResourceBinding::ComputeStage,
                                                       lab_buffer),
-                QRhiShaderResourceBinding::uniformBuffer(
-                    2, QRhiShaderResourceBinding::ComputeStage, rapidraw_tone_uniforms.get()),
+                QRhiShaderResourceBinding::uniformBuffer(2, QRhiShaderResourceBinding::ComputeStage,
+                                                         rapidraw_tone_uniforms.get()),
             });
             if (!bindings->create())
             {
                 return fail_bindings();
             }
-            auto dispatched =
-                dispatch(updates, rapidraw_tone_pipeline.get(), bindings.get(), pixel_groups, false);
+            auto dispatched = dispatch(updates, rapidraw_tone_pipeline.get(), bindings.get(),
+                                       pixel_groups, false);
             if (!dispatched)
             {
                 return dispatched.error();
@@ -1241,18 +1237,41 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             return dispatched.error();
         }
     }
+    std::uint32_t published_display_w = 0U;
+    std::uint32_t published_display_h = 0U;
+    std::uint32_t publish_origin_x = 0U;
+    std::uint32_t publish_origin_y = 0U;
     if (options.publish_display)
     {
-        const auto display_w = options.width != 0U ? options.width : pixels;
-        const auto display_h = options.height != 0U ? options.height : 1U;
-        if (static_cast<std::uint64_t>(display_w) * display_h != pixels)
+        const auto full_w = options.width != 0U ? options.width : pixels;
+        const auto full_h = options.height != 0U ? options.height : 1U;
+        if (static_cast<std::uint64_t>(full_w) * full_h != pixels)
         {
             rhi->endOffscreenFrame();
             return make_error(ErrorCode::kInvalidArgument, "GPU display size does not match pixels",
                               {{"reason", "gpu_copy_size_mismatch"}});
         }
-        auto published =
-            publish_display(command, rgb_buffer, display_w, display_h, !options.download);
+        published_display_w = full_w;
+        published_display_h = full_h;
+        const bool crop_requested = options.publish_crop_w != 0U && options.publish_crop_h != 0U;
+        if (crop_requested)
+        {
+            if (options.publish_crop_x > full_w || options.publish_crop_y > full_h ||
+                options.publish_crop_w > full_w - options.publish_crop_x ||
+                options.publish_crop_h > full_h - options.publish_crop_y)
+            {
+                rhi->endOffscreenFrame();
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "GPU display publish crop is outside the working window",
+                                  {{"reason", "gpu_display_crop_out_of_bounds"}});
+            }
+            publish_origin_x = options.publish_crop_x;
+            publish_origin_y = options.publish_crop_y;
+            published_display_w = options.publish_crop_w;
+            published_display_h = options.publish_crop_h;
+        }
+        // Pack the full working buffer; owned-window crop happens at Metal blit.
+        auto published = publish_display(command, rgb_buffer, full_w, full_h, !options.download);
         if (!published)
         {
             return published.error();
@@ -1291,8 +1310,13 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
             return make_error(ErrorCode::kIo, "GPU display native texture is unavailable",
                               {{"reason", "gpu_pipeline_failed"}});
         }
-        const auto display_w = options.width != 0U ? options.width : pixels;
-        const auto display_h = options.height != 0U ? options.height : 1U;
+        // Owned ROI apron crop: pack_texture stays full-window; IOSurface is owned-size.
+        const auto display_w = published_display_w != 0U ?
+                                   published_display_w :
+                                   (options.width != 0U ? options.width : pixels);
+        const auto display_h = published_display_h != 0U ?
+                                   published_display_h :
+                                   (options.height != 0U ? options.height : 1U);
         const auto slot = options.display_slot;
         if (display_width[slot] != display_w || display_height[slot] != display_h)
         {
@@ -1317,9 +1341,10 @@ Result<void> GpuAdapter::Impl::apply_passes(const std::span<const float> input,
         }
         if (display_surface[slot][write] == nullptr ||
             display_metal_texture[slot][write] == nullptr ||
-            !gpu_metal::blit_texture(metal->dev, metal->cmdQueue,
-                                     reinterpret_cast<void *>(native.object),
-                                     display_metal_texture[slot][write], display_w, display_h))
+            !gpu_metal::blit_texture_crop(metal->dev, metal->cmdQueue,
+                                          reinterpret_cast<void *>(native.object),
+                                          display_metal_texture[slot][write], publish_origin_x,
+                                          publish_origin_y, display_w, display_h))
         {
             return make_error(ErrorCode::kIo, "GPU display blit failed",
                               {{"reason", "gpu_pipeline_failed"}});

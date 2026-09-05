@@ -920,7 +920,7 @@ namespace
     const std::optional<std::string> &overlay_mask_id, AlphaPlane *overlay_alpha,
     std::string *gpu_backend = nullptr, const bool need_cpu_pixels = true,
     const std::uint32_t display_slot = 0, const bool prefer_retained_source = false,
-    const bool use_gpu = false)
+    const bool use_gpu = false, const GpuDisplayPublishCrop display_publish_crop = {})
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -1015,10 +1015,14 @@ namespace
         ensure_gpu_adapter();
         gpu = g_gpu_adapter.get();
     }
+    const GpuDisplayPublishCrop gpu_publish_crop{display_publish_crop.x, display_publish_crop.y,
+                                                 display_publish_crop.width,
+                                                 display_publish_crop.height};
     Result<WorkingImage> adjusted =
         overlay_alpha == nullptr ?
             apply_preview_rgb(std::move(image), remaining_recipe, gpu, gpu_backend, cancellation,
-                              need_cpu_pixels, display_slot, prefer_retained_source) :
+                              need_cpu_pixels, display_slot, prefer_retained_source,
+                              gpu_publish_crop) :
             apply_recipe_ops(std::move(image), remaining_recipe, cancellation);
     if (!adjusted)
     {
@@ -1258,7 +1262,8 @@ render_interactive_prefix(const LinearWorkingBuffer &working, const Recipe &reci
     const LinearWorkingBuffer &working, const Recipe &recipe, const CancellationToken &cancellation,
     const std::optional<std::string> &overlay_mask_id, const bool need_cpu_pixels = true,
     const EngineFacade::GpuDisplayKind display_kind = EngineFacade::GpuDisplayKind::kPreview,
-    const bool prefer_retained_source = false, const bool use_gpu = false)
+    const bool prefer_retained_source = false, const bool use_gpu = false,
+    const GpuDisplayPublishCrop display_publish_crop = {})
 {
     AlphaPlane overlay;
     std::string gpu_backend;
@@ -1267,7 +1272,7 @@ render_interactive_prefix(const LinearWorkingBuffer &working, const Recipe &reci
     auto output = render_recipe_to_profiled_output(
         working, recipe, cancellation, overlay_mask_id, overlay_mask_id ? &overlay : nullptr,
         overlay_mask_id ? nullptr : &gpu_backend, force_cpu_pixels, display_slot,
-        prefer_retained_source && !overlay_mask_id.has_value(), use_gpu);
+        prefer_retained_source && !overlay_mask_id.has_value(), use_gpu, display_publish_crop);
     if (!output)
     {
         return output.error();
@@ -1322,6 +1327,16 @@ render_interactive_prefix(const LinearWorkingBuffer &working, const Recipe &reci
     result.color_profile = std::move(packed.value().color_profile);
     result.rgb = std::get<std::vector<std::uint8_t>>(std::move(packed.value().samples));
     result.gpu_backend = std::move(gpu_backend);
+    // Metal may publish a display surface even when CPU RGB was also downloaded.
+    if (!result.gpu_backend.empty() && g_gpu_adapter != nullptr)
+    {
+        const auto frame = g_gpu_adapter->display_frame(display_slot);
+        if (frame.generation != 0U && frame.native_surface != 0U && frame.width != 0U &&
+            frame.height != 0U)
+        {
+            result.gpu_display_generation = frame.generation;
+        }
+    }
     if (overlay_mask_id && overlay.width == result.width && overlay.height == result.height)
     {
         result.mask_alpha = std::move(overlay.alpha);
@@ -1368,7 +1383,8 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
 Result<RenderedImage> EngineFacade::render_interactive_linear_working(
     const LinearWorkingBuffer &working, const Recipe &recipe, InteractivePreviewRenderCache &cache,
     const CancellationToken &cancellation, std::optional<std::string> overlay_mask_id,
-    const bool need_cpu_pixels, const GpuDisplayKind display_kind) const
+    const bool need_cpu_pixels, const GpuDisplayKind display_kind,
+    const GpuDisplayPublishCrop display_publish_crop) const
 try
 {
     auto active = cancellation.check();
@@ -1422,7 +1438,7 @@ try
         }
         return render_validated_preview(working, recipe, cancellation, overlay_mask_id,
                                         need_cpu_pixels, display_kind, g_gpu_adapter != nullptr,
-                                        true);
+                                        true, display_publish_crop);
     }
     auto fingerprint = interactive_prefix_fingerprint(recipe, prefix_count);
     if (!fingerprint)
@@ -1463,7 +1479,7 @@ try
     }
     return render_validated_preview(cache.impl_->prefix->buffer, remaining, cancellation,
                                     overlay_mask_id, need_cpu_pixels, display_kind,
-                                    g_gpu_adapter != nullptr, true);
+                                    g_gpu_adapter != nullptr, true, display_publish_crop);
 }
 catch (const std::bad_alloc &)
 {

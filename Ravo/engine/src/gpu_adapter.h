@@ -91,6 +91,12 @@ struct GpuRgbApplyOptions
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::uint32_t display_slot = 0;
+    // Optional owned-window crop before Metal display publish (ROI spatial apron).
+    // Zero width/height means publish the full working buffer.
+    std::uint32_t publish_crop_x = 0;
+    std::uint32_t publish_crop_y = 0;
+    std::uint32_t publish_crop_w = 0;
+    std::uint32_t publish_crop_h = 0;
     std::string retained_key;
 };
 

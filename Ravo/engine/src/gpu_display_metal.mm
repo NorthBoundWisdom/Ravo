@@ -72,11 +72,25 @@ void release_texture(void *texture)
 bool blit_texture(void *metal_device, void *metal_queue, void *source, void *destination,
                   const std::uint32_t width, const std::uint32_t height)
 {
+    return blit_texture_crop(metal_device, metal_queue, source, destination, 0U, 0U, width, height);
+}
+
+bool blit_texture_crop(void *metal_device, void *metal_queue, void *source, void *destination,
+                       const std::uint32_t src_origin_x, const std::uint32_t src_origin_y,
+                       const std::uint32_t width, const std::uint32_t height)
+{
     id<MTLDevice> device = (__bridge id<MTLDevice>)metal_device;
     id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)metal_queue;
     id<MTLTexture> src = (__bridge id<MTLTexture>)source;
     id<MTLTexture> dst = (__bridge id<MTLTexture>)destination;
     if (device == nil || queue == nil || src == nil || dst == nil || width == 0U || height == 0U)
+    {
+        return false;
+    }
+    if (static_cast<std::uint32_t>(src.width) < src_origin_x + width ||
+        static_cast<std::uint32_t>(src.height) < src_origin_y + height ||
+        static_cast<std::uint32_t>(dst.width) < width ||
+        static_cast<std::uint32_t>(dst.height) < height)
     {
         return false;
     }
@@ -86,17 +100,18 @@ bool blit_texture(void *metal_device, void *metal_queue, void *source, void *des
     {
         return false;
     }
-    const MTLOrigin origin = MTLOriginMake(0, 0, 0);
+    const MTLOrigin src_origin = MTLOriginMake(src_origin_x, src_origin_y, 0);
+    const MTLOrigin dst_origin = MTLOriginMake(0, 0, 0);
     const MTLSize size = MTLSizeMake(width, height, 1);
     [blit copyFromTexture:src
               sourceSlice:0
               sourceLevel:0
-             sourceOrigin:origin
+             sourceOrigin:src_origin
                sourceSize:size
                 toTexture:dst
          destinationSlice:0
          destinationLevel:0
-        destinationOrigin:origin];
+        destinationOrigin:dst_origin];
     [blit endEncoding];
     [command commit];
     [command waitUntilCompleted];
