@@ -97,7 +97,17 @@ public:
     find_asset_by_id(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::optional<AssetRecord>>
     find_asset_by_uri(std::string_view normalized_uri) const override;
-    [[nodiscard]] Result<void> commit_imported_asset(const AssetRecord &asset) override;
+    [[nodiscard]] Result<void>
+    commit_imported_asset(const AssetRecord &asset,
+                          const std::optional<std::string> &sha256 = std::nullopt,
+                          bool reject_duplicate_content = false) override;
+    [[nodiscard]] Result<std::vector<ImportContentSource>>
+    import_content_sources(std::uint64_t size_bytes,
+                           std::string_view after_asset_id) const override;
+    [[nodiscard]] Result<void> cache_import_content(const ImportContentSource &source,
+                                                    std::string_view sha256) override;
+    [[nodiscard]] Result<std::optional<std::string>>
+    find_import_content(std::uint64_t size_bytes, std::string_view sha256) const override;
     [[nodiscard]] Result<void> commit_refreshed_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_review(std::string_view asset_id,

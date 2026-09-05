@@ -67,6 +67,41 @@ namespace
 Result<JsonValue> run_catalog_ingest_command(CatalogService &service, std::string_view subcommand,
                                              const CatalogCliArguments &flags)
 {
+    if (subcommand == "import-scan")
+    {
+        if (flags.inputs.empty())
+            return make_error(ErrorCode::kInvalidArgument, "import-scan requires --input");
+        std::vector<std::string> inputs;
+        for (const auto input : flags.inputs)
+            inputs.emplace_back(input);
+        auto scan =
+            service.scan_import_candidates(inputs, inputs.front(), flags.import_recursive, {});
+        if (!scan)
+            return scan.error();
+        JsonValue::Array items;
+        for (const auto &candidate : scan.value().candidates)
+        {
+            JsonValue::Object item{
+                {"path", candidate.source_path},
+                {"display_name", candidate.display_name},
+                {"size_bytes", JsonValue::number(std::to_string(candidate.size_bytes))},
+                {"duplicate", candidate.duplicate},
+                {"supported", candidate.supported},
+                {"sha256", candidate.content_sha256},
+                {"duplicate_reason", candidate.duplicate_reason}};
+            if (candidate.duplicate_asset_id)
+                item.emplace("asset_id", *candidate.duplicate_asset_id);
+            if (candidate.error)
+                item.emplace("error", error_object(*candidate.error));
+            items.emplace_back(std::move(item));
+        }
+        return JsonValue{JsonValue::Object{
+            {"schema", scan.value().schema},
+            {"catalog_revision", JsonValue::number(std::to_string(scan.value().catalog_revision))},
+            {"duplicates", JsonValue::number(std::to_string(scan.value().duplicates))},
+            {"unavailable", JsonValue::number(std::to_string(scan.value().unavailable))},
+            {"items", JsonValue{std::move(items)}}}};
+    }
     if (subcommand == "ingest-probe")
     {
         auto support = service.probe_ingest_native_support();
@@ -102,6 +137,7 @@ Result<JsonValue> run_catalog_ingest_command(CatalogService &service, std::strin
         request.filename_template = std::string(flags.import_filename_template);
         request.second_copy_directory = std::string(flags.import_second_copy);
         request.recursive = flags.import_recursive;
+        request.skip_existing = flags.import_skip_existing;
         if (!flags.import_organization.empty())
         {
             if (flags.import_organization == "single-folder")

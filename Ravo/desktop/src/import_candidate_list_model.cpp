@@ -48,9 +48,10 @@ QVariant ImportCandidateListModel::data(const QModelIndex &index, const int role
         return row.candidate.duplicate;
     case ThumbnailUrlRole:
         return row.thumbnail.isNull() ? QUrl{} :
-                                        QUrl(QStringLiteral("image://importCandidate/%1?r=%2")
+                                        QUrl(QStringLiteral("image://importCandidate/%1?r=%2&g=%3")
                                                  .arg(index.row())
-                                                 .arg(row.thumbnail_revision));
+                                                 .arg(row.thumbnail_revision)
+                                                 .arg(generation_));
     case ErrorRole:
         return row.candidate.error ? qstring_from_utf8(row.candidate.error->message) : QString{};
     case InspectedRole:
@@ -62,11 +63,11 @@ QVariant ImportCandidateListModel::data(const QModelIndex &index, const int role
 
 QHash<int, QByteArray> ImportCandidateListModel::roleNames() const
 {
-    return {{SourcePathRole, "sourcePath"}, {DisplayNameRole, "displayName"},
-            {MediaTypeRole, "mediaType"},   {WidthRole, "pixelWidth"},
-            {HeightRole, "pixelHeight"},    {SizeBytesRole, "sizeBytes"},
-            {SelectedRole, "selected"},     {HighlightedRole, "highlighted"},
-            {EligibleRole, "eligible"},     {DuplicateRole, "duplicate"},
+    return {{SourcePathRole, "sourcePath"},     {DisplayNameRole, "displayName"},
+            {MediaTypeRole, "mediaType"},       {WidthRole, "pixelWidth"},
+            {HeightRole, "pixelHeight"},        {SizeBytesRole, "sizeBytes"},
+            {SelectedRole, "selected"},         {HighlightedRole, "highlighted"},
+            {EligibleRole, "eligible"},         {DuplicateRole, "duplicate"},
             {ThumbnailUrlRole, "thumbnailUrl"}, {ErrorRole, "errorText"},
             {InspectedRole, "inspected"}};
 }
@@ -80,6 +81,8 @@ int ImportCandidateListModel::selectedCount() const noexcept
 void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candidates)
 {
     beginResetModel();
+    ++generation_;
+    select_new_candidates_ = true;
     rows_.clear();
     rows_.reserve(candidates.size());
     for (auto &candidate : candidates)
@@ -88,6 +91,39 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
         row.selected = row.candidate.supported && !row.candidate.duplicate;
     endResetModel();
     emit selectionChanged();
+    emit candidatesChanged();
+}
+
+void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
+{
+    if (candidate.duplicate)
+        return;
+    const int row = rowCount();
+    beginInsertRows({}, row, row);
+    const bool selected = select_new_candidates_ && candidate.supported;
+    rows_.push_back({std::move(candidate), {}, selected, false, false, 0U});
+    endInsertRows();
+    emit candidatesChanged();
+    emit selectionChanged();
+}
+
+qulonglong ImportCandidateListModel::selectedBytes() const noexcept
+{
+    qulonglong bytes = 0;
+    for (const auto &row : rows_)
+        if (row.selected)
+            bytes += row.candidate.size_bytes;
+    return bytes;
+}
+
+std::vector<std::pair<std::string, std::string>>
+ImportCandidateListModel::selectedContentHashes() const
+{
+    std::vector<std::pair<std::string, std::string>> hashes;
+    for (const auto &row : rows_)
+        if (row.selected)
+            hashes.emplace_back(row.candidate.source_path, row.candidate.content_sha256);
+    return hashes;
 }
 
 void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate candidate)
@@ -102,6 +138,7 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
         candidate.display_name = entry.candidate.display_name;
     if (candidate.relative_path.empty())
         candidate.relative_path = entry.candidate.relative_path;
+    candidate.content_sha256 = entry.candidate.content_sha256;
     entry.candidate = std::move(candidate);
     entry.inspected = true;
     if (!entry.candidate.supported || entry.candidate.duplicate)
@@ -163,6 +200,7 @@ void ImportCandidateListModel::toggleSelected(const int row)
 
 void ImportCandidateListModel::setAllSelected(const bool selected)
 {
+    select_new_candidates_ = selected;
     if (rows_.empty())
         return;
     for (auto &row : rows_)

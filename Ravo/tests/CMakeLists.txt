@@ -58,6 +58,7 @@ add_executable(ravo_contract_tests
   cli_recipe_test.cpp
   cli_legacy_xmp_test.cpp
   cli_catalog_test.cpp
+  cli_import_scan_test.cpp
   cli_foreign_catalog_test.cpp
   cli_facet_scope_test.cpp
   cli_catalog_args_parse_test.cpp
@@ -142,6 +143,7 @@ add_executable(ravo_catalog_tests
   tethered_studio_test.cpp
   catalog_capture_test.cpp
   catalog_import_test.cpp
+  catalog_import_scan_test.cpp
   catalog_ingest_transport_test.cpp
   catalog_xmp_interchange_test.cpp
   catalog_external_editor_test.cpp
@@ -420,6 +422,7 @@ add_executable(ravo_desktop_command_tests
   studio_live_control_test.cpp
   studio_assistant_test.cpp
   studio_window_geometry_test.cpp
+  studio_import_workspace_test.cpp
   studio_display_presentation_test.cpp
   export_option_conversion_test.cpp
   filesystem_browser_model_test.cpp)

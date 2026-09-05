@@ -107,14 +107,14 @@ std::vector<FilesystemFolderEntry> mounted_filesystem_roots()
             continue;
         FilesystemFolderEntry entry;
         entry.path = generic_path(volume.rootPath());
-        entry.display_name =
-            volume.displayName().isEmpty() ? QFileInfo(entry.path).fileName() : volume.displayName();
+        entry.display_name = volume.displayName().isEmpty() ? QFileInfo(entry.path).fileName() :
+                                                              volume.displayName();
         if (entry.display_name.isEmpty())
             entry.display_name = entry.path;
         entry.has_children = true;
-        const bool duplicate = std::any_of(roots.begin(), roots.end(),
-                                           [&](const FilesystemFolderEntry &existing)
-                                           { return existing.path == entry.path; });
+        const bool duplicate =
+            std::any_of(roots.begin(), roots.end(), [&](const FilesystemFolderEntry &existing)
+                        { return existing.path == entry.path; });
         if (!duplicate)
             roots.push_back(std::move(entry));
     }
@@ -164,12 +164,9 @@ QVariant FilesystemBrowserModel::data(const QModelIndex &index, const int role) 
 
 QHash<int, QByteArray> FilesystemBrowserModel::roleNames() const
 {
-    return {{PathRole, "path"},
-            {DisplayNameRole, "displayName"},
-            {DepthRole, "depth"},
-            {HasChildrenRole, "hasChildren"},
-            {CollapsedRole, "collapsed"},
-            {SelectedRole, "selected"},
+    return {{PathRole, "path"},           {DisplayNameRole, "displayName"},
+            {DepthRole, "depth"},         {HasChildrenRole, "hasChildren"},
+            {CollapsedRole, "collapsed"}, {SelectedRole, "selected"},
             {ErrorRole, "errorText"}};
 }
 
@@ -213,6 +210,7 @@ void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 ge
     auto &parent = all_nodes_[static_cast<std::size_t>(parent_index)];
     if (parent.listing_generation != generation)
         return;
+    parent.listing_pending = false;
     if (!children)
     {
         parent.error = qstring_from_utf8(children.error().message);
@@ -233,7 +231,8 @@ void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 ge
         ++remove_to;
     std::vector<Node> next;
     next.reserve(all_nodes_.size() - (remove_to - remove_from) + children.value().size());
-    next.insert(next.end(), all_nodes_.begin(), all_nodes_.begin() + static_cast<std::ptrdiff_t>(remove_from));
+    next.insert(next.end(), all_nodes_.begin(),
+                all_nodes_.begin() + static_cast<std::ptrdiff_t>(remove_from));
     for (auto &child : children.value())
     {
         Node node;
@@ -249,6 +248,8 @@ void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 ge
                 all_nodes_.end());
     all_nodes_ = std::move(next);
     rebuild_visible();
+    if (!reveal_path_.isEmpty())
+        revealFolder(reveal_path_);
 }
 
 void FilesystemBrowserModel::toggleCollapsed(const QString &path)
@@ -272,7 +273,8 @@ void FilesystemBrowserModel::toggleCollapsed(const QString &path)
         rebuild_visible();
         return;
     }
-    ++node.listing_generation;
+    node.listing_generation = ++next_listing_generation_;
+    node.listing_pending = true;
     emit directoryListingRequested(node.path, node.listing_generation);
 }
 
@@ -285,6 +287,49 @@ void FilesystemBrowserModel::selectFolder(const QString &path)
     if (!visible_.empty())
         emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
     emit selectedPathChanged();
+}
+
+void FilesystemBrowserModel::revealFolder(const QString &path)
+{
+    if (path.isEmpty())
+    {
+        reveal_path_.clear();
+        return;
+    }
+    reveal_path_ = generic_path(path);
+    selectFolder(path);
+    for (auto &node : all_nodes_)
+    {
+        if (node.path == reveal_path_)
+        {
+            reveal_path_.clear();
+            rebuild_visible();
+            for (int row = 0; row < rowCount(); ++row)
+                if (visible_[static_cast<std::size_t>(row)].path == selected_path_)
+                {
+                    emit folderRevealed(row);
+                    break;
+                }
+            return;
+        }
+        const auto prefix = node.path.endsWith('/') ? node.path : node.path + '/';
+        if (!reveal_path_.startsWith(prefix))
+            continue;
+        if (node.loaded)
+        {
+            node.collapsed = false;
+            continue;
+        }
+        if (!node.listing_pending)
+        {
+            node.listing_generation = ++next_listing_generation_;
+            node.listing_pending = true;
+            emit directoryListingRequested(node.path, node.listing_generation);
+        }
+        rebuild_visible();
+        return;
+    }
+    rebuild_visible();
 }
 
 void FilesystemBrowserModel::rebuild_visible()

@@ -25,6 +25,7 @@ target_sources(ravo_adapters
     src/radiance_rgbe_decoder.cpp
     src/sqlite_catalog.cpp
     src/sqlite_catalog_assets.cpp
+    src/sqlite_catalog_import_content.cpp
     src/sqlite_catalog_internal.cpp
     src/sqlite_catalog_library.cpp
     src/sqlite_catalog_keywords.cpp

@@ -156,6 +156,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.delivery_color = true;
             continue;
         }
+        if (option == "--skip-existing")
+        {
+            if (result.import_skip_existing)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--skip-existing can only be specified once");
+            result.import_skip_existing = true;
+            continue;
+        }
         if (option == "--no-recursive")
         {
             if (!result.import_recursive)

@@ -15,6 +15,8 @@ class ImportCandidateListModel final : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
+    Q_PROPERTY(int candidateCount READ rowCount NOTIFY candidatesChanged)
+    Q_PROPERTY(qulonglong selectedBytes READ selectedBytes NOTIFY selectionChanged)
 
 public:
     enum Role
@@ -40,6 +42,13 @@ public:
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
     [[nodiscard]] int selectedCount() const noexcept;
     void setCandidates(std::vector<ImportCandidate> candidates);
+    void appendCandidate(ImportCandidate candidate);
+    [[nodiscard]] qulonglong selectedBytes() const noexcept;
+    [[nodiscard]] std::vector<std::pair<std::string, std::string>> selectedContentHashes() const;
+    [[nodiscard]] std::uint64_t generation() const noexcept
+    {
+        return generation_;
+    }
     void updateCandidate(int row, ImportCandidate candidate);
     void setThumbnail(int row, QImage image);
     [[nodiscard]] QImage thumbnail(int row) const;
@@ -58,6 +67,7 @@ public:
 
 signals:
     void selectionChanged();
+    void candidatesChanged();
 
 private:
     struct Row
@@ -70,6 +80,8 @@ private:
         std::uint64_t thumbnail_revision = 0U;
     };
     std::vector<Row> rows_;
+    bool select_new_candidates_ = true;
+    std::uint64_t generation_ = 0;
 };
 
 } // namespace ravo

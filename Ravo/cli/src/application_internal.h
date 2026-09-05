@@ -34,6 +34,7 @@ struct CatalogCliArguments
     std::string_view import_filename_template;
     std::string_view import_second_copy;
     bool import_recursive = true;
+    bool import_skip_existing = false;
     std::string_view asset_id;
     std::vector<std::string_view> asset_ids;
     std::optional<int> rating;

@@ -24,6 +24,11 @@ private by default, and reproducible enough to audit.
 Product execution belongs only in [TODO.md](TODO.md).
 Three-platform package evidence belongs in [Packaging.md](Packaging.md).
 
+The import workspace, exact-content filtering, and remembered destination are
+defined by [ADR-0102](adr/0102-planned-managed-import-workspace.md), with typed
+desktop preference ownership in [ADR-0066](adr/0066-typed-desktop-language-setting.md).
+Their current contracts and reproducible validation live in architecture and testing above.
+
 ## Operations and compliance
 
 | Document | Scope |

@@ -1667,7 +1667,7 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesNamedPlaceholdersBeforeThumbna
     {
         QImage image(48, 32, QImage::Format_RGB888);
         image.setColorSpace(QColorSpace(QColorSpace::SRgb));
-        image.fill(QColor(40, 80, 120));
+        image.fill(QColor(40 + static_cast<int>(names.indexOf(name)), 80, 120));
         ASSERT_TRUE(image.save(QDir(source_dir).filePath(name), "PNG"));
     }
 
@@ -1718,7 +1718,7 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesGalleryPlaceholdersWhenImportS
     {
         QImage image(48, 32, QImage::Format_RGB888);
         image.setColorSpace(QColorSpace(QColorSpace::SRgb));
-        image.fill(QColor(40, 80, 120));
+        image.fill(QColor(40 + static_cast<int>(names.indexOf(name)), 80, 120));
         ASSERT_TRUE(image.save(QDir(source_dir).filePath(name), "PNG"));
     }
 
@@ -1727,6 +1727,7 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesGalleryPlaceholdersWhenImportS
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
     presenter.openImportPage();
+    presenter.setImportMode(QStringLiteral("add"));
     presenter.setImportSourceRoot(source_dir);
     ASSERT_TRUE(wait_until(
         [&]
@@ -1745,7 +1746,8 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesGalleryPlaceholdersWhenImportS
                       .toString(),
                   names.at(row));
     }
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 30000))
         << presenter.errorText().toStdString();
     EXPECT_EQ(presenter.lastImportCount(), 3);
     EXPECT_EQ(presenter.visibleCount(), 3);

@@ -589,7 +589,10 @@ Result<void> SqliteCatalogRepository::upsert_capture_metadata(const std::string_
     return {};
 }
 
-Result<void> SqliteCatalogRepository::commit_imported_asset(const AssetRecord &asset)
+Result<void>
+SqliteCatalogRepository::commit_imported_asset(const AssetRecord &asset,
+                                               const std::optional<std::string> &sha256,
+                                               const bool reject_duplicate_content)
 {
     if (impl_ == nullptr)
     {
@@ -619,10 +622,27 @@ Result<void> SqliteCatalogRepository::commit_imported_asset(const AssetRecord &a
                                                    "Injected catalog import failure",
                                                    {{"reason", "injected_import_asset_bind"}}));
     }
+    if (reject_duplicate_content && sha256)
+    {
+        auto duplicate = find_import_content(asset.size_bytes, *sha256);
+        if (!duplicate)
+            return impl_->abort_transaction(duplicate.error());
+        if (duplicate.value())
+            return impl_->abort_transaction(make_error(
+                ErrorCode::kConflict, "Photo content was imported concurrently",
+                {{"reason", "import_duplicate_content"}, {"asset_id", *duplicate.value()}}));
+    }
     const auto inserted = insert_asset(asset);
     if (!inserted)
     {
         return impl_->abort_transaction(inserted.error());
+    }
+    if (sha256)
+    {
+        const auto cached = cache_import_content(
+            {asset.id, asset.normalized_uri, asset.size_bytes, asset.mtime_unix_ms, {}}, *sha256);
+        if (!cached)
+            return impl_->abort_transaction(cached.error());
     }
     if (impl_->consume_import_failure(testing::SqliteImportFailure::kAssetWrite))
     {

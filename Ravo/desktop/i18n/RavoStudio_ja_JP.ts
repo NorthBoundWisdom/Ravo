@@ -3490,8 +3490,40 @@ Diff: %6</source>
             <translation>移動</translation>
         </message>
         <message>
+            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
+            <translation>取り込みトランスポートはコピーのみです。移動とカメラの削除は拒否されたままになります。</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>ソース</translation>
+        </message>
+        <message>
+            <source>New Photos</source>
+            <translation>新しい写真</translation>
+        </message>
+        <message>
+            <source>Thumbnail size</source>
+            <translation>サムネイルのサイズ</translation>
+        </message>
+        <message>
+            <source>Checking %1 of %2…</source>
+            <translation>%2 枚中 %1 枚を確認中…</translation>
+        </message>
+        <message>
+            <source>Duplicate photos hidden: %1</source>
+            <translation>非表示の重複写真：%1 枚</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 MB</source>
+            <translation>選択中：%1 枚 · %2 MB</translation>
+        </message>
+        <message>
+            <source>Checking destination…</source>
+            <translation>保存先を確認中…</translation>
+        </message>
+        <message>
+            <source>Import %1 photos</source>
+            <translation>%1 枚の写真を読み込む</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3500,10 +3532,6 @@ Diff: %6</source>
         <message>
             <source>Include subfolders</source>
             <translation>サブフォルダーを含める</translation>
-        </message>
-        <message>
-            <source>Selected: %1 of %2</source>
-            <translation>選択：%1 / %2</translation>
         </message>
         <message>
             <source>Check All</source>
@@ -3522,8 +3550,8 @@ Diff: %6</source>
             <translation>読み込み元フォルダーを選択</translation>
         </message>
         <message>
-            <source>Already imported</source>
-            <translation>読み込み済み</translation>
+            <source>No new photos</source>
+            <translation>新しい写真はありません</translation>
         </message>
         <message>
             <source>Unavailable</source>
@@ -3556,6 +3584,10 @@ Diff: %6</source>
         <message>
             <source>Choose Destination…</source>
             <translation>保存先を選択…</translation>
+        </message>
+        <message>
+            <source>Check again</source>
+            <translation>再確認</translation>
         </message>
         <message>
             <source>Organize</source>
@@ -3610,28 +3642,8 @@ Diff: %6</source>
             <translation>2つ目のコピー先が選択されていません</translation>
         </message>
         <message>
-            <source>Move verifies every requested copy before removing its source.</source>
-            <translation>移動では、元ファイルを削除する前に要求されたすべてのコピーを検証します。</translation>
-        </message>
-        <message>
-            <source>Importing %1 / %2…</source>
-            <translation>インポート中 %1 / %2…</translation>
-        </message>
-        <message>
-            <source>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</source>
-            <translation>最後の取り込み %1: %2 をインポート、%3 を複製、%4 をスキップ、%5 に失敗しました。</translation>
-        </message>
-        <message>
-            <source>Resume batch %1.</source>
-            <translation>バッチ %1 を再開します。</translation>
-        </message>
-        <message>
             <source>Cancel</source>
             <translation>キャンセル</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>インポート</translation>
         </message>
     </context>
     <context>
@@ -5847,6 +5859,18 @@ Diff: %6</source>
         <message>
             <source>Choose an import destination.</source>
             <translation>読み込み先を選択してください。</translation>
+        </message>
+        <message>
+            <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
+            <translation>保存先を利用できません。ドライブを再接続するか、別のフォルダーを選択してください。</translation>
+        </message>
+        <message>
+            <source>Photos imported, but the destination could not be remembered.</source>
+            <translation>写真は読み込まれましたが、保存先を記憶できませんでした。</translation>
+        </message>
+        <message>
+            <source>Scan the source folder again.</source>
+            <translation>読み込み元のフォルダーを再スキャンしてください。</translation>
         </message>
         <message>
             <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>

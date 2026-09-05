@@ -281,10 +281,18 @@ public:
     [[nodiscard]] Result<ImportItemResult>
     import_one(std::string_view path, const CancellationToken &cancellation,
                ImportPreviewPolicy preview = ImportPreviewPolicy::kMinimal,
-               bool defer_preview = false);
+               bool defer_preview = false, bool skip_existing = false,
+               std::string_view expected_sha256 = {});
     [[nodiscard]] Result<ImportCandidate>
     inspect_import_candidate(std::string_view path, std::string_view source_root,
                              const CancellationToken &cancellation) const;
+    // No media/recipe publication. May fill the adapter-owned derived content index.
+    // Progress values are borrowed only for the duration of the synchronous callback.
+    [[nodiscard]] Result<ImportScanResult> scan_import_candidates(
+        const std::vector<std::string> &inputs, std::string_view source_root, bool recursive,
+        const CancellationToken &cancellation,
+        const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress =
+            {});
     [[nodiscard]] Result<RasterBuffer>
     decode_import_candidate_thumbnail(std::string_view path,
                                       const CancellationToken &cancellation) const;
@@ -298,6 +306,7 @@ public:
     execute_import(const ImportRequest &request,
                    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
                        &progress = {});
+    [[nodiscard]] Result<void> preflight_import(const ImportRequest &request);
     // ADR-0125/0148: filesystem-card, fail-closed native PTP/MTP, and ptp-stub
     // fixture ingest. Rejects Move; feeds the existing Add/Copy planner.
     // Supports resume checkpoints under {catalog}.ravo/ingest-resume/.
@@ -462,6 +471,10 @@ public:
     Result<void> close();
 
 private:
+    [[nodiscard]] Result<ImportBatchResult> execute_import_impl(
+        const ImportRequest &request,
+        const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
+        bool preflight_only);
     [[nodiscard]] Result<RecoveryArtifact>
     synchronize_recovery_asset(std::string_view asset_id, const CancellationToken &cancellation);
     [[nodiscard]] Result<void>

@@ -65,7 +65,18 @@ cancellation cleanup, source-change and Move cleanup failures, CLI JSON,
 workspace selection, highlight versus import-check, named placeholder publication before thumbnail decode,
 named Gallery placeholders as soon as Import starts, and cancellable
 background preview policies (ADR-0102/
-0104). LibraryQuery tests cover every
+0104). Import-scan tests cover same-path, renamed/copied content, same-batch
+duplicates, equal-size/different-byte inputs, source mutation, revision conflict,
+cancellation, and v16-to-v17 index migration/backfill. The derived hash table
+must preserve catalog revision, source bytes, and edit history. CLI subprocess
+tests exercise `import-scan` and `import --skip-existing` against real files.
+Desktop tests isolate QSettings and cover Copy defaults, streaming check intent,
+successful destination persistence, restart/cross-catalog restore, unavailable
+destinations, settings-write failures that preserve committed photos and the
+prior destination, conflict-before-Gallery, and asynchronous ancestor reveal. The
+ordinary Studio QML smoke also checks import grid/action/panel bounds at
+1440×900, 1024×640, and 640×480 without screenshots or a user catalog.
+LibraryQuery tests cover every
 supported predicate, missing capture values, inclusive numeric/time endpoints,
 ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
 text/range state, deterministic capture/file-size sorting, Catalog validation

@@ -39,6 +39,7 @@ target_sources(ravo_desktop
     src/studio_presenter_selection.cpp
     src/studio_presenter_iq.cpp
     src/studio_import.cpp
+    src/studio_import_preferences.cpp
     src/studio_recovery.cpp
     src/studio_preview.cpp
     src/studio_develop.cpp
@@ -118,6 +119,7 @@ elseif(WIN32)
 endif()
 
 add_executable(ravo_studio ${RAVO_STUDIO_SOURCES})
+target_sources(ravo_studio PRIVATE src/studio_import_layout_smoke.cpp)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 find_package(Qt6 6.11 REQUIRED COMPONENTS GuiPrivate)
 target_link_libraries(ravo_studio
@@ -230,6 +232,11 @@ qt_add_qml_module(ravo_studio
     qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
     qml/chrome/ImportPage.qml
+    qml/chrome/ImportPhotoGrid.qml
+    qml/chrome/ImportSourcePanel.qml
+    qml/chrome/ImportDestinationPanel.qml
+    qml/chrome/ImportSection.qml
+    qml/chrome/ImportDialogs.qml
     qml/chrome/ImportFolderTree.qml
     qml/chrome/AssistantPanel.qml
     qml/chrome/StudioActions.qml

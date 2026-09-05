@@ -172,8 +172,12 @@ std::string sha256_utf8_hex(const std::string_view text)
     return QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex().toStdString();
 }
 
-Result<std::string> sha256_file_hex(const std::string_view path_utf8)
+Result<std::string> sha256_file_hex(const std::string_view path_utf8,
+                                    const CancellationToken &cancellation)
 {
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
     auto path = to_qt_path(path_utf8);
     if (!path)
         return path.error();
@@ -188,6 +192,9 @@ Result<std::string> sha256_file_hex(const std::string_view path_utf8)
     QCryptographicHash hash(QCryptographicHash::Sha256);
     while (!file.atEnd())
     {
+        active = cancellation.check();
+        if (!active)
+            return active.error();
         const QByteArray chunk = file.read(1 << 20);
         if (chunk.isEmpty() && file.error() != QFileDevice::NoError)
         {
@@ -198,6 +205,9 @@ Result<std::string> sha256_file_hex(const std::string_view path_utf8)
         }
         hash.addData(chunk);
     }
+    active = cancellation.check();
+    if (!active)
+        return active.error();
     return hash.result().toHex().toStdString();
 }
 

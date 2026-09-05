@@ -118,7 +118,12 @@ locale-specific translation memories are repository assets; CMake derives its
 complete catalog set from the same manifest, validates it, and compiles it to
 build-local QM files, which are the only files deployed with
 Studio. Typed desktop settings are the UI language, assistant
-endpoint/model/key, and window size/position/maximized state. Corrupt stored
+endpoint/model/key, window size/position/maximized state, and the most recent
+successful managed-import destination root. The import destination is global
+to Studio, owned by `StudioImportPreferences`, and restored in the destination
+panel, asynchronously revealed folder tree, and folder picker. An unavailable
+directory stays selected and blocks Copy; failed preference writes are visible
+without undoing committed photos. Corrupt stored
 values are removed synchronously; a settings-write failure is reported and
 leaves prior durable state unchanged except that a live resized window stays
 where the user put it. View controls such as zoom, pan, browse mode, and
@@ -146,8 +151,8 @@ and the accepted exact result replaces it. The loading layer never changes
 balance interaction, recipe state, cache identity, or export input. Missing or
 failed originals do not use the layer. The Library panel separately shows
 import and demanded-preview progress. After system file/folder selection,
-Studio enumerates the source on a worker, publishes named placeholder cells
-immediately, then inspects and fills bounded 320-pixel workspace thumbnails as
+Studio checks source identities and metadata on a worker, incrementally publishes
+named non-duplicate placeholder cells, then fills bounded 320-pixel workspace thumbnails as
 the grid demands them. Catalog import still runs on workers. Clicking Import publishes named Gallery
 placeholders immediately; each cataloged photo then fills that cell, and
 viewport demand loads a browse thumbnail so the user can inspect while later
@@ -468,8 +473,35 @@ is present, source, primary, second copy, and companions are independently
 reopened and compared byte for byte under cancellation before catalog
 publication. A pre-catalog failure
 removes only files published by that item. Move cleanup begins only after that
-verification and the ordinary catalog commit. No import option creates schema,
-preference, detached task, or second catalog authority.
+verification and the ordinary catalog commit. Rename and second-copy choices
+remain session state and use the existing task owner.
+
+The source/new-photos/destination workspace defaults to Copy on every entry.
+New photographs start checked, rename and second-copy sections start collapsed,
+and narrow windows use side drawers. Only the successful primary destination
+root is a durable desktop preference; Add, preview, and naming options stay in
+the session. A folder selection restores its ancestors asynchronously.
+
+`scan_import_candidates` owns full-file SHA-256 duplicate filtering independently
+of thumbnail demand. Known catalog URIs and matching content are excluded; each
+scan retains the first supported path in a same-content group. The desktop
+publishes checked placeholders in batches, honors an intervening Uncheck All,
+and rejects completions by scan generation. Preflight validates the observed
+catalog revision and selected hashes before switching to Gallery. Hashing checks
+cancellation between bounded reads; copying and catalog publication retain their
+existing serial owner. Concurrent duplicate publication is checked inside the
+asset transaction; already published output paths remain explicit in conflicts.
+
+Schema v17 adds a rebuildable `asset_content_hash` table keyed by asset ID with
+URI, size, mtime, and SHA-256, plus a size/hash lookup index. Import commits its
+hash with the asset. Older records are filled on demand in size-matched pages
+of at most 200 rows. Derived hash writes do not alter catalog/recovery revisions,
+recipes, history, or originals. Indexed offline originals retain their imported
+identity; changed originals and unindexed inaccessible originals fail explicitly.
+The ordinary backup database preserves this index; sidecar-only reconstruction
+can rebuild it from originals. `catalog import-scan --json` projects the
+`ravo-import-scan/v1` result, including per-item errors and duplicate reasons;
+`catalog import/ingest --skip-existing` shares Studio's content policy.
 
 Studio first enumerates a deterministic bounded input list, then dispatches one
 normal-priority `import_one` task at a time. It queues the next item only after

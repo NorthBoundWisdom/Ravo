@@ -3490,8 +3490,40 @@ Diff: %6</translation>
             <translation>Move</translation>
         </message>
         <message>
+            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
+            <translation>Ingest transports are Copy-only; Move and camera delete stay rejected.</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>Source</translation>
+        </message>
+        <message>
+            <source>New Photos</source>
+            <translation>New Photos</translation>
+        </message>
+        <message>
+            <source>Thumbnail size</source>
+            <translation>Thumbnail size</translation>
+        </message>
+        <message>
+            <source>Checking %1 of %2…</source>
+            <translation>Checking %1 of %2…</translation>
+        </message>
+        <message>
+            <source>Duplicate photos hidden: %1</source>
+            <translation>Duplicate photos hidden: %1</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 MB</source>
+            <translation>Selected: %1 photos · %2 MB</translation>
+        </message>
+        <message>
+            <source>Checking destination…</source>
+            <translation>Checking destination…</translation>
+        </message>
+        <message>
+            <source>Import %1 photos</source>
+            <translation>Import %1 photos</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3500,10 +3532,6 @@ Diff: %6</translation>
         <message>
             <source>Include subfolders</source>
             <translation>Include subfolders</translation>
-        </message>
-        <message>
-            <source>Selected: %1 of %2</source>
-            <translation>Selected: %1 of %2</translation>
         </message>
         <message>
             <source>Check All</source>
@@ -3522,8 +3550,8 @@ Diff: %6</translation>
             <translation>Choose a source folder</translation>
         </message>
         <message>
-            <source>Already imported</source>
-            <translation>Already imported</translation>
+            <source>No new photos</source>
+            <translation>No new photos</translation>
         </message>
         <message>
             <source>Unavailable</source>
@@ -3556,6 +3584,10 @@ Diff: %6</translation>
         <message>
             <source>Choose Destination…</source>
             <translation>Choose Destination…</translation>
+        </message>
+        <message>
+            <source>Check again</source>
+            <translation>Check again</translation>
         </message>
         <message>
             <source>Organize</source>
@@ -3610,28 +3642,8 @@ Diff: %6</translation>
             <translation>No second copy selected</translation>
         </message>
         <message>
-            <source>Move verifies every requested copy before removing its source.</source>
-            <translation>Move verifies every requested copy before removing its source.</translation>
-        </message>
-        <message>
-            <source>Importing %1 / %2…</source>
-            <translation>Importing %1 / %2…</translation>
-        </message>
-        <message>
-            <source>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</source>
-            <translation>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</translation>
-        </message>
-        <message>
-            <source>Resume batch %1.</source>
-            <translation>Resume batch %1.</translation>
-        </message>
-        <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>Import</translation>
         </message>
     </context>
     <context>
@@ -5663,6 +5675,18 @@ Diff: %6</translation>
         <message>
             <source>Choose an import destination.</source>
             <translation>Choose an import destination.</translation>
+        </message>
+        <message>
+            <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
+            <translation>Destination unavailable. Reconnect the drive or choose another folder.</translation>
+        </message>
+        <message>
+            <source>Photos imported, but the destination could not be remembered.</source>
+            <translation>Photos imported, but the destination could not be remembered.</translation>
+        </message>
+        <message>
+            <source>Scan the source folder again.</source>
+            <translation>Scan the source folder again.</translation>
         </message>
         <message>
             <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>

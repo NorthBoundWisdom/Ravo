@@ -256,8 +256,10 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSigmoidContrast READ editSigmoidContrast NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidSkew READ editSigmoidSkew NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidHuePreservation READ editSigmoidHuePreservation NOTIFY editChanged)
-    Q_PROPERTY(bool editRapidRawToneControlsEnabled READ editRapidRawToneControlsEnabled NOTIFY editChanged)
-    Q_PROPERTY(bool editRapidRawBasicToneEnabled READ editRapidRawBasicToneEnabled NOTIFY editChanged)
+    Q_PROPERTY(bool editRapidRawToneControlsEnabled READ editRapidRawToneControlsEnabled NOTIFY
+                   editChanged)
+    Q_PROPERTY(
+        bool editRapidRawBasicToneEnabled READ editRapidRawBasicToneEnabled NOTIFY editChanged)
     Q_PROPERTY(int editToneMapperIndex READ editToneMapperIndex NOTIFY editChanged)
     Q_PROPERTY(double editRapidRawEvShift READ editRapidRawEvShift NOTIFY editChanged)
     Q_PROPERTY(double editRapidRawExposure READ editRapidRawExposure NOTIFY editChanged)
@@ -362,6 +364,17 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantList aiProposals READ aiProposals NOTIFY aiProposalsChanged)
     Q_PROPERTY(bool importPageOpen READ importPageOpen NOTIFY importPageChanged)
     Q_PROPERTY(bool importScanActive READ importScanActive NOTIFY importPageChanged)
+    Q_PROPERTY(int importDuplicateCount READ importDuplicateCount NOTIFY importPageChanged)
+    Q_PROPERTY(int importScanCompleted READ importScanCompleted NOTIFY importPageChanged)
+    Q_PROPERTY(int importScanTotal READ importScanTotal NOTIFY importPageChanged)
+    Q_PROPERTY(bool importPreflightActive READ importPreflightActive NOTIFY importPageChanged)
+    Q_PROPERTY(bool importReady READ importReady NOTIFY importPageChanged)
+    Q_PROPERTY(QString importDestinationError READ importDestinationError NOTIFY importPageChanged)
+    Q_PROPERTY(
+        QUrl importDestinationFolderUrl READ importDestinationFolderUrl NOTIFY importPageChanged)
+    Q_PROPERTY(QUrl importSourceFolderUrl READ importSourceFolderUrl NOTIFY importPageChanged)
+    Q_PROPERTY(
+        QUrl importSecondCopyFolderUrl READ importSecondCopyFolderUrl NOTIFY importPageChanged)
     Q_PROPERTY(bool importPreviewWorkActive READ importPreviewWorkActive NOTIFY libraryWorkChanged)
     Q_PROPERTY(
         int importPreviewWorkCompleted READ importPreviewWorkCompleted NOTIFY libraryWorkChanged)
@@ -413,6 +426,30 @@ public:
     [[nodiscard]] QVariantMap backupScheduleStatus() const;
     [[nodiscard]] bool importPageOpen() const noexcept;
     [[nodiscard]] bool importScanActive() const noexcept;
+    [[nodiscard]] int importDuplicateCount() const noexcept
+    {
+        return import_duplicate_count_;
+    }
+    [[nodiscard]] int importScanCompleted() const noexcept
+    {
+        return import_scan_completed_;
+    }
+    [[nodiscard]] int importScanTotal() const noexcept
+    {
+        return import_scan_total_;
+    }
+    [[nodiscard]] bool importPreflightActive() const noexcept
+    {
+        return import_preflight_active_;
+    }
+    [[nodiscard]] bool importReady() const;
+    [[nodiscard]] QString importDestinationError() const
+    {
+        return import_destination_error_;
+    }
+    [[nodiscard]] QUrl importDestinationFolderUrl() const;
+    [[nodiscard]] QUrl importSourceFolderUrl() const;
+    [[nodiscard]] QUrl importSecondCopyFolderUrl() const;
     [[nodiscard]] bool importPreviewWorkActive() const noexcept;
     [[nodiscard]] int importPreviewWorkCompleted() const noexcept;
     [[nodiscard]] int importPreviewWorkTotal() const noexcept;
@@ -1027,6 +1064,8 @@ private:
     void finishThumbnailRequest(bool success);
     void rescanImportSource();
     void kickImportCandidateWork();
+    void beginPlannedImport(ImportRequest request);
+    void validateImportDestination();
     void startImportCandidateWork(int row);
     void startNextImportPreview();
     void load_develop_for_selection();
@@ -1169,6 +1208,8 @@ private:
     std::size_t import_next_index_ = 0U;
     bool import_gallery_placeholders_ = false;
     bool import_defer_previews_ = false;
+    bool import_skip_existing_ = false;
+    std::unordered_map<std::string, std::string> pending_import_content_hashes_;
     LibraryQuery import_query_snapshot_;
     bool import_page_open_ = false;
     bool import_scan_active_ = false;
@@ -1179,7 +1220,17 @@ private:
     QString import_destination_;
     QString import_second_copy_destination_;
     QString import_filename_template_;
-    QString import_mode_{QStringLiteral("add")};
+    QString import_mode_{QStringLiteral("copy")};
+    int import_duplicate_count_ = 0;
+    int import_scan_completed_ = 0;
+    int import_scan_total_ = 0;
+    std::optional<std::int64_t> import_scan_catalog_revision_;
+    bool import_preflight_active_ = false;
+    bool import_destination_valid_ = false;
+    QString import_destination_error_;
+    QString pending_import_destination_;
+    QString import_preference_error_;
+    bool import_destination_remembered_ = false;
     QString import_organization_{QStringLiteral("single")};
     QString import_preview_policy_{QStringLiteral("standard")};
     bool import_recursive_ = true;

@@ -13,6 +13,7 @@
 
 #include "catalog_internal.h"
 #include "ravo/domain/uri.h"
+#include "ravo/adapters/text_file.h"
 
 namespace ravo
 {
@@ -338,6 +339,29 @@ Result<ImportBatchResult> CatalogService::execute_import(
     const ImportRequest &request,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress)
 {
+    return execute_import_impl(request, progress, false);
+}
+
+Result<void> CatalogService::preflight_import(const ImportRequest &request)
+{
+    auto result = execute_import_impl(request, {}, true);
+    if (!result)
+        return result.error();
+    return {};
+}
+
+Result<ImportBatchResult> CatalogService::execute_import_impl(
+    const ImportRequest &request,
+    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
+    const bool preflight_only)
+{
+    auto snapshot_before = snapshot();
+    if (!snapshot_before)
+        return snapshot_before.error();
+    if (request.expected_catalog_revision &&
+        *request.expected_catalog_revision != snapshot_before.value().revision)
+        return make_error(ErrorCode::kConflict, "Catalog changed; scan import source again",
+                          {{"reason", "import_scan_stale"}});
     if (request.inputs.empty())
         return make_error(ErrorCode::kInvalidArgument, "Import requires at least one input");
     if (request.mode == ImportTransferMode::kAdd &&
@@ -361,6 +385,28 @@ Result<ImportBatchResult> CatalogService::execute_import(
     auto paths = collect_import_paths(request.inputs, request.cancellation, request.recursive);
     if (!paths)
         return paths.error();
+    std::map<std::string, ImportCandidate> checked;
+    if (request.skip_existing)
+    {
+        auto scan = scan_import_candidates(request.inputs, request.source_root.value_or(""),
+                                           request.recursive, request.cancellation);
+        if (!scan)
+            return scan.error();
+        for (auto &candidate : scan.value().candidates)
+        {
+            if (candidate.error)
+                return *candidate.error;
+            checked.emplace(candidate.source_path, std::move(candidate));
+        }
+        for (const auto &[path, expected_hash] : request.expected_content_hashes)
+        {
+            const auto found = checked.find(path);
+            if (found == checked.end() || (!found->second.content_sha256.empty() &&
+                                           found->second.content_sha256 != expected_hash))
+                return make_error(ErrorCode::kConflict, "Selected source changed; scan again",
+                                  {{"path", path}, {"reason", "import_content_source_changed"}});
+        }
+    }
     std::filesystem::path destination_root;
     std::optional<std::filesystem::path> second_copy_root;
     const auto existing_directory =
@@ -457,6 +503,19 @@ Result<ImportBatchResult> CatalogService::execute_import(
             !target_error && status.type() != std::filesystem::file_type::not_found;
         if (path_exists && existing.value())
         {
+            auto source_hash =
+                sha256_file_hex(normalized_source.value().path, request.cancellation);
+            if (!source_hash)
+                return source_hash.error();
+            auto target_hash =
+                sha256_file_hex(normalized_output.value().path, request.cancellation);
+            if (!target_hash)
+                return target_hash.error();
+            if (source_hash.value() != target_hash.value())
+                return make_error(ErrorCode::kConflict,
+                                  "Import destination contains different photo content",
+                                  {{"output", normalized_output.value().path},
+                                   {"reason", "import_destination_conflict"}});
             // Idempotent re-ingest: same destination already catalogued.
             return PreflightedOutput{normalized_output.value().path, *existing.value()};
         }
@@ -474,11 +533,28 @@ Result<ImportBatchResult> CatalogService::execute_import(
     for (std::size_t index = 0U; index < paths.value().size(); ++index)
     {
         const auto &source = paths.value()[index];
+        if (request.skip_existing && checked.at(source).duplicate)
+        {
+            PlannedImport duplicate;
+            duplicate.candidate = checked.at(source);
+            duplicate.import_path = source;
+            if (duplicate.candidate.duplicate_asset_id)
+            {
+                auto asset = repository_->find_asset_by_id(*duplicate.candidate.duplicate_asset_id);
+                if (!asset)
+                    return asset.error();
+                duplicate.already_imported = std::move(asset).value();
+            }
+            plan.push_back(std::move(duplicate));
+            continue;
+        }
         auto candidate = inspect_import_candidate(source, source_root, request.cancellation);
         if (!candidate)
             return candidate.error();
         PlannedImport item;
         item.candidate = std::move(candidate).value();
+        if (request.skip_existing)
+            item.candidate.content_sha256 = checked.at(source).content_sha256;
         item.import_path = item.candidate.source_path;
         if (request.include_xmp_sidecars)
         {
@@ -602,6 +678,8 @@ Result<ImportBatchResult> CatalogService::execute_import(
     ImportBatchResult batch;
     batch.mode = request.mode;
     batch.preview = request.preview;
+    if (preflight_only)
+        return batch;
     batch.items.reserve(plan.size());
     for (std::size_t index = 0; index < plan.size(); ++index)
     {
@@ -649,6 +727,33 @@ Result<ImportBatchResult> CatalogService::execute_import(
             }
         }
         auto &planned = plan[index];
+        if (request.skip_existing && !planned.candidate.duplicate)
+        {
+            auto digest = sha256_file_hex(planned.candidate.source_path, request.cancellation);
+            if (!digest || digest.value() != planned.candidate.content_sha256)
+            {
+                auto failure = digest ? make_error(ErrorCode::kConflict,
+                                                   "Source changed after import preflight",
+                                                   {{"reason", "import_content_source_changed"}}) :
+                                        digest.error();
+                batch.items.push_back(failed_item(planned.candidate.source_path, failure));
+                ++batch.failed;
+                if (progress)
+                    progress(index + 1U, plan.size(), &batch.items.back());
+                continue;
+            }
+        }
+        if (request.skip_existing && planned.candidate.duplicate && !planned.already_imported)
+        {
+            ImportItemResult duplicate;
+            duplicate.status = ImportItemStatus::kDuplicate;
+            duplicate.input_path = planned.candidate.source_path;
+            ++batch.duplicates;
+            batch.items.push_back(std::move(duplicate));
+            if (progress)
+                progress(index + 1U, plan.size(), &batch.items.back());
+            continue;
+        }
         if (planned.already_imported)
         {
             ImportItemResult duplicate;
@@ -810,7 +915,8 @@ Result<ImportBatchResult> CatalogService::execute_import(
         else
         {
             auto imported = import_one(planned.import_path, request.cancellation, request.preview,
-                                       request.defer_previews);
+                                       request.defer_previews, request.skip_existing,
+                                       planned.candidate.content_sha256);
             result = imported ? std::move(imported).value() :
                                 failed_item(planned.candidate.source_path, imported.error());
         }
@@ -844,6 +950,9 @@ Result<ImportBatchResult> CatalogService::execute_import(
                                "Import destination was cataloged concurrently after publication",
                                {{"output", planned.import_path},
                                 {"reason", "import_destination_catalog_race"}});
+                // Another client may have registered this output too. Retain its
+                // safe bytes and report the destination; duplicate identity alone
+                // is not authority to unlink a concurrently visible file.
             }
             else
             {

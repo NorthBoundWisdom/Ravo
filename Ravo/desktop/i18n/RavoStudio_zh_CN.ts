@@ -3490,8 +3490,40 @@ Diff: %6</source>
             <translation>移动</translation>
         </message>
         <message>
+            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
+            <translation>摄取传输仅限复制；移动和相机删除仍被拒绝。</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>来源</translation>
+        </message>
+        <message>
+            <source>New Photos</source>
+            <translation>新照片</translation>
+        </message>
+        <message>
+            <source>Thumbnail size</source>
+            <translation>缩略图大小</translation>
+        </message>
+        <message>
+            <source>Checking %1 of %2…</source>
+            <translation>正在检查 %1 / %2…</translation>
+        </message>
+        <message>
+            <source>Duplicate photos hidden: %1</source>
+            <translation>已隐藏 %1 张重复照片</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 MB</source>
+            <translation>已选择 %1 张照片 · %2 MB</translation>
+        </message>
+        <message>
+            <source>Checking destination…</source>
+            <translation>正在检查目标位置…</translation>
+        </message>
+        <message>
+            <source>Import %1 photos</source>
+            <translation>导入 %1 张照片</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3500,10 +3532,6 @@ Diff: %6</source>
         <message>
             <source>Include subfolders</source>
             <translation>包含子文件夹</translation>
-        </message>
-        <message>
-            <source>Selected: %1 of %2</source>
-            <translation>已选：%1 / %2</translation>
         </message>
         <message>
             <source>Check All</source>
@@ -3522,8 +3550,8 @@ Diff: %6</source>
             <translation>选择来源文件夹</translation>
         </message>
         <message>
-            <source>Already imported</source>
-            <translation>已导入</translation>
+            <source>No new photos</source>
+            <translation>没有新照片</translation>
         </message>
         <message>
             <source>Unavailable</source>
@@ -3556,6 +3584,10 @@ Diff: %6</source>
         <message>
             <source>Choose Destination…</source>
             <translation>选择目标位置…</translation>
+        </message>
+        <message>
+            <source>Check again</source>
+            <translation>重新检查</translation>
         </message>
         <message>
             <source>Organize</source>
@@ -3610,28 +3642,8 @@ Diff: %6</source>
             <translation>未选择第二副本位置</translation>
         </message>
         <message>
-            <source>Move verifies every requested copy before removing its source.</source>
-            <translation>移动操作会先验证每个请求的副本，再删除源文件。</translation>
-        </message>
-        <message>
-            <source>Importing %1 / %2…</source>
-            <translation>正在导入 %1 / %2…</translation>
-        </message>
-        <message>
-            <source>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</source>
-            <translation>上次导入 %1：已导入 %2，重复 %3，跳过 %4，失败 %5。</translation>
-        </message>
-        <message>
-            <source>Resume batch %1.</source>
-            <translation>恢复批次 %1。</translation>
-        </message>
-        <message>
             <source>Cancel</source>
             <translation>取消</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>导入</translation>
         </message>
     </context>
     <context>
@@ -5663,6 +5675,18 @@ Diff: %6</source>
         <message>
             <source>Choose an import destination.</source>
             <translation>请选择导入目标位置。</translation>
+        </message>
+        <message>
+            <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
+            <translation>目标位置不可用。请重新连接磁盘或选择其他文件夹。</translation>
+        </message>
+        <message>
+            <source>Photos imported, but the destination could not be remembered.</source>
+            <translation>照片已导入，但无法记住目标位置。</translation>
+        </message>
+        <message>
+            <source>Scan the source folder again.</source>
+            <translation>请重新扫描来源文件夹。</translation>
         </message>
         <message>
             <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>

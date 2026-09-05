@@ -472,6 +472,9 @@ Result<ImportRequest> make_ingest_import_request(const IngestSourceSnapshot &sna
     import_request.recursive = false; // paths already enumerated
     import_request.include_xmp_sidecars = request.include_xmp_sidecars;
     import_request.defer_previews = request.defer_previews;
+    import_request.skip_existing = request.skip_existing;
+    import_request.expected_catalog_revision = request.expected_catalog_revision;
+    import_request.expected_content_hashes = request.expected_content_hashes;
     import_request.cancellation = request.cancellation;
     return import_request;
 }

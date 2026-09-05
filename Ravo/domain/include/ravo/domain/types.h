@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <utility>
 #include <vector>
 
 #include "ravo/foundation/cancellation.h"
@@ -16,7 +17,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 16;
+inline constexpr std::int64_t kCatalogSchemaVersion = 17;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 3;
@@ -1005,6 +1006,9 @@ struct ImportRequest
     bool recursive = true;
     bool include_xmp_sidecars = true;
     bool defer_previews = false;
+    bool skip_existing = false;
+    std::optional<std::int64_t> expected_catalog_revision;
+    std::vector<std::pair<std::string, std::string>> expected_content_hashes;
     CancellationToken cancellation{};
 };
 
@@ -1035,8 +1039,30 @@ struct ImportCandidate
     std::optional<std::int64_t> captured_unix_s;
     std::optional<std::string> captured_date_path;
     bool duplicate = false;
+    std::string content_sha256;
+    std::string duplicate_reason;
+    std::optional<std::string> duplicate_asset_id;
     bool supported = true;
     std::optional<TaskError> error;
+};
+
+// Bounded, metadata-only projection for the derived import content index.
+struct ImportContentSource
+{
+    std::string asset_id;
+    std::string normalized_uri;
+    std::uint64_t size_bytes = 0;
+    std::int64_t mtime_unix_ms = 0;
+    std::optional<std::string> sha256;
+};
+
+struct ImportScanResult
+{
+    std::string schema{"ravo-import-scan/v1"};
+    std::int64_t catalog_revision = 0;
+    std::vector<ImportCandidate> candidates;
+    std::size_t duplicates = 0;
+    std::size_t unavailable = 0;
 };
 
 enum class PreviewPurpose

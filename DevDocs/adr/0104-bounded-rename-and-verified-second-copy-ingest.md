@@ -46,8 +46,9 @@ paging changes.
   safe source bytes and remains a structured result as in ADR-0102.
 - CLI executes the complete service operation synchronously. Studio keeps the
   template and second-copy selection as import-workspace session state and uses
-  its existing serial import and cancellable preview owners. No new thread,
-  database row, remembered preference, or background daemon is introduced.
+  its existing serial import and cancellable preview owners. Rename and
+  second-copy choices remain session state. The primary destination preference
+  and derived content index follow the updated ADR-0102 contract.
 
 ## Failure and validation
 

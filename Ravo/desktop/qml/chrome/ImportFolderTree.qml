@@ -12,6 +12,12 @@ ListView {
     boundsBehavior: Flickable.StopAtBounds
     spacing: 0
     model: root.folderModel
+    Connections {
+        target: root.folderModel
+        function onFolderRevealed(row) {
+            root.positionViewAtIndex(row, ListView.Contain);
+        }
+    }
 
     delegate: Item {
         id: folderRow

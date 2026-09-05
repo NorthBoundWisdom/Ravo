@@ -52,7 +52,10 @@ Current implementation status:
   The cache has a 512 MiB hard byte budget, promotes valid hits, and evicts the
   least-recently-used rebuildable PNG deterministically across reopen
   (ADR-0047/0067).
-- Studio import opens one full-page source browser. New photos start selected
+- Studio import opens a source / new-photo grid / scrollable destination workspace.
+  Copy is selected on every entry. Catalog URI and exact SHA-256 content matches
+  are hidden; same-content files within a scan keep the first supported path.
+  New photos start selected
   and can be added by reference, copied, or moved to an explicit destination
   using one folder, preserved hierarchy, `YYYY/MM/DD`, or `YYYY/MM` organization.
   Copy/Move optionally expand a bounded `{date}`/`{stem}`/`{sequence}`/`{ext}`
@@ -63,6 +66,13 @@ Current implementation status:
   source only after every requested copy verifies and the destination is
   cataloged. Minimal 320, Standard 1600, and 1:1 previews run in a cancellable
   background queue after Last Imported Photos opens (ADR-0102/0104).
+- The import destination root is remembered globally after the first successful
+  photo in a managed batch and restored after restart, including the directory
+  tree and picker. Failed batches and cancelled drafts preserve the prior root.
+  Disconnected destinations remain visible and block Copy until resolved.
+  Rename and second-copy controls start collapsed, and narrow windows use side
+  drawers. Schema v17 adds a rebuildable content-hash index; old assets are
+  indexed on demand without changing edit history or original files.
 - Browse & Review includes ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
   images like the grid, shows number/rating/flags in its letterbox, and maps
@@ -142,7 +152,7 @@ Current implementation status:
   (ADR-0066). Studio also persists typed Assistant endpoint URL, model, and API
   key (ADR-0081) for the floating chat panel; assistant HTTP and credentials
   stay desktop-only. The separate Qt local-control socket exposes neither.
-- Basic Develop uses the current catalog schema v11 with one canonical recipe per image,
+- Basic Develop uses the current catalog schema v17 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (white-balance-aware opposed by default, bounded by
   per-channel sensor linearity metadata when present), adaptive Y0U0V0
@@ -789,7 +799,8 @@ ravo catalog import --catalog <library.sqlite> --input <file-or-folder> \
   [--organize single|hierarchy|date|month] \
   [--rename-template '{date}-{sequence}-{stem}{ext}'] \
   [--second-copy <directory>] [--preview minimal|standard|one-to-one] \
-  [--no-recursive] --json
+  [--no-recursive] [--skip-existing] --json
+ravo catalog import-scan --catalog <library.sqlite> --input <file-or-folder> [--no-recursive] --json
 ravo catalog list --catalog <library.sqlite> --json
 ravo catalog folders --catalog <library.sqlite> --json
 ravo catalog folder-relink --catalog <library.sqlite> --folder-id <id> --replacement <directory> --json

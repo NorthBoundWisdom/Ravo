@@ -3490,8 +3490,40 @@ Diff: %6</source>
             <translation>이동</translation>
         </message>
         <message>
+            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
+            <translation>수집 전송은 복사 전용입니다. 이동 및 카메라 삭제는 계속 거부됩니다.</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>소스</translation>
+        </message>
+        <message>
+            <source>New Photos</source>
+            <translation>새 사진</translation>
+        </message>
+        <message>
+            <source>Thumbnail size</source>
+            <translation>썸네일 크기</translation>
+        </message>
+        <message>
+            <source>Checking %1 of %2…</source>
+            <translation>%2개 중 %1개 확인 중…</translation>
+        </message>
+        <message>
+            <source>Duplicate photos hidden: %1</source>
+            <translation>숨겨진 중복 사진: %1장</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 MB</source>
+            <translation>선택됨: 사진 %1장 · %2 MB</translation>
+        </message>
+        <message>
+            <source>Checking destination…</source>
+            <translation>대상 위치 확인 중…</translation>
+        </message>
+        <message>
+            <source>Import %1 photos</source>
+            <translation>사진 %1장 가져오기</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3500,10 +3532,6 @@ Diff: %6</source>
         <message>
             <source>Include subfolders</source>
             <translation>하위 폴더 포함</translation>
-        </message>
-        <message>
-            <source>Selected: %1 of %2</source>
-            <translation>선택: %1 / %2</translation>
         </message>
         <message>
             <source>Check All</source>
@@ -3522,8 +3550,8 @@ Diff: %6</source>
             <translation>원본 폴더를 선택하세요</translation>
         </message>
         <message>
-            <source>Already imported</source>
-            <translation>이미 가져옴</translation>
+            <source>No new photos</source>
+            <translation>새 사진이 없습니다</translation>
         </message>
         <message>
             <source>Unavailable</source>
@@ -3556,6 +3584,10 @@ Diff: %6</source>
         <message>
             <source>Choose Destination…</source>
             <translation>대상 선택…</translation>
+        </message>
+        <message>
+            <source>Check again</source>
+            <translation>다시 확인</translation>
         </message>
         <message>
             <source>Organize</source>
@@ -3610,28 +3642,8 @@ Diff: %6</source>
             <translation>두 번째 복사본을 선택하지 않았습니다</translation>
         </message>
         <message>
-            <source>Move verifies every requested copy before removing its source.</source>
-            <translation>이동 작업은 원본을 제거하기 전에 요청된 모든 복사본을 확인합니다.</translation>
-        </message>
-        <message>
-            <source>Importing %1 / %2…</source>
-            <translation>%1 / %2 가져오는 중…</translation>
-        </message>
-        <message>
-            <source>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</source>
-            <translation>마지막 수집 %1: %2 가져오기, %3 중복, %4 건너뛰기, %5 실패.</translation>
-        </message>
-        <message>
-            <source>Resume batch %1.</source>
-            <translation>일괄 %1을(를) 재개합니다.</translation>
-        </message>
-        <message>
             <source>Cancel</source>
             <translation>취소</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>가져오기</translation>
         </message>
     </context>
     <context>
@@ -5847,6 +5859,18 @@ Diff: %6</source>
         <message>
             <source>Choose an import destination.</source>
             <translation>가져올 대상을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
+            <translation>대상 위치를 사용할 수 없습니다. 드라이브를 다시 연결하거나 다른 폴더를 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Photos imported, but the destination could not be remembered.</source>
+            <translation>사진을 가져왔지만 대상 위치를 저장하지 못했습니다.</translation>
+        </message>
+        <message>
+            <source>Scan the source folder again.</source>
+            <translation>원본 폴더를 다시 스캔하세요.</translation>
         </message>
         <message>
             <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>

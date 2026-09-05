@@ -53,10 +53,12 @@ public:
                        Result<std::vector<FilesystemFolderEntry>> children);
     Q_INVOKABLE void toggleCollapsed(const QString &path);
     Q_INVOKABLE void selectFolder(const QString &path);
+    Q_INVOKABLE void revealFolder(const QString &path);
 
 signals:
     void selectedPathChanged();
     void directoryListingRequested(const QString &path, quint64 generation);
+    void folderRevealed(int row);
 
 private:
     struct Node
@@ -68,6 +70,7 @@ private:
         bool collapsed = true;
         bool loaded = false;
         quint64 listing_generation = 0;
+        bool listing_pending = false;
         QString error;
     };
 
@@ -78,6 +81,8 @@ private:
     std::vector<Node> all_nodes_;
     std::vector<Node> visible_;
     QString selected_path_;
+    QString reveal_path_;
+    quint64 next_listing_generation_ = 0;
 };
 
 } // namespace ravo

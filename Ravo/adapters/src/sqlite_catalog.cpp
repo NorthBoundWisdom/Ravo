@@ -35,6 +35,15 @@ using namespace sqlite_internal;
 namespace
 {
 
+constexpr const char *kSchemaV17Content[] = {
+    "CREATE TABLE IF NOT EXISTS asset_content_hash ("
+    "asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+    "normalized_uri TEXT NOT NULL, size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0),"
+    "mtime_unix_ms INTEGER NOT NULL, sha256 TEXT NOT NULL "
+    "CHECK(length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'))",
+    "CREATE INDEX IF NOT EXISTS asset_content_hash_lookup ON asset_content_hash(size_bytes, sha256)",
+};
+
 const char *kSchemaStatements[] = {
     "PRAGMA foreign_keys = ON",
     "CREATE TABLE schema_info ("
@@ -533,6 +542,13 @@ SqliteCatalogRepository::create(const std::string_view database_path)
     const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::system_clock::now().time_since_epoch())
                          .count();
+    for (const char *statement : kSchemaV17Content)
+    {
+        const auto created =
+            impl->exec(QString::fromUtf8(statement), "create_import_content_index");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
     impl->snapshot.catalog_id = generate_catalog_id();
     impl->snapshot.database_path = impl->database_path;
     impl->snapshot.schema_version = kCatalogSchemaVersion;
@@ -1089,6 +1105,17 @@ SqliteCatalogRepository::open(const std::string_view database_path)
             version = 16;
         }
 
+        if (version == 16)
+        {
+            for (const char *statement : kSchemaV17Content)
+            {
+                const auto created =
+                    impl->exec(QString::fromUtf8(statement), "migrate_v17_content_index");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            version = 17;
+        }
         if (version != kCatalogSchemaVersion)
         {
             return impl->abort_transaction(

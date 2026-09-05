@@ -24,6 +24,7 @@ target_sources(ravo_services
     src/tethered_studio.cpp
     src/catalog_internal.cpp
     src/catalog_import.cpp
+    src/catalog_import_scan.cpp
     src/catalog_ingest_transport.cpp
     src/encoded_publication.cpp
     src/export_jobs.cpp

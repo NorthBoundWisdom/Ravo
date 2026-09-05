@@ -143,6 +143,9 @@ struct IngestRequest
     bool recursive = true;
     bool include_xmp_sidecars = true;
     bool defer_previews = true;
+    bool skip_existing = false;
+    std::optional<std::int64_t> expected_catalog_revision;
+    std::vector<std::pair<std::string, std::string>> expected_content_hashes;
     // Optional absolute-path filter (Studio selection). Empty => ingest all
     // enumerated objects from the transport snapshot.
     std::vector<std::string> selected_paths;

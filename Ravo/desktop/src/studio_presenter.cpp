@@ -168,6 +168,8 @@ StudioPresenter::StudioPresenter(QObject *parent)
     };
     bind_browser(&import_source_folders_);
     bind_browser(&import_destination_folders_);
+    connect(&import_candidates_, &ImportCandidateListModel::selectionChanged, this,
+            &StudioPresenter::importPageChanged);
     catalog_revision_timer_ = new QTimer(this);
     catalog_revision_timer_->setInterval(kCatalogRevisionPollMs);
     catalog_revision_timer_->setTimerType(Qt::CoarseTimer);
@@ -1320,7 +1322,7 @@ void StudioPresenter::pollCatalogRevision()
 
 void StudioPresenter::createCatalog(const QUrl &file_url)
 {
-    if (busy_)
+    if (busy_ || import_work_active_)
     {
         return;
     }
@@ -1333,6 +1335,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
     }
     setBusy(true);
     setError({});
+    closeImportPage();
     setStatus(QCoreApplication::translate("StudioPresenter", "Creating library…"));
     const auto path = utf8_from_qstring(local);
     LibraryQuery initial_query = current_query();
@@ -1406,7 +1409,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
 
 void StudioPresenter::openCatalog(const QUrl &file_url)
 {
-    if (busy_)
+    if (busy_ || import_work_active_)
     {
         return;
     }
@@ -1419,6 +1422,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
     }
     setBusy(true);
     setError({});
+    closeImportPage();
     setStatus(QCoreApplication::translate("StudioPresenter", "Opening library…"));
     const auto path = utf8_from_qstring(local);
     LibraryQuery initial_query = current_query();
@@ -1570,6 +1574,11 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
     }
     setError({});
     setStatus(QCoreApplication::translate("StudioPresenter", "Scanning folder…"));
+    closeImportPage();
+    import_skip_existing_ = false;
+    pending_import_content_hashes_.clear();
+    pending_import_destination_.clear();
+    import_preference_error_.clear();
     setImportWork(0, 0, true);
     import_operation_ = CancellationSource{};
     const auto cancellation = import_operation_.token();
@@ -1625,13 +1634,18 @@ void StudioPresenter::startNextImportItem()
     const auto policy =
         import_defer_previews_ ? pending_import_preview_policy_ : ImportPreviewPolicy::kMinimal;
     const bool defer = import_defer_previews_;
+    const bool skip_existing = import_skip_existing_;
+    const auto hash = pending_import_content_hashes_.find(path);
+    const std::string expected_hash =
+        hash == pending_import_content_hashes_.end() ? std::string{} : hash->second;
     executor_.post(
-        [this, path, cancellation, policy, defer]
+        [this, path, cancellation, policy, defer, skip_existing, expected_hash]
         {
             Result<ImportItemResult> imported =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                imported = service_->import_one(path, cancellation, policy, defer);
+                imported = service_->import_one(path, cancellation, policy, defer, skip_existing,
+                                                expected_hash);
             QMetaObject::invokeMethod(
                 this,
                 [this, path, imported = std::move(imported)]() mutable
@@ -1667,6 +1681,8 @@ void StudioPresenter::finishImportBatch()
     if (!import_work_active_)
         return;
     import_gallery_placeholders_ = false;
+    import_skip_existing_ = false;
+    pending_import_content_hashes_.clear();
     import_defer_previews_ = false;
     const bool cancelled = import_operation_.token().is_cancellation_requested();
     const auto completed = import_results_.size();
@@ -1720,6 +1736,9 @@ void StudioPresenter::finishImportBatch()
                     for (const auto &item : results)
                         if (first_error.isEmpty() && item.error)
                             first_error = qstring_from_utf8(item.error->message);
+                    if (!import_preference_error_.isEmpty())
+                        first_error += (first_error.isEmpty() ? QString{} : QStringLiteral("\n")) +
+                                       import_preference_error_;
                     setError(first_error);
                     setStatus(cancelled ?
                                   QCoreApplication::translate(

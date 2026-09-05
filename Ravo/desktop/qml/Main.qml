@@ -1557,18 +1557,6 @@ ApplicationWindow {
         z: 25
         presenter: studio
         onCloseRequested: studio.closeImportPage()
-        onChooseSourceRequested: {
-            importSourceDialog.currentFolder = studio.defaultCatalogFolder;
-            importSourceDialog.openDialog();
-        }
-        onChooseDestinationRequested: {
-            importDestinationDialog.currentFolder = studio.defaultCatalogFolder;
-            importDestinationDialog.openDialog();
-        }
-        onChooseSecondCopyRequested: {
-            importSecondCopyDialog.currentFolder = studio.defaultCatalogFolder;
-            importSecondCopyDialog.openDialog();
-        }
     }
 
     AssistantPanel {
@@ -1703,30 +1691,6 @@ ApplicationWindow {
         nameFilters: ["Ravo catalog (*.sqlite)"]
         onFileAccepted: function (filePath) {
             studioActions.run(studioActions.ids.libraryOpenPath, filePath);
-        }
-    }
-
-    FolderDialogPage {
-        id: importSourceDialog
-        dialogTitle: qsTr("Choose Import Source")
-        onFolderAccepted: function (folderPath) {
-            studio.setImportSourceRoot(folderPath);
-        }
-    }
-
-    FolderDialogPage {
-        id: importDestinationDialog
-        dialogTitle: qsTr("Choose Import Destination")
-        onFolderAccepted: function (folderPath) {
-            studio.setImportDestination(folderPath);
-        }
-    }
-
-    FolderDialogPage {
-        id: importSecondCopyDialog
-        dialogTitle: qsTr("Choose Import Second Copy")
-        onFolderAccepted: function (folderPath) {
-            studio.setImportSecondCopyDestination(folderPath);
         }
     }
 

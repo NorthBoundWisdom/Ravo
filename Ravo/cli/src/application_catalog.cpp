@@ -84,7 +84,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(
             ErrorCode::kInvalidArgument,
-            "Usage: ravo catalog <create|import|list|facets|preview|probe|recipe|develop|develop-apply|"
+            "Usage: ravo catalog <create|import|import-scan|list|facets|preview|probe|recipe|develop|develop-apply|"
             "fields|rate|"
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
@@ -369,11 +369,23 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         !flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
         !flags.value().import_filename_template.empty() ||
-        !flags.value().import_second_copy.empty() || !flags.value().import_recursive;
+        !flags.value().import_second_copy.empty() || !flags.value().import_recursive ||
+        flags.value().import_skip_existing;
     if (has_import_options && subcommand != "import" && subcommand != "editor-register" &&
-        subcommand != "ingest")
+        subcommand != "ingest" && subcommand != "import-scan")
         return make_error(ErrorCode::kInvalidArgument,
                           "Import options are only valid for catalog import or editor-register");
+    if (flags.value().import_skip_existing && subcommand != "import" && subcommand != "ingest" &&
+        subcommand != "import-scan")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--skip-existing requires import, ingest or import-scan");
+    if (subcommand == "import-scan" &&
+        (!flags.value().import_mode.empty() || !flags.value().import_destination.empty() ||
+         !flags.value().import_organization.empty() || !flags.value().import_preview.empty() ||
+         !flags.value().import_filename_template.empty() ||
+         !flags.value().import_second_copy.empty()))
+        return make_error(ErrorCode::kInvalidArgument,
+                          "import-scan accepts source and recursion options only");
     if (subcommand == "editor-register" &&
         (!flags.value().import_mode.empty() || !flags.value().import_organization.empty() ||
          !flags.value().import_preview.empty() || !flags.value().import_filename_template.empty() ||
@@ -799,6 +811,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return picked.error();
         return library_stack_mutation_to_json(picked.value());
     }
+    if (subcommand == "import-scan")
+        return run_catalog_ingest_command(service, subcommand, flags.value());
     if (subcommand == "import")
     {
         if (flags.value().inputs.empty())
@@ -850,6 +864,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         request.second_copy_directory = std::string(flags.value().import_second_copy);
         request.source_root = request.inputs.front();
         request.recursive = flags.value().import_recursive;
+        request.skip_existing = flags.value().import_skip_existing;
         request.cancellation = CancellationToken{};
         auto imported = service.execute_import(request);
         if (!imported)

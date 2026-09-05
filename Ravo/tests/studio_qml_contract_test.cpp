@@ -76,7 +76,7 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     ASSERT_GT(light_end, light_begin);
     const auto light = source.mid(light_begin, light_end - light_begin);
 
-    EXPECT_TRUE(light.contains(QStringLiteral("title: \"EV Shift\"")));
+    EXPECT_TRUE(light.contains(QStringLiteral("title: qsTr(\"EV Shift\")")));
     EXPECT_FALSE(light.contains(QStringLiteral("Exposure (EV Shift)")));
 
     const auto rapidraw_ev = light.indexOf(QStringLiteral("rapidrawEvShift"));

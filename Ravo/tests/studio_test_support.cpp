@@ -7,18 +7,33 @@
 #include <QElapsedTimer>
 #include <QProcess>
 #include <QThread>
+#include <QSettings>
+#include <QTemporaryDir>
 
 namespace ravo::studio_test_support
 {
 
 void ensure_qt_core()
 {
+    static QTemporaryDir settings_root;
+    static const bool isolated = []
+    {
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings_root.path());
+        return true;
+    }();
+    static_cast<void>(isolated);
     if (QCoreApplication::instance() != nullptr)
+    {
+        if (QCoreApplication::organizationName().isEmpty())
+            QCoreApplication::setOrganizationName(QStringLiteral("RavoTests"));
         return;
+    }
     static int argc = 1;
     static char executable[] = "ravo-desktop-command-tests";
     static char *argv[] = {executable, nullptr};
     static auto *application = new QCoreApplication(argc, argv);
+    QCoreApplication::setOrganizationName(QStringLiteral("RavoTests"));
     static_cast<void>(application);
 }
 

@@ -3490,8 +3490,40 @@ Diferencia: %6</translation>
             <translation>Mover</translation>
         </message>
         <message>
+            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
+            <translation>Los transportes de ingesta son de sólo copia; Mover y eliminar cámara permanecen rechazados.</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>Fuente</translation>
+        </message>
+        <message>
+            <source>New Photos</source>
+            <translation>Fotos nuevas</translation>
+        </message>
+        <message>
+            <source>Thumbnail size</source>
+            <translation>Tamaño de miniaturas</translation>
+        </message>
+        <message>
+            <source>Checking %1 of %2…</source>
+            <translation>Comprobando %1 de %2…</translation>
+        </message>
+        <message>
+            <source>Duplicate photos hidden: %1</source>
+            <translation>Fotos duplicadas ocultas: %1</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 MB</source>
+            <translation>Selección: %1 fotos · %2 MB</translation>
+        </message>
+        <message>
+            <source>Checking destination…</source>
+            <translation>Comprobando destino…</translation>
+        </message>
+        <message>
+            <source>Import %1 photos</source>
+            <translation>Importar %1 fotos</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3500,10 +3532,6 @@ Diferencia: %6</translation>
         <message>
             <source>Include subfolders</source>
             <translation>Incluir subcarpetas</translation>
-        </message>
-        <message>
-            <source>Selected: %1 of %2</source>
-            <translation>Seleccionadas: %1 de %2</translation>
         </message>
         <message>
             <source>Check All</source>
@@ -3522,8 +3550,8 @@ Diferencia: %6</translation>
             <translation>Elige una carpeta de origen</translation>
         </message>
         <message>
-            <source>Already imported</source>
-            <translation>Ya importada</translation>
+            <source>No new photos</source>
+            <translation>No hay fotos nuevas</translation>
         </message>
         <message>
             <source>Unavailable</source>
@@ -3556,6 +3584,10 @@ Diferencia: %6</translation>
         <message>
             <source>Choose Destination…</source>
             <translation>Elegir destino…</translation>
+        </message>
+        <message>
+            <source>Check again</source>
+            <translation>Volver a comprobar</translation>
         </message>
         <message>
             <source>Organize</source>
@@ -3610,28 +3642,8 @@ Diferencia: %6</translation>
             <translation>No se seleccionó una segunda copia</translation>
         </message>
         <message>
-            <source>Move verifies every requested copy before removing its source.</source>
-            <translation>Mover verifica cada copia solicitada antes de eliminar el origen.</translation>
-        </message>
-        <message>
-            <source>Importing %1 / %2…</source>
-            <translation>Importando %1 / %2…</translation>
-        </message>
-        <message>
-            <source>Last ingest %1: imported %2, duplicate %3, skipped %4, failed %5.</source>
-            <translation>Última ingesta %1: %2 importado, %3 duplicado, %4 omitido, %5 fallido.</translation>
-        </message>
-        <message>
-            <source>Resume batch %1.</source>
-            <translation>Reanudar el lote %1.</translation>
-        </message>
-        <message>
             <source>Cancel</source>
             <translation>Cancelar</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>Importar</translation>
         </message>
     </context>
     <context>
@@ -5847,6 +5859,18 @@ Diferencia: %6</translation>
         <message>
             <source>Choose an import destination.</source>
             <translation>Elige un destino de importación.</translation>
+        </message>
+        <message>
+            <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
+            <translation>Destino no disponible. Vuelve a conectar la unidad o elige otra carpeta.</translation>
+        </message>
+        <message>
+            <source>Photos imported, but the destination could not be remembered.</source>
+            <translation>Se importaron las fotos, pero no se pudo recordar el destino.</translation>
+        </message>
+        <message>
+            <source>Scan the source folder again.</source>
+            <translation>Vuelve a analizar la carpeta de origen.</translation>
         </message>
         <message>
             <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>

@@ -489,7 +489,7 @@ TEST(StudioPresenterTest, ImportIngestTransportCopyReportsFilesystemCard)
     {
         QImage image(32, 24, QImage::Format_RGB888);
         image.setColorSpace(QColorSpace(QColorSpace::SRgb));
-        image.fill(QColor(12, 34, 56));
+        image.fill(QColor(name == QStringLiteral("one.png") ? 12 : 90, 34, 56));
         ASSERT_TRUE(image.save(QDir(source_dir).filePath(name), "PNG"));
     }
 
@@ -514,7 +514,8 @@ TEST(StudioPresenterTest, ImportIngestTransportCopyReportsFilesystemCard)
               QStringLiteral("unsupported"));
 
     presenter.startPlannedImport();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 30000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
     const auto report = presenter.importIngestReport();
@@ -526,23 +527,12 @@ TEST(StudioPresenterTest, ImportIngestTransportCopyReportsFilesystemCard)
     EXPECT_TRUE(report.value(QStringLiteral("resumeCheckpointCleared")).toBool());
     EXPECT_EQ(presenter.visibleCount(), 2);
 
-    // Idempotent re-ingest of the same card reports duplicates without growing the catalog.
+    // Reopening the same card hides every cataloged photo before thumbnail demand.
     presenter.openImportPage();
-    presenter.setImportIngestTransport(QStringLiteral("filesystem-card"));
-    presenter.setImportMode(QStringLiteral("copy"));
-    presenter.setImportSourceRoot(QDir(directory.path()).filePath(QStringLiteral("card")));
-    presenter.setImportDestination(dest_dir);
-    ASSERT_TRUE(wait_until(
-        [&]
-        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 2; },
-        30000))
-        << presenter.errorText().toStdString();
-    presenter.startPlannedImport();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
-        << presenter.errorText().toStdString();
-    const auto again = presenter.importIngestReport();
-    EXPECT_EQ(again.value(QStringLiteral("imported")).toInt(), 0);
-    EXPECT_EQ(again.value(QStringLiteral("duplicates")).toInt(), 2);
+    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }, 30000));
+    EXPECT_EQ(presenter.importCandidates()->rowCount(), 0);
+    EXPECT_EQ(presenter.importDuplicateCount(), 2);
+    EXPECT_FALSE(presenter.importReady());
     EXPECT_EQ(presenter.visibleCount(), 2);
 }
 
@@ -571,7 +561,8 @@ TEST(StudioPresenterTest, ImportNativeTransportFailsClosedWithoutPackagedAdapter
     ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }, 30000));
     presenter.importCandidates()->setAllSelected(true);
     presenter.startPlannedImport();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 5000));
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 5000));
     EXPECT_FALSE(presenter.errorText().isEmpty());
     EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("not packaged")) ||
                 presenter.errorText().contains(QStringLiteral("native")));

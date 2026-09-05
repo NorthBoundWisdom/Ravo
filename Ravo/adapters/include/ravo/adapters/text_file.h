@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "ravo/foundation/error.h"
+#include "ravo/foundation/cancellation.h"
 
 namespace ravo
 {
@@ -27,6 +28,7 @@ namespace ravo
                                                        std::span<const std::uint8_t> bytes);
 
 [[nodiscard]] std::string sha256_utf8_hex(std::string_view text);
-[[nodiscard]] Result<std::string> sha256_file_hex(std::string_view path_utf8);
+[[nodiscard]] Result<std::string> sha256_file_hex(std::string_view path_utf8,
+                                                  const CancellationToken &cancellation = {});
 
 } // namespace ravo

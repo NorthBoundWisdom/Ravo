@@ -15,6 +15,7 @@
 #include "export_delivery_watermark.h"
 #include "catalog_service_internal.h"
 #include "ravo/domain/uri.h"
+#include "ravo/adapters/text_file.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
@@ -22,10 +23,10 @@
 namespace ravo
 {
 using namespace catalog_service_internal;
-Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
-                                                    const CancellationToken &cancellation,
-                                                    const ImportPreviewPolicy preview_policy,
-                                                    const bool defer_preview)
+Result<ImportItemResult>
+CatalogService::import_one(const std::string_view path, const CancellationToken &cancellation,
+                           const ImportPreviewPolicy preview_policy, const bool defer_preview,
+                           const bool skip_existing, const std::string_view expected_sha256)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -237,9 +238,39 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     {
         return failed_item(location.value().path, ready_to_publish.error());
     }
-    const auto published = repository_->commit_imported_asset(asset);
+    auto digest = sha256_file_hex(location.value().path, cancellation);
+    if (!digest)
+        return failed_item(location.value().path, digest.error());
+    if (!expected_sha256.empty() && expected_sha256 != digest.value())
+        return failed_item(location.value().path,
+                           make_error(ErrorCode::kConflict,
+                                      "Source content changed after import selection",
+                                      {{"reason", "import_content_source_changed"}}));
+    auto after_hash = read_file_identity(location.value().path);
+    if (!after_hash)
+        return failed_item(location.value().path, after_hash.error());
+    if (after_hash.value().size_bytes != asset.size_bytes ||
+        after_hash.value().mtime_unix_ms != asset.mtime_unix_ms)
+        return failed_item(location.value().path,
+                           make_error(ErrorCode::kConflict,
+                                      "Source changed before import publication",
+                                      {{"reason", "import_content_source_changed"}}));
+    const auto published = repository_->commit_imported_asset(asset, digest.value(), skip_existing);
     if (!published)
     {
+        const auto reason = published.error().context.find("reason");
+        if (skip_existing && reason != published.error().context.end() &&
+            reason->second == "import_duplicate_content")
+        {
+            auto matched = repository_->find_asset_by_id(published.error().context.at("asset_id"));
+            if (!matched)
+                return matched.error();
+            ImportItemResult duplicate;
+            duplicate.status = ImportItemStatus::kDuplicate;
+            duplicate.input_path = location.value().path;
+            duplicate.asset = std::move(matched).value();
+            return duplicate;
+        }
         return failed_item(location.value().path, published.error());
     }
 

@@ -3,6 +3,8 @@
 - Status: Accepted; assistant endpoint settings added by
   [ADR-0081](0081-studio-assistant-endpoint-panel.md); window geometry added by
   [ADR-0115](0115-typed-studio-window-geometry.md)
+- Updated: 2026-09-05 — primary import destination added by
+  [ADR-0102](0102-planned-managed-import-workspace.md)
 - Date: 2026-08-29
 - Extends: [ADR-0007](0007-first-usable-catalog-viewer.md)
 
@@ -16,9 +18,11 @@ must not import the old key space or revive global configuration access.
 
 ## Decision
 
-- The only persistent Studio product preference currently required is the UI
-  language. `StudioLanguageManager` owns the typed `en_US | zh_CN` value and
-  the private `desktop/language` QSettings key.
+- `StudioLanguageManager` owns the manifest-backed UI language and the private
+  `desktop/language` QSettings key. Assistant and geometry preferences have
+  their own desktop owners. `StudioImportPreferences` owns the validated absolute
+  `desktop/import/lastDestination` path, written after the first successfully
+  committed photo of a managed import batch and shared across catalogs.
 - Language aliases are normalized before use. An unsupported explicit request
   fails without changing the active language or persisted value. A malformed
   stored value is removed synchronously and startup falls back to English.

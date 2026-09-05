@@ -20,6 +20,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include "studio_import_layout_smoke.h"
 #include <QQuickStyle>
 #include <QString>
 #include <QStyleHints>
@@ -481,7 +482,7 @@ int main(int argc, char *argv[])
     engine.loadFromModule("Ravo.Studio", "Main");
     if (smoke)
     {
-        const bool loaded = !engine.rootObjects().isEmpty();
+        const bool loaded = !engine.rootObjects().isEmpty() && ravo::smoke_import_layout(engine);
         if (!loaded)
             LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
         else

@@ -115,7 +115,8 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
                      ->data(presenter.assets()->index(0, 0), AssetListModel::DisplayNameRole)
                      .toString()
                      .isEmpty());
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 30000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.lastImportSelected());
     EXPECT_EQ(presenter.lastImportCount(), 1);
@@ -637,7 +638,14 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     QFile page(QStringLiteral(RAVO_STUDIO_IMPORT_PAGE_QML));
     ASSERT_TRUE(page.open(QIODevice::ReadOnly | QIODevice::Text))
         << page.errorString().toStdString();
-    const auto source = QString::fromUtf8(page.readAll());
+    auto source = QString::fromUtf8(page.readAll());
+    for (const auto *name :
+         {"ImportPhotoGrid.qml", "ImportSourcePanel.qml", "ImportDestinationPanel.qml"})
+    {
+        QFile component(QFileInfo(page).dir().filePath(QString::fromLatin1(name)));
+        ASSERT_TRUE(component.open(QIODevice::ReadOnly | QIODevice::Text));
+        source += QString::fromUtf8(component.readAll());
+    }
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Add\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Move\")")));
@@ -676,7 +684,12 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     const auto main_source = QString::fromUtf8(main.readAll());
     EXPECT_TRUE(main_source.contains(QStringLiteral("ImportPage")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("studio.openImportPage()")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("importSecondCopyDialog")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ImportDialogs")));
+    QFile dialogs(QFileInfo(page).dir().filePath(QStringLiteral("ImportDialogs.qml")));
+    ASSERT_TRUE(dialogs.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto dialog_source = QString::fromUtf8(dialogs.readAll());
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("presenter.setImportSecondCopyDestination")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("presenter.importDestinationFolderUrl")));
     EXPECT_FALSE(main_source.contains(QStringLiteral("id: importDialog")));
     EXPECT_FALSE(main_source.contains(QStringLiteral("id: importFolderDialog")));
 }
