@@ -1012,6 +1012,24 @@ struct ImportRequest
     CancellationToken cancellation{};
 };
 
+struct ImportDestinationFolder
+{
+    std::string path;
+    std::string name;
+    std::size_t depth = 0;
+    std::size_t photo_count = 0;
+    bool will_create = false;
+    bool second_copy = false;
+};
+
+struct ImportDestinationPreview
+{
+    std::string schema{"ravo-import-destination-preview/v1"};
+    std::int64_t catalog_revision = 0;
+    std::size_t photo_count = 0;
+    std::vector<ImportDestinationFolder> folders;
+};
+
 struct ImportBatchResult
 {
     ImportTransferMode mode = ImportTransferMode::kAdd;

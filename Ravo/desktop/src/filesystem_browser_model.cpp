@@ -128,6 +128,8 @@ QVariant FilesystemBrowserModel::data(const QModelIndex &index, const int role) 
         return row.path == selected_path_;
     case ErrorRole:
         return row.error;
+    case ListingPendingRole:
+        return row.listing_pending;
     default:
         return {};
     }
@@ -138,7 +140,7 @@ QHash<int, QByteArray> FilesystemBrowserModel::roleNames() const
     return {{PathRole, "path"},           {DisplayNameRole, "displayName"},
             {DepthRole, "depth"},         {HasChildrenRole, "hasChildren"},
             {CollapsedRole, "collapsed"}, {SelectedRole, "selected"},
-            {ErrorRole, "errorText"}};
+            {ErrorRole, "errorText"},     {ListingPendingRole, "listingPending"}};
 }
 
 QString FilesystemBrowserModel::selectedPath() const
@@ -250,6 +252,7 @@ void FilesystemBrowserModel::toggleCollapsed(const QString &path)
     }
     node.listing_generation = ++next_listing_generation_;
     node.listing_pending = true;
+    rebuild_visible();
     emit directoryListingRequested(node.path, node.listing_generation);
 }
 

@@ -3670,6 +3670,26 @@ Diff: %6</translation>
             <translation>By month (YYYY/MM)</translation>
         </message>
         <message>
+            <source>Destination preview</source>
+            <translation>Destination preview</translation>
+        </message>
+        <message>
+            <source>Folders are created only when you import.</source>
+            <translation>Folders are created only when you import.</translation>
+        </message>
+        <message>
+            <source>Planning destination…</source>
+            <translation>Planning destination…</translation>
+        </message>
+        <message>
+            <source>Will create</source>
+            <translation>Will create</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>%1 photos</translation>
+        </message>
+        <message>
             <source>Rename template</source>
             <translation>Rename template</translation>
         </message>

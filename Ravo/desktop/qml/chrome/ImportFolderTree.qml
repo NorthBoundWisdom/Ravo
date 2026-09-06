@@ -8,6 +8,14 @@ ListView {
     required property var folderModel
     signal folderChosen(string path)
 
+    function chooseFolder(chosenPath) {
+        // Activation may synchronously replace every row. Finish forwarding the
+        // choice in this stable tree context, never in the destroyed delegate.
+        if (root.folderModel)
+            root.folderModel.activateFolder(chosenPath);
+        root.folderChosen(chosenPath);
+    }
+
     clip: true
     boundsBehavior: Flickable.StopAtBounds
     spacing: 0
@@ -26,6 +34,7 @@ ListView {
         required property int depth
         required property bool hasChildren
         required property bool collapsed
+        required property bool listingPending
         required property bool selected
         required property string errorText
         required property int index
@@ -48,16 +57,23 @@ ListView {
                 Layout.preferredWidth: Fonts.listItemHeight
                 Layout.fillHeight: true
                 Layout.alignment: Qt.AlignVCenter
-                CustomLabel {
-                    anchors.centerIn: parent
-                    visible: folderRow.hasChildren
-                    text: folderRow.collapsed ? "▸" : "▾"
-                }
-                MouseArea {
+                ToolButton {
                     objectName: "importFolderExpand"
                     anchors.fill: parent
-                    enabled: folderRow.hasChildren
-                    cursorShape: Qt.PointingHandCursor
+                    enabled: folderRow.hasChildren && !folderRow.listingPending
+                    visible: folderRow.hasChildren
+                    padding: 0
+                    text: folderRow.listingPending ? "…" : folderRow.collapsed ? "▸" : "▾"
+                    contentItem: CustomLabel {
+                        text: parent.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: parent.hovered ? Theme.buttonHoveredColor : "transparent"
+                    }
+                    ToolTip.visible: hovered && folderRow.errorText.length > 0
+                    ToolTip.text: folderRow.errorText
                     onClicked: if (root.folderModel)
                         root.folderModel.toggleCollapsed(folderRow.path)
                 }
@@ -79,12 +95,7 @@ ListView {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        const chosenPath = folderRow.path;
-                        if (root.folderModel)
-                            root.folderModel.activateFolder(chosenPath);
-                        root.folderChosen(chosenPath);
-                    }
+                    onClicked: root.chooseFolder(folderRow.path)
                 }
             }
         }

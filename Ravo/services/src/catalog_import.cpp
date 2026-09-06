@@ -350,10 +350,23 @@ Result<void> CatalogService::preflight_import(const ImportRequest &request)
     return {};
 }
 
+Result<ImportDestinationPreview>
+CatalogService::preview_import_destinations(const ImportRequest &request)
+{
+    if (request.mode == ImportTransferMode::kAdd)
+        return make_error(ErrorCode::kInvalidArgument, "Destination preview requires Copy or Move",
+                          {{"reason", "import_preview_requires_transfer"}});
+    ImportDestinationPreview preview;
+    auto planned = execute_import_impl(request, {}, true, &preview);
+    if (!planned)
+        return planned.error();
+    return preview;
+}
+
 Result<ImportBatchResult> CatalogService::execute_import_impl(
     const ImportRequest &request,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
-    const bool preflight_only)
+    const bool preflight_only, ImportDestinationPreview *const destination_preview)
 {
     auto snapshot_before = snapshot();
     if (!snapshot_before)
@@ -678,6 +691,91 @@ Result<ImportBatchResult> CatalogService::execute_import_impl(
     ImportBatchResult batch;
     batch.mode = request.mode;
     batch.preview = request.preview;
+    if (destination_preview)
+    {
+        ImportDestinationPreview preview;
+        preview.catalog_revision = snapshot_before.value().revision;
+        using Key = std::pair<bool, std::vector<std::string>>;
+        std::map<Key, ImportDestinationFolder> folders;
+        const auto add_folder = [&](const std::string &output, const std::filesystem::path &root,
+                                    const bool second) -> Result<void>
+        {
+            const auto parent = utf8_path(output).parent_path();
+            const auto relative = parent.lexically_relative(root);
+            std::vector<std::string> parts;
+            for (const auto &part : relative)
+                if (part != u8".")
+                    parts.push_back(path_text(part));
+            auto path = root;
+            std::vector<std::string> prefix;
+            for (std::size_t depth = 0; depth <= parts.size(); ++depth)
+            {
+                if (auto active = request.cancellation.check(); !active)
+                    return active.error();
+                const Key key{second, prefix};
+                auto found = folders.find(key);
+                if (found == folders.end())
+                {
+                    if (folders.size() >= 10000)
+                        return make_error(ErrorCode::kValidation, "Too many preview folders",
+                                          {{"reason", "import_preview_folder_limit"}});
+                    std::error_code error;
+                    const bool exists = std::filesystem::exists(path, error);
+                    if (error)
+                        return make_error(ErrorCode::kIo, "Unable to inspect destination folder",
+                                          {{"path", path_text(path)}, {"detail", error.message()}});
+                    if (exists && !std::filesystem::is_directory(path, error))
+                        return make_error(
+                            ErrorCode::kConflict, "Destination folder is a file",
+                            {{"path", path_text(path)}, {"reason", "import_destination_conflict"}});
+                    if (error)
+                        return make_error(ErrorCode::kIo, "Unable to inspect destination folder",
+                                          {{"path", path_text(path)}, {"detail", error.message()}});
+                    found = folders
+                                .emplace(key, ImportDestinationFolder{path_text(path),
+                                                                      depth == 0 ? path_text(root) :
+                                                                                   parts[depth - 1],
+                                                                      depth, 0, !exists, second})
+                                .first;
+                }
+                ++found->second.photo_count;
+                if (depth < parts.size())
+                {
+                    path /= utf8_path(parts[depth]);
+                    prefix.push_back(parts[depth]);
+                }
+            }
+            return {};
+        };
+        for (const auto &item : plan)
+        {
+            if (item.candidate.error)
+                return *item.candidate.error;
+            if (item.candidate.duplicate || item.already_imported)
+                continue;
+            ++preview.photo_count;
+            auto added = add_folder(item.import_path, destination_root, false);
+            if (!added)
+                return added.error();
+            if (item.second_copy_path)
+            {
+                added = add_folder(*item.second_copy_path, *second_copy_root, true);
+                if (!added)
+                    return added.error();
+            }
+        }
+        if (auto active = request.cancellation.check(); !active)
+            return active.error();
+        auto current = snapshot();
+        if (!current)
+            return current.error();
+        if (current.value().revision != preview.catalog_revision)
+            return make_error(ErrorCode::kConflict, "Catalog changed during destination preview",
+                              {{"reason", "import_scan_stale"}});
+        for (auto &[key, folder] : folders)
+            preview.folders.push_back(std::move(folder));
+        *destination_preview = std::move(preview);
+    }
     if (preflight_only)
         return batch;
     batch.items.reserve(plan.size());

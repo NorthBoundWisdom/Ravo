@@ -3670,6 +3670,26 @@ Différence : %6</translation>
             <translation>Par mois (AAAA/MM)</translation>
         </message>
         <message>
+            <source>Destination preview</source>
+            <translation>Aperçu de la destination</translation>
+        </message>
+        <message>
+            <source>Folders are created only when you import.</source>
+            <translation>Les dossiers ne sont créés qu’à l’importation.</translation>
+        </message>
+        <message>
+            <source>Planning destination…</source>
+            <translation>Préparation de la destination…</translation>
+        </message>
+        <message>
+            <source>Will create</source>
+            <translation>À créer</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>%1 photos</translation>
+        </message>
+        <message>
             <source>Rename template</source>
             <translation>Modèle de renommage</translation>
         </message>

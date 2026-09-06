@@ -3670,6 +3670,26 @@ Diff: %6</source>
             <translation>按月 (YYYY/MM)</translation>
         </message>
         <message>
+            <source>Destination preview</source>
+            <translation>目標資料夾預覽</translation>
+        </message>
+        <message>
+            <source>Folders are created only when you import.</source>
+            <translation>僅在匯入時建立資料夾。</translation>
+        </message>
+        <message>
+            <source>Planning destination…</source>
+            <translation>正在規劃目標資料夾…</translation>
+        </message>
+        <message>
+            <source>Will create</source>
+            <translation>將建立</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>%1 張相片</translation>
+        </message>
+        <message>
             <source>Rename template</source>
             <translation>重新命名範本</translation>
         </message>

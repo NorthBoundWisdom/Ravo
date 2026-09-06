@@ -379,6 +379,12 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool importPreflightActive READ importPreflightActive NOTIFY importPageChanged)
     Q_PROPERTY(bool importReady READ importReady NOTIFY importPageChanged)
     Q_PROPERTY(QString importDestinationError READ importDestinationError NOTIFY importPageChanged)
+    Q_PROPERTY(QVariantList importDestinationPreview READ importDestinationPreview NOTIFY
+                   importDestinationPreviewChanged)
+    Q_PROPERTY(QString importDestinationPreviewError READ importDestinationPreviewError NOTIFY
+                   importDestinationPreviewChanged)
+    Q_PROPERTY(bool importDestinationPreviewActive READ importDestinationPreviewActive NOTIFY
+                   importDestinationPreviewChanged)
     Q_PROPERTY(
         QUrl importDestinationFolderUrl READ importDestinationFolderUrl NOTIFY importPageChanged)
     Q_PROPERTY(QUrl importSourceFolderUrl READ importSourceFolderUrl NOTIFY importPageChanged)
@@ -470,6 +476,18 @@ public:
     [[nodiscard]] QString importOrganization() const;
     [[nodiscard]] QString importPreviewPolicy() const;
     [[nodiscard]] bool importRecursive() const noexcept;
+    [[nodiscard]] QVariantList importDestinationPreview() const
+    {
+        return import_destination_preview_;
+    }
+    [[nodiscard]] QString importDestinationPreviewError() const
+    {
+        return import_destination_preview_error_;
+    }
+    [[nodiscard]] bool importDestinationPreviewActive() const
+    {
+        return import_destination_preview_active_;
+    }
     [[nodiscard]] QString importIngestTransport() const;
     [[nodiscard]] QString importIngestSourceUri() const;
     [[nodiscard]] QVariantMap importNativeSupport() const;
@@ -1042,6 +1060,7 @@ signals:
     void aiProposalsChanged();
     void thumbnailsChanged();
     void importPageChanged();
+    void importDestinationPreviewChanged();
 
 private:
     friend class StudioCommandController;
@@ -1199,7 +1218,12 @@ private:
     void activate_primary(const QString &asset_id, bool reload_preview);
     [[nodiscard]] std::vector<std::string> selected_asset_ids() const;
 
+    [[nodiscard]] ImportRequest plannedImportRequest() const;
+    void refreshImportDestinationPreview();
+    void startImportDestinationPreview();
+
     SerialExecutor executor_;
+    SerialExecutor filesystem_executor_;
     SerialExecutor preview_analysis_executor_;
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
@@ -1208,6 +1232,13 @@ private:
     CancellationSource catalog_operation_;
     CancellationSource import_operation_;
     CancellationSource import_preview_operation_;
+    CancellationSource import_destination_preview_operation_;
+    QVariantList import_destination_preview_;
+    QString import_destination_preview_error_;
+    QByteArray import_destination_preview_key_;
+    std::uint64_t import_destination_preview_generation_ = 0;
+    bool import_destination_preview_active_ = false;
+    QTimer *import_destination_preview_timer_ = nullptr;
     QTimer *catalog_revision_timer_ = nullptr;
     QTimer *backup_schedule_timer_ = nullptr;
     bool catalog_poll_in_flight_ = false;

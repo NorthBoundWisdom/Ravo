@@ -230,6 +230,8 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] Result<LibraryQuery> build_library_query(const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue> run_catalog_facets_command(CatalogService &service,
                                                            const CatalogCliArguments &flags);
+[[nodiscard]] Result<JsonValue> run_catalog_import_plan(CatalogService &service,
+                                                        const ImportRequest &request);
 [[nodiscard]] Result<JsonValue> run_catalog_ingest_command(CatalogService &service,
                                                            std::string_view subcommand,
                                                            const CatalogCliArguments &flags);

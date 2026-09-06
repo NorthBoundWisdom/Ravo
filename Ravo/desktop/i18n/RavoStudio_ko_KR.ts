@@ -3670,6 +3670,26 @@ Diff: %6</source>
             <translation>월별(YYYY/MM)</translation>
         </message>
         <message>
+            <source>Destination preview</source>
+            <translation>대상 폴더 미리 보기</translation>
+        </message>
+        <message>
+            <source>Folders are created only when you import.</source>
+            <translation>폴더는 가져올 때만 생성됩니다.</translation>
+        </message>
+        <message>
+            <source>Planning destination…</source>
+            <translation>대상 폴더 계획 중…</translation>
+        </message>
+        <message>
+            <source>Will create</source>
+            <translation>생성 예정</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>%1 사진</translation>
+        </message>
+        <message>
             <source>Rename template</source>
             <translation>이름 변경 템플릿</translation>
         </message>

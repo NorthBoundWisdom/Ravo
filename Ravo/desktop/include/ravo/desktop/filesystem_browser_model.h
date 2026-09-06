@@ -41,6 +41,7 @@ public:
         CollapsedRole,
         SelectedRole,
         ErrorRole,
+        ListingPendingRole,
     };
 
     explicit FilesystemBrowserModel(QObject *parent = nullptr);

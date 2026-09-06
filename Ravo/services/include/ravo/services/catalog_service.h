@@ -307,6 +307,9 @@ public:
                    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
                        &progress = {});
     [[nodiscard]] Result<void> preflight_import(const ImportRequest &request);
+    // Same preflight as execute_import; never creates destination folders or copies media.
+    [[nodiscard]] Result<ImportDestinationPreview>
+    preview_import_destinations(const ImportRequest &request);
     // ADR-0125/0148: filesystem-card, fail-closed native PTP/MTP, and ptp-stub
     // fixture ingest. Rejects Move; feeds the existing Add/Copy planner.
     // Supports resume checkpoints under {catalog}.ravo/ingest-resume/.
@@ -474,7 +477,7 @@ private:
     [[nodiscard]] Result<ImportBatchResult> execute_import_impl(
         const ImportRequest &request,
         const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
-        bool preflight_only);
+        bool preflight_only, ImportDestinationPreview *destination_preview = nullptr);
     [[nodiscard]] Result<RecoveryArtifact>
     synchronize_recovery_asset(std::string_view asset_id, const CancellationToken &cancellation);
     [[nodiscard]] Result<void>

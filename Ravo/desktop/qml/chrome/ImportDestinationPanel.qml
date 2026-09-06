@@ -71,6 +71,70 @@ Rectangle {
                 }
             }
             ImportSection {
+                objectName: "importDestinationPreviewSection"
+                Layout.fillWidth: true
+                visible: root.presenter.importMode !== "add" && root.presenter.importDestination.length > 0
+                title: qsTr("Destination preview")
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Folders are created only when you import.")
+                    wrapMode: Text.WordWrap
+                    color: Theme.placeholderTextColor
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    visible: root.presenter.importDestinationPreviewActive
+                    text: qsTr("Planning destination…")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    visible: root.presenter.importDestinationPreviewError.length > 0
+                    text: root.presenter.importDestinationPreviewError
+                    wrapMode: Text.WordWrap
+                    color: Theme.warningColor
+                }
+                ListView {
+                    objectName: "importDestinationPreviewTree"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.min(contentHeight, 260)
+                    clip: true
+                    model: root.presenter.importDestinationPreview
+                    delegate: RowLayout {
+                        required property var modelData
+                        width: ListView.view.width
+                        height: Fonts.listItemHeight
+                        spacing: Fonts.size8
+                        Item {
+                            Layout.preferredWidth: Math.min(modelData.depth * Fonts.size16, parent.width * 0.35)
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            text: modelData.name
+                            elide: Text.ElideMiddle
+                            font.italic: modelData.willCreate
+                            ToolTip.visible: previewHover.hovered
+                            ToolTip.text: modelData.path
+                            HoverHandler {
+                                id: previewHover
+                            }
+                        }
+                        CustomLabel {
+                            visible: modelData.willCreate
+                            text: qsTr("Will create")
+                            color: Theme.placeholderTextColor
+                        }
+                        CustomLabel {
+                            visible: modelData.secondCopy && modelData.depth === 0
+                            text: qsTr("Second copy")
+                        }
+                        CustomLabel {
+                            text: qsTr("%1 photos").arg(modelData.photoCount)
+                        }
+                    }
+                }
+            }
+            ImportSection {
                 Layout.fillWidth: true
                 title: qsTr("File Handling")
                 CustomLabel {

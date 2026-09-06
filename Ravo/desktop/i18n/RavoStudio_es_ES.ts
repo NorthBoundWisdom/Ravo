@@ -3670,6 +3670,26 @@ Diferencia: %6</translation>
             <translation>Por mes (AAAA/MM)</translation>
         </message>
         <message>
+            <source>Destination preview</source>
+            <translation>Vista previa del destino</translation>
+        </message>
+        <message>
+            <source>Folders are created only when you import.</source>
+            <translation>Las carpetas solo se crean al importar.</translation>
+        </message>
+        <message>
+            <source>Planning destination…</source>
+            <translation>Planificando destino…</translation>
+        </message>
+        <message>
+            <source>Will create</source>
+            <translation>Se creará</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>Fotos de %1</translation>
+        </message>
+        <message>
             <source>Rename template</source>
             <translation>Plantilla de renombrado</translation>
         </message>

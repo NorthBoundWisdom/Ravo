@@ -35,6 +35,27 @@ sorted insertion also made Gallery unstable during a batch.
   model. The full-height disclosure hit area toggles expansion; selecting a
   collapsed directory also expands it. Repeated selection preserves loaded
   children and expansion, except an explicit retry of a failed destination.
+- Folder listing has a separate desktop-owned serial worker so RAW rendering,
+  metadata inspection, and destination preflight cannot starve disclosure actions.
+  The worker touches only the filesystem; model publication remains on the GUI
+  thread, listing generations reject replaced trees, and destruction joins it
+  before the models disappear. Disclosure uses a full-height Qt button and
+  exposes a pending state; errors remain visible and retryable.
+- `preview_import_destinations` projects the exact existing import preflight
+  into `ravo-import-destination-preview/v1`. It reports primary/second-copy
+  directory trees, descendant-inclusive photo counts, and whether each folder
+  must be created. RAW+JPEG/XMP companions do not add photos to counts. Date,
+  month, hierarchy, naming and conflict rules have one planner. The preview
+  never creates directories, copies originals or publishes catalog assets;
+  the derived duplicate index may be populated by ordinary preflight.
+  Cancellation, missing/corrupt input, revision changes and output conflicts
+  return structured errors. Folder projection is bounded to 10,000 entries.
+- Studio debounces selection/organization/destination changes, cancels obsolete
+  preflights and rejects their completion by generation. Draft rows clear on
+  change/close; preview errors do not disguise formal import errors. Actual
+  Import always preflights again. `catalog import-plan --mode copy|move` exposes
+  the same read-only projection and accepts import options plus optional
+  `--revision` for an observed catalog revision.
 - Include subfolders is an explicit presenter-owned choice; folder changes and
   page reentry do not reset it. The custom checkbox forwards its `clicked`
   signal, including mouse clicks that do not emit Qt's `toggled` signal.

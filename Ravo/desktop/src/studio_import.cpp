@@ -128,13 +128,6 @@ inline constexpr int kMaximumPendingImportThumbnails = 64;
            transport == QLatin1String("mtp");
 }
 
-[[nodiscard]] ImportPreviewPolicy preview_policy(const QString &value)
-{
-    return value == QLatin1String("minimal")    ? ImportPreviewPolicy::kMinimal :
-           value == QLatin1String("one-to-one") ? ImportPreviewPolicy::kOneToOne :
-                                                  ImportPreviewPolicy::kStandard;
-}
-
 } // namespace
 
 bool StudioPresenter::importPageOpen() const noexcept
@@ -393,6 +386,7 @@ void StudioPresenter::setImportDestination(const QString &path)
     const QString next = path.isEmpty() ? QString{} : QDir::cleanPath(path);
     if (next == import_destination_)
     {
+        import_destination_preview_key_.clear();
         if (!import_destination_error_.isEmpty())
             import_destination_folders_.loadUserDirectory();
         import_destination_folders_.revealFolder(next);
@@ -827,32 +821,7 @@ void StudioPresenter::startPlannedImport()
         return;
     }
 
-    ImportRequest request;
-    for (const auto &path : selected)
-        request.inputs.push_back(utf8_from_qstring(path));
-    request.source_root = utf8_from_qstring(import_source_root_);
-    request.mode = import_mode_ == QLatin1String("copy") ? ImportTransferMode::kCopy :
-                   import_mode_ == QLatin1String("move") ? ImportTransferMode::kMove :
-                                                           ImportTransferMode::kAdd;
-    request.organization =
-        import_organization_ == QLatin1String("hierarchy") ?
-            ImportOrganization::kPreserveHierarchy :
-        import_organization_ == QLatin1String("date")  ? ImportOrganization::kCaptureDate :
-        import_organization_ == QLatin1String("month") ? ImportOrganization::kCaptureMonth :
-                                                         ImportOrganization::kSingleFolder;
-    request.preview = preview_policy(import_preview_policy_);
-    if (request.mode != ImportTransferMode::kAdd)
-    {
-        request.destination_directory = utf8_from_qstring(import_destination_);
-        request.filename_template = utf8_from_qstring(import_filename_template_);
-        request.second_copy_directory = utf8_from_qstring(import_second_copy_destination_);
-    }
-    request.recursive = false;
-    request.defer_previews = true;
-    request.skip_existing = true;
-    request.expected_catalog_revision = import_scan_catalog_revision_;
-    request.expected_content_hashes = import_candidates_.selectedContentHashes();
-    request.cancellation = import_operation_.token();
+    ImportRequest request = plannedImportRequest();
     const auto generation = import_scan_generation_;
     import_preflight_active_ = true;
     setError({});
@@ -1104,7 +1073,7 @@ void StudioPresenter::requestFilesystemListing(FilesystemBrowserModel *browser, 
 {
     if (browser == nullptr)
         return;
-    executor_.post(
+    filesystem_executor_.post(
         [this, browser, path, generation]()
         {
             auto listed = list_filesystem_folders(path);

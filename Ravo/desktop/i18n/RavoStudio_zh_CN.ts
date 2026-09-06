@@ -3670,6 +3670,26 @@ Diff: %6</source>
             <translation>按月 (YYYY/MM)</translation>
         </message>
         <message>
+            <source>Destination preview</source>
+            <translation>目标目录预览</translation>
+        </message>
+        <message>
+            <source>Folders are created only when you import.</source>
+            <translation>仅在导入时创建文件夹。</translation>
+        </message>
+        <message>
+            <source>Planning destination…</source>
+            <translation>正在规划目标目录…</translation>
+        </message>
+        <message>
+            <source>Will create</source>
+            <translation>将创建</translation>
+        </message>
+        <message>
+            <source>%1 photos</source>
+            <translation>%1 张照片</translation>
+        </message>
+        <message>
             <source>Rename template</source>
             <translation>重命名模板</translation>
         </message>

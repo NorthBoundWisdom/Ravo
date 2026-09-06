@@ -171,6 +171,13 @@ StudioPresenter::StudioPresenter(QObject *parent)
     };
     bind_browser(&import_source_folders_);
     bind_browser(&import_destination_folders_);
+    import_destination_preview_timer_ = new QTimer(this);
+    import_destination_preview_timer_->setSingleShot(true);
+    import_destination_preview_timer_->setInterval(250);
+    connect(import_destination_preview_timer_, &QTimer::timeout, this,
+            &StudioPresenter::startImportDestinationPreview);
+    connect(this, &StudioPresenter::importPageChanged, this,
+            &StudioPresenter::refreshImportDestinationPreview);
     connect(&import_candidates_, &ImportCandidateListModel::selectionChanged, this,
             &StudioPresenter::importPageChanged);
     catalog_revision_timer_ = new QTimer(this);
@@ -218,6 +225,10 @@ StudioPresenter::~StudioPresenter()
     static_cast<void>(catalog_operation_.cancel("window_closed"));
     static_cast<void>(import_operation_.cancel("window_closed"));
     static_cast<void>(import_preview_operation_.cancel("window_closed"));
+    static_cast<void>(import_destination_preview_operation_.cancel("window_closed"));
+    import_destination_preview_timer_->stop();
+    filesystem_executor_.request_stop();
+    filesystem_executor_.wait();
     develop_preview_owner_.cancel("window_closed");
     cancel_preview_analysis("window_closed");
     perspective_analysis_owner_.cancel("window_closed");

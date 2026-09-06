@@ -127,7 +127,18 @@ selects, and scrolls its ancestor chain through the C++ folder model. Listing
 trees start at Home; explicit picker paths outside Home are additional folder
 roots rather than mounted-disk trees. Row activation selects and expands in
 C++; QML has non-overlapping full-height disclosure and selection hit areas.
+Selection forwarding runs in the persistent tree object's QML context because
+activation can synchronously replace the clicked delegate during model reset.
 Repeated destination selection does not reset a healthy tree. Listing
+uses a separate presenter-owned serial filesystem worker, joined before model
+destruction, so image render/decode cannot block disclosure requests. Loading
+state and errors are model roles; Qt disclosure buttons only forward intents.
+Destination previews run on the catalog executor using the exact import
+preflight planner, with a separate cancellation source, debounce timer and
+generation. `ravo-import-destination-preview/v1` exposes primary/second-copy
+folder paths, create flags and descendant-inclusive photo counts through Studio
+and `catalog import-plan`. Preview creates no folders or media and never replaces
+the final import preflight; stale results clear on draft replacement or close. Listing
 and ingest recursion are constrained separately from the checkbox preference:
 the home directory (including aliases) is always scanned non-recursively, while
 ordinary folders honor the presenter-owned choice across folder changes. Listing

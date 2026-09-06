@@ -86,7 +86,15 @@ losing loaded children; QML contracts check independent disclosure/selection are
 import contracts also cover the checkbox's explicit click intent, non-recursive
 selection across folder changes/page reentry, late recursive-result rejection,
 and the Home recursion guard for normalized and symlink paths. The
-ordinary Studio QML smoke also checks import grid/action/panel bounds at
+destination-preview tests check single/date/month/hierarchy and second-copy
+counts against actual import, no early directory/media/catalog publication,
+selection/organization replacement, close cancellation, and stale/corrupt/conflict
+errors. CLI subprocess tests verify the versioned `catalog import-plan` JSON.
+The ordinary Studio QML smoke checks a temporary directory's real disclosure
+handler, expand/collapse result, and hit-area dimensions. It also activates a
+loaded collapsed directory row and verifies
+that the folder choice reaches the presenter despite synchronous delegate replacement.
+Import grid/action/panel bounds are exercised at
 1440×900, 1024×640, and 640×480 without screenshots or a user catalog.
 LibraryQuery tests cover every
 supported predicate, missing capture values, inclusive numeric/time endpoints,

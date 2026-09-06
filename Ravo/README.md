@@ -97,6 +97,12 @@ Current implementation status:
   ancestors, selects and scrolls to the folder, and scans it again. Both directory
   trees start at the user directory rather than the system disk; external paths
   selected through the picker remain reachable as additional folder roots.
+  Folder expansion is independent of image decoding. The destination preview
+  shows the exact planned folder hierarchy, photo counts including descendants,
+  and folders that will be created, including a configured second copy. It
+  updates with photo selection and organization settings without creating files.
+  `catalog import-plan --catalog <path> --input <path> --mode copy --destination <folder>`
+  exposes the same versioned JSON preview; formal import rechecks all conflicts.
   Clicking a collapsed folder selects and expands it; the separate arrow toggles
   expansion without changing the selection. Include subfolders keeps the user's choice when
   switching folders; the home directory itself is always scanned only at its

@@ -11,6 +11,27 @@
 
 namespace ravo::cli_internal
 {
+Result<JsonValue> run_catalog_import_plan(CatalogService &service, const ImportRequest &request)
+{
+    auto preview = service.preview_import_destinations(request);
+    if (!preview)
+        return preview.error();
+    JsonValue::Array folders;
+    for (const auto &folder : preview.value().folders)
+        folders.emplace_back(JsonValue::Object{
+            {"path", folder.path},
+            {"name", folder.name},
+            {"depth", JsonValue::number(std::to_string(folder.depth))},
+            {"photo_count", JsonValue::number(std::to_string(folder.photo_count))},
+            {"will_create", folder.will_create},
+            {"second_copy", folder.second_copy}});
+    return JsonValue{JsonValue::Object{
+        {"schema", preview.value().schema},
+        {"catalog_revision", JsonValue::number(std::to_string(preview.value().catalog_revision))},
+        {"photo_count", JsonValue::number(std::to_string(preview.value().photo_count))},
+        {"folders", std::move(folders)}}};
+}
+
 namespace
 {
 

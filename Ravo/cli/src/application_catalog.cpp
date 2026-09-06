@@ -86,7 +86,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(
             ErrorCode::kInvalidArgument,
-            "Usage: ravo catalog <create|import|import-scan|list|facets|preview|probe|recipe|develop|develop-apply|"
+            "Usage: ravo catalog <create|import|import-scan|import-plan|list|facets|preview|probe|recipe|develop|develop-apply|"
             "fields|rate|"
             "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
@@ -226,7 +226,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "editor-prepare-working-copy, or editor-reopen-working-copy");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
         !develop_apply_command && !keyword_command && !ai_command && !editor_command &&
-        !cull_command)
+        !cull_command && subcommand != "import-plan")
         return make_error(ErrorCode::kInvalidArgument,
                           "--revision is only valid for catalog set, version, stack, "
                           "keyword, tag, develop-apply, ai proposal/suggestion, or editor "
@@ -374,11 +374,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         !flags.value().import_second_copy.empty() || !flags.value().import_recursive ||
         flags.value().import_skip_existing;
     if (has_import_options && subcommand != "import" && subcommand != "editor-register" &&
-        subcommand != "ingest" && subcommand != "import-scan")
+        subcommand != "ingest" && subcommand != "import-scan" && subcommand != "import-plan")
         return make_error(ErrorCode::kInvalidArgument,
                           "Import options are only valid for catalog import or editor-register");
     if (flags.value().import_skip_existing && subcommand != "import" && subcommand != "ingest" &&
-        subcommand != "import-scan")
+        subcommand != "import-scan" && subcommand != "import-plan")
         return make_error(ErrorCode::kInvalidArgument,
                           "--skip-existing requires import, ingest or import-scan");
     if (subcommand == "import-scan" &&
@@ -815,7 +815,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     }
     if (subcommand == "import-scan")
         return run_catalog_ingest_command(service, subcommand, flags.value());
-    if (subcommand == "import")
+    if (subcommand == "import" || subcommand == "import-plan")
     {
         if (flags.value().inputs.empty())
         {
@@ -868,6 +868,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         request.recursive = flags.value().import_recursive;
         request.skip_existing = flags.value().import_skip_existing;
         request.cancellation = CancellationToken{};
+        if (subcommand == "import-plan")
+        {
+            request.expected_catalog_revision = flags.value().expected_revision;
+            return run_catalog_import_plan(service, request);
+        }
         auto imported = service.execute_import(request);
         if (!imported)
         {

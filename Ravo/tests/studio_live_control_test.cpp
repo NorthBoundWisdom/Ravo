@@ -680,6 +680,8 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importFolderExpand\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("Layout.preferredWidth: Fonts.listItemHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("root.folderModel.activateFolder(chosenPath)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function chooseFolder(chosenPath)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("onClicked: root.chooseFolder(folderRow.path)")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("root.folderModel.toggleCollapsed(folderRow.path)")));
     EXPECT_FALSE(source.contains(QStringLiteral(
