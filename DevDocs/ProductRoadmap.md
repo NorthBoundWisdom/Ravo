@@ -56,8 +56,8 @@ generalize one host's latency budget to another.
 shoot with predictable naming, verified copies, fast culling, deep metadata,
 and recoverable organization at large-catalog scale.
 
-**Decision themes:** PTP/MTP ingest, owned HEIC/HEIF decode after ADR-0118
-fail-closed recognition, DNG/Smart Preview policy, hierarchical keywords and
+**Decision themes:** PTP/MTP ingest, Windows/Linux HEIC/HEIF providers beyond
+ADR-0159's macOS primary-photo decode, DNG/Smart Preview policy, hierarchical keywords and
 IPTC depth, location/facet indexing, duplicate identification, and
 offline/removable storage behavior.
 
@@ -147,8 +147,8 @@ without an exact mapping.
 ### Originals, catalogs, and interchange
 
 Define collision, authority, cancellation, and recovery rules for PTP/MTP,
-DNG conversion, Smart Previews, owned HEIC/HEIF decode (fail-closed recognition
-is ADR-0118), explicit standard-XMP exchange, read-only catalog conversion,
+DNG conversion, Smart Previews, HEIC/HEIF host breadth and HDR/alpha/sequence
+extensions beyond ADR-0159, explicit standard-XMP exchange, read-only catalog conversion,
 external-editor derived assets, and external LUT/image/font resources. Ravo must not open a foreign/frozen catalog in place
 or create automatic adjacent-XMP writeback as a second live authority.
 

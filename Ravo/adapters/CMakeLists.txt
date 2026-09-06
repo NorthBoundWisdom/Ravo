@@ -6,6 +6,7 @@ target_sources(ravo_adapters
     src/export_metadata_encoder.cpp
     src/filesystem_recovery_store.cpp
     src/filesystem_preview_cache.cpp
+    src/heic_decoder.cpp
     src/jpeg_encoder.cpp
     src/crs_xmp.cpp
     src/xmp_adjacent_metadata.cpp
@@ -60,3 +61,7 @@ target_link_libraries(ravo_adapters
     ravo_libtiff)
 
 ravo_configure_target(ravo_adapters)
+if(APPLE)
+  target_link_libraries(ravo_adapters PRIVATE
+    "-framework ImageIO" "-framework CoreGraphics" "-framework CoreFoundation")
+endif()

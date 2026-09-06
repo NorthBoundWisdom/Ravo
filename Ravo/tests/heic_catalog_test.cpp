@@ -19,6 +19,7 @@
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
 #include "ravo/services/catalog_service.h"
+#include "heic_fixture.h"
 
 namespace ravo
 {
@@ -86,7 +87,7 @@ protected:
     std::unique_ptr<CatalogService> service_;
 };
 
-TEST_F(HeicCatalogTest, PreservesStructuredUnsupportedAndPublishesNoAsset)
+TEST_F(HeicCatalogTest, PreservesStructuredFailureAndPublishesNoAsset)
 {
     const auto path = root_ / "unsupported.heic";
     QFile file(QString::fromStdString(path.string()));
@@ -97,14 +98,26 @@ TEST_F(HeicCatalogTest, PreservesStructuredUnsupportedAndPublishesNoAsset)
 
     const auto imported = service_->import_one(path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
+#if defined(__APPLE__)
+    EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
+#else
     EXPECT_EQ(imported.value().status, ImportItemStatus::kUnsupported);
+#endif
     EXPECT_FALSE(imported.value().asset);
     ASSERT_TRUE(imported.value().error);
+#if defined(__APPLE__)
+    EXPECT_EQ(imported.value().error->code, ErrorCode::kValidation);
+#else
     EXPECT_EQ(imported.value().error->code, ErrorCode::kUnsupported);
+#endif
     ASSERT_TRUE(imported.value().error->context.contains("format"));
     EXPECT_EQ(imported.value().error->context.at("format"), "heic");
     ASSERT_TRUE(imported.value().error->context.contains("reason"));
-    EXPECT_EQ(imported.value().error->context.at("reason"), "unsupported_heic_input");
+#if defined(__APPLE__)
+    EXPECT_EQ(imported.value().error->context.at("reason"), "invalid_heic_input");
+#else
+    EXPECT_EQ(imported.value().error->context.at("reason"), "heic_decoder_unavailable");
+#endif
 
     const auto assets = service_->list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
@@ -114,7 +127,7 @@ TEST_F(HeicCatalogTest, PreservesStructuredUnsupportedAndPublishesNoAsset)
     EXPECT_TRUE(previews.value().empty());
 }
 
-TEST_F(HeicCatalogTest, EnumeratesHeicExtensionAndInspectsAsUnsupported)
+TEST_F(HeicCatalogTest, EnumeratesHeicExtensionAndReportsInvalidOrUnavailableInput)
 {
     const auto path = root_ / "phone.heic";
     QFile file(QString::fromStdString(path.string()));
@@ -137,9 +150,43 @@ TEST_F(HeicCatalogTest, EnumeratesHeicExtensionAndInspectsAsUnsupported)
     ASSERT_TRUE(candidate) << candidate.error().message;
     EXPECT_FALSE(candidate.value().supported);
     ASSERT_TRUE(candidate.value().error);
+#if defined(__APPLE__)
+    EXPECT_EQ(candidate.value().error->code, ErrorCode::kValidation);
+    EXPECT_EQ(candidate.value().error->context.at("reason"), "invalid_heic_input");
+#else
     EXPECT_EQ(candidate.value().error->code, ErrorCode::kUnsupported);
-    EXPECT_EQ(candidate.value().error->context.at("reason"), "unsupported_heic_input");
+    EXPECT_EQ(candidate.value().error->context.at("reason"), "heic_decoder_unavailable");
+#endif
 }
+
+#if defined(__APPLE__)
+TEST_F(HeicCatalogTest, ImportsPrimaryImageAndKeepsSourceBytes)
+{
+    const auto path = root_ / "photo.heif";
+    const auto bytes = make_heic_fixture(6);
+    ASSERT_FALSE(bytes.isEmpty());
+    QFile file(QString::fromStdString(path.string()));
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_EQ(file.write(bytes), bytes.size());
+    file.close();
+    auto scan = service_->scan_import_candidates({path.string()}, root_.string(), false, {});
+    ASSERT_TRUE(scan);
+    EXPECT_EQ(scan.value().unavailable, 0);
+    ASSERT_TRUE(scan.value().candidates.front().supported);
+    auto imported = service_->import_one(path.string(), {});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset)
+        << (imported.value().error ? imported.value().error->message : "no asset");
+    EXPECT_EQ(imported.value().asset->media_type, "image/heic");
+    EXPECT_EQ(imported.value().asset->width, 64U);
+    EXPECT_EQ(imported.value().asset->height, 96U);
+    ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+    EXPECT_EQ(file.readAll(), bytes);
+    const auto duplicate = service_->import_one(path.string(), {});
+    ASSERT_TRUE(duplicate);
+    EXPECT_EQ(duplicate.value().status, ImportItemStatus::kDuplicate);
+}
+#endif
 
 } // namespace
 } // namespace ravo

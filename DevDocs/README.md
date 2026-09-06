@@ -42,6 +42,10 @@ source gating.
 Startup splash ownership, main-window handoff and geometry isolation are also
 specified in [ARCHITECTURE.md](ARCHITECTURE.md); their lifecycle and offscreen
 validation are specified in [TESTING.md](TESTING.md).
+HEIC/HEIF macOS decode and deterministic import file identity follow
+[ADR-0159](adr/0159-owned-heic-macos-decode.md) and the same architecture/testing
+authorities; native dependency ownership is in
+[Dependency_Workflow.md](Dependency_Workflow.md).
 
 ## Operations and compliance
 

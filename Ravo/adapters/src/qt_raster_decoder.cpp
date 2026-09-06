@@ -95,7 +95,7 @@ Result<RasterInfo> QtRasterDecoder::probe(const std::string_view path) const
     }
     if (heic_candidate.value().recognized)
     {
-        return heic_unsupported_error(path);
+        return probe_heic_file(path);
     }
     QImageReader reader;
     auto prepared = prepare_raster_reader(reader, path);
@@ -205,7 +205,7 @@ Result<DecodedRaster> QtRasterDecoder::decode(const std::string_view path,
         {
             return cancelled.error();
         }
-        return heic_unsupported_error(path);
+        return decode_heic_file(path, max_edge, cancellation);
     }
     QImageReader reader;
     auto prepared = prepare_raster_reader(reader, path);
@@ -269,7 +269,7 @@ Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint
         {
             return cancelled.error();
         }
-        return heic_unsupported_error("memory");
+        return decode_heic_bytes(encoded_bytes, max_edge, cancellation, "memory", rotate_quarters);
     }
     QByteArray bytes(reinterpret_cast<const char *>(encoded.data()),
                      static_cast<qsizetype>(encoded.size()));

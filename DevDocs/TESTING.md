@@ -70,6 +70,16 @@ duplicates, equal-size/different-byte inputs, source mutation, revision conflict
 cancellation, and v16-to-v17 index migration/backfill. The derived hash table
 must preserve catalog revision, source bytes, and edit history. CLI subprocess
 tests exercise `import-scan` and `import --skip-existing` against real files.
+`DomainUriTest.FileModificationIdentityIsStableAtMillisecondBoundaries` proves
+that repeated reads cannot manufacture a source-change conflict from clock
+sampling. HEIC adapter/catalog tests (ADR-0159) generate non-private oriented
+and Display-P3 images on macOS, compare owned path/memory pixels, preserve
+source bytes and dimensions, and reject truncated/oversized/cancelled input.
+Other hosts assert an explicit unavailable decoder. HEIC stays a primary-photo
+SDR input with the same catalog and preview/publication owners as other rasters.
+`ImportScanVerifiesKnownContentAcrossTimestampOnlyChanges` covers verified
+SHA-256 identity after metadata-only changes and rejection of actual byte
+changes; neither branch revises catalog or recipe state.
 Desktop tests isolate QSettings and cover Copy defaults, streaming check intent,
 visible disabled duplicates, single/range/all selection exclusion, duplicate
 thumbnail completion without rescan loops, and source-byte preservation,

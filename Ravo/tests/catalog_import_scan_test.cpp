@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <QColorSpace>
+#include <QFile>
 #include <QImage>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -80,6 +81,43 @@ TEST_F(CatalogServiceTest, ImportScanSameSizeAndMtimeDoNotMeanSameContent)
     ASSERT_EQ(scan.value().candidates.size(), 2U);
     EXPECT_EQ(scan.value().duplicates, 0U);
     EXPECT_NE(scan.value().candidates[0].content_sha256, scan.value().candidates[1].content_sha256);
+}
+
+TEST_F(CatalogServiceTest, ImportScanVerifiesKnownContentAcrossTimestampOnlyChanges)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto original = root / "original.png";
+    const auto copy = root / "copy.png";
+    ASSERT_TRUE(write_photo(original, Qt::red));
+    ASSERT_TRUE(std::filesystem::copy_file(original, copy));
+    ASSERT_TRUE(service->import_one(original.string(), {}));
+    const auto hash = file_sha256(original.string());
+    const auto revision = service->snapshot().value().revision;
+    const auto stamp = std::filesystem::last_write_time(original) + std::chrono::seconds(2);
+    std::filesystem::last_write_time(original, stamp);
+    auto scan = service->scan_import_candidates({copy.string()}, root.string(), false, {});
+    ASSERT_TRUE(scan) << scan.error().message;
+    EXPECT_EQ(scan.value().unavailable, 0U);
+    EXPECT_EQ(scan.value().duplicates, 1U);
+    EXPECT_EQ(file_sha256(original.string()), hash);
+    EXPECT_EQ(service->snapshot().value().revision, revision);
+
+    QFile changed(QString::fromStdString(original.string()));
+    ASSERT_TRUE(changed.open(QIODevice::ReadWrite));
+    ASSERT_TRUE(changed.seek(changed.size() - 1));
+    const auto tail = changed.read(1);
+    ASSERT_EQ(tail.size(), 1);
+    ASSERT_TRUE(changed.seek(changed.size() - 1));
+    const char replacement = static_cast<char>(tail[0] ^ 1);
+    ASSERT_EQ(changed.write(&replacement, 1), 1);
+    changed.close();
+    std::filesystem::last_write_time(original, stamp);
+    scan = service->scan_import_candidates({copy.string()}, root.string(), false, {});
+    ASSERT_TRUE(scan);
+    EXPECT_EQ(scan.value().unavailable, 1U);
+    ASSERT_TRUE(scan.value().candidates.front().error);
+    EXPECT_EQ(scan.value().candidates.front().error->code, ErrorCode::kConflict);
+    EXPECT_EQ(service->snapshot().value().revision, revision);
 }
 
 TEST_F(CatalogServiceTest, ImportScanCancelsAndRejectsConcurrentRevision)

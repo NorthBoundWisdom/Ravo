@@ -172,10 +172,15 @@ Result<FileIdentity> read_file_identity(const std::string_view path)
     }
     FileIdentity identity;
     identity.size_bytes = static_cast<std::uint64_t>(size);
-    // MSVC's filesystem file_clock has no to_sys. Convert through the current
-    // offset between file_clock and system_clock instead of a clock-specific API.
+    // Sampling two clocks introduces jitter at millisecond boundaries, making
+    // unchanged camera files appear modified between inspection and hashing.
+#if defined(_MSC_VER)
+    // MSVC exposes file_clock <-> utc_clock; clock_cast owns the epoch conversion.
+    const auto sys_time = std::chrono::clock_cast<std::chrono::system_clock>(file_time);
+#else
     using FileClock = std::filesystem::file_time_type::clock;
-    const auto sys_time = std::chrono::system_clock::now() + (file_time - FileClock::now());
+    const auto sys_time = FileClock::to_sys(file_time);
+#endif
     identity.mtime_unix_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(sys_time.time_since_epoch()).count();
     return identity;

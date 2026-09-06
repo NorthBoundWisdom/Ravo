@@ -84,11 +84,27 @@ Result<ImportScanResult> CatalogService::scan_import_candidates(
                 }
                 if (identity.value().size_bytes != source.size_bytes ||
                     identity.value().mtime_unix_ms != source.mtime_unix_ms)
+                {
+                    // Timestamp metadata can change without changing the imported
+                    // bytes (including identities written by the former clock
+                    // sampling bug). Verify the retained content hash instead of
+                    // blocking unrelated same-size import candidates. A real byte
+                    // change or an unproven identity still fails explicitly.
+                    if (identity.value().size_bytes == source.size_bytes && source.sha256)
+                    {
+                        auto digest =
+                            stable_hash(location.value().path, identity.value(), cancellation);
+                        if (!digest)
+                            return digest.error();
+                        if (digest.value() == *source.sha256)
+                            continue;
+                    }
                     return make_error(
                         ErrorCode::kConflict,
                         "Catalog original has changed; refresh its capture metadata before importing",
                         {{"path", location.value().path},
                          {"reason", "import_content_source_changed"}});
+                }
                 if (source.sha256)
                     continue;
                 auto digest = stable_hash(location.value().path, identity.value(), cancellation);

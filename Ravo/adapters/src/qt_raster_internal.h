@@ -151,6 +151,13 @@ struct TiffField
 [[nodiscard]] TaskError qoi_unsupported_error(std::string_view source);
 [[nodiscard]] TaskError rgbe_unsupported_error(std::string_view source);
 [[nodiscard]] TaskError heic_unsupported_error(std::string_view source);
+[[nodiscard]] Result<RasterInfo> probe_heic_file(std::string_view path);
+[[nodiscard]] Result<DecodedRaster> decode_heic_file(std::string_view path, std::uint32_t max_edge,
+                                                     const CancellationToken &cancellation);
+[[nodiscard]] Result<DecodedRaster> decode_heic_bytes(std::span<const std::uint8_t> bytes,
+                                                      std::uint32_t max_edge,
+                                                      const CancellationToken &cancellation,
+                                                      std::string_view source, int rotate_quarters);
 [[nodiscard]] std::uint16_t read_u16(std::span<const std::uint8_t> bytes, std::size_t offset,
                                      bool little_endian) noexcept;
 [[nodiscard]] std::uint32_t read_u32(std::span<const std::uint8_t> bytes, std::size_t offset,

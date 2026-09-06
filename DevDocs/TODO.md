@@ -699,8 +699,9 @@ the fixture evaluation workflow portion of this gate; C3 closes licensed corpus
 
 Do not implement these while the WIP freeze is active.
 
-- **FORMAT-01 — HEIC/HEIF:** owned colour-managed decode remains blocked by
-  dependency/licence/package evidence.
+- **FORMAT-01 — HEIC/HEIF:** admit Windows/Linux providers and package/licence
+  evidence; expand beyond ADR-0159's macOS primary-photo SDR decode only with
+  explicit HDR/alpha/sequence contracts and a broader corpus.
 - **FORMAT-02 — DNG and browse Smart Preview:** choose owned converter/encoder;
   preserve Copy-only/browse-only semantics and keep this class distinct from
   offline-edit proxies.

@@ -43,6 +43,16 @@ source-root dependency names above as `depsManualPath` keys, not guessed
 directory names. Transitive packages belong to the owning dependency template,
 not the Ravo root lock.
 
+The HEIC input provider in ADR-0159 links macOS ImageIO, CoreGraphics and
+CoreFoundation as system frameworks from the selected Apple SDK. Runtime
+availability is macOS 14+; these components are supplied and updated by Apple
+with macOS under its system-software licence (LicenseRef-Apple-System-Software),
+and no Apple codec binary is bundled or copied into Ravo. The Ravo adapter is
+first-party AGPL-3.0 code using the system-library boundary; no libheif/libde265
+source or static codec licence enters the graph. Notices are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Windows/Linux providers and
+their licence/package admission remain separate work.
+
 ## FreeCM submodule tracking
 
 This repository tracks FreeCM/master through .gitmodules. Only for an explicitly

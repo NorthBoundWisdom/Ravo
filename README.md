@@ -97,7 +97,7 @@ the supported scope, validation status, and next work item.
 
 | Direction | Formats |
 | --- | --- |
-| Import | JPEG, PNG, TIFF, plus BMP / GIF / WebP through Qt image plugins |
+| Import | JPEG, PNG, TIFF, BMP / GIF / WebP; HEIC / HEIF primary photos on macOS 14+ |
 | RAW import | LibRaw-decoded RAW such as `.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`, `.raf`, `.orf`, `.rw2` and other recognized suffixes |
 | Export | JPEG, PNG (8/16-bit), TIFF (uint8/uint16/float16/float32), or an exact original copy |
 

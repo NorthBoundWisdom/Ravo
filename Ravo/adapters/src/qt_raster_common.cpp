@@ -225,9 +225,9 @@ namespace ravo::qt_raster_internal
 [[nodiscard]] TaskError heic_unsupported_error(const std::string_view source)
 {
     return make_error(ErrorCode::kUnsupported,
-                      "HEIC/HEIF input is explicitly unsupported until an owned decoder ships",
+                      "HEIC/HEIF decoding requires the macOS 14+ ImageIO provider on this build",
                       {{"format", "heic"},
-                       {"reason", "unsupported_heic_input"},
+                       {"reason", "heic_decoder_unavailable"},
                        {"source", std::string(source)}});
 }
 

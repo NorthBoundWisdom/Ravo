@@ -39,6 +39,14 @@ portable Qt runtime paths as Studio. Ravo does not request FreeCM's optional
 second rpath-normalization pass because universal Qt slices can carry different
 per-architecture rpath sets.
 
+HEIC/HEIF input on macOS 14+ uses the explicitly linked ImageIO/CoreGraphics/
+CoreFoundation system frameworks (ADR-0159). They stay at system runtime paths
+and are not copied into the bundle; the packaged notices record that boundary.
+The same provider must be reachable from bundled Studio and CLI. Package
+acceptance includes primary HEIC import/probe/export and corrupt-input failure;
+Windows/Linux packages report an unavailable provider and do not claim HEIC
+support. A host Qt HEIC plugin is not the provider or an acceptance substitute.
+
 Studio's versioned locale manifest is the single catalog inventory. Every
 declared checked-in TS catalog is validated before lrelease creates build-local
 QM files; an undeclared TS file also fails validation. macOS copies those files to

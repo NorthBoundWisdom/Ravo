@@ -54,6 +54,19 @@ instead of third-party handles. Qt value types may be used inside a target with
 a clear benefit, but recipes, CLI JSON, catalog schema, and public persisted
 contracts must not serialize Qt/C++ object memory layout.
 
+The private HEIC adapter uses the named macOS 14+ ImageIO system provider
+(ADR-0159), not Qt format auto-discovery. Bounded immutable input and local
+native RAII handles produce the oriented primary image as opaque SDR sRGB8;
+catalog import, memory decode, previews and export share this raster port.
+Other hosts return `heic_decoder_unavailable`. No HEIC encoder is introduced.
+File modification identities use deterministic file-clock epoch conversion;
+sampling two live clocks is forbidden because jitter can manufacture source
+conflicts at camera-file millisecond boundaries.
+When a catalog source's timestamp differs, import duplicate indexing can only
+retain its identity after hashing the current same-size bytes against the stored
+SHA-256. It never accepts a timestamp tolerance or changes catalog/edit state;
+an absent proof or different hash remains an explicit conflict.
+
 Exiv2, LensFun, LibJpegTurbo, LibTIFF, and RawSpeed are pinned migration
 source roots. Configure validates the exact materialized sources. The accepted
 engine-private RAW metadata adapter is the only Exiv2 consumer; other roots do

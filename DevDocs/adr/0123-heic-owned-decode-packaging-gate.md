@@ -1,6 +1,8 @@
 # ADR-0123: HEIC/HEIF owned-decode packaging and licence gate
 
-- Status: Accepted
+- Status: Gate accepted; macOS system-provider admission is specified by
+  [ADR-0159](0159-owned-heic-macos-decode.md) on 2026-09-06. The prohibition below
+  records the earlier unowned-provider state; Windows/Linux admission remains open.
 - Date: 2026-09-03
 - Relates: PRO-INGEST remaining work in [TODO.md](../TODO.md);
   [ADR-0118](0118-heic-heif-fail-closed-ingest.md)

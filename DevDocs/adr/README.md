@@ -125,12 +125,12 @@ supersession relationship when direction changes.
 | [0115](0115-typed-studio-window-geometry.md) | Accepted | Typed Studio window size, position, and maximized state restore across launches; corrupt records repair and off-screen rectangles are fitted. |
 | [0116](0116-histogram-assisted-parametric-mask.md) | Accepted | C++-owned histogram-assisted parametric thresholds from a Develop photo pick for authorized everyday consumers; Canvas/Perspective reject. |
 | [0117](0117-export-box-sharpen-presets-and-restartable-jobs.md) | Accepted | Export box fit, post-resize output sharpen, reusable ExportOptions presets, and restartable batch jobs on CatalogService. |
-| [0118](0118-heic-heif-fail-closed-ingest.md) | Accepted | HEIC/HEIF containers are recognized by ftyp brands and fail closed until an owned decoder ships; never pretend-JPEG or incidental ImageIO decode. |
+| [0118](0118-heic-heif-fail-closed-ingest.md) | Recognition accepted; macOS decode superseded by 0159 | Content-based HEIC/HEIF recognition; never pretend-JPEG or incidental plugin decode. |
 | [0119](0119-hierarchical-keywords.md) | Accepted | Catalog-owned hierarchical keywords with stable IDs, schema v12 membership, and export privacy via existing tag packets. |
 | [0120](0120-xmp-interchange-conflict-matrix.md) | Accepted | Adjacent XMP conflict matrix; explicit CRS import/export |
 | [0121](0121-ai-architecture-privacy-provenance.md) | Accepted | AI architecture, privacy, provenance, licence boundary |
 | [0122](0122-external-editor-derived-assets.md) | Accepted | External-editor output as derived asset with provenance |
-| [0123](0123-heic-owned-decode-packaging-gate.md) | Accepted | HEIC owned-decode blocked on licence/package evidence |
+| [0123](0123-heic-owned-decode-packaging-gate.md) | Gate accepted; macOS provider admitted by 0159 | HEIC provider licence/package gate; Windows/Linux admission remains open |
 | [0124](0124-iptc-core-catalog-subset.md) | Accepted | Catalog-owned IPTC Core quartet (title/description/creator/copyright), refresh isolation, export privacy, multi-select patches |
 | [0125](0125-ptp-mtp-ingest-transport.md) | Accepted | Ingest transport URI + disconnect/cancel; filesystem-card first adapter (PTP USB residual) |
 | [0126](0126-catalog-owned-location-fields.md) | Accepted | Catalog-owned IPTC location quartet (country/province_state/city/sublocation), schema v13, export no-location strips GPS+labels |
@@ -166,3 +166,4 @@ supersession relationship when direction changes.
 | [0156](0156-xmp-fail-closed-unrepresentable-multi-instance.md) | Accepted | XMP/CRS fail-closed for unrepresentable multi-instance locals |
 | [0157](0157-agpl-rapidraw-tone-pipeline.md) | Accepted | AGPL RapidRAW tone-pipeline assimilation with versioned CPU/QRhi ownership |
 | [0158](0158-mask-scoped-develop-workspace.md) | Accepted | Global/local Develop scopes, whole-group masking, direct drawing, and versioned CLI control |
+| [0159](0159-owned-heic-macos-decode.md) | Accepted | Bounded owned macOS 14+ ImageIO HEIC/HEIF primary SDR decode, explicit other-host unavailability, original preservation |

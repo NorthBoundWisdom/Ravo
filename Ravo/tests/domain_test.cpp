@@ -1,4 +1,5 @@
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -60,6 +61,34 @@ TEST(DomainUriTest, NormalizesAbsoluteAndRelativePathsToTheSameFileUri)
     const auto identity = read_file_identity(absolute.value().path);
     ASSERT_TRUE(identity) << identity.error().message;
     EXPECT_GT(identity.value().size_bytes, 0U);
+    std::filesystem::remove_all(directory);
+}
+
+TEST(DomainUriTest, FileModificationIdentityIsStableAtMillisecondBoundaries)
+{
+    const auto directory = std::filesystem::temp_directory_path() / generate_catalog_id();
+    std::filesystem::create_directories(directory);
+    const auto file = directory / "unchanged.jpg";
+    {
+        std::ofstream output(file);
+        output << "unchanged";
+    }
+    using namespace std::chrono;
+    using FileClock = std::filesystem::file_time_type::clock;
+    const auto expected = sys_time<milliseconds>{milliseconds{1'773'463'821'480}};
+#if defined(_MSC_VER)
+    const auto stamp = clock_cast<FileClock>(expected);
+#else
+    const auto stamp = FileClock::from_sys(expected);
+#endif
+    std::filesystem::last_write_time(file, stamp);
+    for (int sample = 0; sample < 1000; ++sample)
+    {
+        const auto identity = read_file_identity(file.string());
+        ASSERT_TRUE(identity);
+        ASSERT_EQ(identity.value().mtime_unix_ms, expected.time_since_epoch().count())
+            << "unchanged file at sample " << sample;
+    }
     std::filesystem::remove_all(directory);
 }
 

@@ -1,6 +1,7 @@
 # ADR-0118: HEIC/HEIF fail-closed ingest recognition
 
-- Status: Accepted
+- Status: Recognition accepted; macOS decode prohibition superseded by
+  [ADR-0159](0159-owned-heic-macos-decode.md) on 2026-09-06.
 - Date: 2026-09-03
 - Extends: [ADR-0102](0102-planned-managed-import-workspace.md),
   [ADR-0104](0104-bounded-rename-and-verified-second-copy-ingest.md)

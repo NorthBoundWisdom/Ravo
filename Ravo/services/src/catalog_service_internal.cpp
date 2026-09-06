@@ -10,13 +10,14 @@ namespace ravo::catalog_service_internal
 [[nodiscard]] bool media_type_has_embedded_capture(const std::string_view media_type) noexcept
 {
     return is_raw_media_type(media_type) || media_type == kMediaTypeJpeg ||
-           media_type == kMediaTypePng || media_type == kMediaTypeTiff;
+           media_type == kMediaTypePng || media_type == kMediaTypeTiff ||
+           media_type == "image/heic";
 }
 
 [[nodiscard]] bool is_common_raster_media(const std::string_view media_type) noexcept
 {
     return media_type == kMediaTypeJpeg || media_type == kMediaTypePng ||
-           media_type == kMediaTypeTiff;
+           media_type == kMediaTypeTiff || media_type == "image/heic";
 }
 
 void merge_engine_capture(CaptureMetadata &target, const EngineCaptureMetadata &source)

@@ -321,7 +321,7 @@ gtest_discover_tests(ravo_qoi_catalog_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-qoi-catalog")
 
-add_executable(ravo_heic_adapter_tests heic_adapter_test.cpp)
+add_executable(ravo_heic_adapter_tests heic_adapter_test.cpp heic_fixture.cpp)
 target_link_libraries(ravo_heic_adapter_tests
   PRIVATE GTest::gtest ravo_adapters Qt6::Core Qt6::Gui)
 target_include_directories(ravo_heic_adapter_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -331,7 +331,7 @@ gtest_discover_tests(ravo_heic_adapter_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-heic-adapter")
 
-add_executable(ravo_heic_catalog_tests heic_catalog_test.cpp)
+add_executable(ravo_heic_catalog_tests heic_catalog_test.cpp heic_fixture.cpp)
 target_link_libraries(ravo_heic_catalog_tests
   PRIVATE
     GTest::gtest

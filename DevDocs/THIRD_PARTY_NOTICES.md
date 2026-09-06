@@ -1,5 +1,14 @@
 # Third-Party Notices
 
+## macOS HEIC/HEIF system provider
+
+Ravo's HEIC/HEIF input adapter uses Apple's ImageIO, CoreGraphics and
+CoreFoundation frameworks on macOS 14 and later. These are OS-provided system
+libraries, maintained and licensed by Apple with macOS; Ravo does not redistribute
+their binaries or claim to distribute an HEVC codec or patent licence. The
+adapter implementation is Ravo's own AGPL-3.0 code. No libheif or libde265 is
+linked by this provider. See [ADR-0159](adr/0159-owned-heic-macos-decode.md).
+
 ## Adobe Digital Negative (DNG)
 
 Specification: <https://helpx.adobe.com/camera-raw/digital-negative.html>
