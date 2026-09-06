@@ -1760,6 +1760,8 @@ TEST(StudioQmlContract, AiProposalDialogExposesInspectApplyRejectChrome)
         << dialog.errorString().toStdString();
     const auto dialog_source = QString::fromUtf8(dialog.readAll());
     EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"AiProposalDialog\"")));
+    EXPECT_FALSE(dialog_source.contains(QStringLiteral("Fonts.size48")));
+    EXPECT_TRUE(dialog_source.contains(QStringLiteral("Fonts.scaledUiSize(48)")));
     EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"aiProposalApply\"")));
     EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"aiProposalReject\"")));
     EXPECT_TRUE(dialog_source.contains(QStringLiteral("objectName: \"aiProposalCancelAction\"")));

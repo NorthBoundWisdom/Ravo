@@ -1340,8 +1340,8 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     // window after the apron (gpu_display_* size-matches owned). Scaled max_edge
     // export is compared fairly at the same scale as the settled preview crop
     // (owned packed bit-exact). Cross-scale 1:1 ROI vs scaled-export crop is an
-    // explicit non-compare probe (no resample). Win/Linux / Bayer-RCD matrix
-    // are not claimed.
+    // explicit non-compare probe (no resample). Native IOSurface publication is
+    // macOS-only; other hosts retain owned CPU pixels even without a download request.
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
@@ -1597,6 +1597,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
                    static_cast<int>(roi_gpu_preview.value().gpu_display_width));
     RecordProperty("iq00_raw_roi_gpu_only_height",
                    static_cast<int>(roi_gpu_preview.value().gpu_display_height));
+#if defined(__APPLE__)
     ASSERT_FALSE(is_cpu_gold_backend(roi_gpu_preview.value().gpu_backend))
         << "admitted Exposure should publish Metal ROI";
     EXPECT_TRUE(roi_gpu_preview.value().rgb.empty());
@@ -1605,6 +1606,15 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     EXPECT_EQ(roi_gpu_preview.value().gpu_display_height, roi_preview.value().height);
     EXPECT_NE(roi_gpu_preview.value().gpu_display_native_surface, 0U);
     RecordProperty("iq00_raw_roi_gpu_only_apron_owned_surface", "true");
+#else
+    ASSERT_TRUE(is_cpu_gold_backend(roi_gpu_preview.value().gpu_backend));
+    EXPECT_EQ(roi_gpu_preview.value().rgb.size(),
+              static_cast<std::size_t>(roi_gpu_preview.value().width) *
+                  roi_gpu_preview.value().height * 3U);
+    EXPECT_EQ(roi_gpu_preview.value().gpu_display_generation, 0U);
+    EXPECT_EQ(roi_gpu_preview.value().gpu_display_native_surface, 0U);
+    RecordProperty("iq00_raw_roi_gpu_only_apron_owned_surface", "cpu_path_no_native_surface");
+#endif
 }
 
 TEST_F(CatalogServiceTest, RawPreviewRoiReusesLinearWorkingForRgbEdits)

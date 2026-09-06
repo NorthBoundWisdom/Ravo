@@ -92,7 +92,8 @@ TEST_F(AssistantSettingsTest, RepairsMalformedStoredEndpoint)
 {
     {
         QSettings settings;
-        settings.setValue(QStringLiteral("desktop/assistant/endpoint"), QStringLiteral("not a url"));
+        settings.setValue(QStringLiteral("desktop/assistant/endpoint"),
+                          QStringLiteral("not a url"));
         settings.sync();
         ASSERT_EQ(settings.status(), QSettings::NoError);
     }
@@ -142,12 +143,15 @@ TEST(StudioQmlContract, AssistantPanelIsFloatingAndSettingsOwnUrlAndModel)
     QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
     ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
         << actions.errorString().toStdString();
-    EXPECT_TRUE(QString::fromUtf8(actions.readAll()).contains(QStringLiteral("ids.windowAssistant")));
+    EXPECT_TRUE(
+        QString::fromUtf8(actions.readAll()).contains(QStringLiteral("ids.windowAssistant")));
 
     QFile panel(QStringLiteral(RAVO_STUDIO_ASSISTANT_PANEL_QML));
     ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
         << panel.errorString().toStdString();
     const auto panel_source = QString::fromUtf8(panel.readAll());
+    EXPECT_FALSE(panel_source.contains(QStringLiteral("Fonts.size48")));
+    EXPECT_TRUE(panel_source.contains(QStringLiteral("Fonts.scaledUiSize(48)")));
     EXPECT_TRUE(panel_source.contains(QStringLiteral("signal closeRequested")));
     EXPECT_FALSE(panel_source.contains(QStringLiteral("Popup {")));
     EXPECT_FALSE(panel_source.contains(QStringLiteral("Overlay.overlay")));

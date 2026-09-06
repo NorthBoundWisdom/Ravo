@@ -1406,3 +1406,12 @@ Ravo test set.
 Revalidate each dependency or public build-graph upgrade on every actually
 available host. Report historical results for other platforms separately from
 those untested in this change; never present one platform as passing on all.
+
+The ROI-versus-export contract runs its CPU pixel and persistence assertions on
+all hosts. Only macOS requires Metal/IOSurface publication; Windows and Linux
+must return owned CPU RGB and no native surface when that transport is absent.
+Do not skip the complete test or accept arbitrary backends to satisfy CI.
+QML size expressions must use members of the pinned GeoControls API. In
+particular, 48-unit assistant/proposal geometry uses `Fonts.scaledUiSize(48)`;
+there is no `Fonts.size48` token. Undefined arithmetic can become NaN and abort
+Windows Debug Qt during layout even if a release Qt build tolerates it.

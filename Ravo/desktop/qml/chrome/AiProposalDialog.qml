@@ -6,7 +6,7 @@ DialogShell {
     id: root
     objectName: "AiProposalDialog"
     titleText: qsTr("AI Proposal")
-    width: Fonts.messageDialogWidth + Fonts.size48
+    width: Fonts.messageDialogWidth + Fonts.scaledUiSize(48)
     bodyFillHeight: false
     showCloseButton: true
 
@@ -119,7 +119,7 @@ DialogShell {
 
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: Fonts.size48 * 3
+            implicitHeight: Fonts.scaledUiSize(48) * 3
             radius: Fonts.size4
             color: Theme.baseColor
             border.color: Theme.dividerColor

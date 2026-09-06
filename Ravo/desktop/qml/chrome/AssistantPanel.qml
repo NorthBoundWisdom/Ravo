@@ -34,7 +34,7 @@ Rectangle {
     }
     function placeDefault() {
         root.x = Math.max(Fonts.size12, root.hostWidth() - root.width - Fonts.size16);
-        root.y = Math.max(Fonts.size12, root.hostHeight() - root.height - Fonts.size48);
+        root.y = Math.max(Fonts.size12, root.hostHeight() - root.height - Fonts.scaledUiSize(48));
         root.placed = true;
     }
     function sendCurrent() {
