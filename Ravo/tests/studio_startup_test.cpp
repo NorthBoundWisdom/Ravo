@@ -5,6 +5,7 @@
 
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/foundation/log.h"
 #include "studio_startup_controller.h"
 #include "studio_test_support.h"
 
@@ -73,6 +74,7 @@ TEST(StudioStartupTest, DefaultLibraryPublishesCompleteStateBeforeHandoff)
 TEST(StudioStartupTest, ExplicitFailureShowsErrorWithoutOpeningDefaultLibrary)
 {
     ensure_qt_core();
+    init_logging("ravo-studio-startup-tests");
     QTemporaryDir directory;
     ASSERT_TRUE(directory.isValid());
     const auto default_path = directory.filePath("default.sqlite");
@@ -106,6 +108,7 @@ TEST(StudioStartupTest, ExplicitFailureShowsErrorWithoutOpeningDefaultLibrary)
 TEST(StudioStartupTest, DestroyingStartupDuringOpenDropsQueuedHandoff)
 {
     ensure_qt_core();
+    init_logging("ravo-studio-startup-tests");
     QTemporaryDir directory;
     ASSERT_TRUE(directory.isValid());
     bool finished = false;
