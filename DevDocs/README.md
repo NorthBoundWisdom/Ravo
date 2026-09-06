@@ -29,7 +29,9 @@ The Global/Mask Develop workspace and Recipe v4 local groups are specified in
 Product execution belongs only in [TODO.md](TODO.md).
 Three-platform package evidence belongs in [Packaging.md](Packaging.md).
 
-The import workspace, exact-content filtering, and remembered destination are
+The import workspace, exact-content classification with visible disabled duplicate
+photos, remembered source/destination paths in Home-rooted folder trees, and the
+Home non-recursive scan safeguard are
 defined by [ADR-0102](adr/0102-planned-managed-import-workspace.md), with typed
 desktop preference ownership in [ADR-0066](adr/0066-typed-desktop-language-setting.md).
 Their current contracts and reproducible validation live in architecture and testing above.

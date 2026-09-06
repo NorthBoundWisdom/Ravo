@@ -22,7 +22,9 @@ struct FilesystemFolderEntry
 
 [[nodiscard]] Result<std::vector<FilesystemFolderEntry>>
 list_filesystem_folders(const QString &path);
-[[nodiscard]] std::vector<FilesystemFolderEntry> mounted_filesystem_roots();
+// Import's Home-root guard also recognizes normalized and symlinked paths.
+[[nodiscard]] bool import_source_recursion(const QString &source, const QString &user_directory,
+                                           bool requested);
 
 class FilesystemBrowserModel final : public QAbstractListModel
 {
@@ -48,11 +50,12 @@ public:
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
     [[nodiscard]] QString selectedPath() const;
     void resetWithRoots(std::vector<FilesystemFolderEntry> roots);
-    void loadMountedVolumes();
+    void loadUserDirectory();
     void applyChildren(const QString &path, quint64 generation,
                        Result<std::vector<FilesystemFolderEntry>> children);
     Q_INVOKABLE void toggleCollapsed(const QString &path);
     Q_INVOKABLE void selectFolder(const QString &path);
+    Q_INVOKABLE void activateFolder(const QString &path);
     Q_INVOKABLE void revealFolder(const QString &path);
 
 signals:
@@ -75,7 +78,6 @@ private:
     };
 
     void rebuild_visible();
-    [[nodiscard]] bool hidden_by_collapse(std::size_t index) const;
     [[nodiscard]] int index_of_path(const QString &path) const;
 
     std::vector<Node> all_nodes_;

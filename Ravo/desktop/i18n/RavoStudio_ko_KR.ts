@@ -3570,8 +3570,8 @@ Diff: %6</source>
             <translation>%2개 중 %1개 확인 중…</translation>
         </message>
         <message>
-            <source>Duplicate photos hidden: %1</source>
-            <translation>숨겨진 중복 사진: %1장</translation>
+            <source>Duplicate photos: %1</source>
+            <translation>중복 사진: %1</translation>
         </message>
         <message>
             <source>Selected: %1 photos · %2 MB</source>
@@ -3610,8 +3610,8 @@ Diff: %6</source>
             <translation>원본 폴더를 선택하세요</translation>
         </message>
         <message>
-            <source>No new photos</source>
-            <translation>새 사진이 없습니다</translation>
+            <source>Duplicate photo</source>
+            <translation>중복 사진</translation>
         </message>
         <message>
             <source>Unavailable</source>

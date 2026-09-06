@@ -527,10 +527,19 @@ TEST(StudioPresenterTest, ImportIngestTransportCopyReportsFilesystemCard)
     EXPECT_TRUE(report.value(QStringLiteral("resumeCheckpointCleared")).toBool());
     EXPECT_EQ(presenter.visibleCount(), 2);
 
-    // Reopening the same card hides every cataloged photo before thumbnail demand.
+    // Reopening restores the card and keeps cataloged photos visible but disabled.
     presenter.openImportPage();
     ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }, 30000));
-    EXPECT_EQ(presenter.importCandidates()->rowCount(), 0);
+    EXPECT_EQ(presenter.importCandidates()->rowCount(), 2);
+    EXPECT_EQ(presenter.importSourceRoot(),
+              QDir(directory.path()).filePath(QStringLiteral("card")));
+    presenter.importCandidates()->setAllSelected(true);
+    EXPECT_EQ(presenter.importCandidates()->selectedCount(), 0);
+    for (int row = 0; row < presenter.importCandidates()->rowCount(); ++row)
+        EXPECT_FALSE(presenter.importCandidates()
+                         ->data(presenter.importCandidates()->index(row, 0),
+                                ImportCandidateListModel::EligibleRole)
+                         .toBool());
     EXPECT_EQ(presenter.importDuplicateCount(), 2);
     EXPECT_FALSE(presenter.importReady());
     EXPECT_EQ(presenter.visibleCount(), 2);

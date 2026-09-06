@@ -119,7 +119,21 @@ complete catalog set from the same manifest, validates it, and compiles it to
 build-local QM files, which are the only files deployed with
 Studio. Typed desktop settings are the UI language, assistant
 endpoint/model/key, window size/position/maximized state, and the most recent
-successful managed-import destination root. The import destination is global
+successful managed-import destination root and last selected import source root.
+Source selection is persisted immediately, even when the import draft is closed
+without importing. Both paths are global desktop preferences, independent of
+catalog identity; reopening restores the source scan and asynchronously expands,
+selects, and scrolls its ancestor chain through the C++ folder model. Listing
+trees start at Home; explicit picker paths outside Home are additional folder
+roots rather than mounted-disk trees. Row activation selects and expands in
+C++; QML has non-overlapping full-height disclosure and selection hit areas.
+Repeated destination selection does not reset a healthy tree. Listing
+and ingest recursion are constrained separately from the checkbox preference:
+the home directory (including aliases) is always scanned non-recursively, while
+ordinary folders honor the presenter-owned choice across folder changes. Listing
+generations reject stale results, and a new selection cancels the old reveal.
+Unavailable sources remain selected and report scan errors; failed preference
+writes preserve the previous durable path and report an error. The import destination is global
 to Studio, owned by `StudioImportPreferences`, and restored in the destination
 panel, asynchronously revealed folder tree, and folder picker. An unavailable
 directory stays selected and blocks Copy; failed preference writes are visible
@@ -152,7 +166,7 @@ balance interaction, recipe state, cache identity, or export input. Missing or
 failed originals do not use the layer. The Library panel separately shows
 import and demanded-preview progress. After system file/folder selection,
 Studio checks source identities and metadata on a worker, incrementally publishes
-named non-duplicate placeholder cells, then fills bounded 320-pixel workspace thumbnails as
+named placeholder cells including disabled duplicates, then fills bounded 320-pixel workspace thumbnails as
 the grid demands them. Catalog import still runs on workers. Clicking Import publishes named Gallery
 placeholders immediately; each cataloged photo then fills that cell, and
 viewport demand loads a browse thumbnail so the user can inspect while later
@@ -476,16 +490,19 @@ removes only files published by that item. Move cleanup begins only after that
 verification and the ordinary catalog commit. Rename and second-copy choices
 remain session state and use the existing task owner.
 
-The source/new-photos/destination workspace defaults to Copy on every entry.
+The source/photos/destination workspace defaults to Copy on every entry.
 New photographs start checked, rename and second-copy sections start collapsed,
-and narrow windows use side drawers. Only the successful primary destination
-root is a durable desktop preference; Add, preview, and naming options stay in
+and narrow windows use side drawers. The last selected source and successful
+primary destination roots are durable desktop preferences; Add, preview, and naming options stay in
 the session. A folder selection restores its ancestors asynchronously.
 
-`scan_import_candidates` owns full-file SHA-256 duplicate filtering independently
-of thumbnail demand. Known catalog URIs and matching content are excluded; each
-scan retains the first supported path in a same-content group. The desktop
-publishes checked placeholders in batches, honors an intervening Uncheck All,
+`scan_import_candidates` owns full-file SHA-256 duplicate classification independently
+of thumbnail demand. Known catalog URIs and matching content remain visible as
+disabled grid cells; only the first supported path in a same-content group is
+eligible. The desktop publishes all placeholders in batches and initially checks
+eligible photos only. Duplicate rows reject single/range/all highlights and checks.
+Thumbnail inspection preserves scan-owned duplicate status until a new scan and
+does not rescan already-known duplicates. The desktop honors an intervening Uncheck All,
 and rejects completions by scan generation. Preflight validates the observed
 catalog revision and selected hashes before switching to Gallery. Hashing checks
 cancellation between bounded reads; copying and catalog publication retain their
@@ -614,27 +631,6 @@ publishes no asset or preview. See
 
 ### Recipe and operation
 
-Canonical recipes, operation descriptors, `RenderRequest`/`RenderResult`, and
-the explicit colour contract are shared by preview, Develop, CLI render, and
-export. Editing UI maps the versioned schema only and owns neither a second
-algorithm nor history format.
-
-External 3D LUT state is a recipe-owned path plus declared input/output colour
-spaces, interpolation, and strength; QML only selects and displays those
-values. The Engine owns bounded `.cube` parsing, colour conversion,
-interpolation, cancellation, and a thread-safe process LRU of immutable parsed
-snapshots. Every snapshot has a complete-content fingerprint. CatalogService
-validates that resource before committing a recipe, and the same fingerprint
-participates in persistent preview identity; a missing, changed-to-invalid, or
-unsupported file is a structured failure and cannot reuse a stale snapshot.
-Neither Catalog nor QML parses LUT bytes, and no external colour subprocess or
-second graph is introduced (ADR-0096).
-
-Offline camera-noise calibration is not recipe or catalog state. Foundation
-owns its handle-free camera identity, black-subtracted uint16
-mean/variance/count samples and fitted Gaussian/Poisson resource values. Engine
-performs a bounded deterministic robust fit; the JSON adapter owns the strict
-sample/profile schemas and canonical
 Recipe v4 adds the mask-scoped workspace in
 [ADR-0158](adr/0158-mask-scoped-develop-workspace.md). A
 `ravo.local.adjustment` v1 operation owns one canonical mask root and up to 64
@@ -665,6 +661,27 @@ invalidates gesture tokens and rejects late results. Shared mask roots remain
 read-only; duplication produces independent owned graphs. Selective copying
 retains unselected local masks and clones selected groups into the destination.
 
+Canonical recipes, operation descriptors, `RenderRequest`/`RenderResult`, and
+the explicit colour contract are shared by preview, Develop, CLI render, and
+export. Editing UI maps the versioned schema only and owns neither a second
+algorithm nor history format.
+
+External 3D LUT state is a recipe-owned path plus declared input/output colour
+spaces, interpolation, and strength; QML only selects and displays those
+values. The Engine owns bounded `.cube` parsing, colour conversion,
+interpolation, cancellation, and a thread-safe process LRU of immutable parsed
+snapshots. Every snapshot has a complete-content fingerprint. CatalogService
+validates that resource before committing a recipe, and the same fingerprint
+participates in persistent preview identity; a missing, changed-to-invalid, or
+unsupported file is a structured failure and cannot reuse a stale snapshot.
+Neither Catalog nor QML parses LUT bytes, and no external colour subprocess or
+second graph is introduced (ADR-0096).
+
+Offline camera-noise calibration is not recipe or catalog state. Foundation
+owns its handle-free camera identity, black-subtracted uint16
+mean/variance/count samples and fitted Gaussian/Poisson resource values. Engine
+performs a bounded deterministic robust fit; the JSON adapter owns the strict
+sample/profile schemas and canonical
 SHA-256 payload; Services owns cancellation-aware, race-safe atomic no-replace
 publication. CLI only composes those owners. The command never discovers or
 writes an implicit profile directory, and the current denoisers do not load the

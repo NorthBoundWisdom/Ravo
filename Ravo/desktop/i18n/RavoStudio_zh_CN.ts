@@ -3570,8 +3570,8 @@ Diff: %6</source>
             <translation>正在检查 %1 / %2…</translation>
         </message>
         <message>
-            <source>Duplicate photos hidden: %1</source>
-            <translation>已隐藏 %1 张重复照片</translation>
+            <source>Duplicate photos: %1</source>
+            <translation>重复照片：%1</translation>
         </message>
         <message>
             <source>Selected: %1 photos · %2 MB</source>
@@ -3610,8 +3610,8 @@ Diff: %6</source>
             <translation>选择来源文件夹</translation>
         </message>
         <message>
-            <source>No new photos</source>
-            <translation>没有新照片</translation>
+            <source>Duplicate photo</source>
+            <translation>重复照片</translation>
         </message>
         <message>
             <source>Unavailable</source>

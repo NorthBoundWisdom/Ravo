@@ -3570,8 +3570,8 @@ Diff: %6</translation>
             <translation>Checking %1 of %2…</translation>
         </message>
         <message>
-            <source>Duplicate photos hidden: %1</source>
-            <translation>Duplicate photos hidden: %1</translation>
+            <source>Duplicate photos: %1</source>
+            <translation>Duplicate photos: %1</translation>
         </message>
         <message>
             <source>Selected: %1 photos · %2 MB</source>
@@ -3610,8 +3610,8 @@ Diff: %6</translation>
             <translation>Choose a source folder</translation>
         </message>
         <message>
-            <source>No new photos</source>
-            <translation>No new photos</translation>
+            <source>Duplicate photo</source>
+            <translation>Duplicate photo</translation>
         </message>
         <message>
             <source>Unavailable</source>

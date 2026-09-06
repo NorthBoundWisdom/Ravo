@@ -3570,8 +3570,8 @@ Differenz: %6</translation>
             <translation>%1 von %2 werden geprüft…</translation>
         </message>
         <message>
-            <source>Duplicate photos hidden: %1</source>
-            <translation>Ausgeblendete Duplikate: %1</translation>
+            <source>Duplicate photos: %1</source>
+            <translation>Doppelte Fotos: %1</translation>
         </message>
         <message>
             <source>Selected: %1 photos · %2 MB</source>
@@ -3610,8 +3610,8 @@ Differenz: %6</translation>
             <translation>Quellordner auswählen</translation>
         </message>
         <message>
-            <source>No new photos</source>
-            <translation>Keine neuen Fotos</translation>
+            <source>Duplicate photo</source>
+            <translation>Doppeltes Foto</translation>
         </message>
         <message>
             <source>Unavailable</source>

@@ -76,9 +76,11 @@ Current implementation status:
   The cache has a 512 MiB hard byte budget, promotes valid hits, and evicts the
   least-recently-used rebuildable PNG deterministically across reopen
   (ADR-0047/0067).
-- Studio import opens a source / new-photo grid / scrollable destination workspace.
+- Studio import opens a source / photo grid / scrollable destination workspace.
   Copy is selected on every entry. Catalog URI and exact SHA-256 content matches
-  are hidden; same-content files within a scan keep the first supported path.
+  remain in the grid as dimmed, disabled photos with thumbnails; they cannot be
+  selected or checked for import. Same-content files within a scan make only the
+  first supported path eligible.
   New photos start selected
   and can be added by reference, copied, or moved to an explicit destination
   using one folder, preserved hierarchy, `YYYY/MM/DD`, or `YYYY/MM` organization.
@@ -90,7 +92,17 @@ Current implementation status:
   source only after every requested copy verifies and the destination is
   cataloged. Minimal 320, Standard 1600, and 1:1 previews run in a cancellable
   background queue after Last Imported Photos opens (ADR-0102/0104).
-- The import destination root is remembered globally after the first successful
+- The last selected import source is remembered immediately, even without
+  importing. Reopening the page or restarting Studio restores it, expands its
+  ancestors, selects and scrolls to the folder, and scans it again. Both directory
+  trees start at the user directory rather than the system disk; external paths
+  selected through the picker remain reachable as additional folder roots.
+  Clicking a collapsed folder selects and expands it; the separate arrow toggles
+  expansion without changing the selection. Include subfolders keeps the user's choice when
+  switching folders; the home directory itself is always scanned only at its
+  top level, even when the option is checked. Unavailable
+  sources remain visible with an error instead of silently switching folders.
+  The import destination root is remembered globally after the first successful
   photo in a managed batch and restored after restart, including the directory
   tree and picker. Failed batches and cancelled drafts preserve the prior root.
   Disconnected destinations remain visible and block Copy until resolved.

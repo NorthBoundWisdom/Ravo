@@ -321,6 +321,14 @@ void StudioPresenter::openImportPage()
         return;
     import_page_open_ = true;
     import_mode_ = QStringLiteral("copy");
+    const auto source = StudioImportPreferences{}.loadLastSource();
+    if (source)
+        import_source_root_ = source.value();
+    else
+    {
+        import_source_root_.clear();
+        setError(qstring_from_utf8(source.error().message));
+    }
     const auto destination = StudioImportPreferences{}.loadLastDestination();
     if (destination)
         import_destination_ = destination.value();
@@ -331,10 +339,10 @@ void StudioPresenter::openImportPage()
     }
     validateImportDestination();
     refreshImportNativeSupport();
-    import_source_folders_.loadMountedVolumes();
-    import_destination_folders_.loadMountedVolumes();
+    import_source_folders_.loadUserDirectory();
+    import_destination_folders_.loadUserDirectory();
     if (!import_source_root_.isEmpty())
-        import_source_folders_.selectFolder(import_source_root_);
+        import_source_folders_.revealFolder(import_source_root_);
     if (!import_destination_.isEmpty())
         import_destination_folders_.revealFolder(import_destination_);
     emit importPageChanged();
@@ -362,16 +370,18 @@ void StudioPresenter::closeImportPage()
 
 void StudioPresenter::setImportSourceRoot(const QString &path)
 {
-    const QString next = path.trimmed();
-    if (next.isEmpty() || import_work_active_)
+    if (path.isEmpty() || import_work_active_ || import_preflight_active_)
         return;
-    if (next == import_source_root_)
+    const QString next = QDir::cleanPath(path);
+    const auto remembered = StudioImportPreferences{}.rememberSource(next);
+    if (!remembered)
     {
-        rescanImportSource();
-        return;
+        setError(qstring_from_utf8(remembered.error().message));
+        if (remembered.error().code == ErrorCode::kValidation)
+            return;
     }
     import_source_root_ = next;
-    import_source_folders_.selectFolder(next);
+    import_source_folders_.revealFolder(next);
     emit importPageChanged();
     rescanImportSource();
 }
@@ -383,7 +393,8 @@ void StudioPresenter::setImportDestination(const QString &path)
     const QString next = path.isEmpty() ? QString{} : QDir::cleanPath(path);
     if (next == import_destination_)
     {
-        import_destination_folders_.loadMountedVolumes();
+        if (!import_destination_error_.isEmpty())
+            import_destination_folders_.loadUserDirectory();
         import_destination_folders_.revealFolder(next);
         validateImportDestination();
         return;
@@ -511,7 +522,8 @@ void StudioPresenter::rescanImportSource()
     const auto token = import_operation_.token();
     const auto generation = ++import_scan_generation_;
     const std::string root = utf8_from_qstring(import_source_root_);
-    const bool recursive = import_recursive_;
+    const bool recursive =
+        import_source_recursion(import_source_root_, QDir::homePath(), import_recursive_);
     import_scan_active_ = true;
     import_preflight_active_ = false;
     import_scan_catalog_revision_.reset();
@@ -532,8 +544,7 @@ void StudioPresenter::rescanImportSource()
             {
                 if (candidate.duplicate)
                     ++duplicates;
-                else
-                    pending.push_back(candidate);
+                pending.push_back(candidate);
                 if (completed != 1 && completed % 32 != 0 && completed != total)
                     return;
                 QMetaObject::invokeMethod(
@@ -553,11 +564,20 @@ void StudioPresenter::rescanImportSource()
                     Qt::QueuedConnection);
                 pending.clear();
             };
-            auto scan =
-                service_ == nullptr ?
-                    Result<ImportScanResult>{
-                        make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                    service_->scan_import_candidates({root}, root, recursive, token, publish);
+            const auto scan_source = [&]() -> Result<ImportScanResult>
+            {
+                if (auto active = token.check(); !active)
+                    return active.error();
+                if (service_ == nullptr)
+                    return make_error(ErrorCode::kIo, "Catalog session is closed");
+                const QFileInfo source(qstring_from_utf8(root));
+                if (!source.isDir() || !source.isReadable())
+                    return make_error(ErrorCode::kIo,
+                                      "Import source folder is unavailable: " + root,
+                                      {{"reason", "import_source_unavailable"}});
+                return service_->scan_import_candidates({root}, root, recursive, token, publish);
+            };
+            auto scan = scan_source();
             QMetaObject::invokeMethod(
                 this,
                 [this, generation, scan = std::move(scan)]() mutable
@@ -672,7 +692,11 @@ void StudioPresenter::startImportCandidateWork(const int row)
                         import_candidates_.sourcePath(row) == source &&
                         !candidate.source_path.empty())
                     {
-                        if (candidate.duplicate)
+                        if (candidate.duplicate &&
+                            !import_candidates_
+                                 .data(import_candidates_.index(row, 0),
+                                       ImportCandidateListModel::DuplicateRole)
+                                 .toBool())
                         {
                             rescanImportSource();
                             return;
@@ -905,7 +929,8 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
         ingest.destination_directory = request.destination_directory;
         ingest.filename_template = request.filename_template;
         ingest.second_copy_directory = request.second_copy_directory;
-        ingest.recursive = import_recursive_;
+        ingest.recursive =
+            import_source_recursion(import_source_root_, QDir::homePath(), import_recursive_);
         ingest.include_xmp_sidecars = true;
         ingest.defer_previews = true;
         ingest.skip_existing = true;

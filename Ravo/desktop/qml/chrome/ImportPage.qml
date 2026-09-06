@@ -142,7 +142,7 @@ Rectangle {
                 CustomLabel {
                     Layout.fillWidth: true
                     Layout.margins: Fonts.size8
-                    text: root.presenter.importScanActive ? qsTr("Checking %1 of %2…").arg(root.presenter.importScanCompleted).arg(root.presenter.importScanTotal) : qsTr("Duplicate photos hidden: %1").arg(root.presenter.importDuplicateCount)
+                    text: root.presenter.importScanActive ? qsTr("Checking %1 of %2…").arg(root.presenter.importScanCompleted).arg(root.presenter.importScanTotal) : qsTr("Duplicate photos: %1").arg(root.presenter.importDuplicateCount)
                     color: Theme.placeholderTextColor
                 }
             }

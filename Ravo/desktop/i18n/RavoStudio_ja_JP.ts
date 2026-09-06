@@ -3570,8 +3570,8 @@ Diff: %6</source>
             <translation>%2 枚中 %1 枚を確認中…</translation>
         </message>
         <message>
-            <source>Duplicate photos hidden: %1</source>
-            <translation>非表示の重複写真：%1 枚</translation>
+            <source>Duplicate photos: %1</source>
+            <translation>重複した写真：%1</translation>
         </message>
         <message>
             <source>Selected: %1 photos · %2 MB</source>
@@ -3610,8 +3610,8 @@ Diff: %6</source>
             <translation>読み込み元フォルダーを選択</translation>
         </message>
         <message>
-            <source>No new photos</source>
-            <translation>新しい写真はありません</translation>
+            <source>Duplicate photo</source>
+            <translation>重複した写真</translation>
         </message>
         <message>
             <source>Unavailable</source>

@@ -3570,8 +3570,8 @@ Différence : %6</translation>
             <translation>Vérification de %1 sur %2…</translation>
         </message>
         <message>
-            <source>Duplicate photos hidden: %1</source>
-            <translation>Photos en double masquées : %1</translation>
+            <source>Duplicate photos: %1</source>
+            <translation>Photos en double : %1</translation>
         </message>
         <message>
             <source>Selected: %1 photos · %2 MB</source>
@@ -3610,8 +3610,8 @@ Différence : %6</translation>
             <translation>Choisissez un dossier source</translation>
         </message>
         <message>
-            <source>No new photos</source>
-            <translation>Aucune nouvelle photo</translation>
+            <source>Duplicate photo</source>
+            <translation>Photo en double</translation>
         </message>
         <message>
             <source>Unavailable</source>

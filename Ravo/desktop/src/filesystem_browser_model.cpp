@@ -8,7 +8,6 @@
 
 #include <QDir>
 #include <QFileInfo>
-#include <QStorageInfo>
 
 #include "studio_qt.h"
 
@@ -36,21 +35,20 @@ namespace
                              static_cast<qsizetype>(utf8.size()));
 }
 
-[[nodiscard]] bool skip_volume(const QStorageInfo &volume)
-{
-    if (!volume.isValid() || !volume.isReady() || volume.rootPath().isEmpty())
-        return true;
-    const auto fs = volume.fileSystemType().toLower();
-    if (fs == QLatin1String("proc") || fs == QLatin1String("sysfs") ||
-        fs == QLatin1String("devtmpfs") || fs == QLatin1String("tmpfs") || fs.contains("cgroup"))
-        return true;
-    const auto root = generic_path(volume.rootPath());
-    return root == QLatin1String("/proc") || root == QLatin1String("/sys") ||
-           root == QLatin1String("/dev") || root == QLatin1String("/run") ||
-           root.startsWith(QLatin1String("/proc/")) || root.startsWith(QLatin1String("/sys/"));
-}
-
 } // namespace
+
+bool import_source_recursion(const QString &source, const QString &user_directory,
+                             const bool requested)
+{
+    if (!requested)
+        return false;
+    if (generic_path(source) == generic_path(user_directory))
+        return false;
+    const auto canonical_source = QFileInfo(source).canonicalFilePath();
+    const auto canonical_home = QFileInfo(user_directory).canonicalFilePath();
+    return canonical_source.isEmpty() || canonical_home.isEmpty() ||
+           canonical_source != canonical_home;
+}
 
 Result<std::vector<FilesystemFolderEntry>> list_filesystem_folders(const QString &path)
 {
@@ -95,33 +93,6 @@ Result<std::vector<FilesystemFolderEntry>> list_filesystem_folders(const QString
               [](const FilesystemFolderEntry &left, const FilesystemFolderEntry &right)
               { return QString::localeAwareCompare(left.display_name, right.display_name) < 0; });
     return entries;
-}
-
-std::vector<FilesystemFolderEntry> mounted_filesystem_roots()
-{
-    std::vector<FilesystemFolderEntry> roots;
-    const auto volumes = QStorageInfo::mountedVolumes();
-    for (const auto &volume : volumes)
-    {
-        if (skip_volume(volume))
-            continue;
-        FilesystemFolderEntry entry;
-        entry.path = generic_path(volume.rootPath());
-        entry.display_name = volume.displayName().isEmpty() ? QFileInfo(entry.path).fileName() :
-                                                              volume.displayName();
-        if (entry.display_name.isEmpty())
-            entry.display_name = entry.path;
-        entry.has_children = true;
-        const bool duplicate =
-            std::any_of(roots.begin(), roots.end(), [&](const FilesystemFolderEntry &existing)
-                        { return existing.path == entry.path; });
-        if (!duplicate)
-            roots.push_back(std::move(entry));
-    }
-    std::sort(roots.begin(), roots.end(),
-              [](const FilesystemFolderEntry &left, const FilesystemFolderEntry &right)
-              { return QString::localeAwareCompare(left.display_name, right.display_name) < 0; });
-    return roots;
 }
 
 FilesystemBrowserModel::FilesystemBrowserModel(QObject *parent)
@@ -179,6 +150,7 @@ void FilesystemBrowserModel::resetWithRoots(std::vector<FilesystemFolderEntry> r
 {
     beginResetModel();
     all_nodes_.clear();
+    reveal_path_.clear();
     all_nodes_.reserve(roots.size());
     for (auto &root : roots)
     {
@@ -196,9 +168,11 @@ void FilesystemBrowserModel::resetWithRoots(std::vector<FilesystemFolderEntry> r
     emit selectedPathChanged();
 }
 
-void FilesystemBrowserModel::loadMountedVolumes()
+void FilesystemBrowserModel::loadUserDirectory()
 {
-    resetWithRoots(mounted_filesystem_roots());
+    const auto path = generic_path(QDir::homePath());
+    resetWithRoots({{path, path, true}});
+    toggleCollapsed(path);
 }
 
 void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 generation,
@@ -216,8 +190,7 @@ void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 ge
         parent.error = qstring_from_utf8(children.error().message);
         parent.loaded = false;
         parent.collapsed = true;
-        if (!visible_.empty())
-            emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {ErrorRole, CollapsedRole});
+        rebuild_visible();
         return;
     }
     parent.error.clear();
@@ -258,6 +231,8 @@ void FilesystemBrowserModel::toggleCollapsed(const QString &path)
     if (node_index < 0)
         return;
     auto &node = all_nodes_[static_cast<std::size_t>(node_index)];
+    if (node.listing_pending)
+        return;
     if (!node.has_children)
         return;
     if (!node.collapsed)
@@ -278,9 +253,19 @@ void FilesystemBrowserModel::toggleCollapsed(const QString &path)
     emit directoryListingRequested(node.path, node.listing_generation);
 }
 
+void FilesystemBrowserModel::activateFolder(const QString &path)
+{
+    selectFolder(path);
+    const auto node_index = index_of_path(generic_path(path));
+    if (node_index >= 0 && all_nodes_[static_cast<std::size_t>(node_index)].collapsed)
+        toggleCollapsed(path);
+}
+
 void FilesystemBrowserModel::selectFolder(const QString &path)
 {
     const auto next = generic_path(path);
+    if (next != reveal_path_)
+        reveal_path_.clear();
     if (next.isEmpty() || selected_path_ == next)
         return;
     selected_path_ = next;
@@ -296,8 +281,24 @@ void FilesystemBrowserModel::revealFolder(const QString &path)
         reveal_path_.clear();
         return;
     }
-    reveal_path_ = generic_path(path);
     selectFolder(path);
+    reveal_path_ = generic_path(path);
+    const bool within_roots =
+        std::any_of(all_nodes_.begin(), all_nodes_.end(),
+                    [&](const Node &node)
+                    {
+                        const auto prefix = node.path.endsWith('/') ? node.path : node.path + '/';
+                        return node.depth == 0 &&
+                               (reveal_path_ == node.path || reveal_path_.startsWith(prefix));
+                    });
+    if (!within_roots)
+    {
+        // Explicit picker selections outside Home remain reachable without a disk-root tree.
+        Node node;
+        node.path = reveal_path_;
+        node.display_name = reveal_path_;
+        all_nodes_.push_back(std::move(node));
+    }
     for (auto &node : all_nodes_)
     {
         if (node.path == reveal_path_)
@@ -337,28 +338,15 @@ void FilesystemBrowserModel::rebuild_visible()
     beginResetModel();
     visible_.clear();
     visible_.reserve(all_nodes_.size());
-    for (std::size_t index = 0; index < all_nodes_.size(); ++index)
+    int collapsed_depth = -1;
+    for (const auto &node : all_nodes_)
     {
-        if (!hidden_by_collapse(index))
-            visible_.push_back(all_nodes_[index]);
+        if (collapsed_depth >= 0 && node.depth > collapsed_depth)
+            continue;
+        visible_.push_back(node);
+        collapsed_depth = node.collapsed ? node.depth : -1;
     }
     endResetModel();
-}
-
-bool FilesystemBrowserModel::hidden_by_collapse(const std::size_t index) const
-{
-    int depth = all_nodes_[index].depth;
-    for (std::size_t cursor = index; cursor > 0;)
-    {
-        --cursor;
-        if (all_nodes_[cursor].depth < depth)
-        {
-            if (all_nodes_[cursor].collapsed)
-                return true;
-            depth = all_nodes_[cursor].depth;
-        }
-    }
-    return false;
 }
 
 int FilesystemBrowserModel::index_of_path(const QString &path) const

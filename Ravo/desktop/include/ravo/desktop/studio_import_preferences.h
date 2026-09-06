@@ -9,6 +9,8 @@ namespace ravo
 class StudioImportPreferences final
 {
 public:
+    [[nodiscard]] Result<QString> loadLastSource() const;
+    [[nodiscard]] Result<void> rememberSource(const QString &path) const;
     [[nodiscard]] Result<QString> loadLastDestination() const;
     [[nodiscard]] Result<void> rememberDestination(const QString &path) const;
 };

@@ -33,7 +33,7 @@ Rectangle {
     CustomLabel {
         anchors.centerIn: parent
         visible: !root.presenter.importScanActive && candidateGrid.count === 0
-        text: root.presenter.importSourceRoot.length ? (root.presenter.importDuplicateCount > 0 ? qsTr("No new photos") : qsTr("No supported photos found")) : qsTr("Choose a source folder")
+        text: root.presenter.importSourceRoot.length ? qsTr("No supported photos found") : qsTr("Choose a source folder")
         color: Theme.placeholderTextColor
     }
     GridView {
@@ -79,6 +79,8 @@ Rectangle {
             required property url thumbnailUrl
             required property string errorText
             required property bool inspected
+            enabled: eligible
+            opacity: duplicate ? 0.45 : 1
             width: candidateGrid.cellWidth
             height: candidateGrid.cellHeight
             Component.onCompleted: root.presenter.ensureImportThumbnail(index)
@@ -133,8 +135,8 @@ Rectangle {
                     anchors.top: parent.top
                     anchors.margins: 6
                     visible: !eligible
-                    text: qsTr("Unavailable")
-                    color: Theme.warningColor
+                    text: duplicate ? qsTr("Duplicate photo") : qsTr("Unavailable")
+                    color: duplicate ? Theme.disabledTextColor : Theme.warningColor
                 }
                 MouseArea {
                     id: candidateMouse

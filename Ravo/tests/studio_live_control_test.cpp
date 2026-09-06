@@ -639,8 +639,8 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     ASSERT_TRUE(page.open(QIODevice::ReadOnly | QIODevice::Text))
         << page.errorString().toStdString();
     auto source = QString::fromUtf8(page.readAll());
-    for (const auto *name :
-         {"ImportPhotoGrid.qml", "ImportSourcePanel.qml", "ImportDestinationPanel.qml"})
+    for (const auto *name : {"ImportPhotoGrid.qml", "ImportSourcePanel.qml",
+                             "ImportDestinationPanel.qml", "ImportFolderTree.qml"})
     {
         QFile component(QFileInfo(page).dir().filePath(QString::fromLatin1(name)));
         ASSERT_TRUE(component.open(QIODevice::ReadOnly | QIODevice::Text));
@@ -655,6 +655,10 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightToggle")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightRange")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightAll")));
+    EXPECT_TRUE(source.contains(QStringLiteral("enabled: eligible")));
+    EXPECT_TRUE(source.contains(QStringLiteral("opacity: duplicate ? 0.45 : 1")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Duplicate photo\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("Duplicate photos hidden:")));
     EXPECT_TRUE(source.contains(QStringLiteral("StandardKey.SelectAll")));
     EXPECT_TRUE(source.contains(QStringLiteral("fittedGridCell")));
     EXPECT_TRUE(source.contains(QStringLiteral("required property bool highlighted")));
@@ -668,7 +672,18 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importSourceFolderTree\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importDestinationFolderTree\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("importSourceFolders")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("onClicked: root.presenter.setImportRecursive(checked)")));
+    EXPECT_FALSE(
+        source.contains(QStringLiteral("onToggled: root.presenter.setImportRecursive(checked)")));
     EXPECT_TRUE(source.contains(QStringLiteral("importDestinationFolders")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importFolderExpand\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Layout.preferredWidth: Fonts.listItemHeight")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.folderModel.activateFolder(chosenPath)")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("root.folderModel.toggleCollapsed(folderRow.path)")));
+    EXPECT_FALSE(source.contains(QStringLiteral(
+        "anchors.leftMargin: Fonts.size4 + folderRow.depth * Fonts.size20 + Fonts.size16")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportPreviewPolicy")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportFilenameTemplate")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportSecondCopyDestination")));

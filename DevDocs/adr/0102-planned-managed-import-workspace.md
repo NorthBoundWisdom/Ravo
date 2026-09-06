@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-01
 - Updated: 2026-09-05 — content filtering, destination preference, responsive workspace
+- Updated: 2026-09-06 — visible disabled duplicates and remembered source-tree location
 - Extends: [ADR-0007](0007-first-usable-catalog-viewer.md),
   [ADR-0028](0028-original-copy-publication-contract.md), and
   [ADR-0100](0100-paged-library-and-foreground-work-scheduling.md)
@@ -18,7 +19,7 @@ sorted insertion also made Gallery unstable during a batch.
 
 - Studio has one full-page import workspace. One local source root is scanned
   deterministically with optional recursion. Cancellable content and metadata
-  checks publish named new-photo placeholders incrementally. Supported non-duplicates start selected and
+  checks publish named photo placeholders incrementally. Supported non-duplicates start selected and
   request bounded 320-pixel thumbnails through C++ services as the grid
   demands them. The workspace grid fits available width. A highlight set is
   distinct from the import checkbox: Command/Control multi-selects, Shift
@@ -27,14 +28,39 @@ sorted insertion also made Gallery unstable during a batch.
 - A typed request chooses Add, Copy, or Move; single-folder, preserved-root,
   `YYYY/MM/DD`, or `YYYY/MM` organization; and Minimal 320, Standard 1600, or
   full-size 1:1 previews. Workspace defaults are Copy, recursive, Standard, and
-  single-folder. Studio shows mounted-folder trees for source and Copy/Move
-  destination; QML only displays the C++ browser model.
-- The page has source / new-photo grid / scrollable destination settings.
+  single-folder. Both source and Copy/Move destination trees start at the current
+  user's home directory, expanded asynchronously, not at mounted system disks.
+  Explicit picker selections outside Home appear as additional folder roots;
+  they do not expose a full disk hierarchy. QML only displays the C++ browser
+  model. The full-height disclosure hit area toggles expansion; selecting a
+  collapsed directory also expands it. Repeated selection preserves loaded
+  children and expansion, except an explicit retry of a failed destination.
+- Include subfolders is an explicit presenter-owned choice; folder changes and
+  page reentry do not reset it. The custom checkbox forwards its `clicked`
+  signal, including mouse clicks that do not emit Qt's `toggled` signal.
+  Studio never recursively scans the user's home directory, including normalized
+  or symlink aliases: Home scans only its immediate files even when the choice
+  remains checked. The same effective recursion guard applies to filesystem-card
+  ingest enumeration. Selecting a child folder honors the unchanged user choice.
+- The last selected source is a typed desktop preference, saved on selection
+  independently of import completion or catalog identity. Entry restores the
+  source, scans it, and asynchronously reveals its ancestor chain in the tree;
+  the view scrolls on the model's reveal signal. Source selection supersedes
+  pending reveals, and listing generations reject responses from reset trees.
+  Unavailable saved folders retain their path and report scan errors. Invalid
+  settings are removed with an error; failed writes preserve the previous
+  durable preference. No catalog schema or service state is added.
+- The page has source / photo grid / scrollable destination settings.
   Rename and second-copy sections start collapsed; windows below 1000px use
   side drawers. Copy is selected on every entry. Mounted-card Move remains
   unavailable under the ingest transport contract.
-- Catalog URI or full-file SHA-256 matches are hidden. Stable path order keeps
-  the first supported representative of each same-content group in a scan.
+- Catalog URI or full-file SHA-256 matches remain visible, dimmed, unchecked,
+  and unavailable to both highlight and import selection. Stable path order makes
+  only the first supported representative of each same-content group eligible.
+  Duplicate thumbnails use the ordinary bounded demand queue. Single-path
+  thumbnail inspection cannot clear the scan's content/batch duplicate status;
+  a fresh scan owns reclassification. An already-known catalog-path duplicate
+  completes inspection without triggering another scan.
   Same name, size, or timestamp alone never establishes a duplicate. Unavailable
   candidates stay visible and unchecked. Uncheck All also affects later arrivals.
 - Schema v17 adds a derived content-hash table and size/hash index. New imports

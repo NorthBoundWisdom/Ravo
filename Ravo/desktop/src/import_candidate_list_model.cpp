@@ -96,11 +96,9 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
 
 void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
 {
-    if (candidate.duplicate)
-        return;
     const int row = rowCount();
     beginInsertRows({}, row, row);
-    const bool selected = select_new_candidates_ && candidate.supported;
+    const bool selected = select_new_candidates_ && candidate.supported && !candidate.duplicate;
     rows_.push_back({std::move(candidate), {}, selected, false, false, 0U});
     endInsertRows();
     emit candidatesChanged();
@@ -139,13 +137,25 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
     if (candidate.relative_path.empty())
         candidate.relative_path = entry.candidate.relative_path;
     candidate.content_sha256 = entry.candidate.content_sha256;
+    // The scan owns content/batch duplicate classification. Thumbnail inspection
+    // checks a single path and cannot revoke that classification in this generation.
+    if (entry.candidate.duplicate)
+    {
+        candidate.duplicate = true;
+        candidate.duplicate_reason = entry.candidate.duplicate_reason;
+        candidate.duplicate_asset_id = entry.candidate.duplicate_asset_id;
+    }
     entry.candidate = std::move(candidate);
     entry.inspected = true;
     if (!entry.candidate.supported || entry.candidate.duplicate)
+    {
         entry.selected = false;
+        entry.highlighted = false;
+    }
     emit dataChanged(index(row, 0), index(row, 0),
                      {MediaTypeRole, WidthRole, HeightRole, SizeBytesRole, SelectedRole,
-                      EligibleRole, DuplicateRole, ErrorRole, InspectedRole, DisplayNameRole});
+                      HighlightedRole, EligibleRole, DuplicateRole, ErrorRole, InspectedRole,
+                      DisplayNameRole});
     if (was_selected != entry.selected)
         emit selectionChanged();
 }
@@ -234,6 +244,9 @@ void ImportCandidateListModel::highlightExclusive(const int row)
 {
     if (row < 0 || row >= rowCount())
         return;
+    if (!rows_[static_cast<std::size_t>(row)].candidate.supported ||
+        rows_[static_cast<std::size_t>(row)].candidate.duplicate)
+        return;
     for (int current = 0; current < rowCount(); ++current)
         rows_[static_cast<std::size_t>(current)].highlighted = current == row;
     emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
@@ -244,6 +257,8 @@ void ImportCandidateListModel::highlightToggle(const int row)
     if (row < 0 || row >= rowCount())
         return;
     auto &entry = rows_[static_cast<std::size_t>(row)];
+    if (!entry.candidate.supported || entry.candidate.duplicate)
+        return;
     entry.highlighted = !entry.highlighted;
     emit dataChanged(index(row, 0), index(row, 0), {HighlightedRole});
 }
@@ -260,7 +275,11 @@ void ImportCandidateListModel::highlightRange(int first, int last, const bool ad
         for (auto &row : rows_)
             row.highlighted = false;
     for (int row = first; row <= last; ++row)
-        rows_[static_cast<std::size_t>(row)].highlighted = true;
+    {
+        auto &entry = rows_[static_cast<std::size_t>(row)];
+        if (entry.candidate.supported && !entry.candidate.duplicate)
+            entry.highlighted = true;
+    }
     emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
 }
 
@@ -269,7 +288,7 @@ void ImportCandidateListModel::highlightAll()
     if (rows_.empty())
         return;
     for (auto &row : rows_)
-        row.highlighted = true;
+        row.highlighted = row.candidate.supported && !row.candidate.duplicate;
     emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
 }
 

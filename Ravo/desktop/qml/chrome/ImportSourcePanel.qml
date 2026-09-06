@@ -30,9 +30,10 @@ Rectangle {
             onClicked: root.chooseRequested()
         }
         CustomCheckBox {
+            objectName: "importIncludeSubfolders"
             text: qsTr("Include subfolders")
             checked: root.presenter.importRecursive
-            onToggled: root.presenter.setImportRecursive(checked)
+            onClicked: root.presenter.setImportRecursive(checked)
         }
         CustomButton {
             Layout.fillWidth: true

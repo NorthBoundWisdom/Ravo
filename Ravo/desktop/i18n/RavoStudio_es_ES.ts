@@ -3570,8 +3570,8 @@ Diferencia: %6</translation>
             <translation>Comprobando %1 de %2…</translation>
         </message>
         <message>
-            <source>Duplicate photos hidden: %1</source>
-            <translation>Fotos duplicadas ocultas: %1</translation>
+            <source>Duplicate photos: %1</source>
+            <translation>Fotos duplicadas: %1</translation>
         </message>
         <message>
             <source>Selected: %1 photos · %2 MB</source>
@@ -3610,8 +3610,8 @@ Diferencia: %6</translation>
             <translation>Elige una carpeta de origen</translation>
         </message>
         <message>
-            <source>No new photos</source>
-            <translation>No hay fotos nuevas</translation>
+            <source>Duplicate photo</source>
+            <translation>Foto duplicada</translation>
         </message>
         <message>
             <source>Unavailable</source>

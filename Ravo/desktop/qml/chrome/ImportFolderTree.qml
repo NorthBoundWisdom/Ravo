@@ -45,45 +45,47 @@ ListView {
             spacing: Fonts.size4
 
             Item {
-                Layout.preferredWidth: Fonts.size16
-                Layout.preferredHeight: Fonts.size16
+                Layout.preferredWidth: Fonts.listItemHeight
+                Layout.fillHeight: true
                 Layout.alignment: Qt.AlignVCenter
-                visible: folderRow.hasChildren
                 CustomLabel {
                     anchors.centerIn: parent
+                    visible: folderRow.hasChildren
                     text: folderRow.collapsed ? "▸" : "▾"
                 }
                 MouseArea {
+                    objectName: "importFolderExpand"
                     anchors.fill: parent
+                    enabled: folderRow.hasChildren
                     cursorShape: Qt.PointingHandCursor
                     onClicked: if (root.folderModel)
                         root.folderModel.toggleCollapsed(folderRow.path)
                 }
             }
             Item {
-                Layout.preferredWidth: Fonts.size16
-                Layout.preferredHeight: 1
-                visible: !folderRow.hasChildren
-            }
-            CustomLabel {
                 Layout.fillWidth: true
+                Layout.fillHeight: true
                 Layout.minimumWidth: 0
-                elide: Text.ElideRight
-                text: folderRow.displayName
-                color: folderRow.errorText.length > 0 ? Theme.errorColor : Theme.textColor
-            }
-        }
-
-        MouseArea {
-            id: folderMouse
-            anchors.fill: parent
-            anchors.leftMargin: Fonts.size4 + folderRow.depth * Fonts.size20 + Fonts.size16
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                if (root.folderModel)
-                    root.folderModel.selectFolder(folderRow.path);
-                root.folderChosen(folderRow.path);
+                CustomLabel {
+                    anchors.fill: parent
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                    text: folderRow.displayName
+                    color: folderRow.errorText.length > 0 ? Theme.errorColor : Theme.textColor
+                }
+                MouseArea {
+                    id: folderMouse
+                    objectName: "importFolderChoose"
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        const chosenPath = folderRow.path;
+                        if (root.folderModel)
+                            root.folderModel.activateFolder(chosenPath);
+                        root.folderChosen(chosenPath);
+                    }
+                }
             }
         }
     }
