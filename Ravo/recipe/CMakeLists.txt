@@ -13,8 +13,11 @@ target_sources(ravo_recipe
     src/color_output.cpp
     src/mask.cpp
     src/lut3d.cpp
+    src/local_adjustment.cpp
+    src/local_mask_gesture.cpp
     src/monochrome.cpp
     src/develop_mask.cpp
+    src/develop_mask_status.cpp
     src/develop_internal.cpp
     src/develop_legacy.cpp
     src/profile_gamma.cpp

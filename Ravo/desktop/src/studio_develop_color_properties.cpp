@@ -121,7 +121,7 @@ constexpr int kColorHarmonizerCustomNodesDecimals = 0;
 
 QVariantMap StudioPresenter::editColorHarmonizer() const
 {
-    const auto &params = develop_.color_harmonizer;
+    const auto &params = edit_develop().color_harmonizer;
     const ColorHarmonizerParams defaults;
     const bool custom_rule = params.rule == ColorHarmonizerRule::kCustom;
     const int active_node_count = static_cast<int>(color_harmonizer_active_node_count(params));
@@ -211,7 +211,7 @@ QVariantMap StudioPresenter::editColorHarmonizer() const
     }
 
     return {
-        {QStringLiteral("enabled"), develop_.color_harmonizer_enabled},
+        {QStringLiteral("enabled"), edit_develop().color_harmonizer_enabled},
         {QStringLiteral("ruleIndex"), static_cast<int>(color_harmonizer_rule_index(params.rule))},
         {QStringLiteral("ruleChoices"), rule_choices},
         {QStringLiteral("customRule"), custom_rule},
@@ -245,14 +245,14 @@ QVariantMap StudioPresenter::editColorHarmonizer() const
 QVariantMap StudioPresenter::editColorHarmonizerMask() const
 {
     return develop_mask_editor_map(
-        develop_mask_editor_state(develop_, DevelopMaskTarget::kColorHarmonizer),
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kColorHarmonizer),
         DevelopMaskTarget::kColorHarmonizer);
 }
 
 QVariantMap StudioPresenter::editColorBalanceRgbMask() const
 {
     return develop_mask_editor_map(
-        develop_mask_editor_state(develop_, DevelopMaskTarget::kColorBalanceRgb),
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kColorBalanceRgb),
         DevelopMaskTarget::kColorBalanceRgb);
 }
 
@@ -271,6 +271,8 @@ void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
     QString normalized = QStringLiteral("color_harmonizer");
     if (target == QLatin1String("graduatednd"))
         normalized = QStringLiteral("graduatednd");
+    else if (target == QLatin1String("local"))
+        normalized = QStringLiteral("local");
     else if (target == QLatin1String("color_balance_rgb"))
         normalized = QStringLiteral("color_balance_rgb");
     else if (target == QLatin1String("exposure"))
@@ -443,12 +445,13 @@ bool StudioPresenter::maskParametricAssistActive() const noexcept
 
 bool StudioPresenter::maskParametricAssistAllowed() const noexcept
 {
-    return mask_place_geometry_allowed(develop_);
+    return localEditing() || mask_place_geometry_allowed(develop_);
 }
 
 void StudioPresenter::setMaskParametricAssistActive(const bool active)
 {
-    const bool enabled = active && mask_overlay_visible_ && mask_place_geometry_allowed(develop_);
+    const bool enabled = active && mask_overlay_visible_ &&
+                         (localEditing() || mask_place_geometry_allowed(develop_));
     if (mask_parametric_assist_active_ == enabled)
         return;
     if (enabled)
@@ -487,7 +490,7 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
         setMaskParametricAssistActive(false);
         return;
     }
-    if (!mask_place_geometry_allowed(develop_))
+    if (!localEditing() && !mask_place_geometry_allowed(develop_))
     {
         setError(QCoreApplication::translate(
                      "DevelopPanel", "Parametric assist is unavailable with Canvas, Perspective, "
@@ -504,8 +507,9 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
         setMaskParametricAssistActive(false);
         return;
     }
-    const auto state = develop_mask_editor_state(develop_, *target);
-    if (!state.attached || !state.editable || state.kind_name != "parametric")
+    const auto state = develop_mask_editor_state(edit_develop(), *target);
+    if (!state.attached || !state.editable ||
+        (state.kind_name != "parametric" && state.child_kind_name != "parametric"))
     {
         setError(QCoreApplication::translate(
             "DevelopPanel", "Parametric assist requires an editable attached parametric mask"));
@@ -580,9 +584,10 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
     }
 
     const QString prefix = develop_mask_field_prefix(*target);
-    DevelopParams next = develop_;
+    DevelopParams next = edit_develop();
     const auto mask_field = utf8_from_qstring(prefix + QStringLiteral("Threshold2"));
-    capture_instance_front_for_field(next, mask_field);
+    if (!localEditing())
+        capture_instance_front_for_field(next, mask_field);
     // Apply mid keys before outer keys so each single-field write stays
     // monotonic against the previous Threshold0..3 snapshot.
     const std::array<std::pair<QString, double>, 4> fields{{
@@ -606,8 +611,10 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
             return;
         }
     }
-    retarget_instance_edit_after_field(next, mask_field);
-    mutate_develop(std::move(next), DevelopEdit::Commit, true, utf8_from_qstring(fields[0].first));
+    if (!localEditing())
+        retarget_instance_edit_after_field(next, mask_field);
+    mutate_scoped_develop(std::move(next), DevelopEdit::Commit, true,
+                          utf8_from_qstring(fields[0].first));
 }
 
 void StudioPresenter::retranslate()
@@ -617,15 +624,15 @@ void StudioPresenter::retranslate()
 
 double StudioPresenter::editMonochrome() const noexcept
 {
-    return develop_.monochrome.mix;
+    return edit_develop().monochrome.mix;
 }
 
 QVariantMap StudioPresenter::editMonochromeFilter() const
 {
-    const auto &params = develop_.monochrome;
-    return {{QStringLiteral("present"), develop_.monochrome_present},
-            {QStringLiteral("enabled"), develop_.monochrome_enabled},
-            {QStringLiteral("masked"), develop_.monochrome_mask_id.has_value()},
+    const auto &params = edit_develop().monochrome;
+    return {{QStringLiteral("present"), edit_develop().monochrome_present},
+            {QStringLiteral("enabled"), edit_develop().monochrome_enabled},
+            {QStringLiteral("masked"), edit_develop().monochrome_mask_id.has_value()},
             {QStringLiteral("filterA"), params.filter_a},
             {QStringLiteral("filterB"), params.filter_b},
             {QStringLiteral("size"), params.size},
@@ -635,30 +642,30 @@ QVariantMap StudioPresenter::editMonochromeFilter() const
 
 double StudioPresenter::editSplitShadowsHue() const noexcept
 {
-    return develop_.split_toning.shadow_hue;
+    return edit_develop().split_toning.shadow_hue;
 }
 
 double StudioPresenter::editSplitHighlightsHue() const noexcept
 {
-    return develop_.split_toning.highlight_hue;
+    return edit_develop().split_toning.highlight_hue;
 }
 
 double StudioPresenter::editSplitBalance() const noexcept
 {
-    return develop_.split_toning.balance;
+    return edit_develop().split_toning.balance;
 }
 
 double StudioPresenter::editSplitAmount() const noexcept
 {
-    return develop_.split_toning.mix;
+    return edit_develop().split_toning.mix;
 }
 
 QVariantMap StudioPresenter::editSplitToning() const
 {
-    const auto &params = develop_.split_toning;
-    return {{QStringLiteral("present"), develop_.split_toning_present},
-            {QStringLiteral("enabled"), develop_.split_toning_enabled},
-            {QStringLiteral("masked"), develop_.split_toning_mask_id.has_value()},
+    const auto &params = edit_develop().split_toning;
+    return {{QStringLiteral("present"), edit_develop().split_toning_present},
+            {QStringLiteral("enabled"), edit_develop().split_toning_enabled},
+            {QStringLiteral("masked"), edit_develop().split_toning_mask_id.has_value()},
             {QStringLiteral("shadowSaturation"), params.shadow_saturation},
             {QStringLiteral("highlightSaturation"), params.highlight_saturation},
             {QStringLiteral("compress"), params.compress},
@@ -667,12 +674,12 @@ QVariantMap StudioPresenter::editSplitToning() const
 
 double StudioPresenter::editGamma() const noexcept
 {
-    return develop_.gamma;
+    return edit_develop().gamma;
 }
 
 QVariantMap StudioPresenter::editRgbLevels() const
 {
-    const auto &params = develop_.rgb_levels;
+    const auto &params = edit_develop().rgb_levels;
     int preserve_index = 1;
     const std::array<std::string_view, 7> names{
         kToneCurvePreserveColorsNone, kToneCurvePreserveColorsLuminance,
@@ -702,12 +709,13 @@ QVariantMap StudioPresenter::editRgbLevels() const
 
 QVariantList StudioPresenter::editToneCurve() const
 {
-    return tone_curve_to_variant(develop_.tone_curve);
+    return tone_curve_to_variant(edit_develop().tone_curve);
 }
 
 QVariantList StudioPresenter::editToneCurveSamples() const
 {
-    return tone_curve_sample_list(develop_.tone_curve, develop_.tone_curve_interpolation);
+    return tone_curve_sample_list(edit_develop().tone_curve,
+                                  edit_develop().tone_curve_interpolation);
 }
 
 } // namespace ravo

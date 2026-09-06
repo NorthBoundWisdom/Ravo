@@ -139,6 +139,14 @@ mask branches stay unsupported presentation adapters.
 
 ## Migration ledger
 
+ADR-0158 adds Recipe v4 local-adjustment groups and the Global/Mask workspace.
+Older per-operation masks remain readable; the editing projection promotes
+each to a single-child group at its original pipeline position and retains
+pixel behavior. A read does not rewrite stored recipes or history. New groups
+blend their complete photographic RGB chain once against a canonical mask;
+technical RAW, profile, geometry and output operations remain global. This is
+Ravo product work, not a leftover mask-manager port.
+
 | Capability | Old owner | Ravo owner | Status | Current evidence / next gate |
 | --- | --- | --- | --- | --- |
 | Basic errors/cancellation | `src/common`, `src/control` | foundation | In progress | cancellation/deadline and SerialExecutor submit/wait_idle are tested |

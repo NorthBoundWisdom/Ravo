@@ -13,6 +13,11 @@ Item {
     readonly property var ids: controller ? controller.ids : ({})
     readonly property bool hasSelection: presenter && presenter.selectedAssetId.length > 0
 
+    function localAdjustment(action, arguments) {
+        if (root.controller)
+            return root.controller.localAdjustment(action, arguments || {});
+    }
+
     function run(id, argument, source) {
         if (root.controller)
             root.controller.executeCommand(id, argument === undefined ? null : argument, source === undefined ? "control" : source);

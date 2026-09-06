@@ -4,6 +4,7 @@ target_sources(ravo_cli
   PRIVATE
     src/application.cpp
     src/application_catalog.cpp
+    src/application_catalog_mask.cpp
     src/application_catalog_args.cpp
     src/application_catalog_metadata_args.cpp
     src/application_catalog_support.cpp

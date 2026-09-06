@@ -160,6 +160,9 @@ StudioPresenter::StudioPresenter(QObject *parent)
     , import_source_folders_(this)
     , import_destination_folders_(this)
 {
+    connect(this, &StudioPresenter::editChanged, this, &StudioPresenter::sync_local_edit_scope);
+    connect(this, &StudioPresenter::previewChanged, this, &StudioPresenter::sync_local_edit_scope,
+            Qt::QueuedConnection);
     const auto bind_browser = [this](FilesystemBrowserModel *browser)
     {
         QObject::connect(browser, &FilesystemBrowserModel::directoryListingRequested, this,

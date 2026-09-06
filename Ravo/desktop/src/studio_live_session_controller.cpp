@@ -15,6 +15,7 @@
 #include <QFileInfo>
 #include <QString>
 #include <QUuid>
+#include <QJsonDocument>
 
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_presenter.h"
@@ -486,6 +487,18 @@ JsonValue StudioLiveSessionController::snapshot() const
         {"recipe", std::move(recipe)},
         {"revision", JsonValue::number(std::to_string(session_revision_))},
         {"schema_version", JsonValue::number("1")},
+        {"editing_scope",
+         JsonValue::Object{
+             {"schema_version", JsonValue::number("1")},
+             {"kind", presenter_.localEditing() ? "local" : "global"},
+             {"local_id", utf8_from_qstring(presenter_.activeLocalId())},
+             {"done_pending", presenter_.localDonePending()},
+             {"component_index", JsonValue::number(std::to_string(
+                                     presenter_.local_projection_.local_mask_child_index))},
+             {"point_index", JsonValue::number(std::to_string(
+                                 presenter_.local_projection_.local_mask_point_index))},
+             {"drawing", presenter_.maskDrawingActive()},
+             {"gesture_token", utf8_from_qstring(presenter_.mask_gesture_token_)}}},
         {"selection", std::move(selection)},
         {"session_id", descriptor_.session_id},
         {"status", utf8_from_qstring(presenter_.status_text_)},
@@ -502,6 +515,49 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
             return make_error(ErrorCode::kInvalidArgument,
                               "Studio state request does not accept parameters");
         return snapshot();
+    }
+    if (request.method == "mask")
+    {
+        auto params = require_object(request.params, "params");
+        if (!params)
+            return params.error();
+        auto known =
+            reject_unknown(*params.value(),
+                           {"asset_id", "expected_session_revision", "expected_selection_revision",
+                            "expected_recipe_revision", "action", "arguments"},
+                           "params");
+        if (!known)
+            return known.error();
+        auto asset = string_field(*params.value(), "asset_id", 256U);
+        auto action = string_field(*params.value(), "action", 64U);
+        auto session = integer_field<std::uint64_t>(*params.value(), "expected_session_revision");
+        auto selection =
+            integer_field<std::uint64_t>(*params.value(), "expected_selection_revision");
+        auto recipe = integer_field<std::uint64_t>(*params.value(), "expected_recipe_revision");
+        const auto arguments = params.value()->find("arguments");
+        if (!asset || !action || !session || !selection || !recipe ||
+            arguments == params.value()->end() || !arguments->second.object_if())
+            return make_error(
+                ErrorCode::kInvalidArgument,
+                "Mask request requires explicit target, revisions, action and arguments",
+                {{"reason", "invalid_mask_request"}});
+        if (asset.value() != utf8_from_qstring(presenter_.selected_asset_id_) ||
+            session.value() != session_revision_ || selection.value() != selection_revision_ ||
+            recipe.value() != recipe_revision_)
+            return make_error(ErrorCode::kConflict, "Mask request is stale",
+                              {{"reason", "stale_mask_request"}});
+        const auto text = serialize_json(arguments->second);
+        if (text.size() > 65536)
+            return make_error(ErrorCode::kInvalidArgument, "Mask arguments exceed the limit");
+        auto map = QJsonDocument::fromJson(QByteArray::fromStdString(text)).toVariant().toMap();
+        auto applied = commands_.applyLocalAdjustment(qstring_from_utf8(action.value()), map);
+        if (!applied)
+            return applied.error();
+        auto state = snapshot();
+        auto object = *state.object_if();
+        object.emplace("mutation",
+                       JsonValue::Object{{"applied", applied.value()}, {"action", action.value()}});
+        return JsonValue{std::move(object)};
     }
     if (request.method != "develop")
     {

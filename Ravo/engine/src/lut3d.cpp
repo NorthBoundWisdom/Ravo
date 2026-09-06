@@ -37,8 +37,7 @@ struct LoadedCubeFile
 };
 
 [[nodiscard]] TaskError cube_error(const ErrorCode code, const std::string_view message,
-                                   const std::string_view reason,
-                                   const std::string_view path = {},
+                                   const std::string_view reason, const std::string_view path = {},
                                    const std::size_t line = 0U)
 {
     std::map<std::string, std::string, std::less<>> context{{"reason", std::string(reason)}};
@@ -51,10 +50,10 @@ struct LoadedCubeFile
 
 [[nodiscard]] std::string trim_copy(const std::string_view value)
 {
-    const auto first = std::find_if_not(value.begin(), value.end(), [](const unsigned char c)
-                                        { return std::isspace(c) != 0; });
-    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](const unsigned char c)
-                                       { return std::isspace(c) != 0; })
+    const auto first = std::find_if_not(value.begin(), value.end(),
+                                        [](const unsigned char c) { return std::isspace(c) != 0; });
+    const auto last = std::find_if_not(value.rbegin(), value.rend(),
+                                       [](const unsigned char c) { return std::isspace(c) != 0; })
                           .base();
     return first < last ? std::string(first, last) : std::string{};
 }
@@ -62,9 +61,8 @@ struct LoadedCubeFile
 [[nodiscard]] bool starts_with_word(const std::string_view line,
                                     const std::string_view word) noexcept
 {
-    return line == word ||
-           (line.size() > word.size() && line.starts_with(word) &&
-            std::isspace(static_cast<unsigned char>(line[word.size()])) != 0);
+    return line == word || (line.size() > word.size() && line.starts_with(word) &&
+                            std::isspace(static_cast<unsigned char>(line[word.size()])) != 0);
 }
 
 [[nodiscard]] bool parse_three_floats(const std::string_view text, std::array<float, 3> &values)
@@ -100,8 +98,8 @@ struct LoadedCubeFile
     return stream.str();
 }
 
-[[nodiscard]] Result<LoadedCubeFile>
-read_cube_file(const std::string_view path, const CancellationToken &cancellation)
+[[nodiscard]] Result<LoadedCubeFile> read_cube_file(const std::string_view path,
+                                                    const CancellationToken &cancellation)
 try
 {
     auto active = cancellation.check();
@@ -118,17 +116,16 @@ try
                           "lut_path_resolution_failed", path);
     absolute = absolute.lexically_normal();
     std::string extension = absolute.extension().string();
-    std::transform(extension.begin(), extension.end(), extension.begin(), [](const unsigned char c)
-                   { return static_cast<char>(std::tolower(c)); });
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
     if (extension != ".cube")
         return cube_error(ErrorCode::kUnsupported, "Only .cube 3D LUT files are supported",
                           "unsupported_lut_format", absolute.string());
     const auto size = std::filesystem::file_size(absolute, error);
     if (error)
         return cube_error(error == std::errc::no_such_file_or_directory ? ErrorCode::kNotFound :
-                                                                       ErrorCode::kIo,
-                          "3D LUT file is unavailable", "lut_file_unavailable",
-                          absolute.string());
+                                                                          ErrorCode::kIo,
+                          "3D LUT file is unavailable", "lut_file_unavailable", absolute.string());
     if (size == 0U || size > kCubeLutMaximumFileBytes ||
         size > static_cast<std::uintmax_t>(std::string{}.max_size()))
         return cube_error(ErrorCode::kValidation, "3D LUT file size is invalid",
@@ -136,8 +133,8 @@ try
 
     std::ifstream file(absolute, std::ios::binary);
     if (!file)
-        return cube_error(ErrorCode::kIo, "3D LUT file could not be opened",
-                          "lut_open_failed", absolute.string());
+        return cube_error(ErrorCode::kIo, "3D LUT file could not be opened", "lut_open_failed",
+                          absolute.string());
     std::string bytes;
     bytes.reserve(static_cast<std::size_t>(size));
     std::array<char, 64U * 1024U> chunk{};
@@ -165,8 +162,7 @@ try
 }
 catch (const std::bad_alloc &)
 {
-    return cube_error(ErrorCode::kIo, "3D LUT file allocation failed", "allocation_failed",
-                      path);
+    return cube_error(ErrorCode::kIo, "3D LUT file allocation failed", "allocation_failed", path);
 }
 
 [[nodiscard]] Result<std::shared_ptr<const CubeLut>>
@@ -213,8 +209,9 @@ try
             if (starts_with_word(line, "TITLE"))
             {
                 if (data_started || has_title)
-                    return cube_error(ErrorCode::kValidation, "3D LUT TITLE is misplaced or repeated",
-                                      "invalid_lut_title", lut->canonical_path, line_number);
+                    return cube_error(ErrorCode::kValidation,
+                                      "3D LUT TITLE is misplaced or repeated", "invalid_lut_title",
+                                      lut->canonical_path, line_number);
                 std::string title = trim_copy(std::string_view(line).substr(5U));
                 if (title.size() >= 2U && title.front() == '"' && title.back() == '"')
                     title = title.substr(1U, title.size() - 2U);
@@ -228,8 +225,8 @@ try
             {
                 if (data_started || has_size)
                     return cube_error(ErrorCode::kValidation,
-                                      "3D LUT size is misplaced or repeated",
-                                      "invalid_lut_size", lut->canonical_path, line_number);
+                                      "3D LUT size is misplaced or repeated", "invalid_lut_size",
+                                      lut->canonical_path, line_number);
                 std::istringstream stream{trim_copy(std::string_view(line).substr(11U))};
                 stream.imbue(std::locale::classic());
                 std::uint64_t size = 0U;
@@ -243,8 +240,7 @@ try
                 lut->values.reserve(static_cast<std::size_t>(count));
                 has_size = true;
             }
-            else if (starts_with_word(line, "DOMAIN_MIN") ||
-                     starts_with_word(line, "DOMAIN_MAX"))
+            else if (starts_with_word(line, "DOMAIN_MIN") || starts_with_word(line, "DOMAIN_MAX"))
             {
                 const bool minimum = line.starts_with("DOMAIN_MIN");
                 bool &seen = minimum ? has_domain_min : has_domain_max;
@@ -262,20 +258,19 @@ try
             {
                 if (!has_size)
                     return cube_error(ErrorCode::kValidation,
-                                      "3D LUT data appears before LUT_3D_SIZE",
-                                      "lut_size_missing", lut->canonical_path, line_number);
+                                      "3D LUT data appears before LUT_3D_SIZE", "lut_size_missing",
+                                      lut->canonical_path, line_number);
                 std::array<float, 3> value{};
                 if (!parse_three_floats(line, value))
                     return cube_error(ErrorCode::kValidation,
                                       "3D LUT contains an unknown directive or malformed sample",
                                       "invalid_lut_sample", lut->canonical_path, line_number);
                 data_started = true;
-                const std::uint64_t expected = static_cast<std::uint64_t>(lut->size) * lut->size *
-                                               lut->size;
+                const std::uint64_t expected =
+                    static_cast<std::uint64_t>(lut->size) * lut->size * lut->size;
                 if (lut->values.size() >= expected)
                     return cube_error(ErrorCode::kValidation, "3D LUT contains too many samples",
-                                      "invalid_lut_sample_count", lut->canonical_path,
-                                      line_number);
+                                      "invalid_lut_sample_count", lut->canonical_path, line_number);
                 lut->values.push_back(value);
             }
         }
@@ -315,21 +310,18 @@ catch (const std::bad_alloc &)
     return std::string(kInputProfileLinearRec709);
 }
 
-[[nodiscard]] float signed_transfer(const float value,
-                                    float (*positive)(float) noexcept) noexcept
+[[nodiscard]] float signed_transfer(const float value, float (*positive)(float) noexcept) noexcept
 {
     return std::signbit(value) ? -positive(-value) : positive(value);
 }
 
 [[nodiscard]] float srgb_encode_positive(const float value) noexcept
 {
-    return value <= 0.0031308F ? 12.92F * value :
-                                1.055F * std::pow(value, 1.0F / 2.4F) - 0.055F;
+    return value <= 0.0031308F ? 12.92F * value : 1.055F * std::pow(value, 1.0F / 2.4F) - 0.055F;
 }
 [[nodiscard]] float srgb_decode_positive(const float value) noexcept
 {
-    return value <= 0.04045F ? value / 12.92F :
-                               std::pow((value + 0.055F) / 1.055F, 2.4F);
+    return value <= 0.04045F ? value / 12.92F : std::pow((value + 0.055F) / 1.055F, 2.4F);
 }
 [[nodiscard]] float rec709_encode_positive(const float value) noexcept
 {
@@ -374,8 +366,7 @@ catch (const std::bad_alloc &)
                                                  const std::uint32_t green,
                                                  const std::uint32_t blue) noexcept
 {
-    const auto index = static_cast<std::size_t>(red) +
-                       static_cast<std::size_t>(lut.size) * green +
+    const auto index = static_cast<std::size_t>(red) + static_cast<std::size_t>(lut.size) * green +
                        static_cast<std::size_t>(lut.size) * lut.size * blue;
     return lut.values[index];
 }
@@ -400,8 +391,8 @@ catch (const std::bad_alloc &)
                 const float weight = (red ? fraction[0] : 1.0F - fraction[0]) *
                                      (green ? fraction[1] : 1.0F - fraction[1]) *
                                      (blue ? fraction[2] : 1.0F - fraction[2]);
-                const auto &corner = sample(lut, red ? high[0] : low[0],
-                                            green ? high[1] : low[1], blue ? high[2] : low[2]);
+                const auto &corner = sample(lut, red ? high[0] : low[0], green ? high[1] : low[1],
+                                            blue ? high[2] : low[2]);
                 for (std::size_t channel = 0U; channel < 3U; ++channel)
                     result[channel] += weight * corner[channel];
             }
@@ -475,8 +466,8 @@ struct Lut3dCache::Impl
     std::list<Entry> entries;
 };
 
-Result<std::shared_ptr<const CubeLut>>
-Lut3dCache::load(const std::string_view path, const CancellationToken &cancellation)
+Result<std::shared_ptr<const CubeLut>> Lut3dCache::load(const std::string_view path,
+                                                        const CancellationToken &cancellation)
 {
     auto file = read_cube_file(path, cancellation);
     if (!file)
@@ -489,8 +480,8 @@ Lut3dCache::load(const std::string_view path, const CancellationToken &cancellat
         }
         catch (const std::bad_alloc &)
         {
-            return cube_error(ErrorCode::kIo, "3D LUT cache allocation failed",
-                              "allocation_failed", path);
+            return cube_error(ErrorCode::kIo, "3D LUT cache allocation failed", "allocation_failed",
+                              path);
         }
     }
     {
@@ -513,12 +504,13 @@ Lut3dCache::load(const std::string_view path, const CancellationToken &cancellat
         return parsed.error();
     {
         std::lock_guard lock(impl_->mutex);
-        const auto duplicate = std::find_if(impl_->entries.begin(), impl_->entries.end(),
-                                             [&](const Impl::Entry &entry)
-                                             {
-                                                 return entry.path == parsed.value()->canonical_path &&
-                                                        entry.fingerprint == parsed.value()->fingerprint;
-                                             });
+        const auto duplicate =
+            std::find_if(impl_->entries.begin(), impl_->entries.end(),
+                         [&](const Impl::Entry &entry)
+                         {
+                             return entry.path == parsed.value()->canonical_path &&
+                                    entry.fingerprint == parsed.value()->fingerprint;
+                         });
         if (duplicate != impl_->entries.end())
         {
             auto lut = duplicate->lut;
@@ -550,9 +542,9 @@ try
     if (!canonical)
         return canonical.error();
     const std::uint64_t pixels = static_cast<std::uint64_t>(input.width) * input.height;
-    if (input.width == 0U || input.height == 0U ||
-        pixels > std::vector<float>{}.max_size() / 3U || input.rgb.size() != pixels * 3U ||
-        input.color_profile.model != ColorModel::kRgb || !input.color_profile.has_matrix ||
+    if (input.width == 0U || input.height == 0U || pixels > std::vector<float>{}.max_size() / 3U ||
+        input.rgb.size() != pixels * 3U || input.color_profile.model != ColorModel::kRgb ||
+        !input.color_profile.has_matrix ||
         input.color_profile.identifier != kInputProfileLinearRec709)
         return cube_error(ErrorCode::kValidation, "3D LUT input buffer is invalid",
                           "invalid_lut_input");
@@ -589,8 +581,7 @@ try
             return active.error();
         for (std::uint32_t column = 0U; column < input.width; ++column)
         {
-            const std::size_t offset =
-                (static_cast<std::size_t>(row) * input.width + column) * 3U;
+            const std::size_t offset = (static_cast<std::size_t>(row) * input.width + column) * 3U;
             std::array<float, 3> position{};
             for (std::size_t channel = 0U; channel < 3U; ++channel)
             {
@@ -608,17 +599,16 @@ try
             {
                 const float decoded = transfer_decode(mapped[channel], params.output_space);
                 if (!std::isfinite(decoded))
-                    return cube_error(ErrorCode::kValidation,
-                                      "3D LUT produced a non-finite output",
+                    return cube_error(ErrorCode::kValidation, "3D LUT produced a non-finite output",
                                       "nonfinite_lut_output", lut.value()->canonical_path);
                 transformed.rgb[offset + channel] = decoded;
             }
         }
     }
-    auto canonical_output = output_profile == kInputProfileLinearRec709 ?
-                                Result<LinearWorkingBuffer>{std::move(transformed)} :
-                                convert_working_profile(transformed, kInputProfileLinearRec709,
-                                                        cancellation);
+    auto canonical_output =
+        output_profile == kInputProfileLinearRec709 ?
+            Result<LinearWorkingBuffer>{std::move(transformed)} :
+            convert_working_profile(transformed, kInputProfileLinearRec709, cancellation);
     if (!canonical_output)
         return canonical_output.error();
     const float strength = static_cast<float>(params.strength);
@@ -652,6 +642,23 @@ try
     bool found = false;
     for (const auto &operation : recipe.operations)
     {
+        if (operation.enabled && !operation.bypass && operation.id == kLocalAdjustmentOperationId)
+        {
+            Recipe nested;
+            nested.operations = operation.children;
+            auto fingerprint = lut3d_recipe_cache_fingerprint(nested, cache, cancellation);
+            if (!fingerprint)
+                return fingerprint.error();
+            if (fingerprint.value() != "none")
+            {
+                found = true;
+                combined.append("|")
+                    .append(operation.instance_id)
+                    .append("|")
+                    .append(fingerprint.value());
+            }
+            continue;
+        }
         if (!operation.enabled || operation.id != kLut3dOperationId)
             continue;
         auto params = lut3d_from_parameters(operation.parameters);
@@ -661,15 +668,16 @@ try
         if (!lut)
             return lut.error();
         found = true;
-        combined.append("|").append(operation.instance_id).append("|").append(
-            lut.value()->fingerprint);
+        combined.append("|")
+            .append(operation.instance_id)
+            .append("|")
+            .append(lut.value()->fingerprint);
     }
     return found ? fnv1a64(combined) : std::string("none");
 }
 catch (const std::bad_alloc &)
 {
-    return cube_error(ErrorCode::kIo, "3D LUT fingerprint allocation failed",
-                      "allocation_failed");
+    return cube_error(ErrorCode::kIo, "3D LUT fingerprint allocation failed", "allocation_failed");
 }
 
 } // namespace ravo

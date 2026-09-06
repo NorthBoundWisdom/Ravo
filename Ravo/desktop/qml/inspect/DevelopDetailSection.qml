@@ -224,6 +224,7 @@ DevelopSection {
         }
         ColumnLayout {
             id: retouchEditor
+            visible: !panel.localEditing
             Layout.fillWidth: true
             spacing: 6
             property int draftMode: 1

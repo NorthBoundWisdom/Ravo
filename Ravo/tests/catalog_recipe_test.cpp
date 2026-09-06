@@ -163,7 +163,7 @@ TEST_F(CatalogServiceTest, ReopenUpgradesStoredRecipeV1ToExplicitColorBoundaries
     ASSERT_TRUE(open_service(false));
     auto restored = service->load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
-    EXPECT_EQ(restored.value().schema_version, 3);
+    EXPECT_EQ(restored.value().schema_version, 4);
     ASSERT_EQ(restored.value().operations.size(), 3U);
     EXPECT_EQ(restored.value().operations.front().id, "ravo.color.input");
     EXPECT_EQ(restored.value().operations[1].id, "ravo.core.exposure");
@@ -717,9 +717,8 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
         for (int sample = 0; sample < rapidraw_export_rgb.width() * 3; ++sample)
         {
             maximum_gpu_delta =
-                std::max(maximum_gpu_delta,
-                         std::abs(static_cast<int>(export_row[sample]) -
-                                  static_cast<int>(preview_row[sample])));
+                std::max(maximum_gpu_delta, std::abs(static_cast<int>(export_row[sample]) -
+                                                     static_cast<int>(preview_row[sample])));
         }
     }
     EXPECT_LE(maximum_gpu_delta, 1);

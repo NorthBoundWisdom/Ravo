@@ -37,6 +37,7 @@ DevelopSection {
 
                 CustomComboBox {
                     Layout.fillWidth: true
+                    visible: !panel.localEditing
                     model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
                     enabled: panel.hasSelection
                     currentIndex: panel.hasPresenter ? panel.presenter.editWhiteBalance.modeIndex : 0
@@ -45,6 +46,7 @@ DevelopSection {
                 }
                 CustomCheckBox {
                     objectName: "whiteBalancePickActive"
+                    visible: !panel.localEditing
                     text: qsTr("Pick white on photo")
                     enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editWhiteBalance.canPick
                     checked: panel.hasPresenter && panel.presenter.whiteBalancePickActive
@@ -108,7 +110,7 @@ DevelopSection {
                     delegate: DevelopColorSlider {
                         required property var modelData
                         Layout.fillWidth: true
-                        visible: true
+                        visible: !panel.localEditing || modelData.field !== "whiteBalanceFourth"
                         title: modelData.title
                         from: 0.000001
                         to: 8
@@ -465,11 +467,6 @@ DevelopSection {
                         modelData.commands.resetControl(modelData.field)
                 }
             }
-        }
-        MaskEditor {
-            panel: sectionRoot.panel
-            objectName: "colorBalanceRgbMaskEditor"
-            mask: panel.hasPresenter ? panel.presenter.editColorBalanceRgbMask : ({})
         }
     }
 }

@@ -1247,11 +1247,11 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         add_working_bytes(estimate_dng_opcode_memory(*raw.dng_opcodes));
     }
     bool owns_raw_copy = false;
-    for (const auto &operation : recipe.operations)
+    const auto account_operation = [&](const OperationInstance &operation) noexcept
     {
         if (!operation.enabled)
         {
-            continue;
+            return;
         }
         if (operation.id == "ravo.raw.hotpixels" || operation.id == "ravo.raw.highlights" ||
             operation.id == "ravo.raw.cacorrect" || operation.id == "ravo.raw.denoise")
@@ -1607,6 +1607,21 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
                 estimate_mask_evaluator_memory(recipe.masks, *operation.mask_id, width, height);
             add_working_bytes(mask_memory.alpha_plane_bytes);
             add_working_bytes(mask_memory.evaluator_scratch_bytes);
+        }
+    };
+    for (const auto &operation : recipe.operations)
+    {
+        account_operation(operation);
+        if (operation.enabled && !operation.bypass && operation.id == kLocalAdjustmentOperationId)
+        {
+            if (operation.children.size() > kLocalAdjustmentMaxOperations)
+                return std::numeric_limits<std::uint64_t>::max();
+            for (const auto &child : operation.children)
+            {
+                if (!child.children.empty())
+                    return std::numeric_limits<std::uint64_t>::max();
+                account_operation(child);
+            }
         }
     }
     // A RAW repair operation copies the decoded frame before mutation. Its

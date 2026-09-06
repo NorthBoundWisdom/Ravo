@@ -50,6 +50,8 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
 {
     switch (target)
     {
+    case DevelopMaskTarget::kLocal:
+        return QStringLiteral("localMask");
     case DevelopMaskTarget::kColorHarmonizer:
         return QStringLiteral("colorHarmonizerMask");
     case DevelopMaskTarget::kGraduatedNd:
@@ -77,6 +79,8 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
 [[nodiscard]] std::optional<DevelopMaskTarget>
 develop_mask_target_from_name(const std::string_view name) noexcept
 {
+    if (name == "local")
+        return DevelopMaskTarget::kLocal;
     if (name == "color_harmonizer")
         return DevelopMaskTarget::kColorHarmonizer;
     if (name == "graduatednd")

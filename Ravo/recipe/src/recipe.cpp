@@ -1,4 +1,5 @@
 #include "ravo/recipe/recipe.h"
+#include "ravo/recipe/local_adjustment.h"
 
 #include <algorithm>
 #include <charconv>
@@ -278,7 +279,8 @@ required_field(const JsonObject &object, const std::string_view name, const std:
 }
 
 [[nodiscard]] Result<OperationInstance> parse_operation(const JsonValue &value,
-                                                        const std::string_view path)
+                                                        const std::string_view path,
+                                                        const bool allow_children = true)
 {
     auto object = object_at(value, path);
     if (!object)
@@ -286,8 +288,8 @@ required_field(const JsonObject &object, const std::string_view name, const std:
         return object.error();
     }
     auto fields = reject_unknown_fields(*object.value(),
-                                        {"bypass", "enabled", "id", "instance_id", "mask_id",
-                                         "name", "parameters", "schema_version"},
+                                        {"bypass", "children", "enabled", "id", "instance_id",
+                                         "mask_id", "name", "parameters", "schema_version"},
                                         path);
     if (!fields)
     {
@@ -367,6 +369,23 @@ required_field(const JsonObject &object, const std::string_view name, const std:
             return parsed_bypass.error();
         }
         operation.bypass = parsed_bypass.value();
+    }
+    if (const auto children = object.value()->find("children"); children != object.value()->end())
+    {
+        const auto *array = children->second.array_if();
+        if (!allow_children || operation.id != kLocalAdjustmentOperationId || !array ||
+            array->size() > kLocalAdjustmentMaxOperations)
+            return make_error(ErrorCode::kValidation, "Invalid local adjustment children",
+                              {{"reason", "invalid_local_adjustment_children"}});
+        for (std::size_t index = 0; index < array->size(); ++index)
+        {
+            auto child = parse_operation(
+                (*array)[index], std::string(path) + ".children[" + std::to_string(index) + "]",
+                false);
+            if (!child)
+                return child.error();
+            operation.children.push_back(std::move(child).value());
+        }
     }
     return operation;
 }
@@ -543,6 +562,21 @@ Result<JsonValue> parameter_value_to_json(const ParameterValue &value)
     return make_error(ErrorCode::kInternal, "Unreachable parameter value kind while serializing");
 }
 
+bool ParameterValue::operator==(const ParameterValue &other) const noexcept
+{
+    if (value.index() == other.value.index())
+        return value == other.value;
+    const auto equal_number = [](const Storage &integer_storage, const Storage &real_storage)
+    {
+        const auto *integer = std::get_if<std::int64_t>(&integer_storage);
+        const auto *real = std::get_if<double>(&real_storage);
+        constexpr double limit = 9223372036854775808.0;
+        return integer && real && std::isfinite(*real) && *real >= -limit && *real < limit &&
+               std::trunc(*real) == *real && *integer == static_cast<std::int64_t>(*real);
+    };
+    return equal_number(value, other.value) || equal_number(other.value, value);
+}
+
 Result<Recipe> parse_recipe_json(const std::string_view text)
 {
     auto json = parse_json(text);
@@ -602,6 +636,9 @@ Result<Recipe> parse_recipe_json(const std::string_view text)
         {
             return operation.error();
         }
+        if (recipe.schema_version < 4 && operation.value().id == kLocalAdjustmentOperationId)
+            return make_error(ErrorCode::kUnsupported, "Local adjustments require recipe v4",
+                              {{"reason", "local_adjustment_requires_v4"}});
         recipe.operations.push_back(std::move(operation).value());
     }
     recipe.masks.reserve(mask_array->size());
@@ -742,9 +779,13 @@ Result<Recipe> upgrade_recipe(Recipe recipe)
     }
     if (recipe.schema_version == 3)
     {
+        recipe.schema_version = 4;
+    }
+    if (recipe.schema_version == 4)
+    {
         return recipe;
     }
-    if (recipe.schema_version > 3)
+    if (recipe.schema_version > 4)
     {
         return make_error(ErrorCode::kUnsupported, "Recipe schema version is newer than Ravo",
                           {{"schema_version", std::to_string(recipe.schema_version)}});
@@ -800,6 +841,22 @@ Result<JsonValue> recipe_to_json(const Recipe &recipe)
         {
             entry.emplace("bypass", true);
         }
+        if (operation.id == kLocalAdjustmentOperationId || !operation.children.empty())
+        {
+            if (operation.id != kLocalAdjustmentOperationId ||
+                operation.children.size() > kLocalAdjustmentMaxOperations ||
+                std::any_of(
+                    operation.children.begin(), operation.children.end(), [](const auto &child)
+                    { return !child.children.empty() || child.id == kLocalAdjustmentOperationId; }))
+                return make_error(ErrorCode::kValidation, "Invalid local adjustment children",
+                                  {{"reason", "invalid_local_adjustment_children"}});
+            Recipe child_recipe;
+            child_recipe.operations = operation.children;
+            auto encoded = recipe_to_json(child_recipe);
+            if (!encoded)
+                return encoded.error();
+            entry.emplace("children", encoded.value().object_if()->at("operations"));
+        }
         operations.emplace_back(std::move(entry));
     }
 
@@ -833,7 +890,7 @@ Result<std::string> serialize_recipe(const Recipe &recipe)
 
 Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &registry)
 {
-    if (recipe.schema_version != 3)
+    if (recipe.schema_version != 3 && recipe.schema_version != 4)
     {
         return make_error(ErrorCode::kUnsupported, "Unsupported recipe schema version",
                           {{"schema_version", std::to_string(recipe.schema_version)}});
@@ -843,6 +900,11 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
         return make_error(ErrorCode::kValidation,
                           "Recipe asset ID and input URI must not be empty");
     }
+    if (std::count_if(recipe.operations.begin(), recipe.operations.end(), [](const auto &operation)
+                      { return operation.id == kLocalAdjustmentOperationId; }) >
+        static_cast<std::ptrdiff_t>(kLocalAdjustmentMaxCount))
+        return make_error(ErrorCode::kValidation, "Too many local adjustments",
+                          {{"reason", "local_adjustment_limit"}});
 
     auto mask_graph = validate_mask_graph(recipe.masks);
     if (!mask_graph)
@@ -940,6 +1002,18 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                               {{"instance_id", operation.instance_id}});
         }
         const auto *descriptor = registry.find(operation.id);
+        if (operation.id == kLocalAdjustmentOperationId)
+        {
+            if (recipe.schema_version < 4)
+                return make_error(ErrorCode::kUnsupported, "Local adjustments require recipe v4",
+                                  {{"reason", "local_adjustment_requires_v4"}});
+            auto local = validate_local_adjustment(operation, registry);
+            if (!local)
+                return local.error();
+        }
+        else if (!operation.children.empty())
+            return make_error(ErrorCode::kValidation, "Only local adjustments may own children",
+                              {{"reason", "invalid_local_adjustment_children"}});
         if (descriptor == nullptr)
         {
             return make_error(ErrorCode::kUnsupported, "Recipe references an unknown operation",

@@ -13,8 +13,11 @@ QString combined_develop_qml_source()
 {
     const QFileInfo panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
     const QDir directory = panel.dir();
-    static constexpr std::array<const char *, 31> files{
+    static constexpr std::array<const char *, 34> files{
         "DevelopPanel.qml",
+        "DevelopAdjustmentStack.qml",
+        "LocalAdjustmentWorkspace.qml",
+        "LocalMaskOverlay.qml",
         "DevelopLightSection.qml",
         "DevelopInstanceChrome.qml",
         "DevelopCurvesSection.qml",

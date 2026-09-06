@@ -29,6 +29,7 @@ inline constexpr std::size_t kCanonicalMaskMaxExpandedNodes = 256U;
 inline constexpr std::size_t kCanonicalMaskMinPathPoints = 3U;
 inline constexpr std::size_t kCanonicalMaskMinBrushPoints = 2U;
 inline constexpr std::size_t kCanonicalMaskMaxPathPoints = 32U;
+inline constexpr std::size_t kCanonicalMaskMaxBrushPoints = 1024U;
 inline constexpr std::size_t kCanonicalMaskMaxTessellatedSamples = 65536U;
 
 // These are the canonical validator bounds. Presentation may choose a coarser

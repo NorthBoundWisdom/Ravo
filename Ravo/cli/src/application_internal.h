@@ -248,5 +248,7 @@ run_perspective_analysis(const EngineFacade &engine, std::span<const std::string
                                                    std::span<const std::string_view> positional);
 [[nodiscard]] Result<JsonValue> run_catalog_command(const EngineFacade &engine,
                                                     std::span<const std::string_view> positional);
+[[nodiscard]] Result<JsonValue>
+run_catalog_mask_command(const EngineFacade &engine, std::span<const std::string_view> positional);
 
 } // namespace ravo::cli_internal

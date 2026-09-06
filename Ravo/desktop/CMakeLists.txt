@@ -47,6 +47,8 @@ target_sources(ravo_desktop
     src/studio_develop_commands.cpp
     src/studio_develop_history.cpp
     src/studio_develop_instances.cpp
+    src/studio_local_adjustments.cpp
+    src/studio_mask_gestures.cpp
     src/studio_develop_internal.cpp
     src/studio_develop_properties.cpp
     src/studio_develop_raw_properties.cpp
@@ -193,6 +195,9 @@ qt_add_qml_module(ravo_studio
     qml/inspect/DevelopHistoryPanel.qml
     qml/inspect/DevelopPresetPanel.qml
     qml/inspect/DevelopPanel.qml
+    qml/inspect/DevelopAdjustmentStack.qml
+    qml/inspect/LocalAdjustmentWorkspace.qml
+    qml/inspect/LocalMaskOverlay.qml
     qml/inspect/DevelopSection.qml
     qml/inspect/CurveOptionButton.qml
     qml/inspect/MixerSlider.qml

@@ -1,5 +1,6 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/local_adjustment.h"
 
 #include "develop_internal.h"
 
@@ -479,6 +480,7 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
     }
     else if (field == "masks")
     {
+        destination.local_adjustments = source.local_adjustments;
         destination.velvia_mask_id = source.velvia_mask_id;
         destination.color_zones_mask_id = source.color_zones_mask_id;
         destination.color_harmonizer_mask_id = source.color_harmonizer_mask_id;
@@ -567,6 +569,13 @@ constexpr auto kDevelopSelectableFields = std::to_array<std::string_view>({
 [[nodiscard]] Result<void> validate_selected_field_mask_attachments(const DevelopParams &params,
                                                                     const std::string_view field)
 {
+    if (field == "masks")
+        for (const auto &local : params.local_adjustments)
+        {
+            auto checked = require_mask_attachment(params, local.operation.mask_id, field);
+            if (!checked)
+                return checked.error();
+        }
     if (field == "exposure")
     {
         auto check = require_mask_attachment(params, params.exposure_mask_id, field);
@@ -660,7 +669,7 @@ std::vector<DevelopChange> develop_modified_fields(const DevelopParams &before,
     {
         if (field == "masks")
         {
-            if (before.masks != after.masks)
+            if (before.masks != after.masks || before.local_adjustments != after.local_adjustments)
                 changes.push_back({std::string(field), {}});
             continue;
         }
@@ -703,7 +712,49 @@ Result<void> apply_develop_selected_fields(DevelopParams &destination, const Dev
         carries_masks = carries_masks || selected_field_carries_masks(field);
     }
     if (carries_masks)
-        merge_develop_masks(candidate, source);
+    {
+        DevelopParams mask_source = source;
+        mask_source.local_adjustments.clear();
+        for (const auto &local : source.local_adjustments)
+            if (local.operation.mask_id)
+                collect_unreferenced_develop_mask(mask_source, *local.operation.mask_id,
+                                                  "ravo.studio.mask.local.");
+        if (seen.contains("masks"))
+        {
+            candidate.local_adjustments.clear();
+            for (const auto &local : destination.local_adjustments)
+                if (local.operation.mask_id)
+                    collect_unreferenced_develop_mask(candidate, *local.operation.mask_id,
+                                                      "ravo.studio.mask.local.");
+            for (const auto &local : source.local_adjustments)
+            {
+                auto copied = local;
+                auto root = copy_develop_mask_subgraph(source, candidate, local.operation.mask_id,
+                                                       "ravo.studio.mask.local.");
+                if (!root)
+                    return root.error();
+                copied.operation.mask_id = std::move(root).value();
+                candidate.local_adjustments.push_back(std::move(copied));
+            }
+        }
+        for (const auto &mask : mask_source.masks)
+        {
+            const bool local_reference =
+                std::any_of(candidate.local_adjustments.begin(), candidate.local_adjustments.end(),
+                            [&](const auto &local) { return local.operation.mask_id == mask.id; });
+            const auto existing =
+                std::find_if(candidate.masks.begin(), candidate.masks.end(),
+                             [&](const auto &item) { return item.id == mask.id; });
+            if (local_reference && existing != candidate.masks.end() && *existing != mask)
+                return make_error(ErrorCode::kConflict,
+                                  "Copied mask conflicts with an unselected local adjustment",
+                                  {{"reason", "local_mask_copy_conflict"}, {"mask_id", mask.id}});
+        }
+        merge_develop_masks(candidate, mask_source);
+        auto graph = validate_mask_graph(candidate.masks);
+        if (!graph)
+            return graph.error();
+    }
     for (const auto &field : fields)
     {
         auto attached = validate_selected_field_mask_attachments(candidate, field);

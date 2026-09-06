@@ -48,6 +48,8 @@ target_sources(ravo_engine
     src/input_color.cpp
     src/input_color.h
     src/lut3d.cpp
+    src/local_adjustment.cpp
+    src/mask_geometry.cpp
     src/lut3d.h
     src/mask_evaluator.cpp
     src/mask_evaluator.h

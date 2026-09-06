@@ -452,7 +452,7 @@ TEST(RecipeTest, SigmoidRoundTripRequiresExplicitFiniteColorPolicy)
 TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)
 {
     const auto recipe = parse_recipe_json(
-        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[],"schema_version":4})");
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[],"schema_version":5})");
 
     ASSERT_FALSE(recipe);
     EXPECT_EQ(recipe.error().code, ErrorCode::kUnsupported);

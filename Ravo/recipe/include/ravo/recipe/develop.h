@@ -299,6 +299,13 @@ struct DevelopParams
     // helper may author bounded Studio-owned leaves, while ordinary edits,
     // previews, saves, undo, and reopen preserve every valid attachment.
     std::vector<Mask> masks;
+    std::vector<LocalAdjustment> local_adjustments;
+    // Local-scope projection only: persisted as the adjustment group's mask_id.
+    std::optional<std::string> local_mask_id;
+    std::int64_t local_mask_child_index = 0;
+    std::int64_t local_mask_point_index = 0;
+    // Other attachments retained by a local editing projection, for ownership checks.
+    std::vector<std::string> mask_read_only_roots;
     // Structural RAW choice: an absent recipe operation means the RCD default.
     // Unlike raw_effect_enabled this cannot be bypassed, because every Bayer
     // source still needs exactly one demosaic owner.

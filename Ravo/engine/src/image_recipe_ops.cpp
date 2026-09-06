@@ -59,7 +59,7 @@ namespace ravo
 using namespace image_ops_internal;
 
 Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
-                                      const CancellationToken &cancellation)
+                                      const CancellationToken &cancellation, const bool local_chain)
 {
     for (auto iterator = recipe.operations.cbegin(); iterator != recipe.operations.cend();
          ++iterator)
@@ -72,6 +72,18 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (!operation.enabled || operation.bypass || absorbed_operation(operation.id))
         {
+            continue;
+        }
+        if (operation.id == kLocalAdjustmentOperationId)
+        {
+            if (local_chain)
+                return make_error(ErrorCode::kValidation, "Local adjustment groups cannot nest",
+                                  {{"reason", "nested_local_adjustment"}});
+            auto adjusted =
+                apply_local_adjustment(std::move(image), recipe, operation, cancellation);
+            if (!adjusted)
+                return adjusted.error();
+            image = std::move(adjusted).value();
             continue;
         }
         if (operation.mask_id.has_value() && operation.id != kColorHarmonizerOperationId &&
@@ -159,7 +171,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                 }
                 previous_rank = rank;
                 last = candidate;
-                if (!candidate->enabled)
+                if (!candidate->enabled || candidate->bypass)
                 {
                     continue;
                 }
@@ -193,7 +205,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             double saturation = 0.0;
             const auto next = std::next(iterator);
-            if (next != recipe.operations.cend() && next->enabled &&
+            if (next != recipe.operations.cend() && next->enabled && !next->bypass &&
                 next->id == "ravo.color.saturation")
             {
                 saturation = parameter(*next, "amount", 0.0);
@@ -549,6 +561,14 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == kDehazeOperationId)
         {
+            if (local_chain)
+            {
+                auto adjusted = apply_dehaze(image, operation, cancellation);
+                if (!adjusted)
+                    return adjusted.error();
+                image = std::move(adjusted).value();
+                continue;
+            }
             return make_error(
                 ErrorCode::kUnsupported, "Dehaze must execute on the source-linear RAW buffer",
                 {{"operation_id", operation.id}, {"reason", "dehaze_source_stage_required"}});

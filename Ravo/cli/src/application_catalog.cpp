@@ -80,6 +80,8 @@ parse_develop_apply_fields(const std::string_view text)
 [[nodiscard]] Result<JsonValue>
 run_catalog_command(const EngineFacade &engine, const std::span<const std::string_view> positional)
 {
+    if (positional.size() >= 2 && positional[1] == "mask")
+        return run_catalog_mask_command(engine, positional);
     if (positional.size() < 2)
     {
         return make_error(

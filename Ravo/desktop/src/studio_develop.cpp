@@ -821,7 +821,7 @@ void StudioPresenter::setCurveChannel(const int channel)
 void StudioPresenter::apply_curve_points(const QString &family, const int channel,
                                          const QVariantList &points, const DevelopEdit edit)
 {
-    DevelopParams next = develop_;
+    DevelopParams next = edit_develop();
     const int family_index = family == QLatin1String("tone") ? 1 : 0;
     curve_family_ = family_index;
     if (family_index == 0)
@@ -857,11 +857,11 @@ void StudioPresenter::apply_curve_points(const QString &family, const int channe
             next.tone_curve = tone_curve_from_variant(points);
         }
     }
-    mutate_develop(std::move(next), edit, true,
-                   edit == DevelopEdit::Commit ?
-                       std::optional<std::string>{"curve:" + utf8_from_qstring(family) + ":" +
-                                                  std::to_string(channel)} :
-                       std::nullopt);
+    mutate_scoped_develop(std::move(next), edit, true,
+                          edit == DevelopEdit::Commit ?
+                              std::optional<std::string>{"curve:" + utf8_from_qstring(family) +
+                                                         ":" + std::to_string(channel)} :
+                              std::nullopt);
 }
 
 void StudioPresenter::setCurvePoints(const QString &family, const int channel,
@@ -891,9 +891,10 @@ void StudioPresenter::sync_curve_ui_from_develop()
 
 void StudioPresenter::previewDevelopNumber(const QString &name, const double value)
 {
-    DevelopParams next = develop_;
+    DevelopParams next = edit_develop();
     const auto field = utf8_from_qstring(name);
-    capture_instance_front_for_field(next, field);
+    if (!localEditing())
+        capture_instance_front_for_field(next, field);
     if (is_develop_mask_field(field))
     {
         auto applied = apply_develop_field_strict(next, field, value);
@@ -912,16 +913,17 @@ void StudioPresenter::previewDevelopNumber(const QString &name, const double val
     {
         return;
     }
-    retarget_instance_edit_after_field(next, field);
+    if (!localEditing())
+        retarget_instance_edit_after_field(next, field);
     if (name == QLatin1String("straighten"))
     {
         if (crop_tool_active_)
         {
-            mutate_develop(std::move(next), DevelopEdit::Overlay);
+            mutate_scoped_develop(std::move(next), DevelopEdit::Overlay);
             return;
         }
     }
-    mutate_develop(std::move(next), DevelopEdit::Preview);
+    mutate_scoped_develop(std::move(next), DevelopEdit::Preview);
 }
 
 void StudioPresenter::setCropRect(const double x, const double y, const double width,
@@ -1014,6 +1016,12 @@ void StudioPresenter::flipVertical()
 
 void StudioPresenter::setCropToolActive(const bool active)
 {
+    if (active && localEditing())
+    {
+        setError(QCoreApplication::translate("DevelopPanel",
+                                             "Finish mask editing before using global tools."));
+        return;
+    }
     if (crop_tool_active_ == active)
     {
         return;
@@ -1068,9 +1076,10 @@ void StudioPresenter::setCropToolActive(const bool active)
 
 void StudioPresenter::resetControl(const QString &name)
 {
-    DevelopParams next = develop_;
+    DevelopParams next = edit_develop();
     const auto field = utf8_from_qstring(name);
-    capture_instance_front_for_field(next, field);
+    if (!localEditing())
+        capture_instance_front_for_field(next, field);
     if (is_develop_mask_field(field))
     {
         auto reset = reset_develop_mask_field(next, field);
@@ -1089,13 +1098,14 @@ void StudioPresenter::resetControl(const QString &name)
     {
         return;
     }
-    retarget_instance_edit_after_field(next, field);
-    mutate_develop(std::move(next), DevelopEdit::Commit, true, field);
+    if (!localEditing())
+        retarget_instance_edit_after_field(next, field);
+    mutate_scoped_develop(std::move(next), DevelopEdit::Commit, true, field);
 }
 
 void StudioPresenter::resetSection(const QString &section)
 {
-    DevelopParams next = develop_;
+    DevelopParams next = edit_develop();
     if (!reset_develop_section(next, utf8_from_qstring(section)))
     {
         return;
@@ -1105,27 +1115,27 @@ void StudioPresenter::resetSection(const QString &section)
         crop_aspect_ = QStringLiteral("free");
         locked_crop_ratio_ = 0.0;
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit);
+    mutate_scoped_develop(std::move(next), DevelopEdit::Commit);
 }
 
 bool StudioPresenter::sectionModified(const QString &section) const
 {
-    return develop_section_modified(develop_, utf8_from_qstring(section));
+    return develop_section_modified(edit_develop(), utf8_from_qstring(section));
 }
 
 bool StudioPresenter::sectionEffectEnabled(const QString &section) const
 {
-    return develop_section_effect_enabled(develop_, utf8_from_qstring(section));
+    return develop_section_effect_enabled(edit_develop(), utf8_from_qstring(section));
 }
 
 void StudioPresenter::setSectionEffectEnabled(const QString &section, const bool enabled)
 {
-    DevelopParams next = develop_;
+    DevelopParams next = edit_develop();
     if (!set_develop_section_effect_enabled(next, utf8_from_qstring(section), enabled))
     {
         return;
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit);
+    mutate_scoped_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::resetAllEdits()
@@ -1268,7 +1278,7 @@ void StudioPresenter::applyDevelopNumbers(const QVariantMap &fields, const Devel
     {
         return;
     }
-    DevelopParams next = develop_;
+    DevelopParams next = edit_develop();
     for (auto it = fields.constBegin(); it != fields.constEnd(); ++it)
     {
         if (it.key().trimmed().isEmpty())
@@ -1291,7 +1301,7 @@ void StudioPresenter::applyDevelopNumbers(const QVariantMap &fields, const Devel
     {
         history_coalesce_key = utf8_from_qstring(fields.cbegin().key());
     }
-    mutate_develop(std::move(next), edit, true, std::move(history_coalesce_key));
+    mutate_scoped_develop(std::move(next), edit, true, std::move(history_coalesce_key));
 }
 
 void StudioPresenter::previewDevelopNumbers(const QVariantMap &fields)

@@ -137,15 +137,11 @@ execution queue.
 
 ### Local adjustment expansion
 
-Ravo already owns the canonical mask graph and accepted consumers. Color
-Balance RGB (ADR-0108), Exposure (ADR-0109), RGB Curve (ADR-0110), Tone Curve
-(ADR-0111), and Highlights/Shadows/Whites/Blacks (ADR-0112) each may carry one
-owned canonical mask. Click placement of circle/ellipse/gradient geometry is
-accepted (ADR-0114). Histogram-assisted parametric Threshold authoring is
-accepted and implemented for those everyday consumers (ADR-0116). Decide
-whether multi-instance grading is allowed, how path/brush stroking is owned,
-and how mask geometry survives Canvas, Perspective, crop, sub-ROI evaluation,
-preview, and export. Legacy mask/custom-blend import remains fail-closed
+The Global/Mask workspace, complete RGB adjustment groups, and C++-owned direct
+drawing are specified by ADR-0158. Further admission concerns measured brush
+and multi-mask latency on large photographs and all three platforms, followed
+by GPU evaluation only after CPU equality. Full mixed-corpus reopen/backup
+remains a release gate. Legacy mask/custom-blend interchange stays fail-closed
 without an exact mapping.
 
 ### Originals, catalogs, and interchange

@@ -196,7 +196,8 @@ template <typename T>
 // becomes an independent authored leaf.
 [[nodiscard]] std::string make_duplicate_mask_id(const DevelopParams &params,
                                                  const std::vector<Mask> &staged,
-                                                 const std::string_view prefix)
+                                                 const std::string_view prefix,
+                                                 const DevelopParams *destination = nullptr)
 {
     for (std::size_t n = 1;; ++n)
     {
@@ -210,6 +211,9 @@ template <typename T>
                 break;
             }
         }
+        if (!used && destination)
+            used = std::any_of(destination->masks.begin(), destination->masks.end(),
+                               [&](const auto &mask) { return mask.id == id; });
         if (!used)
         {
             for (const auto &mask : staged)
@@ -233,7 +237,8 @@ template <typename T>
 [[nodiscard]] Result<std::string>
 clone_mask_subgraph_staged(const DevelopParams &params, std::vector<Mask> &staged,
                            const std::string_view source_id, const std::string_view id_prefix,
-                           std::unordered_set<std::string> &visiting)
+                           std::unordered_set<std::string> &visiting,
+                           const DevelopParams *destination = nullptr)
 {
     if (source_id.empty())
     {
@@ -253,11 +258,6 @@ clone_mask_subgraph_staged(const DevelopParams &params, std::vector<Mask> &stage
             if (mask.id == id)
                 return &mask;
         }
-        for (const auto &mask : staged)
-        {
-            if (mask.id == id)
-                return &mask;
-        }
         return nullptr;
     };
     const Mask *source = find_mask(source_id);
@@ -267,13 +267,19 @@ clone_mask_subgraph_staged(const DevelopParams &params, std::vector<Mask> &stage
                           {{"reason", "duplicate_instance_mask_missing"}, {"mask_id", source_key}});
     }
     Mask cloned = *source;
-    cloned.id = make_duplicate_mask_id(params, staged, id_prefix);
+    const auto occupied = destination ? destination->masks.size() : params.masks.size();
+    if (occupied + staged.size() >= kCanonicalMaskMaxNodes)
+        return make_error(ErrorCode::kValidation, "Cloned mask graph exceeds the node limit",
+                          {{"reason", "mask_graph_too_large"}});
+    cloned.id = make_duplicate_mask_id(params, staged, id_prefix, destination);
+    const auto staged_index = staged.size();
+    staged.push_back(cloned);
     if (auto *group = std::get_if<MaskGroup>(&cloned.payload))
     {
         for (auto &child : group->children)
         {
-            auto child_clone =
-                clone_mask_subgraph_staged(params, staged, child.mask_id, id_prefix, visiting);
+            auto child_clone = clone_mask_subgraph_staged(params, staged, child.mask_id, id_prefix,
+                                                          visiting, destination);
             if (!child_clone)
             {
                 return child_clone.error();
@@ -282,7 +288,7 @@ clone_mask_subgraph_staged(const DevelopParams &params, std::vector<Mask> &stage
         }
     }
     const std::string new_id = cloned.id;
-    staged.push_back(std::move(cloned));
+    staged[staged_index] = std::move(cloned);
     visiting.erase(source_key);
     return new_id;
 }
@@ -303,6 +309,9 @@ clone_mask_subgraph_staged(const DevelopParams &params, std::vector<Mask> &stage
                                                const std::string_view id) noexcept
 {
     std::size_t count = 0U;
+    for (const auto &local : params.local_adjustments)
+        if (local.operation.mask_id && *local.operation.mask_id == id)
+            ++count;
     if (params.exposure_mask_id && *params.exposure_mask_id == id)
         ++count;
     if (params.color_balance_rgb_mask_id && *params.color_balance_rgb_mask_id == id)
@@ -421,6 +430,34 @@ duplicate_instance_mask(DevelopParams &params, const std::optional<std::string> 
 }
 
 } // namespace
+
+Result<std::optional<std::string>>
+clone_develop_mask_subgraph(DevelopParams &params, const std::optional<std::string> &root,
+                            const std::string_view prefix)
+{
+    return duplicate_instance_mask(params, root, prefix);
+}
+
+Result<std::optional<std::string>>
+copy_develop_mask_subgraph(const DevelopParams &source, DevelopParams &destination,
+                           const std::optional<std::string> &root, const std::string_view prefix)
+{
+    if (!root)
+        return std::optional<std::string>{};
+    std::vector<Mask> staged;
+    std::unordered_set<std::string> visiting;
+    auto copied = clone_mask_subgraph_staged(source, staged, *root, prefix, visiting, &destination);
+    if (!copied)
+        return copied.error();
+    destination.masks.insert(destination.masks.end(), staged.begin(), staged.end());
+    return std::optional<std::string>{std::move(copied).value()};
+}
+
+void collect_unreferenced_develop_mask(DevelopParams &params, const std::string_view root,
+                                       const std::string_view prefix)
+{
+    gc_exclusively_owned_mask_subgraph(params, root, prefix);
+}
 
 void mirror_legacy_exposure_into_instance(DevelopParams &params, const std::size_t index) noexcept
 {

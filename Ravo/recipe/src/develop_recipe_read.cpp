@@ -44,6 +44,17 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
     };
     for (const auto &operation : recipe.operations)
     {
+        if (operation.id == kLocalAdjustmentOperationId)
+        {
+            LocalAdjustment local;
+            local.operation = operation;
+            const auto position = static_cast<std::size_t>(&operation - recipe.operations.data());
+            for (std::size_t index = position + 1; index < recipe.operations.size(); ++index)
+                if (recipe.operations[index].id != kLocalAdjustmentOperationId)
+                    local.following_instances.push_back(recipe.operations[index].instance_id);
+            params.local_adjustments.push_back(std::move(local));
+            continue;
+        }
         const auto number = [&](const std::string_view name, const double fallback)
         {
             const auto found = operation.parameters.find(std::string(name));

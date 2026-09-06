@@ -454,8 +454,60 @@ Diff: %6</source>
             <translation>蒙版类型</translation>
         </message>
         <message>
+            <source>Editing mask</source>
+            <translation>正在编辑蒙版</translation>
+        </message>
+        <message>
+            <source>New mask</source>
+            <translation>新增蒙版</translation>
+        </message>
+        <message>
+            <source>Radial gradient</source>
+            <translation>径向渐变</translation>
+        </message>
+        <message>
+            <source>Luminance / color range</source>
+            <translation>亮度／颜色范围</translation>
+        </message>
+        <message>
+            <source>Advanced operation instances</source>
+            <translation>高级调整实例</translation>
+        </message>
+        <message>
+            <source>Show / hide mask adjustments</source>
+            <translation>显示／隐藏蒙版调整</translation>
+        </message>
+        <message>
             <source>Invert mask</source>
             <translation>反转蒙版</translation>
+        </message>
+        <message>
+            <source>Adjustments below affect only the selected mask.</source>
+            <translation>下方调整仅作用于当前选中的蒙版。</translation>
+        </message>
+        <message>
+            <source>Mask settings</source>
+            <translation>蒙版设置</translation>
+        </message>
+        <message>
+            <source>Draw on photo</source>
+            <translation>在照片上绘制</translation>
+        </message>
+        <message>
+            <source>Overlay</source>
+            <translation>显示蒙版覆盖</translation>
+        </message>
+        <message>
+            <source>Subtract</source>
+            <translation>减去</translation>
+        </message>
+        <message>
+            <source>Intersect</source>
+            <translation>相交</translation>
+        </message>
+        <message>
+            <source>Rename mask</source>
+            <translation>重命名蒙版</translation>
         </message>
         <message>
             <source>Source</source>
@@ -2754,6 +2806,10 @@ Diff: %6</source>
             <translation>修复区域已被拒绝</translation>
         </message>
         <message>
+            <source>Finish mask editing before using global tools.</source>
+            <translation>请先完成蒙版编辑，再使用全局工具。</translation>
+        </message>
+        <message>
             <source>Mask reset was rejected</source>
             <translation>蒙版重置被拒绝</translation>
         </message>
@@ -2796,6 +2852,10 @@ Diff: %6</source>
         <message>
             <source>Color Balance RGB instance was not found.</source>
             <translation>未找到色彩平衡 RGB 实例。</translation>
+        </message>
+        <message>
+            <source>Mask %1</source>
+            <translation>蒙版 %1</translation>
         </message>
     </context>
     <context>

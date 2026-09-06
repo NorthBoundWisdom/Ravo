@@ -34,6 +34,7 @@ struct ParameterValue
     ParameterValue(const char *value);
     ParameterValue(Array value);
     ParameterValue(Object value);
+    [[nodiscard]] bool operator==(const ParameterValue &other) const noexcept;
 };
 
 struct AssetDescriptor
@@ -54,11 +55,27 @@ struct OperationInstance
     // ADR-0145: optional display name + bypass (skip eval, keep serialized).
     std::optional<std::string> name = std::nullopt;
     bool bypass = false;
+    // Only ravo.local.adjustment/v1 owns children. Local groups cannot nest.
+    std::vector<OperationInstance> children = {};
+    [[nodiscard]] bool operator==(const OperationInstance &) const noexcept = default;
+};
+
+inline constexpr std::string_view kLocalAdjustmentOperationId = "ravo.local.adjustment";
+inline constexpr std::size_t kLocalAdjustmentMaxCount = 64;
+inline constexpr std::size_t kLocalAdjustmentMaxOperations = 64;
+
+struct LocalAdjustment
+{
+    OperationInstance operation;
+    // Reconstructed from the ordered recipe, never serialized as UI state.
+    // Surviving following instances preserve an imported group's pipeline slot.
+    std::vector<std::string> following_instances;
+    [[nodiscard]] bool operator==(const LocalAdjustment &) const noexcept = default;
 };
 
 struct Recipe
 {
-    std::int64_t schema_version = 3;
+    std::int64_t schema_version = 4;
     AssetDescriptor asset;
     std::vector<OperationInstance> operations;
     std::vector<Mask> masks;

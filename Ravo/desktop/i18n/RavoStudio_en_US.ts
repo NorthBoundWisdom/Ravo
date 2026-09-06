@@ -454,8 +454,60 @@ Diff: %6</translation>
             <translation>Mask kind</translation>
         </message>
         <message>
+            <source>Editing mask</source>
+            <translation>Editing mask</translation>
+        </message>
+        <message>
+            <source>New mask</source>
+            <translation>New mask</translation>
+        </message>
+        <message>
+            <source>Radial gradient</source>
+            <translation>Radial gradient</translation>
+        </message>
+        <message>
+            <source>Luminance / color range</source>
+            <translation>Luminance / color range</translation>
+        </message>
+        <message>
+            <source>Advanced operation instances</source>
+            <translation>Advanced operation instances</translation>
+        </message>
+        <message>
+            <source>Show / hide mask adjustments</source>
+            <translation>Show / hide mask adjustments</translation>
+        </message>
+        <message>
             <source>Invert mask</source>
             <translation>Invert mask</translation>
+        </message>
+        <message>
+            <source>Adjustments below affect only the selected mask.</source>
+            <translation>Adjustments below affect only the selected mask.</translation>
+        </message>
+        <message>
+            <source>Mask settings</source>
+            <translation>Mask settings</translation>
+        </message>
+        <message>
+            <source>Draw on photo</source>
+            <translation>Draw on photo</translation>
+        </message>
+        <message>
+            <source>Overlay</source>
+            <translation>Overlay</translation>
+        </message>
+        <message>
+            <source>Subtract</source>
+            <translation>Subtract</translation>
+        </message>
+        <message>
+            <source>Intersect</source>
+            <translation>Intersect</translation>
+        </message>
+        <message>
+            <source>Rename mask</source>
+            <translation>Rename mask</translation>
         </message>
         <message>
             <source>Source</source>
@@ -2754,6 +2806,10 @@ Diff: %6</translation>
             <translation>Retouch region was rejected</translation>
         </message>
         <message>
+            <source>Finish mask editing before using global tools.</source>
+            <translation>Finish mask editing before using global tools.</translation>
+        </message>
+        <message>
             <source>Mask reset was rejected</source>
             <translation>Mask reset was rejected</translation>
         </message>
@@ -2796,6 +2852,10 @@ Diff: %6</translation>
         <message>
             <source>Color Balance RGB instance was not found.</source>
             <translation>Color Balance RGB instance was not found.</translation>
+        </message>
+        <message>
+            <source>Mask %1</source>
+            <translation>Mask %1</translation>
         </message>
     </context>
     <context>

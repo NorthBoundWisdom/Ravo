@@ -262,8 +262,60 @@ Diff: %6</source>
             <translation>マスクの種類</translation>
         </message>
         <message>
+            <source>Editing mask</source>
+            <translation>マスクを編集中</translation>
+        </message>
+        <message>
+            <source>New mask</source>
+            <translation>新しいマスク</translation>
+        </message>
+        <message>
+            <source>Radial gradient</source>
+            <translation>円形グラデーション</translation>
+        </message>
+        <message>
+            <source>Luminance / color range</source>
+            <translation>輝度範囲 / カラー範囲</translation>
+        </message>
+        <message>
+            <source>Advanced operation instances</source>
+            <translation>詳細な調整インスタンス</translation>
+        </message>
+        <message>
+            <source>Show / hide mask adjustments</source>
+            <translation>マスクの調整を表示 / 非表示</translation>
+        </message>
+        <message>
             <source>Invert mask</source>
             <translation>マスクを反転</translation>
+        </message>
+        <message>
+            <source>Adjustments below affect only the selected mask.</source>
+            <translation>以下の調整は選択中のマスクのみに適用されます。</translation>
+        </message>
+        <message>
+            <source>Mask settings</source>
+            <translation>マスク設定</translation>
+        </message>
+        <message>
+            <source>Draw on photo</source>
+            <translation>写真上に描画</translation>
+        </message>
+        <message>
+            <source>Overlay</source>
+            <translation>オーバーレイ</translation>
+        </message>
+        <message>
+            <source>Subtract</source>
+            <translation>減算</translation>
+        </message>
+        <message>
+            <source>Intersect</source>
+            <translation>交差</translation>
+        </message>
+        <message>
+            <source>Rename mask</source>
+            <translation>マスク名を変更</translation>
         </message>
         <message>
             <source>Reset</source>
@@ -2754,6 +2806,10 @@ Diff: %6</source>
             <translation>レタッチ領域が拒否されました</translation>
         </message>
         <message>
+            <source>Finish mask editing before using global tools.</source>
+            <translation>全体調整ツールを使う前にマスクの編集を完了してください。</translation>
+        </message>
+        <message>
             <source>Mask reset was rejected</source>
             <translation>マスク リセットが拒否されました</translation>
         </message>
@@ -2796,6 +2852,10 @@ Diff: %6</source>
         <message>
             <source>Color Balance RGB instance was not found.</source>
             <translation>カラー バランス RGB インスタンスが見つかりませんでした。</translation>
+        </message>
+        <message>
+            <source>Mask %1</source>
+            <translation>マスク %1</translation>
         </message>
     </context>
     <context>

@@ -38,6 +38,8 @@
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/executor.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/local_adjustment.h"
+#include "ravo/engine/mask_geometry.h"
 #include "ravo/services/catalog_service.h"
 
 namespace ravo
@@ -142,6 +144,13 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
     Q_PROPERTY(bool hasCopiedParameters READ hasCopiedParameters NOTIFY copiedParametersChanged)
     Q_PROPERTY(QVariantMap editWhiteBalance READ editWhiteBalance NOTIFY editChanged)
+    Q_PROPERTY(QString activeLocalId READ activeLocalId NOTIFY editingScopeChanged)
+    Q_PROPERTY(bool localEditing READ localEditing NOTIFY editingScopeChanged)
+    Q_PROPERTY(QVariantList localAdjustments READ localAdjustments NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editLocalMask READ editLocalMask NOTIFY editChanged)
+    Q_PROPERTY(bool localDonePending READ localDonePending NOTIFY editChanged)
+    Q_PROPERTY(bool maskDrawingActive READ maskDrawingActive NOTIFY editChanged)
+    Q_PROPERTY(QVariantList localMaskHandles READ localMaskHandles NOTIFY editChanged)
     Q_PROPERTY(bool whiteBalancePickActive READ whiteBalancePickActive NOTIFY editChanged)
     Q_PROPERTY(bool maskPlaceActive READ maskPlaceActive NOTIFY editChanged)
     Q_PROPERTY(bool maskPlaceGeometryAllowed READ maskPlaceGeometryAllowed NOTIFY editChanged)
@@ -857,6 +866,15 @@ public:
     Q_INVOKABLE void setSelectedStackPick();
     Q_INVOKABLE void setCollapseStacks(bool collapse);
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
+    [[nodiscard]] QString activeLocalId() const;
+    [[nodiscard]] bool localEditing() const noexcept;
+    [[nodiscard]] QVariantList localAdjustments() const;
+    [[nodiscard]] QVariantMap editLocalMask() const;
+    [[nodiscard]] bool localDonePending() const noexcept;
+    [[nodiscard]] bool maskDrawingActive() const noexcept;
+    [[nodiscard]] QVariantList localMaskHandles() const;
+    [[nodiscard]] Result<bool> applyLocalAdjustmentCommand(const QString &action,
+                                                           const QVariantMap &arguments);
     [[nodiscard]] QVariantList exposureInstances() const;
     [[nodiscard]] QString selectedExposureInstanceId() const;
     [[nodiscard]] QVariantList colorBalanceRgbInstances() const;
@@ -995,6 +1013,7 @@ public:
     Q_INVOKABLE void loadNextLibraryPage();
     void pollCatalogRevision();
 signals:
+    void editingScopeChanged();
     void catalogChanged();
     void busyChanged();
     void statusChanged();
@@ -1086,6 +1105,13 @@ private:
     };
     bool mutate_develop(DevelopParams next, DevelopEdit edit, bool refresh_preview = true,
                         std::optional<std::string> history_coalesce_key = {});
+    [[nodiscard]] const DevelopParams &edit_develop() const noexcept;
+    void sync_local_edit_scope();
+    void clear_local_edit_scope();
+    [[nodiscard]] Result<bool> applyMaskGesture(const QString &action,
+                                                const QVariantMap &arguments);
+    bool mutate_scoped_develop(DevelopParams next, DevelopEdit edit, bool refresh_preview = true,
+                               std::optional<std::string> history_coalesce_key = {});
     void applyDevelopNumbers(const QVariantMap &fields, DevelopEdit edit);
     void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true,
                         RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew,
@@ -1361,6 +1387,20 @@ private:
     void sync_selected_instance_edit_buffers(DevelopParams &params);
 
     DevelopParams develop_{};
+    QString active_local_id_;
+    DevelopParams local_projection_;
+    bool local_done_pending_ = false;
+    bool mask_drawing_active_ = false;
+    bool mask_gesture_updating_ = false;
+    QString mask_gesture_token_;
+    QString mask_gesture_handle_;
+    QString mask_gesture_scope_;
+    QString mask_gesture_asset_;
+    std::optional<DevelopParams> mask_gesture_before_;
+    std::optional<DevelopParams> local_creation_before_;
+    DevelopParams mask_gesture_local_;
+    std::vector<LocalMaskPoint> mask_gesture_points_;
+    std::optional<MaskGeometryMapping> mask_gesture_mapping_;
     std::size_t selected_exposure_instance_index_ = 0;
     std::size_t selected_color_balance_rgb_instance_index_ = 0;
     std::optional<DevelopExposureInstance> exposure_front_restore_;

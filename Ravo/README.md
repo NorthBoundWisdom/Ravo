@@ -1,5 +1,29 @@
 # Ravo
 
+Develop uses a mask-scoped editing workspace (ADR-0158). **New mask** creates a
+brush, gradient, radial, path or range selection; the shared Light, Curves,
+Color, Effects and Detail panels then edit that mask's independent parameters.
+**Done** returns to Global. Masks can be reselected, renamed, duplicated,
+inverted, hidden and deleted from one list. Spatial tools draw on the photo;
+gradient/radial handles use the same Engine coordinate mapping through crop,
+rotation, Perspective and Canvas. Shape settings live in the mask workspace,
+and technical RAW/profile/geometry/output controls remain global. Recipe v4
+persists complete local groups; old masks preserve their rendering and order.
+
+The versioned machine interfaces expose the same state and intents:
+`catalog mask --catalog <path> --asset-id <id> --action list` reads groups.
+Mutations use `--action create|set|rename|duplicate|enable|invert|delete`,
+`--id <local-id>`, and `--expect-revision <catalog-revision>`; create uses
+`--kind <1|2|3|4|5|7|8>` and set uses strict `--set <field>=<value>` controls including
+the `localMask` authoring prefix. `studio state` exposes `editing_scope`.
+`studio mask --session-id <session> --asset-id <asset> --action <action>
+--arguments <JSON-object>` requires `--expect-session-revision`,
+`--expect-selection-revision` and `--expect-recipe-revision`. Studio actions
+also include `select`, `done`, `component`, `draw`, and
+`gesture_begin|gesture_update|gesture_end|gesture_cancel`; gesture arguments
+bind the observed asset, local ID and token. CLI PNG artifacts continue to use
+the shared preview/probe path.
+
 Ravo is the only buildable photo software in this repository. Its current
 product goal is to deliver a cross-platform first version quickly: create or
 open a local SQLite catalog, import JPEG/PNG/TIFF/RAW by reference (HEIC/HEIF is recognized and fails closed per ADR-0118), and browse
@@ -274,9 +298,11 @@ Current implementation status:
   old Kelvin/tint RGB approximation and generic fallback are removed.
 - Exposure provides `ravo.core.exposure` v2 with the frozen manual EV and black
   response, optional camera exposure-bias/highlight-preservation compensation,
-  and deflicker percentile-to-EV analysis. Studio may attach one owned canonical
-  mask through the same MaskEditor as Color Harmonizer (ADR-0109). RAW deflicker owns an immutable 65,536-bin snapshot. ADR-0145 adds ordered multi-instance Exposure and Color Balance RGB (`name`/`bypass`/`exposure_instances`/`color_balance_rgb_instances`) with CLI `recipe inspect`; Studio instance chrome remains residual under the same ADR.
-  from the original decoded sensor data before repair, resize, or demosaic;
+  and deflicker percentile-to-EV analysis. Canonical per-operation masks retain
+  the ADR-0109 contract; Studio uses the shared mask workspace (ADR-0158).
+  ADR-0145 global Exposure and Color Balance RGB instances remain available
+  through advanced controls and CLI recipe inspection. RAW deflicker owns an
+  immutable 65,536-bin snapshot from decoded sensor data before repair, resize, or demosaic;
   private pinned Exiv2 supplies value-only metadata without crossing the engine
   boundary. Memory, cancellation, missing-tag, metadata-read-failure, and raster
   unsupported states are explicit. CLI render, Catalog preview/save/reopen/
@@ -289,7 +315,7 @@ Current implementation status:
   embedded ICC state. Matrix/shaper profiles use the frozen LUT and unbounded
   path, while general RGB/XYZ/Lab ICC input uses private pinned LittleCMS.
   Missing, corrupt, singular, or unsupported profiles fail structurally; no
-  generic matrix or sRGB fallback is used. Canonical recipe schema v3 upgrades
+  generic matrix or sRGB fallback is used. Canonical recipe schema v4 upgrades
   prior Ravo recipes by inserting explicit source → linear Rec709 and output
   colour boundaries. Input profile state and external ICC content participate
   in the scene-linear and preview cache keys, and Studio exposes the canonical
@@ -433,9 +459,9 @@ Current implementation status:
   `linear_srgb_d50` workspace, with Filmlight Yrg three-zone luminance mask,
   grading RGB offset/slope/power, fulcrumed luminance, and DT UCS 2022 as the
   default saturation/brilliance gamut path. JzAzBz 2021 is an explicit optional
-  formula. Studio exposes the complete canonical parameters and may attach one
-  owned canonical mask (circle, brush, and the other graph kinds) through the
-  same MaskEditor as Color Harmonizer (ADR-0108). The prior Lift/Color
+  formula. Studio exposes the complete canonical parameters in the selected
+  Global/Mask scope. Per-operation masks retain ADR-0108 compatibility while
+  new local groups use ADR-0158. The prior Lift/Color
   gamma/Gain approximation operation is removed.
 - Legacy Color Balance provides the separate `ravo.color.colorbalance` v1
   contract for the complete frozen lift/gamma/gain and slope/offset/power

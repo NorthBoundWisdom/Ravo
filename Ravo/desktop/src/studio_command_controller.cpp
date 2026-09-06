@@ -404,6 +404,7 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
                           {{"reason", "command_unavailable"}});
     }
     if (!presenter_.develop_loaded_ || presenter_.busy_ || presenter_.import_work_active_ ||
+        presenter_.mask_gesture_before_ || presenter_.local_creation_before_ ||
         presenter_.develop_job_in_flight_ || presenter_.pending_save_ ||
         presenter_.pending_preview_)
     {
@@ -440,6 +441,31 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
         presenter_.openDevelop();
     }
     return presenter_.mutate_develop(std::move(next), StudioPresenter::DevelopEdit::Commit);
+}
+
+Result<bool> StudioCommandController::applyLocalAdjustment(const QString &action,
+                                                           const QVariantMap &arguments)
+{
+    const auto state = resolve_state(presenter_, Condition::kDevelopSelection, settings_open_);
+    if (modal_open_ || !state.enabled)
+        return make_error(ErrorCode::kConflict, "Local adjustment command is unavailable",
+                          {{"reason", "command_unavailable"}});
+    return presenter_.applyLocalAdjustmentCommand(action, arguments);
+}
+
+QVariantMap StudioCommandController::localAdjustment(const QString &action,
+                                                     const QVariantMap &arguments)
+{
+    auto applied = applyLocalAdjustment(action, arguments);
+    if (!applied)
+    {
+        presenter_.setError(QString::fromStdString(applied.error().message));
+        return {{QStringLiteral("ok"), false},
+                {QStringLiteral("message"), QString::fromStdString(applied.error().message)}};
+    }
+    return {{QStringLiteral("ok"), true},
+            {QStringLiteral("changed"), applied.value()},
+            {QStringLiteral("token"), presenter_.mask_gesture_token_}};
 }
 
 void StudioCommandController::cancelPendingConfirmation(const QString &token)

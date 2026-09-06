@@ -262,8 +262,60 @@ Diferença: %6</translation>
             <translation>Tipo de máscara</translation>
         </message>
         <message>
+            <source>Editing mask</source>
+            <translation>Editando máscara</translation>
+        </message>
+        <message>
+            <source>New mask</source>
+            <translation>Nova máscara</translation>
+        </message>
+        <message>
+            <source>Radial gradient</source>
+            <translation>Gradiente radial</translation>
+        </message>
+        <message>
+            <source>Luminance / color range</source>
+            <translation>Intervalo de luminância / cor</translation>
+        </message>
+        <message>
+            <source>Advanced operation instances</source>
+            <translation>Instâncias de ajuste avançadas</translation>
+        </message>
+        <message>
+            <source>Show / hide mask adjustments</source>
+            <translation>Mostrar / ocultar ajustes da máscara</translation>
+        </message>
+        <message>
             <source>Invert mask</source>
             <translation>Inverter máscara</translation>
+        </message>
+        <message>
+            <source>Adjustments below affect only the selected mask.</source>
+            <translation>Os ajustes abaixo afetam apenas a máscara selecionada.</translation>
+        </message>
+        <message>
+            <source>Mask settings</source>
+            <translation>Configurações da máscara</translation>
+        </message>
+        <message>
+            <source>Draw on photo</source>
+            <translation>Desenhar na foto</translation>
+        </message>
+        <message>
+            <source>Overlay</source>
+            <translation>Sobreposição</translation>
+        </message>
+        <message>
+            <source>Subtract</source>
+            <translation>Subtrair</translation>
+        </message>
+        <message>
+            <source>Intersect</source>
+            <translation>Interseção</translation>
+        </message>
+        <message>
+            <source>Rename mask</source>
+            <translation>Renomear máscara</translation>
         </message>
         <message>
             <source>Reset</source>
@@ -2754,6 +2806,10 @@ Diferença: %6</translation>
             <translation>A região de retoque foi rejeitada</translation>
         </message>
         <message>
+            <source>Finish mask editing before using global tools.</source>
+            <translation>Conclua a edição da máscara antes de usar as ferramentas globais.</translation>
+        </message>
+        <message>
             <source>Mask reset was rejected</source>
             <translation>A redefinição da máscara foi rejeitada</translation>
         </message>
@@ -2796,6 +2852,10 @@ Diferença: %6</translation>
         <message>
             <source>Color Balance RGB instance was not found.</source>
             <translation>A instância Color Balance RGB não foi encontrada.</translation>
+        </message>
+        <message>
+            <source>Mask %1</source>
+            <translation>Máscara %1</translation>
         </message>
     </context>
     <context>

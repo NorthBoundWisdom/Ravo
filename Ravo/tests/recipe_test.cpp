@@ -50,7 +50,7 @@ TEST(RecipeTest, CanonicalRoundTripValidatesAgainstThePhaseOneRegistry)
     ASSERT_TRUE(serialized) << serialized.error().message;
     EXPECT_EQ(
         serialized.value(),
-        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[{"enabled":true,"id":"ravo.color.input","instance_id":"color-input-1","parameters":{"blue_mapping":false,"gamut_normalize":"off","input_profile":"source","input_profile_filename":"","rendering_intent":"perceptual","working_profile":"linear_rec709","working_profile_filename":""},"schema_version":1},{"enabled":true,"id":"ravo.core.exposure","instance_id":"exposure-1","parameters":{"exposure_ev":1.25},"schema_version":1},{"enabled":true,"id":"ravo.color.output","instance_id":"color-output-1","parameters":{"black_point_compensation":true,"output_profile":"srgb","output_profile_filename":"","proof_intent":"relative_colorimetric","proof_mode":"off","proof_profile":"srgb","proof_profile_filename":"","rendering_intent":"perceptual"},"schema_version":1}],"schema_version":3})");
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[{"enabled":true,"id":"ravo.color.input","instance_id":"color-input-1","parameters":{"blue_mapping":false,"gamut_normalize":"off","input_profile":"source","input_profile_filename":"","rendering_intent":"perceptual","working_profile":"linear_rec709","working_profile_filename":""},"schema_version":1},{"enabled":true,"id":"ravo.core.exposure","instance_id":"exposure-1","parameters":{"exposure_ev":1.25},"schema_version":1},{"enabled":true,"id":"ravo.color.output","instance_id":"color-output-1","parameters":{"black_point_compensation":true,"output_profile":"srgb","output_profile_filename":"","proof_intent":"relative_colorimetric","proof_mode":"off","proof_profile":"srgb","proof_profile_filename":"","rendering_intent":"perceptual"},"schema_version":1}],"schema_version":4})");
 
     const auto parsed = parse_recipe_json(serialized.value());
     ASSERT_TRUE(parsed) << parsed.error().message;
@@ -65,7 +65,7 @@ TEST(RecipeTest, OlderSchemasUpgradeToExplicitColorBoundaries)
     auto upgraded = parse_recipe_json(
         R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[{"enabled":true,"id":"ravo.core.exposure","instance_id":"exposure-1","parameters":{"exposure_ev":0.5},"schema_version":1}],"schema_version":1})");
     ASSERT_TRUE(upgraded) << upgraded.error().message;
-    EXPECT_EQ(upgraded.value().schema_version, 3);
+    EXPECT_EQ(upgraded.value().schema_version, 4);
     ASSERT_EQ(upgraded.value().operations.size(), 3U);
     EXPECT_EQ(upgraded.value().operations.front().id, "ravo.color.input");
     EXPECT_EQ(upgraded.value().operations[1].id, "ravo.core.exposure");
@@ -1420,7 +1420,6 @@ TEST(RecipeTest, VignetteAndProfileDenoiseFollowOwnedSections)
     EXPECT_NEAR(denoise.denoise, 0.0, 1e-6);
     EXPECT_NEAR(denoise.denoise_radius, 1.0, 1e-6);
 }
-
 
 } // namespace
 } // namespace ravo

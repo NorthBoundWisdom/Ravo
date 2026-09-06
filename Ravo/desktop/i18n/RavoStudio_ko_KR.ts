@@ -262,8 +262,60 @@ Diff: %6</source>
             <translation>마스크 유형</translation>
         </message>
         <message>
+            <source>Editing mask</source>
+            <translation>마스크 편집 중</translation>
+        </message>
+        <message>
+            <source>New mask</source>
+            <translation>새 마스크</translation>
+        </message>
+        <message>
+            <source>Radial gradient</source>
+            <translation>방사형 그레이디언트</translation>
+        </message>
+        <message>
+            <source>Luminance / color range</source>
+            <translation>광도 / 색상 범위</translation>
+        </message>
+        <message>
+            <source>Advanced operation instances</source>
+            <translation>고급 조정 인스턴스</translation>
+        </message>
+        <message>
+            <source>Show / hide mask adjustments</source>
+            <translation>마스크 조정 표시 / 숨기기</translation>
+        </message>
+        <message>
             <source>Invert mask</source>
             <translation>마스크 반전</translation>
+        </message>
+        <message>
+            <source>Adjustments below affect only the selected mask.</source>
+            <translation>아래 조정은 선택한 마스크에만 적용됩니다.</translation>
+        </message>
+        <message>
+            <source>Mask settings</source>
+            <translation>마스크 설정</translation>
+        </message>
+        <message>
+            <source>Draw on photo</source>
+            <translation>사진에 그리기</translation>
+        </message>
+        <message>
+            <source>Overlay</source>
+            <translation>오버레이</translation>
+        </message>
+        <message>
+            <source>Subtract</source>
+            <translation>빼기</translation>
+        </message>
+        <message>
+            <source>Intersect</source>
+            <translation>교차</translation>
+        </message>
+        <message>
+            <source>Rename mask</source>
+            <translation>마스크 이름 변경</translation>
         </message>
         <message>
             <source>Reset</source>
@@ -2754,6 +2806,10 @@ Diff: %6</source>
             <translation>리터치 영역이 거부되었습니다</translation>
         </message>
         <message>
+            <source>Finish mask editing before using global tools.</source>
+            <translation>전체 조정 도구를 사용하기 전에 마스크 편집을 완료하세요.</translation>
+        </message>
+        <message>
             <source>Mask reset was rejected</source>
             <translation>마스크 재설정이 거부되었습니다</translation>
         </message>
@@ -2796,6 +2852,10 @@ Diff: %6</source>
         <message>
             <source>Color Balance RGB instance was not found.</source>
             <translation>색상 균형 RGB 인스턴스를 찾을 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Mask %1</source>
+            <translation>마스크 %1</translation>
         </message>
     </context>
     <context>

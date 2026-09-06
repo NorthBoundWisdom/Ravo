@@ -1,5 +1,6 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/local_adjustment.h"
 #include "ravo/recipe/rapidraw_tone.h"
 #include "ravo/recipe/rapidraw_tone_controls.h"
 
@@ -660,6 +661,9 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       std::move(watermark).value(), kWatermarkOperationSchemaVersion, std::nullopt,
                       clamped.effects_effect_enabled && clamped.watermark_enabled);
     }
+    auto locals = insert_local_adjustments(recipe, clamped);
+    if (!locals)
+        return locals.error();
     return recipe;
 }
 

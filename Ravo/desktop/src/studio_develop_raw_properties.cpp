@@ -96,9 +96,10 @@ QVariantMap StudioPresenter::editCurve() const
 {
     const bool rgb_family = curve_family_ == 0;
     const bool linked =
-        rgb_family ? develop_.rgb_curve.mode != kRgbLevelsModeIndependent :
-                     develop_.tone_curve_channel_mode != kToneCurveChannelModeIndependent &&
-                         develop_.tone_curve_working_space != kToneCurveWorkingSpaceLabIndependent;
+        rgb_family ?
+            edit_develop().rgb_curve.mode != kRgbLevelsModeIndependent :
+            edit_develop().tone_curve_channel_mode != kToneCurveChannelModeIndependent &&
+                edit_develop().tone_curve_working_space != kToneCurveWorkingSpaceLabIndependent;
     QString histogram_mode = QStringLiteral("luma");
     if (rgb_family)
     {
@@ -111,41 +112,42 @@ QVariantMap StudioPresenter::editCurve() const
         else
             histogram_mode = QStringLiteral("rgb");
     }
-    return {{QStringLiteral("familyIndex"), curve_family_},
-            {QStringLiteral("channel"), curve_channel_},
-            {QStringLiteral("linked"), linked},
-            {QStringLiteral("histogramMode"), histogram_mode},
-            {QStringLiteral("interpolationIndex"),
-             curve_interpolation_index(rgb_family ? develop_.rgb_curve.interpolation :
-                                                    develop_.tone_curve_interpolation)},
-            {QStringLiteral("preserveIndex"),
-             preserve_colors_index(rgb_family ? develop_.rgb_curve.preserve_colors :
-                                                develop_.tone_curve_preserve_colors)},
-            {QStringLiteral("compensate"), develop_.rgb_curve.compensate_middle_grey},
-            {QStringLiteral("workingSpaceIndex"),
-             working_space_index(develop_.tone_curve_working_space)},
-            {QStringLiteral("channelModeIndex"),
-             develop_.tone_curve_channel_mode == kToneCurveChannelModeIndependent ? 1 : 0},
-            {QStringLiteral("parametricShadows"), develop_.rgb_curve.parametric_shadows},
-            {QStringLiteral("parametricDarks"), develop_.rgb_curve.parametric_darks},
-            {QStringLiteral("parametricLights"), develop_.rgb_curve.parametric_lights},
-            {QStringLiteral("parametricHighlights"), develop_.rgb_curve.parametric_highlights},
-            {QStringLiteral("split0"), develop_.rgb_curve.parametric_split_shadows},
-            {QStringLiteral("split1"), develop_.rgb_curve.parametric_split_mid},
-            {QStringLiteral("split2"), develop_.rgb_curve.parametric_split_highlights}};
+    return {
+        {QStringLiteral("familyIndex"), curve_family_},
+        {QStringLiteral("channel"), curve_channel_},
+        {QStringLiteral("linked"), linked},
+        {QStringLiteral("histogramMode"), histogram_mode},
+        {QStringLiteral("interpolationIndex"),
+         curve_interpolation_index(rgb_family ? edit_develop().rgb_curve.interpolation :
+                                                edit_develop().tone_curve_interpolation)},
+        {QStringLiteral("preserveIndex"),
+         preserve_colors_index(rgb_family ? edit_develop().rgb_curve.preserve_colors :
+                                            edit_develop().tone_curve_preserve_colors)},
+        {QStringLiteral("compensate"), edit_develop().rgb_curve.compensate_middle_grey},
+        {QStringLiteral("workingSpaceIndex"),
+         working_space_index(edit_develop().tone_curve_working_space)},
+        {QStringLiteral("channelModeIndex"),
+         edit_develop().tone_curve_channel_mode == kToneCurveChannelModeIndependent ? 1 : 0},
+        {QStringLiteral("parametricShadows"), edit_develop().rgb_curve.parametric_shadows},
+        {QStringLiteral("parametricDarks"), edit_develop().rgb_curve.parametric_darks},
+        {QStringLiteral("parametricLights"), edit_develop().rgb_curve.parametric_lights},
+        {QStringLiteral("parametricHighlights"), edit_develop().rgb_curve.parametric_highlights},
+        {QStringLiteral("split0"), edit_develop().rgb_curve.parametric_split_shadows},
+        {QStringLiteral("split1"), edit_develop().rgb_curve.parametric_split_mid},
+        {QStringLiteral("split2"), edit_develop().rgb_curve.parametric_split_highlights}};
 }
 
 QVariantList StudioPresenter::editCurvePoints() const
 {
-    return tone_curve_to_variant(curve_points_for(develop_, curve_family_, curve_channel_));
+    return tone_curve_to_variant(curve_points_for(edit_develop(), curve_family_, curve_channel_));
 }
 
 QVariantList StudioPresenter::editCurveSamples() const
 {
-    const auto interpolation =
-        curve_family_ == 0 ? develop_.rgb_curve.interpolation : develop_.tone_curve_interpolation;
+    const auto interpolation = curve_family_ == 0 ? edit_develop().rgb_curve.interpolation :
+                                                    edit_develop().tone_curve_interpolation;
     if (curve_family_ == 0 && curve_channel_ <= 0 &&
-        !rgb_curve_parametric_is_identity(develop_.rgb_curve))
+        !rgb_curve_parametric_is_identity(edit_develop().rgb_curve))
     {
         constexpr int kSamples = 65;
         QVariantList samples;
@@ -154,33 +156,33 @@ QVariantList StudioPresenter::editCurveSamples() const
         {
             const double x = static_cast<double>(index) / static_cast<double>(kSamples - 1);
             samples.push_back(evaluate_tone_curve(
-                develop_.rgb_curve.channels[0],
-                evaluate_rgb_curve_parametric(develop_.rgb_curve, x), interpolation));
+                edit_develop().rgb_curve.channels[0],
+                evaluate_rgb_curve_parametric(edit_develop().rgb_curve, x), interpolation));
         }
         return samples;
     }
-    return tone_curve_sample_list(curve_points_for(develop_, curve_family_, curve_channel_),
+    return tone_curve_sample_list(curve_points_for(edit_develop(), curve_family_, curve_channel_),
                                   interpolation);
 }
 
 bool StudioPresenter::editSigmoidEnabled() const noexcept
 {
-    return develop_.sigmoid_enabled;
+    return edit_develop().sigmoid_enabled;
 }
 
 double StudioPresenter::editSigmoidContrast() const noexcept
 {
-    return develop_.sigmoid_contrast;
+    return edit_develop().sigmoid_contrast;
 }
 
 double StudioPresenter::editSigmoidSkew() const noexcept
 {
-    return develop_.sigmoid_skew;
+    return edit_develop().sigmoid_skew;
 }
 
 double StudioPresenter::editSigmoidHuePreservation() const noexcept
 {
-    return develop_.sigmoid_hue_preservation;
+    return edit_develop().sigmoid_hue_preservation;
 }
 
 int StudioPresenter::editDemosaicModeIndex() const noexcept
@@ -237,17 +239,17 @@ bool StudioPresenter::editRawCaAvoidShift() const noexcept
 
 double StudioPresenter::editDenoise() const noexcept
 {
-    return develop_.denoise;
+    return edit_develop().denoise;
 }
 
 double StudioPresenter::editDenoiseChroma() const noexcept
 {
-    return develop_.denoise_chroma;
+    return edit_develop().denoise_chroma;
 }
 
 double StudioPresenter::editDenoiseRadius() const noexcept
 {
-    return develop_.denoise_radius;
+    return edit_develop().denoise_radius;
 }
 
 double StudioPresenter::editLensK1() const noexcept
@@ -267,25 +269,25 @@ double StudioPresenter::editLensMode() const noexcept
 
 int StudioPresenter::editColorEqBand() const noexcept
 {
-    return static_cast<int>(develop_.color_eq_band);
+    return static_cast<int>(edit_develop().color_eq_band);
 }
 
 double StudioPresenter::editColorEqHue() const noexcept
 {
-    return develop_.color_eq_hue[static_cast<std::size_t>(
-        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+    return edit_develop().color_eq_hue[static_cast<std::size_t>(
+        std::clamp(edit_develop().color_eq_band, std::int64_t{0}, std::int64_t{7}))];
 }
 
 double StudioPresenter::editColorEqSat() const noexcept
 {
-    return develop_.color_eq_sat[static_cast<std::size_t>(
-        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+    return edit_develop().color_eq_sat[static_cast<std::size_t>(
+        std::clamp(edit_develop().color_eq_band, std::int64_t{0}, std::int64_t{7}))];
 }
 
 double StudioPresenter::editColorEqLight() const noexcept
 {
-    return develop_.color_eq_light[static_cast<std::size_t>(
-        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+    return edit_develop().color_eq_light[static_cast<std::size_t>(
+        std::clamp(edit_develop().color_eq_band, std::int64_t{0}, std::int64_t{7}))];
 }
 
 QVariantList StudioPresenter::editColorEqBands() const
@@ -305,9 +307,9 @@ QVariantList StudioPresenter::editColorEqBands() const
             {QStringLiteral("hueField"), QStringLiteral("colorEqHue%1").arg(index)},
             {QStringLiteral("satField"), QStringLiteral("colorEqSat%1").arg(index)},
             {QStringLiteral("lightField"), QStringLiteral("colorEqLight%1").arg(index)},
-            {QStringLiteral("hue"), develop_.color_eq_hue[i]},
-            {QStringLiteral("sat"), develop_.color_eq_sat[i]},
-            {QStringLiteral("light"), develop_.color_eq_light[i]}});
+            {QStringLiteral("hue"), edit_develop().color_eq_hue[i]},
+            {QStringLiteral("sat"), edit_develop().color_eq_sat[i]},
+            {QStringLiteral("light"), edit_develop().color_eq_light[i]}});
     }
     return bands;
 }
@@ -319,6 +321,12 @@ bool StudioPresenter::whiteBalancePickActive() const noexcept
 
 void StudioPresenter::setWhiteBalancePickActive(const bool active)
 {
+    if (active && localEditing())
+    {
+        setError(QCoreApplication::translate("DevelopPanel",
+                                             "Finish mask editing before using global tools."));
+        return;
+    }
     const bool enabled = active && selectedMediaType() == QLatin1String("image/x-raw") &&
                          std::abs(develop_.straighten_degrees) <= 1.0e-4 &&
                          std::abs(develop_.perspective_vertical) <= 1.0e-4 &&
@@ -508,54 +516,54 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
 
 double StudioPresenter::editGraduatedDensity() const noexcept
 {
-    return develop_.graduated_density;
+    return edit_develop().graduated_density;
 }
 
 double StudioPresenter::editGraduatedHardness() const noexcept
 {
-    return develop_.graduated_hardness;
+    return edit_develop().graduated_hardness;
 }
 
 double StudioPresenter::editGraduatedRotation() const noexcept
 {
-    return develop_.graduated_rotation;
+    return edit_develop().graduated_rotation;
 }
 
 double StudioPresenter::editGraduatedOffset() const noexcept
 {
-    return develop_.graduated_offset;
+    return edit_develop().graduated_offset;
 }
 
 QVariantMap StudioPresenter::editGraduatedMask() const
 {
     return develop_mask_editor_map(
-        develop_mask_editor_state(develop_, DevelopMaskTarget::kGraduatedNd),
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kGraduatedNd),
         DevelopMaskTarget::kGraduatedNd);
 }
 
 double StudioPresenter::editToneEqBlacks() const noexcept
 {
-    return develop_.tone_eq_blacks;
+    return edit_develop().tone_eq_blacks;
 }
 
 double StudioPresenter::editToneEqShadows() const noexcept
 {
-    return develop_.tone_eq_shadows;
+    return edit_develop().tone_eq_shadows;
 }
 
 double StudioPresenter::editToneEqMidtones() const noexcept
 {
-    return develop_.tone_eq_midtones;
+    return edit_develop().tone_eq_midtones;
 }
 
 double StudioPresenter::editToneEqHighlights() const noexcept
 {
-    return develop_.tone_eq_highlights;
+    return edit_develop().tone_eq_highlights;
 }
 
 double StudioPresenter::editToneEqWhites() const noexcept
 {
-    return develop_.tone_eq_whites;
+    return edit_develop().tone_eq_whites;
 }
 
 QVariantList StudioPresenter::recipeHistory() const

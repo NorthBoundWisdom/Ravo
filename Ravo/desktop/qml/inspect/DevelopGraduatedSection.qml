@@ -58,10 +58,5 @@ DevelopSection {
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("graduatedRotation")
         }
-        MaskEditor {
-            panel: sectionRoot.panel
-            objectName: "graduatedMaskEditor"
-            mask: panel.hasPresenter ? panel.presenter.editGraduatedMask : ({})
-        }
     }
 }

@@ -443,55 +443,27 @@ long paths, and removal without touching user data.
 
 # P1 — Complete the professional baseline
 
-## LOCAL-01 — Professional multi-instance local adjustments
+## LOCAL-01 — Professional mask-scoped local adjustments
 
-**Maturity:** C2 on `main` for Studio multi-instance workflow evidence. Snapshot /
-history reopen / backup-restore smoke, failure-injection depth (stale revision on
-instance mutate, wrong `instance_id` after recreate, cancel mid structural batch
-apply), and live Studio preview-scale / 1:1 ROI mask-authoring contracts are
-closed via `Local01*` / catalog / presenter / QML-contract tests. Residual: GPU
-mask evaluation only after PERF-01 CPU equality; any leftover Main.qml extraction
-must shrink chrome, not grow it. Full mixed-corpus reopen/backup remains REL-01.
+Current ownership and compatibility are specified in
+[ADR-0158](adr/0158-mask-scoped-develop-workspace.md) and
+[ARCHITECTURE.md](ARCHITECTURE.md). The prior per-operation instance UI is an
+advanced global control, not the primary local-adjustment workflow.
 
 **Remaining work:**
 
-- COR-01 LOCAL residuals closed (id high-water, owned-mask GC, revision-bound saves);
-- keep bounded instance counts / last-instance Studio Delete gate as documented;
-- [done] Exposure (+ CBR) instance group Add/Union/Difference/Intersect + Invert
-  (root/child) + opacity/feather authoring round-trips with geometry fields
-  (`Local01GroupComposition*`, `Local01InvertIntersect*`);
-- [done] selected-instance overlay attachment slot (`exposure_mask_id` /
-  `color_balance_rgb_mask_id`), feather, and brush flow/density/hardness through
-  the C++-owned mask DAG (`Local01OverlayFeatherBrushFlow*`); MaskEditor chrome
-  already exposes Invert/Intersect/overlay/feather/brush without Main.qml growth;
-- [done] coordinate legs: orientation, lens, Canvas, 1:1 crop aspect, export
-  recipe survival (`Local01GeometryLegsMaskCoordSurvival`); live Studio
-  preview-scale / 1:1 ROI authoring path
-  (`Local01PreviewScaleAndOneToOneRoiMaskAuthoring`,
-  `Local01MaskPlaceUsesPhotoPlaneNotInspectRoi`) — Fit/Fill/1:1 normalize to
-  `photoPlane`; `map_mask_place_preview` maps through 1:1 crop onto the selected
-  instance; inspect ROI is display-only;
-- [done] snapshot / history reopen / catalog reopen + backup/restore smoke for
-  multi-instance Exposure/CBR + masks
-  (`Local01MultiInstanceSnapshotHistoryReopenAndStaleRevision`,
-  `Local01MultiInstanceBackupRestoreSmoke`);
-- [done] failure-injection depth: stale revision on instance mutate, wrong
-  `instance_id` after recreate (rename/bypass/enable/delete), cancel mid
-  structural multi-instance batch apply (`Local01WrongInstanceIdAfterRecreate*`,
-  stale revision in snapshot test, `Local01CancelMidStructuralMultiInstanceApply`);
-- retain existing history/undo/style/copy/batch/virtual-copy contracts;
-- add GPU evaluation only after CPU equality and PERF-01 evidence;
-- extract any remaining Main.qml orchestration rather than growing it.
+- Measure mixed-corpus mask creation, long brush strokes, multiple local groups,
+  and 1:1 interaction against PERF-01 budgets on all three platforms.
+- Extend GPU mask/group evaluation only after measured need and CPU equality.
+- Retain the full mixed-corpus reopen/backup acceptance under REL-01.
 
-**Acceptance gate:**
+**Acceptance gates for further changes:**
 
-- Studio can create, name, reorder, duplicate, mask, bypass, enable, and delete
-  at least two Exposure and Color Balance RGB instances without CLI assistance;
-- every failed mutation leaves exact prior state;
-- preview/export/reopen/history/undo/snapshot/style/copy/batch agree;
-- masks stay aligned through accepted geometry;
-- QML owns no durable geometry or pixels;
-- legacy singleton recipes remain bit-compatible.
+- Global and every selected mask remain independent across all exposed controls.
+- Gesture cancellation, stale requests and failed writes preserve prior state.
+- Preview/export/reopen/history/undo/snapshot/style/copy/batch agree.
+- Masks remain aligned through accepted geometry; QML owns no durable geometry
+  or pixels, and further Main.qml orchestration is extracted into owned views.
 
 ## EDITIN-01 — Studio external-editor round trip
 

@@ -12,6 +12,8 @@ ColumnLayout {
     property bool liveReady: false
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
+    readonly property bool localEditing: hasPresenter && presenter.localEditing === true
+    property bool showAdvancedInstances: false
     spacing: Fonts.smallSpacing
 
     function openLut3dDialog() {
@@ -36,60 +38,18 @@ ColumnLayout {
         font.bold: true
     }
 
-    ColumnLayout {
+    LocalAdjustmentWorkspace {
+        panel: root
         Layout.fillWidth: true
-        Layout.leftMargin: Fonts.standardMargin
-        Layout.rightMargin: Fonts.standardMargin
-        Layout.bottomMargin: Fonts.size12
-        spacing: Fonts.smallSpacing
+    }
 
-        DevelopLightSection {
+    Repeater {
+        model: [root.hasPresenter && root.presenter.activeLocalId !== undefined ? root.presenter.activeLocalId : ""]
+        delegate: DevelopAdjustmentStack {
+            required property var modelData
+            enabled: modelData === (root.hasPresenter && root.presenter.activeLocalId !== undefined ? root.presenter.activeLocalId : "")
             panel: root
-        }
-        DevelopCurvesSection {
-            panel: root
-        }
-        DevelopColorCoreSection {
-            panel: root
-        }
-        DevelopColorEqualizerSection {
-            panel: root
-        }
-        DevelopColorAdvancedSection {
-            panel: root
-        }
-        DevelopPrimariesSection {
-            panel: root
-        }
-        DevelopGeometrySection {
-            panel: root
-        }
-        DevelopToneEqualizerSection {
-            panel: root
-        }
-        DevelopGraduatedSection {
-            panel: root
-        }
-        DevelopEffectsSection {
-            panel: root
-        }
-        DevelopDetailSection {
-            panel: root
-        }
-        DevelopRawSection {
-            panel: root
-        }
-        DevelopCalibrationSection {
-            panel: root
-        }
-        DevelopInputProfileSection {
-            panel: root
-        }
-        DevelopProfileGammaSection {
-            panel: root
-        }
-        DevelopOutputProfileSection {
-            panel: root
+            Layout.fillWidth: true
         }
     }
 }

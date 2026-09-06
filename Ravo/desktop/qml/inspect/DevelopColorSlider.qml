@@ -28,6 +28,7 @@ Item {
     implicitHeight: content.implicitHeight
 
     property bool _syncing: false
+    property bool _ready: false
     property var _pausedFlickable: null
     property bool _pausedFlickableWasInteractive: false
 
@@ -36,7 +37,7 @@ Item {
     }
 
     function applyIncomingValue() {
-        if (root._syncing || slider.pressed)
+        if (!root._ready || root._syncing || slider.pressed)
             return;
         if (!root.almostEqual(slider.value, root.value)) {
             root._syncing = true;
@@ -92,14 +93,22 @@ Item {
     onValueChanged: applyIncomingValue()
     onFromChanged: applyIncomingValue()
     onToChanged: applyIncomingValue()
-    Component.onCompleted: applyIncomingValue()
-    Component.onDestruction: resumeAncestorFlickable()
+    Component.onCompleted: {
+        _ready = true;
+        applyIncomingValue();
+    }
+    Component.onDestruction: {
+        _ready = false;
+        commitTimer.stop();
+        resumeAncestorFlickable();
+    }
 
     Timer {
         id: commitTimer
         interval: root.commitDelay
         repeat: false
-        onTriggered: root.valueCommitted(slider.value)
+        onTriggered: if (root._ready && root.enabled)
+            root.valueCommitted(slider.value)
     }
 
     ColumnLayout {

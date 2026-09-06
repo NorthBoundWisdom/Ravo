@@ -24,6 +24,7 @@ add_executable(ravo_unit_tests
   recipe_test.cpp
   recipe_develop_test.cpp
   recipe_style_test.cpp
+  local_adjustment_scope_test.cpp
   local_adjustment_multi_instance_test.cpp)
 target_link_libraries(ravo_unit_tests PRIVATE GTest::gtest_main ravo_domain ravo_recipe)
 target_include_directories(ravo_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -50,6 +51,7 @@ ravo_copy_windows_runtime_dlls(ravo_preview_cache_tests)
 gtest_discover_tests(ravo_preview_cache_tests PROPERTIES LABELS "ravo-unit")
 
 add_executable(ravo_contract_tests
+  local_adjustment_engine_test.cpp
   cli_test_support.cpp
   engine_color_test_support.cpp
   engine_harmony_test_support.cpp
@@ -414,6 +416,7 @@ add_executable(ravo_desktop_command_tests
   studio_test_support.cpp
   studio_command_test.cpp
   studio_presenter_test.cpp
+  studio_local_adjustment_test.cpp
   studio_presenter_workflow_test.cpp
   studio_iq_quality_test.cpp
   studio_gallery_viewer_develop_perf_test.cpp

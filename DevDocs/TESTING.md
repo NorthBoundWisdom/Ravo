@@ -414,6 +414,19 @@ UI testing does not replace service integration. Minimum manual desktop
 acceptance may be used today, but catalog, import, preview, and failure paths
 need headless automated tests first. QML components may use Qt Quick Test for
 binding, intent forwarding, and state presentation; GoogleTest service/contract
+Mask-scoped Develop (ADR-0158) is covered by `LocalAdjustmentScopeTest`,
+`LocalAdjustmentEngineTest`, and `LocalAdjustmentWorkspaceTest`: independent
+global/local parameters, recipe v4 round trips, whole-group alpha, original
+mask pixel parity, transformed coordinates, graph ownership/copying,
+incomplete gesture cancellation, Done during an in-flight preview, persistence,
+and explicit CLI revision conflicts. `StudioQmlContract` requires exactly one
+mask editor in the unified workspace and no per-control mask editors.
+Canonical brushes accept up to 1,024 points; paths remain bounded to 32.
+Use the full Ravo suite for these public recipe/Engine changes, with
+`RavoCodeQuality`, Studio QML smoke and localization smoke. User-operated visual
+UI acceptance is distinct from these machine contracts; rendered evidence
+comes from CLI PNG artifacts, never application screenshots.
+
 tests still validate business outcomes.
 
 ## Catalog contract

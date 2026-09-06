@@ -635,6 +635,36 @@ owns its handle-free camera identity, black-subtracted uint16
 mean/variance/count samples and fitted Gaussian/Poisson resource values. Engine
 performs a bounded deterministic robust fit; the JSON adapter owns the strict
 sample/profile schemas and canonical
+Recipe v4 adds the mask-scoped workspace in
+[ADR-0158](adr/0158-mask-scoped-develop-workspace.md). A
+`ravo.local.adjustment` v1 operation owns one canonical mask root and up to 64
+ordered photographic RGB children; groups cannot nest and a recipe has at most
+64 local groups. The Engine executes the complete child chain and applies one
+normal alpha mix. The actual group alpha also owns the preview overlay. RAW,
+geometry, display transforms, profile selection, output decoration and Retouch
+remain global. Local manual RGB white balance and dehaze run through the same
+CPU kernels in the group's working frame; global preprocessing is unchanged.
+Resource fingerprints and saturated memory estimates include group children.
+
+`DevelopParams.local_adjustments` preserves ordered groups; a following-instance
+projection retains imported pipeline positions when global identity operations
+are elided. New groups precede final geometry/display mapping. Studio and the
+catalog mask client project old per-operation masks into single-child groups
+at their original positions, cloning owned editable graphs without rewriting
+the stored recipe on a read. The next accepted save persists recipe v4. Source
+pixels, originals and history entries remain unchanged by this projection.
+
+Desktop C++ owns Global/Local(ID), component/point cursors, drawing and bounded
+gesture tokens. QML recreates the adjustment controls when the scope changes
+and cancels deferred view commits on destruction. Each completed gesture or
+slider commit uses the existing revision-bound catalog transaction, history
+and preview owners. Incomplete spatial-mask creation is ephemeral; Done
+discards an undrawn draft or exits after the pending save. Save failure leaves
+the prior durable state and a visible error. Window/selection destruction
+invalidates gesture tokens and rejects late results. Shared mask roots remain
+read-only; duplication produces independent owned graphs. Selective copying
+retains unselected local masks and clones selected groups into the destination.
+
 SHA-256 payload; Services owns cancellation-aware, race-safe atomic no-replace
 publication. CLI only composes those owners. The command never discovers or
 writes an implicit profile directory, and the current denoisers do not load the
@@ -925,7 +955,7 @@ not. `security_factor` remains canonical but has no pixel effect. The old
 picker/autotune is unsupported until an engine/service analysis contract owns
 pre-operation pixels, ROI, statistics, cancellation, and recipe revision.
 
-Canonical recipe schema v3 upgrades schema-v1/v2 recipes by inserting explicit
+Canonical recipe schema v4 retains the v3 upgrade of schema-v1/v2 recipes by inserting explicit
 source → linear Rec709 `ravo.color.input` and working → output
 `ravo.color.output` operations. Input colour follows RAW preprocessing and owns
 input-profile to working-profile conversion.

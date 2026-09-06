@@ -448,11 +448,11 @@ void clamp_develop(DevelopParams &params) noexcept
 
 bool DevelopParams::is_identity() const noexcept
 {
-    return masks.empty() && !color_harmonizer_present && !color_harmonizer_mask_id.has_value() &&
-           !graduated_present && !graduated_enabled && !graduated_mask_id.has_value() &&
-           demosaic_mode == kDemosaicModeRcd && temperature.is_identity() &&
-           !profile_gamma_enabled && input_color.is_identity() && output_color.is_identity() &&
-           primaries.is_identity() && channel_mixer.is_identity() &&
+    return masks.empty() && local_adjustments.empty() && !color_harmonizer_present &&
+           !color_harmonizer_mask_id.has_value() && !graduated_present && !graduated_enabled &&
+           !graduated_mask_id.has_value() && demosaic_mode == kDemosaicModeRcd &&
+           temperature.is_identity() && !profile_gamma_enabled && input_color.is_identity() &&
+           output_color.is_identity() && primaries.is_identity() && channel_mixer.is_identity() &&
            exposure_mode == kExposureModeManual && near(exposure_black, 0.0) &&
            near(exposure_ev, 0.0) &&
            near(exposure_deflicker_percentile, kExposureDeflickerPercentileDefault) &&
@@ -485,12 +485,11 @@ bool DevelopParams::is_identity() const noexcept
            rgb_levels.is_identity() && rgb_curve.is_identity() && !rgb_curve_mask_id.has_value() &&
            !tone_curve_mask_id.has_value() && tone_curve_is_identity(tone_curve) &&
            tone_curve_is_identity(tone_curve_a) && tone_curve_is_identity(tone_curve_b) &&
-           !sigmoid_enabled && !rapidraw_basic_tone_enabled &&
-           !rapidraw_tone_controls_enabled && near(rapidraw_ev_shift, 0.0) &&
-           near(rapidraw_exposure, 0.0) && near(rapidraw_contrast, 0.0) &&
-           near(rapidraw_highlights, 0.0) && near(rapidraw_shadows, 0.0) &&
-           near(rapidraw_whites, 0.0) && near(rapidraw_blacks, 0.0) &&
-           near(raw_highlights, 0.0) &&
+           !sigmoid_enabled && !rapidraw_basic_tone_enabled && !rapidraw_tone_controls_enabled &&
+           near(rapidraw_ev_shift, 0.0) && near(rapidraw_exposure, 0.0) &&
+           near(rapidraw_contrast, 0.0) && near(rapidraw_highlights, 0.0) &&
+           near(rapidraw_shadows, 0.0) && near(rapidraw_whites, 0.0) &&
+           near(rapidraw_blacks, 0.0) && near(raw_highlights, 0.0) &&
            near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
            near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) && near(lens_k1, 0.0) &&
            near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&

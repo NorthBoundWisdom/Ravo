@@ -26,13 +26,14 @@ ColumnLayout {
     CustomLabel {
         Layout.fillWidth: true
         text: qsTr("Mask kind")
+        visible: maskEditor.mask.target !== "local"
     }
     CustomComboBox {
         objectName: "maskKind"
         Layout.fillWidth: true
         model: maskEditor.mask.kindChoices !== undefined ? maskEditor.mask.kindChoices : []
         currentIndex: maskEditor.mask.kindIndex !== undefined ? maskEditor.mask.kindIndex : 0
-        visible: currentIndex >= 0
+        visible: currentIndex >= 0 && maskEditor.mask.target !== "local"
         enabled: panel.hasSelection && (maskEditor.mask.editable || !maskEditor.mask.attached)
         onActivated: if (panel.commands)
             panel.commands.setDevelopNumber(maskEditor.mask.kindField, currentIndex)
@@ -131,7 +132,7 @@ ColumnLayout {
     CustomCheckBox {
         Layout.fillWidth: true
         objectName: "maskPlaceActive"
-        visible: maskEditor.mask.attached === true && (maskEditor.mask.kindName === "circle" || maskEditor.mask.kindName === "ellipse" || maskEditor.mask.kindName === "linear_gradient")
+        visible: maskEditor.mask.target !== "local" && maskEditor.mask.attached === true && (maskEditor.mask.kindName === "circle" || maskEditor.mask.kindName === "ellipse" || maskEditor.mask.kindName === "linear_gradient")
         text: qsTr("Place on photo")
         enabled: panel.hasSelection && maskEditor.mask.editable === true && panel.hasPresenter && panel.presenter.maskPlaceGeometryAllowed
         checked: panel.hasPresenter && panel.presenter.maskPlaceActive && panel.presenter.maskOverlayVisible && panel.presenter.maskOverlayTarget === maskEditor.mask.target
@@ -287,6 +288,7 @@ ColumnLayout {
         }
         CustomButton {
             text: qsTr("Detach mask")
+            visible: maskEditor.mask.target !== "local"
             enabled: panel.hasSelection && maskEditor.mask.canDetach === true
             onClicked: if (panel.commands)
                 panel.commands.resetControl(maskEditor.mask.detachField)

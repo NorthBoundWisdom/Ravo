@@ -8,6 +8,7 @@ import GeoControls 1.0
 Item {
     id: root
     property var panel
+    visible: panel && panel.showAdvancedInstances && !panel.localEditing
     property string operation: "exposure" // "exposure" | "colorBalanceRgb"
     property string objectNamePrefix: operation === "exposure" ? "exposureInstance" : "colorBalanceRgbInstance"
 

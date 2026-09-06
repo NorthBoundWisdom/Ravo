@@ -12,6 +12,11 @@ private by default, and reproducible enough to audit.
 
 ## Document authority
 
+The Global/Mask Develop workspace and Recipe v4 local groups are specified in
+[ADR-0158](adr/0158-mask-scoped-develop-workspace.md); current ownership is in
+[ARCHITECTURE.md](ARCHITECTURE.md) and validation policy in
+[TESTING.md](TESTING.md).
+
 | Document | Owns | Does not own |
 | --- | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Current target boundaries, image-pipeline defaults, ownership, lifecycle, threads, data, and failure behavior | Future work or run diaries |

@@ -961,53 +961,83 @@ namespace
     std::optional<AlphaPlane> pending_overlay;
     if (overlay_alpha != nullptr && overlay_mask_id.has_value() && !overlay_mask_id->empty())
     {
-        Recipe overlay_recipe = remaining_recipe;
-        std::size_t replay_begin = 0U;
-        for (std::size_t index = 0U; index < overlay_recipe.operations.size(); ++index)
+        const auto local =
+            std::find_if(remaining_recipe.operations.begin(), remaining_recipe.operations.end(),
+                         [&](const auto &operation)
+                         {
+                             return operation.id == kLocalAdjustmentOperationId &&
+                                    operation.mask_id == overlay_mask_id;
+                         });
+        if (local != remaining_recipe.operations.end())
         {
-            if (overlay_recipe.operations[index].enabled &&
-                overlay_recipe.operations[index].id == kCanvasOperationId)
-                replay_begin = index + 1U;
+            Recipe prefix = remaining_recipe;
+            prefix.operations.resize(
+                static_cast<std::size_t>(local - remaining_recipe.operations.begin()));
+            auto basis = apply_recipe_ops(image, prefix, cancellation);
+            if (!basis)
+                return basis.error();
+            AlphaPlane actual_alpha;
+            auto adjusted = apply_local_adjustment(std::move(basis).value(), remaining_recipe,
+                                                   *local, cancellation, &actual_alpha);
+            if (!adjusted)
+                return adjusted.error();
+            auto transformed = apply_recipe_geometry_to_alpha(std::move(actual_alpha),
+                                                              remaining_recipe, cancellation);
+            if (!transformed)
+                return transformed.error();
+            pending_overlay = std::move(transformed).value();
         }
-        for (std::size_t index = replay_begin; index < overlay_recipe.operations.size(); ++index)
+        else
         {
-            auto &operation = overlay_recipe.operations[index];
-            if (operation.id == "ravo.geometry.rotate" || operation.id == "ravo.geometry.flip" ||
-                operation.id == "ravo.geometry.crop" ||
-                operation.id == "ravo.geometry.straighten" ||
-                operation.id == kPerspectiveOperationId)
-                operation.enabled = false;
+            Recipe overlay_recipe = remaining_recipe;
+            std::size_t replay_begin = 0U;
+            for (std::size_t index = 0U; index < overlay_recipe.operations.size(); ++index)
+            {
+                if (overlay_recipe.operations[index].enabled &&
+                    overlay_recipe.operations[index].id == kCanvasOperationId)
+                    replay_begin = index + 1U;
+            }
+            for (std::size_t index = replay_begin; index < overlay_recipe.operations.size();
+                 ++index)
+            {
+                auto &operation = overlay_recipe.operations[index];
+                if (operation.id == "ravo.geometry.rotate" ||
+                    operation.id == "ravo.geometry.flip" || operation.id == "ravo.geometry.crop" ||
+                    operation.id == "ravo.geometry.straighten" ||
+                    operation.id == kPerspectiveOperationId)
+                    operation.enabled = false;
+            }
+            auto overlay_basis = apply_recipe_ops(image, overlay_recipe, cancellation);
+            if (!overlay_basis)
+                return overlay_basis.error();
+            if (overlay_basis.value().width == 0U || overlay_basis.value().height == 0U ||
+                overlay_basis.value().width > std::numeric_limits<std::uint32_t>::max() / 3U)
+            {
+                return make_error(ErrorCode::kValidation, "Overlay working image is invalid",
+                                  {{"reason", "invalid_mask_overlay"}});
+            }
+            const std::uint32_t stride = overlay_basis.value().width * 3U;
+            MaskEvaluationRequest request{
+                .full_width = overlay_basis.value().width,
+                .full_height = overlay_basis.value().height,
+                .roi_x = 0U,
+                .roi_y = 0U,
+                .roi_width = overlay_basis.value().width,
+                .roi_height = overlay_basis.value().height,
+                .input = MaskRgbPlaneView{overlay_basis.value().rgb, stride},
+                .operation_output = MaskRgbPlaneView{overlay_basis.value().rgb, stride},
+                .attached_frame = overlay_basis.value().mask_attached_frame,
+                .cancellation = cancellation,
+            };
+            auto alpha = evaluate_canonical_mask(recipe.masks, *overlay_mask_id, request);
+            if (!alpha)
+                return alpha.error();
+            auto transformed = apply_recipe_geometry_to_alpha(std::move(alpha).value(),
+                                                              remaining_recipe, cancellation);
+            if (!transformed)
+                return transformed.error();
+            pending_overlay = std::move(transformed).value();
         }
-        auto overlay_basis = apply_recipe_ops(image, overlay_recipe, cancellation);
-        if (!overlay_basis)
-            return overlay_basis.error();
-        if (overlay_basis.value().width == 0U || overlay_basis.value().height == 0U ||
-            overlay_basis.value().width > std::numeric_limits<std::uint32_t>::max() / 3U)
-        {
-            return make_error(ErrorCode::kValidation, "Overlay working image is invalid",
-                              {{"reason", "invalid_mask_overlay"}});
-        }
-        const std::uint32_t stride = overlay_basis.value().width * 3U;
-        MaskEvaluationRequest request{
-            .full_width = overlay_basis.value().width,
-            .full_height = overlay_basis.value().height,
-            .roi_x = 0U,
-            .roi_y = 0U,
-            .roi_width = overlay_basis.value().width,
-            .roi_height = overlay_basis.value().height,
-            .input = MaskRgbPlaneView{overlay_basis.value().rgb, stride},
-            .operation_output = MaskRgbPlaneView{overlay_basis.value().rgb, stride},
-            .attached_frame = overlay_basis.value().mask_attached_frame,
-            .cancellation = cancellation,
-        };
-        auto alpha = evaluate_canonical_mask(recipe.masks, *overlay_mask_id, request);
-        if (!alpha)
-            return alpha.error();
-        auto transformed = apply_recipe_geometry_to_alpha(std::move(alpha).value(),
-                                                          remaining_recipe, cancellation);
-        if (!transformed)
-            return transformed.error();
-        pending_overlay = std::move(transformed).value();
     }
     const GpuAdapter *gpu = nullptr;
     if (use_gpu)

@@ -16,6 +16,7 @@ namespace ravo
 // services and QML only pass the numeric intents through their existing paths.
 enum class DevelopMaskTarget
 {
+    kLocal,
     kColorHarmonizer,
     kGraduatedNd,
     kColorBalanceRgb,
@@ -27,6 +28,8 @@ enum class DevelopMaskTarget
     kWhites,
     kBlacks,
 };
+
+inline constexpr std::string_view kLocalMaskFieldPrefix = "localMask";
 
 inline constexpr std::string_view kColorHarmonizerMaskFieldPrefix = "colorHarmonizerMask";
 inline constexpr std::string_view kGraduatedMaskFieldPrefix = "graduatedMask";

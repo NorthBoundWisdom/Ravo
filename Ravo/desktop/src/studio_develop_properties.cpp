@@ -67,25 +67,26 @@ bool StudioPresenter::hasCopiedParameters() const noexcept
 
 QVariantMap StudioPresenter::editWhiteBalance() const
 {
-    const auto &params = develop_.temperature;
+    const auto &params = edit_develop().temperature;
     const auto coefficients = params.coefficients.value_or(
         std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0});
     const int mode = params.mode == kTemperatureModeCameraReference   ? 1 :
                      params.mode == kTemperatureModeAsShotToReference ? 2 :
                      params.mode == kTemperatureModeManual            ? 3 :
                                                                         0;
-    return {{QStringLiteral("modeIndex"), mode},
-            {QStringLiteral("hasCoefficients"), params.coefficients.has_value()},
-            {QStringLiteral("red"), coefficients[0]},
-            {QStringLiteral("green"), coefficients[1]},
-            {QStringLiteral("blue"), coefficients[2]},
-            {QStringLiteral("fourth"), coefficients[3]},
-            {QStringLiteral("canPick"), selectedMediaType() == QLatin1String("image/x-raw") &&
-                                            std::abs(develop_.straighten_degrees) <= 1.0e-4 &&
-                                            std::abs(develop_.perspective_vertical) <= 1.0e-4 &&
-                                            std::abs(develop_.perspective_horizontal) <= 1.0e-4 &&
-                                            std::abs(develop_.perspective_shear) <= 1.0e-4 &&
-                                            !develop_.canvas_enabled}};
+    return {
+        {QStringLiteral("modeIndex"), mode},
+        {QStringLiteral("hasCoefficients"), params.coefficients.has_value()},
+        {QStringLiteral("red"), coefficients[0]},
+        {QStringLiteral("green"), coefficients[1]},
+        {QStringLiteral("blue"), coefficients[2]},
+        {QStringLiteral("fourth"), coefficients[3]},
+        {QStringLiteral("canPick"), selectedMediaType() == QLatin1String("image/x-raw") &&
+                                        std::abs(edit_develop().straighten_degrees) <= 1.0e-4 &&
+                                        std::abs(edit_develop().perspective_vertical) <= 1.0e-4 &&
+                                        std::abs(edit_develop().perspective_horizontal) <= 1.0e-4 &&
+                                        std::abs(edit_develop().perspective_shear) <= 1.0e-4 &&
+                                        !edit_develop().canvas_enabled}};
 }
 
 QVariantMap StudioPresenter::editInputColor() const
@@ -192,146 +193,155 @@ double StudioPresenter::editChannelMixerBB() const noexcept
 
 QVariantMap StudioPresenter::editExposureParams() const
 {
-    return {{QStringLiteral("modeIndex"), develop_.exposure_mode == kExposureModeDeflicker ? 1 : 0},
-            {QStringLiteral("black"), develop_.exposure_black},
-            {QStringLiteral("exposureEv"), develop_.exposure_ev},
-            {QStringLiteral("deflickerPercentile"), develop_.exposure_deflicker_percentile},
-            {QStringLiteral("deflickerTargetEv"), develop_.exposure_deflicker_target_ev},
-            {QStringLiteral("compensateExposureBias"), develop_.exposure_compensate_exposure_bias},
+    return {{QStringLiteral("modeIndex"),
+             edit_develop().exposure_mode == kExposureModeDeflicker ? 1 : 0},
+            {QStringLiteral("black"), edit_develop().exposure_black},
+            {QStringLiteral("exposureEv"), edit_develop().exposure_ev},
+            {QStringLiteral("deflickerPercentile"), edit_develop().exposure_deflicker_percentile},
+            {QStringLiteral("deflickerTargetEv"), edit_develop().exposure_deflicker_target_ev},
+            {QStringLiteral("compensateExposureBias"),
+             edit_develop().exposure_compensate_exposure_bias},
             {QStringLiteral("compensateHighlightPreservation"),
-             develop_.exposure_compensate_highlight_preservation}};
+             edit_develop().exposure_compensate_highlight_preservation}};
 }
 
 QVariantMap StudioPresenter::editExposureMask() const
 {
-    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kExposure),
-                                   DevelopMaskTarget::kExposure);
+    return develop_mask_editor_map(
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kExposure),
+        DevelopMaskTarget::kExposure);
 }
 
 QVariantMap StudioPresenter::editHighlightsMask() const
 {
-    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kHighlights),
-                                   DevelopMaskTarget::kHighlights);
+    return develop_mask_editor_map(
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kHighlights),
+        DevelopMaskTarget::kHighlights);
 }
 
 QVariantMap StudioPresenter::editShadowsMask() const
 {
-    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kShadows),
-                                   DevelopMaskTarget::kShadows);
+    return develop_mask_editor_map(
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kShadows),
+        DevelopMaskTarget::kShadows);
 }
 
 QVariantMap StudioPresenter::editWhitesMask() const
 {
-    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kWhites),
-                                   DevelopMaskTarget::kWhites);
+    return develop_mask_editor_map(
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kWhites),
+        DevelopMaskTarget::kWhites);
 }
 
 QVariantMap StudioPresenter::editBlacksMask() const
 {
-    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kBlacks),
-                                   DevelopMaskTarget::kBlacks);
+    return develop_mask_editor_map(
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kBlacks),
+        DevelopMaskTarget::kBlacks);
 }
 
 QVariantMap StudioPresenter::editRgbCurveMask() const
 {
-    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kRgbCurve),
-                                   DevelopMaskTarget::kRgbCurve);
+    return develop_mask_editor_map(
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kRgbCurve),
+        DevelopMaskTarget::kRgbCurve);
 }
 
 QVariantMap StudioPresenter::editToneCurveMask() const
 {
-    return develop_mask_editor_map(develop_mask_editor_state(develop_, DevelopMaskTarget::kToneCurve),
-                                   DevelopMaskTarget::kToneCurve);
+    return develop_mask_editor_map(
+        develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kToneCurve),
+        DevelopMaskTarget::kToneCurve);
 }
 
 double StudioPresenter::editExposure() const noexcept
 {
-    return develop_.exposure_ev;
+    return edit_develop().exposure_ev;
 }
 
 double StudioPresenter::editContrast() const noexcept
 {
-    return develop_.contrast;
+    return edit_develop().contrast;
 }
 
 double StudioPresenter::editHighlights() const noexcept
 {
-    return develop_.highlights;
+    return edit_develop().highlights;
 }
 
 double StudioPresenter::editShadows() const noexcept
 {
-    return develop_.shadows;
+    return edit_develop().shadows;
 }
 
 double StudioPresenter::editWhites() const noexcept
 {
-    return develop_.whites;
+    return edit_develop().whites;
 }
 
 double StudioPresenter::editBlacks() const noexcept
 {
-    return develop_.blacks;
+    return edit_develop().blacks;
 }
 
 bool StudioPresenter::editRapidRawToneControlsEnabled() const noexcept
 {
-    return develop_.rapidraw_tone_controls_enabled;
+    return edit_develop().rapidraw_tone_controls_enabled;
 }
 
 bool StudioPresenter::editRapidRawBasicToneEnabled() const noexcept
 {
-    return develop_.rapidraw_basic_tone_enabled;
+    return edit_develop().rapidraw_basic_tone_enabled;
 }
 
 int StudioPresenter::editToneMapperIndex() const noexcept
 {
-    return develop_.sigmoid_enabled ? 1 : 0;
+    return edit_develop().sigmoid_enabled ? 1 : 0;
 }
 
 double StudioPresenter::editRapidRawEvShift() const noexcept
 {
-    return develop_.rapidraw_ev_shift;
+    return edit_develop().rapidraw_ev_shift;
 }
 
 double StudioPresenter::editRapidRawExposure() const noexcept
 {
-    return develop_.rapidraw_exposure;
+    return edit_develop().rapidraw_exposure;
 }
 
 double StudioPresenter::editRapidRawContrast() const noexcept
 {
-    return develop_.rapidraw_contrast;
+    return edit_develop().rapidraw_contrast;
 }
 
 double StudioPresenter::editRapidRawHighlights() const noexcept
 {
-    return develop_.rapidraw_highlights;
+    return edit_develop().rapidraw_highlights;
 }
 
 double StudioPresenter::editRapidRawShadows() const noexcept
 {
-    return develop_.rapidraw_shadows;
+    return edit_develop().rapidraw_shadows;
 }
 
 double StudioPresenter::editRapidRawWhites() const noexcept
 {
-    return develop_.rapidraw_whites;
+    return edit_develop().rapidraw_whites;
 }
 
 double StudioPresenter::editRapidRawBlacks() const noexcept
 {
-    return develop_.rapidraw_blacks;
+    return edit_develop().rapidraw_blacks;
 }
 
 double StudioPresenter::editVibrance() const noexcept
 {
-    return develop_.vibrance;
+    return edit_develop().vibrance;
 }
 
 double StudioPresenter::editSaturation() const noexcept
 {
-    return develop_.saturation;
+    return edit_develop().saturation;
 }
 
 int StudioPresenter::editRotateQuarters() const noexcept
@@ -536,24 +546,25 @@ bool StudioPresenter::editFlipVertical() const noexcept
 
 double StudioPresenter::editSharpen() const noexcept
 {
-    return develop_.sharpen;
+    return edit_develop().sharpen;
 }
 
 double StudioPresenter::editSharpenRadius() const noexcept
 {
-    return develop_.sharpen_radius;
+    return edit_develop().sharpen_radius;
 }
 
 double StudioPresenter::editSharpenThreshold() const noexcept
 {
-    return develop_.sharpen_threshold;
+    return edit_develop().sharpen_threshold;
 }
 
 QVariantMap StudioPresenter::editTexture() const
 {
-    return {{QStringLiteral("strength"), develop_.texture.strength},
-            {QStringLiteral("detailThreshold"), develop_.texture.detail_threshold},
-            {QStringLiteral("iterations"), static_cast<qlonglong>(develop_.texture.iterations)}};
+    return {
+        {QStringLiteral("strength"), edit_develop().texture.strength},
+        {QStringLiteral("detailThreshold"), edit_develop().texture.detail_threshold},
+        {QStringLiteral("iterations"), static_cast<qlonglong>(edit_develop().texture.iterations)}};
 }
 
 QVariantMap StudioPresenter::editRetouch() const
@@ -585,52 +596,52 @@ QVariantMap StudioPresenter::editRetouch() const
 
 double StudioPresenter::editClarity() const noexcept
 {
-    return develop_.clarity;
+    return edit_develop().clarity;
 }
 
 double StudioPresenter::editVignette() const noexcept
 {
-    return develop_.vignette;
+    return edit_develop().vignette;
 }
 
 QVariantMap StudioPresenter::editVignetteParams() const
 {
-    return {{QStringLiteral("amount"), develop_.vignette},
-            {QStringLiteral("midpoint"), develop_.vignette_midpoint},
-            {QStringLiteral("falloff"), develop_.vignette_falloff},
-            {QStringLiteral("shape"), develop_.vignette_shape},
-            {QStringLiteral("centerX"), develop_.vignette_center_x},
-            {QStringLiteral("centerY"), develop_.vignette_center_y}};
+    return {{QStringLiteral("amount"), edit_develop().vignette},
+            {QStringLiteral("midpoint"), edit_develop().vignette_midpoint},
+            {QStringLiteral("falloff"), edit_develop().vignette_falloff},
+            {QStringLiteral("shape"), edit_develop().vignette_shape},
+            {QStringLiteral("centerX"), edit_develop().vignette_center_x},
+            {QStringLiteral("centerY"), edit_develop().vignette_center_y}};
 }
 
 double StudioPresenter::editGrain() const noexcept
 {
-    return develop_.grain;
+    return edit_develop().grain;
 }
 
 double StudioPresenter::editBloom() const noexcept
 {
-    return develop_.bloom;
+    return edit_develop().bloom;
 }
 
 double StudioPresenter::editSoften() const noexcept
 {
-    return develop_.soften;
+    return edit_develop().soften;
 }
 
 double StudioPresenter::editDehaze() const noexcept
 {
-    return develop_.dehaze;
+    return edit_develop().dehaze;
 }
 
 double StudioPresenter::editDehazeDistance() const noexcept
 {
-    return develop_.dehaze_distance;
+    return edit_develop().dehaze_distance;
 }
 
 bool StudioPresenter::editDehazeAdaptive() const noexcept
 {
-    return develop_.dehaze_adaptive;
+    return edit_develop().dehaze_adaptive;
 }
 
 QVariantMap StudioPresenter::editOutputDither() const
@@ -770,16 +781,16 @@ QVariantMap StudioPresenter::editWatermark() const
 
 double StudioPresenter::editVelvia() const noexcept
 {
-    return develop_.velvia_enabled ? develop_.velvia.strength / 100.0 : 0.0;
+    return edit_develop().velvia_enabled ? edit_develop().velvia.strength / 100.0 : 0.0;
 }
 
 QVariantMap StudioPresenter::editVelviaParams() const
 {
-    return {{QStringLiteral("present"), develop_.velvia_present},
-            {QStringLiteral("enabled"), develop_.velvia_enabled},
-            {QStringLiteral("masked"), develop_.velvia_mask_id.has_value()},
-            {QStringLiteral("strength"), develop_.velvia.strength},
-            {QStringLiteral("bias"), develop_.velvia.bias}};
+    return {{QStringLiteral("present"), edit_develop().velvia_present},
+            {QStringLiteral("enabled"), edit_develop().velvia_enabled},
+            {QStringLiteral("masked"), edit_develop().velvia_mask_id.has_value()},
+            {QStringLiteral("strength"), edit_develop().velvia.strength},
+            {QStringLiteral("bias"), edit_develop().velvia.bias}};
 }
 
 QVariantMap StudioPresenter::editLut3d() const
@@ -809,25 +820,25 @@ QVariantMap StudioPresenter::editLut3d() const
     interpolations.reserve(static_cast<qsizetype>(interpolation_labels.size()));
     for (const char *label : interpolation_labels)
         interpolations.push_back(QCoreApplication::translate("DevelopPanel", label));
-    return {{QStringLiteral("present"), develop_.lut3d_present},
-            {QStringLiteral("enabled"), develop_.lut3d_enabled},
-            {QStringLiteral("filePath"), qstring_from_utf8(develop_.lut3d.file_path)},
-            {QStringLiteral("hasFile"), !develop_.lut3d.file_path.empty()},
+    return {{QStringLiteral("present"), edit_develop().lut3d_present},
+            {QStringLiteral("enabled"), edit_develop().lut3d_enabled},
+            {QStringLiteral("filePath"), qstring_from_utf8(edit_develop().lut3d.file_path)},
+            {QStringLiteral("hasFile"), !edit_develop().lut3d.file_path.empty()},
             {QStringLiteral("inputSpaceIndex"),
-             index_of(kLut3dSelectableSpaces, develop_.lut3d.input_space)},
+             index_of(kLut3dSelectableSpaces, edit_develop().lut3d.input_space)},
             {QStringLiteral("outputSpaceIndex"),
-             index_of(kLut3dSelectableSpaces, develop_.lut3d.output_space)},
+             index_of(kLut3dSelectableSpaces, edit_develop().lut3d.output_space)},
             {QStringLiteral("interpolationIndex"),
-             index_of(kLut3dSelectableInterpolations, develop_.lut3d.interpolation)},
-            {QStringLiteral("strength"), develop_.lut3d.strength},
+             index_of(kLut3dSelectableInterpolations, edit_develop().lut3d.interpolation)},
+            {QStringLiteral("strength"), edit_develop().lut3d.strength},
             {QStringLiteral("spaceChoices"), spaces},
             {QStringLiteral("interpolationChoices"), interpolations}};
 }
 
 QVariantMap StudioPresenter::editLegacyColorBalance() const
 {
-    const auto &params = develop_.color_balance;
-    return {{QStringLiteral("enabled"), develop_.color_balance_enabled},
+    const auto &params = edit_develop().color_balance;
+    return {{QStringLiteral("enabled"), edit_develop().color_balance_enabled},
             {QStringLiteral("modeIndex"), params.mode == kColorBalanceModeLiftGammaGain ? 0 : 1},
             {QStringLiteral("liftFactor"), params.lift[0]},
             {QStringLiteral("liftRed"), params.lift[1]},
@@ -854,21 +865,21 @@ QVariantMap StudioPresenter::editColorChecker() const
     for (std::size_t index = 0U; index < presets.size(); ++index)
     {
         auto preset = color_checker_params_for_preset(presets[index].id);
-        if (preset && preset.value() == develop_.color_checker)
+        if (preset && preset.value() == edit_develop().color_checker)
         {
             preset_index = static_cast<int>(index);
             break;
         }
     }
-    const auto patch_count = develop_.color_checker.patches.size();
+    const auto patch_count = edit_develop().color_checker.patches.size();
     const std::size_t patch_index =
         patch_count == 0U ?
             0U :
-            static_cast<std::size_t>(std::clamp(develop_.color_checker_patch, std::int64_t{0},
+            static_cast<std::size_t>(std::clamp(edit_develop().color_checker_patch, std::int64_t{0},
                                                 static_cast<std::int64_t>(patch_count - 1U)));
     const ColorCheckerPatch patch =
-        patch_count == 0U ? ColorCheckerPatch{} : develop_.color_checker.patches[patch_index];
-    return {{QStringLiteral("enabled"), develop_.color_checker_enabled},
+        patch_count == 0U ? ColorCheckerPatch{} : edit_develop().color_checker.patches[patch_index];
+    return {{QStringLiteral("enabled"), edit_develop().color_checker_enabled},
             {QStringLiteral("presetIndex"), preset_index},
             {QStringLiteral("patchIndex"), static_cast<int>(patch_index)},
             {QStringLiteral("patchCount"), static_cast<int>(patch_count)},
@@ -882,7 +893,7 @@ QVariantMap StudioPresenter::editColorChecker() const
 
 QVariantMap StudioPresenter::editColorBalanceRgb() const
 {
-    const auto &params = develop_.color_balance_rgb;
+    const auto &params = edit_develop().color_balance_rgb;
     return {{QStringLiteral("shadowsY"), params.shadows_y},
             {QStringLiteral("shadowsChroma"), params.shadows_chroma},
             {QStringLiteral("shadowsHue"), params.shadows_hue},
@@ -921,8 +932,8 @@ QVariantMap StudioPresenter::editColorBalanceRgb() const
 
 QVariantMap StudioPresenter::editColorCorrection() const
 {
-    const auto &params = develop_.color_correction;
-    return {{QStringLiteral("enabled"), develop_.color_correction_enabled},
+    const auto &params = edit_develop().color_correction;
+    return {{QStringLiteral("enabled"), edit_develop().color_correction_enabled},
             {QStringLiteral("highlightA"), params.highlight_a},
             {QStringLiteral("highlightB"), params.highlight_b},
             {QStringLiteral("shadowA"), params.shadow_a},
@@ -947,8 +958,8 @@ QVariantMap StudioPresenter::editPrimaries() const
 
 QVariantMap StudioPresenter::editColorContrast() const
 {
-    const auto &params = develop_.color_contrast;
-    return {{QStringLiteral("enabled"), develop_.color_contrast_enabled},
+    const auto &params = edit_develop().color_contrast;
+    return {{QStringLiteral("enabled"), edit_develop().color_contrast_enabled},
             {QStringLiteral("aSteepness"), params.a_steepness},
             {QStringLiteral("aOffset"), params.a_offset},
             {QStringLiteral("bSteepness"), params.b_steepness},
@@ -1001,19 +1012,19 @@ QVariantMap StudioPresenter::editColorZones() const
     for (int index = 0; index < static_cast<int>(kColorEqualizerBandCount); ++index)
         bands.push_back(QVariantMap{{QStringLiteral("index"), index},
                                     {QStringLiteral("label"), QString::number(index + 1)}});
-    const auto &params = develop_.color_zones;
+    const auto &params = edit_develop().color_zones;
     const std::size_t band = static_cast<std::size_t>(
-        std::clamp(develop_.color_zones_band, std::int64_t{0}, std::int64_t{7}));
+        std::clamp(edit_develop().color_zones_band, std::int64_t{0}, std::int64_t{7}));
     const bool editable =
         std::all_of(params.curves.begin(), params.curves.end(), [](const ColorZonesCurve &curve)
                     { return curve.points.size() == kColorEqualizerBandCount; });
     const auto value = [&](const std::size_t channel)
     { return editable ? params.curves[channel].points[band].y : 0.5; };
     return {
-        {QStringLiteral("present"), develop_.color_zones_present},
-        {QStringLiteral("enabled"), develop_.color_zones_enabled},
+        {QStringLiteral("present"), edit_develop().color_zones_present},
+        {QStringLiteral("enabled"), edit_develop().color_zones_enabled},
         {QStringLiteral("editable"), editable},
-        {QStringLiteral("masked"), develop_.color_zones_mask_id.has_value()},
+        {QStringLiteral("masked"), edit_develop().color_zones_mask_id.has_value()},
         {QStringLiteral("selectByIndex"), static_cast<int>(params.select_by)},
         {QStringLiteral("selectByChoices"), channels},
         {QStringLiteral("bandIndex"), static_cast<int>(band)},

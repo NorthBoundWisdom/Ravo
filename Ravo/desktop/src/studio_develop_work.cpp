@@ -26,6 +26,7 @@
 #include <QVariantMap>
 
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/local_adjustment.h"
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/recipe/style.h"
@@ -41,6 +42,7 @@ void StudioPresenter::load_develop_for_selection()
 {
     break_history_coalescing();
     develop_ = {};
+    clear_local_edit_scope();
     saved_develop_ = {};
     develop_loaded_ = false;
     develop_preview_deferred_ = false;
@@ -105,6 +107,12 @@ void StudioPresenter::load_develop_for_selection()
                         return;
                     }
                     auto params = develop_from_recipe(loaded.value());
+                    if (params)
+                    {
+                        auto promoted = promote_legacy_local_adjustments(params.value());
+                        if (!promoted)
+                            params = promoted.error();
+                    }
                     if (!params)
                     {
                         develop_ = {};
@@ -258,6 +266,14 @@ StudioPresenter::current_overlay_mask_id(const DevelopParams &params) const
     {
         return std::nullopt;
     }
+    if (mask_overlay_target_ == QLatin1String("local"))
+    {
+        const auto id = utf8_from_qstring(active_local_id_);
+        for (const auto &local : params.local_adjustments)
+            if (local.operation.instance_id == id)
+                return local.operation.mask_id;
+        return std::nullopt;
+    }
     if (mask_overlay_target_ == QLatin1String("graduatednd"))
         return params.graduated_mask_id;
     if (mask_overlay_target_ == QLatin1String("color_balance_rgb"))
@@ -328,6 +344,13 @@ bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
                                      const bool refresh_preview,
                                      std::optional<std::string> history_coalesce_key)
 {
+    if (!mask_gesture_updating_ &&
+        (mask_gesture_before_ || (local_creation_before_ && edit == DevelopEdit::Commit)))
+    {
+        setError(QCoreApplication::translate("DevelopPanel",
+                                             "Finish mask editing before using global tools."));
+        return false;
+    }
     clamp_develop(next);
     sync_selected_instance_edit_buffers(next);
     switch (edit)
@@ -558,6 +581,7 @@ void StudioPresenter::kick_develop_work()
                     {
                         if (!saved)
                         {
+                            local_done_pending_ = false;
                             if (selected_matches && !pending_save_.has_value() &&
                                 develop_ == job.params)
                             {

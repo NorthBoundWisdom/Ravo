@@ -638,126 +638,125 @@ ColumnLayout {
             onClicked: if (panel.commands)
                 panel.commands.resetControl("colorHarmonizer")
         }
-        MaskEditor {
-            panel: groupRoot.panel
-            objectName: "colorHarmonizerMaskEditor"
-            mask: panel.hasPresenter ? panel.presenter.editColorHarmonizerMask : ({})
-        }
-        CustomLabel {
+        ColumnLayout {
             Layout.fillWidth: true
-            text: qsTr("Color Reconstruction")
-            font.bold: true
-            wrapMode: Text.WordWrap
-        }
-        CustomCheckBox {
-            objectName: "colorReconstructionEnabled"
-            text: qsTr("Enable Color Reconstruction")
-            enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editColorReconstruction.enabled
-            onToggled: if (panel.liveReady && panel.commands)
-                panel.commands.setDevelopNumber("colorReconstructionEnabled", checked ? 1 : 0)
-        }
-        CustomLabel {
-            Layout.fillWidth: true
-            text: qsTr("Precedence")
-            wrapMode: Text.WordWrap
-        }
-        CustomComboBox {
-            objectName: "colorReconstructionPrecedence"
-            Layout.fillWidth: true
-            model: panel.hasPresenter ? panel.presenter.editColorReconstruction.precedenceChoices : []
-            enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editColorReconstruction.precedenceIndex : 0
-            onActivated: if (panel.commands)
-                panel.commands.setDevelopNumber("colorReconstructionPrecedenceIndex", currentIndex)
-        }
-        Repeater {
-            model: [
-                {
-                    "title": qsTr("Threshold"),
-                    "key": "threshold",
-                    "field": "colorReconstructionThreshold",
-                    "minimum": 50,
-                    "maximum": 150,
-                    "reset": 100,
-                    "step": 1,
-                    "decimals": 1
-                },
-                {
-                    "title": qsTr("Spatial extent"),
-                    "key": "spatial",
-                    "field": "colorReconstructionSpatial",
-                    "minimum": 0,
-                    "maximum": 1000,
-                    "reset": 400,
-                    "step": 1,
-                    "decimals": 1
-                },
-                {
-                    "title": qsTr("Range extent"),
-                    "key": "range",
-                    "field": "colorReconstructionRange",
-                    "minimum": 0,
-                    "maximum": 50,
-                    "reset": 10,
-                    "step": 0.1,
-                    "decimals": 1
-                }
-            ]
-            delegate: CustomSlider {
-                required property var modelData
+            visible: !panel.localEditing
+            CustomLabel {
                 Layout.fillWidth: true
-                title: modelData.title
-                from: modelData.minimum
-                to: modelData.maximum
-                stepSize: modelData.step
-                validatorDecimals: modelData.decimals
-                showReset: true
-                resetValue: modelData.reset
-                delayedCommit: true
+                text: qsTr("Color Reconstruction")
+                font.bold: true
+                wrapMode: Text.WordWrap
+            }
+            CustomCheckBox {
+                objectName: "colorReconstructionEnabled"
+                text: qsTr("Enable Color Reconstruction")
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editColorReconstruction[modelData.key] : modelData.reset
+                checked: panel.hasPresenter && panel.presenter.editColorReconstruction.enabled
+                onToggled: if (panel.liveReady && panel.commands)
+                    panel.commands.setDevelopNumber("colorReconstructionEnabled", checked ? 1 : 0)
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Precedence")
+                wrapMode: Text.WordWrap
+            }
+            CustomComboBox {
+                objectName: "colorReconstructionPrecedence"
+                Layout.fillWidth: true
+                model: panel.hasPresenter ? panel.presenter.editColorReconstruction.precedenceChoices : []
+                enabled: panel.hasSelection
+                currentIndex: panel.hasPresenter ? panel.presenter.editColorReconstruction.precedenceIndex : 0
+                onActivated: if (panel.commands)
+                    panel.commands.setDevelopNumber("colorReconstructionPrecedenceIndex", currentIndex)
+            }
+            Repeater {
+                model: [
+                    {
+                        "title": qsTr("Threshold"),
+                        "key": "threshold",
+                        "field": "colorReconstructionThreshold",
+                        "minimum": 50,
+                        "maximum": 150,
+                        "reset": 100,
+                        "step": 1,
+                        "decimals": 1
+                    },
+                    {
+                        "title": qsTr("Spatial extent"),
+                        "key": "spatial",
+                        "field": "colorReconstructionSpatial",
+                        "minimum": 0,
+                        "maximum": 1000,
+                        "reset": 400,
+                        "step": 1,
+                        "decimals": 1
+                    },
+                    {
+                        "title": qsTr("Range extent"),
+                        "key": "range",
+                        "field": "colorReconstructionRange",
+                        "minimum": 0,
+                        "maximum": 50,
+                        "reset": 10,
+                        "step": 0.1,
+                        "decimals": 1
+                    }
+                ]
+                delegate: CustomSlider {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    title: modelData.title
+                    from: modelData.minimum
+                    to: modelData.maximum
+                    stepSize: modelData.step
+                    validatorDecimals: modelData.decimals
+                    showReset: true
+                    resetValue: modelData.reset
+                    delayedCommit: true
+                    enabled: panel.hasSelection
+                    value: panel.hasPresenter ? panel.presenter.editColorReconstruction[modelData.key] : modelData.reset
+                    onValueEdited: function (value) {
+                        if (panel.liveReady && panel.commands)
+                            panel.commands.previewDevelopNumber(modelData.field, value);
+                    }
+                    onValueCommitted: function (value) {
+                        if (panel.commands)
+                            panel.commands.setDevelopNumber(modelData.field, value);
+                    }
+                    onResetRequested: if (panel.commands)
+                        panel.commands.resetControl(modelData.field)
+                }
+            }
+            CustomSlider {
+                Layout.fillWidth: true
+                title: qsTr("Hue")
+                from: 0
+                to: 360
+                stepSize: 0.1
+                validatorDecimals: 1
+                showReset: true
+                resetValue: 237.6
+                delayedCommit: true
+                visible: panel.hasPresenter && panel.presenter.editColorReconstruction.precedenceIndex === 2
+                enabled: panel.hasSelection
+                value: panel.hasPresenter ? panel.presenter.editColorReconstruction.hueDegrees : 237.6
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
-                        panel.commands.previewDevelopNumber(modelData.field, value);
+                        panel.commands.previewDevelopNumber("colorReconstructionHueDegrees", value);
                 }
                 onValueCommitted: function (value) {
                     if (panel.commands)
-                        panel.commands.setDevelopNumber(modelData.field, value);
+                        panel.commands.setDevelopNumber("colorReconstructionHueDegrees", value);
                 }
                 onResetRequested: if (panel.commands)
-                    panel.commands.resetControl(modelData.field)
+                    panel.commands.resetControl("colorReconstructionHueDegrees")
             }
-        }
-        CustomSlider {
-            Layout.fillWidth: true
-            title: qsTr("Hue")
-            from: 0
-            to: 360
-            stepSize: 0.1
-            validatorDecimals: 1
-            showReset: true
-            resetValue: 237.6
-            delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.editColorReconstruction.precedenceIndex === 2
-            enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editColorReconstruction.hueDegrees : 237.6
-            onValueEdited: function (value) {
-                if (panel.liveReady && panel.commands)
-                    panel.commands.previewDevelopNumber("colorReconstructionHueDegrees", value);
+            CustomButton {
+                text: qsTr("Disable and reset Color Reconstruction")
+                enabled: panel.hasSelection
+                onClicked: if (panel.commands)
+                    panel.commands.resetControl("colorReconstruction")
             }
-            onValueCommitted: function (value) {
-                if (panel.commands)
-                    panel.commands.setDevelopNumber("colorReconstructionHueDegrees", value);
-            }
-            onResetRequested: if (panel.commands)
-                panel.commands.resetControl("colorReconstructionHueDegrees")
-        }
-        CustomButton {
-            text: qsTr("Disable and reset Color Reconstruction")
-            enabled: panel.hasSelection
-            onClicked: if (panel.commands)
-                panel.commands.resetControl("colorReconstruction")
         }
         CustomLabel {
             Layout.fillWidth: true

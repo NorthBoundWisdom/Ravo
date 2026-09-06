@@ -60,7 +60,12 @@ working_from_raw_window(const DecodedRaw &raw, std::uint32_t origin_x, std::uint
                                                        const OperationInstance &operation,
                                                        const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
-                                                    const CancellationToken &cancellation);
+                                                    const CancellationToken &cancellation,
+                                                    bool local_chain = false);
+[[nodiscard]] Result<WorkingImage> apply_local_adjustment(WorkingImage image, const Recipe &recipe,
+                                                          const OperationInstance &operation,
+                                                          const CancellationToken &cancellation,
+                                                          AlphaPlane *alpha_output = nullptr);
 // Preview-only geometry sidecar. The alpha plane is evaluated on the Canvas-attached
 // photo frame, then this replays only geometry which follows the enabled Canvas (or
 // all geometry when no Canvas exists). Alpha always uses bilinear resampling and is

@@ -78,6 +78,9 @@ public:
     // Machine-control entry point. It shares the command controller's runtime
     // availability policy and commits one ordered, strictly validated batch.
     [[nodiscard]] Result<bool> applyDevelopFields(const std::vector<StudioDevelopField> &fields);
+    [[nodiscard]] Result<bool> applyLocalAdjustment(const QString &action,
+                                                    const QVariantMap &arguments);
+    Q_INVOKABLE QVariantMap localAdjustment(const QString &action, const QVariantMap &arguments);
 
     [[nodiscard]] static QStringList validateBuiltinDefinitions();
     [[nodiscard]] static int fuzzyScore(const QString &title, const QString &category,

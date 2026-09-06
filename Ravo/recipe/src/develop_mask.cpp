@@ -76,6 +76,9 @@ struct MaskTargetInfo
 };
 
 constexpr std::array kDevelopMaskTargetInfo{
+    MaskTargetInfo{DevelopMaskTarget::kLocal, kLocalMaskFieldPrefix, "ravo.studio.mask.local.",
+                   "local", &DevelopParams::local_mask_id, &DevelopParams::local_mask_child_index,
+                   &DevelopParams::local_mask_point_index, nullptr, nullptr},
     MaskTargetInfo{
         DevelopMaskTarget::kColorHarmonizer, kColorHarmonizerMaskFieldPrefix,
         "ravo.studio.mask.color_harmonizer.", "color_harmonizer",
@@ -323,6 +326,9 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
                                                   const DevelopMaskTarget target,
                                                   const std::string_view id) noexcept
 {
+    if (std::find(params.mask_read_only_roots.begin(), params.mask_read_only_roots.end(), id) !=
+        params.mask_read_only_roots.end())
+        return true;
     for (const auto &info : kDevelopMaskTargetInfo)
     {
         if (info.target == target)
@@ -609,6 +615,11 @@ void smooth_brush_handles(std::vector<BrushMaskPoint> &points) noexcept
                                           const std::string_view id) noexcept
 {
     std::size_t count = 0U;
+    count += static_cast<std::size_t>(
+        std::count(params.mask_read_only_roots.begin(), params.mask_read_only_roots.end(), id));
+    for (const auto &local : params.local_adjustments)
+        if (local.operation.mask_id && *local.operation.mask_id == id)
+            ++count;
     for (const auto &info : kDevelopMaskTargetInfo)
     {
         const auto &attachment = params.*(info.attachment);
@@ -1193,52 +1204,11 @@ std::string_view develop_mask_target_name(const DevelopMaskTarget target) noexce
     return mask_target_info(target).name;
 }
 
-std::string_view
-develop_mask_attachment_status_name(const DevelopMaskAttachmentStatus status) noexcept
-{
-    switch (status)
-    {
-    case DevelopMaskAttachmentStatus::kNoMask:
-        return "no_mask";
-    case DevelopMaskAttachmentStatus::kEditable:
-        return "editable";
-    case DevelopMaskAttachmentStatus::kExternalReadOnly:
-        return "external_read_only";
-    case DevelopMaskAttachmentStatus::kSharedReadOnly:
-        return "shared_read_only";
-    case DevelopMaskAttachmentStatus::kGroupReadOnly:
-        return "group_read_only";
-    case DevelopMaskAttachmentStatus::kInvalid:
-        return "invalid";
-    }
-    return "invalid";
-}
-
 bool is_develop_mask_field(const std::string_view field) noexcept
 {
     return std::any_of(kDevelopMaskTargetInfo.begin(), kDevelopMaskTargetInfo.end(),
                        [field](const MaskTargetInfo &info)
                        { return field.starts_with(info.field_prefix); });
-}
-
-bool develop_mask_parametric_assist_allowed(const DevelopMaskTarget target) noexcept
-{
-    switch (target)
-    {
-    case DevelopMaskTarget::kColorBalanceRgb:
-    case DevelopMaskTarget::kExposure:
-    case DevelopMaskTarget::kRgbCurve:
-    case DevelopMaskTarget::kToneCurve:
-    case DevelopMaskTarget::kHighlights:
-    case DevelopMaskTarget::kShadows:
-    case DevelopMaskTarget::kWhites:
-    case DevelopMaskTarget::kBlacks:
-        return true;
-    case DevelopMaskTarget::kColorHarmonizer:
-    case DevelopMaskTarget::kGraduatedNd:
-        return false;
-    }
-    return false;
 }
 
 DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
@@ -1703,7 +1673,8 @@ DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
         auto flag = exact_index(value, 1, 1, target, field_name, "invalid_develop_mask_boolean");
         if (!flag)
             return flag.error();
-        if (count >= kCanonicalMaskMaxPathPoints)
+        if (count >=
+            (brush != nullptr ? kCanonicalMaskMaxBrushPoints : kCanonicalMaskMaxPathPoints))
         {
             return mask_edit_error(ErrorCode::kValidation, "Mask point count is at the limit",
                                    path != nullptr ? "invalid_path_mask" : "invalid_brush_mask",

@@ -165,3 +165,4 @@ supersession relationship when direction changes.
 | [0155](0155-cull-burst-stack-compare-pair.md) | Accepted | CULL-01 burst/stack Survey compare pair + adjacent step |
 | [0156](0156-xmp-fail-closed-unrepresentable-multi-instance.md) | Accepted | XMP/CRS fail-closed for unrepresentable multi-instance locals |
 | [0157](0157-agpl-rapidraw-tone-pipeline.md) | Accepted | AGPL RapidRAW tone-pipeline assimilation with versioned CPU/QRhi ownership |
+| [0158](0158-mask-scoped-develop-workspace.md) | Accepted | Global/local Develop scopes, whole-group masking, direct drawing, and versioned CLI control |

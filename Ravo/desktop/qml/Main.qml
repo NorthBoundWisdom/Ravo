@@ -1292,6 +1292,14 @@ ApplicationWindow {
                                         cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive || studio.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor
                                     }
 
+                                    LocalMaskOverlay {
+                                        anchors.fill: parent
+                                        z: 20
+                                        presenter: studio
+                                        commands: studioActions
+                                        visible: studio.browseMode === "develop" && studio.localEditing && !studio.comparisonActive
+                                    }
+
                                     Rectangle {
                                         anchors.fill: parent
                                         color: "transparent"
@@ -1307,6 +1315,8 @@ ApplicationWindow {
                                     acceptedButtons: Qt.LeftButton
                                     enabled: studio.browseMode !== "grid"
                                     onTapped: function (eventPoint, button) {
+                                        if (studio.localEditing && !studio.maskParametricAssistActive)
+                                            return;
                                         if (photoSurfaceTap.tapCount > 1)
                                             return;
                                         if (!window.photoInspectEnabled || !window.inspectPointInPhoto(eventPoint.position))
@@ -1337,6 +1347,8 @@ ApplicationWindow {
                                         window.togglePhotoInspectZoom(eventPoint.position);
                                     }
                                     onDoubleTapped: function (eventPoint, button) {
+                                        if (studio.localEditing)
+                                            return;
                                         inspectClickTimer.stop();
                                         window.pendingInspectStagePos = null;
                                         if (studio.browseMode === "loupe")

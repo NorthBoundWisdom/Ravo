@@ -15,9 +15,7 @@ DevelopSection {
         CustomComboBox {
             Layout.fillWidth: true
             model: ["RapidRAW", "Sigmoid"]
-            visible: panel.hasPresenter
-                     && (panel.presenter.editRapidRawBasicToneEnabled
-                         || panel.presenter.editSigmoidEnabled)
+            visible: panel.hasPresenter && (panel.presenter.editRapidRawBasicToneEnabled || panel.presenter.editSigmoidEnabled)
             enabled: panel.hasSelection
             currentIndex: panel.hasPresenter ? panel.presenter.editToneMapperIndex : 0
             onActivated: if (panel.commands)
@@ -75,11 +73,31 @@ DevelopSection {
         }
         Repeater {
             model: [
-                { title: qsTr("Contrast"), field: "rapidrawContrast", property: "editRapidRawContrast" },
-                { title: qsTr("Highlights"), field: "rapidrawHighlights", property: "editRapidRawHighlights" },
-                { title: qsTr("Shadows"), field: "rapidrawShadows", property: "editRapidRawShadows" },
-                { title: qsTr("Whites"), field: "rapidrawWhites", property: "editRapidRawWhites" },
-                { title: qsTr("Blacks"), field: "rapidrawBlacks", property: "editRapidRawBlacks" }
+                {
+                    title: qsTr("Contrast"),
+                    field: "rapidrawContrast",
+                    property: "editRapidRawContrast"
+                },
+                {
+                    title: qsTr("Highlights"),
+                    field: "rapidrawHighlights",
+                    property: "editRapidRawHighlights"
+                },
+                {
+                    title: qsTr("Shadows"),
+                    field: "rapidrawShadows",
+                    property: "editRapidRawShadows"
+                },
+                {
+                    title: qsTr("Whites"),
+                    field: "rapidrawWhites",
+                    property: "editRapidRawWhites"
+                },
+                {
+                    title: qsTr("Blacks"),
+                    field: "rapidrawBlacks",
+                    property: "editRapidRawBlacks"
+                }
             ]
             delegate: CustomSlider {
                 required property var modelData
@@ -112,7 +130,7 @@ DevelopSection {
             panel: sectionRoot.panel
             operation: "exposure"
             Layout.fillWidth: true
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
+            visible: panel.showAdvancedInstances && !panel.localEditing && (!panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled)
         }
         CustomSlider {
             Layout.fillWidth: true
@@ -124,8 +142,7 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: (!panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled)
-                     && (!panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0)
+            visible: (!panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled) && (!panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0)
             enabled: panel.hasSelection
             value: panel.hasPresenter ? panel.presenter.editExposureParams.exposureEv : 0
             onValueEdited: function (value) {
@@ -138,12 +155,6 @@ DevelopSection {
             }
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("exposure")
-        }
-        MaskEditor {
-            panel: sectionRoot.panel
-            objectName: "exposureMaskEditor"
-            mask: panel.hasPresenter ? panel.presenter.editExposureMask : ({})
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
         }
         CustomSlider {
             Layout.fillWidth: true
@@ -177,8 +188,7 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: panel.hasPresenter && !panel.presenter.editSigmoidEnabled
-                     && !panel.presenter.editRapidRawBasicToneEnabled
+            visible: panel.hasPresenter && !panel.presenter.editSigmoidEnabled && !panel.presenter.editRapidRawBasicToneEnabled
             enabled: panel.hasSelection
             value: panel.hasPresenter ? panel.presenter.editContrast : 0
             onValueEdited: function (value) {
@@ -214,12 +224,6 @@ DevelopSection {
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("highlights")
         }
-        MaskEditor {
-            panel: sectionRoot.panel
-            objectName: "highlightsMaskEditor"
-            mask: panel.hasPresenter ? panel.presenter.editHighlightsMask : ({})
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
-        }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Shadows")
@@ -242,12 +246,6 @@ DevelopSection {
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("shadows")
         }
-        MaskEditor {
-            panel: sectionRoot.panel
-            objectName: "shadowsMaskEditor"
-            mask: panel.hasPresenter ? panel.presenter.editShadowsMask : ({})
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
-        }
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Whites")
@@ -269,12 +267,6 @@ DevelopSection {
             }
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("whites")
-        }
-        MaskEditor {
-            panel: sectionRoot.panel
-            objectName: "whitesMaskEditor"
-            mask: panel.hasPresenter ? panel.presenter.editWhitesMask : ({})
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
         }
         CustomSlider {
             Layout.fillWidth: true
@@ -300,111 +292,109 @@ DevelopSection {
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("blacks")
         }
-        MaskEditor {
-            panel: sectionRoot.panel
-            objectName: "blacksMaskEditor"
-            mask: panel.hasPresenter ? panel.presenter.editBlacksMask : ({})
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
-        }
-        CustomLabel {
+        ColumnLayout {
             Layout.fillWidth: true
-            text: qsTr("Exposure mode")
-            font.bold: true
-        }
-        CustomComboBox {
-            Layout.fillWidth: true
-            model: [qsTr("Manual"), qsTr("Deflicker")]
-            enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editExposureParams.modeIndex : 0
-            onActivated: if (panel.commands)
-                panel.commands.setDevelopNumber("exposureMode", currentIndex)
-        }
-        CustomSlider {
-            Layout.fillWidth: true
-            title: qsTr("Exposure black")
-            from: -0.1
-            to: 0.1
-            stepSize: 0.0001
-            validatorDecimals: 4
-            showReset: true
-            resetValue: 0
-            delayedCommit: true
-            enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editExposureParams.black : 0
-            onValueEdited: function (value) {
-                if (panel.liveReady && panel.commands)
-                    panel.commands.previewDevelopNumber("exposureBlack", value);
+            visible: !panel.localEditing
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Exposure mode")
+                font.bold: true
             }
-            onValueCommitted: function (value) {
-                if (panel.commands)
-                    panel.commands.setDevelopNumber("exposureBlack", value);
+            CustomComboBox {
+                Layout.fillWidth: true
+                model: [qsTr("Manual"), qsTr("Deflicker")]
+                enabled: panel.hasSelection
+                currentIndex: panel.hasPresenter ? panel.presenter.editExposureParams.modeIndex : 0
+                onActivated: if (panel.commands)
+                    panel.commands.setDevelopNumber("exposureMode", currentIndex)
             }
-            onResetRequested: if (panel.commands)
-                panel.commands.resetControl("exposureBlack")
-        }
-        CustomCheckBox {
-            text: qsTr("Compensate exposure bias")
-            visible: !panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0
-            enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editExposureParams.compensateExposureBias
-            onToggled: if (panel.liveReady && panel.commands)
-                panel.commands.setDevelopNumber("exposureCompensateBias", checked ? 1 : 0)
-        }
-        CustomCheckBox {
-            text: qsTr("Compensate highlight preservation")
-            visible: !panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0
-            enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editExposureParams.compensateHighlightPreservation
-            onToggled: if (panel.liveReady && panel.commands)
-                panel.commands.setDevelopNumber("exposureCompensateHighlight", checked ? 1 : 0)
-        }
-        CustomSlider {
-            Layout.fillWidth: true
-            title: qsTr("Deflicker percentile")
-            from: 0
-            to: 100
-            stepSize: 0.1
-            validatorDecimals: 1
-            showReset: true
-            resetValue: 50
-            delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.editExposureParams.modeIndex === 1
-            enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editExposureParams.deflickerPercentile : 50
-            onValueEdited: function (value) {
-                if (panel.liveReady && panel.commands)
-                    panel.commands.previewDevelopNumber("exposureDeflickerPercentile", value);
+            CustomSlider {
+                Layout.fillWidth: true
+                title: qsTr("Exposure black")
+                from: -0.1
+                to: 0.1
+                stepSize: 0.0001
+                validatorDecimals: 4
+                showReset: true
+                resetValue: 0
+                delayedCommit: true
+                enabled: panel.hasSelection
+                value: panel.hasPresenter ? panel.presenter.editExposureParams.black : 0
+                onValueEdited: function (value) {
+                    if (panel.liveReady && panel.commands)
+                        panel.commands.previewDevelopNumber("exposureBlack", value);
+                }
+                onValueCommitted: function (value) {
+                    if (panel.commands)
+                        panel.commands.setDevelopNumber("exposureBlack", value);
+                }
+                onResetRequested: if (panel.commands)
+                    panel.commands.resetControl("exposureBlack")
             }
-            onValueCommitted: function (value) {
-                if (panel.commands)
-                    panel.commands.setDevelopNumber("exposureDeflickerPercentile", value);
+            CustomCheckBox {
+                text: qsTr("Compensate exposure bias")
+                visible: !panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0
+                enabled: panel.hasSelection
+                checked: panel.hasPresenter && panel.presenter.editExposureParams.compensateExposureBias
+                onToggled: if (panel.liveReady && panel.commands)
+                    panel.commands.setDevelopNumber("exposureCompensateBias", checked ? 1 : 0)
             }
-            onResetRequested: if (panel.commands)
-                panel.commands.resetControl("exposureDeflickerPercentile")
-        }
-        CustomSlider {
-            Layout.fillWidth: true
-            title: qsTr("Deflicker target EV")
-            from: -18
-            to: 18
-            stepSize: 0.01
-            validatorDecimals: 2
-            showReset: true
-            resetValue: -4
-            delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.editExposureParams.modeIndex === 1
-            enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editExposureParams.deflickerTargetEv : -4
-            onValueEdited: function (value) {
-                if (panel.liveReady && panel.commands)
-                    panel.commands.previewDevelopNumber("exposureDeflickerTarget", value);
+            CustomCheckBox {
+                text: qsTr("Compensate highlight preservation")
+                visible: !panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0
+                enabled: panel.hasSelection
+                checked: panel.hasPresenter && panel.presenter.editExposureParams.compensateHighlightPreservation
+                onToggled: if (panel.liveReady && panel.commands)
+                    panel.commands.setDevelopNumber("exposureCompensateHighlight", checked ? 1 : 0)
             }
-            onValueCommitted: function (value) {
-                if (panel.commands)
-                    panel.commands.setDevelopNumber("exposureDeflickerTarget", value);
+            CustomSlider {
+                Layout.fillWidth: true
+                title: qsTr("Deflicker percentile")
+                from: 0
+                to: 100
+                stepSize: 0.1
+                validatorDecimals: 1
+                showReset: true
+                resetValue: 50
+                delayedCommit: true
+                visible: panel.hasPresenter && panel.presenter.editExposureParams.modeIndex === 1
+                enabled: panel.hasSelection
+                value: panel.hasPresenter ? panel.presenter.editExposureParams.deflickerPercentile : 50
+                onValueEdited: function (value) {
+                    if (panel.liveReady && panel.commands)
+                        panel.commands.previewDevelopNumber("exposureDeflickerPercentile", value);
+                }
+                onValueCommitted: function (value) {
+                    if (panel.commands)
+                        panel.commands.setDevelopNumber("exposureDeflickerPercentile", value);
+                }
+                onResetRequested: if (panel.commands)
+                    panel.commands.resetControl("exposureDeflickerPercentile")
             }
-            onResetRequested: if (panel.commands)
-                panel.commands.resetControl("exposureDeflickerTarget")
+            CustomSlider {
+                Layout.fillWidth: true
+                title: qsTr("Deflicker target EV")
+                from: -18
+                to: 18
+                stepSize: 0.01
+                validatorDecimals: 2
+                showReset: true
+                resetValue: -4
+                delayedCommit: true
+                visible: panel.hasPresenter && panel.presenter.editExposureParams.modeIndex === 1
+                enabled: panel.hasSelection
+                value: panel.hasPresenter ? panel.presenter.editExposureParams.deflickerTargetEv : -4
+                onValueEdited: function (value) {
+                    if (panel.liveReady && panel.commands)
+                        panel.commands.previewDevelopNumber("exposureDeflickerTarget", value);
+                }
+                onValueCommitted: function (value) {
+                    if (panel.commands)
+                        panel.commands.setDevelopNumber("exposureDeflickerTarget", value);
+                }
+                onResetRequested: if (panel.commands)
+                    panel.commands.resetControl("exposureDeflickerTarget")
+            }
         }
         CustomLabel {
             Layout.fillWidth: true

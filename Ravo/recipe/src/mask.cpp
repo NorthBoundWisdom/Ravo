@@ -747,7 +747,7 @@ required_field(const JsonObject &object, const std::string_view name, const std:
             return wrong_payload();
         }
         if (brush->points.size() < kCanonicalMaskMinBrushPoints ||
-            brush->points.size() > kCanonicalMaskMaxPathPoints)
+            brush->points.size() > kCanonicalMaskMaxBrushPoints)
         {
             return mask_error("Brush mask point count is outside the canonical bounds",
                               "invalid_brush_mask", mask.id);

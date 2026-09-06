@@ -51,6 +51,9 @@ struct StudioCliArguments
     std::string_view asset_id;
     std::optional<std::uint64_t> expected_session_revision;
     std::optional<std::uint64_t> expected_selection_revision;
+    std::optional<std::uint64_t> expected_recipe_revision;
+    std::string_view mask_action;
+    std::string_view mask_arguments;
     std::vector<std::pair<std::string, double>> develop_sets;
     std::string_view output;
     std::optional<std::uint32_t> max_edge;
@@ -69,7 +72,23 @@ parse_studio_flags(const std::span<const std::string_view> positional)
                               {{"option", std::string(option)}});
         }
         const auto value = positional[++index];
-        if (option == "--session-id")
+        if (option == "--action" || option == "--arguments")
+        {
+            auto &slot = option == "--action" ? result.mask_action : result.mask_arguments;
+            if (!slot.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Mask option specified twice");
+            slot = value;
+        }
+        else if (option == "--expect-recipe-revision")
+        {
+            if (result.expected_recipe_revision)
+                return make_error(ErrorCode::kInvalidArgument, "Recipe revision specified twice");
+            auto parsed = parse_uint64_flag(value, option);
+            if (!parsed)
+                return parsed.error();
+            result.expected_recipe_revision = parsed.value();
+        }
+        else if (option == "--session-id")
         {
             if (!result.session_id.empty())
                 return make_error(ErrorCode::kInvalidArgument,
@@ -582,9 +601,10 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
     if (subcommand == "sessions")
     {
         if (!flags.value().session_id.empty() || !flags.value().asset_id.empty() ||
-            flags.value().expected_session_revision || flags.value().expected_selection_revision ||
-            !flags.value().develop_sets.empty() || !flags.value().output.empty() ||
-            flags.value().max_edge)
+            !flags.value().mask_action.empty() || !flags.value().mask_arguments.empty() ||
+            flags.value().expected_recipe_revision || flags.value().expected_session_revision ||
+            flags.value().expected_selection_revision || !flags.value().develop_sets.empty() ||
+            !flags.value().output.empty() || flags.value().max_edge)
             return make_error(ErrorCode::kInvalidArgument,
                               "studio sessions accepts only --workspace-root and --timeout-ms");
         auto sessions = LocalControlClient::discover(std::min(flags.value().timeout_ms, 5000));
@@ -630,6 +650,40 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
     auto session = resolve_live_session(flags.value());
     if (!session)
         return session.error();
+    if (subcommand == "mask")
+    {
+        const auto &mask = flags.value();
+        if (mask.asset_id.empty() || mask.mask_action.empty() || mask.mask_arguments.empty() ||
+            !mask.expected_session_revision || !mask.expected_selection_revision ||
+            !mask.expected_recipe_revision || !mask.develop_sets.empty() || !mask.output.empty() ||
+            mask.max_edge)
+            return make_error(
+                ErrorCode::kInvalidArgument,
+                "studio mask requires --asset-id, --action, --arguments JSON and all three --expect-*-revision flags");
+        if (mask.mask_arguments.size() > 65536)
+            return make_error(ErrorCode::kInvalidArgument, "Mask arguments exceed the limit");
+        auto arguments = parse_json(mask.mask_arguments);
+        if (!arguments)
+            return arguments.error();
+        if (!arguments.value().object_if())
+            return make_error(ErrorCode::kInvalidArgument, "Mask arguments must be an object");
+        return LocalControlClient::request(
+            session.value(), "mask",
+            JsonValue::Object{
+                {"asset_id", std::string(mask.asset_id)},
+                {"action", std::string(mask.mask_action)},
+                {"arguments", std::move(arguments).value()},
+                {"expected_session_revision",
+                 JsonValue::number(std::to_string(*mask.expected_session_revision))},
+                {"expected_selection_revision",
+                 JsonValue::number(std::to_string(*mask.expected_selection_revision))},
+                {"expected_recipe_revision",
+                 JsonValue::number(std::to_string(*mask.expected_recipe_revision))}},
+            mask.timeout_ms);
+    }
+    if (!flags.value().mask_action.empty() || !flags.value().mask_arguments.empty() ||
+        flags.value().expected_recipe_revision)
+        return make_error(ErrorCode::kInvalidArgument, "Mask options require studio mask");
     if (subcommand == "state")
     {
         if (!flags.value().asset_id.empty() || flags.value().expected_session_revision ||
