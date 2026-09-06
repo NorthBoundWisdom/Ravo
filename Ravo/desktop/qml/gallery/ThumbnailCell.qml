@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls.impl
 import GeoControls 1.0
 
 Item {
@@ -61,7 +60,6 @@ Item {
         id: badge
         required property bool active
         property url iconSource
-        property color iconColor: "#ffffff"
         property string accessibleName: ""
 
         visible: active
@@ -71,15 +69,18 @@ Item {
         Accessible.name: accessibleName
         Accessible.ignored: !visible
 
-        IconImage {
+        Image {
             anchors.centerIn: parent
             width: parent.width - 4
             height: width
             visible: !root.compact && badge.iconSource.toString().length > 0
             source: badge.iconSource
-            color: badge.iconColor
+            fillMode: Image.PreserveAspectFit
             sourceSize.width: width
             sourceSize.height: height
+            smooth: true
+            asynchronous: true
+            cache: true
         }
     }
 
@@ -297,7 +298,6 @@ Item {
                     active: root.rejected
                     color: "#aa3333"
                     iconSource: "qrc:/GeoControls/icons/Close.svg"
-                    iconColor: "#ffffff"
                     accessibleName: qsTr("Reject")
                 }
 
@@ -306,7 +306,6 @@ Item {
                     active: root.hasEdits
                     color: Theme.textColor
                     iconSource: "qrc:/GeoControls/icons/PencilText.svg"
-                    iconColor: Theme.windowColor
                     accessibleName: qsTr("Edit")
                 }
 
