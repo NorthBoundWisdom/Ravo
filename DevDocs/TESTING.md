@@ -106,6 +106,9 @@ loaded collapsed directory row and verifies
 that the folder choice reaches the presenter despite synchronous delegate replacement.
 Import grid/action/panel bounds are exercised at
 1440×900, 1440×1100, 1024×640, and 640×480 without screenshots or a user catalog.
+The smoke also transitions the menu bar between zero and visible client-area
+height and checks that Import starts immediately below it, with no stale
+automatic top inset. Native system-menu objects and commands remain present.
 The smoke checks equal-width destination mode segments, Move disabled, matching
 source/destination tree surfaces, adaptive tree growth and collapse/Add sizing,
 and a real checkbox indicator of at least 24 pixels within a 32-pixel hit area.

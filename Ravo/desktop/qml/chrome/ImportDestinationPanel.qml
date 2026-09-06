@@ -72,7 +72,8 @@ Rectangle {
                 CustomLabel {
                     objectName: "importDestinationPath"
                     Layout.fillWidth: true
-                    text: root.presenter.importDestination.length ? root.presenter.importDestination : qsTr("Choose Destination…")
+                    visible: root.presenter.importDestination.length > 0
+                    text: root.presenter.importDestination
                     wrapMode: Text.WrapAnywhere
                     font.bold: true
                 }
@@ -83,7 +84,7 @@ Rectangle {
                 }
                 CustomLabel {
                     Layout.fillWidth: true
-                    visible: root.presenter.importDestinationError.length > 0
+                    visible: root.presenter.importDestination.length > 0 && root.presenter.importDestinationError.length > 0
                     text: root.presenter.importDestinationError
                     color: Theme.warningColor
                     wrapMode: Text.WordWrap

@@ -39,6 +39,25 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     candidate.display_name = "photo.png";
     if (!QQmlProperty::write(workspace, QStringLiteral("visible"), true))
         return false;
+    auto *menu_bar = window->findChild<QQuickItem *>(QStringLiteral("studioMenuBar"));
+    if (!menu_bar)
+        return false;
+    const auto menu_height = menu_bar->height();
+    // A native menu occupies no client area. Exercise that geometry transition
+    // offscreen without hiding the menu object or dropping its commands.
+    for (const qreal height : {qreal{0}, menu_height})
+    {
+        menu_bar->setHeight(height);
+        QEventLoop layout;
+        QTimer::singleShot(30, &layout, &QEventLoop::quit);
+        layout.exec();
+        const auto top = workspace->mapToItem(window->contentItem(), QPointF{}).y();
+        if (qAbs(top - height) > 1)
+        {
+            LOG_ERROR(logger(), "Import content retains a menu inset: top={} menu={}", top, height);
+            return false;
+        }
+    }
     auto *preview_section =
         workspace->findChild<QQuickItem *>(QStringLiteral("importDestinationPreviewSection"));
     auto *preview_tree =

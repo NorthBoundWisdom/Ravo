@@ -23,12 +23,15 @@ Rectangle {
         spacing: 0
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 88
+            Layout.preferredHeight: headerRow.implicitHeight + Fonts.size8 * 2
             color: Theme.toolbarSurfaceColor
             RowLayout {
+                id: headerRow
                 anchors.fill: parent
-                anchors.margins: Fonts.standardMargin
-                anchors.bottomMargin: 32
+                anchors.leftMargin: Fonts.standardMargin
+                anchors.rightMargin: Fonts.standardMargin
+                anchors.topMargin: Fonts.size8
+                anchors.bottomMargin: Fonts.size8
                 spacing: Fonts.size12
                 CustomButton {
                     text: qsTr("Back")
@@ -41,8 +44,19 @@ Rectangle {
                     font.pixelSize: Fonts.size18
                     visible: !root.compact
                 }
-                Item {
+                CustomLabel {
+                    id: routeLabel
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Layout.leftMargin: Fonts.size12
+                    color: Theme.placeholderTextColor
+                    elide: Text.ElideMiddle
+                    text: root.presenter.importSourceRoot.length ? root.presenter.importSourceRoot + (root.presenter.importMode !== "add" && root.presenter.importDestination.length > 0 ? "  →  " + root.presenter.importDestination : "") : ""
+                    ToolTip.visible: routeHover.hovered && text.length > 0
+                    ToolTip.text: text
+                    HoverHandler {
+                        id: routeHover
+                    }
                 }
                 CustomButton {
                     visible: root.compact
@@ -54,17 +68,6 @@ Rectangle {
                     text: qsTr("Destination")
                     onClicked: destinationDrawer.open()
                 }
-            }
-            CustomLabel {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.leftMargin: Fonts.standardMargin
-                anchors.rightMargin: Fonts.standardMargin
-                anchors.bottomMargin: Fonts.size8
-                color: Theme.placeholderTextColor
-                elide: Text.ElideMiddle
-                text: root.presenter.importSourceRoot.length ? root.presenter.importSourceRoot + "  →  " + (root.presenter.importMode === "add" ? root.presenter.importSourceRoot : root.presenter.importDestination) : ""
             }
         }
         RowLayout {

@@ -11,6 +11,9 @@ ApplicationWindow {
     height: studioWindow.startupHeight
     visible: false
     color: Theme.windowColor
+    // OS chrome is outside this desktop content area. Native menus contribute
+    // zero height; an additional automatic safe-area inset leaves a blank strip.
+    topPadding: studioMenuBar.visible ? studioMenuBar.height : 0
     title: studio.catalogOpen ? qsTr("Ravo Studio — %1").arg(studio.catalogPath) : qsTr("Ravo Studio")
     palette.window: Theme.windowColor
     palette.windowText: Theme.windowTextColor
@@ -649,6 +652,7 @@ ApplicationWindow {
 
     menuBar: StudioMenuBar {
         id: studioMenuBar
+        objectName: "studioMenuBar"
         controller: studioCommands
     }
 
