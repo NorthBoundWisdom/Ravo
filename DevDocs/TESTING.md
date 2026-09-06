@@ -1435,3 +1435,6 @@ QML size expressions must use members of the pinned GeoControls API. In
 particular, 48-unit assistant/proposal geometry uses `Fonts.scaledUiSize(48)`;
 there is no `Fonts.size48` token. Undefined arithmetic can become NaN and abort
 Windows Debug Qt during layout even if a release Qt build tolerates it.
+Filesystem browser fixtures explicitly distinguish in-root and out-of-root
+paths: Windows temporary directories may be inside Home. Tests wait for
+asynchronous ancestor discovery before activating the destination row.

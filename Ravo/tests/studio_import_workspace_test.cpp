@@ -247,15 +247,16 @@ TEST(FilesystemBrowserModelTest, HomeRootExpandsOnceAndExternalPickerPathsRemain
     EXPECT_EQ(model.rowCount(), 2);
     EXPECT_EQ(model.selectedPath(), user_root);
     EXPECT_EQ(requests, 1);
-    QTemporaryDir external;
-    ASSERT_TRUE(external.isValid());
-    model.revealFolder(external.path());
-    EXPECT_EQ(model.selectedPath(), external.path());
+    // This model test has no filesystem listing worker. Use an explicitly
+    // out-of-root path: Windows' real temp directory lives inside Home.
+    const auto external = user_root + QStringLiteral("-external-picker-fixture");
+    model.revealFolder(external);
+    EXPECT_EQ(model.selectedPath(), external);
     EXPECT_EQ(model.data(model.index(0, 0), FilesystemBrowserModel::PathRole).toString(),
               user_root);
     EXPECT_EQ(model.data(model.index(model.rowCount() - 1, 0), FilesystemBrowserModel::PathRole)
                   .toString(),
-              external.path());
+              external);
 }
 
 TEST(StudioImportWorkspace, BothTreesStartAtHomeAndRepeatedDestinationSelectionKeepsExpansion)
@@ -274,6 +275,17 @@ TEST(StudioImportWorkspace, BothTreesStartAtHomeAndRepeatedDestinationSelectionK
                   QDir::cleanPath(QDir::homePath()));
     auto *model = presenter.importDestinationFolders();
     presenter.setImportDestination(destination);
+    // A picker path inside Home needs asynchronous ancestor discovery before
+    // its row can be activated, just as it does in the real folder tree.
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            for (int row = 0; row < model->rowCount(); ++row)
+                if (model->data(model->index(row, 0), FilesystemBrowserModel::PathRole)
+                        .toString() == destination)
+                    return true;
+            return false;
+        }));
     model->activateFolder(destination);
     const auto child_visible = [&]
     {
