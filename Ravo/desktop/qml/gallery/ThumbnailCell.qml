@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls.impl
 import GeoControls 1.0
 
 Item {
@@ -56,6 +57,32 @@ Item {
     readonly property color chromeTextColor: "#f5f5f5"
     readonly property color chromeMetaColor: "#ececec"
 
+    component StatusIconBadge: Rectangle {
+        id: badge
+        required property bool active
+        property url iconSource
+        property color iconColor: "#ffffff"
+        property string accessibleName: ""
+
+        visible: active
+        width: root.compact ? 8 : 16
+        height: width
+        radius: root.compact ? 4 : 3
+        Accessible.name: accessibleName
+        Accessible.ignored: !visible
+
+        IconImage {
+            anchors.centerIn: parent
+            width: parent.width - 4
+            height: width
+            visible: !root.compact && badge.iconSource.toString().length > 0
+            source: badge.iconSource
+            color: badge.iconColor
+            sourceSize.width: width
+            sourceSize.height: height
+        }
+    }
+
     Rectangle {
         id: frame
         anchors.fill: parent
@@ -74,7 +101,7 @@ Item {
             cache: true
             source: root.thumbnailUrl
             visible: root.thumbnailUrl.toString().length > 0
-            opacity: root.rejected ? 0.38 : 1
+            opacity: root.rejected ? 0.80 : 1
         }
 
         Rectangle {
@@ -82,7 +109,7 @@ Item {
             anchors.fill: photo
             visible: root.rejected && photo.visible
             color: "#b8b8b8"
-            opacity: 0.58
+            opacity: 0.22
         }
 
         Rectangle {
@@ -265,34 +292,22 @@ Item {
                     }
                 }
 
-                Rectangle {
-                    visible: root.rejected
-                    width: root.compact ? 8 : 48
-                    height: root.compact ? 8 : 16
-                    radius: root.compact ? 4 : 3
+                StatusIconBadge {
+                    objectName: "rejectedFlag"
+                    active: root.rejected
                     color: "#aa3333"
-                    CustomLabel {
-                        anchors.centerIn: parent
-                        visible: !root.compact
-                        text: qsTr("Reject")
-                        color: "#ffffff"
-                        font.pixelSize: Fonts.size10
-                    }
+                    iconSource: "qrc:/GeoControls/icons/Close.svg"
+                    iconColor: "#ffffff"
+                    accessibleName: qsTr("Reject")
                 }
 
-                Rectangle {
-                    visible: root.hasEdits
-                    width: root.compact ? 8 : 40
-                    height: root.compact ? 8 : 16
-                    radius: root.compact ? 4 : 3
+                StatusIconBadge {
+                    objectName: "editedFlag"
+                    active: root.hasEdits
                     color: Theme.textColor
-                    CustomLabel {
-                        anchors.centerIn: parent
-                        visible: !root.compact
-                        text: qsTr("Edit")
-                        color: Theme.windowColor
-                        font.pixelSize: Fonts.size10
-                    }
+                    iconSource: "qrc:/GeoControls/icons/PencilText.svg"
+                    iconColor: Theme.windowColor
+                    accessibleName: qsTr("Edit")
                 }
 
                 Rectangle {

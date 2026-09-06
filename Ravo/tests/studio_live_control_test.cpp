@@ -335,7 +335,13 @@ TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLo
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("captureSummary: root.captureSummary")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"placeholderName\"")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"rejectedPreviewWash\"")));
-    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("root.rejected ? 0.38 : 1")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("root.rejected ? 0.80 : 1")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"rejectedFlag\"")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("objectName: \"editedFlag\"")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("qrc:/GeoControls/icons/Close.svg")));
+    EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("qrc:/GeoControls/icons/PencilText.svg")));
+    EXPECT_FALSE(thumbnail_source.contains(QStringLiteral("text: qsTr(\"Reject\")")));
+    EXPECT_FALSE(thumbnail_source.contains(QStringLiteral("text: qsTr(\"Edit\")")));
     EXPECT_TRUE(
         thumbnail_source.contains(QStringLiteral("Qt.lighter(Theme.imageSurroundColor, 1.5)")));
     EXPECT_TRUE(
