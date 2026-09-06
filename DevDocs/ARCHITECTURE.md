@@ -105,6 +105,17 @@ Commands that depend on current control values are not in the command palette.
 QML retains only transient focus/popup state and thin action binding, not a
 second table of IDs, titles, shortcuts, or enablement.
 
+`StudioStartupController` owns the one-shot startup handoff on the UI thread.
+It opens the explicit or default library through the existing presenter and
+waits for queued publication of the complete initial listing or error before
+showing the main window. First run requests the registered Create Library
+dialog after that window is visible. QML presents a separate compact splash;
+it never attaches to `StudioWindowGeometry`, and the main window restores its
+geometry only at handoff. There is no minimum splash duration or alternate
+catalog retry. Closing the splash quits through the normal application
+lifecycle; presenter-owned workers are joined during destruction, and deleting
+the startup owner discards queued handoff callbacks.
+
 Desktop localization is likewise presentation-only. One versioned locale
 manifest owns supported locale codes, native display names, aliases, catalogs,
 and translation memories. The desktop-owned language manager parses that

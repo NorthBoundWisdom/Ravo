@@ -276,6 +276,13 @@ fails before launch when neither is available; it does not use Qt's absent
 `ravo_studio_qml_smoke` in CTest so GitHub Actions exercises it after
 configure/build. Manual check:
 `$<TARGET_FILE:ravo_studio> --smoke`.
+The same smoke checks a compact independent startup splash with a loaded,
+nonzero-size logo and verifies that showing it leaves the main window hidden.
+`StudioStartupTest` covers first-run create intent, one-shot handoff after the
+complete initial catalog state, explicit corrupt-catalog failure without default
+retry, and destruction during an in-flight open. Startup never attaches the
+splash to the geometry settings owner; `WindowGeometryTest` retains the stored
+windowed/maximized restoration contract.
 `ravo_desktop_command_tests` validates built-in command/action coverage,
 stable IDs, runtime-state rechecks, invalid dispatch, shortcut conflicts,
 three-platform primary modifiers, and Unicode fuzzy search; its label is

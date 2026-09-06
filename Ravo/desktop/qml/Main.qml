@@ -545,19 +545,6 @@ ApplicationWindow {
         parameterSelectionDialog.openForCopy(studio.modifiedParameterChoices);
     }
 
-    function startLibrarySession() {
-        if (studio.catalogOpen)
-            return;
-        if (studio.startupCatalogPath.length) {
-            studio.openCatalogFromPath(studio.startupCatalogPath);
-            return;
-        }
-        if (studio.defaultCatalogExists())
-            studio.openCatalog(studio.defaultCatalogFile);
-        else
-            openCreateLibraryDialog();
-    }
-
     function swatchColor(name) {
         return window.colorSwatches[name] || Theme.midColor;
     }
@@ -735,11 +722,29 @@ ApplicationWindow {
     Component.onCompleted: {
         applyAppearance();
         if (!studioSmoke) {
+            startupSplash.show();
+            Qt.callLater(studioStartup.start);
+        }
+    }
+
+    StartupSplash {
+        id: startupSplash
+        presenter: studio
+        animationsEnabled: !studioSmoke
+    }
+
+    Connections {
+        target: studioStartup
+        function onFinished(createLibrary) {
+            if (studioSmoke)
+                return;
             studioWindow.restore(window);
             studioDisplayPresentation.bindWindow(window);
-            visible = true;
+            window.visible = true;
+            startupSplash.hide();
+            if (createLibrary)
+                studioActions.trigger(studioActions.ids.libraryCreate);
         }
-        Qt.callLater(startLibrarySession);
     }
 
     Connections {
@@ -1529,16 +1534,13 @@ ApplicationWindow {
             swatchColor: window.swatchColor
         }
 
-        Rectangle {
+        LibraryWelcome {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: !studio.catalogOpen
-            color: Theme.windowColor
-            CustomLabel {
-                anchors.centerIn: parent
-                text: qsTr("Create or open a library to import photos.")
-                color: Theme.placeholderTextColor
-            }
+            presenter: studio
+            commands: studioActions
+            animationsEnabled: !studioSmoke && window.studioInteractive && window.visible && window.visibility !== Window.Minimized
         }
 
         MainStatusBar {

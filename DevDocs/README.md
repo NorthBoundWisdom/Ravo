@@ -39,6 +39,9 @@ desktop preference ownership in [ADR-0066](adr/0066-typed-desktop-language-setti
 Their current contracts and reproducible validation live in architecture and testing above.
 The same authorities define owned CPU/GPU inspect-ROI publication and hidden-image
 source gating.
+Startup splash ownership, main-window handoff and geometry isolation are also
+specified in [ARCHITECTURE.md](ARCHITECTURE.md); their lifecycle and offscreen
+validation are specified in [TESTING.md](TESTING.md).
 
 ## Operations and compliance
 

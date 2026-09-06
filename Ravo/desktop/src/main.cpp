@@ -19,6 +19,7 @@
 #include <QPalette>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include "studio_import_layout_smoke.h"
 #include <QQuickStyle>
@@ -37,6 +38,7 @@
 #include "ravo/foundation/log.h"
 #include "studio_image_providers.h"
 #include "studio_language_manager.h"
+#include "studio_startup_controller.h"
 
 void qml_register_types_GeoControls();
 void qml_register_types_GeoControls_AppShell();
@@ -59,6 +61,33 @@ void smoke_message_handler(const QtMsgType type, const QMessageLogContext &, con
     std::fflush(stderr);
     if (type == QtFatalMsg)
         std::_Exit(EXIT_FAILURE);
+}
+
+bool smoke_startup_splash(QQmlApplicationEngine &engine)
+{
+    if (engine.rootObjects().isEmpty())
+        return false;
+    auto *main = qobject_cast<QQuickWindow *>(engine.rootObjects().front());
+    auto *splash =
+        main ? main->findChild<QQuickWindow *>(QStringLiteral("startupSplash")) : nullptr;
+    auto *logo = splash ? splash->findChild<QQuickItem *>(QStringLiteral("startupLogo")) : nullptr;
+    if (!main || !splash || !logo || main->isVisible() || splash->isVisible() ||
+        splash->transientParent() != nullptr ||
+        (splash->flags() & Qt::WindowType_Mask) != Qt::SplashScreen || splash->width() <= 0 ||
+        splash->height() <= 0 || splash->width() >= main->width() ||
+        splash->height() >= main->height() || logo->width() <= 0 || logo->height() <= 0 ||
+        logo->opacity() <= 0 || logo->property("status").toInt() != 1) // Image.Ready
+    {
+        LOG_ERROR(ravo::logger(),
+                  "Startup splash must be compact, independent and have a ready logo");
+        return false;
+    }
+    splash->show();
+    const bool independent = splash->isVisible() && !main->isVisible();
+    splash->hide();
+    if (!independent)
+        LOG_ERROR(ravo::logger(), "Showing startup splash must leave the main window hidden");
+    return independent;
 }
 
 bool generic_font_family(const QString &family)
@@ -371,6 +400,8 @@ int main(int argc, char *argv[])
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &application,
                      apply_ui_font);
     ravo::StudioPresenter presenter;
+    ravo::StudioStartupController startup_controller(presenter,
+                                                     presenter.defaultCatalogFile().toLocalFile());
     ravo::StudioCommandController command_controller(presenter);
     ravo::StudioAssistantController assistant_controller;
     if (!assistant_controller.initialize())
@@ -418,6 +449,7 @@ int main(int argc, char *argv[])
     engine.addImageProvider(QStringLiteral("importCandidate"),
                             new ravo::ImportCandidateImageProvider(*presenter.importCandidates()));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioStartup"), &startup_controller);
     engine.rootContext()->setContextProperty(QStringLiteral("studioCommands"), &command_controller);
     engine.rootContext()->setContextProperty(QStringLiteral("studioLanguage"), &language_manager);
     engine.rootContext()->setContextProperty(QStringLiteral("studioAssistant"),
@@ -482,7 +514,7 @@ int main(int argc, char *argv[])
     engine.loadFromModule("Ravo.Studio", "Main");
     if (smoke)
     {
-        const bool loaded = !engine.rootObjects().isEmpty() && ravo::smoke_import_layout(engine);
+        const bool loaded = smoke_startup_splash(engine) && ravo::smoke_import_layout(engine);
         if (!loaded)
             LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
         else

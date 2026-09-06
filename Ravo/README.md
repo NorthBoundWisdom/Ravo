@@ -182,6 +182,12 @@ Current implementation status:
   `ravo catalog version-create|stack|unstack|stack-pick|list --stack-expanded`
   share CatalogService (ADR-0105). Same-stem RAW+JPEG import catalogs the RAW
   as one photo and keeps the JPEG as a browse/Copy companion.
+- Studio starts in a compact, separate splash window with its app icon, library
+  status and an animated loading strip. The main window stays hidden until the
+  initial library finishes opening, then restores its saved size/maximized state
+  immediately. First run and failed opens enter the normal welcome page with
+  Create/Open Library actions and visible errors. The splash does not alter
+  saved window geometry or add an artificial delay.
 - Studio built-in commands are projected by one C++ registry into menus,
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
