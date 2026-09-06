@@ -164,6 +164,9 @@ the last non-1:1 mode, bounded Flickable/navigator seek, inspect magnifier
 click wiring, active-asset comparison, recenter triggers, crop pan exclusion,
 and QML smoke; same-asset review notifications are required not to reset pan.
 Actual-size inspect ROI follows live Develop parameters without requiring a pan.
+Its published URL must resolve to a non-null owned image, and leaving actual-size
+mode clears both URL and image. QML contracts require the hidden CPU ROI item to
+clear its source when the GPU display item owns presentation.
 The CFA-window linear working is reused across RGB-only edits and rebuilt on
 pan or preprocess change.
 Catalog tests cover Bayer viewport-ROI 1:1 windows, full-frame ROI rejection,

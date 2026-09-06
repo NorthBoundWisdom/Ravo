@@ -260,7 +260,11 @@ native-surface token; it does not hold device objects. A pure Studio interactive
 Develop request skips the synchronous float-buffer readback. Desktop immediately
 copies a bounded owned RGB8 snapshot from the same completed IOSurface before
 publishing the frame, so live identity and scopes describe the displayed pixels
-without delaying the canvas for CPU output conversion. Non-Metal hosts and
+without delaying the canvas for CPU output conversion. The inspect ROI provider
+also owns that snapshot before its revision URL is published, including the
+GPU-only display path. Hidden CPU ROI items clear their source while the GPU
+surface is displayed, so they never request an unavailable provider image.
+Non-Metal hosts and
 recipes that require a later CPU operation return the ordinary owned CPU RGB;
 this is the existing admitted path, not a GPU failure fallback. Persist preview,
 CLI PNG, comparison, overlay, and gold tests still request CPU pixels. Masked

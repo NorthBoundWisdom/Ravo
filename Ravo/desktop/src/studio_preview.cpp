@@ -1570,8 +1570,6 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
                             return;
                         }
                         roi_base = std::move(prepared).value();
-                        const QMutexLocker lock(&preview_image_mutex_);
-                        inspect_roi_image_ = roi_base;
                     }
                     if (gpu_roi_generation_ != 0U)
                     {
@@ -1591,6 +1589,11 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
                     else
                     {
                         release_gpu_roi_presented_surface();
+                    }
+                    {
+                        // Both display paths publish an owned image before exposing its URL.
+                        const QMutexLocker lock(&preview_image_mutex_);
+                        inspect_roi_image_ = roi_base;
                     }
                     inspect_roi_x_ = roi.x;
                     inspect_roi_y_ = roi.y;

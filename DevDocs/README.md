@@ -35,6 +35,8 @@ Home non-recursive scan safeguard are
 defined by [ADR-0102](adr/0102-planned-managed-import-workspace.md), with typed
 desktop preference ownership in [ADR-0066](adr/0066-typed-desktop-language-setting.md).
 Their current contracts and reproducible validation live in architecture and testing above.
+The same authorities define owned CPU/GPU inspect-ROI publication and hidden-image
+source gating.
 
 ## Operations and compliance
 

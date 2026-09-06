@@ -1938,6 +1938,16 @@ TEST(StudioQmlContract, Local01MaskPlaceUsesPhotoPlaneNotInspectRoi)
 
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: photoPlane")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: inspectRoiImage")));
+    EXPECT_TRUE(
+        main_source.contains(QStringLiteral("source: visible ? studio.inspectRoiUrl : \"\"")));
+    EXPECT_FALSE(main_source.contains(QStringLiteral("source: studio.inspectRoiUrl")));
+    QFile workspace(
+        QFileInfo(main).dir().filePath(QStringLiteral("inspect/LocalAdjustmentWorkspace.qml")));
+    ASSERT_TRUE(workspace.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto workspace_source = QString::fromUtf8(workspace.readAll());
+    EXPECT_TRUE(workspace_source.contains(
+        QStringLiteral("onClicked: root.panel.commands.localAdjustment(\"draw\"")));
+    EXPECT_FALSE(workspace_source.contains(QStringLiteral("onToggled:")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("studio.zoomMode === \"actual\"")));
 
     const auto place_idx = main_source.indexOf(QStringLiteral("studioActions.placeMask("));

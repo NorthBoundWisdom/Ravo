@@ -1908,11 +1908,16 @@ TEST(StudioPresenterTest, ActualSizeInspectRoiFollowsLiveDevelopWithoutPan)
     ASSERT_TRUE(wait_until([&] { return !presenter.inspectRoiUrl().isEmpty(); }, 30000))
         << presenter.errorText().toStdString();
     const QUrl first_roi = presenter.inspectRoiUrl();
+    ASSERT_FALSE(presenter.inspectRoiImage().isNull());
     presenter.previewDevelopNumbers(QVariantMap{{QStringLiteral("exposure"), 0.75}});
     ASSERT_TRUE(wait_until([&] { return presenter.inspectRoiUrl() != first_roi; }, 30000))
         << presenter.errorText().toStdString() << " first=" << first_roi.toString().toStdString()
         << " current=" << presenter.inspectRoiUrl().toString().toStdString();
     EXPECT_TRUE(presenter.inspectRoiUrl().toString().contains(QStringLiteral("inspectRoi")));
+    EXPECT_FALSE(presenter.inspectRoiImage().isNull());
+    presenter.setZoomMode(QStringLiteral("fit"));
+    EXPECT_TRUE(presenter.inspectRoiUrl().isEmpty());
+    EXPECT_TRUE(presenter.inspectRoiImage().isNull());
 }
 
 } // namespace

@@ -1187,7 +1187,7 @@ ApplicationWindow {
                                         visible: studio.zoomMode === "actual" && studio.inspectRoiUrl.toString().length > 0 && !window.comparisonReady && studio.gpuRoiGeneration === 0
                                         asynchronous: false
                                         cache: false
-                                        source: studio.inspectRoiUrl
+                                        source: visible ? studio.inspectRoiUrl : ""
                                         fillMode: Image.Stretch
                                         smooth: false
                                         antialiasing: false
