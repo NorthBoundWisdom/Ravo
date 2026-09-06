@@ -17,11 +17,6 @@ Rectangle {
         const inner = Math.max(120, availableWidth - 14);
         return inner / Math.max(1, Math.floor(inner / preferred));
     }
-    Shortcut {
-        sequence: StandardKey.SelectAll
-        enabled: root.visible && candidateGrid.activeFocus && !root.presenter.importPreflightActive
-        onActivated: root.presenter.importCandidates.highlightAll()
-    }
     Layout.fillWidth: true
     Layout.fillHeight: true
     color: Theme.windowColor
@@ -68,6 +63,7 @@ Rectangle {
         delegate: Item {
             id: candidateDelegate
             required property int index
+            required property string sourcePath
             required property string displayName
             required property string mediaType
             required property int pixelWidth
@@ -79,6 +75,12 @@ Rectangle {
             required property url thumbnailUrl
             required property string errorText
             required property bool inspected
+            readonly property bool inViewport: y + height >= candidateGrid.contentY && y <= candidateGrid.contentY + candidateGrid.height
+            onInViewportChanged: if (inViewport)
+                root.presenter.ensureImportThumbnail(index)
+            onSourcePathChanged: root.presenter.ensureImportThumbnail(index)
+            onThumbnailUrlChanged: if (inViewport && thumbnailUrl.toString().length === 0)
+                root.presenter.ensureImportThumbnail(index)
             enabled: eligible
             opacity: duplicate ? 0.45 : 1
             width: candidateGrid.cellWidth
@@ -123,9 +125,13 @@ Rectangle {
                     }
                 }
                 CustomCheckBox {
+                    objectName: "importCandidateCheckBox"
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.margins: 4
+                    indicatorSize: Math.max(24, Fonts.size24)
+                    width: Math.max(32, Fonts.scaledUiSize(32))
+                    height: width
                     checked: selected
                     enabled: eligible
                     onClicked: root.presenter.importCandidates.applyCheck(index)

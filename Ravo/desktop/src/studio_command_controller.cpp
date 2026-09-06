@@ -64,7 +64,11 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     case Condition::kLoadedPhotos:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
-        return presenter.visibleCount() > 0 ?
+        if (presenter.importPageOpen() &&
+            (presenter.importPreflightActive() || presenter.importWorkActive()))
+            return {false, tr_command(QStringLiteral("Wait for library work to finish."))};
+        return (presenter.importPageOpen() ? presenter.importScanTotal() :
+                                             presenter.visibleCount()) > 0 ?
                    State{} :
                    State{false, tr_command(QStringLiteral("No photos to select."))};
     case Condition::kSelection:

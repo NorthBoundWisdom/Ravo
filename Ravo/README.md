@@ -81,6 +81,17 @@ Current implementation status:
   remain in the grid as dimmed, disabled photos with thumbnails; they cannot be
   selected or checked for import. Same-content files within a scan make only the
   first supported path eligible.
+  Folder enumeration publishes the complete named placeholder list before
+  content/metadata checks. Visible thumbnails load one at a time in grid order
+  on an independent worker with a bounded pixel cache; loading them does not
+  block scanning or import. Import still requires completed duplicate checks
+  and revision/hash preflight. Command/Control+A highlights all eligible import
+  photos even when the folder tree has focus, while text fields retain native
+  text selection.
+  The destination rail holds equally sized Copy/Add/Move segments (Move stays
+  disabled). Both folder trees have themed inset backgrounds and scrollbars;
+  the destination tree fills remaining panel height. Import checkboxes have
+  larger, scale-aware indicators and hit areas.
   New photos start selected
   and can be added by reference, copied, or moved to an explicit destination
   using one folder, preserved hierarchy, `YYYY/MM/DD`, or `YYYY/MM` organization.

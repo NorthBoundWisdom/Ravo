@@ -31,7 +31,8 @@ Result<std::string> stable_hash(const std::string &path, const FileIdentity &bef
 Result<ImportScanResult> CatalogService::scan_import_candidates(
     const std::vector<std::string> &inputs, const std::string_view source_root,
     const bool recursive, const CancellationToken &cancellation,
-    const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress)
+    const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress,
+    const std::function<void(const std::vector<std::string> &)> &enumerated)
 {
     if (!repository_)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -44,6 +45,10 @@ Result<ImportScanResult> CatalogService::scan_import_candidates(
     auto paths = enumerate_import_inputs(inputs, cancellation, recursive);
     if (!paths)
         return paths.error();
+    if (enumerated)
+        enumerated(paths.value());
+    if (auto active = cancellation.check(); !active)
+        return active.error();
     ImportScanResult result;
     result.catalog_revision = initial.value().revision;
     std::set<std::uint64_t> indexed_sizes;

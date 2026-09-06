@@ -785,7 +785,13 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                 presenter_.selectAsset(asset_id);
         });
     add(command::kPhotoSelectAll, Condition::kLoadedPhotos, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.selectAllVisible(); });
+        [this](const QVariant &, const QString &)
+        {
+            if (presenter_.importPageOpen())
+                presenter_.importCandidates()->highlightAll();
+            else
+                presenter_.selectAllVisible();
+        });
     add(
         command::kPhotoSetRating, Condition::kSelection,
         [](const QVariant &argument)
@@ -1613,6 +1619,7 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     connect(&presenter_, &StudioPresenter::catalogChanged, this, changed);
     connect(&presenter_, &StudioPresenter::busyChanged, this, changed);
     connect(&presenter_, &StudioPresenter::libraryWorkChanged, this, changed);
+    connect(&presenter_, &StudioPresenter::importPageChanged, this, changed);
     connect(&presenter_, &StudioPresenter::selectionChanged, this, changed);
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
     connect(&presenter_, &StudioPresenter::zoomChanged, this, changed);

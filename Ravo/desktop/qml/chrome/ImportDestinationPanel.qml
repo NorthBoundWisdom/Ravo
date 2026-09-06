@@ -12,17 +12,61 @@ Rectangle {
     signal chooseSecondCopyRequested
     color: Theme.railSurfaceColor
     enabled: !presenter.importWorkActive && !presenter.importPreflightActive
+    Rectangle {
+        id: transferModes
+        objectName: "importTransferModes"
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.margins: Fonts.standardMargin
+        height: ControlState.minInputHeight
+        radius: ControlState.radiusSmall
+        color: Theme.baseColor
+        border.color: Theme.midColor
+        border.width: ControlState.borderThin
+        Row {
+            objectName: "importTransferMode"
+            anchors.fill: parent
+            anchors.margins: transferModes.border.width
+            spacing: 0
+            Repeater {
+                model: [qsTr("Copy"), qsTr("Add"), qsTr("Move")]
+                SegmentedButton {
+                    required property int index
+                    required property string modelData
+                    readonly property string mode: ["copy", "add", "move"][index]
+                    objectName: "importTransferModeSegment" + index
+                    width: parent.width / 3
+                    height: parent.height
+                    text: modelData
+                    selected: root.presenter.importMode === mode
+                    enabled: index < 2
+                    onClicked: root.presenter.setImportMode(mode)
+                    ToolTip.visible: hovered && index === 2
+                    ToolTip.text: qsTr("Ingest transports are Copy-only; Move and camera delete stay rejected.")
+                }
+            }
+        }
+    }
     ScrollView {
-        anchors.fill: parent
+        id: destinationScroll
+        anchors.top: transferModes.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         anchors.margins: Fonts.standardMargin
         contentWidth: availableWidth
         clip: true
         ColumnLayout {
+            id: settingsColumn
             width: parent.width
+            height: destinationSection.visible && destinationSection.expanded ? Math.max(implicitHeight, destinationScroll.availableHeight) : implicitHeight
             spacing: Fonts.size12
             ImportSection {
+                id: destinationSection
                 objectName: "importDestinationSection"
                 Layout.fillWidth: true
+                stretchContent: true
                 visible: root.presenter.importMode !== "add"
                 title: qsTr("Destination")
                 CustomLabel {
@@ -60,13 +104,27 @@ Rectangle {
                         root.presenter.setImportOrganization(["single", "hierarchy", "date", "month"][index]);
                     }
                 }
-                ImportFolderTree {
-                    objectName: "importDestinationFolderTree"
+                Rectangle {
+                    objectName: "importDestinationTreeSurface"
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 220
-                    folderModel: root.presenter.importDestinationFolders
-                    onFolderChosen: function (path) {
-                        root.presenter.setImportDestination(path);
+                    Layout.fillHeight: true
+                    implicitHeight: Fonts.scaledUiSize(160)
+                    Layout.minimumHeight: implicitHeight
+                    color: Theme.baseColor
+                    border.color: Theme.dividerColor
+                    border.width: ControlState.borderThin
+                    radius: ControlState.radiusSmall
+                    ImportFolderTree {
+                        objectName: "importDestinationFolderTree"
+                        anchors.fill: parent
+                        anchors.margins: Fonts.size4
+                        folderModel: root.presenter.importDestinationFolders
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
+                        onFolderChosen: function (path) {
+                            root.presenter.setImportDestination(path);
+                        }
                     }
                 }
             }

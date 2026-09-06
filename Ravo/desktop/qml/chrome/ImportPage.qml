@@ -44,24 +44,6 @@ Rectangle {
                 Item {
                     Layout.fillWidth: true
                 }
-                SegmentedControl {
-                    objectName: "importTransferMode"
-                    model: [qsTr("Copy"), qsTr("Add")]
-                    currentIndex: root.presenter.importMode === "add" ? 1 : 0
-                    enabled: !root.locked
-                    onActivated: function (index) {
-                        root.presenter.setImportMode(index === 0 ? "copy" : "add");
-                    }
-                }
-                CustomButton {
-                    text: qsTr("Move")
-                    enabled: false
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Ingest transports are Copy-only; Move and camera delete stay rejected.")
-                }
-                Item {
-                    Layout.fillWidth: true
-                }
                 CustomButton {
                     visible: root.compact
                     text: qsTr("Source")

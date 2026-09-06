@@ -1,4 +1,5 @@
 #include <QColorSpace>
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -6,19 +7,55 @@
 #include <QImage>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <future>
+#include <algorithm>
+#include <QElapsedTimer>
 #include <gtest/gtest.h>
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/filesystem_browser_model.h"
 #include "ravo/desktop/studio_import_preferences.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_command_controller.h"
 #include "studio_test_support.h"
 #include "ravo/foundation/log.h"
 
 namespace ravo
 {
 using namespace studio_test_support;
+namespace testing
+{
+class StudioImportTestControl
+{
+public:
+    static bool blockThumbnails(StudioPresenter &presenter, std::shared_future<void> release)
+    {
+        return presenter.import_thumbnail_executor_.post([release] { release.wait(); });
+    }
+    static bool blockCatalog(StudioPresenter &presenter, std::shared_future<void> release)
+    {
+        return presenter.executor_.post([release] { release.wait(); });
+    }
+};
+} // namespace testing
 namespace
 {
+struct WorkerGate
+{
+    std::promise<void> promise;
+    bool released = false;
+    void release()
+    {
+        if (!released)
+        {
+            released = true;
+            promise.set_value();
+        }
+    }
+    ~WorkerGate()
+    {
+        release();
+    }
+};
 bool photo(const QString &path, const QColor &color)
 {
     QImage image(32, 24, QImage::Format_RGB888);
@@ -639,5 +676,297 @@ TEST(StudioImportWorkspace, DestinationConflictKeepsWorkspaceAndDoesNotRememberD
     EXPECT_FALSE(presenter.errorText().isEmpty());
     EXPECT_EQ(presenter.visibleCount(), 0);
     EXPECT_EQ(StudioImportPreferences{}.loadLastDestination().value(), previous);
+}
+TEST(StudioImportWorkspace, PublishesCompletePlaceholdersAndDecodesInRowOrderOutsideCatalogQueue)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    ASSERT_TRUE(QDir().mkpath(source));
+    constexpr int count = 96; // More than the old queue's silently dropped 64 rows.
+    for (int row = 0; row < count; ++row)
+        ASSERT_TRUE(photo(source + QStringLiteral("/%1.png").arg(row, 3, 10, QLatin1Char('0')),
+                          QColor(row, 80, 120)));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.openImportPage();
+    presenter.setImportMode(QStringLiteral("add"));
+    WorkerGate thumbnails;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
+        presenter, thumbnails.promise.get_future().share()));
+    auto *model = presenter.importCandidates();
+    bool placeholders_seen = false;
+    QObject::connect(model, &QAbstractItemModel::modelReset, &presenter,
+                     [&]
+                     {
+                         if (model->rowCount() != count)
+                             return;
+                         placeholders_seen = true;
+                         EXPECT_TRUE(presenter.importScanActive());
+                         EXPECT_EQ(presenter.importScanCompleted(), 0);
+                         for (int row = 0; row < count; ++row)
+                         {
+                             EXPECT_FALSE(model->sourcePath(row).isEmpty());
+                             EXPECT_TRUE(model->thumbnail(row).isNull());
+                         }
+                         // Classification must not undo an Uncheck All made on placeholders.
+                         model->setAllSelected(false);
+                     });
+    presenter.setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    EXPECT_TRUE(placeholders_seen);
+    EXPECT_EQ(model->selectedCount(), 0);
+    model->setAllSelected(true);
+    ASSERT_TRUE(presenter.importReady());
+    WorkerGate catalog;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(
+        presenter, catalog.promise.get_future().share()));
+    std::vector<int> completed;
+    QObject::connect(model, &QAbstractItemModel::dataChanged, &presenter,
+                     [&](const QModelIndex &first, const QModelIndex &, const QList<int> &roles)
+                     {
+                         if (roles.contains(ImportCandidateListModel::ThumbnailUrlRole) &&
+                             !model->thumbnail(first.row()).isNull())
+                             completed.push_back(first.row());
+                     });
+    // Delegate creation order is not a priority policy.
+    for (int row = count - 1; row >= 0; --row)
+        presenter.ensureImportThumbnail(row);
+    thumbnails.release();
+    ASSERT_TRUE(wait_until([&] { return completed.size() == count; }, 30000));
+    for (int row = 0; row < count; ++row)
+        EXPECT_EQ(completed[static_cast<std::size_t>(row)], row);
+    EXPECT_TRUE(presenter.importReady());
+    catalog.release();
+}
+
+TEST(StudioImportWorkspace, ImportAndSelectAllDoNotWaitForWorkspaceThumbnails)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(photo(source + "/a.png", Qt::red));
+    ASSERT_TRUE(QFile::copy(source + "/a.png", source + "/duplicate.png"));
+    ASSERT_TRUE(photo(source + "/b.png", Qt::blue));
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.openImportPage();
+    presenter.setImportMode(QStringLiteral("add"));
+    WorkerGate thumbnails;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
+        presenter, thumbnails.promise.get_future().share()));
+    presenter.setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until([&] { return presenter.importReady(); }));
+    auto *model = presenter.importCandidates();
+    ASSERT_EQ(model->rowCount(), 3);
+    presenter.ensureImportThumbnail(0);
+    const QString action = QStringLiteral("studio.photo.select_all");
+    int select_all_shortcuts = 0;
+    for (const auto &value : controller.shortcutEntries())
+        if (value.toMap().value("actionId").toString() == action)
+        {
+            ++select_all_shortcuts;
+            EXPECT_TRUE(value.toMap().value("enabled").toBool());
+        }
+    EXPECT_EQ(select_all_shortcuts, 1);
+    EXPECT_TRUE(
+        controller.executeAction(action, QStringLiteral("keyboard")).value("accepted").toBool());
+    EXPECT_TRUE(model->highlighted(0));
+    EXPECT_TRUE(model->highlighted(1));
+    EXPECT_FALSE(model->highlighted(2));
+    EXPECT_EQ(presenter.selectedCount(), 0); // No Gallery selection was changed.
+    controller.setTextInputActive(true);
+    for (const auto &value : controller.shortcutEntries())
+        if (value.toMap().value("actionId").toString() == action)
+            EXPECT_FALSE(value.toMap().value("enabled").toBool());
+    controller.setTextInputActive(false);
+    model->applyCheck(0);
+    EXPECT_EQ(model->selectedCount(), 0);
+    model->applyCheck(0);
+    EXPECT_EQ(model->selectedCount(), 2);
+    presenter.startPlannedImport();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+        30000));
+    EXPECT_EQ(presenter.lastImportCount(), 2U);
+    EXPECT_TRUE(model->thumbnail(0).isNull());
+    thumbnails.release();
+}
+TEST(StudioImportWorkspace, ThumbnailCacheIsBoundedAndClassificationPreservesCompletion)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(300);
+    for (int row = 0; row < 300; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+    model.setCandidates(candidates);
+    QObject::connect(
+        &model, &QAbstractItemModel::dataChanged, &model,
+        [&](const QModelIndex &, const QModelIndex &, const QList<int> &)
+        {
+            int checked = 0;
+            for (int row = 0; row < model.rowCount(); ++row)
+                checked += model.data(model.index(row, 0), ImportCandidateListModel::SelectedRole)
+                               .toBool();
+            EXPECT_EQ(model.selectedCount(), checked);
+        });
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(Qt::red);
+    for (int row = 0; row < 300; ++row)
+        model.finishThumbnail(row, image);
+    int retained = 0;
+    for (int row = 0; row < 300; ++row)
+        retained += !model.thumbnail(row).isNull();
+    EXPECT_EQ(retained, 256);
+    EXPECT_FALSE(model.inspected(0));
+    candidates.back().duplicate = true;
+    model.applyScanBatch(0, candidates);
+    EXPECT_TRUE(model.inspected(299));
+    EXPECT_FALSE(model.thumbnail(299).isNull());
+    EXPECT_EQ(model.selectedCount(), 299);
+    model.highlightAll();
+    model.applyCheck(0);
+    EXPECT_EQ(model.selectedCount(), 0);
+    model.applyCheck(0);
+    EXPECT_EQ(model.selectedCount(), 299);
+    model.finishThumbnail(298, {}, make_error(ErrorCode::kIo, "thumbnail failed"));
+    EXPECT_EQ(model.selectedCount(), 299); // Preview failure is not import eligibility.
+    EXPECT_EQ(model.data(model.index(298, 0), ImportCandidateListModel::ErrorRole).toString(),
+              QStringLiteral("thumbnail failed"));
+    model.setCandidates({});
+    EXPECT_EQ(model.selectedCount(), 0);
+    EXPECT_EQ(model.selectedBytes(), 0U);
+    model.setAllSelected(false);
+    model.setCandidates(candidates, true);
+    EXPECT_EQ(model.selectedCount(), 0);
+}
+
+TEST(StudioImportWorkspace, ThumbnailResultsCannotCrossSourceReplacementOrPageClose)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto first = directory.filePath("first");
+    const auto second = directory.filePath("second");
+    ASSERT_TRUE(QDir().mkpath(first));
+    ASSERT_TRUE(QDir().mkpath(second));
+    ASSERT_TRUE(photo(first + "/same.png", Qt::red));
+    ASSERT_TRUE(photo(second + "/same.png", Qt::blue));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.openImportPage();
+    WorkerGate thumbnails;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
+        presenter, thumbnails.promise.get_future().share()));
+    presenter.setImportSourceRoot(first);
+    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    presenter.ensureImportThumbnail(0);
+    QCoreApplication::processEvents();
+    presenter.setImportSourceRoot(second);
+    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    presenter.ensureImportThumbnail(0);
+    thumbnails.release();
+    auto *model = presenter.importCandidates();
+    ASSERT_TRUE(wait_until([&] { return model->inspected(0); }));
+    ASSERT_FALSE(model->thumbnail(0).isNull());
+    EXPECT_EQ(model->thumbnail(0).pixelColor(0, 0), QColor(Qt::blue));
+    EXPECT_EQ(model->sourcePath(0), QFileInfo(second + "/same.png").canonicalFilePath());
+    WorkerGate closing;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
+        presenter, closing.promise.get_future().share()));
+    presenter.setImportSourceRoot(second);
+    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    presenter.ensureImportThumbnail(0);
+    QCoreApplication::processEvents();
+    presenter.closeImportPage();
+    closing.release();
+    QCoreApplication::processEvents();
+    EXPECT_EQ(model->rowCount(), 0);
+    EXPECT_FALSE(presenter.importPageOpen());
+}
+
+TEST(StudioImportWorkspace, RealSourceProgressProbe)
+{
+    const auto source = qEnvironmentVariable("RAVO_IMPORT_SCAN_SOURCE");
+    if (source.isEmpty())
+        GTEST_SKIP() << "Set RAVO_IMPORT_SCAN_SOURCE to an explicit read-only source directory";
+    ensure_qt_core();
+    init_logging("ravo-import-probe");
+    ASSERT_TRUE(QFileInfo(source).isDir());
+    QTemporaryDir directory;
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("probe.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    // Avoid scanning a preference restored by another test.
+    ASSERT_TRUE(StudioImportPreferences{}.rememberSource(directory.path()));
+    presenter.openImportPage();
+    presenter.setImportMode(QStringLiteral("add"));
+    QElapsedTimer elapsed;
+    elapsed.start();
+    qint64 placeholders_ms = -1;
+    qint64 first_image_ms = -1;
+    qint64 scan_ms = -1;
+    int requested = 0;
+    auto *model = presenter.importCandidates();
+    QObject::connect(model, &QAbstractItemModel::modelReset, &presenter,
+                     [&]
+                     {
+                         if (!model->rowCount())
+                             return;
+                         placeholders_ms = elapsed.elapsed();
+                         requested = std::min(model->rowCount(), 32);
+                         for (int row = requested - 1; row >= 0; --row)
+                             presenter.ensureImportThumbnail(row);
+                     });
+    std::vector<int> images;
+    QObject::connect(model, &QAbstractItemModel::dataChanged, &presenter,
+                     [&](const QModelIndex &first, const QModelIndex &, const QList<int> &roles)
+                     {
+                         if (roles.contains(ImportCandidateListModel::ThumbnailUrlRole) &&
+                             !model->thumbnail(first.row()).isNull())
+                         {
+                             if (first_image_ms < 0)
+                                 first_image_ms = elapsed.elapsed();
+                             images.push_back(first.row());
+                         }
+                     });
+    QObject::connect(&presenter, &StudioPresenter::importPageChanged, &presenter,
+                     [&]
+                     {
+                         if (!presenter.importScanActive() && placeholders_ms >= 0 && scan_ms < 0)
+                             scan_ms = elapsed.elapsed();
+                     });
+    presenter.setImportSourceRoot(source);
+    const bool viewport_ready = wait_until(
+        [&]
+        {
+            if (requested == 0)
+                return false;
+            for (int row = 0; row < requested; ++row)
+                if (!model->inspected(row))
+                    return false;
+            return true;
+        },
+        30000);
+    RecordProperty("candidates", model->rowCount());
+    RecordProperty("placeholders_ms", std::to_string(placeholders_ms));
+    RecordProperty("first_image_ms", std::to_string(first_image_ms));
+    RecordProperty("scan_ms", std::to_string(scan_ms));
+    RecordProperty("scan_completed", presenter.importScanCompleted());
+    RecordProperty("scan_still_active", presenter.importScanActive() ? 1 : 0);
+    RecordProperty("decoded_images", static_cast<int>(images.size()));
+    EXPECT_TRUE(viewport_ready);
+    EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+    EXPECT_TRUE(std::is_sorted(images.begin(), images.end()));
+    EXPECT_GE(first_image_ms, 0);
+    EXPECT_EQ(presenter.visibleCount(), 0); // No import is executed by this probe.
+    presenter.closeImportPage();
 }
 } // namespace ravo

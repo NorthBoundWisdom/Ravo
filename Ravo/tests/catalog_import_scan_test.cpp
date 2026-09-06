@@ -8,6 +8,8 @@
 #include "catalog_repository_test_control.h"
 #include "ravo/adapters/text_file.h"
 #include "ravo/domain/uri.h"
+#include "ravo/services/import_thumbnail.h"
+#include "ravo/adapters/qt_raster_decoder.h"
 
 namespace ravo
 {
@@ -192,5 +194,72 @@ TEST_F(CatalogServiceTest, ImportContentIndexMigratesV16AndBackfillsWithoutRevis
     ASSERT_TRUE(indexed);
     ASSERT_EQ(indexed.value().size(), 1U);
     EXPECT_TRUE(indexed.value()[0].sha256.has_value());
+}
+TEST_F(CatalogServiceTest, ImportScanEnumeratesBeforeClassificationAndHonorsEnumerationCancellation)
+{
+    ASSERT_TRUE(open_service(true));
+    ASSERT_TRUE(write_photo(root / "b.png", Qt::blue));
+    ASSERT_TRUE(write_photo(root / "a.png", Qt::red));
+    const auto hash = file_sha256((root / "a.png").string());
+    const auto revision = service->snapshot().value().revision;
+    bool enumerated = false;
+    std::size_t classified = 0;
+    auto scan = service->scan_import_candidates(
+        {root.string()}, root.string(), false, {},
+        [&](std::size_t completed, std::size_t total, const ImportCandidate &)
+        {
+            EXPECT_TRUE(enumerated);
+            EXPECT_EQ(total, 2U);
+            classified = completed;
+        },
+        [&](const std::vector<std::string> &paths)
+        {
+            enumerated = true;
+            EXPECT_EQ(classified, 0U);
+            ASSERT_EQ(paths.size(), 2U);
+            EXPECT_EQ(std::filesystem::path(paths.front()).filename(), "a.png");
+            EXPECT_TRUE(service->list_assets().value().empty());
+        });
+    ASSERT_TRUE(scan);
+    EXPECT_EQ(classified, 2U);
+    CancellationSource cancel;
+    classified = 0;
+    auto stopped = service->scan_import_candidates(
+        {root.string()}, root.string(), false, cancel.token(), [&](auto, auto, const auto &)
+        { ++classified; }, [&](const auto &) { ASSERT_TRUE(cancel.cancel("enumerated")); });
+    ASSERT_FALSE(stopped);
+    EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(classified, 0U);
+    EXPECT_EQ(service->snapshot().value().revision, revision);
+    EXPECT_EQ(file_sha256((root / "a.png").string()), hash);
+}
+
+TEST_F(CatalogServiceTest, ImportThumbnailDecoderNeedsNoCatalogAndPreservesPixelsAndFailures)
+{
+    ASSERT_TRUE(open_service(true));
+    const QtRasterDecoder raster;
+    for (const auto &path : {png_fixture_path(), raw_fixture_path()})
+    {
+        const auto hash = file_sha256(path);
+        auto direct = decode_import_thumbnail(engine, raster, path, {});
+        auto catalog = service->decode_import_candidate_thumbnail(path, {});
+        ASSERT_TRUE(direct) << direct.error().message;
+        ASSERT_TRUE(catalog) << catalog.error().message;
+        EXPECT_EQ(direct.value().srgb, catalog.value().srgb);
+        EXPECT_EQ(direct.value().width, catalog.value().width);
+        EXPECT_EQ(direct.value().height, catalog.value().height);
+        EXPECT_EQ(file_sha256(path), hash);
+    }
+    service.reset();
+    EXPECT_TRUE(decode_import_thumbnail(engine, raster, png_fixture_path(), {}));
+    auto missing = decode_import_thumbnail(engine, raster, (root / "missing.png").string(), {});
+    ASSERT_FALSE(missing);
+    ASSERT_TRUE(write_utf8_text_file_atomically((root / "corrupt.png").string(), "corrupt"));
+    EXPECT_FALSE(decode_import_thumbnail(engine, raster, (root / "corrupt.png").string(), {}));
+    CancellationSource cancel;
+    ASSERT_TRUE(cancel.cancel("test"));
+    auto stopped = decode_import_thumbnail(engine, raster, png_fixture_path(), cancel.token());
+    ASSERT_FALSE(stopped);
+    EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
 }
 } // namespace ravo

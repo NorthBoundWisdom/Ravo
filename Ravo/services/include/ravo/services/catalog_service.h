@@ -287,12 +287,14 @@ public:
     inspect_import_candidate(std::string_view path, std::string_view source_root,
                              const CancellationToken &cancellation) const;
     // No media/recipe publication. May fill the adapter-owned derived content index.
-    // Progress values are borrowed only for the duration of the synchronous callback.
+    // Callback values are borrowed only for their synchronous invocation.
+    // Enumerated publishes the complete sorted, bounded path list before any
+    // content/metadata classification. It does not assert import eligibility.
     [[nodiscard]] Result<ImportScanResult> scan_import_candidates(
         const std::vector<std::string> &inputs, std::string_view source_root, bool recursive,
         const CancellationToken &cancellation,
-        const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress =
-            {});
+        const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress = {},
+        const std::function<void(const std::vector<std::string> &)> &enumerated = {});
     [[nodiscard]] Result<RasterBuffer>
     decode_import_candidate_thumbnail(std::string_view path,
                                       const CancellationToken &cancellation) const;

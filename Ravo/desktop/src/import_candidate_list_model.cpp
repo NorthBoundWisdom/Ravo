@@ -53,7 +53,9 @@ QVariant ImportCandidateListModel::data(const QModelIndex &index, const int role
                                                  .arg(row.thumbnail_revision)
                                                  .arg(generation_));
     case ErrorRole:
-        return row.candidate.error ? qstring_from_utf8(row.candidate.error->message) : QString{};
+        return row.candidate.error ? qstring_from_utf8(row.candidate.error->message) :
+               row.thumbnail_error ? qstring_from_utf8(row.thumbnail_error->message) :
+                                     QString{};
     case InspectedRole:
         return row.inspected;
     default:
@@ -74,21 +76,37 @@ QHash<int, QByteArray> ImportCandidateListModel::roleNames() const
 
 int ImportCandidateListModel::selectedCount() const noexcept
 {
-    return static_cast<int>(
-        std::count_if(rows_.begin(), rows_.end(), [](const Row &row) { return row.selected; }));
+    return selected_count_;
 }
 
-void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candidates)
+void ImportCandidateListModel::recountSelection()
+{
+    selected_count_ = 0;
+    selected_bytes_ = 0;
+    for (const auto &row : rows_)
+        if (row.selected)
+        {
+            ++selected_count_;
+            selected_bytes_ += row.candidate.size_bytes;
+        }
+}
+
+void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candidates,
+                                             const bool preserve_check_intent)
 {
     beginResetModel();
     ++generation_;
-    select_new_candidates_ = true;
+    if (!preserve_check_intent)
+        select_new_candidates_ = true;
     rows_.clear();
+    thumbnail_rows_.clear();
     rows_.reserve(candidates.size());
     for (auto &candidate : candidates)
-        rows_.push_back({std::move(candidate), {}, false, false, false, 0U});
+        rows_.push_back({std::move(candidate), {}, false, false, false, 0U, {}});
     for (auto &row : rows_)
-        row.selected = row.candidate.supported && !row.candidate.duplicate;
+        row.selected =
+            select_new_candidates_ && row.candidate.supported && !row.candidate.duplicate;
+    recountSelection();
     endResetModel();
     emit selectionChanged();
     emit candidatesChanged();
@@ -99,7 +117,12 @@ void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
     const int row = rowCount();
     beginInsertRows({}, row, row);
     const bool selected = select_new_candidates_ && candidate.supported && !candidate.duplicate;
-    rows_.push_back({std::move(candidate), {}, selected, false, false, 0U});
+    rows_.push_back({std::move(candidate), {}, selected, false, false, 0U, {}});
+    if (selected)
+    {
+        ++selected_count_;
+        selected_bytes_ += rows_.back().candidate.size_bytes;
+    }
     endInsertRows();
     emit candidatesChanged();
     emit selectionChanged();
@@ -107,11 +130,7 @@ void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
 
 qulonglong ImportCandidateListModel::selectedBytes() const noexcept
 {
-    qulonglong bytes = 0;
-    for (const auto &row : rows_)
-        if (row.selected)
-            bytes += row.candidate.size_bytes;
-    return bytes;
+    return selected_bytes_;
 }
 
 std::vector<std::pair<std::string, std::string>>
@@ -152,10 +171,11 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
         entry.selected = false;
         entry.highlighted = false;
     }
+    recountSelection();
     emit dataChanged(index(row, 0), index(row, 0),
-                     {MediaTypeRole, WidthRole, HeightRole, SizeBytesRole, SelectedRole,
-                      HighlightedRole, EligibleRole, DuplicateRole, ErrorRole, InspectedRole,
-                      DisplayNameRole});
+                     {SourcePathRole, MediaTypeRole, WidthRole, HeightRole, SizeBytesRole,
+                      SelectedRole, HighlightedRole, EligibleRole, DuplicateRole, ErrorRole,
+                      InspectedRole, DisplayNameRole});
     if (was_selected != entry.selected)
         emit selectionChanged();
 }
@@ -166,8 +186,68 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
         return;
     auto &entry = rows_[static_cast<std::size_t>(row)];
     entry.thumbnail = std::move(image);
+    std::erase(thumbnail_rows_, row);
+    if (!entry.thumbnail.isNull())
+        thumbnail_rows_.push_back(row);
+    // Metadata may describe 100,000 candidates; owned thumbnail pixels may not.
+    constexpr std::size_t maximum_cached_thumbnails = 256;
+    while (thumbnail_rows_.size() > maximum_cached_thumbnails)
+    {
+        const int evicted = thumbnail_rows_.front();
+        thumbnail_rows_.pop_front();
+        auto &old = rows_[static_cast<std::size_t>(evicted)];
+        old.thumbnail = {};
+        old.inspected = false;
+        emit dataChanged(index(evicted, 0), index(evicted, 0), {ThumbnailUrlRole, InspectedRole});
+    }
     ++entry.thumbnail_revision;
     emit dataChanged(index(row, 0), index(row, 0), {ThumbnailUrlRole});
+}
+
+void ImportCandidateListModel::applyScanBatch(const int first,
+                                              std::vector<ImportCandidate> candidates)
+{
+    if (first < 0 || first + static_cast<int>(candidates.size()) > rowCount() || candidates.empty())
+        return;
+    // Classification and thumbnail completion are independent. Preserve both
+    // the user's check/highlight intent and pixels already delivered by decode.
+    for (std::size_t offset = 0; offset < candidates.size(); ++offset)
+    {
+        auto &entry = rows_[static_cast<std::size_t>(first) + offset];
+        if (entry.selected)
+        {
+            --selected_count_;
+            selected_bytes_ -= entry.candidate.size_bytes;
+        }
+        entry.candidate = std::move(candidates[offset]);
+        if (!entry.candidate.supported || entry.candidate.duplicate)
+        {
+            entry.selected = false;
+            entry.highlighted = false;
+        }
+        if (entry.selected)
+        {
+            ++selected_count_;
+            selected_bytes_ += entry.candidate.size_bytes;
+        }
+    }
+    emit dataChanged(index(first, 0), index(first + static_cast<int>(candidates.size()) - 1, 0),
+                     {SourcePathRole, MediaTypeRole, WidthRole, HeightRole, SizeBytesRole,
+                      SelectedRole, HighlightedRole, EligibleRole, DuplicateRole, ErrorRole,
+                      DisplayNameRole});
+    emit selectionChanged();
+}
+
+void ImportCandidateListModel::finishThumbnail(const int row, QImage image,
+                                               std::optional<TaskError> error)
+{
+    if (row < 0 || row >= rowCount())
+        return;
+    auto &entry = rows_[static_cast<std::size_t>(row)];
+    entry.inspected = true;
+    entry.thumbnail_error = std::move(error);
+    setThumbnail(row, std::move(image));
+    emit dataChanged(index(row, 0), index(row, 0), {InspectedRole, ErrorRole});
 }
 
 QImage ImportCandidateListModel::thumbnail(const int row) const
@@ -204,6 +284,11 @@ void ImportCandidateListModel::toggleSelected(const int row)
     if (!entry.candidate.supported || entry.candidate.duplicate)
         return;
     entry.selected = !entry.selected;
+    selected_count_ += entry.selected ? 1 : -1;
+    if (entry.selected)
+        selected_bytes_ += entry.candidate.size_bytes;
+    else
+        selected_bytes_ -= entry.candidate.size_bytes;
     emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
     emit selectionChanged();
 }
@@ -215,6 +300,7 @@ void ImportCandidateListModel::setAllSelected(const bool selected)
         return;
     for (auto &row : rows_)
         row.selected = selected && row.candidate.supported && !row.candidate.duplicate;
+    recountSelection();
     emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
     emit selectionChanged();
 }
@@ -236,6 +322,7 @@ void ImportCandidateListModel::selectRange(int first, int last, const bool addit
         if (entry.candidate.supported && !entry.candidate.duplicate)
             entry.selected = true;
     }
+    recountSelection();
     emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
     emit selectionChanged();
 }
@@ -305,11 +392,13 @@ void ImportCandidateListModel::applyCheck(const int row)
         for (auto &entry : rows_)
             if (entry.highlighted && entry.candidate.supported && !entry.candidate.duplicate)
                 entry.selected = next;
+        recountSelection();
         emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
     }
     else
     {
         clicked.selected = next;
+        recountSelection();
         emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
     }
     emit selectionChanged();

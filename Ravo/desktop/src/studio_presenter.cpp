@@ -224,11 +224,15 @@ StudioPresenter::~StudioPresenter()
     static_cast<void>(thumbnail_work_.cancel("window_closed"));
     static_cast<void>(catalog_operation_.cancel("window_closed"));
     static_cast<void>(import_operation_.cancel("window_closed"));
+    static_cast<void>(import_thumbnail_operation_.cancel("window_closed"));
     static_cast<void>(import_preview_operation_.cancel("window_closed"));
     static_cast<void>(import_destination_preview_operation_.cancel("window_closed"));
     import_destination_preview_timer_->stop();
     filesystem_executor_.request_stop();
     filesystem_executor_.wait();
+    import_thumbnail_executor_.submit([this] { import_thumbnail_engine_.reset(); });
+    import_thumbnail_executor_.request_stop();
+    import_thumbnail_executor_.wait();
     develop_preview_owner_.cancel("window_closed");
     cancel_preview_analysis("window_closed");
     perspective_analysis_owner_.cancel("window_closed");

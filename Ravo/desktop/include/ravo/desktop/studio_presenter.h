@@ -7,6 +7,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -48,6 +49,10 @@ namespace ravo
 class StudioCommandController;
 class StudioLiveSessionController;
 class StudioDisplayPresentation;
+namespace testing
+{
+class StudioImportTestControl;
+}
 
 class StudioPresenter final : public QObject
 {
@@ -1064,6 +1069,7 @@ signals:
 
 private:
     friend class StudioCommandController;
+    friend class testing::StudioImportTestControl;
     friend class StudioLiveSessionController;
 
     void setBusy(bool busy);
@@ -1224,6 +1230,9 @@ private:
 
     SerialExecutor executor_;
     SerialExecutor filesystem_executor_;
+    SerialExecutor import_thumbnail_executor_;
+    std::optional<EngineFacade> import_thumbnail_engine_;
+    CancellationSource import_thumbnail_operation_;
     SerialExecutor preview_analysis_executor_;
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
@@ -1296,7 +1305,7 @@ private:
     QVariantMap import_ingest_report_;
     QString import_resume_batch_id_;
     std::uint64_t import_scan_generation_ = 0U;
-    std::deque<int> pending_import_thumbnail_rows_;
+    std::set<int> pending_import_thumbnail_rows_;
     bool import_candidate_work_in_flight_ = false;
     std::deque<std::string> pending_import_preview_ids_;
     ImportPreviewPolicy pending_import_preview_policy_ = ImportPreviewPolicy::kStandard;

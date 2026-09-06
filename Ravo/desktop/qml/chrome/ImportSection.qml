@@ -6,6 +6,8 @@ ColumnLayout {
     id: root
     property string title
     property bool expanded: true
+    property bool stretchContent: false
+    Layout.fillHeight: stretchContent && expanded
     default property alias sectionContent: body.data
     spacing: Fonts.size8
     CustomButton {
@@ -17,6 +19,7 @@ ColumnLayout {
     ColumnLayout {
         id: body
         Layout.fillWidth: true
+        Layout.fillHeight: root.stretchContent
         Layout.leftMargin: Fonts.size4
         Layout.rightMargin: Fonts.size4
         visible: root.expanded

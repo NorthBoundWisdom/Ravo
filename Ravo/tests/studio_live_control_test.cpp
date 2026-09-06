@@ -639,6 +639,7 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     ASSERT_TRUE(page.open(QIODevice::ReadOnly | QIODevice::Text))
         << page.errorString().toStdString();
     auto source = QString::fromUtf8(page.readAll());
+    EXPECT_FALSE(source.contains(QStringLiteral("objectName: \"importTransferMode\"")));
     for (const auto *name : {"ImportPhotoGrid.qml", "ImportSourcePanel.qml",
                              "ImportDestinationPanel.qml", "ImportFolderTree.qml"})
     {
@@ -646,20 +647,40 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
         ASSERT_TRUE(component.open(QIODevice::ReadOnly | QIODevice::Text));
         source += QString::fromUtf8(component.readAll());
     }
+    QFile destination(QFileInfo(page).dir().filePath(QStringLiteral("ImportDestinationPanel.qml")));
+    ASSERT_TRUE(destination.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto destination_source = QString::fromUtf8(destination.readAll());
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("objectName: \"importTransferMode\"")));
+    EXPECT_TRUE(destination_source.contains(
+        QStringLiteral("objectName: \"importTransferModeSegment\" + index")));
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("width: parent.width / 3")));
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("enabled: index < 2")));
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("anchors.top: transferModes.bottom")));
+    EXPECT_TRUE(destination_source.contains(
+        QStringLiteral("objectName: \"importDestinationTreeSurface\"")));
+    EXPECT_TRUE(destination_source.contains(
+        QStringLiteral("Math.max(implicitHeight, destinationScroll.availableHeight)")));
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("stretchContent: true")));
+    EXPECT_FALSE(destination_source.contains(QStringLiteral("Layout.preferredHeight: 220")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Add\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Move\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.applyCheck")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importCandidateCheckBox\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("indicatorSize: Math.max(24, Fonts.size24)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("width: Math.max(32, Fonts.scaledUiSize(32))")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.setAllSelected")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightExclusive")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightToggle")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightRange")));
-    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightAll")));
+    // Select All has one window command owner; a local Shortcut collides with
+    // the Gallery command and loses activation when the source tree has focus.
+    EXPECT_FALSE(source.contains(QStringLiteral("importCandidates.highlightAll")));
     EXPECT_TRUE(source.contains(QStringLiteral("enabled: eligible")));
     EXPECT_TRUE(source.contains(QStringLiteral("opacity: duplicate ? 0.45 : 1")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Duplicate photo\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("Duplicate photos hidden:")));
-    EXPECT_TRUE(source.contains(QStringLiteral("StandardKey.SelectAll")));
+    EXPECT_FALSE(source.contains(QStringLiteral("StandardKey.SelectAll")));
     EXPECT_TRUE(source.contains(QStringLiteral("fittedGridCell")));
     EXPECT_TRUE(source.contains(QStringLiteral("required property bool highlighted")));
     EXPECT_TRUE(source.contains(QStringLiteral("visible: count > 0")));
@@ -670,6 +691,7 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("By month (YYYY/MM)")));
     EXPECT_TRUE(source.contains(QStringLiteral("ImportFolderTree")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importSourceFolderTree\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importSourceTreeSurface\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importDestinationFolderTree\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("importSourceFolders")));
     EXPECT_TRUE(

@@ -95,7 +95,27 @@ handler, expand/collapse result, and hit-area dimensions. It also activates a
 loaded collapsed directory row and verifies
 that the folder choice reaches the presenter despite synchronous delegate replacement.
 Import grid/action/panel bounds are exercised at
-1440×900, 1024×640, and 640×480 without screenshots or a user catalog.
+1440×900, 1440×1100, 1024×640, and 640×480 without screenshots or a user catalog.
+The smoke checks equal-width destination mode segments, Move disabled, matching
+source/destination tree surfaces, adaptive tree growth and collapse/Add sizing,
+and a real checkbox indicator of at least 24 pixels within a 32-pixel hit area.
+Enumeration callbacks are tested before classification and for cancellation
+without publication. Catalog-independent PNG/RAW thumbnail decode must match
+Catalog pixels and preserve source hashes and structured corrupt/missing/cancel
+errors. Desktop worker gates prove that all named placeholders precede
+classification, 96 reverse-demanded rows drain in ascending order even with the
+catalog worker blocked, and real import completes while workspace thumbnails
+are blocked. Cache tests cap retained images at 256 and preserve scan-owned
+eligibility across thumbnail completion/failure. Select All tests freeze one
+command shortcut, import-vs-Gallery routing, duplicate exclusion, and text-input
+isolation. `StudioImportWorkspace.RealSourceProgressProbe` is opt-in via
+`RAVO_IMPORT_SCAN_SOURCE`: it uses an isolated temporary catalog, reads only the
+explicit source folder, requests the first 32 thumbnails, and reports candidate
+count plus enumeration/first-image times and classification progress as GoogleTest
+properties. It cancels remaining classification after the first viewport finishes;
+`scan_ms=-1` means classification was still active, not a failed image result.
+Run this probe from a Release desktop test binary with `--gtest_output=xml:<file>`;
+it never executes import or uses a user's existing catalog.
 LibraryQuery tests cover every
 supported predicate, missing capture values, inclusive numeric/time endpoints,
 ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/

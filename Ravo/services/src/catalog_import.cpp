@@ -1,4 +1,5 @@
 #include "ravo/services/catalog_service.h"
+#include "ravo/services/import_thumbnail.h"
 
 #include <algorithm>
 #include <array>
@@ -249,6 +250,16 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
 {
     if (raster_ == nullptr || engine_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return decode_import_thumbnail(*engine_, *raster_, path, cancellation);
+}
+
+Result<RasterBuffer> decode_import_thumbnail(const EngineFacade &engine,
+                                             const RasterDecoder &raster,
+                                             const std::string_view path,
+                                             const CancellationToken &cancellation)
+{
+    if (auto active = cancellation.check(); !active)
+        return active.error();
     auto location = normalize_local_input(path);
     if (!location)
         return location.error();
@@ -265,7 +276,7 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
     };
     if (!is_raw_extension(utf8_path(location.value().path)))
     {
-        auto decoded = raster_->decode(location.value().path, kThumbnailMaxEdge, cancellation);
+        auto decoded = raster.decode(location.value().path, kThumbnailMaxEdge, cancellation);
         if (!decoded)
             return decoded.error();
         return raster_from_decoded(std::move(decoded).value());
@@ -275,12 +286,12 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
         return companion.error();
     if (companion.value())
     {
-        auto decoded = raster_->decode(*companion.value(), kThumbnailMaxEdge, cancellation);
+        auto decoded = raster.decode(*companion.value(), kThumbnailMaxEdge, cancellation);
         if (decoded)
             return raster_from_decoded(std::move(decoded).value());
     }
-    auto inspected = engine_->inspect_with_embedded_preview(location.value().path,
-                                                            kThumbnailMaxEdge, cancellation);
+    auto inspected = engine.inspect_with_embedded_preview(location.value().path, kThumbnailMaxEdge,
+                                                          cancellation);
     if (!inspected)
         return inspected.error();
     if (!inspected.value().embedded_preview)
@@ -307,7 +318,7 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
         request.output_width = width;
         request.output_height = height;
         request.cancellation = cancellation;
-        auto rendered = engine_->render_to_image(request);
+        auto rendered = engine.render_to_image(request);
         if (!rendered)
             return rendered.error();
         auto value = std::move(rendered).value();
@@ -321,8 +332,8 @@ CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
         return result;
     }
     auto decoded =
-        raster_->decode_memory(inspected.value().embedded_preview->bytes, kThumbnailMaxEdge,
-                               cancellation, inspected.value().embedded_preview->rotate_quarters);
+        raster.decode_memory(inspected.value().embedded_preview->bytes, kThumbnailMaxEdge,
+                             cancellation, inspected.value().embedded_preview->rotate_quarters);
     if (!decoded)
         return decoded.error();
     return raster_from_decoded(std::move(decoded).value());

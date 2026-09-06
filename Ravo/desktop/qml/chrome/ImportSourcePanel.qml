@@ -1,5 +1,6 @@
 pragma Translator: ImportPage
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
@@ -41,13 +42,25 @@ Rectangle {
             text: qsTr("Check again")
             onClicked: root.presenter.setImportSourceRoot(root.presenter.importSourceRoot)
         }
-        ImportFolderTree {
-            objectName: "importSourceFolderTree"
+        Rectangle {
+            objectName: "importSourceTreeSurface"
             Layout.fillWidth: true
             Layout.fillHeight: true
-            folderModel: root.presenter.importSourceFolders
-            onFolderChosen: function (path) {
-                root.presenter.setImportSourceRoot(path);
+            color: Theme.baseColor
+            border.color: Theme.dividerColor
+            border.width: ControlState.borderThin
+            radius: ControlState.radiusSmall
+            ImportFolderTree {
+                objectName: "importSourceFolderTree"
+                anchors.fill: parent
+                anchors.margins: Fonts.size4
+                folderModel: root.presenter.importSourceFolders
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+                onFolderChosen: function (path) {
+                    root.presenter.setImportSourceRoot(path);
+                }
             }
         }
     }

@@ -14,6 +14,8 @@
 #include <QVariantMap>
 
 #include "ravo/desktop/filesystem_browser_model.h"
+#include "ravo/adapters/qt_raster_decoder.h"
+#include "ravo/services/import_thumbnail.h"
 #include "ravo/desktop/studio_import_preferences.h"
 #include "ravo/services/ingest_transport.h"
 #include "studio_qt.h"
@@ -22,8 +24,6 @@ namespace ravo
 {
 namespace
 {
-
-inline constexpr int kMaximumPendingImportThumbnails = 64;
 
 [[nodiscard]] ImportCandidate placeholder_candidate(const std::string &path,
                                                     const std::string &source_root)
@@ -348,6 +348,7 @@ void StudioPresenter::closeImportPage()
     if (import_work_active_)
         return;
     static_cast<void>(import_operation_.cancel("import_page_closed"));
+    static_cast<void>(import_thumbnail_operation_.cancel("import_page_closed"));
     ++import_scan_generation_;
     import_scan_active_ = false;
     import_preflight_active_ = false;
@@ -512,6 +513,8 @@ void StudioPresenter::rescanImportSource()
     if (service_ == nullptr || import_source_root_.isEmpty() || import_work_active_)
         return;
     static_cast<void>(import_operation_.cancel("import_source_changed"));
+    static_cast<void>(import_thumbnail_operation_.cancel("import_source_changed"));
+    import_thumbnail_operation_ = CancellationSource{};
     import_operation_ = CancellationSource{};
     const auto token = import_operation_.token();
     const auto generation = ++import_scan_generation_;
@@ -526,6 +529,7 @@ void StudioPresenter::rescanImportSource()
     import_scan_total_ = 0;
     pending_import_thumbnail_rows_.clear();
     import_candidates_.setCandidates({});
+    setError({});
     emit importPageChanged();
     executor_.post(
         [this, root, recursive, generation, token]()
@@ -548,8 +552,8 @@ void StudioPresenter::rescanImportSource()
                     {
                         if (generation != import_scan_generation_ || !import_page_open_)
                             return;
-                        for (auto &entry : batch)
-                            import_candidates_.appendCandidate(std::move(entry));
+                        const int first = static_cast<int>(completed - batch.size());
+                        import_candidates_.applyScanBatch(first, std::move(batch));
                         import_duplicate_count_ = duplicates;
                         import_scan_completed_ = static_cast<int>(completed);
                         import_scan_total_ = static_cast<int>(total);
@@ -569,7 +573,26 @@ void StudioPresenter::rescanImportSource()
                     return make_error(ErrorCode::kIo,
                                       "Import source folder is unavailable: " + root,
                                       {{"reason", "import_source_unavailable"}});
-                return service_->scan_import_candidates({root}, root, recursive, token, publish);
+                return service_->scan_import_candidates(
+                    {root}, root, recursive, token, publish,
+                    [this, root, generation](const std::vector<std::string> &paths)
+                    {
+                        std::vector<ImportCandidate> placeholders;
+                        placeholders.reserve(paths.size());
+                        for (const auto &path : paths)
+                            placeholders.push_back(placeholder_candidate(path, root));
+                        QMetaObject::invokeMethod(
+                            this,
+                            [this, generation, placeholders = std::move(placeholders)]() mutable
+                            {
+                                if (generation != import_scan_generation_ || !import_page_open_)
+                                    return;
+                                import_scan_total_ = static_cast<int>(placeholders.size());
+                                import_candidates_.setCandidates(std::move(placeholders), true);
+                                emit importPageChanged();
+                            },
+                            Qt::QueuedConnection);
+                    });
             };
             auto scan = scan_source();
             QMetaObject::invokeMethod(
@@ -591,29 +614,25 @@ void StudioPresenter::rescanImportSource()
 
 void StudioPresenter::ensureImportThumbnail(const int row)
 {
-    if (!import_page_open_ || import_work_active_ || row < 0 ||
+    if (!import_page_open_ || import_work_active_ || import_preflight_active_ || row < 0 ||
         row >= import_candidates_.rowCount() || import_candidates_.inspected(row) ||
         !import_candidates_.thumbnail(row).isNull())
         return;
-    const auto existing = std::find(pending_import_thumbnail_rows_.begin(),
-                                    pending_import_thumbnail_rows_.end(), row);
-    if (existing != pending_import_thumbnail_rows_.end())
-        pending_import_thumbnail_rows_.erase(existing);
-    if (pending_import_thumbnail_rows_.size() >=
-        static_cast<std::size_t>(kMaximumPendingImportThumbnails))
-        pending_import_thumbnail_rows_.pop_back();
-    pending_import_thumbnail_rows_.push_front(row);
-    kickImportCandidateWork();
+    if (!pending_import_thumbnail_rows_.insert(row).second)
+        return;
+    // Collect one QML delegate-creation turn before selecting the first row.
+    QTimer::singleShot(0, this, &StudioPresenter::kickImportCandidateWork);
 }
 
 void StudioPresenter::kickImportCandidateWork()
 {
-    if (import_candidate_work_in_flight_ || import_work_active_ || !import_page_open_)
+    if (import_candidate_work_in_flight_ || import_work_active_ || import_preflight_active_ ||
+        !import_page_open_)
         return;
     while (!pending_import_thumbnail_rows_.empty())
     {
-        const int row = pending_import_thumbnail_rows_.front();
-        pending_import_thumbnail_rows_.pop_front();
+        const int row = *pending_import_thumbnail_rows_.begin();
+        pending_import_thumbnail_rows_.erase(pending_import_thumbnail_rows_.begin());
         if (row < 0 || row >= import_candidates_.rowCount() || import_candidates_.inspected(row) ||
             !import_candidates_.thumbnail(row).isNull())
             continue;
@@ -626,85 +645,54 @@ void StudioPresenter::startImportCandidateWork(const int row)
 {
     const QString source = import_candidates_.sourcePath(row);
     if (source.isEmpty())
-    {
-        kickImportCandidateWork();
         return;
-    }
-    const std::string root = utf8_from_qstring(import_source_root_);
     const auto generation = import_scan_generation_;
-    const auto token = import_operation_.token();
+    const auto token = import_thumbnail_operation_.token();
     import_candidate_work_in_flight_ = true;
-    const bool queued = executor_.post(
-        [this, row, source, root, generation, token]()
+    const bool queued = import_thumbnail_executor_.post(
+        [this, row, source, generation, token]()
         {
-            ImportCandidate candidate;
+            const auto decode = [&]() -> Result<RasterBuffer>
+            {
+                if (auto active = token.check(); !active)
+                    return active.error();
+                if (!import_thumbnail_engine_)
+                {
+                    auto created = EngineFacade::create_phase1();
+                    if (!created)
+                        return created.error();
+                    import_thumbnail_engine_ = std::move(created).value();
+                }
+                const QtRasterDecoder raster;
+                return decode_import_thumbnail(*import_thumbnail_engine_, raster,
+                                               utf8_from_qstring(source), token);
+            };
+            auto decoded = decode();
             QImage image;
-            if (service_ == nullptr)
-            {
-                candidate = placeholder_candidate(utf8_from_qstring(source), root);
-                candidate.supported = false;
-                candidate.error = make_error(ErrorCode::kIo, "Catalog session is closed");
-            }
+            std::optional<TaskError> error;
+            if (decoded)
+                image = import_thumbnail_image(decoded.value());
             else
-            {
-                auto inspected =
-                    service_->inspect_import_candidate(utf8_from_qstring(source), root, token);
-                if (!inspected)
-                {
-                    if (inspected.error().code != ErrorCode::kCancelled)
-                    {
-                        candidate = placeholder_candidate(utf8_from_qstring(source), root);
-                        candidate.supported = false;
-                        candidate.error = inspected.error();
-                    }
-                }
-                else
-                {
-                    candidate = std::move(inspected).value();
-                    if (candidate.supported)
-                    {
-                        auto decoded = service_->decode_import_candidate_thumbnail(
-                            utf8_from_qstring(source), token);
-                        if (decoded)
-                            image = import_thumbnail_image(decoded.value());
-                    }
-                }
-            }
+                error = decoded.error();
             QMetaObject::invokeMethod(
                 this,
-                [this, row, source, generation, candidate = std::move(candidate),
+                [this, row, source, generation, token, error = std::move(error),
                  image = std::move(image)]() mutable
                 {
                     import_candidate_work_in_flight_ = false;
-                    if (generation != import_scan_generation_ || !import_page_open_ ||
-                        import_work_active_)
-                    {
-                        kickImportCandidateWork();
-                        return;
-                    }
-                    if (row >= 0 && row < import_candidates_.rowCount() &&
-                        import_candidates_.sourcePath(row) == source &&
-                        !candidate.source_path.empty())
-                    {
-                        if (candidate.duplicate &&
-                            !import_candidates_
-                                 .data(import_candidates_.index(row, 0),
-                                       ImportCandidateListModel::DuplicateRole)
-                                 .toBool())
-                        {
-                            rescanImportSource();
-                            return;
-                        }
-                        import_candidates_.updateCandidate(row, std::move(candidate));
-                        if (!image.isNull())
-                            import_candidates_.setThumbnail(row, std::move(image));
-                    }
+                    if (generation == import_scan_generation_ && import_page_open_ &&
+                        !import_work_active_ && token.check() &&
+                        import_candidates_.sourcePath(row) == source)
+                        import_candidates_.finishThumbnail(row, std::move(image), std::move(error));
                     kickImportCandidateWork();
                 },
                 Qt::QueuedConnection);
         });
     if (!queued)
+    {
         import_candidate_work_in_flight_ = false;
+        setError(QStringLiteral("Import thumbnail worker is stopped."));
+    }
 }
 
 void StudioPresenter::beginImportGalleryPlaceholders(const std::vector<std::string> &paths)
@@ -843,6 +831,7 @@ void StudioPresenter::startPlannedImport()
                     if (!ready)
                     {
                         setError(qstring_from_utf8(ready.error().message));
+                        kickImportCandidateWork();
                         return;
                     }
                     beginPlannedImport(std::move(request));
@@ -853,6 +842,7 @@ void StudioPresenter::startPlannedImport()
 
 void StudioPresenter::beginPlannedImport(ImportRequest request)
 {
+    static_cast<void>(import_thumbnail_operation_.cancel("planned_import_started"));
     const bool ingest_copy = uses_ingest_copy_path(import_ingest_transport_, import_mode_);
     pending_import_destination_ = request.mode == ImportTransferMode::kAdd ?
                                       QString{} :

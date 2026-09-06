@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <deque>
 
 #include <QAbstractListModel>
 #include <QImage>
@@ -41,7 +42,7 @@ public:
     [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override;
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
     [[nodiscard]] int selectedCount() const noexcept;
-    void setCandidates(std::vector<ImportCandidate> candidates);
+    void setCandidates(std::vector<ImportCandidate> candidates, bool preserve_check_intent = false);
     void appendCandidate(ImportCandidate candidate);
     [[nodiscard]] qulonglong selectedBytes() const noexcept;
     [[nodiscard]] std::vector<std::pair<std::string, std::string>> selectedContentHashes() const;
@@ -50,6 +51,8 @@ public:
         return generation_;
     }
     void updateCandidate(int row, ImportCandidate candidate);
+    void applyScanBatch(int first, std::vector<ImportCandidate> candidates);
+    void finishThumbnail(int row, QImage image, std::optional<TaskError> error = {});
     void setThumbnail(int row, QImage image);
     [[nodiscard]] QImage thumbnail(int row) const;
     [[nodiscard]] QString sourcePath(int row) const;
@@ -70,6 +73,7 @@ signals:
     void candidatesChanged();
 
 private:
+    void recountSelection();
     struct Row
     {
         ImportCandidate candidate;
@@ -78,10 +82,14 @@ private:
         bool highlighted = false;
         bool inspected = false;
         std::uint64_t thumbnail_revision = 0U;
+        std::optional<TaskError> thumbnail_error;
     };
     std::vector<Row> rows_;
+    std::deque<int> thumbnail_rows_;
     bool select_new_candidates_ = true;
     std::uint64_t generation_ = 0;
+    int selected_count_ = 0;
+    qulonglong selected_bytes_ = 0;
 };
 
 } // namespace ravo

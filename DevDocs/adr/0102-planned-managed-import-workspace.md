@@ -4,6 +4,7 @@
 - Date: 2026-09-01
 - Updated: 2026-09-05 — content filtering, destination preference, responsive workspace
 - Updated: 2026-09-06 — visible disabled duplicates and remembered source-tree location
+- Updated: 2026-09-06 — enumeration-first placeholders and independent ordered thumbnails
 - Extends: [ADR-0007](0007-first-usable-catalog-viewer.md),
   [ADR-0028](0028-original-copy-publication-contract.md), and
   [ADR-0100](0100-paged-library-and-foreground-work-scheduling.md)
@@ -18,13 +19,28 @@ sorted insertion also made Gallery unstable during a batch.
 ## Decision
 
 - Studio has one full-page import workspace. One local source root is scanned
-  deterministically with optional recursion. Cancellable content and metadata
-  checks publish named photo placeholders incrementally. Supported non-duplicates start selected and
-  request bounded 320-pixel thumbnails through C++ services as the grid
+  deterministically with optional recursion. Enumeration publishes the complete
+  bounded placeholder list before cancellable content and metadata checks.
+  Checks start provisionally selected and are cleared for duplicate/unsupported
+  rows during classification. Named cells request 320-pixel thumbnails through C++ services as the grid
   demands them. The workspace grid fits available width. A highlight set is
   distinct from the import checkbox: Command/Control multi-selects, Shift
   selects a range, Command/Control+A selects all, and checking one highlighted
   cell applies that check state to every highlighted eligible photo.
+- Workspace thumbnails have one independent presenter-owned serial worker with
+  an exclusively owned Engine and raster adapter. It calls the same extracted
+  catalog-independent decode service as Catalog/CLI; no SQL, new renderer, or
+  decode fallback is introduced. Demanded row IDs drain in ascending grid order
+  without a silently dropping 64-item queue. The input bound caps pending IDs;
+  a 256-image cache caps retained pixel memory, with viewport-driven re-demand.
+  Batched classification preserves thumbnail results and user check/highlight
+  intent, while cached counts avoid repeated full-list scans. Thumbnail failures
+  are visible independently of import eligibility. Completed classification and
+  final revision/hash preflight remain mandatory; thumbnail completion does not.
+  Source change, page close and import start cancel work, generation/source checks
+  reject late results, and destruction joins and destroys worker-owned resources.
+  Select All has one window command owner that targets the open import page,
+  including source-tree focus, and yields to text-input selection.
 - A typed request chooses Add, Copy, or Move; single-folder, preserved-root,
   `YYYY/MM/DD`, or `YYYY/MM` organization; and Minimal 320, Standard 1600, or
   full-size 1:1 previews. Workspace defaults are Copy, recursive, Standard, and
@@ -79,9 +95,8 @@ sorted insertion also made Gallery unstable during a batch.
   and unavailable to both highlight and import selection. Stable path order makes
   only the first supported representative of each same-content group eligible.
   Duplicate thumbnails use the ordinary bounded demand queue. Single-path
-  thumbnail inspection cannot clear the scan's content/batch duplicate status;
-  a fresh scan owns reclassification. An already-known catalog-path duplicate
-  completes inspection without triggering another scan.
+  thumbnail completion cannot clear the scan's content/batch duplicate status;
+  a fresh scan owns reclassification. Decode never triggers a new scan.
   Same name, size, or timestamp alone never establishes a duplicate. Unavailable
   candidates stay visible and unchecked. Uncheck All also affects later arrivals.
 - Schema v17 adds a derived content-hash table and size/hash index. New imports

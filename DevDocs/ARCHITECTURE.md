@@ -176,18 +176,43 @@ and the accepted exact result replaces it. The loading layer never changes
 balance interaction, recipe state, cache identity, or export input. Missing or
 failed originals do not use the layer. The Library panel separately shows
 import and demanded-preview progress. After system file/folder selection,
-Studio checks source identities and metadata on a worker, incrementally publishes
-named placeholder cells including disabled duplicates, then fills bounded 320-pixel workspace thumbnails as
-the grid demands them. Catalog import still runs on workers. Clicking Import publishes named Gallery
+Studio publishes the complete sorted, bounded path list as named placeholders
+before hashing or metadata inspection. The catalog worker classifies identities,
+support and duplicates in batches; failed/duplicate rows become disabled without
+resetting intervening user check intent. A separate presenter-owned serial
+thumbnail worker owns its own Engine and raster adapter, never the catalog or
+its Engine. It invokes the same catalog-independent service decode used by CLI/
+Catalog browse, processes demanded rows in ascending grid order, and publishes
+one owned result at a time. Pending row IDs are bounded by the input limit and
+are not dropped at 64; at most 256 decoded workspace images are retained, with
+viewport re-demand after eviction. Selection totals are cached, and scan updates
+publish one model notification per batch rather than per-row full-list recounts.
+Scan/thumbnail failures stay distinct: thumbnail errors stop that row's spinner
+and remain visible but do not decide import eligibility. Import requires completed
+classification and revision/hash preflight, never completed workspace thumbnails.
+Source replacement, page close and import start cancel thumbnail work; generation
+and source identity reject late completions. Window destruction cancels and joins
+the worker and destroys its Engine on that worker. Catalog import still runs on
+its original serial owner. Clicking Import publishes named Gallery
 placeholders immediately; each cataloged photo then fills that cell, and
 viewport demand loads a browse thumbnail so the user can inspect while later
 items and selected previews continue.
+
+Import transfer modes are three equal-width segments in one frame at the top
+of the destination rail (or its compact drawer); Move remains disabled. Both
+folder trees share theme-backed inset surfaces and scrollbars. Destination
+height consumes the remaining settings viewport down to a minimum, then the
+settings scroll; Add or a collapsed destination section keeps ordinary content
+height. Import check indicators are at least 24 logical pixels with a 32-pixel
+hit area, scaled through the existing theme API. These are QML layout choices,
+not new import policy or dependency changes.
 
 Gallery and import-workspace grid cells fit available width in the 120–320
 range and have a vertical scroll bar. `positionViewAtIndex` runs only when the
 selected Gallery item leaves the viewport. Import cells use a separate highlight
 from the import checkbox: Command/Control extends the highlight, Shift selects a
-range, Command/Control+A highlights all, and the checkbox applies its new state
+range, the single C++ Select All command routes Command/Control+A to the open
+import workspace regardless of grid/tree focus (but not text input), and the checkbox applies its new state
 to every highlighted eligible cell. C++ passes `--catalog <library.sqlite>` to the presenter; QML opens
 it at session start rather than a default library.
 
@@ -514,10 +539,10 @@ the session. A folder selection restores its ancestors asynchronously.
 `scan_import_candidates` owns full-file SHA-256 duplicate classification independently
 of thumbnail demand. Known catalog URIs and matching content remain visible as
 disabled grid cells; only the first supported path in a same-content group is
-eligible. The desktop publishes all placeholders in batches and initially checks
-eligible photos only. Duplicate rows reject single/range/all highlights and checks.
-Thumbnail inspection preserves scan-owned duplicate status until a new scan and
-does not rescan already-known duplicates. The desktop honors an intervening Uncheck All,
+eligible. Enumeration publishes all placeholders before classification; provisional
+checks are cleared as unsupported/duplicate rows are classified. Duplicate rows
+reject single/range/all highlights and checks. Thumbnail completion never changes
+scan-owned identity, hashes, support or duplicate status. The desktop honors an intervening Uncheck All,
 and rejects completions by scan generation. Preflight validates the observed
 catalog revision and selected hashes before switching to Gallery. Hashing checks
 cancellation between bounded reads; copying and catalog publication retain their
