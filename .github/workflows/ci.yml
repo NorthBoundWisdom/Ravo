@@ -73,12 +73,15 @@ jobs:
             platform: linux
             host_packages: cmake
             build_type: Debug
+          # MSVC Debug emits /Zi shared PDBs, which ccache reports as 100%
+          # uncacheable. Release objects are cacheable and share the tag-package
+          # ccache key. macOS/Linux CI stay Debug for CRT/assert coverage.
           - os: windows-2022
-            preset: win_msvc_debug
+            preset: win_msvc_release
             platform: win
             host_packages: cmake-png
-            build_type: Debug
-            runtime_dll: zlibd.dll
+            build_type: Release
+            runtime_dll: zlib.dll
     defaults:
       run:
         shell: bash
@@ -202,7 +205,7 @@ jobs:
             throw "Qt bin directory is missing: $qtBin"
           }
           if (-not (Test-Path $zlib)) {
-            throw "zlibd.dll is missing: $zlib"
+            throw "zlib runtime is missing: $zlib"
           }
           $env:Path = "$qtBin;$hostBin;$env:Path"
           Add-Content -Path $env:GITHUB_PATH -Value $qtBin

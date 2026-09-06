@@ -262,8 +262,11 @@ complete I11/I12/I13 shared-consumer retirement, PNG pHYs, or TIFF multipage
 masks. FreeCM Test and
 `ctest --test-dir build/<preset>` run the same suite
 from the repository root. GitHub Actions runs the same CTest set on
-`mac_clang_debug`, `linux_clang_debug`, and `win_msvc_debug`, plus static
-fixture-manifest and dependency-boundary checks. CI runs `--init`, updates Qt/PATH in the
+`mac_clang_debug`, `linux_clang_debug`, and `win_msvc_release`, plus static
+fixture-manifest and dependency-boundary checks. Windows CI uses Release because
+MSVC Debug `/Zi` shared PDBs are uncacheable; Release objects are cacheable and
+share the tag-package ccache key. Debug CRT/assert coverage remains on macOS
+and Linux. CI runs `--init`, updates Qt/PATH in the
 active lock, then runs `--update`. Builds use `cmake --build build/<preset>` so
 they do not depend on the Linux template's `ClangDebug` build-preset name and
 Windows gtest discovery can see Qt on runner `Path`.
