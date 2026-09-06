@@ -262,7 +262,8 @@ TEST(HeicAdapterTest, DecodesOwnedOrientedSrgbPixelsFromPathAndMemory)
         EXPECT_EQ(read_file(path), bytes);
         auto truncated = decoder.decode_memory(vector_bytes(bytes.left(bytes.size() / 2)), 32, {});
         ASSERT_FALSE(truncated);
-        EXPECT_EQ(truncated.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(truncated.error().code, ErrorCode::kValidation) << truncated.error().message;
+        EXPECT_EQ(truncated.error().context.at("reason"), "invalid_heic_input");
     }
 }
 

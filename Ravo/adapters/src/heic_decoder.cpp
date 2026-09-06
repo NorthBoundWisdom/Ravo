@@ -70,6 +70,53 @@ std::int64_t number(CFDictionaryRef properties, CFStringRef key, std::int64_t ab
                -1;
 }
 
+bool flag(CFDictionaryRef properties, CFStringRef key, bool absent = false)
+{
+    const auto value = CFDictionaryGetValue(properties, key);
+    if (!value)
+        return absent;
+    return CFGetTypeID(value) == CFBooleanGetTypeID() &&
+           CFBooleanGetValue(static_cast<CFBooleanRef>(value));
+}
+
+[[nodiscard]] std::uint64_t read_u64_be(const std::span<const std::uint8_t> bytes) noexcept
+{
+    return (static_cast<std::uint64_t>(read_u32_be(bytes.subspan(0U, 4U))) << 32U) |
+           static_cast<std::uint64_t>(read_u32_be(bytes.subspan(4U, 4U)));
+}
+
+// ImageIO on virtualized CI hosts can still emit a thumbnail from a truncated
+// HEIC. Reject containers whose top-level boxes do not fit the supplied bytes.
+[[nodiscard]] bool
+heic_top_level_boxes_are_complete(const std::span<const std::uint8_t> bytes) noexcept
+{
+    std::size_t offset = 0;
+    while (offset < bytes.size())
+    {
+        if (bytes.size() - offset < 8U)
+            return false;
+        std::uint64_t box_size = read_u32_be(bytes.subspan(offset, 4U));
+        std::size_t header = 8U;
+        if (box_size == 1U)
+        {
+            if (bytes.size() - offset < 16U)
+                return false;
+            box_size = read_u64_be(bytes.subspan(offset + 8U, 8U));
+            header = 16U;
+            if (box_size < header)
+                return false;
+        }
+        else if (box_size == 0U)
+            return true;
+        else if (box_size < header)
+            return false;
+        if (box_size > static_cast<std::uint64_t>(bytes.size() - offset))
+            return false;
+        offset += static_cast<std::size_t>(box_size);
+    }
+    return offset == bytes.size();
+}
+
 Result<DecodedRaster> decode_native(std::span<const std::uint8_t> bytes, std::uint32_t max_edge,
                                     const CancellationToken &cancellation, std::string_view source,
                                     int rotate_quarters)
@@ -83,6 +130,13 @@ Result<DecodedRaster> decode_native(std::span<const std::uint8_t> bytes, std::ui
     }
     else
         return heic_unsupported_error(source);
+    const auto invalid = [&]()
+    {
+        return heic_error(ErrorCode::kValidation, "HEIC/HEIF image is incomplete or corrupt",
+                          "invalid_heic_input", source);
+    };
+    if (!heic_top_level_boxes_are_complete(bytes))
+        return invalid();
     // CFData borrows the immutable call input. Native objects are destroyed
     // before returning, and only the copied raster crosses this boundary.
     CfOwner<CFDataRef> data(CFDataCreateWithBytesNoCopy(kCFAllocatorDefault, bytes.data(),
@@ -94,11 +148,6 @@ Result<DecodedRaster> decode_native(std::span<const std::uint8_t> bytes, std::ui
                           "heic_allocation_failed", source);
     CfOwner<CGImageSourceRef> image_source(CGImageSourceCreateWithData(data.get(), nullptr),
                                            &CFRelease);
-    const auto invalid = [&]()
-    {
-        return heic_error(ErrorCode::kValidation, "HEIC/HEIF image is incomplete or corrupt",
-                          "invalid_heic_input", source);
-    };
     if (!image_source || CGImageSourceGetStatus(image_source.get()) != kCGImageStatusComplete ||
         CGImageSourceGetCount(image_source.get()) == 0)
         return invalid();
@@ -118,6 +167,7 @@ Result<DecodedRaster> decode_native(std::span<const std::uint8_t> bytes, std::ui
     const auto orientation = number(properties.get(), kCGImagePropertyOrientation, 1);
     if (width <= 0 || height <= 0 || orientation < 1 || orientation > 8)
         return invalid();
+    const auto declares_alpha = flag(properties.get(), kCGImagePropertyHasAlpha);
     if (width > 32768 || height > 32768 ||
         static_cast<std::uint64_t>(width * height) > kMaximumPixels)
         return heic_error(ErrorCode::kValidation, "HEIC/HEIF dimensions exceed the decode limit",
@@ -197,9 +247,10 @@ Result<DecodedRaster> decode_native(std::span<const std::uint8_t> bytes, std::ui
         const auto *pixels = output.constScanLine(row);
         for (int column = 0; column < output.width(); ++column)
             if (pixels[column * 4 + 3] != 255)
-                return heic_error(ErrorCode::kUnsupported,
-                                  "HEIC/HEIF transparent images are not supported",
-                                  "heic_alpha_unsupported", source);
+                return declares_alpha ? heic_error(ErrorCode::kUnsupported,
+                                                   "HEIC/HEIF transparent images are not supported",
+                                                   "heic_alpha_unsupported", source) :
+                                        invalid();
     }
     output.setColorSpace(QColorSpace(QColorSpace::SRgb));
     output = apply_display_rotation(std::move(output), rotate_quarters);

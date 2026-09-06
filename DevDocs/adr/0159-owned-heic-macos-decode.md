@@ -30,7 +30,10 @@ RAII owners. Cancellation is checked around native decode and while copying
 rows; a native synchronous call itself cannot be interrupted. Work remains on
 the existing service/Studio executors, which join before destruction. Truncated,
 corrupt, oversized, unsupported and cancelled inputs return structured errors;
-there is no alternate decoder, format relabel or source rewrite.
+there is no alternate decoder, format relabel or source rewrite. Top-level ISO
+BMFF boxes must fit the supplied bytes before ImageIO runs. Synthesized alpha
+over an opaque container is `kValidation`/`invalid_heic_input`, not an
+unsupported transparent image.
 
 Import, thumbnail, preview, memory decode and export use the same raster port.
 Catalog/recipe schema and atomic publication do not change. HEIC encoding is
