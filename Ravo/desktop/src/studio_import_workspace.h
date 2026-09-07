@@ -14,7 +14,7 @@ namespace ravo
 //
 // Ownership (UI thread unless noted):
 //   draft                 — configuration only; no live selection
-//   scan                  — generation/busy/progress/revision + scan cancel token
+//   scan                  — generation/busy/progress/revision + scan cancel + orchestration
 //   thumbnails            — decode executor/engine/pending (own SerialExecutor)
 //   destination_preview   — debounce timer/generation/key/published folders
 //   ImportCandidateListModel — remains on Presenter (Q_PROPERTY model owner)

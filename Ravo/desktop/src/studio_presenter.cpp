@@ -183,7 +183,31 @@ StudioPresenter::StudioPresenter(QObject *parent)
     connect(&import_candidates_, &ImportCandidateListModel::selectionChanged, this,
             &StudioPresenter::importPageChanged);
     import_workspace_ = std::make_unique<StudioImportWorkspace>();
-    import_workspace_->scan = std::make_unique<StudioImportScanController>(this);
+    import_workspace_->scan = std::make_unique<StudioImportScanController>(
+        StudioImportScanController::Host{
+            this,
+            &executor_,
+            [this] { return service_.get(); },
+            [this] { return import_page_open_; },
+            [this] { return import_work_active_; },
+            [this] { return &import_candidates_; },
+            [this] { return import_workspace_ ? import_workspace_->draft.source_root : QString{}; },
+            [this](const QString &root)
+            { return import_source_recursion(root, QDir::homePath(), import_recursive_); },
+            [this] { emit importPageChanged(); },
+            [this](QString message) { setError(std::move(message)); },
+            [this]
+            {
+                if (import_workspace_->thumbnails)
+                {
+                    import_workspace_->thumbnails->cancel("import_source_changed");
+                    import_workspace_->thumbnails->resetOperation();
+                    import_workspace_->thumbnails->clearPending();
+                }
+            },
+            [this] { import_preflight_active_ = false; },
+        },
+        this);
     import_workspace_->thumbnails = std::make_unique<StudioImportThumbnailController>(
         StudioImportThumbnailController::Host{
             &import_candidates_,

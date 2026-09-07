@@ -84,9 +84,10 @@ TEST(StudioImportWorkspace, DestinationPreviewKeyUsesRevisionsNotPathSnapshots)
                          QStringLiteral("/Ravo/desktop/src/studio_presenter.cpp"));
     ASSERT_TRUE(presenter_file.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto source = QString::fromUtf8(presenter_file.readAll());
-    const auto key_begin = source.indexOf(QStringLiteral("destination_preview = std::make_unique"));
+    const auto key_begin = source.indexOf(QStringLiteral("destination_preview ="));
     ASSERT_GE(key_begin, 0);
     const auto key_region = source.mid(key_begin, 4000);
+    EXPECT_TRUE(key_region.contains(QStringLiteral("std::make_unique")));
     EXPECT_TRUE(key_region.contains(QStringLiteral("selectionRevision")));
     EXPECT_TRUE(key_region.contains(QStringLiteral("generation")));
     EXPECT_FALSE(key_region.contains(QStringLiteral("selectedPaths()")));

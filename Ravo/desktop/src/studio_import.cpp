@@ -29,24 +29,6 @@ namespace ravo
 namespace
 {
 
-[[nodiscard]] ImportCandidate placeholder_candidate(const std::string &path,
-                                                    const std::string &source_root)
-{
-    ImportCandidate candidate;
-    candidate.source_path = path;
-    const QString qpath = qstring_from_utf8(path);
-    candidate.display_name = utf8_from_qstring(QFileInfo(qpath).fileName());
-    if (!source_root.empty())
-    {
-        const QString relative = QDir(qstring_from_utf8(source_root)).relativeFilePath(qpath);
-        if (!relative.isEmpty() && !relative.startsWith(QLatin1String("..")))
-            candidate.relative_path = utf8_from_qstring(QDir::fromNativeSeparators(relative));
-    }
-    if (candidate.relative_path.empty())
-        candidate.relative_path = candidate.display_name;
-    return candidate;
-}
-
 [[nodiscard]] QVariantMap native_support_to_map(const NativeIngestPlatformSupport &support)
 {
     return QVariantMap{
@@ -530,106 +512,12 @@ void StudioPresenter::refreshImportNativeSupport()
 
 void StudioPresenter::rescanImportSource()
 {
-    if (service_ == nullptr || import_workspace_->draft.source_root.isEmpty() ||
-        import_work_active_ || !import_workspace_->scan)
+    if (service_ == nullptr || !import_workspace_ || !import_workspace_->scan ||
+        import_workspace_->draft.source_root.isEmpty() || import_work_active_)
         return;
     static_cast<void>(import_operation_.cancel("import_source_changed"));
-    if (import_workspace_->thumbnails)
-        import_workspace_->thumbnails->cancel("import_source_changed");
-    if (import_workspace_->thumbnails)
-        import_workspace_->thumbnails->resetOperation();
     import_operation_ = CancellationSource{};
-    const auto token = import_workspace_->scan->begin("import_source_changed");
-    const auto generation = import_workspace_->scan->generation();
-    const std::string root = utf8_from_qstring(import_workspace_->draft.source_root);
-    const bool recursive = import_source_recursion(import_workspace_->draft.source_root,
-                                                   QDir::homePath(), import_recursive_);
-    import_preflight_active_ = false;
-    if (import_workspace_->thumbnails)
-        import_workspace_->thumbnails->clearPending();
-    import_candidates_.setCandidates({});
-    setError({});
-    emit importPageChanged();
-    executor_.post(
-        [this, root, recursive, generation, token]()
-        {
-            std::vector<ImportCandidate> pending;
-            int duplicates = 0;
-            const auto publish =
-                [this, generation, &pending, &duplicates](std::size_t completed, std::size_t total,
-                                                          const ImportCandidate &candidate)
-            {
-                if (candidate.duplicate)
-                    ++duplicates;
-                pending.push_back(candidate);
-                if (completed != 1 && completed % 32 != 0 && completed != total)
-                    return;
-                QMetaObject::invokeMethod(
-                    this,
-                    [this, generation, completed, total, duplicates,
-                     batch = std::move(pending)]() mutable
-                    {
-                        if (!import_workspace_->scan->matches(generation) || !import_page_open_)
-                            return;
-                        const int first = static_cast<int>(completed - batch.size());
-                        import_candidates_.applyScanBatch(first, std::move(batch));
-                        import_workspace_->scan->setProgress(static_cast<int>(completed),
-                                                             static_cast<int>(total), duplicates);
-                        emit importPageChanged();
-                    },
-                    Qt::QueuedConnection);
-                pending.clear();
-            };
-            const auto scan_source = [&]() -> Result<ImportScanResult>
-            {
-                if (auto active = token.check(); !active)
-                    return active.error();
-                if (service_ == nullptr)
-                    return make_error(ErrorCode::kIo, "Catalog session is closed");
-                const QFileInfo source(qstring_from_utf8(root));
-                if (!source.isDir() || !source.isReadable())
-                    return make_error(ErrorCode::kIo,
-                                      "Import source folder is unavailable: " + root,
-                                      {{"reason", "import_source_unavailable"}});
-                return service_->scan_import_candidates(
-                    {root}, root, recursive, token, publish,
-                    [this, root, generation](const std::vector<std::string> &paths)
-                    {
-                        std::vector<ImportCandidate> placeholders;
-                        placeholders.reserve(paths.size());
-                        for (const auto &path : paths)
-                            placeholders.push_back(placeholder_candidate(path, root));
-                        QMetaObject::invokeMethod(
-                            this,
-                            [this, generation, placeholders = std::move(placeholders)]() mutable
-                            {
-                                if (!import_workspace_->scan->matches(generation) ||
-                                    !import_page_open_)
-                                    return;
-                                import_workspace_->scan->setTotal(
-                                    static_cast<int>(placeholders.size()));
-                                import_candidates_.setCandidates(std::move(placeholders), true);
-                                emit importPageChanged();
-                            },
-                            Qt::QueuedConnection);
-                    });
-            };
-            auto scan = scan_source();
-            QMetaObject::invokeMethod(
-                this,
-                [this, generation, scan = std::move(scan)]() mutable
-                {
-                    if (!import_workspace_->scan->matches(generation) || !import_page_open_)
-                        return;
-                    import_workspace_->scan->finish();
-                    if (!scan)
-                        setError(qstring_from_utf8(scan.error().message));
-                    else
-                        import_workspace_->scan->setCatalogRevision(scan.value().catalog_revision);
-                    emit importPageChanged();
-                },
-                Qt::QueuedConnection);
-        });
+    import_workspace_->scan->startRescan();
 }
 
 void StudioPresenter::ensureImportThumbnail(const int row)
