@@ -429,6 +429,8 @@ add_executable(ravo_desktop_command_tests
   studio_startup_test.cpp
   studio_import_workspace_test.cpp
   studio_import_destination_preview_test.cpp
+  studio_import_keyboard_test.cpp
+  studio_import_keyboard_perf_test.cpp
   studio_display_presentation_test.cpp
   export_option_conversion_test.cpp
   filesystem_browser_model_test.cpp)
