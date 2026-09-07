@@ -433,7 +433,7 @@ add_executable(ravo_desktop_command_tests
   export_option_conversion_test.cpp
   filesystem_browser_model_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
-  PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)
+  PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
 target_include_directories(ravo_desktop_command_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/Ravo/desktop/src)
@@ -463,6 +463,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/PhotoContextMenu.qml"
   RAVO_STUDIO_SETTINGS_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsPage.qml"
   RAVO_STUDIO_IMPORT_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ImportPage.qml"
+  RAVO_IMPORT_CANDIDATE_KEYBOARD_HARNESS_QML="${CMAKE_SOURCE_DIR}/Ravo/tests/fixtures/import_candidate_keyboard_harness.qml"
   RAVO_STUDIO_ASSISTANT_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/AssistantPanel.qml"
   RAVO_STUDIO_MAIN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/Main.qml")
 add_dependencies(ravo_desktop_command_tests ravo ravo_studio_translations)

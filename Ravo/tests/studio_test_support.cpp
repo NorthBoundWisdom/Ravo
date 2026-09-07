@@ -3,12 +3,12 @@
 #include <cstddef>
 #include <string_view>
 
-#include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QGuiApplication>
 #include <QProcess>
-#include <QThread>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QThread>
 
 namespace ravo::studio_test_support
 {
@@ -29,10 +29,14 @@ void ensure_qt_core()
             QCoreApplication::setOrganizationName(QStringLiteral("RavoTests"));
         return;
     }
+    // Desktop command tests exercise Qt Quick keyboard focus offscreen. Prefer an
+    // existing platform override; otherwise pin offscreen so CI stays headless.
+    if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
+        qputenv("QT_QPA_PLATFORM", "offscreen");
     static int argc = 1;
     static char executable[] = "ravo-desktop-command-tests";
     static char *argv[] = {executable, nullptr};
-    static auto *application = new QCoreApplication(argc, argv);
+    static auto *application = new QGuiApplication(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("RavoTests"));
     static_cast<void>(application);
 }
