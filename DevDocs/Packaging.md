@@ -133,6 +133,20 @@ channel, and local cache root in this document and Dependency Workflow before
 enabling any non-stub provider. Default network posture stays no automatic
 upload; credentials remain desktop-only (ADR-0121).
 
+
+## Packaged runtime out-of-tree check
+
+`Ravo/tools/check_packaged_runtime.py` validates a DMG/ZIP/AppImage/DEB from the
+current package output **outside** the build tree: prints artifact SHA256, locates
+CLI/Studio binaries, optionally runs CLI `--help` and `smoke_ravo_studio.py` with
+Qt/QML env cleaned. CI package jobs invoke it with `--require-smoke` after
+`RavoPackage`.
+
+Explicit non-claims (recorded as UNTESTED residuals by the tool):
+- native display / installed desktop session
+- Debian `dpkg` install and `/usr/bin` launcher success (unpack ≠ install)
+- AppImage FUSE execution when the host cannot run the image
+
 ## Minimum validation
 
 Packaging changes require these checks:
