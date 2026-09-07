@@ -168,6 +168,7 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
         select_new_candidates_ = true;
     rows_.clear();
     thumbnail_rows_.clear();
+    thumbnail_bytes_ = 0;
     highlighted_rows_.clear();
     rows_.reserve(candidates.size());
     for (auto &candidate : candidates)
@@ -261,21 +262,31 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
     if (row < 0 || row >= rowCount())
         return;
     auto &entry = rows_[static_cast<std::size_t>(row)];
+    if (!entry.thumbnail.isNull())
+        thumbnail_bytes_ -= static_cast<qulonglong>(entry.thumbnail.sizeInBytes());
     entry.thumbnail = std::move(image);
     std::erase(thumbnail_rows_, row);
     if (!entry.thumbnail.isNull())
+    {
         thumbnail_rows_.push_back(row);
+        thumbnail_bytes_ += static_cast<qulonglong>(entry.thumbnail.sizeInBytes());
+    }
     // Metadata may describe 100,000 candidates; owned thumbnail pixels may not.
-    constexpr std::size_t maximum_cached_thumbnails = 256;
-    while (thumbnail_rows_.size() > maximum_cached_thumbnails)
+    auto evict_front = [&]
     {
         const int evicted = thumbnail_rows_.front();
         thumbnail_rows_.pop_front();
         auto &old = rows_[static_cast<std::size_t>(evicted)];
+        if (!old.thumbnail.isNull())
+            thumbnail_bytes_ -= static_cast<qulonglong>(old.thumbnail.sizeInBytes());
         old.thumbnail = {};
         old.inspected = false;
         emit dataChanged(index(evicted, 0), index(evicted, 0), {ThumbnailUrlRole, InspectedRole});
-    }
+    };
+    while (thumbnail_rows_.size() > maximum_cached_thumbnails)
+        evict_front();
+    while (thumbnail_bytes_ > maximum_cached_thumbnail_bytes && thumbnail_rows_.size() > 1)
+        evict_front();
     ++entry.thumbnail_revision;
     emit dataChanged(index(row, 0), index(row, 0), {ThumbnailUrlRole});
 }

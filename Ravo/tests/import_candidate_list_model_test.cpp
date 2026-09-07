@@ -1,5 +1,6 @@
 #include <random>
 #include <string>
+#include <QImage>
 #include <gtest/gtest.h>
 #include <QAbstractItemModel>
 
@@ -322,6 +323,27 @@ TEST(ImportCandidateListModel, SingleSpaceCheckIsRowLocal)
     model.applyCheck(50);
     EXPECT_EQ(changed_rows, 1);
     EXPECT_NE(model.selectedBytes(), before_bytes);
+}
+
+TEST(ImportCandidateListModel, ThumbnailByteAndCountBudgets)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(400);
+    for (int row = 0; row < 400; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+    model.setCandidates(std::move(candidates));
+    int present = 0;
+    for (int row = 0; row < 400; ++row)
+    {
+        QImage image(512, 512, QImage::Format_RGB888);
+        image.fill(Qt::green);
+        model.setThumbnail(row, image);
+    }
+    for (int row = 0; row < 400; ++row)
+        if (!model.thumbnail(row).isNull())
+            ++present;
+    EXPECT_LE(present, 256);
 }
 
 } // namespace ravo

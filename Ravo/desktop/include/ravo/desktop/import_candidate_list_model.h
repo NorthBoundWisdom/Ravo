@@ -97,6 +97,9 @@ private:
     std::uint64_t generation_ = 0;
     int selected_count_ = 0;
     qulonglong selected_bytes_ = 0;
+    qulonglong thumbnail_bytes_ = 0;
+    static constexpr std::size_t maximum_cached_thumbnails = 256;
+    static constexpr qulonglong maximum_cached_thumbnail_bytes = 64ULL * 1024ULL * 1024ULL;
 };
 
 } // namespace ravo
