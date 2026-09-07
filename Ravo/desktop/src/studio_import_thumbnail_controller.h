@@ -119,8 +119,13 @@ public:
         return prefetch_demand_.size();
     }
 
-    // Deterministic test checkpoints (UI thread). Observation is append-only until clear.
+    // Deterministic test checkpoints (UI thread).
+    // Production default keeps constant-space counters only. Full trails require an
+    // explicit test-owned sink and/or a bounded diagnostic ring (with drop count).
     void clearObservations();
+    void setObservationSink(std::vector<ObservationEvent> *sink) noexcept;
+    void enableDiagnosticRing(std::size_t max_events);
+    void disableDiagnosticRing();
     [[nodiscard]] std::uint64_t wakeupScheduledCount() const noexcept
     {
         return wakeup_scheduled_;
@@ -129,14 +134,32 @@ public:
     {
         return wakeup_fired_;
     }
+    [[nodiscard]] std::uint64_t dispatchedCount() const noexcept
+    {
+        return dispatched_count_;
+    }
+    [[nodiscard]] std::uint64_t completedCount() const noexcept
+    {
+        return completed_count_;
+    }
+    [[nodiscard]] std::uint64_t discardedCount() const noexcept
+    {
+        return discarded_count_;
+    }
+    [[nodiscard]] std::uint64_t replenishedCount() const noexcept
+    {
+        return replenished_count_;
+    }
+    [[nodiscard]] std::uint64_t droppedObservationCount() const noexcept
+    {
+        return dropped_observations_;
+    }
     [[nodiscard]] std::size_t pendingHighWater() const noexcept
     {
         return pending_high_water_;
     }
-    [[nodiscard]] const std::vector<ObservationEvent> &observations() const noexcept
-    {
-        return observations_;
-    }
+    [[nodiscard]] std::size_t observationTrailSize() const noexcept;
+    [[nodiscard]] const std::vector<ObservationEvent> &observations() const noexcept;
     [[nodiscard]] std::vector<int> dispatchedRows() const;
     [[nodiscard]] std::vector<int> completedRows() const;
     [[nodiscard]] std::vector<int> discardedRows() const;
@@ -169,8 +192,20 @@ private:
 
     std::uint64_t wakeup_scheduled_ = 0;
     std::uint64_t wakeup_fired_ = 0;
+    std::uint64_t dispatched_count_ = 0;
+    std::uint64_t completed_count_ = 0;
+    std::uint64_t discarded_count_ = 0;
+    std::uint64_t replenished_count_ = 0;
+    std::uint64_t dropped_observations_ = 0;
     std::size_t pending_high_water_ = 0;
-    std::vector<ObservationEvent> observations_;
+    std::vector<ObservationEvent> *observation_sink_ = nullptr; // test-owned; non-owning
+    bool diagnostic_ring_enabled_ = false;
+    std::size_t diagnostic_ring_cap_ = 0;
+    std::vector<ObservationEvent> diagnostic_ring_;
+    static const std::vector<ObservationEvent> kEmptyObservations;
+
+    [[nodiscard]] bool observationsEnabled() const noexcept;
+    void bumpObservationCounter(ObservationEvent::Kind kind) noexcept;
 
     std::mutex gate_mutex_;
     std::optional<std::shared_future<void>> decode_gate_;

@@ -147,6 +147,8 @@ TEST(StudioImportThumbnailScheduler, DispatchCheckpointsObserveInFlightBeforeCan
     model.setCandidates({candidate});
 
     StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
     std::promise<void> gate_promise;
     auto gate_future = gate_promise.get_future().share();
     controller.installDecodeGate(gate_future);
@@ -190,6 +192,8 @@ TEST(StudioImportThumbnailScheduler, ReplenishAdmitsRemainingDemandAfterCompleti
     }
     model.setCandidates(std::move(candidates));
     StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
     // Tiny capacity simulation: demand 8, hard cap still 256 so all admit; verify completion set.
     controller.setViewportDemand({0, 1, 2, 3, 4, 5, 6, 7}, 0, 3);
     ASSERT_TRUE(wait_for(
@@ -300,6 +304,8 @@ TEST(StudioImportThumbnailScheduler, GenerationMismatchDiscardsWithoutMutatingMo
     model.setCandidates({candidate});
     std::uint64_t scan_generation = 1;
     StudioImportThumbnailController controller(make_host(&model, &scan_generation));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
     std::promise<void> gate_promise;
     auto gate_future = gate_promise.get_future().share();
     controller.installDecodeGate(gate_future);
@@ -318,6 +324,75 @@ TEST(StudioImportThumbnailScheduler, GenerationMismatchDiscardsWithoutMutatingMo
     ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
     EXPECT_TRUE(model.thumbnail(0).isNull());
     EXPECT_FALSE(controller.discardedRows().empty());
+}
+
+TEST(StudioImportThumbnailScheduler, DefaultObservationsStayConstantSpaceUnderEventStorm)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(64);
+    for (int row = 0; row < 64; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    controller.clearObservations();
+    // 100k demand/wakeup-style events with diagnostics disabled must not grow a trail.
+    for (int i = 0; i < 100000; ++i)
+    {
+        std::vector<int> rows = {i % 64, (i + 1) % 64, (i + 2) % 64};
+        controller.setViewportDemand(rows, 0, rows.front());
+    }
+    EXPECT_EQ(controller.observationTrailSize(), 0U);
+    EXPECT_TRUE(controller.observations().empty());
+    EXPECT_GT(controller.wakeupScheduledCount(), 0U);
+    EXPECT_GT(controller.replenishedCount(), 0U);
+    EXPECT_EQ(controller.droppedObservationCount(), 0U);
+    // Counters are constant-space; trail stays empty without an installed sink.
+    for (const auto &event : controller.observations())
+        EXPECT_TRUE(event.identity.source_path.isEmpty());
+}
+
+TEST(StudioImportThumbnailScheduler, DiagnosticRingBoundsTrailAndCountsDrops)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(32);
+    for (int row = 0; row < 32; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path =
+            "/tmp/" + std::to_string(row) + ".png";
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    controller.enableDiagnosticRing(16);
+    controller.clearObservations();
+    for (int i = 0; i < 200; ++i)
+    {
+        std::vector<int> rows = {i % 32, (i + 1) % 32};
+        controller.setViewportDemand(rows, 0, rows.front());
+    }
+    EXPECT_LE(controller.observationTrailSize(), 16U);
+    EXPECT_GT(controller.droppedObservationCount(), 0U);
+    for (const auto &event : controller.observations())
+        EXPECT_TRUE(event.identity.source_path.isEmpty());
+}
+
+TEST(StudioImportThumbnailScheduler, ObservationSinkClearedOnShutdown)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(4);
+    for (int row = 0; row < 4; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+    model.setCandidates(std::move(candidates));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    StudioImportThumbnailController controller(make_host(&model));
+    controller.setObservationSink(&trail);
+    controller.setViewportDemand({0, 1}, 0, 0);
+    EXPECT_FALSE(trail.empty());
+    const auto size_before = trail.size();
+    controller.shutdown();
+    // Shutdown detaches the sink; further demand must not append.
+    controller.setViewportDemand({2, 3}, 0, 2);
+    EXPECT_EQ(trail.size(), size_before);
 }
 
 } // namespace ravo

@@ -58,23 +58,125 @@ bool StudioImportThumbnailController::gatesAllowWork() const
     return true;
 }
 
+const std::vector<StudioImportThumbnailController::ObservationEvent>
+    StudioImportThumbnailController::kEmptyObservations{};
+
+bool StudioImportThumbnailController::observationsEnabled() const noexcept
+{
+    return observation_sink_ != nullptr || diagnostic_ring_enabled_;
+}
+
+void StudioImportThumbnailController::bumpObservationCounter(ObservationEvent::Kind kind) noexcept
+{
+    switch (kind)
+    {
+    case ObservationEvent::Kind::kWakeupScheduled:
+        ++wakeup_scheduled_;
+        break;
+    case ObservationEvent::Kind::kWakeupFired:
+        ++wakeup_fired_;
+        break;
+    case ObservationEvent::Kind::kDispatched:
+        ++dispatched_count_;
+        break;
+    case ObservationEvent::Kind::kCompleted:
+        ++completed_count_;
+        break;
+    case ObservationEvent::Kind::kDiscarded:
+        ++discarded_count_;
+        break;
+    case ObservationEvent::Kind::kReplenished:
+        ++replenished_count_;
+        break;
+    }
+}
+
 void StudioImportThumbnailController::record(ObservationEvent event)
 {
-    observations_.push_back(std::move(event));
+    bumpObservationCounter(event.kind);
+    // Production trails must not retain source paths by default.
+    event.identity.source_path.clear();
+    if (!observationsEnabled())
+        return;
+    if (observation_sink_ != nullptr)
+        observation_sink_->push_back(event);
+    if (!diagnostic_ring_enabled_)
+        return;
+    if (diagnostic_ring_cap_ == 0)
+    {
+        ++dropped_observations_;
+        return;
+    }
+    if (diagnostic_ring_.size() >= diagnostic_ring_cap_)
+    {
+        ++dropped_observations_;
+        return;
+    }
+    diagnostic_ring_.push_back(std::move(event));
+}
+
+void StudioImportThumbnailController::setObservationSink(
+    std::vector<ObservationEvent> *sink) noexcept
+{
+    observation_sink_ = sink;
+}
+
+void StudioImportThumbnailController::enableDiagnosticRing(std::size_t max_events)
+{
+    diagnostic_ring_enabled_ = true;
+    diagnostic_ring_cap_ = max_events;
+    if (diagnostic_ring_.size() > diagnostic_ring_cap_)
+    {
+        dropped_observations_ += diagnostic_ring_.size() - diagnostic_ring_cap_;
+        diagnostic_ring_.resize(diagnostic_ring_cap_);
+    }
+}
+
+void StudioImportThumbnailController::disableDiagnosticRing()
+{
+    diagnostic_ring_enabled_ = false;
+    diagnostic_ring_cap_ = 0;
+    diagnostic_ring_.clear();
 }
 
 void StudioImportThumbnailController::clearObservations()
 {
-    observations_.clear();
+    if (observation_sink_ != nullptr)
+        observation_sink_->clear();
+    diagnostic_ring_.clear();
+    dropped_observations_ = 0;
     wakeup_scheduled_ = 0;
     wakeup_fired_ = 0;
+    dispatched_count_ = 0;
+    completed_count_ = 0;
+    discarded_count_ = 0;
+    replenished_count_ = 0;
     pending_high_water_ = pending_rows_.size();
+}
+
+std::size_t StudioImportThumbnailController::observationTrailSize() const noexcept
+{
+    if (observation_sink_ != nullptr)
+        return observation_sink_->size();
+    if (diagnostic_ring_enabled_)
+        return diagnostic_ring_.size();
+    return 0;
+}
+
+const std::vector<StudioImportThumbnailController::ObservationEvent> &
+StudioImportThumbnailController::observations() const noexcept
+{
+    if (observation_sink_ != nullptr)
+        return *observation_sink_;
+    if (diagnostic_ring_enabled_)
+        return diagnostic_ring_;
+    return kEmptyObservations;
 }
 
 std::vector<int> StudioImportThumbnailController::dispatchedRows() const
 {
     std::vector<int> rows;
-    for (const auto &event : observations_)
+    for (const auto &event : observations())
         if (event.kind == ObservationEvent::Kind::kDispatched)
             rows.push_back(event.identity.row);
     return rows;
@@ -83,7 +185,7 @@ std::vector<int> StudioImportThumbnailController::dispatchedRows() const
 std::vector<int> StudioImportThumbnailController::completedRows() const
 {
     std::vector<int> rows;
-    for (const auto &event : observations_)
+    for (const auto &event : observations())
         if (event.kind == ObservationEvent::Kind::kCompleted)
             rows.push_back(event.identity.row);
     return rows;
@@ -92,7 +194,7 @@ std::vector<int> StudioImportThumbnailController::completedRows() const
 std::vector<int> StudioImportThumbnailController::discardedRows() const
 {
     std::vector<int> rows;
-    for (const auto &event : observations_)
+    for (const auto &event : observations())
         if (event.kind == ObservationEvent::Kind::kDiscarded)
             rows.push_back(event.identity.row);
     return rows;
@@ -117,7 +219,6 @@ void StudioImportThumbnailController::scheduleKick()
     if (kick_scheduled_)
         return;
     kick_scheduled_ = true;
-    ++wakeup_scheduled_;
     record(ObservationEvent{ObservationEvent::Kind::kWakeupScheduled, {}, {}, {}});
     QTimer::singleShot(0, this, &StudioImportThumbnailController::kick);
 }
@@ -186,10 +287,17 @@ void StudioImportThumbnailController::replenishPendingFromDemand()
         consider(row);
     trimPendingToCap();
     pending_high_water_ = std::max(pending_high_water_, pending_rows_.size());
-    record(ObservationEvent{ObservationEvent::Kind::kReplenished,
-                            {},
-                            {},
-                            "pending=" + std::to_string(pending_rows_.size())});
+    if (observationsEnabled())
+    {
+        record(ObservationEvent{ObservationEvent::Kind::kReplenished,
+                                {},
+                                {},
+                                "pending=" + std::to_string(pending_rows_.size())});
+    }
+    else
+    {
+        bumpObservationCounter(ObservationEvent::Kind::kReplenished);
+    }
 }
 
 void StudioImportThumbnailController::trimPendingToCap()
@@ -238,7 +346,6 @@ void StudioImportThumbnailController::trimPendingToCap()
 void StudioImportThumbnailController::kick()
 {
     kick_scheduled_ = false;
-    ++wakeup_fired_;
     record(ObservationEvent{ObservationEvent::Kind::kWakeupFired, {}, {}, {}});
     if (in_flight_ || !gatesAllowWork())
         return;
@@ -318,6 +425,8 @@ void StudioImportThumbnailController::shutdown()
     in_flight_ = false;
     kick_scheduled_ = false;
     clearDecodeGate();
+    observation_sink_ = nullptr;
+    disableDiagnosticRing();
     try
     {
         executor_.submit([this] { engine_.reset(); });
