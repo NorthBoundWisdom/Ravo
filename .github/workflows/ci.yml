@@ -45,6 +45,10 @@ jobs:
         working-directory: .github/scripts
         run: python -m unittest test_check_changed_whitespace.py
 
+      - name: Test packaged-runtime checker
+        working-directory: Ravo/tools
+        run: python -m unittest test_check_packaged_runtime.py
+
       - name: Validate FreeCM project commands
         run: python FreeCM/tools/validate_repo_commands.py .
 

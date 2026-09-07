@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
 """Validate a packaged Ravo Studio artifact outside the build tree.
 
-Checks (best-effort per host):
-  - artifact exists and SHA256 is printed
-  - CLI binary is present in the payload
-  - optional: launch CLI --help and Studio smoke with cleaned Qt/QML env
-
-Does not claim dpkg install or native desktop GUI success from unpack alone.
-Missing host capabilities are reported as UNTESTED residuals (exit 0 only when
-required structural checks pass; use --require-smoke to fail on launch).
+Result vocabulary: PASS / FAIL / UNTESTED / NOT_APPLICABLE.
+With --require-smoke, missing required stages fail closed (no UNTESTED success).
 """
 
 from __future__ import annotations
 
 import argparse
+import enum
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -22,6 +18,13 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+
+
+class Status(enum.Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    UNTESTED = "UNTESTED"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 def sha256_file(path: Path) -> str:
@@ -32,25 +35,46 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def find_cli(root: Path) -> Path | None:
-    candidates = list(root.rglob("ravo")) + list(root.rglob("ravo.exe"))
-    for path in candidates:
-        if path.is_file() and os.access(path, os.X_OK if path.suffix != ".exe" else os.F_OK):
-            return path
-    return None
-
-
-def find_studio(root: Path) -> Path | None:
-    for name in ("ravo_studio", "ravo_studio.exe", "Ravo Studio"):
+def find_unique(root: Path, names: tuple[str, ...]) -> tuple[Path | None, list[Path]]:
+    found: list[Path] = []
+    for name in names:
         for path in root.rglob(name):
-            if path.is_file():
-                return path
-    apps = list(root.rglob("Ravo Studio.app"))
-    if apps:
-        mac = apps[0] / "Contents" / "MacOS" / "ravo_studio"
+            if path.is_file() or (path.is_dir() and path.suffix == ".app"):
+                found.append(path)
+    # Also accept Ravo Studio.app layout
+    for path in root.rglob("Ravo Studio.app"):
+        mac = path / "Contents" / "MacOS" / "ravo_studio"
         if mac.is_file():
-            return mac
-    return None
+            found.append(mac)
+    # De-dup
+    uniq: list[Path] = []
+    seen: set[str] = set()
+    for path in found:
+        key = str(path.resolve()) if path.exists() else str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(path)
+    if len(uniq) == 1:
+        return uniq[0], uniq
+    return None, uniq
+
+
+def find_cli(root: Path) -> tuple[Path | None, list[Path]]:
+    return find_unique(root, ("ravo", "ravo.exe"))
+
+
+def find_studio(root: Path) -> tuple[Path | None, list[Path]]:
+    studio, all_hits = find_unique(root, ("ravo_studio", "ravo_studio.exe"))
+    return studio, all_hits
+
+
+def is_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 def unpack(artifact: Path, dest: Path) -> Path:
@@ -60,7 +84,6 @@ def unpack(artifact: Path, dest: Path) -> Path:
             zf.extractall(dest)
         return dest
     if artifact.suffix.lower() == ".dmg":
-        # Attach and copy payload; host-dependent.
         mount = dest / "mnt"
         mount.mkdir()
         subprocess.run(
@@ -78,7 +101,7 @@ def unpack(artifact: Path, dest: Path) -> Path:
             subprocess.run(["hdiutil", "detach", str(mount)], check=False)
         return dest
     if ".AppImage" in artifact.name:
-        # Structural only unless --require-smoke; AppImage needs FUSE on many hosts.
+        # Structural copy only here; extraction is commit 13. Still place the file.
         shutil.copy2(artifact, dest / artifact.name)
         return dest
     if artifact.suffix.lower() == ".deb":
@@ -98,13 +121,26 @@ def cleaned_env() -> dict[str, str]:
     return env
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("artifact", type=Path)
     parser.add_argument("--workdir", type=Path, default=None)
     parser.add_argument("--require-smoke", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument("--repo-root", type=Path, default=None,
+                        help="Reject workdirs inside this build/source tree")
+    parser.add_argument("--evidence-json", type=Path, default=None)
+    args = parser.parse_args(argv)
     artifact = args.artifact.resolve()
+    results: dict[str, str] = {}
+    residuals: list[str] = []
+
+    def record(name: str, status: Status, detail: str = "") -> None:
+        results[name] = status.value
+        line = f"{status.value}: {name}" + (f" ({detail})" if detail else "")
+        print(line)
+        if status == Status.UNTESTED:
+            residuals.append(line)
+
     if not artifact.is_file():
         print(f"ERROR: artifact missing: {artifact}", file=sys.stderr)
         return 1
@@ -112,27 +148,58 @@ def main() -> int:
     print(f"artifact={artifact}")
     print(f"sha256={digest}")
 
-    residuals: list[str] = []
-    with tempfile.TemporaryDirectory(prefix="ravo-packaged-") as tmp:
-        work = Path(args.workdir) if args.workdir else Path(tmp) / "out"
+    # Unique workdir: reject reuse of non-empty caller dirs; never under build tree.
+    tmp_ctx = None
+    if args.workdir is None:
+        tmp_ctx = tempfile.TemporaryDirectory(prefix="ravo-packaged-")
+        work = Path(tmp_ctx.name) / "out"
+        work.mkdir(parents=True, exist_ok=False)
+    else:
+        work = args.workdir.resolve()
+        if work.exists() and any(work.iterdir()):
+            print(f"ERROR: workdir is not empty (refuse polluted directory): {work}", file=sys.stderr)
+            return 1
         work.mkdir(parents=True, exist_ok=True)
-        # Ensure work is outside the source/build tree when caller passes --workdir.
-        try:
-            root = unpack(artifact, work)
-        except Exception as exc:  # noqa: BLE001 — report as residual/failure
-            print(f"ERROR: unpack failed: {exc}", file=sys.stderr)
+        repo = args.repo_root.resolve() if args.repo_root else None
+        if repo is not None and is_under(work, repo):
+            print(f"ERROR: workdir is inside repo/build tree: {work}", file=sys.stderr)
             return 1
 
-        cli = find_cli(root)
-        studio = find_studio(root)
-        if cli is None:
-            print("ERROR: CLI binary not found in payload", file=sys.stderr)
+    exit_code = 0
+    try:
+        try:
+            root = unpack(artifact, work)
+            record("unpack", Status.PASS)
+        except Exception as exc:  # noqa: BLE001
+            print(f"ERROR: unpack failed: {exc}", file=sys.stderr)
+            record("unpack", Status.FAIL, str(exc))
             return 1
+
+        cli, cli_hits = find_cli(root)
+        if cli is None:
+            detail = f"candidates={len(cli_hits)}"
+            record("cli_payload", Status.FAIL, detail)
+            print("ERROR: CLI binary not found or not unique in payload", file=sys.stderr)
+            return 1
+        record("cli_payload", Status.PASS, str(cli))
         print(f"cli={cli}")
+
+        studio, studio_hits = find_studio(root)
         if studio is None:
-            residuals.append("UNTESTED: Studio binary not located in payload layout")
+            if args.require_smoke:
+                record("studio_payload", Status.FAIL, f"candidates={len(studio_hits)}")
+                print("ERROR: Studio binary not located (required by --require-smoke)", file=sys.stderr)
+                return 1
+            record("studio_payload", Status.UNTESTED, f"candidates={len(studio_hits)}")
         else:
-            print(f"studio={studio}")
+            if len(studio_hits) > 1:
+                # Unique identity required for smoke.
+                record("studio_payload", Status.FAIL, f"ambiguous candidates={len(studio_hits)}")
+                if args.require_smoke:
+                    return 1
+            else:
+                record("studio_payload", Status.PASS, str(studio))
+                print(f"studio={studio}")
 
         env = cleaned_env()
         try:
@@ -145,17 +212,26 @@ def main() -> int:
                 check=False,
             )
             print(f"cli_help_exit={help_proc.returncode}")
-            if help_proc.returncode != 0 and args.require_smoke:
-                print(help_proc.stderr, file=sys.stderr)
-                return 1
+            if help_proc.returncode != 0:
+                record("cli_help", Status.FAIL, f"exit={help_proc.returncode}")
+                if args.require_smoke:
+                    print(help_proc.stderr, file=sys.stderr)
+                    return 1
+            else:
+                record("cli_help", Status.PASS)
         except Exception as exc:  # noqa: BLE001
-            residuals.append(f"UNTESTED: CLI --help launch failed: {exc}")
+            record("cli_help", Status.FAIL if args.require_smoke else Status.UNTESTED, str(exc))
             if args.require_smoke:
                 return 1
 
-        if studio is not None:
-            smoke = Path(__file__).resolve().parent / "smoke_ravo_studio.py"
-            if smoke.is_file():
+        smoke = Path(__file__).resolve().parent / "smoke_ravo_studio.py"
+        if studio is not None and results.get("studio_payload") == Status.PASS.value:
+            if not smoke.is_file():
+                record("studio_smoke", Status.FAIL if args.require_smoke else Status.UNTESTED,
+                       "smoke_ravo_studio.py missing")
+                if args.require_smoke:
+                    return 1
+            else:
                 try:
                     proc = subprocess.run(
                         [sys.executable, str(smoke), str(studio)],
@@ -167,28 +243,62 @@ def main() -> int:
                     )
                     print(f"studio_smoke_exit={proc.returncode}")
                     if proc.returncode != 0:
-                        residuals.append("UNTESTED/FAIL: Studio offscreen smoke non-zero")
+                        record("studio_smoke", Status.FAIL, f"exit={proc.returncode}")
                         if args.require_smoke:
                             print(proc.stderr, file=sys.stderr)
                             return 1
+                    else:
+                        record("studio_smoke", Status.PASS)
                 except Exception as exc:  # noqa: BLE001
-                    residuals.append(f"UNTESTED: Studio smoke failed: {exc}")
+                    record("studio_smoke", Status.FAIL if args.require_smoke else Status.UNTESTED, str(exc))
                     if args.require_smoke:
                         return 1
-            else:
-                residuals.append("UNTESTED: smoke_ravo_studio.py missing")
+        elif args.require_smoke:
+            # studio missing already returned; defensive
+            record("studio_smoke", Status.FAIL, "studio unavailable")
+            return 1
+        else:
+            record("studio_smoke", Status.UNTESTED, "studio unavailable")
 
-        # Explicit non-claims
-        residuals.append("UNTESTED: native display / real installed desktop session")
+        record("native_display_session", Status.UNTESTED)
         if artifact.suffix.lower() == ".deb":
-            residuals.append("UNTESTED: dpkg install and /usr/bin launcher (unpack ≠ install)")
+            record("dpkg_install_launcher", Status.UNTESTED, "unpack ≠ install")
         if ".AppImage" in artifact.name:
-            residuals.append("UNTESTED: AppImage FUSE execution on this host")
+            record("appimage_fuse_or_extract", Status.UNTESTED)
+
+        # Fail closed: --require-smoke forbids any FAIL and forbids missing required PASS.
+        required = ("unpack", "cli_payload", "cli_help", "studio_payload", "studio_smoke")
+        if args.require_smoke:
+            for name in required:
+                status = results.get(name)
+                if status != Status.PASS.value:
+                    print(f"ERROR: required stage not PASS under --require-smoke: {name}={status}",
+                          file=sys.stderr)
+                    exit_code = 1
+                    break
+        if any(v == Status.FAIL.value for v in results.values()):
+            exit_code = 1
+
+    finally:
+        if args.evidence_json:
+            payload = {
+                "artifact": str(artifact),
+                "sha256": digest,
+                "results": results,
+                "residuals": residuals,
+                "require_smoke": bool(args.require_smoke),
+            }
+            args.evidence_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        if tmp_ctx is not None:
+            tmp_ctx.cleanup()
 
     for line in residuals:
         print(line)
-    print("RESULT: structural packaged-runtime checks passed")
-    return 0
+    if exit_code == 0:
+        print("RESULT: packaged-runtime checks completed without required failures")
+    else:
+        print("RESULT: packaged-runtime checks FAILED", file=sys.stderr)
+    return exit_code
 
 
 if __name__ == "__main__":
