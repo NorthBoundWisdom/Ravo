@@ -1,4 +1,5 @@
 #include <atomic>
+#include <set>
 #include <functional>
 #include <chrono>
 #include <future>
@@ -406,6 +407,156 @@ TEST(StudioImportThumbnailScheduler, InBudgetVisibleDemandCompletes)
     EXPECT_EQ(controller.completedCount(), static_cast<std::uint64_t>(kRows));
     for (int row = 0; row < kRows; ++row)
         EXPECT_FALSE(model.thumbnail(row).isNull()) << row;
+}
+
+TEST(StudioImportThumbnailScheduler, OverBudgetComparesDispatchCompleteAndDeferredSets)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    constexpr int kRows = 300;
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates;
+    for (int row = 0; row < kRows; ++row)
+    {
+        const auto path = directory.filePath(QStringLiteral("s%1.png").arg(row));
+        QImage image(4, 4, QImage::Format_RGB888);
+        image.fill(Qt::blue);
+        ASSERT_TRUE(image.save(path, "PNG"));
+        ImportCandidate candidate;
+        candidate.source_path = path.toStdString();
+        candidate.display_name = QStringLiteral("s%1.png").arg(row).toStdString();
+        candidate.size_bytes = 32;
+        candidates.push_back(std::move(candidate));
+    }
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::vector<int> demand(kRows);
+    for (int row = 0; row < kRows; ++row)
+        demand[static_cast<std::size_t>(row)] = row;
+    controller.setViewportDemand(demand, 0, 0);
+    ASSERT_TRUE(wait_for([&] { return controller.demandQuiescent(); }, 120000));
+
+    std::set<int> requested(demand.begin(), demand.end());
+    std::set<int> dispatched;
+    std::set<int> completed;
+    for (const int row : controller.dispatchedRows())
+        if (requested.count(row) > 0)
+            dispatched.insert(row);
+    for (const int row : controller.completedRows())
+        if (requested.count(row) > 0)
+            completed.insert(row);
+    EXPECT_EQ(dispatched, completed);
+    EXPECT_EQ(completed.size(), controller.demandSatisfiedCount());
+    EXPECT_EQ(controller.demandSatisfiedCount() + controller.demandCapacityDeferredCount(),
+              requested.size());
+    // Each demanded row is allowed at most one successful completion in this generation.
+    EXPECT_EQ(controller.completedCount(),
+              static_cast<std::uint64_t>(controller.demandSatisfiedCount()));
+    EXPECT_LE(controller.dispatchedCount(),
+              controller.completedCount() + controller.discardedCount());
+}
+
+TEST(StudioImportThumbnailScheduler, ViewportEndThenFirstRebuildsUnderNewDemandGeneration)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    constexpr int kRows = 64;
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates;
+    for (int row = 0; row < kRows; ++row)
+    {
+        const auto path = directory.filePath(QStringLiteral("v%1.png").arg(row));
+        QImage image(4, 4, QImage::Format_RGB888);
+        image.fill(Qt::darkCyan);
+        ASSERT_TRUE(image.save(path, "PNG"));
+        ImportCandidate candidate;
+        candidate.source_path = path.toStdString();
+        candidate.display_name = QStringLiteral("v%1.png").arg(row).toStdString();
+        candidate.size_bytes = 32;
+        candidates.push_back(std::move(candidate));
+    }
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    const auto first_gen = controller.demandGeneration();
+    controller.setViewportDemand({0, 1, 2, 3}, 0, 0);
+    ASSERT_TRUE(wait_for([&] { return controller.demandQuiescent(); }, 30000));
+    EXPECT_GT(controller.demandGeneration(), first_gen);
+    EXPECT_FALSE(model.thumbnail(0).isNull());
+
+    controller.setViewportDemand({60, 61, 62, 63}, 0, 63);
+    ASSERT_TRUE(wait_for([&] { return controller.demandQuiescent(); }, 30000));
+    EXPECT_FALSE(model.thumbnail(63).isNull());
+
+    controller.setViewportDemand({0, 1, 2, 3}, 0, 0);
+    ASSERT_TRUE(wait_for([&] { return controller.demandQuiescent(); }, 30000));
+    EXPECT_FALSE(model.thumbnail(0).isNull());
+}
+
+TEST(StudioImportThumbnailScheduler, SourcePathChangeUnderGateUsesFreshDemand)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path_a = directory.filePath("A.png");
+    const auto path_b = directory.filePath("B.png");
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::red);
+        ASSERT_TRUE(image.save(path_a, "PNG"));
+        image.fill(Qt::blue);
+        ASSERT_TRUE(image.save(path_b, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path_a.toStdString();
+    candidate.display_name = "A.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+    std::uint64_t scan_generation = 1;
+    StudioImportThumbnailController controller(make_host(&model, &scan_generation));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.setViewportDemand({0}, 0, 0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+
+    candidate.source_path = path_b.toStdString();
+    candidate.display_name = "B.png";
+    model.setCandidates({candidate});
+    ++scan_generation;
+    controller.cancel("path_swap");
+    controller.resetOperation();
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+
+    controller.setViewportDemand({0}, 0, 0);
+    ASSERT_TRUE(wait_for(
+        [&] { return controller.demandQuiescent() && !model.thumbnail(0).isNull(); }, 30000));
+    EXPECT_EQ(model.sourcePath(0), path_b);
+}
+
+TEST(StudioImportThumbnailScheduler, QuiescenceRequiresPendingAndKickDrain)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(4);
+    for (int row = 0; row < 4; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    controller.setViewportDemand({0, 1, 2, 3}, 0, 0);
+    // Immediately after demand, work may not be in-flight yet but is not quiescent.
+    EXPECT_FALSE(controller.demandQuiescent());
+    EXPECT_TRUE(controller.pendingCount() > 0 || controller.inFlight() ||
+                controller.wakeupScheduledCount() > 0);
 }
 
 TEST(StudioImportThumbnailScheduler, GateCancelInterruptsWaitWithoutPublishing)
