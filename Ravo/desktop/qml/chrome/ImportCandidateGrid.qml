@@ -84,7 +84,8 @@ Item {
             if (row >= 0 && row < candidateGrid.count)
                 rows.push(row);
         }
-        thumbnailDemandPublisher.setImportThumbnailViewportDemand(rows, 2);
+        const current = candidateGrid.currentIndex;
+        thumbnailDemandPublisher.setImportThumbnailViewportDemand(rows, 2, current);
     }
 
     function applyMouseSelection(index, modifiers) {
@@ -141,7 +142,12 @@ Item {
             visible: root.showVerticalScrollBar
         }
 
-        onCountChanged: root.initializeKeyboardFocus()
+        onCountChanged: {
+            root.initializeKeyboardFocus();
+            root.publishViewportDemand();
+        }
+        onCellWidthChanged: root.publishViewportDemand()
+        onCellHeightChanged: root.publishViewportDemand()
         onContentYChanged: root.publishViewportDemand()
         onHeightChanged: root.publishViewportDemand()
         onWidthChanged: root.publishViewportDemand()
