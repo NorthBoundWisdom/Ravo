@@ -164,6 +164,8 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
         candidate.duplicate_reason = entry.candidate.duplicate_reason;
         candidate.duplicate_asset_id = entry.candidate.duplicate_asset_id;
     }
+    const auto previous_selected_count = selected_count_;
+    const auto previous_selected_bytes = selected_bytes_;
     entry.candidate = std::move(candidate);
     entry.inspected = true;
     if (!entry.candidate.supported || entry.candidate.duplicate)
@@ -176,7 +178,8 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
                      {SourcePathRole, MediaTypeRole, WidthRole, HeightRole, SizeBytesRole,
                       SelectedRole, HighlightedRole, EligibleRole, DuplicateRole, ErrorRole,
                       InspectedRole, DisplayNameRole});
-    if (was_selected != entry.selected)
+    if (was_selected != entry.selected || previous_selected_count != selected_count_ ||
+        previous_selected_bytes != selected_bytes_)
         emit selectionChanged();
 }
 
