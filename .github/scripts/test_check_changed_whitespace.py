@@ -215,13 +215,64 @@ class ChangedWhitespaceTest(unittest.TestCase):
             init_repo(repo)
             commit_file(repo, "a.txt", "clean\n", "clean")
             (repo / "a.txt").write_text("dirty  \n", encoding="utf-8")
-            code = whitespace.check(repo=repo, event_path=None, event_name=None)
-            self.assertEqual(code, 1)
-            run(repo, ["checkout", "--", "a.txt"])
-            (repo / "b.txt").write_text("staged  \n", encoding="utf-8")
-            run(repo, ["add", "b.txt"])
-            code = whitespace.check(repo=repo, event_path=None, event_name=None)
-            self.assertEqual(code, 1)
+            # Hermetic: Actions sets GITHUB_EVENT_*; explicit None must stay local.
+            fake_event = repo / "fake_github_event.json"
+            fake_event.write_text(
+                json.dumps(
+                    {
+                        "before": "0" * 40,
+                        "after": "4e83b0a61a04b8239bca0c5258e4952f2a1528cf",
+                        "ref": "refs/heads/main",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            env_backup = {
+                key: os.environ.get(key)
+                for key in ("GITHUB_EVENT_PATH", "GITHUB_EVENT_NAME")
+            }
+            os.environ["GITHUB_EVENT_PATH"] = str(fake_event)
+            os.environ["GITHUB_EVENT_NAME"] = "push"
+            try:
+                code = whitespace.check(repo=repo, event_path=None, event_name=None)
+                self.assertEqual(code, 1)
+                run(repo, ["checkout", "--", "a.txt"])
+                (repo / "b.txt").write_text("staged  \n", encoding="utf-8")
+                run(repo, ["add", "b.txt"])
+                code = whitespace.check(repo=repo, event_path=None, event_name=None)
+                self.assertEqual(code, 1)
+            finally:
+                for key, value in env_backup.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+
+    def test_main_uses_env_when_event_args_omitted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            init_repo(repo)
+            first = commit_file(repo, "a.txt", "one\n", "first")
+            dirty = commit_file(repo, "b.txt", "two  \n", "second with trail")
+            event = write_event(
+                repo,
+                {"before": first, "after": dirty, "ref": "refs/heads/main"},
+            )
+            env_backup = {
+                key: os.environ.get(key)
+                for key in ("GITHUB_EVENT_PATH", "GITHUB_EVENT_NAME")
+            }
+            os.environ["GITHUB_EVENT_PATH"] = str(event)
+            os.environ["GITHUB_EVENT_NAME"] = "push"
+            try:
+                code = whitespace.main(["--repository-root", str(repo)])
+                self.assertEqual(code, 1)
+            finally:
+                for key, value in env_backup.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
 
     def test_main_returns_2_on_missing_before(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

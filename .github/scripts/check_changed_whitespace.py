@@ -234,18 +234,22 @@ def check(
     event_path: Path | None = None,
     event_name: str | None = None,
 ) -> int:
+    """Run the whitespace check.
+
+    Explicit ``event_path=None`` means local dirty-tree mode and does **not**
+    fall back to ``GITHUB_EVENT_*`` environment variables. Callers that want
+    Actions event resolution (notably ``main()``) must pass the path/name
+    themselves after reading the environment.
+    """
     event: dict[str, Any] | None = None
     if event_path is not None:
         event = load_event(event_path)
-    elif os.environ.get("GITHUB_EVENT_PATH"):
-        event = load_event(Path(os.environ["GITHUB_EVENT_PATH"]))
 
-    resolved_event_name = event_name or os.environ.get("GITHUB_EVENT_NAME")
     mode, base, head = resolve_range(
         event,
         git_executable=git_executable,
         repo=repo,
-        event_name=resolved_event_name,
+        event_name=event_name,
     )
     print(f"whitespace_check mode={mode} base={base} head={head}")
 
@@ -289,12 +293,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Override GITHUB_EVENT_NAME",
     )
     args = parser.parse_args(argv)
+    event_path = args.event_path
+    if event_path is None and os.environ.get("GITHUB_EVENT_PATH"):
+        event_path = Path(os.environ["GITHUB_EVENT_PATH"])
+    event_name = args.event_name or os.environ.get("GITHUB_EVENT_NAME")
     try:
         return check(
             repo=args.repository_root.resolve(),
             git_executable=args.git_executable,
-            event_path=args.event_path,
-            event_name=args.event_name,
+            event_path=event_path,
+            event_name=event_name,
         )
     except WhitespaceCheckError as error:
         print(f"whitespace_check error: {error}", file=sys.stderr)
