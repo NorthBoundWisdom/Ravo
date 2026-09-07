@@ -145,9 +145,15 @@ Qt/QML env cleaned. CI package jobs invoke it with `--require-smoke` after
 `RavoPackage`.
 
 Explicit non-claims (recorded as UNTESTED residuals by the tool):
-- native display / installed desktop session
+- native display / installed desktop session (offscreen smoke ≠ native plugins)
 - Debian `dpkg` install and `/usr/bin` launcher success (unpack ≠ install)
-- AppImage FUSE execution when the host cannot run the image
+- AppImage FUSE direct launch (extract-via-`--appimage-extract` is a separate PASS when unpack succeeds)
+- catalog synthetic import / probe-or-render / reopen-hash without a verified release CLI surface
+  (`catalog_*` stages stay UNTESTED, never PASS, until those commands succeed on the artifact)
+
+`Ravo/tools/test_check_packaged_runtime.py` covers fail-closed negatives (missing studio under
+`--require-smoke`, polluted workdir, dual CLI candidates, AppImage extract nonzero exit / missing
+AppRun, cleaned-env stripping of development Qt PATH and `LD_`/`DYLD_` pollution) without requiring Qt.
 
 ## Minimum validation
 

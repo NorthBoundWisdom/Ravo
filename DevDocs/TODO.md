@@ -780,12 +780,22 @@ A skipped test is not a pass. An unsupported state is explicit. A fallback is
 named, observable, quality-bounded, and accepted by contract; otherwise fail
 closed.
 
-## Import keyboard / workspace tranche evidence (local `main`)
+## Import reliability tranche evidence (plan `7c284cf` / local `main`)
 
-Follow-on from `edc65db` through packaged-runtime check: production Import grid
-interaction shared with tests, selection oracle + incremental highlight/check,
-thumbnail owner with viewport/byte budgets, typed `ImportDraft` + scan/preview/
-workspace owners, roundtrip tests, mac/linux Release smoke CI, and packaged
-runtime out-of-tree checker. This is Studio Import workflow hardening evidence
-(C1/C2-style suites on `mac_clang_debug`); it does **not** admit REL-01/C3 or
-PERF-02 frame-presented SLAs. RealSourceProgressProbe remains opt-in/skipped.
+Executable evidence for this hardening round (not “commit title = done”):
+
+| Item | Implementation path | Test identity / coverage | Run (local) | Residual |
+| --- | --- | --- | --- | --- |
+| 01–02 | `DevDocs/TODO.md` EOF; `studio_live_control_test` QML contract | Static whitespace; `StudioQmlContract.ImportUsesOneWorkspace…` | mac_clang_debug + prior CI | none for gate restore |
+| 03 | independent selection oracle | `ImportCandidateListModel.SelectionOracleMatchesModel` | unit | none |
+| 04 | production window keys; deepen: filename host + Select All gate | `ProductionWindowRoutesGridKeys`; `FilenameTemplateSelectAllDoesNotMutateCandidates` | desktop command tests | **BLOCKED residual:** full ImportPage+GeoControls TextField key routing still Studio smoke, not this suite |
+| 05 | `ImportCandidateGrid` no passive `forceActiveFocus`; deepen host | `LateModelUpdateDoesNotStealTextFocusContract`; `FirstCandidatesDoNotStealFilenameTemplateFocus` | desktop command tests | full page GeoControls load not claimed here |
+| 06–07 | membership revision; lightweight preview keys | destination-preview + model tests | desktop command tests | none for those contracts |
+| 08–10 | thumbnail checkpoints, replenish, pixel+wakeup coalesce | `StudioImportThumbnailScheduler.*` | desktop command tests | decoder RSS ≠ model pixel budget |
+| 11 | stopped/post-reject/QPointer owners | scheduler destroy/generation discard tests | desktop command tests | ASan/TSan not run this tranche |
+| 12–15 | `check_packaged_runtime.py` fail-closed + env isolation + catalog stages | `Ravo/tools/test_check_packaged_runtime.py` | unittest (no Qt) | **UNTESTED:** real AppImage FUSE launch; native display session; dpkg install ≠ unpack; catalog import/probe/reopen without release artifact CLI surface |
+| 16 | scan orchestration in `StudioImportScanController` | workspace/roundtrip suites still green | mac_clang_debug | ImportDraft string enums not further constrained this round |
+| 17 | destroy/reopen + cancel-late | `StudioImportRoundtrip.DestroyAndReopen…`; `CancelledPreflight…` | desktop command tests | private corpus / C3 not claimed |
+| 18 | this matrix | docs only | n/a | rule protection / CI run links must be read back from GitHub; not substituted by prose |
+
+Language rules: component harness ≠ window/page acceptance; queued wakeup ≠ race proof without hang gate; offscreen smoke ≠ native packaged plugins; in-memory session ≠ catalog reopen (17 covers reopen); synthetic PNG ≠ real corpus.

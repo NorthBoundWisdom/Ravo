@@ -1468,7 +1468,11 @@ Validation commands used locally: `cmake --preset mac_clang_debug -DBUILD_TESTIN
 `cmake --build build/mac_clang_debug --target ravo_desktop_command_tests`,
 `ctest -R 'StudioImport|ImportDraft|DestinationPreview|ImportCandidate'`.
 CI Release smoke and packaged-runtime checks are workflow-gated (not green-claimed
-from this laptop).
+from this laptop). Packaged catalog create/import/probe/reopen stages are structured in
+`check_packaged_runtime.py` but remain UNTESTED without a release artifact + verified CLI
+surface — do not treat unittest greens as release catalog evidence. Import destroy/reopen
+membership is covered by `StudioImportRoundtrip.DestroyAndReopenSameCatalogPreservesMembership`
+(synthetic temp media only; not private corpus / C3).
 
 ## Local labels and validation cadence
 

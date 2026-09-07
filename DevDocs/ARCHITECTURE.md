@@ -522,8 +522,11 @@ original is ever written (ADR-0101).
 
 `StudioPresenter` remains the QML façade. Import configuration is an `ImportDraft`
 value inside `StudioImportWorkspace`, which also owns:
-- `StudioImportScanController` — generation/busy/progress/revision + scan cancel
-- `StudioImportThumbnailController` — decode executor, viewport demand, budgets
+- `StudioImportScanController` — generation/busy/progress/revision + scan cancel **and**
+  source-scan orchestration (request/batch/placeholder/progress) via Host; Presenter only
+  forwards `rescanImportSource`
+- `StudioImportThumbnailController` — decode executor, viewport/current/prefetch demand,
+  coalesce wakeups, observation checkpoints, stopped/post-reject discard
 - `StudioImportDestinationPreviewController` — debounce timer, key, published folders
 
 `ImportCandidateListModel` stays the selection/highlight/thumbnail-pixel owner on
