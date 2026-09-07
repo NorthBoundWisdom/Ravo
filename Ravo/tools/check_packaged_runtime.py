@@ -35,38 +35,96 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def find_unique(root: Path, names: tuple[str, ...]) -> tuple[Path | None, list[Path]]:
-    found: list[Path] = []
-    for name in names:
-        for path in root.rglob(name):
-            if path.is_file() or (path.is_dir() and path.suffix == ".app"):
-                found.append(path)
-    # Also accept Ravo Studio.app layout
-    for path in root.rglob("Ravo Studio.app"):
-        mac = path / "Contents" / "MacOS" / "ravo_studio"
-        if mac.is_file():
-            found.append(mac)
-    # De-dup
+def _dedup_paths(paths: list[Path]) -> list[Path]:
     uniq: list[Path] = []
     seen: set[str] = set()
-    for path in found:
+    for path in paths:
         key = str(path.resolve()) if path.exists() else str(path)
         if key in seen:
             continue
         seen.add(key)
         uniq.append(path)
-    if len(uniq) == 1:
-        return uniq[0], uniq
-    return None, uniq
+    return uniq
+
+
+def _file_under_root(path: Path, root: Path) -> bool:
+    """Accept only files whose resolved target stays inside the package root."""
+    if not path.exists() or not path.is_file():
+        return False
+    try:
+        return is_under(path.resolve(), root)
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def _looks_like_deb_launcher(path: Path) -> bool:
+    """Detect /usr/bin wrappers that exec /opt/.../bin/<name>; those are not payloads."""
+    parts = path.parts
+    if len(parts) < 3 or parts[-2] != "bin" or parts[-3] != "usr":
+        return False
+    try:
+        sample = path.read_text(encoding="utf-8", errors="replace")[:4000]
+    except OSError:
+        return False
+    return "PREFIX=" in sample and 'exec "${PREFIX}/bin/' in sample
+
+
+def _collect_role_payloads(root: Path, names: tuple[str, ...]) -> list[Path]:
+    """Collect role-specific executables from known package layouts.
+
+    Uses known macOS bundle and DEB payload paths plus exact in-tree name matches.
+    Never returns the first arbitrary rglob hit when multiple payloads exist.
+    DEB /usr/bin launchers are ignored in favor of /opt/RavoStudio/bin payloads.
+    Symlinks that resolve outside the package root are rejected.
+    """
+    name_set = {n.lower() for n in names}
+    found: list[Path] = []
+
+    # Known macOS DMG / .app layout: Ravo Studio.app/Contents/MacOS/<role>
+    for app in root.rglob("Ravo Studio.app"):
+        if not app.is_dir():
+            continue
+        for name in names:
+            mac = app / "Contents" / "MacOS" / name
+            if _file_under_root(mac, root) and mac.name.lower() in name_set:
+                found.append(mac)
+
+    # Known DEB private payload: opt/RavoStudio/bin/<role>
+    for name in names:
+        deb = root / "opt" / "RavoStudio" / "bin" / name
+        if _file_under_root(deb, root) and deb.name.lower() in name_set:
+            found.append(deb)
+
+    # Flat ZIP / AppImage / Windows: exact basename under the extract root.
+    for name in names:
+        for path in root.rglob(name):
+            if path.name.lower() not in name_set:
+                continue
+            if not _file_under_root(path, root):
+                continue
+            if _looks_like_deb_launcher(path):
+                continue
+            found.append(path)
+
+    return _dedup_paths(found)
 
 
 def find_cli(root: Path) -> tuple[Path | None, list[Path]]:
-    return find_unique(root, ("ravo", "ravo.exe"))
+    """Locate the packaged CLI. Never accepts ravo_studio as CLI."""
+    hits = _collect_role_payloads(root, ("ravo", "ravo.exe"))
+    # Hard role separation: Studio binary must never satisfy CLI identity.
+    hits = [p for p in hits if p.name.lower() not in ("ravo_studio", "ravo_studio.exe")]
+    if len(hits) == 1:
+        return hits[0], hits
+    return None, hits
 
 
 def find_studio(root: Path) -> tuple[Path | None, list[Path]]:
-    studio, all_hits = find_unique(root, ("ravo_studio", "ravo_studio.exe"))
-    return studio, all_hits
+    """Locate the packaged Studio binary, including known .app MacOS layout."""
+    hits = _collect_role_payloads(root, ("ravo_studio", "ravo_studio.exe"))
+    if len(hits) == 1:
+        return hits[0], hits
+    return None, hits
 
 
 def is_under(path: Path, root: Path) -> bool:

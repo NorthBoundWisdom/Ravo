@@ -178,5 +178,131 @@ class CheckPackagedRuntimeTests(unittest.TestCase):
             self.assertNotIn('"catalog_synthetic_import": "PASS"', payload_json)
 
 
+class PackagedIdentityResolutionTests(unittest.TestCase):
+    """CLI / Studio payload identity must stay role-separated (F1)."""
+
+    def _touch(self, path: Path) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("placeholder\n", encoding="utf-8")
+        path.chmod(path.stat().st_mode | stat.S_IXUSR)
+        return path
+
+    def test_macos_app_dual_binaries_resolve_by_role(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            macos = root / "Ravo Studio.app" / "Contents" / "MacOS"
+            cli = self._touch(macos / "ravo")
+            studio = self._touch(macos / "ravo_studio")
+            found_cli, cli_hits = cpr.find_cli(root)
+            found_studio, studio_hits = cpr.find_studio(root)
+            self.assertEqual(found_cli, cli)
+            self.assertEqual(cli_hits, [cli])
+            self.assertEqual(found_studio, studio)
+            self.assertEqual(studio_hits, [studio])
+
+    def test_cli_only_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cli = self._touch(root / "payload" / "ravo")
+            found_cli, cli_hits = cpr.find_cli(root)
+            found_studio, studio_hits = cpr.find_studio(root)
+            self.assertEqual(found_cli, cli)
+            self.assertEqual(cli_hits, [cli])
+            self.assertIsNone(found_studio)
+            self.assertEqual(studio_hits, [])
+
+    def test_studio_only_never_accepted_as_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            macos = root / "Ravo Studio.app" / "Contents" / "MacOS"
+            studio = self._touch(macos / "ravo_studio")
+            found_cli, cli_hits = cpr.find_cli(root)
+            found_studio, studio_hits = cpr.find_studio(root)
+            self.assertIsNone(found_cli)
+            self.assertEqual(cli_hits, [])
+            self.assertNotIn(studio, cli_hits)
+            self.assertEqual(found_studio, studio)
+            self.assertEqual(studio_hits, [studio])
+
+    def test_dual_cli_candidates_ambiguous(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            a = self._touch(root / "a" / "ravo")
+            b = self._touch(root / "b" / "ravo")
+            found_cli, cli_hits = cpr.find_cli(root)
+            self.assertIsNone(found_cli)
+            self.assertEqual(set(cli_hits), {a, b})
+
+    def test_dual_studio_candidates_ambiguous(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            a = self._touch(root / "a" / "ravo_studio")
+            b = self._touch(root / "b" / "ravo_studio")
+            found_studio, studio_hits = cpr.find_studio(root)
+            self.assertIsNone(found_studio)
+            self.assertEqual(set(studio_hits), {a, b})
+
+    def test_no_binaries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "empty").mkdir()
+            found_cli, cli_hits = cpr.find_cli(root)
+            found_studio, studio_hits = cpr.find_studio(root)
+            self.assertIsNone(found_cli)
+            self.assertEqual(cli_hits, [])
+            self.assertIsNone(found_studio)
+            self.assertEqual(studio_hits, [])
+
+    def test_deb_launcher_layout_prefers_opt_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload_cli = self._touch(root / "opt" / "RavoStudio" / "bin" / "ravo")
+            payload_studio = self._touch(root / "opt" / "RavoStudio" / "bin" / "ravo_studio")
+            launcher_cli = root / "usr" / "bin" / "ravo"
+            launcher_cli.parent.mkdir(parents=True, exist_ok=True)
+            launcher_cli.write_text(
+                "#!/bin/sh\n"
+                "PREFIX=/opt/RavoStudio\n"
+                'exec "${PREFIX}/bin/ravo" "$@"\n',
+                encoding="utf-8",
+            )
+            launcher_cli.chmod(0o755)
+            launcher_studio = root / "usr" / "bin" / "ravo_studio"
+            launcher_studio.write_text(
+                "#!/bin/sh\n"
+                "PREFIX=/opt/RavoStudio\n"
+                'exec "${PREFIX}/bin/ravo_studio" "$@"\n',
+                encoding="utf-8",
+            )
+            launcher_studio.chmod(0o755)
+            found_cli, cli_hits = cpr.find_cli(root)
+            found_studio, studio_hits = cpr.find_studio(root)
+            self.assertEqual(found_cli, payload_cli)
+            self.assertEqual(cli_hits, [payload_cli])
+            self.assertNotIn(launcher_cli, cli_hits)
+            self.assertEqual(found_studio, payload_studio)
+            self.assertEqual(studio_hits, [payload_studio])
+            self.assertNotIn(launcher_studio, studio_hits)
+
+    def test_external_symlink_rejected_as_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            outside = tmp_path / "outside"
+            outside.mkdir()
+            external = self._touch(outside / "ravo")
+            root = tmp_path / "package"
+            root.mkdir()
+            link = root / "ravo"
+            try:
+                link.symlink_to(external)
+            except OSError as exc:  # pragma: no cover - platform without symlink
+                self.skipTest(f"symlink unavailable: {exc}")
+            found_cli, cli_hits = cpr.find_cli(root)
+            self.assertIsNone(found_cli)
+            self.assertEqual(cli_hits, [])
+
+
+
+
 if __name__ == "__main__":
     unittest.main()
