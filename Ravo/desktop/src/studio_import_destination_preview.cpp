@@ -5,6 +5,7 @@
 #include <QJsonObject>
 
 #include "studio_import_destination_preview_controller.h"
+#include "studio_import_scan_controller.h"
 #include "studio_qt.h"
 
 namespace ravo
@@ -54,7 +55,8 @@ ImportRequest StudioPresenter::plannedImportRequest() const
     request.recursive = false;
     request.defer_previews = true;
     request.skip_existing = true;
-    request.expected_catalog_revision = import_scan_catalog_revision_;
+    request.expected_catalog_revision =
+        import_scan_ ? import_scan_->catalogRevision() : std::nullopt;
     request.expected_content_hashes = import_candidates_.selectedContentHashes();
     request.cancellation = import_operation_.token();
     return request;

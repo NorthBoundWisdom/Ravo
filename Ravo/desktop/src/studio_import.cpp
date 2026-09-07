@@ -1,5 +1,6 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "studio_import_destination_preview_controller.h"
+#include "studio_import_scan_controller.h"
 
 #include <algorithm>
 #include <cstring>
@@ -125,7 +126,22 @@ bool StudioPresenter::importPageOpen() const noexcept
 
 bool StudioPresenter::importScanActive() const noexcept
 {
-    return import_scan_active_;
+    return import_scan_ && import_scan_->active();
+}
+
+int StudioPresenter::importDuplicateCount() const noexcept
+{
+    return import_scan_ ? import_scan_->duplicateCount() : 0;
+}
+
+int StudioPresenter::importScanCompleted() const noexcept
+{
+    return import_scan_ ? import_scan_->completed() : 0;
+}
+
+int StudioPresenter::importScanTotal() const noexcept
+{
+    return import_scan_ ? import_scan_->total() : 0;
 }
 
 bool StudioPresenter::importPreviewWorkActive() const noexcept
@@ -196,9 +212,10 @@ bool StudioPresenter::importReady() const
 {
     const bool native = import_ingest_transport_ == QLatin1String("ptp-usb") ||
                         import_ingest_transport_ == QLatin1String("mtp");
-    return import_page_open_ && !native && !import_scan_active_ && !import_preflight_active_ &&
-           !import_work_active_ && import_scan_catalog_revision_.has_value() &&
-           import_candidates_.selectedCount() > 0 && import_draft_.mode != QLatin1String("move") &&
+    return import_page_open_ && !native && !(import_scan_ && import_scan_->active()) &&
+           !import_preflight_active_ && !import_work_active_ && import_scan_ &&
+           import_scan_->catalogRevision().has_value() && import_candidates_.selectedCount() > 0 &&
+           import_draft_.mode != QLatin1String("move") &&
            (import_draft_.mode == QLatin1String("add") || import_draft_.destination_valid);
 }
 
@@ -343,14 +360,10 @@ void StudioPresenter::closeImportPage()
     static_cast<void>(import_operation_.cancel("import_page_closed"));
     if (import_thumbnails_)
         import_thumbnails_->cancel("import_page_closed");
-    ++import_scan_generation_;
-    import_scan_active_ = false;
+    if (import_scan_)
+        import_scan_->abandon("import_page_closed");
     import_preflight_active_ = false;
     import_page_open_ = false;
-    import_scan_catalog_revision_.reset();
-    import_duplicate_count_ = 0;
-    import_scan_completed_ = 0;
-    import_scan_total_ = 0;
     if (import_thumbnails_)
         import_thumbnails_->clearPending();
     import_candidates_.setCandidates({});
@@ -506,7 +519,8 @@ void StudioPresenter::refreshImportNativeSupport()
 
 void StudioPresenter::rescanImportSource()
 {
-    if (service_ == nullptr || import_draft_.source_root.isEmpty() || import_work_active_)
+    if (service_ == nullptr || import_draft_.source_root.isEmpty() || import_work_active_ ||
+        !import_scan_)
         return;
     static_cast<void>(import_operation_.cancel("import_source_changed"));
     if (import_thumbnails_)
@@ -514,17 +528,12 @@ void StudioPresenter::rescanImportSource()
     if (import_thumbnails_)
         import_thumbnails_->resetOperation();
     import_operation_ = CancellationSource{};
-    const auto token = import_operation_.token();
-    const auto generation = ++import_scan_generation_;
+    const auto token = import_scan_->begin("import_source_changed");
+    const auto generation = import_scan_->generation();
     const std::string root = utf8_from_qstring(import_draft_.source_root);
     const bool recursive =
         import_source_recursion(import_draft_.source_root, QDir::homePath(), import_recursive_);
-    import_scan_active_ = true;
     import_preflight_active_ = false;
-    import_scan_catalog_revision_.reset();
-    import_duplicate_count_ = 0;
-    import_scan_completed_ = 0;
-    import_scan_total_ = 0;
     if (import_thumbnails_)
         import_thumbnails_->clearPending();
     import_candidates_.setCandidates({});
@@ -549,13 +558,12 @@ void StudioPresenter::rescanImportSource()
                     [this, generation, completed, total, duplicates,
                      batch = std::move(pending)]() mutable
                     {
-                        if (generation != import_scan_generation_ || !import_page_open_)
+                        if (!import_scan_->matches(generation) || !import_page_open_)
                             return;
                         const int first = static_cast<int>(completed - batch.size());
                         import_candidates_.applyScanBatch(first, std::move(batch));
-                        import_duplicate_count_ = duplicates;
-                        import_scan_completed_ = static_cast<int>(completed);
-                        import_scan_total_ = static_cast<int>(total);
+                        import_scan_->setProgress(static_cast<int>(completed),
+                                                  static_cast<int>(total), duplicates);
                         emit importPageChanged();
                     },
                     Qt::QueuedConnection);
@@ -584,9 +592,9 @@ void StudioPresenter::rescanImportSource()
                             this,
                             [this, generation, placeholders = std::move(placeholders)]() mutable
                             {
-                                if (generation != import_scan_generation_ || !import_page_open_)
+                                if (!import_scan_->matches(generation) || !import_page_open_)
                                     return;
-                                import_scan_total_ = static_cast<int>(placeholders.size());
+                                import_scan_->setTotal(static_cast<int>(placeholders.size()));
                                 import_candidates_.setCandidates(std::move(placeholders), true);
                                 emit importPageChanged();
                             },
@@ -598,13 +606,13 @@ void StudioPresenter::rescanImportSource()
                 this,
                 [this, generation, scan = std::move(scan)]() mutable
                 {
-                    if (generation != import_scan_generation_ || !import_page_open_)
+                    if (!import_scan_->matches(generation) || !import_page_open_)
                         return;
-                    import_scan_active_ = false;
+                    import_scan_->finish();
                     if (!scan)
                         setError(qstring_from_utf8(scan.error().message));
                     else
-                        import_scan_catalog_revision_ = scan.value().catalog_revision;
+                        import_scan_->setCatalogRevision(scan.value().catalog_revision);
                     emit importPageChanged();
                 },
                 Qt::QueuedConnection);
@@ -704,10 +712,10 @@ void StudioPresenter::publishImportItem(const ImportItemResult &item, const int 
 void StudioPresenter::startPlannedImport()
 {
     const QStringList selected = import_candidates_.selectedPaths();
-    if (!import_page_open_ || import_scan_active_ || import_work_active_ ||
+    if (!import_page_open_ || (import_scan_ && import_scan_->active()) || import_work_active_ ||
         import_preflight_active_ || selected.isEmpty())
         return;
-    if (!import_scan_catalog_revision_)
+    if (!(import_scan_ && import_scan_->catalogRevision()))
     {
         setError(QCoreApplication::translate("StudioPresenter", "Scan the source folder again."));
         return;
@@ -743,7 +751,7 @@ void StudioPresenter::startPlannedImport()
     }
 
     ImportRequest request = plannedImportRequest();
-    const auto generation = import_scan_generation_;
+    const auto generation = import_scan_ ? import_scan_->generation() : 0U;
     import_preflight_active_ = true;
     setError({});
     emit importPageChanged();
@@ -757,7 +765,7 @@ void StudioPresenter::startPlannedImport()
                 this,
                 [this, generation, ready = std::move(ready), request = std::move(request)]() mutable
                 {
-                    if (generation != import_scan_generation_ || !import_page_open_)
+                    if (!import_scan_->matches(generation) || !import_page_open_)
                         return;
                     import_preflight_active_ = false;
                     emit importPageChanged();
@@ -785,7 +793,8 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
     import_destination_remembered_ = false;
     import_preference_error_.clear();
     static_cast<void>(import_operation_.cancel("planned_import_started"));
-    ++import_scan_generation_;
+    if (import_scan_)
+        import_scan_->bumpGeneration("planned_import_started");
     if (import_thumbnails_)
         import_thumbnails_->clearPending();
     import_operation_ = CancellationSource{};

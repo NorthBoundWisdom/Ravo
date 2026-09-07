@@ -1,6 +1,7 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "studio_import_thumbnail_controller.h"
 #include "studio_import_destination_preview_controller.h"
+#include "studio_import_scan_controller.h"
 
 #include "ravo/desktop/export_option_conversion.h"
 #include "ravo/desktop/filesystem_browser_model.h"
@@ -180,6 +181,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
             &StudioPresenter::refreshImportDestinationPreview);
     connect(&import_candidates_, &ImportCandidateListModel::selectionChanged, this,
             &StudioPresenter::importPageChanged);
+    import_scan_ = std::make_unique<StudioImportScanController>(this);
     import_thumbnails_ = std::make_unique<StudioImportThumbnailController>(
         StudioImportThumbnailController::Host{
             &import_candidates_,
@@ -187,7 +189,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
             [this] { return import_page_open_; },
             [this] { return import_work_active_; },
             [this] { return import_preflight_active_; },
-            [this] { return import_scan_generation_; },
+            [this] { return import_scan_ ? import_scan_->generation() : 0U; },
             [this](QString message) { setError(std::move(message)); },
         },
         this);
@@ -199,8 +201,9 @@ StudioPresenter::StudioPresenter(QObject *parent)
             [this] { return import_page_open_; },
             [this]
             {
-                return import_page_open_ && !import_scan_active_ && !import_work_active_ &&
-                       !import_preflight_active_ && import_scan_catalog_revision_ &&
+                return import_page_open_ && import_scan_ && !import_scan_->active() &&
+                       !import_work_active_ && !import_preflight_active_ &&
+                       import_scan_->catalogRevision() &&
                        import_draft_.mode != QLatin1String("add") &&
                        !import_draft_.destination.isEmpty() &&
                        import_draft_.destination_error.isEmpty() &&
@@ -212,7 +215,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
                            QJsonObject{
                                {QStringLiteral("catalog"), catalog_path_},
                                {QStringLiteral("revision"),
-                                QString::number(*import_scan_catalog_revision_)},
+                                QString::number(*import_scan_->catalogRevision())},
                                {QStringLiteral("source"), import_draft_.source_root},
                                {QStringLiteral("destination"), import_draft_.destination},
                                {QStringLiteral("second"), import_draft_.second_copy_destination},
