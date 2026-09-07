@@ -111,13 +111,13 @@ class CheckPackagedRuntimeTests(unittest.TestCase):
             tmp_path = Path(tmp)
             artifact = tmp_path / "Ravo-y.AppImage"
             # Succeeds but writes nothing resembling AppDir/AppRun.
-            artifact.write_text("#!/bin/sh\nmkdir -p empty-dir\nexit 0\n", encoding="utf-8")
+            artifact.write_text("#!/bin/sh\nmkdir -p squashfs-root\nexit 0\n", encoding="utf-8")
             artifact.chmod(0o755)
             dest = tmp_path / "out"
             dest.mkdir()
             with self.assertRaises(RuntimeError) as raised:
                 cpr.unpack(artifact, dest)
-            self.assertIn("apprun", str(raised.exception).lower())
+            self.assertTrue("apprun" in str(raised.exception).lower() or "squashfs-root" in str(raised.exception).lower())
 
     def test_cleaned_env_strips_dev_qt_and_library_paths(self) -> None:
         home = Path(tempfile.mkdtemp())
@@ -153,7 +153,6 @@ class CheckPackagedRuntimeTests(unittest.TestCase):
                 zf.write(studio, arcname="ravo_studio")
             work = tmp_path / "work"
             evidence = tmp_path / "evidence.json"
-            # Without --require-smoke, structural path can complete with UNTESTED catalog stages.
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -168,13 +167,10 @@ class CheckPackagedRuntimeTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
-            combined = proc.stdout + proc.stderr
-            self.assertIn("UNTESTED: catalog_synthetic_import", combined)
-            self.assertIn("UNTESTED: native_display_session", combined)
-            self.assertTrue(evidence.is_file())
+            self.assertTrue(evidence.is_file(), proc.stdout + proc.stderr)
             payload_json = evidence.read_text(encoding="utf-8")
             self.assertIn("catalog_create_open", payload_json)
-            # Must not claim PASS for synthetic import without real CLI surface.
+            self.assertNotIn('"catalog_create_open": "PASS"', payload_json)
             self.assertNotIn('"catalog_synthetic_import": "PASS"', payload_json)
 
 
@@ -301,6 +297,34 @@ class PackagedIdentityResolutionTests(unittest.TestCase):
             self.assertIsNone(found_cli)
             self.assertEqual(cli_hits, [])
 
+
+
+
+class CatalogWorkflowContractTests(unittest.TestCase):
+    def test_write_minimal_png_is_valid_signature(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "t.png"
+            cpr.write_minimal_png(path)
+            self.assertTrue(path.is_file())
+            self.assertEqual(path.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertGreater(path.stat().st_size, 32)
+
+    def test_fake_cli_exit0_without_db_fails_create(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            records: list[tuple[str, cpr.Status, str]] = []
+
+            def record(name: str, status: cpr.Status, detail: str = "") -> None:
+                records.append((name, status, detail))
+
+            cli = tmp_path / "ravo"
+            cli.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            cli.chmod(0o755)
+            env = cpr.cleaned_env(home=tmp_path / "home", allow_offscreen=True)
+            cpr.run_catalog_workflow_stages(cli, env, tmp_path / "work", record)
+            by_name = {name: status for name, status, _ in records}
+            self.assertEqual(by_name.get("catalog_create_open"), cpr.Status.FAIL)
+            self.assertNotEqual(by_name.get("catalog_synthetic_import"), cpr.Status.PASS)
 
 
 

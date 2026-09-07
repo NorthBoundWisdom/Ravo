@@ -14,6 +14,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import struct
+import zlib
 import subprocess
 import sys
 import tempfile
@@ -181,11 +183,10 @@ def unpack(artifact: Path, dest: Path) -> Path:
             )
         squash = extract_dir / "squashfs-root"
         if not squash.is_dir():
-            # Some runtimes extract into cwd/squashfs-root; accept either.
-            candidates = list(extract_dir.rglob("AppRun"))
-            if not candidates:
-                raise RuntimeError("AppImage extract produced no AppDir/AppRun")
-            return candidates[0].parent
+            raise RuntimeError("AppImage extract produced no squashfs-root AppDir")
+        apprun = squash / "AppRun"
+        if not apprun.is_file():
+            raise RuntimeError("AppImage AppDir missing AppRun at extract root")
         return squash
     if artifact.suffix.lower() == ".deb":
         subprocess.run(["dpkg-deb", "-x", str(artifact), str(dest)], check=True)
@@ -223,21 +224,15 @@ def cleaned_env(*, home: Path | None = None, allow_offscreen: bool = True) -> di
     for key in list(env):
         if key.startswith(("QT_", "QML", "QSG_")):
             env.pop(key, None)
-    for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH", "QT_PLUGIN_PATH",
-                "QML2_IMPORT_PATH", "QML_IMPORT_PATH"):
+    for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH", "DYLD_FALLBACK_LIBRARY_PATH",
+                "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "QML_IMPORT_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
         env.pop(key, None)
-    raw_path = env.get("PATH", "")
-    kept = [part for part in raw_path.split(os.pathsep) if part and not _path_looks_like_dev_qt(part)]
-    # Keep minimal system path roots so the packaged binary can still start.
+    # Minimal PATH: known system dirs only (do not inherit a filtered developer PATH).
     if os.name == "nt":
         system_root = env.get("SystemRoot") or env.get("WINDIR") or r"C:\Windows"
-        for part in (rf"{system_root}\System32", system_root):
-            if part not in kept:
-                kept.append(part)
+        kept = [rf"{system_root}\System32", system_root]
     else:
-        for part in ("/usr/bin", "/bin", "/usr/sbin", "/sbin"):
-            if part not in kept:
-                kept.append(part)
+        kept = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
     env["PATH"] = os.pathsep.join(kept)
     if home is not None:
         env["HOME"] = str(home)
@@ -254,11 +249,55 @@ def cleaned_env(*, home: Path | None = None, allow_offscreen: bool = True) -> di
 
 
 
+def write_minimal_png(path: Path, *, width: int = 8, height: int = 8) -> None:
+    """Write a tiny valid RGB PNG using only the Python standard library."""
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+    rows = []
+    for y in range(height):
+        row = bytearray([0])
+        for x in range(width):
+            row.extend([((x + y) * 17) % 256, 40, 80])
+        rows.append(bytes(row))
+    raw = b"".join(rows)
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"sRGB", bytes([0]))
+        + chunk(b"IDAT", zlib.compress(raw, 9))
+        + chunk(b"IEND", b"")
+    )
+
+
+def _cli_json(proc: subprocess.CompletedProcess[str]) -> dict | None:
+    text = (proc.stdout or "").strip()
+    if not text:
+        return None
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _run_cli(cli: Path, args: list[str], env: dict[str, str], timeout: int = 120) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(cli), *args],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
 def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
                                 record) -> None:
-    """Exercise create/open/import/probe/reopen when the CLI surface supports it.
+    """Exercise create/import/probe/reopen against real CLI JSON contracts.
 
-    Missing subcommands or host capability → UNTESTED (never PASS). Failures → FAIL.
+    Missing host/simulator capability → UNTESTED. Product contract failure → FAIL.
     """
     stages = (
         "catalog_create_open",
@@ -266,55 +305,152 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
         "catalog_probe_or_render",
         "catalog_reopen_hash",
     )
-    # Probe help text without guessing flags.
-    try:
-        help_proc = subprocess.run(
-            [str(cli), "catalog", "--help"],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        )
-    except Exception as exc:  # noqa: BLE001
-        for name in stages:
-            record(name, Status.UNTESTED, f"catalog help unavailable: {exc}")
-        return
-    help_text = (help_proc.stdout or "") + (help_proc.stderr or "")
-    if help_proc.returncode != 0 and "catalog" not in help_text.lower():
-        # Many Ravo builds require --catalog; treat opaque failure as untested.
-        for name in stages:
-            record(name, Status.UNTESTED, "catalog help not conclusive")
-        return
-
     catalog = work / "packaged-catalog" / "library.sqlite"
     catalog.parent.mkdir(parents=True, exist_ok=True)
-    source = work / "packaged-catalog" / "source"
-    source.mkdir(parents=True, exist_ok=True)
-    # Tiny synthetic PNG without Qt — write a minimal valid-enough file only if import runs.
-    # Actual encode is host-dependent; leave UNTESTED when create cannot run.
+    source_dir = work / "packaged-catalog" / "source"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    png = source_dir / "synthetic.png"
+    write_minimal_png(png)
+    source_stat = png.stat()
+    source_sha = sha256_file(png)
+
     try:
-        create = subprocess.run(
-            [str(cli), "catalog", "create", "--catalog", str(catalog)],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
+        create = _run_cli(cli, ["catalog", "create", "--path", str(catalog), "--json"], env)
     except Exception as exc:  # noqa: BLE001
         for name in stages:
-            record(name, Status.UNTESTED, str(exc))
+            record(name, Status.UNTESTED, f"catalog create launch failed: {exc}")
         return
-    if create.returncode != 0:
-        # Do not invent alternate flags; residual for release hosts with different CLI.
-        detail = (create.stderr or create.stdout or "")[:200]
-        for name in stages:
-            record(name, Status.UNTESTED, f"catalog create unavailable: {detail}")
+    create_json = _cli_json(create)
+    if create.returncode != 0 or create_json is None:
+        detail = ((create.stderr or create.stdout or "")[:240])
+        # Host without QSQLITE / packaged CLI surface → UNTESTED; otherwise FAIL below.
+        if create.returncode != 0 and "QSQLITE" in (create.stderr or ""):
+            for name in stages:
+                record(name, Status.FAIL, f"missing QSQLITE: {detail}")
+            return
+        if create.returncode != 0 and create_json is None and not catalog.is_file():
+            # Fake exit-0 without creating a DB is a product FAIL when create claimed success.
+            if create.returncode == 0:
+                record("catalog_create_open", Status.FAIL, "create exited 0 without library.sqlite")
+                for name in stages[1:]:
+                    record(name, Status.FAIL, "catalog create did not produce a library")
+                return
+            for name in stages:
+                record(name, Status.UNTESTED, f"catalog create unavailable: {detail}")
+            return
+        record("catalog_create_open", Status.FAIL, f"create failed: {detail}")
+        for name in stages[1:]:
+            record(name, Status.FAIL, "catalog create failed")
+        return
+    if not catalog.is_file():
+        record("catalog_create_open", Status.FAIL, "create reported success but library.sqlite missing")
+        for name in stages[1:]:
+            record(name, Status.FAIL, "catalog create did not produce a library")
+        return
+    data = create_json.get("data", create_json)
+    if not isinstance(data, dict) or "catalog_id" not in data:
+        record("catalog_create_open", Status.FAIL, "create JSON missing catalog_id")
+        for name in stages[1:]:
+            record(name, Status.FAIL, "invalid create schema")
         return
     record("catalog_create_open", Status.PASS, str(catalog))
-    for name in stages[1:]:
-        record(name, Status.UNTESTED, "requires release host artifact + verified CLI import surface")
+
+    try:
+        imported = _run_cli(
+            cli,
+            ["catalog", "import", "--catalog", str(catalog), "--input", str(png), "--json"],
+            env,
+            timeout=180,
+        )
+    except Exception as exc:  # noqa: BLE001
+        record("catalog_synthetic_import", Status.FAIL, str(exc))
+        for name in stages[2:]:
+            record(name, Status.FAIL, "import did not run")
+        return
+    import_json = _cli_json(imported)
+    if imported.returncode != 0 or import_json is None:
+        record("catalog_synthetic_import", Status.FAIL,
+               ((imported.stderr or imported.stdout or "")[:240]))
+        for name in stages[2:]:
+            record(name, Status.FAIL, "import failed")
+        return
+    import_data = import_json.get("data", import_json)
+    items = import_data.get("items") if isinstance(import_data, dict) else None
+    if not isinstance(items, list) or not items:
+        record("catalog_synthetic_import", Status.FAIL, "import JSON missing items")
+        for name in stages[2:]:
+            record(name, Status.FAIL, "import schema invalid")
+        return
+    asset = items[0].get("asset") if isinstance(items[0], dict) else None
+    asset_id = asset.get("id") if isinstance(asset, dict) else None
+    if not asset_id:
+        record("catalog_synthetic_import", Status.FAIL, "import JSON missing asset id")
+        for name in stages[2:]:
+            record(name, Status.FAIL, "import missing asset id")
+        return
+    if sha256_file(png) != source_sha or png.stat().st_size != source_stat.st_size:
+        record("catalog_synthetic_import", Status.FAIL, "import mutated source png hash/size")
+        for name in stages[2:]:
+            record(name, Status.FAIL, "source mutated")
+        return
+    record("catalog_synthetic_import", Status.PASS, f"asset_id={asset_id}")
+
+    probe_out = work / "packaged-catalog" / "probe.png"
+    try:
+        probed = _run_cli(
+            cli,
+            [
+                "catalog", "probe", "--catalog", str(catalog), "--asset-id", str(asset_id),
+                "--output", str(probe_out), "--json",
+            ],
+            env,
+            timeout=180,
+        )
+    except Exception as exc:  # noqa: BLE001
+        record("catalog_probe_or_render", Status.FAIL, str(exc))
+        record("catalog_reopen_hash", Status.FAIL, "probe did not run")
+        return
+    probe_json = _cli_json(probed)
+    if probed.returncode != 0 or probe_json is None or not probe_out.is_file() or probe_out.stat().st_size <= 0:
+        record("catalog_probe_or_render", Status.FAIL,
+               ((probed.stderr or probed.stdout or "")[:240]))
+        record("catalog_reopen_hash", Status.FAIL, "probe failed")
+        return
+    if probe_out.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+        record("catalog_probe_or_render", Status.FAIL, "probe output is not a PNG")
+        record("catalog_reopen_hash", Status.FAIL, "probe artifact invalid")
+        return
+    record("catalog_probe_or_render", Status.PASS, str(probe_out))
+
+    try:
+        listed = _run_cli(cli, ["catalog", "list", "--catalog", str(catalog), "--json"], env)
+    except Exception as exc:  # noqa: BLE001
+        record("catalog_reopen_hash", Status.FAIL, str(exc))
+        return
+    list_json = _cli_json(listed)
+    if listed.returncode != 0 or list_json is None:
+        record("catalog_reopen_hash", Status.FAIL, ((listed.stderr or listed.stdout or "")[:240]))
+        return
+    list_data = list_json.get("data", list_json)
+    # Accept either assets array or count>=1 shapes used by current CLI.
+    assets = None
+    if isinstance(list_data, dict):
+        assets = list_data.get("assets") or list_data.get("items")
+    ok = False
+    if isinstance(assets, list) and any(
+        isinstance(a, dict) and a.get("id") == asset_id for a in assets
+    ):
+        ok = True
+    elif isinstance(list_data, dict) and str(list_data.get("count", "")) not in ("", "0"):
+        ok = True
+    if not ok:
+        record("catalog_reopen_hash", Status.FAIL, "reopen/list missing imported asset")
+        return
+    if sha256_file(png) != source_sha:
+        record("catalog_reopen_hash", Status.FAIL, "source hash changed after reopen")
+        return
+    record("catalog_reopen_hash", Status.PASS, f"asset_id={asset_id}")
+
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -485,7 +621,17 @@ def main(argv: list[str] | None = None) -> int:
             record("appimage_fuse_direct_launch", Status.UNTESTED, "no FUSE host evidence")
 
         # Fail closed: --require-smoke forbids any FAIL and forbids missing required PASS.
-        required = ("unpack", "cli_payload", "cli_help", "studio_payload", "studio_smoke")
+        required = (
+            "unpack",
+            "cli_payload",
+            "cli_help",
+            "studio_payload",
+            "studio_smoke",
+            "catalog_create_open",
+            "catalog_synthetic_import",
+            "catalog_probe_or_render",
+            "catalog_reopen_hash",
+        )
         if args.require_smoke:
             for name in required:
                 status = results.get(name)
