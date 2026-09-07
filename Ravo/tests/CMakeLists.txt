@@ -463,6 +463,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/PhotoContextMenu.qml"
   RAVO_STUDIO_SETTINGS_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsPage.qml"
   RAVO_STUDIO_IMPORT_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ImportPage.qml"
+  RAVO_IMPORT_CANDIDATE_KEYBOARD_HARNESS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_candidate_keyboard_harness.qml"
   RAVO_STUDIO_ASSISTANT_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/AssistantPanel.qml"
   RAVO_STUDIO_MAIN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/Main.qml")
 add_dependencies(ravo_desktop_command_tests ravo ravo_studio_translations)
