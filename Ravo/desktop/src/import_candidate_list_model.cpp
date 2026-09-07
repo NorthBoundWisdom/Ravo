@@ -292,8 +292,17 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
     auto &entry = rows_[static_cast<std::size_t>(row)];
     if (!entry.thumbnail.isNull())
         thumbnail_bytes_ -= static_cast<qulonglong>(entry.thumbnail.sizeInBytes());
-    entry.thumbnail = std::move(image);
     std::erase(thumbnail_rows_, row);
+    // Single-object oversize: refuse to own the pixels (structured empty result).
+    if (!image.isNull() &&
+        static_cast<qulonglong>(image.sizeInBytes()) > maximum_cached_thumbnail_bytes)
+    {
+        entry.thumbnail = {};
+        ++entry.thumbnail_revision;
+        emit dataChanged(index(row, 0), index(row, 0), {ThumbnailUrlRole});
+        return;
+    }
+    entry.thumbnail = std::move(image);
     if (!entry.thumbnail.isNull())
     {
         thumbnail_rows_.push_back(row);
@@ -313,7 +322,7 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
     };
     while (thumbnail_rows_.size() > maximum_cached_thumbnails)
         evict_front();
-    while (thumbnail_bytes_ > maximum_cached_thumbnail_bytes && thumbnail_rows_.size() > 1)
+    while (thumbnail_bytes_ > maximum_cached_thumbnail_bytes && !thumbnail_rows_.empty())
         evict_front();
     ++entry.thumbnail_revision;
     emit dataChanged(index(row, 0), index(row, 0), {ThumbnailUrlRole});

@@ -809,6 +809,7 @@ TEST(ImportCandidateListModel, ThumbnailByteAndCountBudgets)
         candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
     model.setCandidates(std::move(candidates));
     int present = 0;
+    qulonglong bytes = 0;
     for (int row = 0; row < 400; ++row)
     {
         QImage image(512, 512, QImage::Format_RGB888);
@@ -817,8 +818,21 @@ TEST(ImportCandidateListModel, ThumbnailByteAndCountBudgets)
     }
     for (int row = 0; row < 400; ++row)
         if (!model.thumbnail(row).isNull())
+        {
             ++present;
+            bytes += static_cast<qulonglong>(model.thumbnail(row).sizeInBytes());
+        }
     EXPECT_LE(present, 256);
+    EXPECT_LE(bytes, 64ULL * 1024ULL * 1024ULL);
+
+    // Single-object oversize is refused, not retained by the size()>1 loophole.
+    ImportCandidateListModel oversize_model;
+    oversize_model.setCandidates({make_row("/huge.png", 1)});
+    QImage huge(8192, 8192, QImage::Format_RGB888);
+    huge.fill(Qt::red);
+    ASSERT_GT(static_cast<qulonglong>(huge.sizeInBytes()), 64ULL * 1024ULL * 1024ULL);
+    oversize_model.setThumbnail(0, huge);
+    EXPECT_TRUE(oversize_model.thumbnail(0).isNull());
 }
 
 } // namespace ravo
