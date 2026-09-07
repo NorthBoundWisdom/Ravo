@@ -8,6 +8,11 @@ on:
       - "**"
   pull_request:
   workflow_dispatch:
+    inputs:
+      package_rehearsal:
+        description: "Build and validate packages without tagging or publishing a GitHub Release"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -351,7 +356,9 @@ jobs:
 
   package:
     name: Package ${{ matrix.preset }}
-    if: startsWith(github.ref, 'refs/tags/')
+    if: >-
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'workflow_dispatch' && inputs.package_rehearsal)
     needs:
       - static
       - build
@@ -616,9 +623,24 @@ jobs:
           work="${RUNNER_TEMP}/ravo-packaged-runtime"
           rm -rf "${work}"
           mkdir -p "${work}"
+          evidence_root="${RUNNER_TEMP}/ravo-packaged-evidence"
+          rm -rf "${evidence_root}"
+          mkdir -p "${evidence_root}"
           for artifact in "${artifacts[@]}"; do
-            python Ravo/tools/check_packaged_runtime.py "${artifact}" --workdir "${work}/$(basename "${artifact}")" --require-smoke
+            base="$(basename "${artifact}")"
+            evidence="${evidence_root}/${base}.evidence.json"
+            python Ravo/tools/check_packaged_runtime.py "${artifact}"               --workdir "${work}/${base}"               --repo-root "${GITHUB_WORKSPACE}"               --evidence-json "${evidence}"               --require-smoke
           done
+          echo "PACKAGED_EVIDENCE_DIR=${evidence_root}" >> "$GITHUB_ENV"
+
+      - name: Upload packaged runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: packaged-runtime-evidence-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.PACKAGED_EVIDENCE_DIR }}/*.evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload Ravo package
         uses: actions/upload-artifact@v6
@@ -642,6 +664,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/')
+    # Rehearsal package runs never create/update tags or GitHub Releases.
     needs: package
     runs-on: ubuntu-24.04
     timeout-minutes: 15
