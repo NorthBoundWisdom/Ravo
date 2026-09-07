@@ -80,14 +80,19 @@ TEST(StudioImportWorkspace, DestinationPreviewTracksSelectionAndOrganizationWith
 TEST(StudioImportWorkspace, DestinationPreviewKeyUsesRevisionsNotPathSnapshots)
 {
     ensure_qt_core();
+    // Contract: destination-preview invalidation keys must use candidate
+    // generation + selectionRevision (and related draft/catalog revisions),
+    // never selectedPaths() snapshots. Anchor on the controller wiring rather
+    // than a single-line "destination_preview = std::make_unique" spell so
+    // clang-format line breaks cannot false-fail the check.
     QFile presenter_file(QString::fromUtf8(RAVO_REPOSITORY_ROOT) +
                          QStringLiteral("/Ravo/desktop/src/studio_presenter.cpp"));
     ASSERT_TRUE(presenter_file.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto source = QString::fromUtf8(presenter_file.readAll());
-    const auto key_begin = source.indexOf(QStringLiteral("destination_preview ="));
+    const auto key_begin =
+        source.indexOf(QStringLiteral("make_unique<StudioImportDestinationPreviewController>"));
     ASSERT_GE(key_begin, 0);
-    const auto key_region = source.mid(key_begin, 4000);
-    EXPECT_TRUE(key_region.contains(QStringLiteral("std::make_unique")));
+    const auto key_region = source.mid(key_begin, 5000);
     EXPECT_TRUE(key_region.contains(QStringLiteral("selectionRevision")));
     EXPECT_TRUE(key_region.contains(QStringLiteral("generation")));
     EXPECT_FALSE(key_region.contains(QStringLiteral("selectedPaths()")));
