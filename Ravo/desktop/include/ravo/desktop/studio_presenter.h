@@ -800,6 +800,7 @@ public:
     Q_INVOKABLE void setImportResumeBatchId(const QString &batch_id);
     Q_INVOKABLE void refreshImportNativeSupport();
     Q_INVOKABLE void ensureImportThumbnail(int row);
+    Q_INVOKABLE void setImportThumbnailViewportDemand(const QVariantList &rows, int prefetch = 2);
     Q_INVOKABLE void startPlannedImport();
     Q_INVOKABLE void cancelImportPreviews();
     Q_INVOKABLE void refreshRecoveryStatus();

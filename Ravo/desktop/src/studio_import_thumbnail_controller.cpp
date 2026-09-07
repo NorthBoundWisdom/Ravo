@@ -1,5 +1,6 @@
 #include "studio_import_thumbnail_controller.h"
 
+#include <algorithm>
 #include <cstring>
 #include <stdexcept>
 
@@ -51,7 +52,42 @@ void StudioImportThumbnailController::ensure(const int row)
         return;
     if (!pending_rows_.insert(row).second)
         return;
+    trimPendingToCap();
     QTimer::singleShot(0, this, &StudioImportThumbnailController::kick);
+}
+
+void StudioImportThumbnailController::setViewportDemand(const std::vector<int> &visible_rows,
+                                                        const int prefetch_rows)
+{
+    visible_demand_.clear();
+    for (const int row : visible_rows)
+        if (row >= 0)
+            visible_demand_.insert(row);
+    // Prefetch a few rows after the visible max (same ascending priority as visible).
+    if (!visible_rows.empty() && prefetch_rows > 0 && host_.model)
+    {
+        const int last = *std::max_element(visible_rows.begin(), visible_rows.end());
+        for (int row = last + 1; row <= last + prefetch_rows && row < host_.model->rowCount();
+             ++row)
+            visible_demand_.insert(row);
+    }
+    // Replace pending with current demand only (drop scrolled-away rows).
+    pending_rows_.clear();
+    for (const int row : visible_demand_)
+    {
+        if (!host_.model || row >= host_.model->rowCount() || host_.model->inspected(row) ||
+            !host_.model->thumbnail(row).isNull())
+            continue;
+        pending_rows_.insert(row);
+    }
+    trimPendingToCap();
+    QTimer::singleShot(0, this, &StudioImportThumbnailController::kick);
+}
+
+void StudioImportThumbnailController::trimPendingToCap()
+{
+    while (pending_rows_.size() > kPendingHardCap)
+        pending_rows_.erase(std::prev(pending_rows_.end())); // drop highest rows first
 }
 
 void StudioImportThumbnailController::kick()

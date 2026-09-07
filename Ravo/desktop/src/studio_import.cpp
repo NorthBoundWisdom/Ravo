@@ -610,6 +610,17 @@ void StudioPresenter::ensureImportThumbnail(const int row)
         import_thumbnails_->ensure(row);
 }
 
+void StudioPresenter::setImportThumbnailViewportDemand(const QVariantList &rows, const int prefetch)
+{
+    if (!import_thumbnails_)
+        return;
+    std::vector<int> visible;
+    visible.reserve(static_cast<std::size_t>(rows.size()));
+    for (const auto &value : rows)
+        visible.push_back(value.toInt());
+    import_thumbnails_->setViewportDemand(visible, prefetch);
+}
+
 void StudioPresenter::beginImportGalleryPlaceholders(const std::vector<std::string> &paths)
 {
     import_gallery_placeholders_ = true;

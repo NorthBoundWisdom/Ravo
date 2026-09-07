@@ -39,6 +39,7 @@ Rectangle {
         interactionLocked: root.presenter.importWorkActive
         preferredCell: root.preferredCell
         showVerticalScrollBar: true
+        thumbnailDemandPublisher: root.presenter
         accessibleName: qsTr("Import candidates")
         accessibleDescription: qsTr("Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.")
 

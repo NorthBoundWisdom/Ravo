@@ -13,6 +13,7 @@ Item {
     property string accessibleName
     property string accessibleDescription
     property bool showVerticalScrollBar: false
+    property var thumbnailDemandPublisher
 
     property alias grid: candidateGrid
     property alias currentIndex: candidateGrid.currentIndex
@@ -72,6 +73,20 @@ Item {
         candidateGrid.forceActiveFocus();
     }
 
+    function publishViewportDemand() {
+        if (!thumbnailDemandPublisher || typeof thumbnailDemandPublisher.setImportThumbnailViewportDemand !== "function")
+            return;
+        const rows = [];
+        const first = Math.max(0, Math.floor(candidateGrid.contentY / Math.max(1, candidateGrid.cellHeight)) * root.keyboardColumnCount());
+        const visibleCount = Math.ceil(candidateGrid.height / Math.max(1, candidateGrid.cellHeight)) * root.keyboardColumnCount() + root.keyboardColumnCount();
+        for (let i = 0; i < visibleCount; ++i) {
+            const row = first + i;
+            if (row >= 0 && row < candidateGrid.count)
+                rows.push(row);
+        }
+        thumbnailDemandPublisher.setImportThumbnailViewportDemand(rows, 2);
+    }
+
     function applyMouseSelection(index, modifiers) {
         const additive = (modifiers & (Qt.ControlModifier | Qt.MetaModifier)) !== 0;
         const extend = (modifiers & Qt.ShiftModifier) !== 0;
@@ -127,6 +142,9 @@ Item {
         }
 
         onCountChanged: root.initializeKeyboardFocus()
+        onContentYChanged: root.publishViewportDemand()
+        onHeightChanged: root.publishViewportDemand()
+        onWidthChanged: root.publishViewportDemand()
         onVisibleChanged: if (visible) {
             root.initializeKeyboardFocus();
             forceActiveFocus();

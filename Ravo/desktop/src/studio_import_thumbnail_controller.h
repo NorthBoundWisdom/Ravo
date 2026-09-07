@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <set>
+#include <vector>
 
 #include <QObject>
 #include <QString>
@@ -36,7 +37,10 @@ public:
     explicit StudioImportThumbnailController(Host host, QObject *parent = nullptr);
     ~StudioImportThumbnailController() override;
 
-    void ensure(int row);
+    static constexpr std::size_t kPendingHardCap = 256;
+
+    void ensure(int row); // legacy delegate path; prefer setViewportDemand
+    void setViewportDemand(const std::vector<int> &visible_rows, int prefetch_rows = 2);
     void kick();
     void clearPending();
     void cancel(const char *reason);
@@ -55,6 +59,10 @@ public:
     {
         return pending_rows_.size();
     }
+    [[nodiscard]] std::size_t pendingHardCap() const noexcept
+    {
+        return kPendingHardCap;
+    }
 
 private:
     void start(int row);
@@ -63,7 +71,9 @@ private:
     SerialExecutor executor_;
     std::optional<EngineFacade> engine_;
     CancellationSource operation_;
-    std::set<int> pending_rows_;
+    void trimPendingToCap();
+    std::set<int> pending_rows_; // ascending; visible demand refilled via setViewportDemand
+    std::set<int> visible_demand_;
     bool in_flight_ = false;
     bool stopped_ = false;
 };
