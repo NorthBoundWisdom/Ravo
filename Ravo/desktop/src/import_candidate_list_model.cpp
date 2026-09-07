@@ -388,6 +388,7 @@ bool ImportCandidateListModel::inspected(const int row) const
 
 QStringList ImportCandidateListModel::selectedPaths() const
 {
+    ++selected_paths_calls_;
     QStringList result;
     for (const auto &row : rows_)
         if (row.selected)

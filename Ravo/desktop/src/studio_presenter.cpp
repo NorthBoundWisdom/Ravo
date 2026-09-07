@@ -195,46 +195,52 @@ StudioPresenter::StudioPresenter(QObject *parent)
             [this](QString message) { setError(std::move(message)); },
         },
         this);
-    import_workspace_
-        ->destination_preview = std::make_unique<StudioImportDestinationPreviewController>(
-        StudioImportDestinationPreviewController::Host{
-            this,
-            &executor_,
-            [this]() -> CatalogService * { return service_.get(); },
-            [this] { return import_page_open_; },
-            [this]
-            {
-                return import_page_open_ && import_workspace_->scan &&
-                       !import_workspace_->scan->active() && !import_work_active_ &&
-                       !import_preflight_active_ && import_workspace_->scan->catalogRevision() &&
-                       import_workspace_->draft.mode != QLatin1String("add") &&
-                       !import_workspace_->draft.destination.isEmpty() &&
-                       import_workspace_->draft.destination_error.isEmpty() &&
-                       import_candidates_.selectedCount() > 0;
+    import_workspace_->destination_preview =
+        std::make_unique<StudioImportDestinationPreviewController>(
+            StudioImportDestinationPreviewController::Host{
+                this,
+                &executor_,
+                [this]() -> CatalogService * { return service_.get(); },
+                [this] { return import_page_open_; },
+                [this]
+                {
+                    return import_page_open_ && import_workspace_->scan &&
+                           !import_workspace_->scan->active() && !import_work_active_ &&
+                           !import_preflight_active_ &&
+                           import_workspace_->scan->catalogRevision() &&
+                           import_workspace_->draft.mode != QLatin1String("add") &&
+                           !import_workspace_->draft.destination.isEmpty() &&
+                           import_workspace_->draft.destination_error.isEmpty() &&
+                           import_candidates_.selectedCount() > 0;
+                },
+                [this]
+                {
+                    // Lightweight invalidation key only — owning path snapshots are built
+                    // after the destination-preview debounce timer fires (build_request).
+                    return QJsonDocument(
+                               QJsonObject{
+                                   {QStringLiteral("catalog"), catalog_path_},
+                                   {QStringLiteral("revision"),
+                                    QString::number(*import_workspace_->scan->catalogRevision())},
+                                   {QStringLiteral("source"), import_workspace_->draft.source_root},
+                                   {QStringLiteral("destination"),
+                                    import_workspace_->draft.destination},
+                                   {QStringLiteral("second"),
+                                    import_workspace_->draft.second_copy_destination},
+                                   {QStringLiteral("mode"), import_workspace_->draft.mode},
+                                   {QStringLiteral("organization"),
+                                    import_workspace_->draft.organization},
+                                   {QStringLiteral("name"),
+                                    import_workspace_->draft.filename_pattern},
+                                   {QStringLiteral("generation"),
+                                    QString::number(import_candidates_.generation())},
+                                   {QStringLiteral("selectionRevision"),
+                                    QString::number(import_candidates_.selectionRevision())}})
+                        .toJson(QJsonDocument::Compact);
+                },
+                [this] { return plannedImportRequest(); },
             },
-            [this]
-            {
-                return QJsonDocument(
-                           QJsonObject{
-                               {QStringLiteral("catalog"), catalog_path_},
-                               {QStringLiteral("revision"),
-                                QString::number(*import_workspace_->scan->catalogRevision())},
-                               {QStringLiteral("source"), import_workspace_->draft.source_root},
-                               {QStringLiteral("destination"),
-                                import_workspace_->draft.destination},
-                               {QStringLiteral("second"),
-                                import_workspace_->draft.second_copy_destination},
-                               {QStringLiteral("mode"), import_workspace_->draft.mode},
-                               {QStringLiteral("organization"),
-                                import_workspace_->draft.organization},
-                               {QStringLiteral("name"), import_workspace_->draft.filename_pattern},
-                               {QStringLiteral("paths"),
-                                QJsonArray::fromStringList(import_candidates_.selectedPaths())}})
-                    .toJson(QJsonDocument::Compact);
-            },
-            [this] { return plannedImportRequest(); },
-        },
-        this);
+            this);
     connect(import_workspace_->destination_preview.get(),
             &StudioImportDestinationPreviewController::changed, this,
             &StudioPresenter::importDestinationPreviewChanged);

@@ -61,6 +61,14 @@ public:
     [[nodiscard]] QString sourcePath(int row) const;
     [[nodiscard]] bool inspected(int row) const;
     [[nodiscard]] QStringList selectedPaths() const;
+    [[nodiscard]] quint64 selectedPathsCallCount() const noexcept
+    {
+        return selected_paths_calls_;
+    }
+    void resetSelectedPathsCallCount() noexcept
+    {
+        selected_paths_calls_ = 0;
+    }
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectRange(int first, int last, bool additive);
     Q_INVOKABLE void setAllSelected(bool selected);
@@ -103,6 +111,7 @@ private:
     qulonglong selected_bytes_ = 0;
     quint64 selection_revision_ = 0;
     qulonglong thumbnail_bytes_ = 0;
+    mutable quint64 selected_paths_calls_ = 0;
     static constexpr std::size_t maximum_cached_thumbnails = 256;
     static constexpr qulonglong maximum_cached_thumbnail_bytes = 64ULL * 1024ULL * 1024ULL;
 };
