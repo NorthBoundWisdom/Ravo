@@ -86,6 +86,19 @@ jobs:
             host_packages: cmake-png
             build_type: Release
             runtime_dll: zlib.dll
+          # Release smoke: non-empty subset; Debug full + win Release full stay required.
+          - os: macos-15
+            preset: mac_clang_release
+            platform: mac
+            host_packages: brew
+            build_type: Release
+            smoke_labels: "ravo-desktop-smoke|ravo-contract|ravo-catalog"
+          - os: ubuntu-24.04
+            preset: linux_clang_release
+            platform: linux
+            host_packages: cmake
+            build_type: Release
+            smoke_labels: "ravo-desktop-smoke|ravo-contract|ravo-catalog"
     defaults:
       run:
         shell: bash
@@ -275,7 +288,17 @@ jobs:
 
       - name: Test Ravo
         if: runner.os != 'Windows'
-        run: ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
+        run: |
+          set -euo pipefail
+          echo "preset=${{ matrix.preset }} build_type=${{ matrix.build_type }} sha=${GITHUB_SHA}"
+          labels="${{ matrix.smoke_labels }}"
+          if [[ -n "${labels}" ]]; then
+            ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4 -L "${labels}"
+            count="$(ctest --test-dir "build/${{ matrix.preset }}" -N -L "${labels}" | awk '/Total Tests:/ {print $3}')"
+            test "${count}" -gt 0
+          else
+            ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
+          fi
 
       - name: Test Ravo
         if: runner.os == 'Windows'
@@ -576,6 +599,22 @@ jobs:
 
       - name: Package Ravo with FreeCM
         run: cmake --build "build/${{ matrix.preset }}" --target RavoPackage --parallel
+
+      - name: Validate packaged runtime out of tree
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          artifacts=( ${{ matrix.artifact_path }} )
+          if [[ ${#artifacts[@]} -eq 0 ]]; then
+            echo "ERROR: no artifacts matched ${{ matrix.artifact_path }}"
+            exit 1
+          fi
+          work="${RUNNER_TEMP}/ravo-packaged-runtime"
+          rm -rf "${work}"
+          mkdir -p "${work}"
+          for artifact in "${artifacts[@]}"; do
+            python Ravo/tools/check_packaged_runtime.py "${artifact}" --workdir "${work}/$(basename "${artifact}")" --require-smoke
+          done
 
       - name: Upload Ravo package
         uses: actions/upload-artifact@v6
