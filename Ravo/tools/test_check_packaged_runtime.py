@@ -328,5 +328,70 @@ class CatalogWorkflowContractTests(unittest.TestCase):
 
 
 
+class PackagedRuntimeIsolationTests(unittest.TestCase):
+    def test_cleaned_env_uses_minimal_path_only(self) -> None:
+        home = Path(tempfile.mkdtemp())
+        try:
+            os.environ["PATH"] = "/opt/Qt/6.8/bin" + os.pathsep + "/usr/local/bin" + os.pathsep + "/usr/bin"
+            os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = "/opt/Qt/lib"
+            env = cpr.cleaned_env(home=home, allow_offscreen=False)
+            path_parts = env.get("PATH", "").split(os.pathsep)
+            self.assertEqual(path_parts, ["/usr/bin", "/bin", "/usr/sbin", "/sbin"])
+            self.assertNotIn("DYLD_FALLBACK_LIBRARY_PATH", env)
+            self.assertNotIn("QT_QPA_PLATFORM", env)
+        finally:
+            os.environ.pop("DYLD_FALLBACK_LIBRARY_PATH", None)
+
+    def test_appimage_requires_apprun_at_extract_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifact = tmp_path / "Ravo-z.AppImage"
+            artifact.write_text(
+                "#!/bin/sh\nmkdir -p squashfs-root/nested\n"
+                "printf 'x' > squashfs-root/nested/AppRun\nexit 0\n",
+                encoding="utf-8",
+            )
+            artifact.chmod(0o755)
+            dest = tmp_path / "out"
+            dest.mkdir()
+            with self.assertRaises(RuntimeError) as raised:
+                cpr.unpack(artifact, dest)
+            msg = str(raised.exception).lower()
+            self.assertTrue("apprun" in msg or "squashfs-root" in msg, msg)
+
+    def test_evidence_json_written_on_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            payload = tmp_path / "payload"
+            payload.mkdir()
+            _write_fake_cli(payload / "ravo")
+            artifact = tmp_path / "ravo.zip"
+            with zipfile.ZipFile(artifact, "w") as zf:
+                zf.write(payload / "ravo", arcname="ravo")
+            work = tmp_path / "work"
+            evidence = tmp_path / "evidence.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CHECKER),
+                    str(artifact),
+                    "--workdir",
+                    str(work),
+                    "--require-smoke",
+                    "--evidence-json",
+                    str(evidence),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertTrue(evidence.is_file())
+            body = evidence.read_text(encoding="utf-8")
+            self.assertIn('"require_smoke": true', body)
+            self.assertIn("studio_payload", body)
+
+
+
 if __name__ == "__main__":
     unittest.main()
