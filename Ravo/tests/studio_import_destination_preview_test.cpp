@@ -72,7 +72,7 @@ void expect_candidate_grid_keyboard_contract()
     EXPECT_TRUE(source.contains(QStringLiteral("function moveKeyboardFocus")));
     EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_Left")));
     EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_PageDown")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_A")));
+    EXPECT_FALSE(source.contains(QStringLiteral("importCandidates.highlightAll")));
     EXPECT_TRUE(source.contains(
         QStringLiteral("highlightRange(root.selectionAnchor, bounded, additive)")));
     EXPECT_TRUE(

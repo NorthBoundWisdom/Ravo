@@ -116,11 +116,6 @@ Rectangle {
             const additive = (event.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) !== 0;
             const extend = (event.modifiers & Qt.ShiftModifier) !== 0;
 
-            if (additive && event.key === Qt.Key_A) {
-                root.presenter.importCandidates.highlightAll();
-                event.accepted = true;
-                return;
-            }
             if (event.key === Qt.Key_Space && candidateGrid.currentIndex >= 0) {
                 root.presenter.importCandidates.applyCheck(candidateGrid.currentIndex);
                 event.accepted = true;
