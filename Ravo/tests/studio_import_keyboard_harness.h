@@ -100,10 +100,28 @@ struct ImportKeyboardHarness
     void key(const int key, const Qt::KeyboardModifiers modifiers = Qt::NoModifier)
     {
         ASSERT_NE(grid, nullptr);
+        grid->forceActiveFocus();
+        QGuiApplication::processEvents();
         QKeyEvent press(QEvent::KeyPress, key, modifiers);
         QKeyEvent release(QEvent::KeyRelease, key, modifiers);
         QCoreApplication::sendEvent(grid, &press);
         QCoreApplication::sendEvent(grid, &release);
+        QGuiApplication::processEvents();
+    }
+
+    void keyThroughWindowFocus(const int key,
+                               const Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+    {
+        ASSERT_NE(grid, nullptr);
+        window.requestActivate();
+        grid->forceActiveFocus();
+        QGuiApplication::processEvents();
+        ASSERT_TRUE(grid->hasActiveFocus());
+        QKeyEvent press(QEvent::KeyPress, key, modifiers);
+        QKeyEvent release(QEvent::KeyRelease, key, modifiers);
+        auto *target = window.focusObject() ? window.focusObject() : static_cast<QObject *>(grid);
+        QCoreApplication::sendEvent(target, &press);
+        QCoreApplication::sendEvent(target, &release);
         QGuiApplication::processEvents();
     }
 

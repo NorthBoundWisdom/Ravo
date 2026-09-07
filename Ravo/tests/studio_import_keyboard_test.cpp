@@ -5,6 +5,14 @@
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "studio_import_keyboard_harness.h"
 #include "studio_test_support.h"
+#include "ravo/foundation/log.h"
+#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_command_controller.h"
+#include "studio_import_production_window.h"
+#include <QDir>
+#include <QColor>
+#include <QImage>
+#include <QTemporaryDir>
 
 namespace ravo
 {
@@ -226,6 +234,188 @@ TEST(StudioImportKeyboard, GridEventsDriveHighlightAndCheck)
     harness.key(Qt::Key_Space);
     EXPECT_FALSE(model.data(model.index(5, 0), ImportCandidateListModel::SelectedRole).toBool());
     EXPECT_EQ(model.selectedCount(), 23);
+}
+TEST(StudioImportKeyboard, WindowModifierVariantsDriveHighlight)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    model.setCandidates(make_candidates(12));
+    ImportKeyboardHarness harness;
+    ASSERT_TRUE(harness.load(&model));
+    ASSERT_EQ(harness.currentIndex(), 0);
+    // Establish exclusive highlight before additive/modifier moves.
+    harness.key(Qt::Key_Home);
+    ASSERT_TRUE(model.highlighted(0));
+    ASSERT_EQ(harness.selectionAnchor(), 0);
+
+    harness.key(Qt::Key_Right, Qt::ControlModifier);
+    EXPECT_EQ(harness.currentIndex(), 1);
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_FALSE(model.highlighted(1));
+    EXPECT_EQ(harness.selectionAnchor(), 0);
+
+    harness.key(Qt::Key_Right, Qt::MetaModifier);
+    EXPECT_EQ(harness.currentIndex(), 2);
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_FALSE(model.highlighted(2));
+
+    harness.key(Qt::Key_Right, Qt::ShiftModifier);
+    EXPECT_EQ(harness.currentIndex(), 3);
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_TRUE(model.highlighted(1));
+    EXPECT_TRUE(model.highlighted(2));
+    EXPECT_TRUE(model.highlighted(3));
+    EXPECT_EQ(harness.selectionAnchor(), 0);
+
+    harness.key(Qt::Key_Home);
+    harness.key(Qt::Key_Right, Qt::ControlModifier | Qt::ShiftModifier);
+    EXPECT_EQ(harness.currentIndex(), 1);
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_TRUE(model.highlighted(1));
+
+    harness.key(Qt::Key_Home);
+    model.highlightExclusive(0);
+    harness.key(Qt::Key_Right, Qt::MetaModifier | Qt::ShiftModifier);
+    EXPECT_EQ(harness.currentIndex(), 1);
+    EXPECT_TRUE(model.highlighted(0));
+    EXPECT_TRUE(model.highlighted(1));
+}
+
+TEST(StudioImportKeyboard, ProductionWindowRoutesGridKeys)
+{
+    ensure_qt_core();
+    using ravo::studio_import_production_window::ImportCandidateGridWindow;
+    ImportCandidateGridWindow host;
+    ASSERT_TRUE(host.load(16, -1)) << "production ImportCandidateGrid failed to load";
+    ASSERT_EQ(host.currentIndex(), 0);
+
+    host.key(Qt::Key_Right);
+    EXPECT_EQ(host.currentIndex(), 1);
+    EXPECT_TRUE(host.model.highlighted(1));
+    EXPECT_FALSE(host.model.highlighted(0));
+
+    host.key(Qt::Key_Right, Qt::ControlModifier);
+    EXPECT_EQ(host.currentIndex(), 2);
+    EXPECT_TRUE(host.model.highlighted(1));
+    EXPECT_FALSE(host.model.highlighted(2));
+
+    host.key(Qt::Key_Right, Qt::MetaModifier);
+    EXPECT_EQ(host.currentIndex(), 3);
+    EXPECT_TRUE(host.model.highlighted(1));
+    EXPECT_FALSE(host.model.highlighted(3));
+
+    host.key(Qt::Key_Right, Qt::ShiftModifier);
+    EXPECT_EQ(host.currentIndex(), 4);
+    EXPECT_TRUE(host.model.highlighted(1));
+    EXPECT_TRUE(host.model.highlighted(4));
+
+    const int before = host.model.selectedCount();
+    host.key(Qt::Key_Space);
+    EXPECT_NE(host.model.selectedCount(), before);
+}
+
+TEST(StudioImportKeyboard, SelectAllCommandOwnsImportGalleryAndTextContexts)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    const auto action = QStringLiteral("studio.photo.select_all");
+
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(Qt::cyan);
+    const QString one = directory.filePath(QStringLiteral("one.png"));
+    const QString two = directory.filePath(QStringLiteral("two.png"));
+    ASSERT_TRUE(image.save(one, "PNG"));
+    image.fill(Qt::magenta);
+    ASSERT_TRUE(image.save(two, "PNG"));
+    presenter.importFilePaths({one, two});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 2 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+
+    // Gallery context: one owner, one shortcut entry.
+    int shortcuts = 0;
+    for (const auto &value : controller.shortcutEntries())
+        if (value.toMap().value(QStringLiteral("actionId")).toString() == action)
+            ++shortcuts;
+    EXPECT_EQ(shortcuts, 1);
+    presenter.selectAsset(presenter.assets()->assetIdAt(0));
+    ASSERT_EQ(presenter.selectedCount(), 1);
+    EXPECT_TRUE(controller.executeAction(action, QStringLiteral("keyboard"))
+                    .value(QStringLiteral("accepted"))
+                    .toBool());
+    EXPECT_EQ(presenter.selectedCount(), 2);
+
+    // Import context: same command highlights candidates, does not grow Gallery selection.
+    // Use fresh pixels so catalog duplicates from the Gallery setup do not zero selection.
+    const QString source = directory.filePath(QStringLiteral("import-source"));
+    ASSERT_TRUE(QDir().mkpath(source));
+    QImage fresh(16, 16, QImage::Format_RGB888);
+    fresh.fill(QColor(10, 200, 30));
+    ASSERT_TRUE(fresh.save(source + QStringLiteral("/a.png"), "PNG"));
+    fresh.fill(QColor(200, 30, 10));
+    ASSERT_TRUE(fresh.save(source + QStringLiteral("/b.png"), "PNG"));
+    ASSERT_TRUE(
+        QFile::copy(source + QStringLiteral("/a.png"), source + QStringLiteral("/duplicate.png")));
+    presenter.openImportPage();
+    ASSERT_TRUE(presenter.importPageOpen());
+    presenter.setImportMode(QStringLiteral("add"));
+    presenter.setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.importCandidates()->rowCount() > 0 &&
+                   presenter.importScanTotal() > 0 && !presenter.importScanActive();
+        },
+        30000))
+        << presenter.errorText().toStdString() << " scanTotal=" << presenter.importScanTotal()
+        << " rows=" << presenter.importCandidates()->rowCount()
+        << " ready=" << presenter.importReady();
+    auto *import_model = presenter.importCandidates();
+    ASSERT_GE(import_model->rowCount(), 2);
+    const int gallery_selected = presenter.selectedCount();
+    const auto import_select = controller.executeAction(action, QStringLiteral("keyboard"));
+    EXPECT_TRUE(import_select.value(QStringLiteral("accepted")).toBool())
+        << import_select.value(QStringLiteral("message")).toString().toStdString()
+        << " scanTotal=" << presenter.importScanTotal();
+    int highlighted = 0;
+    for (int row = 0; row < import_model->rowCount(); ++row)
+        if (import_model->highlighted(row))
+            ++highlighted;
+    EXPECT_GE(highlighted, 1);
+    EXPECT_EQ(presenter.selectedCount(), gallery_selected);
+
+    // Text input yields: command must not change Import highlight/check.
+    import_model->highlightExclusive(0);
+    const int checked = import_model->selectedCount();
+    const bool was_highlighted_zero = import_model->highlighted(0);
+    controller.setTextInputActive(true);
+    for (const auto &value : controller.shortcutEntries())
+        if (value.toMap().value(QStringLiteral("actionId")).toString() == action)
+            EXPECT_FALSE(value.toMap().value(QStringLiteral("enabled")).toBool());
+    // Shortcut entries yield to text input; menu execute may still be available.
+    // The contract under test is that the keyboard owner does not fire while typing.
+    EXPECT_EQ(import_model->highlighted(0), was_highlighted_zero);
+    EXPECT_EQ(import_model->selectedCount(), checked);
+    controller.setTextInputActive(false);
+
+    // Production grid must not invent a second Ctrl+A owner.
+    QFile grid_file(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML));
+    ASSERT_TRUE(grid_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto grid_source = QString::fromUtf8(grid_file.readAll());
+    EXPECT_FALSE(grid_source.contains(QStringLiteral("Key_A")));
+    EXPECT_FALSE(grid_source.contains(QStringLiteral("SelectAll")));
 }
 
 } // namespace ravo

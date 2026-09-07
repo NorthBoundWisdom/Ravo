@@ -467,9 +467,13 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_IMPORT_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ImportPage.qml"
   RAVO_IMPORT_CANDIDATE_KEYBOARD_HARNESS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_candidate_keyboard_harness.qml"
   RAVO_IMPORT_CANDIDATE_GRID_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ImportCandidateGrid.qml"
+  RAVO_IMPORT_PHOTO_GRID_HOST_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_photo_grid_host.qml"
+  RAVO_STUDIO_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/Ravo/desktop"
+  RAVO_GEOCONTROLS_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/_deps/geocontrols/Controls"
+  RAVO_GEOCONTROLS_APPSHELL_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/_deps/geocontrols/AppShell"
   RAVO_STUDIO_ASSISTANT_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/AssistantPanel.qml"
   RAVO_STUDIO_MAIN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/Main.qml")
-add_dependencies(ravo_desktop_command_tests ravo ravo_studio_translations)
+add_dependencies(ravo_desktop_command_tests ravo ravo_studio ravo_studio_translations)
 ravo_configure_target(ravo_desktop_command_tests)
 ravo_copy_windows_runtime_dlls(ravo_desktop_command_tests)
 gtest_discover_tests(ravo_desktop_command_tests

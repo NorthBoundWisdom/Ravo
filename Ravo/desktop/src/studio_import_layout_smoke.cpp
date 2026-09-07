@@ -8,6 +8,8 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTimer>
+#include <QKeyEvent>
+#include <QCoreApplication>
 #include <QTemporaryDir>
 #include <QDir>
 #include <QElapsedTimer>
@@ -96,6 +98,41 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             LOG_ERROR(logger(), "Import layout has no usable grid or action at {}x{}", size.width(),
                       size.height());
             return false;
+        }
+        if (size.width() == 1440 && size.height() == 900)
+        {
+            auto *keyboard_grid =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importCandidateKeyboardGrid"));
+            if (!keyboard_grid)
+            {
+                LOG_ERROR(logger(), "Import production keyboard grid missing");
+                return false;
+            }
+            keyboard_grid->forceActiveFocus();
+            QEventLoop focus_loop;
+            QTimer::singleShot(20, &focus_loop, &QEventLoop::quit);
+            focus_loop.exec();
+            if (!keyboard_grid->hasActiveFocus())
+            {
+                LOG_ERROR(logger(), "Import production keyboard grid could not take focus");
+                return false;
+            }
+            const int before = keyboard_grid->property("currentIndex").toInt();
+            QKeyEvent press(QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier);
+            QKeyEvent release(QEvent::KeyRelease, Qt::Key_Right, Qt::NoModifier);
+            auto *target = window->focusObject() ? window->focusObject() :
+                                                   static_cast<QObject *>(keyboard_grid);
+            QCoreApplication::sendEvent(target, &press);
+            QCoreApplication::sendEvent(target, &release);
+            QEventLoop key_loop;
+            QTimer::singleShot(20, &key_loop, &QEventLoop::quit);
+            key_loop.exec();
+            if (keyboard_grid->property("currentIndex").toInt() == before &&
+                presenter->importCandidates()->rowCount() > 1)
+            {
+                LOG_ERROR(logger(), "Import production window did not route Right key");
+                return false;
+            }
         }
         if (size.width() == 1440)
         {
