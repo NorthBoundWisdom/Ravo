@@ -144,16 +144,26 @@ CLI/Studio binaries, optionally runs CLI `--help` and `smoke_ravo_studio.py` wit
 Qt/QML env cleaned. CI package jobs invoke it with `--require-smoke` after
 `RavoPackage`.
 
+Role-separated payload identity (commit `f8ffe260`): CLI never accepts `ravo_studio`;
+known macOS `.app`, DEB `/opt/RavoStudio/bin`, and flat layouts are used.
+
+Catalog workflow stages (commit `d809cb66`) execute real `catalog create|import|probe|list`
+JSON contracts with a synthetic sRGB PNG and are required under `--require-smoke`.
+Fake exit-0 CLIs that do not create `library.sqlite` FAIL create (never PASS).
+
+Isolation contracts (commit `8534e048` / checker): AppRun must sit at AppImage extract root;
+runtime PATH is minimal system dirs; Qt/DYLD inject vars are scrubbed; evidence JSON is written
+on failure. Opt-in `workflow_dispatch` `package_rehearsal` (commit `af61a522`) runs Package jobs
+without creating tags or GitHub Releases and uploads per-artifact evidence JSON.
+
 Explicit non-claims (recorded as UNTESTED residuals by the tool):
 - native display / installed desktop session (offscreen smoke ≠ native plugins)
 - Debian `dpkg` install and `/usr/bin` launcher success (unpack ≠ install)
 - AppImage FUSE direct launch (extract-via-`--appimage-extract` is a separate PASS when unpack succeeds)
-- catalog synthetic import / probe-or-render / reopen-hash without a verified release CLI surface
-  (`catalog_*` stages stay UNTESTED, never PASS, until those commands succeed on the artifact)
+- host package rehearsal evidence until a rehearsal/tag run uploads digests for the same SHA
 
-`Ravo/tools/test_check_packaged_runtime.py` covers fail-closed negatives (missing studio under
-`--require-smoke`, polluted workdir, dual CLI candidates, AppImage extract nonzero exit / missing
-AppRun, cleaned-env stripping of development Qt PATH and `LD_`/`DYLD_` pollution) without requiring Qt.
+`Ravo/tools/test_check_packaged_runtime.py` covers identity resolution, catalog fake-CLI negatives,
+AppImage AppRun-at-root, minimal PATH, and evidence-on-failure without requiring Qt.
 
 ## Minimum validation
 

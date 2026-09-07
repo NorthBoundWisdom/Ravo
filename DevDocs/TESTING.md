@@ -1469,7 +1469,8 @@ Validation commands used locally: `cmake --preset mac_clang_debug -DBUILD_TESTIN
 `ctest -R 'StudioImport|ImportDraft|DestinationPreview|ImportCandidate'`.
 CI Release smoke and packaged-runtime checks are workflow-gated (not green-claimed
 from this laptop). Packaged catalog create/import/probe/reopen stages are structured in
-`check_packaged_runtime.py` but remain UNTESTED without a release artifact + verified CLI
+`check_packaged_runtime.py`. Catalog create/import/probe/list contracts PASS against the
+in-tree CLI at `d809cb66`; host package-artifact digests remain UNTESTED until rehearsal/tag.
 surface — do not treat unittest greens as release catalog evidence. Import destroy/reopen
 membership is covered by `StudioImportRoundtrip.DestroyAndReopenSameCatalogPreservesMembership`
 (synthetic temp media only; not private corpus / C3).
@@ -1511,3 +1512,15 @@ Windows Debug Qt during layout even if a release Qt build tolerates it.
 Filesystem browser fixtures explicitly distinguish in-root and out-of-root
 paths: Windows temporary directories may be inside Home. Tests wait for
 asynchronous ancestor discovery before activating the destination row.
+
+
+## Import hardening follow-up tests (post-c94850e)
+
+- `StudioImportThumbnailScheduler.OverBudgetDemandReachesFiniteTerminalWithoutThrash`
+- `StudioImportThumbnailScheduler.OverBudgetComparesDispatchCompleteAndDeferredSets`
+- `ImportCandidateListModel.SelectionRevisionUsesExactDeltaWithoutFullScan`
+- `StudioImportKeyboard.ProductionWindowKeysUseQTestWindowEntry`
+- `StudioImportRoundtrip.RepeatedIntentsRemainQuiescentWithBoundedDiagnostics`
+- `Ravo/tools/test_check_packaged_runtime.py` identity + catalog + isolation suites
+
+Sanitizer (TSan/ASan) Import gate races: **UNTESTED** on this host (not configured).

@@ -1725,3 +1725,12 @@ CLI and Studio project that contract without expanding paths themselves. See
   query language without consumers.
 - Do not modify frozen 0.9 to call Ravo or let Ravo production call the frozen
   application.
+
+
+## Import thumbnail demand terminals
+
+`StudioImportThumbnailController` tracks per demand-generation terminals
+(satisfied / failed / capacity-deferred). Cache eviction drops pixel residency only and
+does not reopen the same demand as unconditional retry. A new `setViewportDemand`
+clears terminals so scroll-back can rebuild. Observation trails are opt-in
+(test sink / bounded ring); production keeps constant-space counters.

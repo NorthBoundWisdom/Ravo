@@ -793,9 +793,26 @@ Executable evidence for this hardening round (not “commit title = done”):
 | 06–07 | membership revision; lightweight preview keys | destination-preview + model tests | desktop command tests | none for those contracts |
 | 08–10 | thumbnail checkpoints, replenish, pixel+wakeup coalesce | `StudioImportThumbnailScheduler.*` | desktop command tests | decoder RSS ≠ model pixel budget |
 | 11 | stopped/post-reject/QPointer owners | scheduler destroy/generation discard tests | desktop command tests | ASan/TSan not run this tranche |
-| 12–15 | `check_packaged_runtime.py` fail-closed + env isolation + catalog stages | `Ravo/tools/test_check_packaged_runtime.py` | unittest (no Qt) | **UNTESTED:** real AppImage FUSE launch; native display session; dpkg install ≠ unpack; catalog import/probe/reopen without release artifact CLI surface |
+| 12–15 | `check_packaged_runtime.py` identity + catalog create/import/probe/list + isolation | `Ravo/tools/test_check_packaged_runtime.py` | unittest (no Qt); real `ravo` catalog stages PASS on mac debug CLI at `d809cb66` | **UNTESTED:** AppImage FUSE; native display; dpkg install; host package rehearsal digests |
 | 16 | scan orchestration in `StudioImportScanController` | workspace/roundtrip suites still green | mac_clang_debug | ImportDraft string enums not further constrained this round |
 | 17 | destroy/reopen + cancel-late | `StudioImportRoundtrip.DestroyAndReopen…`; `CancelledPreflight…` | desktop command tests | private corpus / C3 not claimed |
 | 18 | this matrix | docs only | n/a | rule protection / CI run links must be read back from GitHub; not substituted by prose |
+
+## Import hardening closed vs residual (c94850e follow-up)
+
+Closed on executable evidence (local mac `mac_clang_debug` / unittest; baseline was `c94850e0`):
+
+| ID | Topic | Evidence |
+| --- | --- | --- |
+| F1 | CLI/Studio identity | `f8ffe260` + `PackagedIdentityResolutionTests` |
+| F3 | Observation budget | `2075f900` + `StudioImportThumbnailScheduler` diagnostic tests |
+| F7 | Gate cancel sync | `7aa78fa6` + gate cancel/shutdown tests (**TSan UNTESTED**) |
+| F2 | Demand vs eviction | `27f966cf`/`653cd10b` OverBudget 300/256 + set compares |
+| F4 | Membership revision deltas | `ce9c91c1` + `SelectionRevisionUsesExactDeltaWithoutFullScan` |
+| F6 | Window key entry | `fd5b24e3` QWindow entry + Select All host (**full ImportPage+GeoControls in command-test binary UNTESTED**) |
+| F5 | Packaged catalog stages | `d809cb66` real CLI PASS create/import/probe/reopen |
+| CI | Package rehearsal | `af61a522` workflow_dispatch (dispatch itself UNTESTED this session) |
+
+Still unfinished product work stays in the queues below — do not re-list closed controller/oracle/reopen items.
 
 Language rules: component harness ≠ window/page acceptance; queued wakeup ≠ race proof without hang gate; offscreen smoke ≠ native packaged plugins; in-memory session ≠ catalog reopen (17 covers reopen); synthetic PNG ≠ real corpus.

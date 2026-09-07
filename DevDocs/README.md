@@ -27,7 +27,7 @@ The Global/Mask Develop workspace and Recipe v4 local groups are specified in
 | [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history | Mutable implementation status |
 
 Product execution belongs only in [TODO.md](TODO.md).
-Three-platform package evidence belongs in [Packaging.md](Packaging.md).
+Three-platform package evidence belongs in [Packaging.md](Packaging.md) (includes packaged-runtime checker + `package_rehearsal`).
 
 The import workspace, exact-content classification with visible disabled duplicate
 photos, remembered source/destination paths in Home-rooted folder trees, and the
