@@ -1,11 +1,13 @@
 #include "studio_import_thumbnail_controller.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <stdexcept>
 
 #include <QImage>
 #include <QMetaObject>
+#include <QPointer>
 #include <QTimer>
 
 #include "ravo/adapters/qt_raster_decoder.h"
@@ -401,8 +403,14 @@ void StudioImportThumbnailController::start(const int row)
                     std::lock_guard lock(gate_mutex_);
                     gate = decode_gate_;
                 }
-                if (gate)
-                    gate->wait();
+                // Interruptible wait so shutdown cannot deadlock on a test gate.
+                while (gate)
+                {
+                    if (stopped_)
+                        break;
+                    if (gate->wait_for(std::chrono::milliseconds(10)) == std::future_status::ready)
+                        break;
+                }
             }
             const auto decode = [&]() -> Result<RasterBuffer>
             {
@@ -426,18 +434,19 @@ void StudioImportThumbnailController::start(const int row)
                 image = import_thumbnail_image(decoded.value());
             else
                 error = decoded.error();
-            auto *receiver = host_.callback_receiver ? host_.callback_receiver : this;
+            auto *receiver =
+                host_.callback_receiver ? host_.callback_receiver : static_cast<QObject *>(this);
+            const QPointer<StudioImportThumbnailController> self(this);
             const bool invoked = QMetaObject::invokeMethod(
                 receiver,
-                [this, identity, token, error = std::move(error),
+                [self, identity, token, error = std::move(error),
                  image = std::move(image)]() mutable
-                { finishUi(std::move(identity), std::move(image), std::move(error), token); },
+                {
+                    if (!self)
+                        return;
+                    self->finishUi(std::move(identity), std::move(image), std::move(error), token);
+                },
                 Qt::QueuedConnection);
-            if (!invoked)
-            {
-                // Receiver already gone; clear in_flight on this object if still alive is unsafe.
-                // Controller shutdown drains the executor before destruction.
-            }
             static_cast<void>(invoked);
         });
     if (!queued)

@@ -242,4 +242,82 @@ TEST(StudioImportThumbnailScheduler, StoppedControllerRejectsNewDemand)
     EXPECT_EQ(controller.pendingCount(), 0U);
 }
 
+TEST(StudioImportThumbnailScheduler, DestroyedControllerDropsLateCompletion)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path = directory.filePath("late.png");
+    {
+        QImage image(16, 16, QImage::Format_RGB888);
+        image.fill(Qt::yellow);
+        ASSERT_TRUE(image.save(path, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path.toStdString();
+    candidate.display_name = "late.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+
+    std::promise<void> gate_promise;
+    auto gate_future = gate_promise.get_future().share();
+    {
+        StudioImportThumbnailController controller(make_host(&model));
+        controller.installDecodeGate(gate_future);
+        controller.setViewportDemand({0}, 0, 0);
+        QGuiApplication::processEvents();
+        ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+        // Shutdown drains the worker (interruptible gate) without publishing.
+        controller.shutdown();
+        EXPECT_TRUE(controller.stopped());
+        EXPECT_FALSE(controller.inFlight());
+    }
+    gate_promise.set_value();
+    QGuiApplication::processEvents();
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+}
+
+TEST(StudioImportThumbnailScheduler, GenerationMismatchDiscardsWithoutMutatingModel)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto first = directory.filePath("a.png");
+    const auto second = directory.filePath("b.png");
+    {
+        QImage image(16, 16, QImage::Format_RGB888);
+        image.fill(Qt::red);
+        ASSERT_TRUE(image.save(first, "PNG"));
+        image.fill(Qt::blue);
+        ASSERT_TRUE(image.save(second, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = first.toStdString();
+    candidate.display_name = "a.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+    std::uint64_t scan_generation = 1;
+    StudioImportThumbnailController controller(make_host(&model, &scan_generation));
+    std::promise<void> gate_promise;
+    auto gate_future = gate_promise.get_future().share();
+    controller.installDecodeGate(gate_future);
+    controller.setViewportDemand({0}, 0, 0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+    // Replace source identity while decode is hung.
+    candidate.source_path = second.toStdString();
+    candidate.display_name = "b.png";
+    model.setCandidates({candidate});
+    ++scan_generation;
+    controller.cancel("source_replaced");
+    controller.resetOperation();
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+    EXPECT_FALSE(controller.discardedRows().empty());
+}
+
 } // namespace ravo

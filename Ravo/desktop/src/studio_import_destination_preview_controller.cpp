@@ -1,6 +1,7 @@
 #include "studio_import_destination_preview_controller.h"
 
 #include <QMetaObject>
+#include <QPointer>
 #include <QVariantMap>
 
 #include "ravo/foundation/error.h"
@@ -75,6 +76,28 @@ void StudioImportDestinationPreviewController::refresh()
     emit changed();
 }
 
+void StudioImportDestinationPreviewController::publishResult(
+    const std::uint64_t generation, Result<ImportDestinationPreview> preview)
+{
+    if (stopped_ || generation != generation_)
+        return;
+    if (host_.page_open && !host_.page_open())
+        return;
+    active_ = false;
+    if (!preview)
+        error_ = qstring_from_utf8(preview.error().message);
+    else
+        for (const auto &folder : preview.value().folders)
+            folders_.push_back(QVariantMap{
+                {QStringLiteral("path"), qstring_from_utf8(folder.path)},
+                {QStringLiteral("name"), qstring_from_utf8(folder.name)},
+                {QStringLiteral("depth"), static_cast<int>(folder.depth)},
+                {QStringLiteral("photoCount"), static_cast<qulonglong>(folder.photo_count)},
+                {QStringLiteral("willCreate"), folder.will_create},
+                {QStringLiteral("secondCopy"), folder.second_copy}});
+    emit changed();
+}
+
 void StudioImportDestinationPreviewController::start()
 {
     if (stopped_ || !active_ || host_.executor == nullptr || host_.callback_receiver == nullptr)
@@ -84,38 +107,30 @@ void StudioImportDestinationPreviewController::start()
     auto request = host_.build_request();
     request.cancellation = operation_.token();
     const auto generation = generation_;
-    host_.executor->post(
+    const bool queued = host_.executor->post(
         [this, request = std::move(request), generation]
         {
             auto *service = host_.service ? host_.service() : nullptr;
             auto preview = service != nullptr ? service->preview_import_destinations(request) :
                                                 Result<ImportDestinationPreview>{make_error(
                                                     ErrorCode::kIo, "Catalog session is closed")};
+            const QPointer<StudioImportDestinationPreviewController> self(this);
             QMetaObject::invokeMethod(
                 host_.callback_receiver,
-                [this, generation, preview = std::move(preview)]() mutable
+                [self, generation, preview = std::move(preview)]() mutable
                 {
-                    if (stopped_ || generation != generation_)
+                    if (!self)
                         return;
-                    if (host_.page_open && !host_.page_open())
-                        return;
-                    active_ = false;
-                    if (!preview)
-                        error_ = qstring_from_utf8(preview.error().message);
-                    else
-                        for (const auto &folder : preview.value().folders)
-                            folders_.push_back(QVariantMap{
-                                {QStringLiteral("path"), qstring_from_utf8(folder.path)},
-                                {QStringLiteral("name"), qstring_from_utf8(folder.name)},
-                                {QStringLiteral("depth"), static_cast<int>(folder.depth)},
-                                {QStringLiteral("photoCount"),
-                                 static_cast<qulonglong>(folder.photo_count)},
-                                {QStringLiteral("willCreate"), folder.will_create},
-                                {QStringLiteral("secondCopy"), folder.second_copy}});
-                    emit changed();
+                    self->publishResult(generation, std::move(preview));
                 },
                 Qt::QueuedConnection);
         });
+    if (!queued)
+    {
+        active_ = false;
+        error_ = QStringLiteral("Import destination preview worker is stopped.");
+        emit changed();
+    }
 }
 
 } // namespace ravo

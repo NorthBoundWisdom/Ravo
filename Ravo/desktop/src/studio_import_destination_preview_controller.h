@@ -58,12 +58,21 @@ public:
     {
         return key_;
     }
+    [[nodiscard]] bool stopped() const noexcept
+    {
+        return stopped_;
+    }
+    [[nodiscard]] std::uint64_t generation() const noexcept
+    {
+        return generation_;
+    }
 
 signals:
     void changed();
 
 private:
     void start();
+    void publishResult(std::uint64_t generation, Result<ImportDestinationPreview> preview);
 
     Host host_;
     QTimer timer_;
