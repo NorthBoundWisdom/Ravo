@@ -86,21 +86,18 @@ struct ImportCandidateGridWindow
         return grid->hasActiveFocus();
     }
 
+    // Deliver keys only while the production grid already owns focus. Never
+    // forceActiveFocus here and never fall back when focus has moved away.
     void key(const int key, const Qt::KeyboardModifiers modifiers = Qt::NoModifier)
     {
         ASSERT_NE(grid, nullptr);
         window.requestActivate();
-        grid->forceActiveFocus();
         QGuiApplication::processEvents();
-        ASSERT_TRUE(grid->hasActiveFocus());
+        ASSERT_TRUE(window.isActive());
+        ASSERT_TRUE(grid->hasActiveFocus())
+            << "grid lost active focus; refuse to force or retarget";
         QKeyEvent press(QEvent::KeyPress, key, modifiers);
         QKeyEvent release(QEvent::KeyRelease, key, modifiers);
-        // Prefer the focused object; fall back to the production grid.
-        QObject *target = window.focusObject();
-        if (!target || !grid->isAncestorOf(qobject_cast<QQuickItem *>(target)))
-            target = grid;
-        if (target != grid && qobject_cast<QQuickItem *>(target) != grid)
-            target = grid;
         QCoreApplication::sendEvent(grid, &press);
         QCoreApplication::sendEvent(grid, &release);
         QGuiApplication::processEvents();
