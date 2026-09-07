@@ -138,6 +138,44 @@ class CheckPackagedRuntimeTests(unittest.TestCase):
             for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "QT_PLUGIN_PATH"):
                 os.environ.pop(key, None)
 
+    def test_catalog_stages_are_untested_not_pass_without_real_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            payload = tmp_path / "payload"
+            payload.mkdir()
+            _write_fake_cli(payload / "ravo")
+            studio = payload / "ravo_studio"
+            studio.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            studio.chmod(0o755)
+            artifact = tmp_path / "ravo.zip"
+            with zipfile.ZipFile(artifact, "w") as zf:
+                zf.write(payload / "ravo", arcname="ravo")
+                zf.write(studio, arcname="ravo_studio")
+            work = tmp_path / "work"
+            evidence = tmp_path / "evidence.json"
+            # Without --require-smoke, structural path can complete with UNTESTED catalog stages.
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CHECKER),
+                    str(artifact),
+                    "--workdir",
+                    str(work),
+                    "--evidence-json",
+                    str(evidence),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            combined = proc.stdout + proc.stderr
+            self.assertIn("UNTESTED: catalog_synthetic_import", combined)
+            self.assertIn("UNTESTED: native_display_session", combined)
+            self.assertTrue(evidence.is_file())
+            payload_json = evidence.read_text(encoding="utf-8")
+            self.assertIn("catalog_create_open", payload_json)
+            # Must not claim PASS for synthetic import without real CLI surface.
+            self.assertNotIn('"catalog_synthetic_import": "PASS"', payload_json)
 
 
 if __name__ == "__main__":
