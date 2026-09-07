@@ -19,6 +19,7 @@ class ImportCandidateListModel final : public QAbstractListModel
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
     Q_PROPERTY(int candidateCount READ rowCount NOTIFY candidatesChanged)
     Q_PROPERTY(qulonglong selectedBytes READ selectedBytes NOTIFY selectionChanged)
+    Q_PROPERTY(quint64 selectionRevision READ selectionRevision NOTIFY selectionChanged)
 
 public:
     enum Role
@@ -46,6 +47,7 @@ public:
     void setCandidates(std::vector<ImportCandidate> candidates, bool preserve_check_intent = false);
     void appendCandidate(ImportCandidate candidate);
     [[nodiscard]] qulonglong selectedBytes() const noexcept;
+    [[nodiscard]] quint64 selectionRevision() const noexcept;
     [[nodiscard]] std::vector<std::pair<std::string, std::string>> selectedContentHashes() const;
     [[nodiscard]] std::uint64_t generation() const noexcept
     {
@@ -89,7 +91,9 @@ private:
     void setRowSelected(Row &row, bool selected);
     void setRowHighlighted(int row, bool highlighted, std::vector<int> *changed);
     void emitRoleRanges(const std::vector<int> &rows, const QList<int> &roles);
-    void notifySelectionIfChanged(int previous_count, qulonglong previous_bytes);
+    void notifySelectionIfChanged(int previous_count, qulonglong previous_bytes,
+                                  quint64 previous_fingerprint);
+    [[nodiscard]] quint64 checkedMembershipFingerprint() const noexcept;
     std::vector<Row> rows_;
     std::deque<int> thumbnail_rows_;
     std::set<int> highlighted_rows_;
@@ -97,6 +101,7 @@ private:
     std::uint64_t generation_ = 0;
     int selected_count_ = 0;
     qulonglong selected_bytes_ = 0;
+    quint64 selection_revision_ = 0;
     qulonglong thumbnail_bytes_ = 0;
     static constexpr std::size_t maximum_cached_thumbnails = 256;
     static constexpr qulonglong maximum_cached_thumbnail_bytes = 64ULL * 1024ULL * 1024ULL;

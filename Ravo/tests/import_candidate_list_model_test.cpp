@@ -719,6 +719,33 @@ TEST(ImportCandidateListModel, SelectionOracleMatchesModel)
     run_ops(0x1234567U, {});
 }
 
+TEST(ImportCandidateListModel, EqualSizeMembershipSwapNotifiesSelection)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    model.setCandidates({make_row("/a.png", 10), make_row("/b.png", 10)});
+    model.selectRange(0, 0, false);
+    ASSERT_EQ(model.selectedCount(), 1);
+    ASSERT_EQ(model.selectedBytes(), 10ULL);
+    const auto before_revision = model.selectionRevision();
+    int notifications = 0;
+    QObject::connect(&model, &ImportCandidateListModel::selectionChanged, &model,
+                     [&] { ++notifications; });
+    model.selectRange(1, 1, false); // same aggregates, different membership
+    EXPECT_EQ(model.selectedCount(), 1);
+    EXPECT_EQ(model.selectedBytes(), 10ULL);
+    EXPECT_GT(model.selectionRevision(), before_revision);
+    EXPECT_GE(notifications, 1);
+    EXPECT_FALSE(model.data(model.index(0, 0), ImportCandidateListModel::SelectedRole).toBool());
+    EXPECT_TRUE(model.data(model.index(1, 0), ImportCandidateListModel::SelectedRole).toBool());
+
+    notifications = 0;
+    const auto noop_revision = model.selectionRevision();
+    model.selectRange(1, 1, false); // true no-op
+    EXPECT_EQ(model.selectionRevision(), noop_revision);
+    EXPECT_EQ(notifications, 0);
+}
+
 TEST(ImportCandidateListModel, ExclusiveHighlightNotifiesAtMostTwoRows)
 {
     ensure_qt_core();

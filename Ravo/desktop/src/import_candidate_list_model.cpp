@@ -152,10 +152,33 @@ void ImportCandidateListModel::emitRoleRanges(const std::vector<int> &rows, cons
     emit dataChanged(index(begin, 0), index(prev, 0), roles);
 }
 
-void ImportCandidateListModel::notifySelectionIfChanged(const int previous_count,
-                                                        const qulonglong previous_bytes)
+quint64 ImportCandidateListModel::selectionRevision() const noexcept
 {
-    if (previous_count != selected_count_ || previous_bytes != selected_bytes_)
+    return selection_revision_;
+}
+
+quint64 ImportCandidateListModel::checkedMembershipFingerprint() const noexcept
+{
+    quint64 hash = 14695981039346656037ull;
+    for (int row = 0; row < rowCount(); ++row)
+    {
+        if (!rows_[static_cast<std::size_t>(row)].selected)
+            continue;
+        hash ^= static_cast<quint64>(row) + 0x9e3779b97f4a7c15ull;
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+void ImportCandidateListModel::notifySelectionIfChanged(const int previous_count,
+                                                        const qulonglong previous_bytes,
+                                                        const quint64 previous_fingerprint)
+{
+    const auto fingerprint = checkedMembershipFingerprint();
+    if (fingerprint != previous_fingerprint)
+        ++selection_revision_;
+    if (previous_count != selected_count_ || previous_bytes != selected_bytes_ ||
+        fingerprint != previous_fingerprint)
         emit selectionChanged();
 }
 
@@ -177,6 +200,7 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
         row.selected =
             select_new_candidates_ && row.candidate.supported && !row.candidate.duplicate;
     recountSelection();
+    ++selection_revision_;
     endResetModel();
     emit selectionChanged();
     emit candidatesChanged();
@@ -188,6 +212,8 @@ void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
     beginInsertRows({}, row, row);
     const bool selected = select_new_candidates_ && candidate.supported && !candidate.duplicate;
     rows_.push_back({std::move(candidate), {}, selected, false, false, 0U, {}});
+    if (selected)
+        ++selection_revision_;
     if (selected)
     {
         ++selected_count_;
@@ -240,6 +266,8 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
     entry.inspected = true;
     if (!entry.candidate.supported || entry.candidate.duplicate)
     {
+        if (entry.selected)
+            ++selection_revision_;
         entry.selected = false;
         if (entry.highlighted)
         {
@@ -376,9 +404,10 @@ void ImportCandidateListModel::toggleSelected(const int row)
         return;
     const int previous_count = selected_count_;
     const auto previous_bytes = selected_bytes_;
+    const auto previous_fingerprint = checkedMembershipFingerprint();
     setRowSelected(entry, !entry.selected);
     emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
-    notifySelectionIfChanged(previous_count, previous_bytes);
+    notifySelectionIfChanged(previous_count, previous_bytes, previous_fingerprint);
 }
 
 void ImportCandidateListModel::setAllSelected(const bool selected)
@@ -388,6 +417,7 @@ void ImportCandidateListModel::setAllSelected(const bool selected)
         return;
     const int previous_count = selected_count_;
     const auto previous_bytes = selected_bytes_;
+    const auto previous_fingerprint = checkedMembershipFingerprint();
     std::vector<int> changed;
     changed.reserve(rows_.size());
     for (int row = 0; row < rowCount(); ++row)
@@ -400,7 +430,7 @@ void ImportCandidateListModel::setAllSelected(const bool selected)
         changed.push_back(row);
     }
     emitRoleRanges(changed, {SelectedRole});
-    notifySelectionIfChanged(previous_count, previous_bytes);
+    notifySelectionIfChanged(previous_count, previous_bytes, previous_fingerprint);
 }
 
 void ImportCandidateListModel::selectRange(int first, int last, const bool additive)
@@ -413,6 +443,7 @@ void ImportCandidateListModel::selectRange(int first, int last, const bool addit
         std::swap(first, last);
     const int previous_count = selected_count_;
     const auto previous_bytes = selected_bytes_;
+    const auto previous_fingerprint = checkedMembershipFingerprint();
     std::vector<int> changed;
     if (!additive)
     {
@@ -434,7 +465,7 @@ void ImportCandidateListModel::selectRange(int first, int last, const bool addit
         changed.push_back(row);
     }
     emitRoleRanges(changed, {SelectedRole});
-    notifySelectionIfChanged(previous_count, previous_bytes);
+    notifySelectionIfChanged(previous_count, previous_bytes, previous_fingerprint);
 }
 
 void ImportCandidateListModel::highlightExclusive(const int row)
@@ -507,6 +538,7 @@ void ImportCandidateListModel::applyCheck(const int row)
     const bool next = !clicked.selected;
     const int previous_count = selected_count_;
     const auto previous_bytes = selected_bytes_;
+    const auto previous_fingerprint = checkedMembershipFingerprint();
     std::vector<int> changed;
     if (clicked.highlighted)
     {
@@ -527,7 +559,7 @@ void ImportCandidateListModel::applyCheck(const int row)
         changed.push_back(row);
     }
     emitRoleRanges(changed, {SelectedRole});
-    notifySelectionIfChanged(previous_count, previous_bytes);
+    notifySelectionIfChanged(previous_count, previous_bytes, previous_fingerprint);
 }
 
 bool ImportCandidateListModel::highlighted(const int row) const
