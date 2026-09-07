@@ -646,8 +646,9 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
         << page.errorString().toStdString();
     auto source = QString::fromUtf8(page.readAll());
     EXPECT_FALSE(source.contains(QStringLiteral("objectName: \"importTransferMode\"")));
-    for (const auto *name : {"ImportPhotoGrid.qml", "ImportSourcePanel.qml",
-                             "ImportDestinationPanel.qml", "ImportFolderTree.qml"})
+    for (const auto *name :
+         {"ImportPhotoGrid.qml", "ImportCandidateGrid.qml", "ImportSourcePanel.qml",
+          "ImportDestinationPanel.qml", "ImportFolderTree.qml"})
     {
         QFile component(QFileInfo(page).dir().filePath(QString::fromLatin1(name)));
         ASSERT_TRUE(component.open(QIODevice::ReadOnly | QIODevice::Text));
@@ -671,14 +672,15 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Add\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Move\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.applyCheck")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ImportCandidateGrid")));
+    EXPECT_TRUE(source.contains(QStringLiteral("candidates.applyCheck")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importCandidateCheckBox\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("indicatorSize: Math.max(24, Fonts.size24)")));
     EXPECT_TRUE(source.contains(QStringLiteral("width: Math.max(32, Fonts.scaledUiSize(32))")));
     EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.setAllSelected")));
-    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightExclusive")));
-    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightToggle")));
-    EXPECT_TRUE(source.contains(QStringLiteral("importCandidates.highlightRange")));
+    EXPECT_TRUE(source.contains(QStringLiteral("candidates.highlightExclusive")));
+    EXPECT_TRUE(source.contains(QStringLiteral("candidates.highlightToggle")));
+    EXPECT_TRUE(source.contains(QStringLiteral("candidates.highlightRange")));
     // Select All has one window command owner; a local Shortcut collides with
     // the Gallery command and loses activation when the source tree has focus.
     EXPECT_FALSE(source.contains(QStringLiteral("importCandidates.highlightAll")));
