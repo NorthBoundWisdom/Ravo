@@ -1,5 +1,6 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "studio_import_thumbnail_controller.h"
+#include "studio_import_destination_preview_controller.h"
 
 #include "ravo/desktop/export_option_conversion.h"
 #include "ravo/desktop/filesystem_browser_model.h"
@@ -16,6 +17,9 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QFileInfo>
 #include <QList>
 #include <QMetaObject>
@@ -172,11 +176,6 @@ StudioPresenter::StudioPresenter(QObject *parent)
     };
     bind_browser(&import_source_folders_);
     bind_browser(&import_destination_folders_);
-    import_destination_preview_timer_ = new QTimer(this);
-    import_destination_preview_timer_->setSingleShot(true);
-    import_destination_preview_timer_->setInterval(250);
-    connect(import_destination_preview_timer_, &QTimer::timeout, this,
-            &StudioPresenter::startImportDestinationPreview);
     connect(this, &StudioPresenter::importPageChanged, this,
             &StudioPresenter::refreshImportDestinationPreview);
     connect(&import_candidates_, &ImportCandidateListModel::selectionChanged, this,
@@ -192,6 +191,43 @@ StudioPresenter::StudioPresenter(QObject *parent)
             [this](QString message) { setError(std::move(message)); },
         },
         this);
+    import_destination_preview_ = std::make_unique<StudioImportDestinationPreviewController>(
+        StudioImportDestinationPreviewController::Host{
+            this,
+            &executor_,
+            [this]() -> CatalogService * { return service_.get(); },
+            [this] { return import_page_open_; },
+            [this]
+            {
+                return import_page_open_ && !import_scan_active_ && !import_work_active_ &&
+                       !import_preflight_active_ && import_scan_catalog_revision_ &&
+                       import_draft_.mode != QLatin1String("add") &&
+                       !import_draft_.destination.isEmpty() &&
+                       import_draft_.destination_error.isEmpty() &&
+                       import_candidates_.selectedCount() > 0;
+            },
+            [this]
+            {
+                return QJsonDocument(
+                           QJsonObject{
+                               {QStringLiteral("catalog"), catalog_path_},
+                               {QStringLiteral("revision"),
+                                QString::number(*import_scan_catalog_revision_)},
+                               {QStringLiteral("source"), import_draft_.source_root},
+                               {QStringLiteral("destination"), import_draft_.destination},
+                               {QStringLiteral("second"), import_draft_.second_copy_destination},
+                               {QStringLiteral("mode"), import_draft_.mode},
+                               {QStringLiteral("organization"), import_draft_.organization},
+                               {QStringLiteral("name"), import_draft_.filename_pattern},
+                               {QStringLiteral("paths"),
+                                QJsonArray::fromStringList(import_candidates_.selectedPaths())}})
+                    .toJson(QJsonDocument::Compact);
+            },
+            [this] { return plannedImportRequest(); },
+        },
+        this);
+    connect(import_destination_preview_.get(), &StudioImportDestinationPreviewController::changed,
+            this, &StudioPresenter::importDestinationPreviewChanged);
     catalog_revision_timer_ = new QTimer(this);
     catalog_revision_timer_->setInterval(kCatalogRevisionPollMs);
     catalog_revision_timer_->setTimerType(Qt::CoarseTimer);
@@ -237,12 +273,12 @@ StudioPresenter::~StudioPresenter()
     static_cast<void>(catalog_operation_.cancel("window_closed"));
     static_cast<void>(import_operation_.cancel("window_closed"));
     static_cast<void>(import_preview_operation_.cancel("window_closed"));
-    static_cast<void>(import_destination_preview_operation_.cancel("window_closed"));
-    import_destination_preview_timer_->stop();
     filesystem_executor_.request_stop();
     filesystem_executor_.wait();
     if (import_thumbnails_)
         import_thumbnails_->shutdown();
+    if (import_destination_preview_)
+        import_destination_preview_->shutdown();
     develop_preview_owner_.cancel("window_closed");
     cancel_preview_analysis("window_closed");
     perspective_analysis_owner_.cancel("window_closed");

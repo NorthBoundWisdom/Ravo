@@ -43,6 +43,8 @@ target_sources(ravo_desktop
     src/studio_import.cpp
     src/studio_import_thumbnail_controller.cpp
     src/studio_import_destination_preview.cpp
+    src/studio_import_destination_preview_controller.cpp
+    src/studio_import_destination_preview_controller.h
     src/studio_import_preferences.cpp
     src/studio_recovery.cpp
     src/studio_preview.cpp

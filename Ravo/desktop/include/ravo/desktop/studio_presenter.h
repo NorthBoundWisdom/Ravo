@@ -56,6 +56,7 @@ class StudioImportTestControl;
 }
 
 class StudioImportThumbnailController;
+class StudioImportDestinationPreviewController;
 
 class StudioPresenter final : public QObject
 {
@@ -485,18 +486,9 @@ public:
     [[nodiscard]] QString importOrganization() const;
     [[nodiscard]] QString importPreviewPolicy() const;
     [[nodiscard]] bool importRecursive() const noexcept;
-    [[nodiscard]] QVariantList importDestinationPreview() const
-    {
-        return import_destination_preview_;
-    }
-    [[nodiscard]] QString importDestinationPreviewError() const
-    {
-        return import_destination_preview_error_;
-    }
-    [[nodiscard]] bool importDestinationPreviewActive() const
-    {
-        return import_destination_preview_active_;
-    }
+    [[nodiscard]] QVariantList importDestinationPreview() const;
+    [[nodiscard]] QString importDestinationPreviewError() const;
+    [[nodiscard]] bool importDestinationPreviewActive() const;
     [[nodiscard]] QString importIngestTransport() const;
     [[nodiscard]] QString importIngestSourceUri() const;
     [[nodiscard]] QVariantMap importNativeSupport() const;
@@ -1241,13 +1233,6 @@ private:
     CancellationSource catalog_operation_;
     CancellationSource import_operation_;
     CancellationSource import_preview_operation_;
-    CancellationSource import_destination_preview_operation_;
-    QVariantList import_destination_preview_;
-    QString import_destination_preview_error_;
-    QByteArray import_destination_preview_key_;
-    std::uint64_t import_destination_preview_generation_ = 0;
-    bool import_destination_preview_active_ = false;
-    QTimer *import_destination_preview_timer_ = nullptr;
     QTimer *catalog_revision_timer_ = nullptr;
     QTimer *backup_schedule_timer_ = nullptr;
     bool catalog_poll_in_flight_ = false;
@@ -1298,6 +1283,7 @@ private:
     QString import_resume_batch_id_;
     std::uint64_t import_scan_generation_ = 0U;
     std::unique_ptr<StudioImportThumbnailController> import_thumbnails_;
+    std::unique_ptr<StudioImportDestinationPreviewController> import_destination_preview_;
     std::deque<std::string> pending_import_preview_ids_;
     ImportPreviewPolicy pending_import_preview_policy_ = ImportPreviewPolicy::kStandard;
     std::optional<std::int64_t> last_import_after_unix_ms_;

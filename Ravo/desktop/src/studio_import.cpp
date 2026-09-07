@@ -1,4 +1,5 @@
 #include "ravo/desktop/studio_presenter.h"
+#include "studio_import_destination_preview_controller.h"
 
 #include <algorithm>
 #include <cstring>
@@ -381,7 +382,8 @@ void StudioPresenter::setImportDestination(const QString &path)
     const QString next = path.isEmpty() ? QString{} : QDir::cleanPath(path);
     if (next == import_draft_.destination)
     {
-        import_destination_preview_key_.clear();
+        if (import_destination_preview_)
+            import_destination_preview_->invalidateCacheKey();
         if (!import_draft_.destination_error.isEmpty())
             import_destination_folders_.loadUserDirectory();
         import_destination_folders_.revealFolder(next);
