@@ -13,25 +13,26 @@ ImportRequest StudioPresenter::plannedImportRequest() const
     ImportRequest request;
     for (const auto &path : import_candidates_.selectedPaths())
         request.inputs.push_back(utf8_from_qstring(path));
-    request.source_root = utf8_from_qstring(import_source_root_);
-    request.mode = import_mode_ == QLatin1String("copy") ? ImportTransferMode::kCopy :
-                   import_mode_ == QLatin1String("move") ? ImportTransferMode::kMove :
-                                                           ImportTransferMode::kAdd;
+    request.source_root = utf8_from_qstring(import_draft_.source_root);
+    request.mode = import_draft_.mode == QLatin1String("copy") ? ImportTransferMode::kCopy :
+                   import_draft_.mode == QLatin1String("move") ? ImportTransferMode::kMove :
+                                                                 ImportTransferMode::kAdd;
     request.organization =
-        import_organization_ == QLatin1String("hierarchy") ?
+        import_draft_.organization == QLatin1String("hierarchy") ?
             ImportOrganization::kPreserveHierarchy :
-        import_organization_ == QLatin1String("date")  ? ImportOrganization::kCaptureDate :
-        import_organization_ == QLatin1String("month") ? ImportOrganization::kCaptureMonth :
-                                                         ImportOrganization::kSingleFolder;
-    request.preview =
-        import_preview_policy_ == QLatin1String("minimal")    ? ImportPreviewPolicy::kMinimal :
-        import_preview_policy_ == QLatin1String("one-to-one") ? ImportPreviewPolicy::kOneToOne :
-                                                                ImportPreviewPolicy::kStandard;
+        import_draft_.organization == QLatin1String("date")  ? ImportOrganization::kCaptureDate :
+        import_draft_.organization == QLatin1String("month") ? ImportOrganization::kCaptureMonth :
+                                                               ImportOrganization::kSingleFolder;
+    request.preview = import_draft_.preview_policy == QLatin1String("minimal") ?
+                          ImportPreviewPolicy::kMinimal :
+                      import_draft_.preview_policy == QLatin1String("one-to-one") ?
+                          ImportPreviewPolicy::kOneToOne :
+                          ImportPreviewPolicy::kStandard;
     if (request.mode != ImportTransferMode::kAdd)
     {
-        request.destination_directory = utf8_from_qstring(import_destination_);
-        request.filename_template = utf8_from_qstring(import_filename_template_);
-        request.second_copy_directory = utf8_from_qstring(import_second_copy_destination_);
+        request.destination_directory = utf8_from_qstring(import_draft_.destination);
+        request.filename_template = utf8_from_qstring(import_draft_.filename_pattern);
+        request.second_copy_directory = utf8_from_qstring(import_draft_.second_copy_destination);
     }
     request.recursive = false;
     request.defer_previews = true;
@@ -47,19 +48,19 @@ void StudioPresenter::refreshImportDestinationPreview()
     QByteArray key;
     if (import_page_open_ && !import_scan_active_ && !import_work_active_ &&
         !import_preflight_active_ && import_scan_catalog_revision_ &&
-        import_mode_ != QLatin1String("add") && !import_destination_.isEmpty() &&
-        import_destination_error_.isEmpty() && import_candidates_.selectedCount() > 0)
+        import_draft_.mode != QLatin1String("add") && !import_draft_.destination.isEmpty() &&
+        import_draft_.destination_error.isEmpty() && import_candidates_.selectedCount() > 0)
     {
         key = QJsonDocument(
                   QJsonObject{
                       {QStringLiteral("catalog"), catalog_path_},
                       {QStringLiteral("revision"), QString::number(*import_scan_catalog_revision_)},
-                      {QStringLiteral("source"), import_source_root_},
-                      {QStringLiteral("destination"), import_destination_},
-                      {QStringLiteral("second"), import_second_copy_destination_},
-                      {QStringLiteral("mode"), import_mode_},
-                      {QStringLiteral("organization"), import_organization_},
-                      {QStringLiteral("name"), import_filename_template_},
+                      {QStringLiteral("source"), import_draft_.source_root},
+                      {QStringLiteral("destination"), import_draft_.destination},
+                      {QStringLiteral("second"), import_draft_.second_copy_destination},
+                      {QStringLiteral("mode"), import_draft_.mode},
+                      {QStringLiteral("organization"), import_draft_.organization},
+                      {QStringLiteral("name"), import_draft_.filename_pattern},
                       {QStringLiteral("paths"),
                        QJsonArray::fromStringList(import_candidates_.selectedPaths())}})
                   .toJson(QJsonDocument::Compact);

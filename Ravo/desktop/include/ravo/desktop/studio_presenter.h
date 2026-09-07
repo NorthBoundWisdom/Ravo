@@ -29,6 +29,7 @@
 
 #include "ravo/desktop/asset_list_model.h"
 #include "ravo/desktop/filesystem_browser_model.h"
+#include "ravo/desktop/studio_import_draft.h"
 #include "ravo/desktop/folder_list_model.h"
 #include "ravo/desktop/library_set_list_model.h"
 #include "ravo/desktop/import_candidate_list_model.h"
@@ -467,7 +468,7 @@ public:
     [[nodiscard]] bool importReady() const;
     [[nodiscard]] QString importDestinationError() const
     {
-        return import_destination_error_;
+        return import_draft_.destination_error;
     }
     [[nodiscard]] QUrl importDestinationFolderUrl() const;
     [[nodiscard]] QUrl importSourceFolderUrl() const;
@@ -476,6 +477,7 @@ public:
     [[nodiscard]] int importPreviewWorkCompleted() const noexcept;
     [[nodiscard]] int importPreviewWorkTotal() const noexcept;
     [[nodiscard]] QString importSourceRoot() const;
+    [[nodiscard]] ImportDraft importDraft() const;
     [[nodiscard]] QString importDestination() const;
     [[nodiscard]] QString importSecondCopyDestination() const;
     [[nodiscard]] QString importFilenameTemplate() const;
@@ -1280,23 +1282,15 @@ private:
     bool import_preview_work_active_ = false;
     int import_preview_work_completed_ = 0;
     int import_preview_work_total_ = 0;
-    QString import_source_root_;
-    QString import_destination_;
-    QString import_second_copy_destination_;
-    QString import_filename_template_;
-    QString import_mode_{QStringLiteral("copy")};
+    ImportDraft import_draft_;
     int import_duplicate_count_ = 0;
     int import_scan_completed_ = 0;
     int import_scan_total_ = 0;
     std::optional<std::int64_t> import_scan_catalog_revision_;
     bool import_preflight_active_ = false;
-    bool import_destination_valid_ = false;
-    QString import_destination_error_;
     QString pending_import_destination_;
     QString import_preference_error_;
     bool import_destination_remembered_ = false;
-    QString import_organization_{QStringLiteral("single")};
-    QString import_preview_policy_{QStringLiteral("standard")};
     bool import_recursive_ = true;
     QString import_ingest_transport_{QStringLiteral("filesystem-card")};
     QVariantMap import_native_support_;

@@ -432,6 +432,7 @@ add_executable(ravo_desktop_command_tests
   studio_import_keyboard_test.cpp
   studio_import_keyboard_perf_test.cpp
   import_candidate_list_model_test.cpp
+  studio_import_draft_test.cpp
   studio_import_thumbnail_scheduler_test.cpp
   studio_display_presentation_test.cpp
   export_option_conversion_test.cpp

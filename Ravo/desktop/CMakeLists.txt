@@ -64,6 +64,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/filesystem_browser_model.h
     include/ravo/desktop/library_set_list_model.h
     include/ravo/desktop/import_candidate_list_model.h
+    include/ravo/desktop/studio_import_draft.h
     include/ravo/desktop/preview_request_owner.h
     include/ravo/desktop/studio_assistant_controller.h
     include/ravo/desktop/studio_command_controller.h
