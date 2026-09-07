@@ -253,4 +253,70 @@ TEST(StudioImportRoundtrip, CancelledPreflightDoesNotLateImportAfterDrain)
     EXPECT_EQ(presenter.libraryTotal(), 0);
 }
 
+TEST(StudioImportRoundtrip, RepeatedIntentsRemainQuiescentWithBoundedDiagnostics)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-roundtrip");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto source_a = directory.filePath("source-a");
+    const auto source_b = directory.filePath("source-b");
+    const auto destination = directory.filePath("destination");
+    ASSERT_TRUE(QDir().mkpath(source_a));
+    ASSERT_TRUE(QDir().mkpath(source_b));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    ASSERT_TRUE(photo(source_a + "/a1.png", Qt::red));
+    ASSERT_TRUE(photo(source_a + "/a2.png", Qt::green));
+    ASSERT_TRUE(photo(source_b + "/b1.png", Qt::blue));
+    ASSERT_TRUE(photo(source_b + "/b2.png", Qt::yellow));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.openImportPage();
+    presenter.setImportMode(QStringLiteral("add"));
+    presenter.setImportSourceRoot(source_a);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return presenter.importCandidates()->rowCount() >= 2 && !presenter.importScanActive(); },
+        30000));
+    auto *model = presenter.importCandidates();
+    model->resetSelectionRowTouchCount();
+    model->applyCheck(0);
+    EXPECT_LE(model->selectionRowTouchCount(), 8U);
+
+    // Source change must stop old generation work and admit the new scan.
+    presenter.setImportSourceRoot(source_b);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return presenter.importCandidates()->rowCount() >= 2 && !presenter.importScanActive(); },
+        30000));
+    EXPECT_FALSE(presenter.importWorkActive());
+    EXPECT_FALSE(presenter.importPreflightActive());
+
+    // Close/reopen same catalog — reuse DestroyAndReopen coverage for membership;
+    // here assert the page returns to a quiescent owner.
+    presenter.closeImportPage();
+    EXPECT_FALSE(presenter.importPageOpen());
+    presenter.openImportPage();
+    presenter.setImportSourceRoot(source_a);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return presenter.importCandidates()->rowCount() >= 2 && !presenter.importScanActive(); },
+        30000));
+    EXPECT_FALSE(presenter.busy());
+    EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+
+    // Preflight cancel path: start then close before commit.
+    presenter.setImportDestination(destination);
+    presenter.setImportMode(QStringLiteral("copy"));
+    ASSERT_TRUE(wait_until([&] { return !presenter.importDestinationPreviewActive(); }, 5000));
+    presenter.startPlannedImport();
+    presenter.closeImportPage();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+        30000));
+    EXPECT_FALSE(presenter.importPageOpen());
+}
+
 } // namespace ravo
