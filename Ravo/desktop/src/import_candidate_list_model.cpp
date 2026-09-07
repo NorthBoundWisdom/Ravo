@@ -96,18 +96,20 @@ bool ImportCandidateListModel::eligible(const Row &row) noexcept
     return row.candidate.supported && !row.candidate.duplicate;
 }
 
-void ImportCandidateListModel::setRowSelected(Row &row, const bool selected)
+bool ImportCandidateListModel::setRowSelected(Row &row, const bool selected)
 {
+    ++selection_row_touches_;
     if (row.selected == selected)
-        return;
+        return false;
     if (selected && !eligible(row))
-        return;
+        return false;
     row.selected = selected;
     selected_count_ += selected ? 1 : -1;
     if (selected)
         selected_bytes_ += row.candidate.size_bytes;
     else
         selected_bytes_ -= row.candidate.size_bytes;
+    return true;
 }
 
 void ImportCandidateListModel::setRowHighlighted(const int row, const bool highlighted,
@@ -157,28 +159,14 @@ quint64 ImportCandidateListModel::selectionRevision() const noexcept
     return selection_revision_;
 }
 
-quint64 ImportCandidateListModel::checkedMembershipFingerprint() const noexcept
-{
-    quint64 hash = 14695981039346656037ull;
-    for (int row = 0; row < rowCount(); ++row)
-    {
-        if (!rows_[static_cast<std::size_t>(row)].selected)
-            continue;
-        hash ^= static_cast<quint64>(row) + 0x9e3779b97f4a7c15ull;
-        hash *= 1099511628211ull;
-    }
-    return hash;
-}
-
 void ImportCandidateListModel::notifySelectionIfChanged(const int previous_count,
                                                         const qulonglong previous_bytes,
-                                                        const quint64 previous_fingerprint)
+                                                        const bool membership_changed)
 {
-    const auto fingerprint = checkedMembershipFingerprint();
-    if (fingerprint != previous_fingerprint)
+    if (membership_changed)
         ++selection_revision_;
     if (previous_count != selected_count_ || previous_bytes != selected_bytes_ ||
-        fingerprint != previous_fingerprint)
+        membership_changed)
         emit selectionChanged();
 }
 
@@ -262,27 +250,36 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
     }
     const auto previous_selected_count = selected_count_;
     const auto previous_selected_bytes = selected_bytes_;
+    const auto previous_size = entry.candidate.size_bytes;
     entry.candidate = std::move(candidate);
     entry.inspected = true;
+    bool membership_changed = false;
     if (!entry.candidate.supported || entry.candidate.duplicate)
     {
         if (entry.selected)
-            ++selection_revision_;
-        entry.selected = false;
+        {
+            entry.selected = false;
+            membership_changed = true;
+            --selected_count_;
+            selected_bytes_ -= previous_size;
+        }
         if (entry.highlighted)
         {
             entry.highlighted = false;
             highlighted_rows_.erase(row);
         }
     }
-    recountSelection();
+    else if (entry.selected && previous_size != entry.candidate.size_bytes)
+    {
+        // Size-only totals update: notify aggregates without forging membership revision.
+        selected_bytes_ = selected_bytes_ - previous_size + entry.candidate.size_bytes;
+    }
     emit dataChanged(index(row, 0), index(row, 0),
                      {SourcePathRole, MediaTypeRole, WidthRole, HeightRole, SizeBytesRole,
                       SelectedRole, HighlightedRole, EligibleRole, DuplicateRole, ErrorRole,
                       InspectedRole, DisplayNameRole});
-    if (was_selected != entry.selected || previous_selected_count != selected_count_ ||
-        previous_selected_bytes != selected_bytes_)
-        emit selectionChanged();
+    notifySelectionIfChanged(previous_selected_count, previous_selected_bytes, membership_changed);
+    static_cast<void>(was_selected);
 }
 
 void ImportCandidateListModel::setThumbnail(const int row, QImage image)
@@ -337,9 +334,14 @@ void ImportCandidateListModel::applyScanBatch(const int first,
         return;
     // Classification and thumbnail completion are independent. Preserve both
     // the user's check/highlight intent and pixels already delivered by decode.
+    const int previous_count = selected_count_;
+    const auto previous_bytes = selected_bytes_;
+    bool membership_changed = false;
     for (std::size_t offset = 0; offset < candidates.size(); ++offset)
     {
         auto &entry = rows_[static_cast<std::size_t>(first) + offset];
+        ++selection_row_touches_;
+        const bool was_selected = entry.selected;
         if (entry.selected)
         {
             --selected_count_;
@@ -360,12 +362,14 @@ void ImportCandidateListModel::applyScanBatch(const int first,
             ++selected_count_;
             selected_bytes_ += entry.candidate.size_bytes;
         }
+        if (was_selected != entry.selected)
+            membership_changed = true;
     }
     emit dataChanged(index(first, 0), index(first + static_cast<int>(candidates.size()) - 1, 0),
                      {SourcePathRole, MediaTypeRole, WidthRole, HeightRole, SizeBytesRole,
                       SelectedRole, HighlightedRole, EligibleRole, DuplicateRole, ErrorRole,
                       DisplayNameRole});
-    emit selectionChanged();
+    notifySelectionIfChanged(previous_count, previous_bytes, membership_changed);
 }
 
 void ImportCandidateListModel::finishThumbnail(const int row, QImage image,
@@ -416,10 +420,9 @@ void ImportCandidateListModel::toggleSelected(const int row)
         return;
     const int previous_count = selected_count_;
     const auto previous_bytes = selected_bytes_;
-    const auto previous_fingerprint = checkedMembershipFingerprint();
-    setRowSelected(entry, !entry.selected);
+    const bool membership_changed = setRowSelected(entry, !entry.selected);
     emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
-    notifySelectionIfChanged(previous_count, previous_bytes, previous_fingerprint);
+    notifySelectionIfChanged(previous_count, previous_bytes, membership_changed);
 }
 
 void ImportCandidateListModel::setAllSelected(const bool selected)
@@ -429,20 +432,20 @@ void ImportCandidateListModel::setAllSelected(const bool selected)
         return;
     const int previous_count = selected_count_;
     const auto previous_bytes = selected_bytes_;
-    const auto previous_fingerprint = checkedMembershipFingerprint();
+    bool membership_changed = false;
     std::vector<int> changed;
     changed.reserve(rows_.size());
     for (int row = 0; row < rowCount(); ++row)
     {
         auto &entry = rows_[static_cast<std::size_t>(row)];
         const bool next = selected && eligible(entry);
-        if (entry.selected == next)
+        if (!setRowSelected(entry, next))
             continue;
-        setRowSelected(entry, next);
+        membership_changed = true;
         changed.push_back(row);
     }
     emitRoleRanges(changed, {SelectedRole});
-    notifySelectionIfChanged(previous_count, previous_bytes, previous_fingerprint);
+    notifySelectionIfChanged(previous_count, previous_bytes, membership_changed);
 }
 
 void ImportCandidateListModel::selectRange(int first, int last, const bool additive)
@@ -455,29 +458,37 @@ void ImportCandidateListModel::selectRange(int first, int last, const bool addit
         std::swap(first, last);
     const int previous_count = selected_count_;
     const auto previous_bytes = selected_bytes_;
-    const auto previous_fingerprint = checkedMembershipFingerprint();
+    bool membership_changed = false;
     std::vector<int> changed;
+    // Exact final membership delta: avoid clear-then-set no-op revision bumps.
     if (!additive)
     {
+        changed.reserve(static_cast<std::size_t>(rowCount()));
         for (int row = 0; row < rowCount(); ++row)
         {
             auto &entry = rows_[static_cast<std::size_t>(row)];
-            if (!entry.selected)
+            const bool next = row >= first && row <= last && eligible(entry);
+            if (!setRowSelected(entry, next))
                 continue;
-            setRowSelected(entry, false);
+            membership_changed = true;
             changed.push_back(row);
         }
     }
-    for (int row = first; row <= last; ++row)
+    else
     {
-        auto &entry = rows_[static_cast<std::size_t>(row)];
-        if (!eligible(entry) || entry.selected)
-            continue;
-        setRowSelected(entry, true);
-        changed.push_back(row);
+        for (int row = first; row <= last; ++row)
+        {
+            auto &entry = rows_[static_cast<std::size_t>(row)];
+            if (!eligible(entry))
+                continue;
+            if (!setRowSelected(entry, true))
+                continue;
+            membership_changed = true;
+            changed.push_back(row);
+        }
     }
     emitRoleRanges(changed, {SelectedRole});
-    notifySelectionIfChanged(previous_count, previous_bytes, previous_fingerprint);
+    notifySelectionIfChanged(previous_count, previous_bytes, membership_changed);
 }
 
 void ImportCandidateListModel::highlightExclusive(const int row)
@@ -550,7 +561,7 @@ void ImportCandidateListModel::applyCheck(const int row)
     const bool next = !clicked.selected;
     const int previous_count = selected_count_;
     const auto previous_bytes = selected_bytes_;
-    const auto previous_fingerprint = checkedMembershipFingerprint();
+    bool membership_changed = false;
     std::vector<int> changed;
     if (clicked.highlighted)
     {
@@ -559,19 +570,21 @@ void ImportCandidateListModel::applyCheck(const int row)
         for (const int target : targets)
         {
             auto &entry = rows_[static_cast<std::size_t>(target)];
-            if (!eligible(entry) || entry.selected == next)
+            if (!eligible(entry))
                 continue;
-            setRowSelected(entry, next);
+            if (!setRowSelected(entry, next))
+                continue;
+            membership_changed = true;
             changed.push_back(target);
         }
     }
-    else
+    else if (setRowSelected(clicked, next))
     {
-        setRowSelected(clicked, next);
+        membership_changed = true;
         changed.push_back(row);
     }
     emitRoleRanges(changed, {SelectedRole});
-    notifySelectionIfChanged(previous_count, previous_bytes, previous_fingerprint);
+    notifySelectionIfChanged(previous_count, previous_bytes, membership_changed);
 }
 
 bool ImportCandidateListModel::highlighted(const int row) const

@@ -835,4 +835,63 @@ TEST(ImportCandidateListModel, ThumbnailByteAndCountBudgets)
     EXPECT_TRUE(oversize_model.thumbnail(0).isNull());
 }
 
+TEST(ImportCandidateListModel, SelectionRevisionUsesExactDeltaWithoutFullScan)
+{
+    ensure_qt_core();
+    for (const int count : {1000, 10000, 100000})
+    {
+        std::vector<ImportCandidate> candidates(static_cast<std::size_t>(count));
+        for (int row = 0; row < count; ++row)
+        {
+            candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+            candidates[static_cast<std::size_t>(row)].size_bytes = 2;
+        }
+        ImportCandidateListModel model;
+        model.setCandidates(std::move(candidates));
+        model.resetSelectionRowTouchCount();
+        const auto before = model.selectionRevision();
+        model.toggleSelected(count / 2);
+        EXPECT_GT(model.selectionRevision(), before);
+        EXPECT_LE(model.selectionRowTouchCount(), 4U) << count;
+        model.selectRange(count / 2, count / 2, true); // re-select
+        const auto noop_revision = model.selectionRevision();
+        model.resetSelectionRowTouchCount();
+        model.selectRange(count / 2, count / 2, true); // true no-op
+        EXPECT_EQ(model.selectionRevision(), noop_revision);
+        EXPECT_EQ(model.selectionRowTouchCount(), 1U) << count;
+    }
+}
+
+TEST(ImportCandidateListModel, ApplyScanBatchDemotingSelectedBumpsRevision)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    model.setCandidates({make_row("/a.png", 10), make_row("/b.png", 10)});
+    ASSERT_EQ(model.selectedCount(), 2);
+    const auto before = model.selectionRevision();
+    auto demoted = make_row("/a.png", 10);
+    demoted.duplicate = true;
+    demoted.duplicate_reason = "dup";
+    model.applyScanBatch(0, {demoted, make_row("/b.png", 10)});
+    EXPECT_GT(model.selectionRevision(), before);
+    EXPECT_EQ(model.selectedCount(), 1);
+    EXPECT_FALSE(model.data(model.index(0, 0), ImportCandidateListModel::SelectedRole).toBool());
+}
+
+TEST(ImportCandidateListModel, SizeOnlyUpdateNotifiesWithoutMembershipBump)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    model.setCandidates({make_row("/a.png", 10)});
+    const auto before = model.selectionRevision();
+    int notifications = 0;
+    QObject::connect(&model, &ImportCandidateListModel::selectionChanged, &model,
+                     [&] { ++notifications; });
+    auto updated = make_row("/a.png", 22);
+    model.updateCandidate(0, updated);
+    EXPECT_EQ(model.selectionRevision(), before);
+    EXPECT_EQ(model.selectedBytes(), 22ULL);
+    EXPECT_GE(notifications, 1);
+}
+
 } // namespace ravo

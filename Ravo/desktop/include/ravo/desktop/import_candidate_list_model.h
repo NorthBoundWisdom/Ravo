@@ -69,6 +69,15 @@ public:
     {
         selected_paths_calls_ = 0;
     }
+    // Test-only probe: counts row membership examinations/updates on selection paths.
+    [[nodiscard]] quint64 selectionRowTouchCount() const noexcept
+    {
+        return selection_row_touches_;
+    }
+    void resetSelectionRowTouchCount() noexcept
+    {
+        selection_row_touches_ = 0;
+    }
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectRange(int first, int last, bool additive);
     Q_INVOKABLE void setAllSelected(bool selected);
@@ -96,12 +105,11 @@ private:
     };
     void recountSelection();
     [[nodiscard]] static bool eligible(const Row &row) noexcept;
-    void setRowSelected(Row &row, bool selected);
+    [[nodiscard]] bool setRowSelected(Row &row, bool selected);
     void setRowHighlighted(int row, bool highlighted, std::vector<int> *changed);
     void emitRoleRanges(const std::vector<int> &rows, const QList<int> &roles);
     void notifySelectionIfChanged(int previous_count, qulonglong previous_bytes,
-                                  quint64 previous_fingerprint);
-    [[nodiscard]] quint64 checkedMembershipFingerprint() const noexcept;
+                                  bool membership_changed);
     std::vector<Row> rows_;
     std::deque<int> thumbnail_rows_;
     std::set<int> highlighted_rows_;
@@ -112,6 +120,7 @@ private:
     quint64 selection_revision_ = 0;
     qulonglong thumbnail_bytes_ = 0;
     mutable quint64 selected_paths_calls_ = 0;
+    mutable quint64 selection_row_touches_ = 0;
     static constexpr std::size_t maximum_cached_thumbnails = 256;
     static constexpr qulonglong maximum_cached_thumbnail_bytes = 64ULL * 1024ULL * 1024ULL;
 };
