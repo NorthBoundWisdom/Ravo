@@ -165,10 +165,10 @@ TEST(StudioImportThumbnailScheduler, DispatchCheckpointsObserveInFlightBeforeCan
     gate_promise.set_value();
     controller.clearDecodeGate();
     ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
-    // Completion may be discarded due to cancel; must not hang forever.
-    const auto discarded = controller.discardedRows();
-    const auto completed = controller.completedRows();
-    EXPECT_TRUE(!discarded.empty() || !completed.empty());
+    // Cancelled in-flight work must discard without publishing a thumbnail.
+    EXPECT_FALSE(controller.discardedRows().empty());
+    EXPECT_TRUE(controller.completedRows().empty());
+    EXPECT_TRUE(model.thumbnail(0).isNull());
 }
 
 TEST(StudioImportThumbnailScheduler, ReplenishAdmitsRemainingDemandAfterCompletion)
@@ -324,6 +324,124 @@ TEST(StudioImportThumbnailScheduler, GenerationMismatchDiscardsWithoutMutatingMo
     ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
     EXPECT_TRUE(model.thumbnail(0).isNull());
     EXPECT_FALSE(controller.discardedRows().empty());
+}
+
+TEST(StudioImportThumbnailScheduler, GateCancelInterruptsWaitWithoutPublishing)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path = directory.filePath("gated.png");
+    {
+        QImage image(16, 16, QImage::Format_RGB888);
+        image.fill(Qt::cyan);
+        ASSERT_TRUE(image.save(path, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path.toStdString();
+    candidate.display_name = "gated.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.clearObservations();
+    controller.setViewportDemand({0}, 0, 0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+    ASSERT_FALSE(controller.dispatchedRows().empty());
+
+    controller.cancel("gate_cancel");
+    // Do not release the gate; token must interrupt the worker wait.
+    ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+    EXPECT_FALSE(controller.discardedRows().empty());
+    EXPECT_TRUE(controller.completedRows().empty());
+    const auto dispatched_after_cancel = controller.dispatchedCount();
+    QGuiApplication::processEvents();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    QGuiApplication::processEvents();
+    EXPECT_EQ(controller.dispatchedCount(), dispatched_after_cancel);
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+}
+
+TEST(StudioImportThumbnailScheduler, ShutdownFinishesWhileGateHeld)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path = directory.filePath("shutdown-gate.png");
+    {
+        QImage image(16, 16, QImage::Format_RGB888);
+        image.fill(Qt::magenta);
+        ASSERT_TRUE(image.save(path, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path.toStdString();
+    candidate.display_name = "shutdown-gate.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+
+    std::promise<void> gate_promise;
+    StudioImportThumbnailController controller(make_host(&model));
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.setViewportDemand({0}, 0, 0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+    controller.shutdown();
+    EXPECT_TRUE(controller.stopped());
+    EXPECT_FALSE(controller.inFlight());
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+    gate_promise.set_value();
+}
+
+TEST(StudioImportThumbnailScheduler, CancelledOperationDoesNotInfiniteRedispatch)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates;
+    for (int row = 0; row < 4; ++row)
+    {
+        const auto path = directory.filePath(QStringLiteral("c%1.png").arg(row));
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::gray);
+        ASSERT_TRUE(image.save(path, "PNG"));
+        ImportCandidate candidate;
+        candidate.source_path = path.toStdString();
+        candidate.display_name = QStringLiteral("c%1.png").arg(row).toStdString();
+        candidate.size_bytes = 8;
+        candidates.push_back(std::move(candidate));
+    }
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.setViewportDemand({0, 1, 2, 3}, 0, 0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+    controller.cancel("no_retry");
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
+    const auto dispatched = controller.dispatchedCount();
+    for (int i = 0; i < 20; ++i)
+    {
+        QGuiApplication::processEvents();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EXPECT_EQ(controller.dispatchedCount(), dispatched);
+    EXPECT_TRUE(controller.completedRows().empty());
+    EXPECT_EQ(controller.pendingCount(), 0U);
 }
 
 TEST(StudioImportThumbnailScheduler, DefaultObservationsStayConstantSpaceUnderEventStorm)

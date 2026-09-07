@@ -49,6 +49,9 @@ bool StudioImportThumbnailController::gatesAllowWork() const
 {
     if (stopped_)
         return false;
+    // Cancelled operations stay idle until resetOperation() + new demand.
+    if (operation_.token().is_cancellation_requested())
+        return false;
     if (!host_.page_open || !host_.page_open())
         return false;
     if (host_.work_active && host_.work_active())
@@ -416,8 +419,10 @@ void StudioImportThumbnailController::shutdown()
 {
     if (stopped_)
         return;
-    stopped_ = true;
+    // Request cancel before flipping UI-only stopped_ so worker gate waits observe the
+    // thread-safe token rather than racing on stopped_.
     cancel("thumbnail_controller_shutdown");
+    stopped_ = true;
     clearPending();
     visible_demand_.clear();
     prefetch_demand_.clear();
@@ -453,6 +458,7 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
     const bool page_ok = host_.page_open && host_.page_open();
     const bool work_ok = !(host_.work_active && host_.work_active());
     const auto current_generation = host_.scan_generation ? host_.scan_generation() : 0U;
+    bool terminal_without_retry = false;
     if (!page_ok)
     {
         record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,
@@ -470,8 +476,10 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
     }
     else if (!token.check())
     {
+        // Cancelled requests must not self-retry; a new operation/demand is required.
         record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,
                                 DiscardReason::kTokenCancelled, "token"});
+        terminal_without_retry = true;
     }
     else if (!host_.model || host_.model->generation() != identity.model_generation ||
              host_.model->sourcePath(identity.row) != identity.source_path)
@@ -483,6 +491,11 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
     {
         host_.model->finishThumbnail(identity.row, std::move(image), std::move(error));
         record(ObservationEvent{ObservationEvent::Kind::kCompleted, identity, {}, {}});
+    }
+    if (terminal_without_retry)
+    {
+        clearPending();
+        return;
     }
     replenishPendingFromDemand();
     scheduleKick();
@@ -512,10 +525,11 @@ void StudioImportThumbnailController::start(const int row)
                     std::lock_guard lock(gate_mutex_);
                     gate = decode_gate_;
                 }
-                // Interruptible wait so shutdown cannot deadlock on a test gate.
+                // Interruptible wait via thread-safe cancellation token — never read UI-only
+                // stopped_ from the worker (data race). Shutdown/cancel both request cancel.
                 while (gate)
                 {
-                    if (stopped_)
+                    if (token.is_cancellation_requested())
                         break;
                     if (gate->wait_for(std::chrono::milliseconds(10)) == std::future_status::ready)
                         break;
