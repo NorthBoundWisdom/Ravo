@@ -146,8 +146,8 @@ Item {
         onHeightChanged: root.publishViewportDemand()
         onWidthChanged: root.publishViewportDemand()
         onVisibleChanged: if (visible) {
+            // Passive focus comes from focusGrid()/click/Tab, not passive count.
             root.initializeKeyboardFocus();
-            forceActiveFocus();
         }
 
         Keys.priority: Keys.BeforeItem

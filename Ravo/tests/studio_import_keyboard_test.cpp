@@ -513,6 +513,11 @@ TEST(StudioImportKeyboard, LateModelUpdateDoesNotStealTextFocusContract)
     const auto grid_source = QString::fromUtf8(grid.readAll());
     EXPECT_TRUE(grid_source.contains(QStringLiteral("if (root.interactionLocked)")));
     EXPECT_TRUE(grid_source.contains(QStringLiteral("return;")));
+    // Passive focus must not be stolen by passive count/visible publication.
+    EXPECT_TRUE(grid_source.contains(QStringLiteral("onVisibleChanged")));
+    EXPECT_FALSE(grid_source.contains(QStringLiteral(
+        "onVisibleChanged: if (visible) {\n            root.initializeKeyboardFocus();\n            forceActiveFocus();")));
+    EXPECT_TRUE(grid_source.contains(QStringLiteral("function focusGrid")));
 }
 
 } // namespace ravo
