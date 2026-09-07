@@ -1366,6 +1366,12 @@ shared `ravo.perf01.report/v1` JSONL schema (`interactive_perf_report.h`) for
 Gallery grid→Loupe select, adjacent-photo revisit, and Loupe→Develop first-frame
 latency. Each case records warmups, P50/P90/max, cache state, source kind, and
 optional host/storage/workers/peak-owned-bytes/display-refresh fields from env.
+Import keyboard focus observations (`StudioImportKeyboardPerf.*`) record
+per-key `focus_down_<N>` / `focus_right_<N>` samples at 1k/10k/100k synthetic
+candidates plus a legacy combined `import_candidate_keyboard_focus_move` series
+that sums Down+Right for continuity. These measure model+window input handling
+after `processEvents`, not frame presentation; they are not PERF-02/C3 admits.
+
 Set `RAVO_INTERACTIVE_PERF_REPORT_PATH` to append JSONL rows; optional
 `RAVO_INTERACTIVE_PERF_WARMUPS` (default 2) and
 `RAVO_INTERACTIVE_PERF_RECORDED_SAMPLES` (default 8) select the protocol.

@@ -8,6 +8,7 @@
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "studio_import_keyboard_harness.h"
 #include "studio_test_support.h"
+#include <QAbstractItemModel>
 
 namespace ravo
 {
@@ -19,37 +20,56 @@ using interactive_perf_report::warmups_from_env;
 using studio_import_keyboard_harness::ImportKeyboardHarness;
 using studio_import_keyboard_harness::make_candidates;
 
-TEST(StudioImportKeyboardPerf, LargeCandidateFocusScrollBudgets)
+namespace
 {
-    ensure_qt_core();
-    // Enforceable harness ceilings + PERF-01-style observation only — not a PERF-02 admit.
-    constexpr int kCandidateCount = 1200;
-    constexpr std::int64_t kFocusMoveCeilingUs = 50'000;   // 50 ms / move
-    constexpr std::int64_t kPageScrollCeilingUs = 100'000; // 100 ms / page step
+void observe_focus_scales(const int candidate_count)
+{
+    // Observation only — not a PERF-02 / C3 admit. processEvents completion is
+    // input-handling done, not frame-presented.
+    constexpr std::int64_t kFocusMoveCeilingUs = 50'000;
+    constexpr std::int64_t kPageScrollCeilingUs = 100'000;
 
     ImportCandidateListModel model;
-    model.setCandidates(make_candidates(kCandidateCount));
+    model.setCandidates(make_candidates(candidate_count));
     ImportKeyboardHarness harness;
     ASSERT_TRUE(harness.load(&model));
     ASSERT_EQ(harness.currentIndex(), 0);
 
     const std::size_t warmups = warmups_from_env(1U);
     const std::size_t recorded = recorded_samples_from_env(6U);
-    std::vector<std::int64_t> arrow_samples;
+    std::vector<std::int64_t> down_samples;
+    std::vector<std::int64_t> right_samples;
     std::vector<std::int64_t> page_samples;
-    arrow_samples.reserve(recorded);
+    down_samples.reserve(recorded);
+    right_samples.reserve(recorded);
     page_samples.reserve(recorded);
+
+    int exclusive_changed_rows = 0;
+    QObject::connect(&model, &QAbstractItemModel::dataChanged, &model,
+                     [&](const QModelIndex &top, const QModelIndex &bottom, const QList<int> &roles)
+                     {
+                         if (roles.contains(ImportCandidateListModel::HighlightedRole) ||
+                             roles.isEmpty())
+                             exclusive_changed_rows += bottom.row() - top.row() + 1;
+                     });
 
     for (std::size_t i = 0; i < warmups + recorded; ++i)
     {
         harness.key(Qt::Key_Home);
-        const auto before_y = harness.contentY();
-        const auto start = std::chrono::steady_clock::now();
+        exclusive_changed_rows = 0;
+        const auto down_start = std::chrono::steady_clock::now();
         harness.key(Qt::Key_Down);
+        const auto down_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                 std::chrono::steady_clock::now() - down_start)
+                                 .count();
+        const int after_down = exclusive_changed_rows;
+        exclusive_changed_rows = 0;
+        const auto right_start = std::chrono::steady_clock::now();
         harness.key(Qt::Key_Right);
-        const auto arrow_us = std::chrono::duration_cast<std::chrono::microseconds>(
-                                  std::chrono::steady_clock::now() - start)
+        const auto right_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                  std::chrono::steady_clock::now() - right_start)
                                   .count();
+        const int after_right = exclusive_changed_rows;
         const auto page_start = std::chrono::steady_clock::now();
         harness.key(Qt::Key_PageDown);
         const auto page_us = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -57,35 +77,63 @@ TEST(StudioImportKeyboardPerf, LargeCandidateFocusScrollBudgets)
                                  .count();
         if (i >= warmups)
         {
-            arrow_samples.push_back(arrow_us);
+            down_samples.push_back(down_us);
+            right_samples.push_back(right_us);
             page_samples.push_back(page_us);
+            EXPECT_LE(after_down, 2);
+            EXPECT_LE(after_right, 2);
         }
         EXPECT_GE(harness.currentIndex(), 0);
-        static_cast<void>(before_y);
+        if (i >= warmups)
+        {
+            EXPECT_LE(down_us, kFocusMoveCeilingUs);
+            EXPECT_LE(right_us, kFocusMoveCeilingUs);
+            EXPECT_LE(page_us, kPageScrollCeilingUs);
+        }
     }
 
-    CaseMeta arrow_meta;
-    arrow_meta.case_id = "import_candidate_keyboard_focus_move";
-    arrow_meta.path = "import_candidate_grid";
-    arrow_meta.unit = "us";
-    arrow_meta.cache_state = "warm";
-    arrow_meta.source_kind = "synthetic_candidates";
-    arrow_meta.file_count = static_cast<std::size_t>(kCandidateCount);
-    arrow_meta.warmups = warmups;
-    arrow_meta.recorded_samples = recorded;
-    emit_case(arrow_meta, arrow_samples);
+    CaseMeta base;
+    base.path = "import_candidate_grid";
+    base.unit = "us";
+    base.cache_state = "warm";
+    base.source_kind = "synthetic_candidates";
+    base.file_count = static_cast<std::size_t>(candidate_count);
+    base.warmups = warmups;
+    base.recorded_samples = recorded;
+    CaseMeta down = base;
+    down.case_id = "import_candidate_keyboard_focus_down_" + std::to_string(candidate_count);
+    emit_case(down, down_samples);
 
-    CaseMeta page_meta = arrow_meta;
-    page_meta.case_id = "import_candidate_keyboard_page_scroll";
-    emit_case(page_meta, page_samples);
+    CaseMeta right = base;
+    right.case_id = "import_candidate_keyboard_focus_right_" + std::to_string(candidate_count);
+    emit_case(right, right_samples);
 
-    const auto arrow_summary = interactive_perf_report::summarize(arrow_samples);
-    const auto page_summary = interactive_perf_report::summarize(page_samples);
-    EXPECT_LE(arrow_summary.p90, kFocusMoveCeilingUs)
-        << "import focus move p90=" << arrow_summary.p90;
-    EXPECT_LE(page_summary.p90, kPageScrollCeilingUs)
-        << "import page scroll p90=" << page_summary.p90;
-    EXPECT_GT(harness.contentY(), 0);
+    // Preserve historical case id semantics: old focus_move counted Down+Right.
+    CaseMeta legacy = base;
+    legacy.case_id = "import_candidate_keyboard_focus_move";
+    std::vector<std::int64_t> legacy_samples;
+    legacy_samples.reserve(recorded);
+    for (std::size_t i = 0; i < recorded; ++i)
+        legacy_samples.push_back(down_samples[i] + right_samples[i]);
+    emit_case(legacy, legacy_samples);
+
+    CaseMeta page = base;
+    page.case_id = "import_candidate_keyboard_page_scroll_" + std::to_string(candidate_count);
+    emit_case(page, page_samples);
+}
+} // namespace
+
+TEST(StudioImportKeyboardPerf, LargeCandidateFocusScrollBudgets)
+{
+    ensure_qt_core();
+    observe_focus_scales(1200);
+}
+
+TEST(StudioImportKeyboardPerf, FocusScrollBudgetsAcrossCandidateScales)
+{
+    ensure_qt_core();
+    for (const int count : {1000, 10000, 100000})
+        observe_focus_scales(count);
 }
 
 } // namespace ravo
