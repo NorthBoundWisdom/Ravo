@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <random>
 #include <string>
 #include <QImage>
@@ -65,210 +66,657 @@ TEST(ImportCandidateListModel, UpdateCandidateNotifiesWhenSelectedBytesChange)
 TEST(ImportCandidateListModel, SelectionOracleMatchesModel)
 {
     ensure_qt_core();
-    constexpr unsigned seed = 0xC0FFEEU;
-    std::mt19937 rng(seed);
-    ImportCandidateListModel model;
 
-    struct OracleRow
+    enum class OpKind
+    {
+        HighlightExclusive,
+        HighlightToggle,
+        HighlightRange,
+        HighlightAll,
+        ApplyCheck,
+        ToggleSelected,
+        SetAllSelected,
+        SelectRange,
+        UpdateCandidate,
+        AppendCandidate,
+        ApplyScanBatch,
+        Rebuild,
+        InvalidRowNoOp,
+    };
+
+    struct Op
+    {
+        OpKind kind = OpKind::HighlightExclusive;
+        int first = 0;
+        int last = 0;
+        bool additive = false;
+        bool selected = false;
+        int duplicate_row = -1;
+        int count = 0;
+        std::uint64_t bytes = 0;
+        bool make_duplicate = false;
+        bool make_unsupported = false;
+        std::string path;
+    };
+
+    struct RefRow
     {
         bool selected = false;
         bool highlighted = false;
         bool eligible = true;
+        bool supported = true;
+        bool duplicate = false;
         std::uint64_t bytes = 0;
+        std::string path;
     };
-    std::vector<OracleRow> oracle;
 
-    auto sync_totals = [&]
+    struct Reference
     {
+        std::vector<RefRow> rows;
+        bool select_new_candidates = true;
+
+        static bool eligible(const RefRow &row) noexcept
+        {
+            return row.supported && !row.duplicate;
+        }
+
+        void rebuild(const int count, const int duplicate_row)
+        {
+            rows.clear();
+            rows.reserve(static_cast<std::size_t>(count));
+            for (int row = 0; row < count; ++row)
+            {
+                RefRow entry;
+                entry.path = "/oracle-" + std::to_string(row) + ".png";
+                entry.bytes = static_cast<std::uint64_t>((row + 1) * 10);
+                entry.duplicate = row == duplicate_row;
+                entry.supported = true;
+                entry.eligible = eligible(entry);
+                entry.selected = select_new_candidates && entry.eligible;
+                entry.highlighted = false;
+                rows.push_back(entry);
+            }
+        }
+
+        void highlight_exclusive(const int row)
+        {
+            if (row < 0 || row >= static_cast<int>(rows.size()))
+                return;
+            if (!eligible(rows[static_cast<std::size_t>(row)]))
+                return; // production: leave prior highlight untouched
+            for (auto &entry : rows)
+                entry.highlighted = false;
+            rows[static_cast<std::size_t>(row)].highlighted = true;
+        }
+
+        void highlight_toggle(const int row)
+        {
+            if (row < 0 || row >= static_cast<int>(rows.size()))
+                return;
+            auto &entry = rows[static_cast<std::size_t>(row)];
+            if (!eligible(entry))
+                return;
+            entry.highlighted = !entry.highlighted;
+        }
+
+        void highlight_range(int first, int last, const bool additive)
+        {
+            if (rows.empty())
+                return;
+            first = std::clamp(first, 0, static_cast<int>(rows.size()) - 1);
+            last = std::clamp(last, 0, static_cast<int>(rows.size()) - 1);
+            if (first > last)
+                std::swap(first, last);
+            if (!additive)
+            {
+                for (int row = 0; row < static_cast<int>(rows.size()); ++row)
+                    if (row < first || row > last)
+                        rows[static_cast<std::size_t>(row)].highlighted = false;
+            }
+            for (int row = first; row <= last; ++row)
+                if (eligible(rows[static_cast<std::size_t>(row)]))
+                    rows[static_cast<std::size_t>(row)].highlighted = true;
+        }
+
+        void highlight_all()
+        {
+            for (auto &entry : rows)
+                entry.highlighted = eligible(entry);
+        }
+
+        void apply_check(const int row)
+        {
+            if (row < 0 || row >= static_cast<int>(rows.size()))
+                return;
+            auto &clicked = rows[static_cast<std::size_t>(row)];
+            if (!eligible(clicked))
+                return;
+            const bool next = !clicked.selected;
+            if (clicked.highlighted)
+            {
+                for (auto &entry : rows)
+                    if (entry.highlighted && eligible(entry))
+                        entry.selected = next;
+            }
+            else
+                clicked.selected = next;
+        }
+
+        void toggle_selected(const int row)
+        {
+            if (row < 0 || row >= static_cast<int>(rows.size()))
+                return;
+            auto &entry = rows[static_cast<std::size_t>(row)];
+            if (!eligible(entry))
+                return;
+            entry.selected = !entry.selected;
+        }
+
+        void set_all_selected(const bool selected)
+        {
+            select_new_candidates = selected;
+            for (auto &entry : rows)
+                entry.selected = selected && eligible(entry);
+        }
+
+        void select_range(int first, int last, const bool additive)
+        {
+            if (rows.empty())
+                return;
+            first = std::clamp(first, 0, static_cast<int>(rows.size()) - 1);
+            last = std::clamp(last, 0, static_cast<int>(rows.size()) - 1);
+            if (first > last)
+                std::swap(first, last);
+            if (!additive)
+            {
+                for (auto &entry : rows)
+                    entry.selected = false;
+            }
+            for (int row = first; row <= last; ++row)
+            {
+                auto &entry = rows[static_cast<std::size_t>(row)];
+                if (eligible(entry))
+                    entry.selected = true;
+            }
+        }
+
+        void update_candidate(const int row, const std::uint64_t bytes, const bool make_duplicate,
+                              const bool make_unsupported)
+        {
+            if (row < 0 || row >= static_cast<int>(rows.size()))
+                return;
+            auto &entry = rows[static_cast<std::size_t>(row)];
+            entry.bytes = bytes;
+            // Match production: scan-owned duplicate sticks for this generation.
+            if (make_duplicate || entry.duplicate)
+                entry.duplicate = true;
+            if (make_unsupported)
+                entry.supported = false;
+            entry.eligible = eligible(entry);
+            if (!entry.eligible)
+            {
+                entry.selected = false;
+                entry.highlighted = false;
+            }
+        }
+
+        void append_candidate(const std::string &path, const std::uint64_t bytes,
+                              const bool duplicate)
+        {
+            RefRow entry;
+            entry.path = path;
+            entry.bytes = bytes;
+            entry.duplicate = duplicate;
+            entry.supported = true;
+            entry.eligible = eligible(entry);
+            entry.selected = select_new_candidates && entry.eligible;
+            entry.highlighted = false;
+            rows.push_back(entry);
+        }
+
+        void apply_scan_batch(const int first, const std::vector<RefRow> &batch)
+        {
+            if (first < 0 ||
+                first + static_cast<int>(batch.size()) > static_cast<int>(rows.size()) ||
+                batch.empty())
+                return;
+            for (std::size_t offset = 0; offset < batch.size(); ++offset)
+            {
+                auto &entry = rows[static_cast<std::size_t>(first) + offset];
+                const bool keep_selected = entry.selected;
+                const bool keep_highlighted = entry.highlighted;
+                entry.bytes = batch[offset].bytes;
+                entry.duplicate = batch[offset].duplicate;
+                entry.supported = batch[offset].supported;
+                entry.eligible = eligible(entry);
+                if (!entry.eligible)
+                {
+                    entry.selected = false;
+                    entry.highlighted = false;
+                }
+                else
+                {
+                    entry.selected = keep_selected;
+                    entry.highlighted = keep_highlighted;
+                }
+            }
+        }
+
+        void apply(const Op &op)
+        {
+            switch (op.kind)
+            {
+            case OpKind::HighlightExclusive:
+                highlight_exclusive(op.first);
+                break;
+            case OpKind::HighlightToggle:
+                highlight_toggle(op.first);
+                break;
+            case OpKind::HighlightRange:
+                highlight_range(op.first, op.last, op.additive);
+                break;
+            case OpKind::HighlightAll:
+                highlight_all();
+                break;
+            case OpKind::ApplyCheck:
+                apply_check(op.first);
+                break;
+            case OpKind::ToggleSelected:
+                toggle_selected(op.first);
+                break;
+            case OpKind::SetAllSelected:
+                set_all_selected(op.selected);
+                break;
+            case OpKind::SelectRange:
+                select_range(op.first, op.last, op.additive);
+                break;
+            case OpKind::UpdateCandidate:
+                update_candidate(op.first, op.bytes, op.make_duplicate, op.make_unsupported);
+                break;
+            case OpKind::AppendCandidate:
+                append_candidate(op.path, op.bytes, op.make_duplicate);
+                break;
+            case OpKind::ApplyScanBatch:
+            {
+                std::vector<RefRow> batch(1);
+                batch[0].bytes = op.bytes;
+                batch[0].duplicate = op.make_duplicate;
+                batch[0].supported = !op.make_unsupported;
+                apply_scan_batch(op.first, batch);
+                break;
+            }
+            case OpKind::Rebuild:
+                rebuild(op.count, op.duplicate_row);
+                break;
+            case OpKind::InvalidRowNoOp:
+                highlight_exclusive(op.first);
+                toggle_selected(op.first);
+                apply_check(op.first);
+                break;
+            }
+        }
+    };
+
+    auto apply_to_model = [](ImportCandidateListModel &model, const Op &op)
+    {
+        switch (op.kind)
+        {
+        case OpKind::HighlightExclusive:
+            model.highlightExclusive(op.first);
+            break;
+        case OpKind::HighlightToggle:
+            model.highlightToggle(op.first);
+            break;
+        case OpKind::HighlightRange:
+            model.highlightRange(op.first, op.last, op.additive);
+            break;
+        case OpKind::HighlightAll:
+            model.highlightAll();
+            break;
+        case OpKind::ApplyCheck:
+            model.applyCheck(op.first);
+            break;
+        case OpKind::ToggleSelected:
+            model.toggleSelected(op.first);
+            break;
+        case OpKind::SetAllSelected:
+            model.setAllSelected(op.selected);
+            break;
+        case OpKind::SelectRange:
+            model.selectRange(op.first, op.last, op.additive);
+            break;
+        case OpKind::UpdateCandidate:
+        {
+            ImportCandidate candidate;
+            candidate.source_path = model.sourcePath(op.first).toStdString();
+            if (candidate.source_path.empty())
+                break;
+            candidate.display_name = candidate.source_path;
+            candidate.size_bytes = op.bytes;
+            candidate.duplicate = op.make_duplicate;
+            candidate.supported = !op.make_unsupported;
+            if (op.make_duplicate)
+                candidate.duplicate_reason = "catalog_content";
+            model.updateCandidate(op.first, candidate);
+            break;
+        }
+        case OpKind::AppendCandidate:
+        {
+            ImportCandidate candidate;
+            candidate.source_path = op.path;
+            candidate.display_name = op.path;
+            candidate.size_bytes = op.bytes;
+            candidate.duplicate = op.make_duplicate;
+            if (op.make_duplicate)
+                candidate.duplicate_reason = "catalog_content";
+            model.appendCandidate(std::move(candidate));
+            break;
+        }
+        case OpKind::ApplyScanBatch:
+        {
+            ImportCandidate candidate;
+            candidate.source_path = model.sourcePath(op.first).toStdString();
+            candidate.display_name = candidate.source_path;
+            candidate.size_bytes = op.bytes;
+            candidate.duplicate = op.make_duplicate;
+            candidate.supported = !op.make_unsupported;
+            if (op.make_duplicate)
+                candidate.duplicate_reason = "catalog_content";
+            model.applyScanBatch(op.first, {candidate});
+            break;
+        }
+        case OpKind::Rebuild:
+        {
+            std::vector<ImportCandidate> candidates;
+            candidates.reserve(static_cast<std::size_t>(op.count));
+            for (int row = 0; row < op.count; ++row)
+            {
+                ImportCandidate candidate;
+                candidate.source_path = "/oracle-" + std::to_string(row) + ".png";
+                candidate.display_name = candidate.source_path;
+                candidate.size_bytes = static_cast<std::uint64_t>((row + 1) * 10);
+                if (row == op.duplicate_row)
+                {
+                    candidate.duplicate = true;
+                    candidate.duplicate_reason = "catalog_content";
+                }
+                candidates.push_back(candidate);
+            }
+            model.setCandidates(std::move(candidates), true);
+            break;
+        }
+        case OpKind::InvalidRowNoOp:
+            model.highlightExclusive(op.first);
+            model.toggleSelected(op.first);
+            model.applyCheck(op.first);
+            break;
+        }
+    };
+
+    auto compare =
+        [](const ImportCandidateListModel &model, const Reference &ref, const std::string &context)
+    {
+        ASSERT_EQ(model.rowCount(), static_cast<int>(ref.rows.size())) << context;
         int count = 0;
         qulonglong bytes = 0;
-        for (const auto &row : oracle)
+        for (const auto &row : ref.rows)
             if (row.selected)
             {
                 ++count;
                 bytes += row.bytes;
             }
-        EXPECT_EQ(model.selectedCount(), count);
-        EXPECT_EQ(model.selectedBytes(), bytes);
-        ASSERT_EQ(model.rowCount(), static_cast<int>(oracle.size()));
+        EXPECT_EQ(model.selectedCount(), count) << context;
+        EXPECT_EQ(model.selectedBytes(), bytes) << context;
         for (int row = 0; row < model.rowCount(); ++row)
         {
+            const auto &expected = ref.rows[static_cast<std::size_t>(row)];
             EXPECT_EQ(
                 model.data(model.index(row, 0), ImportCandidateListModel::SelectedRole).toBool(),
-                oracle[static_cast<std::size_t>(row)].selected)
-                << "row " << row;
-            EXPECT_EQ(model.highlighted(row), oracle[static_cast<std::size_t>(row)].highlighted)
-                << "row " << row;
+                expected.selected)
+                << context << " selected row " << row;
+            EXPECT_EQ(model.highlighted(row), expected.highlighted)
+                << context << " highlighted row " << row;
+            EXPECT_EQ(
+                model.data(model.index(row, 0), ImportCandidateListModel::EligibleRole).toBool(),
+                expected.eligible)
+                << context << " eligible row " << row;
         }
     };
 
-    auto rebuild = [&](const int count, const int duplicate_row)
+    auto run_ops = [&](const unsigned seed, const std::vector<Op> &fixed_ops)
     {
-        std::vector<ImportCandidate> candidates;
-        oracle.clear();
-        candidates.reserve(static_cast<std::size_t>(count));
-        for (int row = 0; row < count; ++row)
+        ImportCandidateListModel model;
+        Reference ref;
+        std::vector<Op> replay = fixed_ops;
+        for (const auto &op : replay)
         {
-            ImportCandidate candidate;
-            candidate.source_path = "/oracle-" + std::to_string(row) + ".png";
-            candidate.display_name = candidate.source_path;
-            candidate.size_bytes = static_cast<std::uint64_t>((row + 1) * 10);
-            if (row == duplicate_row)
-            {
-                candidate.duplicate = true;
-                candidate.duplicate_reason = "catalog_content";
-            }
-            candidates.push_back(candidate);
-            oracle.push_back({!candidate.duplicate && candidate.supported, false,
-                              !candidate.duplicate && candidate.supported, candidate.size_bytes});
+            ref.apply(op);
+            apply_to_model(model, op);
+            compare(model, ref, "fixed seed=" + std::to_string(seed));
+            if (::testing::Test::HasFatalFailure())
+                return;
         }
-        model.setCandidates(std::move(candidates));
-        sync_totals();
+
+        std::mt19937 rng(seed);
+        constexpr int kRows = 24;
+        Op rebuild_op;
+        rebuild_op.kind = OpKind::Rebuild;
+        rebuild_op.count = kRows;
+        rebuild_op.duplicate_row = 7;
+        replay.push_back(rebuild_op);
+        ref.apply(rebuild_op);
+        apply_to_model(model, rebuild_op);
+        compare(model, ref, "rebuild seed=" + std::to_string(seed));
+
+        for (int step = 0; step < 80; ++step)
+        {
+            Op op;
+            const int kind = static_cast<int>(rng() % 12U);
+            op.first = static_cast<int>(rng() % 30U) - 3;
+            op.last = static_cast<int>(rng() % 30U) - 3;
+            op.additive = (rng() % 2U) == 0U;
+            op.selected = (rng() % 2U) == 0U;
+            op.bytes = static_cast<std::uint64_t>((rng() % 50U) + 1U) * 10U;
+            op.make_duplicate = (rng() % 5U) == 0U;
+            op.make_unsupported = (rng() % 7U) == 0U;
+            switch (kind)
+            {
+            case 0:
+                op.kind = OpKind::HighlightExclusive;
+                break;
+            case 1:
+                op.kind = OpKind::HighlightToggle;
+                break;
+            case 2:
+                op.kind = OpKind::HighlightRange;
+                break;
+            case 3:
+                op.kind = OpKind::ApplyCheck;
+                break;
+            case 4:
+                op.kind = OpKind::SetAllSelected;
+                break;
+            case 5:
+                op.kind = OpKind::ToggleSelected;
+                break;
+            case 6:
+                op.kind = OpKind::HighlightAll;
+                break;
+            case 7:
+                op.kind = OpKind::SelectRange;
+                break;
+            case 8:
+                op.kind = OpKind::UpdateCandidate;
+                if (op.first < 0 || op.first >= static_cast<int>(ref.rows.size()))
+                {
+                    if (ref.rows.empty())
+                        continue;
+                    op.first = static_cast<int>(rng() % static_cast<unsigned>(ref.rows.size()));
+                }
+                break;
+            case 9:
+                op.kind = OpKind::AppendCandidate;
+                op.path = "/oracle-append-" + std::to_string(step) + ".png";
+                break;
+            case 10:
+                op.kind = OpKind::ApplyScanBatch;
+                if (ref.rows.empty())
+                    continue;
+                op.first = static_cast<int>(rng() % static_cast<unsigned>(ref.rows.size()));
+                break;
+            default:
+                op.kind = OpKind::InvalidRowNoOp;
+                op.first = -1;
+                break;
+            }
+            replay.push_back(op);
+            ref.apply(op);
+            apply_to_model(model, op);
+            compare(model, ref, "seed=" + std::to_string(seed) + " step=" + std::to_string(step));
+            if (::testing::Test::HasFatalFailure())
+            {
+                std::string dump;
+                for (const auto &recorded : replay)
+                    dump += std::to_string(static_cast<int>(recorded.kind)) + ":" +
+                            std::to_string(recorded.first) + ":" + std::to_string(recorded.last) +
+                            ":" + (recorded.additive ? "1" : "0") + ";";
+                ADD_FAILURE() << "oracle replay seed=" << seed << " ops=" << dump;
+                return;
+            }
+        }
     };
 
-    rebuild(0, -1);
-    rebuild(12, 3);
-    model.highlightExclusive(1);
-    for (auto &row : oracle)
-        row.highlighted = false;
-    oracle[1].highlighted = true;
-    sync_totals();
-
-    model.highlightRange(2, 5, false);
-    for (auto &row : oracle)
-        row.highlighted = false;
-    for (int row = 2; row <= 5; ++row)
-        if (oracle[static_cast<std::size_t>(row)].eligible)
-            oracle[static_cast<std::size_t>(row)].highlighted = true;
-    sync_totals();
-
-    model.highlightRange(5, 1, true); // reverse additive
-    for (int row = 1; row <= 5; ++row)
-        if (oracle[static_cast<std::size_t>(row)].eligible)
-            oracle[static_cast<std::size_t>(row)].highlighted = true;
-    sync_totals();
-
-    model.applyCheck(2);
+    std::vector<Op> boundaries;
     {
-        const bool next = !oracle[2].selected;
-        for (std::size_t row = 0; row < oracle.size(); ++row)
-            if (oracle[row].highlighted && oracle[row].eligible)
-                oracle[row].selected = next;
+        Op op;
+        op.kind = OpKind::Rebuild;
+        op.count = 12;
+        op.duplicate_row = 3;
+        boundaries.push_back(op);
     }
-    sync_totals();
-
-    model.setAllSelected(false);
-    for (auto &row : oracle)
-        row.selected = false;
-    sync_totals();
-
-    model.toggleSelected(0);
-    if (oracle[0].eligible)
-        oracle[0].selected = !oracle[0].selected;
-    sync_totals();
-
-    model.highlightAll();
-    for (auto &row : oracle)
-        row.highlighted = row.eligible;
-    sync_totals();
-
-    // Byte change on selected row.
-    auto grown = make_row("/oracle-0.png", 999);
-    model.updateCandidate(0, grown);
-    oracle[0].bytes = 999;
-    sync_totals();
-
-    // Unsupported/duplicate clears selection+highlight.
-    model.updateCandidate(4, make_row("/oracle-4.png", 50, true));
-    oracle[4].eligible = false;
-    oracle[4].selected = false;
-    oracle[4].highlighted = false;
-    oracle[4].bytes = 50;
-    sync_totals();
-
-    // Randomized sequence with fixed seed for replay.
-    std::vector<std::string> ops;
-    rebuild(24, 7);
-    for (int step = 0; step < 80; ++step)
     {
-        const int op = static_cast<int>(rng() % 7U);
-        const int a = static_cast<int>(rng() % 24U);
-        const int b = static_cast<int>(rng() % 24U);
-        ops.push_back(std::to_string(op) + ":" + std::to_string(a) + ":" + std::to_string(b));
-        switch (op)
-        {
-        case 0:
-            model.highlightExclusive(a);
-            for (auto &row : oracle)
-                row.highlighted = false;
-            if (oracle[static_cast<std::size_t>(a)].eligible)
-                oracle[static_cast<std::size_t>(a)].highlighted = true;
-            break;
-        case 1:
-            model.highlightToggle(a);
-            if (oracle[static_cast<std::size_t>(a)].eligible)
-                oracle[static_cast<std::size_t>(a)].highlighted =
-                    !oracle[static_cast<std::size_t>(a)].highlighted;
-            break;
-        case 2:
-            model.highlightRange(a, b, (rng() % 2U) == 0U);
-            {
-                int first = a;
-                int last = b;
-                if (first > last)
-                    std::swap(first, last);
-                const bool additive = ops.back().empty(); // unused placeholder
-                static_cast<void>(additive);
-            }
-            // Re-read truth from model after range to keep oracle honest for additive flag.
-            for (int row = 0; row < 24; ++row)
-                oracle[static_cast<std::size_t>(row)].highlighted = model.highlighted(row);
-            for (int row = 0; row < 24; ++row)
-                oracle[static_cast<std::size_t>(row)].selected =
-                    model.data(model.index(row, 0), ImportCandidateListModel::SelectedRole)
-                        .toBool();
-            // After re-sync from model for this op, skip further mutation tracking this step.
-            sync_totals();
-            continue;
-        case 3:
-            model.applyCheck(a);
-            for (int row = 0; row < 24; ++row)
-            {
-                oracle[static_cast<std::size_t>(row)].selected =
-                    model.data(model.index(row, 0), ImportCandidateListModel::SelectedRole)
-                        .toBool();
-                oracle[static_cast<std::size_t>(row)].highlighted = model.highlighted(row);
-            }
-            sync_totals();
-            continue;
-        case 4:
-            model.setAllSelected((rng() % 2U) == 0U);
-            for (int row = 0; row < 24; ++row)
-                oracle[static_cast<std::size_t>(row)].selected =
-                    model.data(model.index(row, 0), ImportCandidateListModel::SelectedRole)
-                        .toBool();
-            sync_totals();
-            continue;
-        case 5:
-            model.toggleSelected(a);
-            oracle[static_cast<std::size_t>(a)].selected =
-                model.data(model.index(a, 0), ImportCandidateListModel::SelectedRole).toBool();
-            break;
-        default:
-            model.highlightAll();
-            for (auto &row : oracle)
-                row.highlighted = row.eligible;
-            break;
-        }
-        sync_totals();
+        Op op;
+        op.kind = OpKind::HighlightExclusive;
+        op.first = 1;
+        boundaries.push_back(op);
     }
-    if (::testing::Test::HasFailure())
     {
-        std::string replay;
-        for (const auto &op : ops)
-            replay += op + ";";
-        ADD_FAILURE() << "oracle replay seed=" << seed << " ops=" << replay;
+        Op op;
+        op.kind = OpKind::HighlightExclusive;
+        op.first = 3;
+        boundaries.push_back(op);
     }
+    {
+        Op op;
+        op.kind = OpKind::HighlightRange;
+        op.first = 2;
+        op.last = 5;
+        op.additive = false;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::HighlightRange;
+        op.first = 5;
+        op.last = 1;
+        op.additive = true;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::HighlightRange;
+        op.first = 4;
+        op.last = 4;
+        op.additive = false;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::ApplyCheck;
+        op.first = 2;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::SetAllSelected;
+        op.selected = false;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::AppendCandidate;
+        op.path = "/oracle-intent-keep.png";
+        op.bytes = 42;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::SetAllSelected;
+        op.selected = true;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::Rebuild;
+        op.count = 4;
+        op.duplicate_row = -1;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::SelectRange;
+        op.first = 0;
+        op.last = 0;
+        op.additive = false;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::SelectRange;
+        op.first = 1;
+        op.last = 1;
+        op.additive = false;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::UpdateCandidate;
+        op.first = 1;
+        op.bytes = 999;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::UpdateCandidate;
+        op.first = 2;
+        op.bytes = 30;
+        op.make_duplicate = true;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::ApplyScanBatch;
+        op.first = 0;
+        op.bytes = 11;
+        op.make_unsupported = true;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::InvalidRowNoOp;
+        op.first = -5;
+        boundaries.push_back(op);
+    }
+    {
+        Op op;
+        op.kind = OpKind::ToggleSelected;
+        op.first = 0;
+        boundaries.push_back(op);
+    }
+
+    run_ops(0xC0FFEEU, boundaries);
+    run_ops(0xBADC0DEU, {});
+    run_ops(0x1234567U, {});
 }
 
 TEST(ImportCandidateListModel, ExclusiveHighlightNotifiesAtMostTwoRows)
