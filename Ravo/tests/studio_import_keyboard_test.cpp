@@ -1,4 +1,5 @@
 #include <QFile>
+#include <QGuiApplication>
 #include <QPointer>
 #include <gtest/gtest.h>
 
@@ -416,6 +417,102 @@ TEST(StudioImportKeyboard, SelectAllCommandOwnsImportGalleryAndTextContexts)
     const auto grid_source = QString::fromUtf8(grid_file.readAll());
     EXPECT_FALSE(grid_source.contains(QStringLiteral("Key_A")));
     EXPECT_FALSE(grid_source.contains(QStringLiteral("SelectAll")));
+}
+
+TEST(StudioImportKeyboard, FocusSurvivesScanAndPageLifecycles)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    ImportKeyboardHarness harness;
+    ASSERT_TRUE(harness.load(&model));
+    EXPECT_EQ(harness.currentIndex(), -1);
+    EXPECT_EQ(harness.selectionAnchor(), -1);
+
+    model.setCandidates(make_candidates(8));
+    QGuiApplication::processEvents();
+    EXPECT_EQ(harness.currentIndex(), 0);
+    EXPECT_EQ(harness.selectionAnchor(), 0);
+    harness.key(Qt::Key_Right);
+    EXPECT_EQ(harness.currentIndex(), 1);
+
+    // Shrink / empty / refill without leaving stale indices.
+    model.setCandidates(make_candidates(3));
+    QGuiApplication::processEvents();
+    EXPECT_GE(harness.currentIndex(), -1);
+    EXPECT_LT(harness.currentIndex(), 3);
+    EXPECT_GE(harness.selectionAnchor(), -1);
+    EXPECT_LT(harness.selectionAnchor(), 3);
+
+    model.setCandidates({});
+    QGuiApplication::processEvents();
+    EXPECT_EQ(harness.currentIndex(), -1);
+    EXPECT_EQ(harness.selectionAnchor(), -1);
+
+    model.setCandidates(make_candidates(5));
+    QGuiApplication::processEvents();
+    EXPECT_EQ(harness.currentIndex(), 0);
+    EXPECT_EQ(harness.selectionAnchor(), 0);
+
+    // Same count, new source identity replacement.
+    model.setCandidates(make_candidates(5));
+    QGuiApplication::processEvents();
+    EXPECT_EQ(harness.currentIndex(), 0);
+    harness.key(Qt::Key_End);
+    EXPECT_EQ(harness.currentIndex(), 4);
+
+    // Close/reopen harness (page lifecycle).
+    harness.reset();
+    ASSERT_TRUE(harness.load(&model));
+    EXPECT_EQ(harness.currentIndex(), 0);
+    harness.key(Qt::Key_Right);
+    EXPECT_EQ(harness.currentIndex(), 1);
+}
+
+TEST(StudioImportKeyboard, LockedGridRejectsKeyboardAndKeepsSelection)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    model.setCandidates(make_candidates(6, 2));
+    ImportKeyboardHarness harness;
+    ASSERT_TRUE(harness.load(&model));
+    harness.key(Qt::Key_Right);
+    ASSERT_EQ(harness.currentIndex(), 1);
+    const int selected = model.selectedCount();
+    const bool highlighted1 = model.highlighted(1);
+
+    harness.root->setProperty("importWorkActive", true);
+    QGuiApplication::processEvents();
+    harness.key(Qt::Key_Right);
+    EXPECT_EQ(harness.currentIndex(), 1);
+    EXPECT_EQ(model.selectedCount(), selected);
+    EXPECT_EQ(model.highlighted(1), highlighted1);
+    harness.key(Qt::Key_Space);
+    EXPECT_EQ(model.selectedCount(), selected);
+
+    harness.root->setProperty("importWorkActive", false);
+    QGuiApplication::processEvents();
+    harness.key(Qt::Key_Right);
+    EXPECT_EQ(harness.currentIndex(), 2);
+}
+
+TEST(StudioImportKeyboard, LateModelUpdateDoesNotStealTextFocusContract)
+{
+    ensure_qt_core();
+    // Structural contract: ImportPage disables the grid while locked, and the
+    // production grid only consumes Keys when interactionLocked is false.
+    QFile page(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML));
+    ASSERT_TRUE(page.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto page_source = QString::fromUtf8(page.readAll());
+    EXPECT_TRUE(page_source.contains(QStringLiteral("readonly property bool locked")));
+    EXPECT_TRUE(page_source.contains(
+        QStringLiteral("importWorkActive || presenter.importPreflightActive")));
+    EXPECT_TRUE(page_source.contains(QStringLiteral("enabled: !root.locked")));
+
+    QFile grid(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML));
+    ASSERT_TRUE(grid.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto grid_source = QString::fromUtf8(grid.readAll());
+    EXPECT_TRUE(grid_source.contains(QStringLiteral("if (root.interactionLocked)")));
+    EXPECT_TRUE(grid_source.contains(QStringLiteral("return;")));
 }
 
 } // namespace ravo
