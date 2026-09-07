@@ -17,14 +17,59 @@
 namespace ravo::studio_import_production_window
 {
 
+// Explicit RAII owner for QQmlComponent::create() roots. Visual parenting does
+// not replace QObject ownership — destroy before the engine/window die.
+struct ScopedQuickItem
+{
+    std::unique_ptr<QQuickItem> item;
+
+    ScopedQuickItem() = default;
+    explicit ScopedQuickItem(QQuickItem *raw)
+        : item(raw)
+    {
+    }
+    ~ScopedQuickItem()
+    {
+        reset();
+    }
+
+    ScopedQuickItem(const ScopedQuickItem &) = delete;
+    ScopedQuickItem &operator=(const ScopedQuickItem &) = delete;
+    ScopedQuickItem(ScopedQuickItem &&) noexcept = default;
+    ScopedQuickItem &operator=(ScopedQuickItem &&) noexcept = default;
+
+    void reset()
+    {
+        if (item)
+        {
+            item->setParentItem(nullptr);
+            item.reset();
+        }
+    }
+
+    [[nodiscard]] QQuickItem *get() const noexcept
+    {
+        return item.get();
+    }
+    [[nodiscard]] QQuickItem *operator->() const noexcept
+    {
+        return item.get();
+    }
+    explicit operator bool() const noexcept
+    {
+        return static_cast<bool>(item);
+    }
+};
+
 // Loads the production ImportCandidateGrid (formal QML module source) in a real
-// QQuickWindow. ImportPhotoGrid+GeoControls is exercised by Studio smoke.
+// QQuickWindow. Keys are delivered through the QWindow / QTest entry — never
+// sendEvent(grid) and never forceActiveFocus per key.
 struct ImportCandidateGridWindow
 {
     QQmlEngine engine;
     QQuickWindow window;
     ImportCandidateListModel model;
-    std::unique_ptr<QQuickItem> root;
+    ScopedQuickItem root;
     QQuickItem *grid = nullptr;
 
     ~ImportCandidateGridWindow()
@@ -35,11 +80,7 @@ struct ImportCandidateGridWindow
     void reset()
     {
         grid = nullptr;
-        if (root)
-        {
-            root->setParentItem(nullptr);
-            root.reset();
-        }
+        root.reset();
     }
 
     [[nodiscard]] bool load(const int candidate_count = 24, const int duplicate_row = -1)
@@ -63,7 +104,7 @@ struct ImportCandidateGridWindow
             delete object;
             return false;
         }
-        root.reset(item);
+        root = ScopedQuickItem{item};
         root->setParentItem(window.contentItem());
         root->setSize(QSizeF(800, 600));
         root->setProperty("productionGridUrl",
@@ -86,8 +127,6 @@ struct ImportCandidateGridWindow
         return grid->hasActiveFocus();
     }
 
-    // Deliver keys only while the production grid already owns focus. Never
-    // forceActiveFocus here and never fall back when focus has moved away.
     void key(const int key, const Qt::KeyboardModifiers modifiers = Qt::NoModifier)
     {
         ASSERT_NE(grid, nullptr);
@@ -95,11 +134,13 @@ struct ImportCandidateGridWindow
         QGuiApplication::processEvents();
         ASSERT_TRUE(window.isActive());
         ASSERT_TRUE(grid->hasActiveFocus())
-            << "grid lost active focus; refuse to force or retarget";
+            << "grid lost active focus; refuse to forceActiveFocus or retarget to grid";
+        // Formal window entry: deliver to the QWindow so focusObject receives the key.
+        // Never sendEvent(grid) and never forceActiveFocus as a fallback.
         QKeyEvent press(QEvent::KeyPress, key, modifiers);
         QKeyEvent release(QEvent::KeyRelease, key, modifiers);
-        QCoreApplication::sendEvent(grid, &press);
-        QCoreApplication::sendEvent(grid, &release);
+        QCoreApplication::sendEvent(&window, &press);
+        QCoreApplication::sendEvent(&window, &release);
         QGuiApplication::processEvents();
     }
 

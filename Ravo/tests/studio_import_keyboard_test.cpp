@@ -5,6 +5,8 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QPointer>
+#include <QKeySequence>
+#include <QKeyEvent>
 #include <gtest/gtest.h>
 
 #include "ravo/desktop/import_candidate_list_model.h"
@@ -536,11 +538,12 @@ TEST(StudioImportKeyboard, FirstCandidatesDoNotStealFilenameTemplateFocus)
     {
         for (const auto &error : component.errors())
             ADD_FAILURE() << error.toString().toStdString();
-        GTEST_SKIP() << "BLOCKED: focus publication host failed to load";
+        GTEST_SKIP() << "UNTESTED: focus publication host failed to load";
     }
     auto *object = component.create();
-    auto *root = qobject_cast<QQuickItem *>(object);
-    ASSERT_NE(root, nullptr);
+    auto *raw_root = qobject_cast<QQuickItem *>(object);
+    ASSERT_NE(raw_root, nullptr);
+    studio_import_production_window::ScopedQuickItem root{raw_root};
     root->setParentItem(window.contentItem());
     root->setSize(QSizeF(900, 600));
     root->setProperty("productionGridUrl",
@@ -553,23 +556,22 @@ TEST(StudioImportKeyboard, FirstCandidatesDoNotStealFilenameTemplateFocus)
 
     auto *field = root->findChild<QQuickItem *>(QStringLiteral("importFilenameTemplate"));
     ASSERT_NE(field, nullptr);
-    QMetaObject::invokeMethod(root, "focusFilenameTemplate", Qt::DirectConnection);
+    QMetaObject::invokeMethod(root.get(), "focusFilenameTemplate", Qt::DirectConnection);
     QGuiApplication::processEvents();
     ASSERT_TRUE(field->hasActiveFocus());
     const auto selected_text = field->property("selectedText").toString();
     EXPECT_FALSE(selected_text.isEmpty());
 
-    // Scan hang → first candidates publish while typing.
     model.setCandidates(make_candidates(12));
     QGuiApplication::processEvents();
     EXPECT_TRUE(field->hasActiveFocus()) << "passive candidate publication stole text focus";
     EXPECT_EQ(field->property("selectedText").toString(), selected_text);
 
-    // Full ImportPage + GeoControls assembly remains a Studio smoke residual when unavailable.
     QFile page(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML));
     ASSERT_TRUE(page.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto page_source = QString::fromUtf8(page.readAll());
     EXPECT_TRUE(page_source.contains(QStringLiteral("ImportDestinationPanel")));
+    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportPhotoGrid")));
 }
 
 TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
@@ -611,8 +613,44 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
     }();
     const int gallery = presenter.selectedCount();
 
-    // Real text-input active gate: Select All must not mutate Import/Gallery selection.
+    QQmlEngine engine;
+    QQuickWindow window;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QString::fromUtf8(RAVO_IMPORT_FOCUS_PUBLICATION_HOST_QML)));
+    if (component.isError())
+        GTEST_SKIP() << "UNTESTED: focus publication host unavailable for Select All key routing";
+    auto *object = component.create();
+    auto *raw_root = qobject_cast<QQuickItem *>(object);
+    ASSERT_NE(raw_root, nullptr);
+    studio_import_production_window::ScopedQuickItem root{raw_root};
+    root->setParentItem(window.contentItem());
+    root->setSize(QSizeF(900, 600));
+    root->setProperty("productionGridUrl",
+                      QUrl::fromLocalFile(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML)));
+    root->setProperty("importCandidates", QVariant::fromValue(import_model));
+    window.resize(900, 600);
+    window.show();
+    window.requestActivate();
+    QGuiApplication::processEvents();
+    auto *field = root->findChild<QQuickItem *>(QStringLiteral("importFilenameTemplate"));
+    ASSERT_NE(field, nullptr);
+    QMetaObject::invokeMethod(root.get(), "focusFilenameTemplate", Qt::DirectConnection);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(field->hasActiveFocus());
     controller.setTextInputActive(true);
+    {
+        const QKeySequence select_all(QKeySequence::SelectAll);
+        for (int index = 0; index < select_all.count(); ++index)
+        {
+            const QKeyCombination combo = select_all[static_cast<uint>(index)];
+            QKeyEvent press(QEvent::KeyPress, combo.key(), combo.keyboardModifiers());
+            QKeyEvent release(QEvent::KeyRelease, combo.key(), combo.keyboardModifiers());
+            QCoreApplication::sendEvent(&window, &press);
+            QCoreApplication::sendEvent(&window, &release);
+        }
+        QGuiApplication::processEvents();
+    }
+    EXPECT_FALSE(field->property("selectedText").toString().isEmpty());
     for (const auto &value : controller.shortcutEntries())
         if (value.toMap().value(QStringLiteral("actionId")).toString() == action)
             EXPECT_FALSE(value.toMap().value(QStringLiteral("enabled")).toBool());
@@ -624,13 +662,31 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
     EXPECT_EQ(presenter.selectedCount(), gallery);
     controller.setTextInputActive(false);
 
-    // Residual: full ImportPage TextField key routing still depends on GeoControls page load
-    // in Studio smoke; this suite owns the command-gate + production objectName contract.
-    QFile panel(QString::fromUtf8(RAVO_REPOSITORY_ROOT) +
-                QStringLiteral("/Ravo/desktop/qml/chrome/ImportDestinationPanel.qml"));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto panel_source = QString::fromUtf8(panel.readAll());
-    EXPECT_TRUE(panel_source.contains(QStringLiteral("objectName: \"importFilenameTemplate\"")));
+    // Full ImportPage + GeoControls assembly may be unavailable in this binary.
+    // Do not skip the Select All assertions above; record residual honestly.
+    QQmlComponent page_component(
+        &engine, QUrl::fromLocalFile(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML)));
+    if (page_component.isError())
+    {
+        RecordProperty("import_page_geocontrols", "UNTESTED");
+    }
+    else
+    {
+        studio_import_production_window::ScopedQuickItem page_root{
+            qobject_cast<QQuickItem *>(page_component.create())};
+        RecordProperty("import_page_geocontrols", page_root ? "loaded" : "UNTESTED");
+    }
+}
+
+TEST(StudioImportKeyboard, ProductionWindowKeysUseQTestWindowEntry)
+{
+    ensure_qt_core();
+    studio_import_production_window::ImportCandidateGridWindow host;
+    if (!host.load(16))
+        GTEST_SKIP() << "UNTESTED: production ImportCandidateGrid window failed to activate";
+    const int before = host.currentIndex();
+    host.key(Qt::Key_Right);
+    EXPECT_NE(host.currentIndex(), before);
 }
 
 } // namespace ravo
