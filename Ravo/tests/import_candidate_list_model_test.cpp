@@ -270,4 +270,31 @@ TEST(ImportCandidateListModel, SelectionOracleMatchesModel)
     }
 }
 
+TEST(ImportCandidateListModel, ExclusiveHighlightNotifiesAtMostTwoRows)
+{
+    ensure_qt_core();
+    constexpr int kCount = 100000;
+    std::vector<ImportCandidate> candidates(static_cast<std::size_t>(kCount));
+    for (int row = 0; row < kCount; ++row)
+    {
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+        candidates[static_cast<std::size_t>(row)].size_bytes = 1;
+    }
+    ImportCandidateListModel model;
+    model.setCandidates(std::move(candidates));
+    model.highlightExclusive(10);
+
+    int changed_rows = 0;
+    bool saw_reset = false;
+    QObject::connect(&model, &QAbstractItemModel::modelReset, &model, [&] { saw_reset = true; });
+    QObject::connect(&model, &QAbstractItemModel::dataChanged, &model,
+                     [&](const QModelIndex &top, const QModelIndex &bottom, const QList<int> &)
+                     { changed_rows += bottom.row() - top.row() + 1; });
+    model.highlightExclusive(90000);
+    EXPECT_FALSE(saw_reset);
+    EXPECT_LE(changed_rows, 2);
+    EXPECT_TRUE(model.highlighted(90000));
+    EXPECT_FALSE(model.highlighted(10));
+}
+
 } // namespace ravo

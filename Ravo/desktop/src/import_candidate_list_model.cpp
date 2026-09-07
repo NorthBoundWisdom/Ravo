@@ -91,6 +91,74 @@ void ImportCandidateListModel::recountSelection()
         }
 }
 
+bool ImportCandidateListModel::eligible(const Row &row) noexcept
+{
+    return row.candidate.supported && !row.candidate.duplicate;
+}
+
+void ImportCandidateListModel::setRowSelected(Row &row, const bool selected)
+{
+    if (row.selected == selected)
+        return;
+    if (selected && !eligible(row))
+        return;
+    row.selected = selected;
+    selected_count_ += selected ? 1 : -1;
+    if (selected)
+        selected_bytes_ += row.candidate.size_bytes;
+    else
+        selected_bytes_ -= row.candidate.size_bytes;
+}
+
+void ImportCandidateListModel::setRowHighlighted(const int row, const bool highlighted,
+                                                 std::vector<int> *changed)
+{
+    if (row < 0 || row >= rowCount())
+        return;
+    auto &entry = rows_[static_cast<std::size_t>(row)];
+    if (highlighted && !eligible(entry))
+        return;
+    if (entry.highlighted == highlighted)
+        return;
+    entry.highlighted = highlighted;
+    if (highlighted)
+        highlighted_rows_.insert(row);
+    else
+        highlighted_rows_.erase(row);
+    if (changed)
+        changed->push_back(row);
+}
+
+void ImportCandidateListModel::emitRoleRanges(const std::vector<int> &rows, const QList<int> &roles)
+{
+    if (rows.empty())
+        return;
+    std::vector<int> sorted = rows;
+    std::sort(sorted.begin(), sorted.end());
+    sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
+    int begin = sorted.front();
+    int prev = begin;
+    for (std::size_t i = 1; i < sorted.size(); ++i)
+    {
+        if (sorted[i] == prev + 1)
+        {
+            prev = sorted[i];
+            continue;
+        }
+        emit dataChanged(index(begin, 0), index(prev, 0), roles);
+        begin = sorted[i];
+        prev = begin;
+    }
+    emit dataChanged(index(begin, 0), index(prev, 0), roles);
+}
+
+void ImportCandidateListModel::notifySelectionIfChanged(const int previous_count,
+                                                        const qulonglong previous_bytes)
+{
+    if (previous_count != selected_count_ || previous_bytes != selected_bytes_)
+        emit selectionChanged();
+}
+
 void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candidates,
                                              const bool preserve_check_intent)
 {
@@ -100,6 +168,7 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
         select_new_candidates_ = true;
     rows_.clear();
     thumbnail_rows_.clear();
+    highlighted_rows_.clear();
     rows_.reserve(candidates.size());
     for (auto &candidate : candidates)
         rows_.push_back({std::move(candidate), {}, false, false, false, 0U, {}});
@@ -171,7 +240,11 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
     if (!entry.candidate.supported || entry.candidate.duplicate)
     {
         entry.selected = false;
-        entry.highlighted = false;
+        if (entry.highlighted)
+        {
+            entry.highlighted = false;
+            highlighted_rows_.erase(row);
+        }
     }
     recountSelection();
     emit dataChanged(index(row, 0), index(row, 0),
@@ -226,7 +299,11 @@ void ImportCandidateListModel::applyScanBatch(const int first,
         if (!entry.candidate.supported || entry.candidate.duplicate)
         {
             entry.selected = false;
-            entry.highlighted = false;
+            if (entry.highlighted)
+            {
+                entry.highlighted = false;
+                highlighted_rows_.erase(first + static_cast<int>(offset));
+            }
         }
         if (entry.selected)
         {
@@ -284,16 +361,13 @@ void ImportCandidateListModel::toggleSelected(const int row)
     if (row < 0 || row >= rowCount())
         return;
     auto &entry = rows_[static_cast<std::size_t>(row)];
-    if (!entry.candidate.supported || entry.candidate.duplicate)
+    if (!eligible(entry))
         return;
-    entry.selected = !entry.selected;
-    selected_count_ += entry.selected ? 1 : -1;
-    if (entry.selected)
-        selected_bytes_ += entry.candidate.size_bytes;
-    else
-        selected_bytes_ -= entry.candidate.size_bytes;
+    const int previous_count = selected_count_;
+    const auto previous_bytes = selected_bytes_;
+    setRowSelected(entry, !entry.selected);
     emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
-    emit selectionChanged();
+    notifySelectionIfChanged(previous_count, previous_bytes);
 }
 
 void ImportCandidateListModel::setAllSelected(const bool selected)
@@ -301,11 +375,21 @@ void ImportCandidateListModel::setAllSelected(const bool selected)
     select_new_candidates_ = selected;
     if (rows_.empty())
         return;
-    for (auto &row : rows_)
-        row.selected = selected && row.candidate.supported && !row.candidate.duplicate;
-    recountSelection();
-    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
-    emit selectionChanged();
+    const int previous_count = selected_count_;
+    const auto previous_bytes = selected_bytes_;
+    std::vector<int> changed;
+    changed.reserve(rows_.size());
+    for (int row = 0; row < rowCount(); ++row)
+    {
+        auto &entry = rows_[static_cast<std::size_t>(row)];
+        const bool next = selected && eligible(entry);
+        if (entry.selected == next)
+            continue;
+        setRowSelected(entry, next);
+        changed.push_back(row);
+    }
+    emitRoleRanges(changed, {SelectedRole});
+    notifySelectionIfChanged(previous_count, previous_bytes);
 }
 
 void ImportCandidateListModel::selectRange(int first, int last, const bool additive)
@@ -316,30 +400,46 @@ void ImportCandidateListModel::selectRange(int first, int last, const bool addit
     last = std::clamp(last, 0, rowCount() - 1);
     if (first > last)
         std::swap(first, last);
+    const int previous_count = selected_count_;
+    const auto previous_bytes = selected_bytes_;
+    std::vector<int> changed;
     if (!additive)
-        for (auto &row : rows_)
-            row.selected = false;
+    {
+        for (int row = 0; row < rowCount(); ++row)
+        {
+            auto &entry = rows_[static_cast<std::size_t>(row)];
+            if (!entry.selected)
+                continue;
+            setRowSelected(entry, false);
+            changed.push_back(row);
+        }
+    }
     for (int row = first; row <= last; ++row)
     {
         auto &entry = rows_[static_cast<std::size_t>(row)];
-        if (entry.candidate.supported && !entry.candidate.duplicate)
-            entry.selected = true;
+        if (!eligible(entry) || entry.selected)
+            continue;
+        setRowSelected(entry, true);
+        changed.push_back(row);
     }
-    recountSelection();
-    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
-    emit selectionChanged();
+    emitRoleRanges(changed, {SelectedRole});
+    notifySelectionIfChanged(previous_count, previous_bytes);
 }
 
 void ImportCandidateListModel::highlightExclusive(const int row)
 {
     if (row < 0 || row >= rowCount())
         return;
-    if (!rows_[static_cast<std::size_t>(row)].candidate.supported ||
-        rows_[static_cast<std::size_t>(row)].candidate.duplicate)
+    if (!eligible(rows_[static_cast<std::size_t>(row)]))
         return;
-    for (int current = 0; current < rowCount(); ++current)
-        rows_[static_cast<std::size_t>(current)].highlighted = current == row;
-    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
+    std::vector<int> changed;
+    changed.reserve(highlighted_rows_.size() + 1);
+    const std::vector<int> previous(highlighted_rows_.begin(), highlighted_rows_.end());
+    for (const int current : previous)
+        if (current != row)
+            setRowHighlighted(current, false, &changed);
+    setRowHighlighted(row, true, &changed);
+    emitRoleRanges(changed, {HighlightedRole});
 }
 
 void ImportCandidateListModel::highlightToggle(const int row)
@@ -347,10 +447,11 @@ void ImportCandidateListModel::highlightToggle(const int row)
     if (row < 0 || row >= rowCount())
         return;
     auto &entry = rows_[static_cast<std::size_t>(row)];
-    if (!entry.candidate.supported || entry.candidate.duplicate)
+    if (!eligible(entry))
         return;
-    entry.highlighted = !entry.highlighted;
-    emit dataChanged(index(row, 0), index(row, 0), {HighlightedRole});
+    std::vector<int> changed;
+    setRowHighlighted(row, !entry.highlighted, &changed);
+    emitRoleRanges(changed, {HighlightedRole});
 }
 
 void ImportCandidateListModel::highlightRange(int first, int last, const bool additive)
@@ -361,25 +462,28 @@ void ImportCandidateListModel::highlightRange(int first, int last, const bool ad
     last = std::clamp(last, 0, rowCount() - 1);
     if (first > last)
         std::swap(first, last);
+    std::vector<int> changed;
     if (!additive)
-        for (auto &row : rows_)
-            row.highlighted = false;
-    for (int row = first; row <= last; ++row)
     {
-        auto &entry = rows_[static_cast<std::size_t>(row)];
-        if (entry.candidate.supported && !entry.candidate.duplicate)
-            entry.highlighted = true;
+        const std::vector<int> previous(highlighted_rows_.begin(), highlighted_rows_.end());
+        for (const int row : previous)
+            if (row < first || row > last)
+                setRowHighlighted(row, false, &changed);
     }
-    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
+    for (int row = first; row <= last; ++row)
+        setRowHighlighted(row, true, &changed);
+    emitRoleRanges(changed, {HighlightedRole});
 }
 
 void ImportCandidateListModel::highlightAll()
 {
     if (rows_.empty())
         return;
-    for (auto &row : rows_)
-        row.highlighted = row.candidate.supported && !row.candidate.duplicate;
-    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {HighlightedRole});
+    std::vector<int> changed;
+    changed.reserve(static_cast<std::size_t>(rowCount()));
+    for (int row = 0; row < rowCount(); ++row)
+        setRowHighlighted(row, eligible(rows_[static_cast<std::size_t>(row)]), &changed);
+    emitRoleRanges(changed, {HighlightedRole});
 }
 
 void ImportCandidateListModel::applyCheck(const int row)
@@ -387,24 +491,32 @@ void ImportCandidateListModel::applyCheck(const int row)
     if (row < 0 || row >= rowCount())
         return;
     auto &clicked = rows_[static_cast<std::size_t>(row)];
-    if (!clicked.candidate.supported || clicked.candidate.duplicate)
+    if (!eligible(clicked))
         return;
     const bool next = !clicked.selected;
+    const int previous_count = selected_count_;
+    const auto previous_bytes = selected_bytes_;
+    std::vector<int> changed;
     if (clicked.highlighted)
     {
-        for (auto &entry : rows_)
-            if (entry.highlighted && entry.candidate.supported && !entry.candidate.duplicate)
-                entry.selected = next;
-        recountSelection();
-        emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {SelectedRole});
+        const std::vector<int> targets(highlighted_rows_.begin(), highlighted_rows_.end());
+        changed.reserve(targets.size());
+        for (const int target : targets)
+        {
+            auto &entry = rows_[static_cast<std::size_t>(target)];
+            if (!eligible(entry) || entry.selected == next)
+                continue;
+            setRowSelected(entry, next);
+            changed.push_back(target);
+        }
     }
     else
     {
-        clicked.selected = next;
-        recountSelection();
-        emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
+        setRowSelected(clicked, next);
+        changed.push_back(row);
     }
-    emit selectionChanged();
+    emitRoleRanges(changed, {SelectedRole});
+    notifySelectionIfChanged(previous_count, previous_bytes);
 }
 
 bool ImportCandidateListModel::highlighted(const int row) const

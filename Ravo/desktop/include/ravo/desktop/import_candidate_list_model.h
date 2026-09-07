@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <deque>
+#include <set>
 
 #include <QAbstractListModel>
 #include <QImage>
@@ -73,7 +74,6 @@ signals:
     void candidatesChanged();
 
 private:
-    void recountSelection();
     struct Row
     {
         ImportCandidate candidate;
@@ -84,8 +84,15 @@ private:
         std::uint64_t thumbnail_revision = 0U;
         std::optional<TaskError> thumbnail_error;
     };
+    void recountSelection();
+    [[nodiscard]] static bool eligible(const Row &row) noexcept;
+    void setRowSelected(Row &row, bool selected);
+    void setRowHighlighted(int row, bool highlighted, std::vector<int> *changed);
+    void emitRoleRanges(const std::vector<int> &rows, const QList<int> &roles);
+    void notifySelectionIfChanged(int previous_count, qulonglong previous_bytes);
     std::vector<Row> rows_;
     std::deque<int> thumbnail_rows_;
+    std::set<int> highlighted_rows_;
     bool select_new_candidates_ = true;
     std::uint64_t generation_ = 0;
     int selected_count_ = 0;
