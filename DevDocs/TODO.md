@@ -779,3 +779,14 @@ codec, image algorithm, durable mask, job, or conflict policy.
 A skipped test is not a pass. An unsupported state is explicit. A fallback is
 named, observable, quality-bounded, and accepted by contract; otherwise fail
 closed.
+
+## Import keyboard / workspace tranche evidence (local `main`)
+
+Follow-on from `edc65db` through packaged-runtime check: production Import grid
+interaction shared with tests, selection oracle + incremental highlight/check,
+thumbnail owner with viewport/byte budgets, typed `ImportDraft` + scan/preview/
+workspace owners, roundtrip tests, mac/linux Release smoke CI, and packaged
+runtime out-of-tree checker. This is Studio Import workflow hardening evidence
+(C1/C2-style suites on `mac_clang_debug`); it does **not** admit REL-01/C3 or
+PERF-02 frame-presented SLAs. RealSourceProgressProbe remains opt-in/skipped.
+

@@ -1430,6 +1430,46 @@ stage medians, extra peak bytes, spatial-context response and agitation
 difference. Its current result rejects product integration; the probe must not
 be linked into Engine or used as a hidden slow fallback.
 
+## Import workspace owners (5fbbeb1 follow-on)
+
+Desktop Import configuration lives in `ImportDraft` inside `StudioImportWorkspace`
+(scan / thumbnail / destination-preview controllers). Candidate selection remains
+on `ImportCandidateListModel`. Functional coverage: `StudioImportWorkspace.*`,
+`StudioImportKeyboard.*`, `StudioImportRoundtrip.*`, destination-preview and
+thumbnail scheduler tests. Keyboard focus observations
+(`StudioImportKeyboardPerf.*`) measure `processEvents` input handling only — not
+frame presentation / PERF-02 / C3.
+
+### SHA table (`edc65db`..HEAD before docs commit)
+
+```
+ba10c2c [test]: validate packaged runtime outside the build tree
+1eac861 [ci]: cover macOS and Linux Release smoke builds
+1cc0d90 [test]: verify source-preserving Import round trips after refactoring
+453d10e [refactor]: delegate Import workspace state through narrow owners
+e6bca23 [refactor]: isolate Import source scan publication
+c87f920 [refactor]: isolate Import destination preview orchestration
+d1e1103 [refactor]: model the Import workspace draft as a typed value
+42cb6e0 [test]: cover Import thumbnail cancellation and stale completions
+cb34d28 [perf]: enforce Import thumbnail byte and count budgets
+ea7ecc6 [perf]: bound Import thumbnail demand to the active viewport
+43dcb7c [refactor]: give Import thumbnail work an explicit desktop owner
+c77ae56 [test]: separate Import performance observations from functional gates
+9dfe2a8 [perf]: maintain Import check totals incrementally
+e03a408 [perf]: update only changed Import highlight rows
+922fb90 [test]: add a reference oracle for Import selection invariants
+183b87e [fix]: notify Import selection totals when candidate bytes change
+a1e0591 [test]: cover Import focus across scan and page lifecycles
+0737d79 [test]: exercise Import shortcuts through the production window
+ef8bf2b [refactor]: share the production Import grid interaction component
+```
+
+Validation commands used locally: `cmake --preset mac_clang_debug -DBUILD_TESTING=ON`,
+`cmake --build build/mac_clang_debug --target ravo_desktop_command_tests`,
+`ctest -R 'StudioImport|ImportDraft|DestinationPreview|ImportCandidate'`.
+CI Release smoke and packaged-runtime checks are workflow-gated (not green-claimed
+from this laptop).
+
 ## Local labels and validation cadence
 
 Current labels:

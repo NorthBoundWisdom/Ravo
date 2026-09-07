@@ -14,7 +14,7 @@
 Ravo is a **complete redesign**, not a fork: a from-scratch C++20 and Qt 6
 implementation that takes the photo-workflow and image-processing behavior of
 **darktable 0.9** as its reference. Frozen static fixtures live in `Ravo/tests/fixtures/frozen`.
-Ravo ships its own service layer, catalog, CPU image engine, command-line
+Ravo ships its own service layer, catalog, CPU-first image engine (with platform-limited GPU present/preview paths where already admitted — not a claim of GPU completion on every host), command-line
 client, and Qt Quick desktop application, and it never links, loads, or launches
 the old GTK program at runtime.
 

@@ -110,10 +110,12 @@ assets with fixed SHA256 checks. The DEB installs the private payload under
 
 ## GitHub Actions
 
-Every branch push and pull request runs only the Debug configure/build/test
-matrix. Its Package and Publish GitHub Release jobs are skipped. A tag push runs
-that same gate first, then starts Release package jobs for macOS, Windows, and
-Linux. Each package entry prepares the same pinned source roots and host
+Every branch push and pull request runs the configure/build/test matrix:
+macOS/Linux Debug full, Windows Release full, plus macOS/Linux Release smoke
+(`-L ravo-desktop-smoke|ravo-contract|ravo-catalog`). Package and Publish GitHub
+Release jobs remain tag-gated. A tag push runs that gate first, then starts
+Release package jobs for macOS, Windows, and Linux; each package job runs
+`check_packaged_runtime.py` on the real artifact before upload. Each package entry prepares the same pinned source roots and host
 dependencies, configures the release preset, calls `RavoPackage`, and uploads
 only the expected platform artifact. After all three package jobs succeed, the
 single release job downloads those artifacts from the current run, requires

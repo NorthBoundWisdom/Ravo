@@ -518,6 +518,19 @@ original is ever written (ADR-0101).
 
 ### Import
 
+### Import desktop ownership
+
+`StudioPresenter` remains the QML façade. Import configuration is an `ImportDraft`
+value inside `StudioImportWorkspace`, which also owns:
+- `StudioImportScanController` — generation/busy/progress/revision + scan cancel
+- `StudioImportThumbnailController` — decode executor, viewport demand, budgets
+- `StudioImportDestinationPreviewController` — debounce timer, key, published folders
+
+`ImportCandidateListModel` stays the selection/highlight/thumbnail-pixel owner on
+the Presenter (Q_PROPERTY). CatalogService/engine stay on the Presenter catalog
+executor; controllers borrow via Host callbacks. Shutdown order: destination
+preview → thumbnails → scan abandon, then catalog executor stop.
+
 `ImportRequest` carries catalog ID, file/directory input, recursion/format
 policy, resource budget, cancellation token, and correlation ID.
 `ImportItemResult` returns imported, duplicate, unsupported, or failed for
