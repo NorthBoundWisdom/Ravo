@@ -297,4 +297,31 @@ TEST(ImportCandidateListModel, ExclusiveHighlightNotifiesAtMostTwoRows)
     EXPECT_FALSE(model.highlighted(10));
 }
 
+TEST(ImportCandidateListModel, SingleSpaceCheckIsRowLocal)
+{
+    ensure_qt_core();
+    constexpr int kCount = 100000;
+    std::vector<ImportCandidate> candidates(static_cast<std::size_t>(kCount));
+    for (int row = 0; row < kCount; ++row)
+    {
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+        candidates[static_cast<std::size_t>(row)].size_bytes = 3;
+    }
+    ImportCandidateListModel model;
+    model.setCandidates(std::move(candidates));
+    model.highlightExclusive(50);
+    int changed_rows = 0;
+    QObject::connect(&model, &QAbstractItemModel::dataChanged, &model,
+                     [&](const QModelIndex &top, const QModelIndex &bottom, const QList<int> &roles)
+                     {
+                         if (roles.contains(ImportCandidateListModel::SelectedRole) ||
+                             roles.isEmpty())
+                             changed_rows += bottom.row() - top.row() + 1;
+                     });
+    const auto before_bytes = model.selectedBytes();
+    model.applyCheck(50);
+    EXPECT_EQ(changed_rows, 1);
+    EXPECT_NE(model.selectedBytes(), before_bytes);
+}
+
 } // namespace ravo
