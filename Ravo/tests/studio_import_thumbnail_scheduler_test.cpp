@@ -67,4 +67,36 @@ TEST(StudioImportThumbnailScheduler, EnsureRespectsPendingHardCap)
     EXPECT_LE(controller.pendingCount(), controller.pendingHardCap());
 }
 
+TEST(StudioImportThumbnailScheduler, CancelClearsPendingAndAllowsRecovery)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(4);
+    for (int row = 0; row < 4; ++row)
+    {
+        candidates[static_cast<std::size_t>(row)].source_path = "/t" + std::to_string(row) + ".png";
+        candidates[static_cast<std::size_t>(row)].display_name = "t.png";
+        candidates[static_cast<std::size_t>(row)].size_bytes = 10;
+    }
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller({
+        &model,
+        nullptr,
+        [] { return true; },
+        [] { return false; },
+        [] { return false; },
+        [] { return 1ULL; },
+        {},
+    });
+    controller.setViewportDemand({0, 1, 2, 3}, 0);
+    EXPECT_GT(controller.pendingCount(), 0U);
+    controller.cancel("test_cancel");
+    controller.clearPending();
+    EXPECT_EQ(controller.pendingCount(), 0U);
+    EXPECT_FALSE(controller.inFlight());
+    controller.resetOperation();
+    controller.setViewportDemand({0, 1}, 0);
+    EXPECT_GT(controller.pendingCount(), 0U);
+}
+
 } // namespace ravo
