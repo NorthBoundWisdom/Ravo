@@ -101,9 +101,34 @@ def unpack(artifact: Path, dest: Path) -> Path:
             subprocess.run(["hdiutil", "detach", str(mount)], check=False)
         return dest
     if ".AppImage" in artifact.name:
-        # Structural copy only here; extraction is commit 13. Still place the file.
-        shutil.copy2(artifact, dest / artifact.name)
-        return dest
+        # Prefer explicit type-2 extraction into an isolated AppDir.
+        copied = dest / artifact.name
+        shutil.copy2(artifact, copied)
+        extract_dir = dest / "appdir"
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            proc = subprocess.run(
+                [str(copied), "--appimage-extract"],
+                cwd=str(extract_dir),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"AppImage extract launch failed: {exc}") from exc
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"AppImage --appimage-extract failed exit={proc.returncode}: {proc.stderr.strip()}"
+            )
+        squash = extract_dir / "squashfs-root"
+        if not squash.is_dir():
+            # Some runtimes extract into cwd/squashfs-root; accept either.
+            candidates = list(extract_dir.rglob("AppRun"))
+            if not candidates:
+                raise RuntimeError("AppImage extract produced no AppDir/AppRun")
+            return candidates[0].parent
+        return squash
     if artifact.suffix.lower() == ".deb":
         subprocess.run(["dpkg-deb", "-x", str(artifact), str(dest)], check=True)
         return dest
