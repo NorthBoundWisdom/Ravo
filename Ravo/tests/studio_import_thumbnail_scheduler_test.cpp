@@ -326,6 +326,88 @@ TEST(StudioImportThumbnailScheduler, GenerationMismatchDiscardsWithoutMutatingMo
     EXPECT_FALSE(controller.discardedRows().empty());
 }
 
+TEST(StudioImportThumbnailScheduler, OverBudgetDemandReachesFiniteTerminalWithoutThrash)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    constexpr int kRows = 300;
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates;
+    candidates.reserve(kRows);
+    for (int row = 0; row < kRows; ++row)
+    {
+        const auto path = directory.filePath(QStringLiteral("%1.png").arg(row));
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(QColor((row * 17) % 256, 40, 80));
+        ASSERT_TRUE(image.save(path, "PNG"));
+        ImportCandidate candidate;
+        candidate.source_path = path.toStdString();
+        candidate.display_name = QStringLiteral("%1.png").arg(row).toStdString();
+        candidate.size_bytes = 64;
+        candidates.push_back(std::move(candidate));
+    }
+    model.setCandidates(std::move(candidates));
+
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::vector<int> demand(kRows);
+    for (int row = 0; row < kRows; ++row)
+        demand[static_cast<std::size_t>(row)] = row;
+    controller.setViewportDemand(demand, 0, 3);
+
+    ASSERT_TRUE(wait_for([&] { return controller.demandQuiescent(); }, 120000));
+
+    const auto completed = controller.completedCount();
+    const auto satisfied = controller.demandSatisfiedCount();
+    const auto deferred = controller.demandCapacityDeferredCount();
+    EXPECT_LE(completed, static_cast<std::uint64_t>(controller.pendingHardCap()) + 8U);
+    EXPECT_LE(satisfied, controller.pendingHardCap());
+    EXPECT_EQ(satisfied + deferred, static_cast<std::size_t>(kRows));
+    EXPECT_GT(deferred, 0U);
+    // Must not thrash: far below the 3,000 re-decode feedback loop.
+    EXPECT_LE(completed, 400U);
+    EXPECT_TRUE(controller.demandQuiescent());
+    EXPECT_FALSE(model.thumbnail(3).isNull());
+}
+
+TEST(StudioImportThumbnailScheduler, InBudgetVisibleDemandCompletes)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    constexpr int kRows = 32;
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates;
+    for (int row = 0; row < kRows; ++row)
+    {
+        const auto path = directory.filePath(QStringLiteral("in%1.png").arg(row));
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::darkGreen);
+        ASSERT_TRUE(image.save(path, "PNG"));
+        ImportCandidate candidate;
+        candidate.source_path = path.toStdString();
+        candidate.display_name = QStringLiteral("in%1.png").arg(row).toStdString();
+        candidate.size_bytes = 64;
+        candidates.push_back(std::move(candidate));
+    }
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::vector<int> demand(kRows);
+    for (int row = 0; row < kRows; ++row)
+        demand[static_cast<std::size_t>(row)] = row;
+    controller.setViewportDemand(demand, 0, 0);
+    ASSERT_TRUE(wait_for([&] { return controller.demandQuiescent(); }, 60000));
+    EXPECT_EQ(controller.demandSatisfiedCount(), static_cast<std::size_t>(kRows));
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 0U);
+    EXPECT_EQ(controller.completedCount(), static_cast<std::uint64_t>(kRows));
+    for (int row = 0; row < kRows; ++row)
+        EXPECT_FALSE(model.thumbnail(row).isNull()) << row;
+}
+
 TEST(StudioImportThumbnailScheduler, GateCancelInterruptsWaitWithoutPublishing)
 {
     ensure_qt_core();

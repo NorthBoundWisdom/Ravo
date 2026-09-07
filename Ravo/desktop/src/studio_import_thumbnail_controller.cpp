@@ -215,6 +215,67 @@ void StudioImportThumbnailController::clearDecodeGate()
     decode_gate_.reset();
 }
 
+void StudioImportThumbnailController::clearDemandTerminals()
+{
+    demand_terminals_.clear();
+}
+
+bool StudioImportThumbnailController::hasDemandTerminal(const int row) const noexcept
+{
+    return demand_terminals_.find(row) != demand_terminals_.end();
+}
+
+void StudioImportThumbnailController::markDemandTerminal(const int row,
+                                                         const DemandTerminal terminal)
+{
+    if (row < 0)
+        return;
+    demand_terminals_[row] = terminal;
+}
+
+std::size_t StudioImportThumbnailController::demandDecodeSlotsUsed() const noexcept
+{
+    std::size_t used = pending_rows_.size() + (in_flight_ ? 1U : 0U);
+    for (const auto &entry : demand_terminals_)
+    {
+        if (entry.second == DemandTerminal::kSatisfied || entry.second == DemandTerminal::kFailed)
+            ++used;
+    }
+    return used;
+}
+
+std::size_t StudioImportThumbnailController::demandSatisfiedCount() const noexcept
+{
+    std::size_t count = 0;
+    for (const auto &entry : demand_terminals_)
+        if (entry.second == DemandTerminal::kSatisfied)
+            ++count;
+    return count;
+}
+
+std::size_t StudioImportThumbnailController::demandFailedCount() const noexcept
+{
+    std::size_t count = 0;
+    for (const auto &entry : demand_terminals_)
+        if (entry.second == DemandTerminal::kFailed)
+            ++count;
+    return count;
+}
+
+std::size_t StudioImportThumbnailController::demandCapacityDeferredCount() const noexcept
+{
+    std::size_t count = 0;
+    for (const auto &entry : demand_terminals_)
+        if (entry.second == DemandTerminal::kCapacityDeferred)
+            ++count;
+    return count;
+}
+
+bool StudioImportThumbnailController::demandQuiescent() const noexcept
+{
+    return !in_flight_ && pending_rows_.empty() && !kick_scheduled_;
+}
+
 void StudioImportThumbnailController::scheduleKick()
 {
     if (stopped_)
@@ -228,8 +289,9 @@ void StudioImportThumbnailController::scheduleKick()
 
 void StudioImportThumbnailController::ensure(const int row)
 {
-    if (!gatesAllowWork() || !host_.model || row < 0 || row >= host_.model->rowCount() ||
-        host_.model->inspected(row) || !host_.model->thumbnail(row).isNull())
+    if (!gatesAllowWork() || !host_.model || row < 0 || row >= host_.model->rowCount())
+        return;
+    if (hasDemandTerminal(row) || !host_.model->thumbnail(row).isNull())
         return;
     // Legacy ensure must not re-promote off-viewport rows over active demand.
     if (!visible_demand_.empty() || !prefetch_demand_.empty() || current_row_ >= 0)
@@ -238,6 +300,11 @@ void StudioImportThumbnailController::ensure(const int row)
                                prefetch_demand_.count(row) > 0;
         if (!in_demand)
             return;
+    }
+    if (demandDecodeSlotsUsed() >= kDemandDecodeBudget)
+    {
+        markDemandTerminal(row, DemandTerminal::kCapacityDeferred);
+        return;
     }
     if (!pending_rows_.insert(row).second)
         return;
@@ -252,6 +319,8 @@ void StudioImportThumbnailController::setViewportDemand(const std::vector<int> &
 {
     if (stopped_)
         return;
+    ++demand_generation_;
+    clearDemandTerminals();
     visible_demand_.clear();
     prefetch_demand_.clear();
     current_row_ = current_row;
@@ -277,9 +346,23 @@ void StudioImportThumbnailController::replenishPendingFromDemand()
         return;
     auto consider = [&](const int row)
     {
-        if (row < 0 || row >= host_.model->rowCount() || host_.model->inspected(row) ||
-            !host_.model->thumbnail(row).isNull())
+        if (row < 0 || row >= host_.model->rowCount())
             return;
+        if (hasDemandTerminal(row))
+            return;
+        if (!host_.model->thumbnail(row).isNull())
+        {
+            // Already resident for this demand — treat as satisfied without re-decode.
+            markDemandTerminal(row, DemandTerminal::kSatisfied);
+            return;
+        }
+        if (pending_rows_.count(row) > 0)
+            return;
+        if (demandDecodeSlotsUsed() >= kDemandDecodeBudget)
+        {
+            markDemandTerminal(row, DemandTerminal::kCapacityDeferred);
+            return;
+        }
         pending_rows_.insert(row);
     };
     if (current_row_ >= 0)
@@ -383,9 +466,12 @@ void StudioImportThumbnailController::kick()
                 row = *pending_rows_.begin();
         }
         pending_rows_.erase(row);
-        if (!host_.model || row < 0 || row >= host_.model->rowCount() ||
-            host_.model->inspected(row) || !host_.model->thumbnail(row).isNull())
+        if (!host_.model || row < 0 || row >= host_.model->rowCount() || hasDemandTerminal(row) ||
+            !host_.model->thumbnail(row).isNull())
         {
+            if (host_.model && row >= 0 && row < host_.model->rowCount() &&
+                !host_.model->thumbnail(row).isNull() && !hasDemandTerminal(row))
+                markDemandTerminal(row, DemandTerminal::kSatisfied);
             record(ObservationEvent{
                 ObservationEvent::Kind::kDiscarded,
                 RequestIdentity{row,
@@ -424,6 +510,7 @@ void StudioImportThumbnailController::shutdown()
     cancel("thumbnail_controller_shutdown");
     stopped_ = true;
     clearPending();
+    clearDemandTerminals();
     visible_demand_.clear();
     prefetch_demand_.clear();
     current_row_ = -1;
@@ -490,6 +577,10 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
     else
     {
         host_.model->finishThumbnail(identity.row, std::move(image), std::move(error));
+        if (error.has_value())
+            markDemandTerminal(identity.row, DemandTerminal::kFailed);
+        else
+            markDemandTerminal(identity.row, DemandTerminal::kSatisfied);
         record(ObservationEvent{ObservationEvent::Kind::kCompleted, identity, {}, {}});
     }
     if (terminal_without_retry)

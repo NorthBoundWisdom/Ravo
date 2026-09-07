@@ -316,9 +316,11 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
         auto &old = rows_[static_cast<std::size_t>(evicted)];
         if (!old.thumbnail.isNull())
             thumbnail_bytes_ -= static_cast<qulonglong>(old.thumbnail.sizeInBytes());
+        // Eviction drops residency only. inspected stays true so demand completion is
+        // not silently reopened; the thumbnail controller admits scroll-back rebuilds
+        // via a new demand generation rather than unconditional retry.
         old.thumbnail = {};
-        old.inspected = false;
-        emit dataChanged(index(evicted, 0), index(evicted, 0), {ThumbnailUrlRole, InspectedRole});
+        emit dataChanged(index(evicted, 0), index(evicted, 0), {ThumbnailUrlRole});
     };
     while (thumbnail_rows_.size() > maximum_cached_thumbnails)
         evict_front();

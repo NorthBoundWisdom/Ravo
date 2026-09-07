@@ -7,6 +7,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -79,6 +80,23 @@ public:
     ~StudioImportThumbnailController() override;
 
     static constexpr std::size_t kPendingHardCap = 256;
+    // Per demand-generation decode budget matches the model thumbnail count cache.
+    static constexpr std::size_t kDemandDecodeBudget = kPendingHardCap;
+
+    // Resource contract (demand generation scoped):
+    // - not-dispatched: in demand, no terminal yet, may enter pending
+    // - in-flight: decode running for this generation
+    // - satisfied / failed: decode finished; eviction may drop pixels but must not
+    //   auto-retry within the same demand generation
+    // - capacity-deferred: visible demand beyond decode/cache budget for this generation
+    // Eviction expresses residency only. A new setViewportDemand clears terminals so
+    // scroll-back can rebuild missing pixels under a fresh generation.
+    enum class DemandTerminal : std::uint8_t
+    {
+        kSatisfied,
+        kFailed,
+        kCapacityDeferred,
+    };
 
     void ensure(int row); // legacy delegate path; prefer setViewportDemand
     // visible_rows = currently on-screen; current_row elevates one cell; prefetch after max visible.
@@ -118,6 +136,18 @@ public:
     {
         return prefetch_demand_.size();
     }
+    [[nodiscard]] std::uint64_t demandGeneration() const noexcept
+    {
+        return demand_generation_;
+    }
+    [[nodiscard]] std::size_t demandTerminalCount() const noexcept
+    {
+        return demand_terminals_.size();
+    }
+    [[nodiscard]] std::size_t demandSatisfiedCount() const noexcept;
+    [[nodiscard]] std::size_t demandFailedCount() const noexcept;
+    [[nodiscard]] std::size_t demandCapacityDeferredCount() const noexcept;
+    [[nodiscard]] bool demandQuiescent() const noexcept;
 
     // Deterministic test checkpoints (UI thread).
     // Production default keeps constant-space counters only. Full trails require an
@@ -173,6 +203,10 @@ private:
     void start(int row);
     void trimPendingToCap();
     void replenishPendingFromDemand();
+    void clearDemandTerminals();
+    [[nodiscard]] bool hasDemandTerminal(int row) const noexcept;
+    void markDemandTerminal(int row, DemandTerminal terminal);
+    [[nodiscard]] std::size_t demandDecodeSlotsUsed() const noexcept;
     [[nodiscard]] bool gatesAllowWork() const;
     void record(ObservationEvent event);
     void finishUi(RequestIdentity identity, QImage image, std::optional<TaskError> error,
@@ -185,6 +219,8 @@ private:
     std::set<int> pending_rows_; // ascending within admitted set
     std::set<int> visible_demand_;
     std::set<int> prefetch_demand_;
+    std::unordered_map<int, DemandTerminal> demand_terminals_;
+    std::uint64_t demand_generation_ = 0;
     int current_row_ = -1;
     bool in_flight_ = false;
     bool stopped_ = false;
