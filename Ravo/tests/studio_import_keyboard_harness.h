@@ -70,16 +70,23 @@ struct ImportKeyboardHarness
         root.reset(item);
         root->setParentItem(window.contentItem());
         root->setSize(QSizeF(800, 600));
+        root->setProperty("productionGridUrl",
+                          QUrl::fromLocalFile(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML)));
         root->setProperty("importCandidates", QVariant::fromValue(model));
-        grid = root->findChild<QQuickItem *>(QStringLiteral("importCandidateKeyboardGrid"));
+        window.resize(800, 600);
+        window.show();
+        QGuiApplication::processEvents();
+        for (int attempt = 0; attempt < 50 && !grid; ++attempt)
+        {
+            grid = root->findChild<QQuickItem *>(QStringLiteral("importCandidateKeyboardGrid"));
+            if (!grid)
+                QGuiApplication::processEvents();
+        }
         if (!grid)
         {
             reset();
             return false;
         }
-        window.resize(800, 600);
-        window.show();
-        QGuiApplication::processEvents();
         QMetaObject::invokeMethod(root.get(), "focusCandidateGrid", Qt::DirectConnection);
         QGuiApplication::processEvents();
         if (!grid->hasActiveFocus())

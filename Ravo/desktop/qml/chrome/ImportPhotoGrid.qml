@@ -9,54 +9,10 @@ Rectangle {
     id: root
     objectName: "importPhotoGrid"
     required property var presenter
-    property int selectionAnchor: -1
+    property alias selectionAnchor: candidateGrid.selectionAnchor
     property real preferredCell: 180
     property string sourceIdentity: presenter.importSourceRoot
-    onSourceIdentityChanged: selectionAnchor = -1
-
-    function fittedGridCell(availableWidth, preferred) {
-        const inner = Math.max(120, availableWidth - 14);
-        return inner / Math.max(1, Math.floor(inner / preferred));
-    }
-
-    function initializeKeyboardFocus() {
-        if (candidateGrid.count <= 0) {
-            candidateGrid.currentIndex = -1;
-            root.selectionAnchor = -1;
-            return;
-        }
-        if (candidateGrid.currentIndex < 0 || candidateGrid.currentIndex >= candidateGrid.count)
-            candidateGrid.currentIndex = 0;
-        if (root.selectionAnchor < 0 || root.selectionAnchor >= candidateGrid.count)
-            root.selectionAnchor = candidateGrid.currentIndex;
-    }
-
-    function keyboardColumnCount() {
-        return Math.max(1, Math.floor(candidateGrid.width / Math.max(1, candidateGrid.cellWidth)));
-    }
-
-    function keyboardPageStep() {
-        const rows = Math.max(1, Math.floor(candidateGrid.height / Math.max(1, candidateGrid.cellHeight)));
-        return rows * root.keyboardColumnCount();
-    }
-
-    function moveKeyboardFocus(target, extend, additive) {
-        root.initializeKeyboardFocus();
-        if (candidateGrid.currentIndex < 0)
-            return;
-        const previous = candidateGrid.currentIndex;
-        const bounded = Math.max(0, Math.min(candidateGrid.count - 1, target));
-        if (root.selectionAnchor < 0 || root.selectionAnchor >= candidateGrid.count)
-            root.selectionAnchor = previous;
-        candidateGrid.currentIndex = bounded;
-        candidateGrid.positionViewAtIndex(bounded, GridView.Contain);
-        if (extend)
-            root.presenter.importCandidates.highlightRange(root.selectionAnchor, bounded, additive);
-        else if (!additive) {
-            root.presenter.importCandidates.highlightExclusive(bounded);
-            root.selectionAnchor = bounded;
-        }
-    }
+    onSourceIdentityChanged: candidateGrid.selectionAnchor = -1
 
     Layout.fillWidth: true
     Layout.fillHeight: true
@@ -75,78 +31,18 @@ Rectangle {
         color: Theme.placeholderTextColor
     }
 
-    GridView {
+    ImportCandidateGrid {
         id: candidateGrid
         anchors.fill: parent
         anchors.margins: Fonts.size8
-        visible: count > 0
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        flickableDirection: Flickable.VerticalFlick
-        pixelAligned: true
-        keyNavigationEnabled: false
-        activeFocusOnTab: true
-        currentIndex: -1
-        highlightFollowsCurrentItem: false
-        cellWidth: root.fittedGridCell(width, root.preferredCell)
-        cellHeight: cellWidth
-        cacheBuffer: cellHeight
-        model: root.presenter.importCandidates
-        Accessible.role: Accessible.List
-        Accessible.name: qsTr("Import candidates")
-        Accessible.description: qsTr("Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.")
+        candidates: root.presenter.importCandidates
+        interactionLocked: root.presenter.importWorkActive
+        preferredCell: root.preferredCell
+        showVerticalScrollBar: true
+        accessibleName: qsTr("Import candidates")
+        accessibleDescription: qsTr("Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.")
 
-        ScrollBar.vertical: ScrollBar {
-            policy: ScrollBar.AlwaysOn
-            implicitWidth: 10
-        }
-
-        onCountChanged: root.initializeKeyboardFocus()
-        onVisibleChanged: if (visible) {
-            root.initializeKeyboardFocus();
-            forceActiveFocus();
-        }
-
-        Keys.priority: Keys.BeforeItem
-        Keys.onPressed: function (event) {
-            if (root.presenter.importWorkActive)
-                return;
-
-            root.initializeKeyboardFocus();
-            const additive = (event.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) !== 0;
-            const extend = (event.modifiers & Qt.ShiftModifier) !== 0;
-
-            if (event.key === Qt.Key_Space && candidateGrid.currentIndex >= 0) {
-                root.presenter.importCandidates.applyCheck(candidateGrid.currentIndex);
-                event.accepted = true;
-                return;
-            }
-
-            let target = candidateGrid.currentIndex;
-            if (event.key === Qt.Key_Left)
-                target -= 1;
-            else if (event.key === Qt.Key_Right)
-                target += 1;
-            else if (event.key === Qt.Key_Up)
-                target -= root.keyboardColumnCount();
-            else if (event.key === Qt.Key_Down)
-                target += root.keyboardColumnCount();
-            else if (event.key === Qt.Key_Home)
-                target = 0;
-            else if (event.key === Qt.Key_End)
-                target = candidateGrid.count - 1;
-            else if (event.key === Qt.Key_PageUp)
-                target -= root.keyboardPageStep();
-            else if (event.key === Qt.Key_PageDown)
-                target += root.keyboardPageStep();
-            else
-                return;
-
-            root.moveKeyboardFocus(target, extend, additive);
-            event.accepted = true;
-        }
-
-        delegate: Item {
+        cellDelegate: Item {
             id: candidateDelegate
             required property int index
             required property string sourcePath
@@ -162,7 +58,7 @@ Rectangle {
             required property string errorText
             required property bool inspected
             readonly property bool inViewport: y + height >= candidateGrid.contentY && y <= candidateGrid.contentY + candidateGrid.height
-            readonly property bool keyboardCurrent: index === candidateGrid.currentIndex && candidateGrid.activeFocus
+            readonly property bool keyboardCurrent: index === candidateGrid.currentIndex && candidateGrid.grid.activeFocus
             onInViewportChanged: if (inViewport)
                 root.presenter.ensureImportThumbnail(index)
             onSourcePathChanged: root.presenter.ensureImportThumbnail(index)
@@ -227,12 +123,7 @@ Rectangle {
                     height: width
                     checked: selected
                     enabled: eligible
-                    onClicked: {
-                        candidateGrid.currentIndex = index;
-                        root.selectionAnchor = index;
-                        root.presenter.importCandidates.applyCheck(index);
-                        candidateGrid.forceActiveFocus();
-                    }
+                    onClicked: candidateGrid.applyCheckAt(index)
                 }
 
                 CustomLabel {
@@ -256,22 +147,7 @@ Rectangle {
                     onReleased: preventStealing = false
                     onCanceled: preventStealing = false
                     onClicked: function (mouse) {
-                        const additive = (mouse.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) !== 0;
-                        const extend = (mouse.modifiers & Qt.ShiftModifier) !== 0;
-                        const previousAnchor = root.selectionAnchor >= 0 ? root.selectionAnchor : (candidateGrid.currentIndex >= 0 ? candidateGrid.currentIndex : index);
-                        candidateGrid.currentIndex = index;
-                        if (extend) {
-                            root.selectionAnchor = previousAnchor;
-                            root.presenter.importCandidates.highlightRange(root.selectionAnchor, index, additive);
-                        } else if (additive) {
-                            root.presenter.importCandidates.highlightToggle(index);
-                            root.selectionAnchor = index;
-                        } else {
-                            root.presenter.importCandidates.highlightExclusive(index);
-                            root.selectionAnchor = index;
-                        }
-                        candidateGrid.positionViewAtIndex(index, GridView.Contain);
-                        candidateGrid.forceActiveFocus();
+                        candidateGrid.applyMouseSelection(index, mouse.modifiers);
                     }
                 }
             }

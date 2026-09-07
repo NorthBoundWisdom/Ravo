@@ -82,10 +82,9 @@ TEST(StudioImportKeyboard, BatchCheckSkipsDuplicates)
 TEST(StudioImportKeyboard, GridContractMatchesProductionKeys)
 {
     ensure_qt_core();
-    QFile file(QString::fromUtf8(RAVO_REPOSITORY_ROOT) +
-               QStringLiteral("/Ravo/desktop/qml/chrome/ImportPhotoGrid.qml"));
-    ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto source = QString::fromUtf8(file.readAll());
+    QFile grid_file(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML));
+    ASSERT_TRUE(grid_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto source = QString::fromUtf8(grid_file.readAll());
 
     EXPECT_TRUE(source.contains(QStringLiteral("activeFocusOnTab: true")));
     EXPECT_TRUE(source.contains(QStringLiteral("Keys.priority: Keys.BeforeItem")));
@@ -99,19 +98,30 @@ TEST(StudioImportKeyboard, GridContractMatchesProductionKeys)
     EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_PageUp")));
     EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_PageDown")));
     EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_Space")));
-    EXPECT_FALSE(source.contains(QStringLiteral("importCandidates.highlightAll")));
+    EXPECT_FALSE(source.contains(QStringLiteral("highlightAll")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("highlightRange(root.selectionAnchor, bounded, additive)")));
     EXPECT_TRUE(source.contains(QStringLiteral("applyCheck(candidateGrid.currentIndex)")));
-    EXPECT_TRUE(source.contains(QStringLiteral("candidateGrid.currentIndex = index")));
     EXPECT_TRUE(source.contains(QStringLiteral("Accessible.description")));
+
+    QFile photo_file(QString::fromUtf8(RAVO_REPOSITORY_ROOT) +
+                     QStringLiteral("/Ravo/desktop/qml/chrome/ImportPhotoGrid.qml"));
+    ASSERT_TRUE(photo_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto photo = QString::fromUtf8(photo_file.readAll());
+    EXPECT_TRUE(photo.contains(QStringLiteral("ImportCandidateGrid")));
+    EXPECT_TRUE(photo.contains(QStringLiteral("importCandidateCheckBox")));
+    EXPECT_TRUE(photo.contains(QStringLiteral("accessibleName")));
+    EXPECT_TRUE(photo.contains(QStringLiteral("accessibleDescription")));
+    EXPECT_FALSE(photo.contains(QStringLiteral("function moveKeyboardFocus")));
+    EXPECT_FALSE(photo.contains(QStringLiteral("Keys.onPressed")));
 
     QFile harness_file(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_KEYBOARD_HARNESS_QML));
     ASSERT_TRUE(harness_file.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto harness = QString::fromUtf8(harness_file.readAll());
-    EXPECT_TRUE(harness.contains(QStringLiteral("Keys.priority: Keys.BeforeItem")));
-    EXPECT_TRUE(harness.contains(QStringLiteral("function moveKeyboardFocus")));
-    EXPECT_TRUE(harness.contains(QStringLiteral("event.key === Qt.Key_PageDown")));
+    EXPECT_TRUE(harness.contains(QStringLiteral("productionGridUrl")));
+    EXPECT_FALSE(harness.contains(QStringLiteral("function moveKeyboardFocus")));
+    EXPECT_FALSE(harness.contains(QStringLiteral("Keys.onPressed")));
+    EXPECT_FALSE(harness.contains(QStringLiteral("event.key === Qt.Key_PageDown")));
     EXPECT_FALSE(harness.contains(QStringLiteral("highlightAll")));
 
     QFile page_file(QString::fromUtf8(RAVO_REPOSITORY_ROOT) +

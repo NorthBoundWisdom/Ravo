@@ -241,6 +241,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/SettingsPage.qml
     qml/chrome/ImportPage.qml
     qml/chrome/ImportPhotoGrid.qml
+    qml/chrome/ImportCandidateGrid.qml
     qml/chrome/ImportSourcePanel.qml
     qml/chrome/ImportDestinationPanel.qml
     qml/chrome/ImportSection.qml
