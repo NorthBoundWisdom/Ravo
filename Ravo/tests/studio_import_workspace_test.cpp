@@ -16,6 +16,7 @@
 #include "ravo/desktop/studio_import_preferences.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "studio_import_thumbnail_controller.h"
+#include "studio_import_workspace.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "studio_test_support.h"
 #include "ravo/foundation/log.h"
@@ -30,8 +31,9 @@ class StudioImportTestControl
 public:
     static bool blockThumbnails(StudioPresenter &presenter, std::shared_future<void> release)
     {
-        return presenter.import_thumbnails_ &&
-               presenter.import_thumbnails_->executor().post([release] { release.wait(); });
+        return presenter.import_workspace_ && presenter.import_workspace_->thumbnails &&
+               presenter.import_workspace_->thumbnails->executor().post([release]
+                                                                        { release.wait(); });
     }
     static bool blockCatalog(StudioPresenter &presenter, std::shared_future<void> release)
     {

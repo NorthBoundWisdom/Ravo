@@ -2,6 +2,7 @@
 #include "studio_import_thumbnail_controller.h"
 #include "studio_import_destination_preview_controller.h"
 #include "studio_import_scan_controller.h"
+#include "studio_import_workspace.h"
 
 #include "ravo/desktop/export_option_conversion.h"
 #include "ravo/desktop/filesystem_browser_model.h"
@@ -181,19 +182,21 @@ StudioPresenter::StudioPresenter(QObject *parent)
             &StudioPresenter::refreshImportDestinationPreview);
     connect(&import_candidates_, &ImportCandidateListModel::selectionChanged, this,
             &StudioPresenter::importPageChanged);
-    import_scan_ = std::make_unique<StudioImportScanController>(this);
-    import_thumbnails_ = std::make_unique<StudioImportThumbnailController>(
+    import_workspace_ = std::make_unique<StudioImportWorkspace>();
+    import_workspace_->scan = std::make_unique<StudioImportScanController>(this);
+    import_workspace_->thumbnails = std::make_unique<StudioImportThumbnailController>(
         StudioImportThumbnailController::Host{
             &import_candidates_,
             this,
             [this] { return import_page_open_; },
             [this] { return import_work_active_; },
             [this] { return import_preflight_active_; },
-            [this] { return import_scan_ ? import_scan_->generation() : 0U; },
+            [this] { return import_workspace_->scan ? import_workspace_->scan->generation() : 0U; },
             [this](QString message) { setError(std::move(message)); },
         },
         this);
-    import_destination_preview_ = std::make_unique<StudioImportDestinationPreviewController>(
+    import_workspace_
+        ->destination_preview = std::make_unique<StudioImportDestinationPreviewController>(
         StudioImportDestinationPreviewController::Host{
             this,
             &executor_,
@@ -201,12 +204,12 @@ StudioPresenter::StudioPresenter(QObject *parent)
             [this] { return import_page_open_; },
             [this]
             {
-                return import_page_open_ && import_scan_ && !import_scan_->active() &&
-                       !import_work_active_ && !import_preflight_active_ &&
-                       import_scan_->catalogRevision() &&
-                       import_draft_.mode != QLatin1String("add") &&
-                       !import_draft_.destination.isEmpty() &&
-                       import_draft_.destination_error.isEmpty() &&
+                return import_page_open_ && import_workspace_->scan &&
+                       !import_workspace_->scan->active() && !import_work_active_ &&
+                       !import_preflight_active_ && import_workspace_->scan->catalogRevision() &&
+                       import_workspace_->draft.mode != QLatin1String("add") &&
+                       !import_workspace_->draft.destination.isEmpty() &&
+                       import_workspace_->draft.destination_error.isEmpty() &&
                        import_candidates_.selectedCount() > 0;
             },
             [this]
@@ -215,13 +218,16 @@ StudioPresenter::StudioPresenter(QObject *parent)
                            QJsonObject{
                                {QStringLiteral("catalog"), catalog_path_},
                                {QStringLiteral("revision"),
-                                QString::number(*import_scan_->catalogRevision())},
-                               {QStringLiteral("source"), import_draft_.source_root},
-                               {QStringLiteral("destination"), import_draft_.destination},
-                               {QStringLiteral("second"), import_draft_.second_copy_destination},
-                               {QStringLiteral("mode"), import_draft_.mode},
-                               {QStringLiteral("organization"), import_draft_.organization},
-                               {QStringLiteral("name"), import_draft_.filename_pattern},
+                                QString::number(*import_workspace_->scan->catalogRevision())},
+                               {QStringLiteral("source"), import_workspace_->draft.source_root},
+                               {QStringLiteral("destination"),
+                                import_workspace_->draft.destination},
+                               {QStringLiteral("second"),
+                                import_workspace_->draft.second_copy_destination},
+                               {QStringLiteral("mode"), import_workspace_->draft.mode},
+                               {QStringLiteral("organization"),
+                                import_workspace_->draft.organization},
+                               {QStringLiteral("name"), import_workspace_->draft.filename_pattern},
                                {QStringLiteral("paths"),
                                 QJsonArray::fromStringList(import_candidates_.selectedPaths())}})
                     .toJson(QJsonDocument::Compact);
@@ -229,8 +235,9 @@ StudioPresenter::StudioPresenter(QObject *parent)
             [this] { return plannedImportRequest(); },
         },
         this);
-    connect(import_destination_preview_.get(), &StudioImportDestinationPreviewController::changed,
-            this, &StudioPresenter::importDestinationPreviewChanged);
+    connect(import_workspace_->destination_preview.get(),
+            &StudioImportDestinationPreviewController::changed, this,
+            &StudioPresenter::importDestinationPreviewChanged);
     catalog_revision_timer_ = new QTimer(this);
     catalog_revision_timer_->setInterval(kCatalogRevisionPollMs);
     catalog_revision_timer_->setTimerType(Qt::CoarseTimer);
@@ -278,10 +285,8 @@ StudioPresenter::~StudioPresenter()
     static_cast<void>(import_preview_operation_.cancel("window_closed"));
     filesystem_executor_.request_stop();
     filesystem_executor_.wait();
-    if (import_thumbnails_)
-        import_thumbnails_->shutdown();
-    if (import_destination_preview_)
-        import_destination_preview_->shutdown();
+    if (import_workspace_)
+        import_workspace_->shutdown();
     develop_preview_owner_.cancel("window_closed");
     cancel_preview_analysis("window_closed");
     perspective_analysis_owner_.cancel("window_closed");

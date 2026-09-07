@@ -47,6 +47,7 @@ target_sources(ravo_desktop
     src/studio_import_destination_preview_controller.h
     src/studio_import_scan_controller.cpp
     src/studio_import_scan_controller.h
+    src/studio_import_workspace.h
     src/studio_import_preferences.cpp
     src/studio_recovery.cpp
     src/studio_preview.cpp

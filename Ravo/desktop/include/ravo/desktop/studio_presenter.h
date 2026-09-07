@@ -58,6 +58,7 @@ class StudioImportTestControl;
 class StudioImportThumbnailController;
 class StudioImportDestinationPreviewController;
 class StudioImportScanController;
+struct StudioImportWorkspace;
 
 class StudioPresenter final : public QObject
 {
@@ -459,10 +460,7 @@ public:
         return import_preflight_active_;
     }
     [[nodiscard]] bool importReady() const;
-    [[nodiscard]] QString importDestinationError() const
-    {
-        return import_draft_.destination_error;
-    }
+    [[nodiscard]] QString importDestinationError() const;
     [[nodiscard]] QUrl importDestinationFolderUrl() const;
     [[nodiscard]] QUrl importSourceFolderUrl() const;
     [[nodiscard]] QUrl importSecondCopyFolderUrl() const;
@@ -1255,10 +1253,10 @@ private:
     std::unordered_map<std::string, std::string> pending_import_content_hashes_;
     LibraryQuery import_query_snapshot_;
     bool import_page_open_ = false;
+    std::unique_ptr<StudioImportWorkspace> import_workspace_;
     bool import_preview_work_active_ = false;
     int import_preview_work_completed_ = 0;
     int import_preview_work_total_ = 0;
-    ImportDraft import_draft_;
     bool import_preflight_active_ = false;
     QString pending_import_destination_;
     QString import_preference_error_;
@@ -1268,9 +1266,6 @@ private:
     QVariantMap import_native_support_;
     QVariantMap import_ingest_report_;
     QString import_resume_batch_id_;
-    std::unique_ptr<StudioImportThumbnailController> import_thumbnails_;
-    std::unique_ptr<StudioImportDestinationPreviewController> import_destination_preview_;
-    std::unique_ptr<StudioImportScanController> import_scan_;
     std::deque<std::string> pending_import_preview_ids_;
     ImportPreviewPolicy pending_import_preview_policy_ = ImportPreviewPolicy::kStandard;
     std::optional<std::int64_t> last_import_after_unix_ms_;
