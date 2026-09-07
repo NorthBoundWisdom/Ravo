@@ -19,6 +19,7 @@
 #include "ravo/desktop/studio_import_preferences.h"
 #include "ravo/services/ingest_transport.h"
 #include "studio_qt.h"
+#include "studio_import_thumbnail_controller.h"
 
 namespace ravo
 {
@@ -41,20 +42,6 @@ namespace
     if (candidate.relative_path.empty())
         candidate.relative_path = candidate.display_name;
     return candidate;
-}
-
-[[nodiscard]] QImage import_thumbnail_image(const RasterBuffer &raster)
-{
-    if (raster.width == 0 || raster.height == 0 ||
-        raster.srgb.size() < static_cast<std::size_t>(raster.width) * raster.height * 3U)
-        return {};
-    QImage image(static_cast<int>(raster.width), static_cast<int>(raster.height),
-                 QImage::Format_RGB888);
-    const auto row_bytes = static_cast<std::size_t>(raster.width) * 3U;
-    for (std::uint32_t row = 0; row < raster.height; ++row)
-        std::memcpy(image.scanLine(static_cast<int>(row)),
-                    raster.srgb.data() + static_cast<std::size_t>(row) * row_bytes, row_bytes);
-    return image;
 }
 
 [[nodiscard]] QVariantMap native_support_to_map(const NativeIngestPlatformSupport &support)
@@ -348,7 +335,8 @@ void StudioPresenter::closeImportPage()
     if (import_work_active_)
         return;
     static_cast<void>(import_operation_.cancel("import_page_closed"));
-    static_cast<void>(import_thumbnail_operation_.cancel("import_page_closed"));
+    if (import_thumbnails_)
+        import_thumbnails_->cancel("import_page_closed");
     ++import_scan_generation_;
     import_scan_active_ = false;
     import_preflight_active_ = false;
@@ -357,7 +345,8 @@ void StudioPresenter::closeImportPage()
     import_duplicate_count_ = 0;
     import_scan_completed_ = 0;
     import_scan_total_ = 0;
-    pending_import_thumbnail_rows_.clear();
+    if (import_thumbnails_)
+        import_thumbnails_->clearPending();
     import_candidates_.setCandidates({});
     emit importPageChanged();
 }
@@ -513,8 +502,10 @@ void StudioPresenter::rescanImportSource()
     if (service_ == nullptr || import_source_root_.isEmpty() || import_work_active_)
         return;
     static_cast<void>(import_operation_.cancel("import_source_changed"));
-    static_cast<void>(import_thumbnail_operation_.cancel("import_source_changed"));
-    import_thumbnail_operation_ = CancellationSource{};
+    if (import_thumbnails_)
+        import_thumbnails_->cancel("import_source_changed");
+    if (import_thumbnails_)
+        import_thumbnails_->resetOperation();
     import_operation_ = CancellationSource{};
     const auto token = import_operation_.token();
     const auto generation = ++import_scan_generation_;
@@ -527,7 +518,8 @@ void StudioPresenter::rescanImportSource()
     import_duplicate_count_ = 0;
     import_scan_completed_ = 0;
     import_scan_total_ = 0;
-    pending_import_thumbnail_rows_.clear();
+    if (import_thumbnails_)
+        import_thumbnails_->clearPending();
     import_candidates_.setCandidates({});
     setError({});
     emit importPageChanged();
@@ -614,85 +606,8 @@ void StudioPresenter::rescanImportSource()
 
 void StudioPresenter::ensureImportThumbnail(const int row)
 {
-    if (!import_page_open_ || import_work_active_ || import_preflight_active_ || row < 0 ||
-        row >= import_candidates_.rowCount() || import_candidates_.inspected(row) ||
-        !import_candidates_.thumbnail(row).isNull())
-        return;
-    if (!pending_import_thumbnail_rows_.insert(row).second)
-        return;
-    // Collect one QML delegate-creation turn before selecting the first row.
-    QTimer::singleShot(0, this, &StudioPresenter::kickImportCandidateWork);
-}
-
-void StudioPresenter::kickImportCandidateWork()
-{
-    if (import_candidate_work_in_flight_ || import_work_active_ || import_preflight_active_ ||
-        !import_page_open_)
-        return;
-    while (!pending_import_thumbnail_rows_.empty())
-    {
-        const int row = *pending_import_thumbnail_rows_.begin();
-        pending_import_thumbnail_rows_.erase(pending_import_thumbnail_rows_.begin());
-        if (row < 0 || row >= import_candidates_.rowCount() || import_candidates_.inspected(row) ||
-            !import_candidates_.thumbnail(row).isNull())
-            continue;
-        startImportCandidateWork(row);
-        return;
-    }
-}
-
-void StudioPresenter::startImportCandidateWork(const int row)
-{
-    const QString source = import_candidates_.sourcePath(row);
-    if (source.isEmpty())
-        return;
-    const auto generation = import_scan_generation_;
-    const auto token = import_thumbnail_operation_.token();
-    import_candidate_work_in_flight_ = true;
-    const bool queued = import_thumbnail_executor_.post(
-        [this, row, source, generation, token]()
-        {
-            const auto decode = [&]() -> Result<RasterBuffer>
-            {
-                if (auto active = token.check(); !active)
-                    return active.error();
-                if (!import_thumbnail_engine_)
-                {
-                    auto created = EngineFacade::create_phase1();
-                    if (!created)
-                        return created.error();
-                    import_thumbnail_engine_ = std::move(created).value();
-                }
-                const QtRasterDecoder raster;
-                return decode_import_thumbnail(*import_thumbnail_engine_, raster,
-                                               utf8_from_qstring(source), token);
-            };
-            auto decoded = decode();
-            QImage image;
-            std::optional<TaskError> error;
-            if (decoded)
-                image = import_thumbnail_image(decoded.value());
-            else
-                error = decoded.error();
-            QMetaObject::invokeMethod(
-                this,
-                [this, row, source, generation, token, error = std::move(error),
-                 image = std::move(image)]() mutable
-                {
-                    import_candidate_work_in_flight_ = false;
-                    if (generation == import_scan_generation_ && import_page_open_ &&
-                        !import_work_active_ && token.check() &&
-                        import_candidates_.sourcePath(row) == source)
-                        import_candidates_.finishThumbnail(row, std::move(image), std::move(error));
-                    kickImportCandidateWork();
-                },
-                Qt::QueuedConnection);
-        });
-    if (!queued)
-    {
-        import_candidate_work_in_flight_ = false;
-        setError(QStringLiteral("Import thumbnail worker is stopped."));
-    }
+    if (import_thumbnails_)
+        import_thumbnails_->ensure(row);
 }
 
 void StudioPresenter::beginImportGalleryPlaceholders(const std::vector<std::string> &paths)
@@ -831,7 +746,8 @@ void StudioPresenter::startPlannedImport()
                     if (!ready)
                     {
                         setError(qstring_from_utf8(ready.error().message));
-                        kickImportCandidateWork();
+                        if (import_thumbnails_)
+                            import_thumbnails_->kick();
                         return;
                     }
                     beginPlannedImport(std::move(request));
@@ -842,7 +758,8 @@ void StudioPresenter::startPlannedImport()
 
 void StudioPresenter::beginPlannedImport(ImportRequest request)
 {
-    static_cast<void>(import_thumbnail_operation_.cancel("planned_import_started"));
+    if (import_thumbnails_)
+        import_thumbnails_->cancel("planned_import_started");
     const bool ingest_copy = uses_ingest_copy_path(import_ingest_transport_, import_mode_);
     pending_import_destination_ = request.mode == ImportTransferMode::kAdd ?
                                       QString{} :
@@ -851,7 +768,8 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
     import_preference_error_.clear();
     static_cast<void>(import_operation_.cancel("planned_import_started"));
     ++import_scan_generation_;
-    pending_import_thumbnail_rows_.clear();
+    if (import_thumbnails_)
+        import_thumbnails_->clearPending();
     import_operation_ = CancellationSource{};
     request.cancellation = import_operation_.token();
     pending_import_paths_ = request.inputs;

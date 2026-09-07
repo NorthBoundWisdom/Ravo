@@ -1,4 +1,5 @@
 #include "ravo/desktop/studio_presenter.h"
+#include "studio_import_thumbnail_controller.h"
 
 #include "ravo/desktop/export_option_conversion.h"
 #include "ravo/desktop/filesystem_browser_model.h"
@@ -180,6 +181,17 @@ StudioPresenter::StudioPresenter(QObject *parent)
             &StudioPresenter::refreshImportDestinationPreview);
     connect(&import_candidates_, &ImportCandidateListModel::selectionChanged, this,
             &StudioPresenter::importPageChanged);
+    import_thumbnails_ = std::make_unique<StudioImportThumbnailController>(
+        StudioImportThumbnailController::Host{
+            &import_candidates_,
+            this,
+            [this] { return import_page_open_; },
+            [this] { return import_work_active_; },
+            [this] { return import_preflight_active_; },
+            [this] { return import_scan_generation_; },
+            [this](QString message) { setError(std::move(message)); },
+        },
+        this);
     catalog_revision_timer_ = new QTimer(this);
     catalog_revision_timer_->setInterval(kCatalogRevisionPollMs);
     catalog_revision_timer_->setTimerType(Qt::CoarseTimer);
@@ -224,15 +236,13 @@ StudioPresenter::~StudioPresenter()
     static_cast<void>(thumbnail_work_.cancel("window_closed"));
     static_cast<void>(catalog_operation_.cancel("window_closed"));
     static_cast<void>(import_operation_.cancel("window_closed"));
-    static_cast<void>(import_thumbnail_operation_.cancel("window_closed"));
     static_cast<void>(import_preview_operation_.cancel("window_closed"));
     static_cast<void>(import_destination_preview_operation_.cancel("window_closed"));
     import_destination_preview_timer_->stop();
     filesystem_executor_.request_stop();
     filesystem_executor_.wait();
-    import_thumbnail_executor_.submit([this] { import_thumbnail_engine_.reset(); });
-    import_thumbnail_executor_.request_stop();
-    import_thumbnail_executor_.wait();
+    if (import_thumbnails_)
+        import_thumbnails_->shutdown();
     develop_preview_owner_.cancel("window_closed");
     cancel_preview_analysis("window_closed");
     perspective_analysis_owner_.cancel("window_closed");

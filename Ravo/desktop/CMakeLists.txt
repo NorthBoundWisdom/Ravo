@@ -41,6 +41,7 @@ target_sources(ravo_desktop
     src/studio_presenter_selection.cpp
     src/studio_presenter_iq.cpp
     src/studio_import.cpp
+    src/studio_import_thumbnail_controller.cpp
     src/studio_import_destination_preview.cpp
     src/studio_import_preferences.cpp
     src/studio_recovery.cpp

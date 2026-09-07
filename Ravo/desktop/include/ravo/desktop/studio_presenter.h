@@ -54,6 +54,8 @@ namespace testing
 class StudioImportTestControl;
 }
 
+class StudioImportThumbnailController;
+
 class StudioPresenter final : public QObject
 {
     Q_OBJECT
@@ -1107,10 +1109,8 @@ private:
     void startScheduledBackup(bool force);
     void finishThumbnailRequest(bool success);
     void rescanImportSource();
-    void kickImportCandidateWork();
     void beginPlannedImport(ImportRequest request);
     void validateImportDestination();
-    void startImportCandidateWork(int row);
     void startNextImportPreview();
     void load_develop_for_selection();
     void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
@@ -1230,9 +1230,6 @@ private:
 
     SerialExecutor executor_;
     SerialExecutor filesystem_executor_;
-    SerialExecutor import_thumbnail_executor_;
-    std::optional<EngineFacade> import_thumbnail_engine_;
-    CancellationSource import_thumbnail_operation_;
     SerialExecutor preview_analysis_executor_;
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
@@ -1305,8 +1302,7 @@ private:
     QVariantMap import_ingest_report_;
     QString import_resume_batch_id_;
     std::uint64_t import_scan_generation_ = 0U;
-    std::set<int> pending_import_thumbnail_rows_;
-    bool import_candidate_work_in_flight_ = false;
+    std::unique_ptr<StudioImportThumbnailController> import_thumbnails_;
     std::deque<std::string> pending_import_preview_ids_;
     ImportPreviewPolicy pending_import_preview_policy_ = ImportPreviewPolicy::kStandard;
     std::optional<std::int64_t> last_import_after_unix_ms_;
