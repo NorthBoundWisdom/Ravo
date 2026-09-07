@@ -135,15 +135,66 @@ def unpack(artifact: Path, dest: Path) -> Path:
     raise SystemExit(f"unsupported artifact type: {artifact}")
 
 
-def cleaned_env() -> dict[str, str]:
+def _path_looks_like_dev_qt(entry: str) -> bool:
+    lowered = entry.replace("\\", "/").lower()
+    markers = (
+        "/qt/",
+        "/qt6/",
+        "/qt5/",
+        "qt/6.",
+        "qt/5.",
+        "cmake/qt",
+        "aqt",
+        "homebrew/opt/qt",
+        "cellar/qt",
+        "vcpkg",
+        "build/mac_clang",
+        "build/linux_",
+        "build/win_",
+        "_deps/qt",
+    )
+    return any(marker in lowered for marker in markers)
+
+
+def cleaned_env(*, home: Path | None = None, allow_offscreen: bool = True) -> dict[str, str]:
+    """Strip development Qt/runtime pollution for packaged validation.
+
+    Offscreen is an explicit non-native path for CI smoke only — never a native claim.
+    """
     env = os.environ.copy()
     for key in list(env):
         if key.startswith(("QT_", "QML", "QSG_")):
             env.pop(key, None)
-    env["QT_QPA_PLATFORM"] = "offscreen"
-    env.setdefault("QSG_RHI_BACKEND", "software")
-    env.setdefault("QT_QUICK_BACKEND", "software")
+    for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH", "QT_PLUGIN_PATH",
+                "QML2_IMPORT_PATH", "QML_IMPORT_PATH"):
+        env.pop(key, None)
+    raw_path = env.get("PATH", "")
+    kept = [part for part in raw_path.split(os.pathsep) if part and not _path_looks_like_dev_qt(part)]
+    # Keep minimal system path roots so the packaged binary can still start.
+    if os.name == "nt":
+        system_root = env.get("SystemRoot") or env.get("WINDIR") or r"C:\Windows"
+        for part in (rf"{system_root}\System32", system_root):
+            if part not in kept:
+                kept.append(part)
+    else:
+        for part in ("/usr/bin", "/bin", "/usr/sbin", "/sbin"):
+            if part not in kept:
+                kept.append(part)
+    env["PATH"] = os.pathsep.join(kept)
+    if home is not None:
+        env["HOME"] = str(home)
+        env["XDG_CONFIG_HOME"] = str(home / ".config")
+        env["XDG_DATA_HOME"] = str(home / ".local" / "share")
+        env["XDG_CACHE_HOME"] = str(home / ".cache")
+        env["APPDATA"] = str(home / "AppData" / "Roaming")
+        env["LOCALAPPDATA"] = str(home / "AppData" / "Local")
+    if allow_offscreen:
+        env["QT_QPA_PLATFORM"] = "offscreen"
+        env.setdefault("QSG_RHI_BACKEND", "software")
+        env.setdefault("QT_QUICK_BACKEND", "software")
     return env
+
+
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -191,6 +242,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     exit_code = 0
+    cli = None
+    studio = None
     try:
         try:
             root = unpack(artifact, work)
@@ -226,7 +279,10 @@ def main(argv: list[str] | None = None) -> int:
                 record("studio_payload", Status.PASS, str(studio))
                 print(f"studio={studio}")
 
-        env = cleaned_env()
+        smoke_home = work / "smoke-home"
+        smoke_home.mkdir(parents=True, exist_ok=True)
+        env = cleaned_env(home=smoke_home, allow_offscreen=True)
+        record("runtime_env_isolated", Status.PASS, "stripped QT_/LD_/DYLD_ and dev Qt PATH entries")
         try:
             help_proc = subprocess.run(
                 [str(cli), "--help"],
@@ -285,11 +341,17 @@ def main(argv: list[str] | None = None) -> int:
         else:
             record("studio_smoke", Status.UNTESTED, "studio unavailable")
 
-        record("native_display_session", Status.UNTESTED)
+        record("native_display_session", Status.UNTESTED,
+               "offscreen smoke ≠ native packaged plugins/session")
         if artifact.suffix.lower() == ".deb":
             record("dpkg_install_launcher", Status.UNTESTED, "unpack ≠ install")
         if ".AppImage" in artifact.name:
-            record("appimage_fuse_or_extract", Status.UNTESTED)
+            # Extract path is exercised by unpack(); FUSE direct launch remains separate.
+            if results.get("unpack") == Status.PASS.value:
+                record("appimage_extract_payload", Status.PASS, "via --appimage-extract")
+            else:
+                record("appimage_extract_payload", Status.FAIL, "unpack did not PASS")
+            record("appimage_fuse_direct_launch", Status.UNTESTED, "no FUSE host evidence")
 
         # Fail closed: --require-smoke forbids any FAIL and forbids missing required PASS.
         required = ("unpack", "cli_payload", "cli_help", "studio_payload", "studio_smoke")
@@ -312,6 +374,12 @@ def main(argv: list[str] | None = None) -> int:
                 "results": results,
                 "residuals": residuals,
                 "require_smoke": bool(args.require_smoke),
+                "host": {
+                    "platform": sys.platform,
+                    "python": sys.version.split()[0],
+                },
+                "cli": str(cli) if cli is not None else None,
+                "studio": str(studio) if studio is not None else None,
             }
             args.evidence_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         if tmp_ctx is not None:
