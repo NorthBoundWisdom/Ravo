@@ -39,7 +39,11 @@ jobs:
           python-version: "3.12"
 
       - name: Check whitespace
-        run: git diff --check
+        run: python .github/scripts/check_changed_whitespace.py --repository-root .
+
+      - name: Test changed-whitespace checker
+        working-directory: .github/scripts
+        run: python -m unittest test_check_changed_whitespace.py
 
       - name: Validate FreeCM project commands
         run: python FreeCM/tools/validate_repo_commands.py .
