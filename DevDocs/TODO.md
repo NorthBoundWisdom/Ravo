@@ -789,4 +789,3 @@ workspace owners, roundtrip tests, mac/linux Release smoke CI, and packaged
 runtime out-of-tree checker. This is Studio Import workflow hardening evidence
 (C1/C2-style suites on `mac_clang_debug`); it does **not** admit REL-01/C3 or
 PERF-02 frame-presented SLAs. RealSourceProgressProbe remains opt-in/skipped.
-
