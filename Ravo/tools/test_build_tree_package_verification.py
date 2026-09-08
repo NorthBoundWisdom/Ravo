@@ -90,7 +90,14 @@ class BuildTreePackageVerificationUnitTests(unittest.TestCase):
         missing = "/no/such/ravo/cli/binary"
         with self.assertRaises(FileNotFoundError) as raised:
             resolve_explicit_cli(cli_arg=missing, environ={})
-        self.assertIn(missing, str(raised.exception))
+        message = str(raised.exception)
+        reported = Path(missing)
+        # Path() normalizes separators (Windows -> \no\such\...), so accept either
+        # str(Path) or as_posix while still requiring the missing path to appear.
+        self.assertTrue(
+            str(reported) in message or reported.as_posix() in message,
+            msg=f"expected path form of {missing!r} in {message!r}",
+        )
 
     def test_non_executable_explicit_cli_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

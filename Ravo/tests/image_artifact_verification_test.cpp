@@ -303,18 +303,53 @@ TEST(ImageArtifactVerification, RejectsSamePrimariesDifferentTransferExpectation
 TEST(ImageArtifactVerification, RejectsWrongColorFingerprintEvenWhenIdentifierMatches)
 {
     QtRasterDecoder decoder;
-    ColorProfileState profile = builtin_named("display_p3");
-    auto encoded =
-        decoder.encode(2, 2, solid_rgb(2, 2, 1, 2, 3), profile, ExportFormat::kPng, {}, {}, {});
+    // Same public identifier ("embedded_icc") with different ICC payloads must yield
+    // different fingerprints. Do not rely on builtin display_p3 vs srgb round-trips:
+    // some platforms remapped those to identical fingerprints and broke ASSERT_NE.
+    ColorProfileState encoded_profile = embedded_icc_from_qt(QColorSpace(QColorSpace::DisplayP3));
+    ColorProfileState wrong_same_identifier = embedded_icc_from_qt(QColorSpace(QColorSpace::SRgb));
+    ASSERT_FALSE(encoded_profile.icc_bytes.empty());
+    ASSERT_FALSE(wrong_same_identifier.icc_bytes.empty());
+    ASSERT_EQ(encoded_profile.identifier, wrong_same_identifier.identifier);
+    ASSERT_EQ(encoded_profile.identifier, "embedded_icc");
+    ASSERT_NE(color_profile_fingerprint(encoded_profile),
+              color_profile_fingerprint(wrong_same_identifier));
+
+    auto encoded = decoder.encode(2, 2, solid_rgb(2, 2, 1, 2, 3), encoded_profile,
+                                  ExportFormat::kPng, {}, {}, {});
     ASSERT_TRUE(encoded) << encoded.error().message;
     auto decoded = decoder.decode_memory(encoded.value(), 0U, {});
     ASSERT_TRUE(decoded) << decoded.error().message;
+
     ImageArtifactExpectation expected;
     expected.mime_type = "image/png";
     expected.color_profile = decoded.value().color_profile.identifier;
-    expected.color_profile_fingerprint = color_profile_fingerprint(builtin_named("srgb"));
-    ASSERT_NE(expected.color_profile_fingerprint,
-              color_profile_fingerprint(decoded.value().color_profile));
+    const auto actual_fingerprint = color_profile_fingerprint(decoded.value().color_profile);
+    if (decoded.value().color_profile.identifier == "embedded_icc")
+    {
+        // Identifier matches wrong_same_identifier; fingerprint must still differ.
+        expected.color_profile_fingerprint = color_profile_fingerprint(wrong_same_identifier);
+    }
+    else
+    {
+        // Decoder remapped to a named builtin — keep that identifier but spoof a
+        // fingerprint that cannot equal the decoded owner (matrix perturbation).
+        ColorProfileState spoof;
+        spoof.kind = decoded.value().color_profile.kind;
+        spoof.model = decoded.value().color_profile.model;
+        spoof.identifier = decoded.value().color_profile.identifier;
+        spoof.icc_bytes = decoded.value().color_profile.icc_bytes;
+        spoof.has_matrix = true;
+        spoof.matrix_to_xyz_d50 = {0.5F, 0.0F, 0.0F, 0.0F, 0.5F, 0.0F, 0.0F, 0.0F, 0.5F};
+        expected.color_profile_fingerprint = color_profile_fingerprint(spoof);
+        if (expected.color_profile_fingerprint == actual_fingerprint)
+        {
+            spoof.matrix_to_xyz_d50[0] = 0.25F;
+            expected.color_profile_fingerprint = color_profile_fingerprint(spoof);
+        }
+    }
+    ASSERT_NE(expected.color_profile_fingerprint, actual_fingerprint)
+        << "fixture must keep the same identifier with a different fingerprint";
     auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
     ASSERT_FALSE(verified);
     EXPECT_EQ(verified.error().context.at("reason"), "color_profile_fingerprint_mismatch");
