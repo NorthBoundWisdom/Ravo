@@ -391,6 +391,16 @@ gtest_discover_tests(ravo_original_copy_service_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-original-copy-service")
 
+add_executable(ravo_image_artifact_verification_tests image_artifact_verification_test.cpp)
+target_link_libraries(ravo_image_artifact_verification_tests
+  PRIVATE GTest::gtest_main ravo_services Qt6::Core Qt6::Gui)
+target_include_directories(ravo_image_artifact_verification_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_image_artifact_verification_tests)
+ravo_copy_windows_runtime_dlls(ravo_image_artifact_verification_tests)
+gtest_discover_tests(ravo_image_artifact_verification_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-image-artifact")
+
 add_executable(ravo_encoded_publication_tests encoded_publication_test.cpp)
 target_link_libraries(ravo_encoded_publication_tests PRIVATE GTest::gtest_main ravo_services)
 target_include_directories(ravo_encoded_publication_tests PRIVATE
