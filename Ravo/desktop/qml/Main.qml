@@ -47,35 +47,41 @@ ApplicationWindow {
     property string pendingRestoreBackup: ""
     property int pendingBackupIntervalMinutes: 1440
     property int pendingBackupRetentionCount: 7
-    property string pendingRelinkFolderId: ""
-    property string removeFolderConfirmationToken: ""
-    property string removeFolderPath: ""
-    property string viewportAssetId: ""
-    property var inspectViewportFocus: null
-    property var inspectViewportRestore: null
-    property var pendingInspectStagePos: null
-    property var inspectZoomFrom: null
-    property var inspectZoomCommit: null
-    property real savedInspectContentX: 0
-    property real savedInspectContentY: 0
-    property bool inspectZoomPending: false
-    property bool inspectZoomAnimating: false
-    property bool inspectZoomIgnoreStop: false
-    property real inspectStageLockW: -1
-    property real inspectStageLockH: -1
-    property real inspectAnimScale: 1
-    property real inspectAnimOriginX: 0
-    property real inspectAnimOriginY: 0
-    readonly property int inspectZoomDurationMs: 240
+    StudioDialogCoordinator {
+        id: dialogCoordinator
+    }
+    InspectZoomController {
+        id: inspectZoom
+        studio: studio
+        devicePixelRatio: Screen.devicePixelRatio
+        comparisonReady: window.comparisonReady
+        // scroller/photoPlane/previewImage bound after they exist via Binding/onCompleted below
+    }
+
+    property alias pendingRelinkFolderId: dialogCoordinator.pendingRelinkFolderId
+    property alias removeFolderConfirmationToken: dialogCoordinator.removeFolderConfirmationToken
+    property alias removeFolderPath: dialogCoordinator.removeFolderPath
+    property alias viewportAssetId: inspectZoom.viewportAssetId
+    property alias inspectViewportFocus: inspectZoom.inspectViewportFocus
+    property alias inspectViewportRestore: inspectZoom.inspectViewportRestore
+    property alias pendingInspectStagePos: inspectZoom.pendingInspectStagePos
+    property alias inspectZoomFrom: inspectZoom.inspectZoomFrom
+    property alias inspectZoomCommit: inspectZoom.inspectZoomCommit
+    property alias savedInspectContentX: inspectZoom.savedInspectContentX
+    property alias savedInspectContentY: inspectZoom.savedInspectContentY
+    property alias inspectZoomPending: inspectZoom.inspectZoomPending
+    property alias inspectZoomAnimating: inspectZoom.inspectZoomAnimating
+    property alias inspectZoomIgnoreStop: inspectZoom.inspectZoomIgnoreStop
+    property alias inspectStageLockW: inspectZoom.inspectStageLockW
+    property alias inspectStageLockH: inspectZoom.inspectStageLockH
+    property alias inspectAnimScale: inspectZoom.inspectAnimScale
+    property alias inspectAnimOriginX: inspectZoom.inspectAnimOriginX
+    property alias inspectAnimOriginY: inspectZoom.inspectAnimOriginY
+    readonly property alias inspectZoomDurationMs: inspectZoom.inspectZoomDurationMs
+
     readonly property bool comparisonReady: studio.comparisonActive && studio.comparisonBeforeUrl.toString().length > 0 && studio.previewUrl.toString().length > 0
     readonly property bool previewPlaceholderReady: studio.browseMode !== "grid" && studio.browseMode !== "survey" && studio.previewLoading && studio.previewUrl.toString().length === 0 && studio.selectedThumbnailUrl.toString().length > 0 && studio.selectedImportState !== "missing"
-    readonly property bool photoInspectEnabled: {
-        if (studio.browseMode === "grid" || studio.browseMode === "survey" || (studio.browseMode === "develop" && studio.cropToolActive))
-            return false;
-        if (typeof previewImage === "undefined")
-            return false;
-        return previewImage.status === Image.Ready && studio.previewUrl.toString().length > 0;
-    }
+    readonly property alias photoInspectEnabled: inspectZoom.photoInspectEnabled
     readonly property rect navigatorVisible: {
         if (studio.browseMode === "grid" || studio.browseMode === "survey" || typeof photoPlane === "undefined" || photoPlane.width < 1 || scroller.width < 1)
             return Qt.rect(0, 0, 1, 1);
@@ -96,104 +102,35 @@ ApplicationWindow {
     }
 
     function seekNavigatorViewport(nx, ny) {
-        if (studio.browseMode === "grid" || studio.browseMode === "survey" || typeof photoPlane === "undefined" || photoPlane.width < 1)
-            return;
-        const maxX = Math.max(0, scroller.contentWidth - scroller.width);
-        const maxY = Math.max(0, scroller.contentHeight - scroller.height);
-        scroller.contentX = Math.max(0, Math.min(maxX, photoPlane.x + nx * photoPlane.width));
-        scroller.contentY = Math.max(0, Math.min(maxY, photoPlane.y + ny * photoPlane.height));
+        inspectZoom.seekNavigatorViewport(nx, ny);
     }
 
     function centerPhotoViewport() {
-        if (typeof scroller === "undefined")
-            return;
-        Qt.callLater(function () {
-            window.centerPhotoViewportNow();
-        });
+        inspectZoom.centerPhotoViewport();
     }
 
     function centerPhotoViewportNow() {
-        if (typeof scroller === "undefined")
-            return;
-        const maxX = Math.max(0, scroller.contentWidth - scroller.width);
-        const maxY = Math.max(0, scroller.contentHeight - scroller.height);
-        scroller.contentX = maxX / 2;
-        scroller.contentY = maxY / 2;
+        inspectZoom.centerPhotoViewportNow();
     }
 
     function applyPhotoViewportAfterZoom() {
-        Qt.callLater(function () {
-            if (typeof scroller === "undefined" || typeof photoPlane === "undefined")
-                return;
-            const maxX = Math.max(0, scroller.contentWidth - scroller.width);
-            const maxY = Math.max(0, scroller.contentHeight - scroller.height);
-            if (window.inspectViewportFocus) {
-                const focus = window.inspectViewportFocus;
-                window.inspectViewportFocus = null;
-                scroller.contentX = Math.max(0, Math.min(maxX, photoPlane.x + focus.fx * photoPlane.width - focus.anchorX));
-                scroller.contentY = Math.max(0, Math.min(maxY, photoPlane.y + focus.fy * photoPlane.height - focus.anchorY));
-                return;
-            }
-            if (window.inspectViewportRestore) {
-                const restore = window.inspectViewportRestore;
-                window.inspectViewportRestore = null;
-                scroller.contentX = Math.max(0, Math.min(maxX, restore.x));
-                scroller.contentY = Math.max(0, Math.min(maxY, restore.y));
-                return;
-            }
-            window.centerPhotoViewportNow();
-        });
+        inspectZoom.applyPhotoViewportAfterZoom();
     }
 
     function unlockedPhotoStageSize(mode, factor) {
-        const srcW = window.inspectSourceWidth();
-        const srcH = window.inspectSourceHeight();
-        if (mode === "fit")
-            return {
-                "w": scroller.width,
-                "h": scroller.height
-            };
-        if (mode === "fill")
-            return {
-                "w": Math.max(scroller.width, srcW * (scroller.height / srcH)),
-                "h": Math.max(scroller.height, srcH * (scroller.width / srcW))
-            };
-        if (mode === "actual")
-            return {
-                "w": srcW,
-                "h": srcH
-            };
-        return {
-            "w": Math.max(1, srcW * factor),
-            "h": Math.max(1, srcH * factor)
-        };
+        return inspectZoom.unlockedPhotoStageSize(mode, factor);
     }
 
     function photoPlaneRectForStage(stageW, stageH) {
-        const srcW = window.inspectSourceWidth();
-        const srcH = window.inspectSourceHeight();
-        const contain = Math.min(stageW / srcW, stageH / srcH);
-        const planeW = srcW * contain;
-        const planeH = srcH * contain;
-        return {
-            "x": (stageW - planeW) / 2,
-            "y": (stageH - planeH) / 2,
-            "w": planeW,
-            "h": planeH
-        };
+        return inspectZoom.photoPlaneRectForStage(stageW, stageH);
     }
 
     function inspectSourceWidth() {
-        if (studio.zoomMode === "actual" && studio.selectedWorkingWidth > 0)
-            return Math.max(1, Math.round(studio.selectedWorkingWidth / Screen.devicePixelRatio));
-        const width = Math.max(studio.previewViewportWidth, 1);
-        return window.comparisonReady ? width * 2 : width;
+        return inspectZoom.inspectSourceWidth();
     }
 
     function inspectSourceHeight() {
-        if (studio.zoomMode === "actual" && studio.selectedWorkingHeight > 0)
-            return Math.max(1, Math.round(studio.selectedWorkingHeight / Screen.devicePixelRatio));
-        return Math.max(studio.previewViewportHeight, 1);
+        return inspectZoom.inspectSourceHeight();
     }
 
     onComparisonReadyChanged: {
@@ -204,40 +141,15 @@ ApplicationWindow {
     }
 
     function clearInspectZoomVisual() {
-        inspectZoomAnimating = false;
-        inspectZoomPending = false;
-        inspectZoomFrom = null;
-        inspectZoomCommit = null;
-        inspectZoomAnim.stop();
-        inspectAnimScale = 1;
-        inspectStageLockW = -1;
-        inspectStageLockH = -1;
+        inspectZoom.clearInspectZoomVisual(inspectZoomAnim);
     }
 
     function abortInspectZoomAnimation() {
-        clearInspectZoomVisual();
-        inspectViewportFocus = null;
-        inspectViewportRestore = null;
+        inspectZoom.abortInspectZoomAnimation(inspectZoomAnim);
     }
 
     function commitInspectZoomAnimation() {
-        const commit = inspectZoomCommit;
-        inspectZoomAnimating = false;
-        inspectZoomPending = false;
-        inspectZoomFrom = null;
-        inspectZoomCommit = null;
-        inspectViewportFocus = null;
-        inspectViewportRestore = null;
-        inspectZoomAnim.stop();
-        inspectAnimScale = 1;
-        inspectStageLockW = -1;
-        inspectStageLockH = -1;
-        if (!commit || typeof scroller === "undefined")
-            return;
-        const maxX = Math.max(0, scroller.contentWidth - scroller.width);
-        const maxY = Math.max(0, scroller.contentHeight - scroller.height);
-        scroller.contentX = Math.max(0, Math.min(maxX, commit.x));
-        scroller.contentY = Math.max(0, Math.min(maxY, commit.y));
+        inspectZoom.commitInspectZoomAnimation(inspectZoomAnim);
     }
 
     function beginInspectZoomAnimation() {
@@ -312,9 +224,7 @@ ApplicationWindow {
     }
 
     function inspectPointInPhoto(pos) {
-        if (typeof photoPlane === "undefined" || photoPlane.width < 1 || photoPlane.height < 1)
-            return false;
-        return pos.x >= photoPlane.x && pos.x <= photoPlane.x + photoPlane.width && pos.y >= photoPlane.y && pos.y <= photoPlane.y + photoPlane.height;
+        return inspectZoom.inspectPointInPhoto(pos);
     }
 
     function togglePhotoInspectZoom(stagePos) {
@@ -1932,5 +1842,31 @@ ApplicationWindow {
         onFileAccepted: function (filePath) {
             studioActions.run(studioActions.ids.presetImportPath, filePath);
         }
+    }
+
+    Binding {
+        target: inspectZoom
+        property: "scroller"
+        value: typeof scroller !== "undefined" ? scroller : null
+    }
+    Binding {
+        target: inspectZoom
+        property: "photoPlane"
+        value: typeof photoPlane !== "undefined" ? photoPlane : null
+    }
+    Binding {
+        target: inspectZoom
+        property: "previewImage"
+        value: typeof previewImage !== "undefined" ? previewImage : null
+    }
+    Binding {
+        target: inspectZoom
+        property: "previewStage"
+        value: typeof previewStage !== "undefined" ? previewStage : null
+    }
+    Binding {
+        target: inspectZoom
+        property: "studioActions"
+        value: typeof studioActions !== "undefined" ? studioActions : null
     }
 }

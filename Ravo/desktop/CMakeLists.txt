@@ -206,6 +206,7 @@ qt_add_qml_module(ravo_studio
     qml/gallery/GalleryReviewBar.qml
     qml/gallery/PhotoInformationOverlay.qml
     qml/gallery/ThumbnailCell.qml
+    qml/inspect/InspectZoomController.qml
     qml/inspect/InspectorSidePanel.qml
     qml/inspect/PhotoInfoPanel.qml
     qml/inspect/DevelopHistoryPanel.qml
@@ -261,6 +262,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/ImportDialogs.qml
     qml/chrome/ImportFolderTree.qml
     qml/chrome/AssistantPanel.qml
+    qml/chrome/StudioDialogCoordinator.qml
     qml/chrome/StudioActions.qml
     qml/chrome/StudioCommandMenuItems.qml
     qml/chrome/StudioCommandPalette.qml
