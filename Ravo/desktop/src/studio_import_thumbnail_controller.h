@@ -108,8 +108,8 @@ public:
     void clearPending();
     // UI-thread source/model session boundary: drop pending, terminals, demand sets, and the
     // in-flight admission latch so a Presenter ensure path can rebuild after rescan/reopen
-    // without a viewport workaround. A worker that outlives the session still finishes as
-    // stale and must not clear a newer latch.
+    // without a viewport workaround. Physical executor posts are tracked separately and are
+    // not cleared here; a draining worker must not clear a newer latch or publish terminals.
     void resetSourceSession();
     void cancel(const char *reason);
     void resetOperation();
@@ -155,6 +155,10 @@ public:
     [[nodiscard]] std::size_t demandFailedCount() const noexcept;
     [[nodiscard]] std::size_t demandCapacityDeferredCount() const noexcept;
     [[nodiscard]] bool demandQuiescent() const noexcept;
+    // Physical posts still draining on the executor (may outlive UI admission latch).
+    [[nodiscard]] std::size_t physicalOutstandingCount() const noexcept;
+    // demandQuiescent && no outstanding physical worker posts.
+    [[nodiscard]] bool physicalDrained() const noexcept;
 
     // Deterministic test checkpoints (UI thread).
     // Production default keeps constant-space counters only. Full trails require an
@@ -232,6 +236,9 @@ private:
     bool in_flight_ = false;
     int in_flight_row_ = -1;
     std::uint64_t in_flight_demand_generation_ = 0;
+    // Count of executor posts that have not yet reached finishUi / post-reject.
+    // Independent from the UI admission latch cleared by resetSourceSession.
+    std::size_t physical_outstanding_ = 0;
     bool stopped_ = false;
     bool kick_scheduled_ = false;
 

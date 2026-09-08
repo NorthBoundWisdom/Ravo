@@ -276,6 +276,16 @@ bool StudioImportThumbnailController::demandQuiescent() const noexcept
     return !in_flight_ && pending_rows_.empty() && !kick_scheduled_;
 }
 
+std::size_t StudioImportThumbnailController::physicalOutstandingCount() const noexcept
+{
+    return physical_outstanding_;
+}
+
+bool StudioImportThumbnailController::physicalDrained() const noexcept
+{
+    return physical_outstanding_ == 0 && demandQuiescent();
+}
+
 void StudioImportThumbnailController::scheduleKick()
 {
     if (stopped_)
@@ -534,9 +544,10 @@ void StudioImportThumbnailController::resetSourceSession()
     visible_demand_.clear();
     prefetch_demand_.clear();
     current_row_ = -1;
-    // Release the UI admission latch so ensure/setViewportDemand can dispatch for the new
-    // source/session even while a cancelled worker is still draining. finishUi matches
-    // in_flight_demand_generation_ before clearing a newer latch.
+    // Release the UI admission latch so ensure/setViewportDemand can admit new demand even
+    // while a cancelled worker is still draining. Do not clear physical_outstanding_: start()
+    // refuses additional executor posts until finishUi releases the physical slot. finishUi
+    // matches in_flight_demand_generation_ before clearing a newer admission latch.
     in_flight_ = false;
     in_flight_row_ = -1;
     in_flight_demand_generation_ = 0;
@@ -569,6 +580,7 @@ void StudioImportThumbnailController::shutdown()
     in_flight_ = false;
     in_flight_row_ = -1;
     in_flight_demand_generation_ = 0;
+    physical_outstanding_ = 0;
     kick_scheduled_ = false;
     clearDecodeGate();
     observation_sink_ = nullptr;
@@ -589,6 +601,9 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
                                                std::optional<TaskError> error,
                                                CancellationToken token)
 {
+    // Physical slot is independent of the UI admission latch.
+    if (physical_outstanding_ > 0)
+        --physical_outstanding_;
     // Only the request that currently owns the latch may release it. A stale completion
     // after resetSourceSession must not drop a newer in-flight admission for the same row.
     const bool owns_inflight = in_flight_ && identity.row == in_flight_row_ &&
@@ -680,6 +695,15 @@ void StudioImportThumbnailController::start(const int row)
     const QString source = host_.model->sourcePath(row);
     if (source.isEmpty())
         return;
+    // Bound executor work across source-session replacement: while a prior physical post is
+    // still draining, keep the latest demand pending instead of posting unbounded tasks.
+    if (physical_outstanding_ > 0)
+    {
+        if (pending_rows_.insert(row).second)
+            host_.model->setThumbnailLoading(row, true);
+        pending_high_water_ = std::max(pending_high_water_, pending_rows_.size());
+        return;
+    }
     RequestIdentity identity;
     identity.row = row;
     identity.model_generation = host_.model->generation();
@@ -690,6 +714,7 @@ void StudioImportThumbnailController::start(const int row)
     in_flight_ = true;
     in_flight_row_ = row;
     in_flight_demand_generation_ = identity.demand_generation;
+    ++physical_outstanding_;
     record(ObservationEvent{ObservationEvent::Kind::kDispatched, identity, {}, {}});
     const bool queued = executor_.post(
         [this, identity, token]()
@@ -752,6 +777,8 @@ void StudioImportThumbnailController::start(const int row)
         in_flight_ = false;
         in_flight_row_ = -1;
         in_flight_demand_generation_ = 0;
+        if (physical_outstanding_ > 0)
+            --physical_outstanding_;
         record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,
                                 DiscardReason::kPostRejected, "post"});
         if (host_.set_error)

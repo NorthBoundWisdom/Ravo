@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <set>
 #include <functional>
@@ -1161,6 +1162,243 @@ TEST(StudioImportThumbnailScheduler, InFlightReensureDoesNotDispatchTwice)
     ASSERT_TRUE(wait_for(
         [&] { return controller.demandQuiescent() && !model.thumbnail(0).isNull(); }, 30000));
     EXPECT_EQ(controller.dispatchedCount(), 1U);
+}
+
+TEST(StudioImportThumbnailScheduler, BoundedPhysicalWorkAcrossSourceReplacements)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path_a = directory.filePath("boundA.png");
+    const auto path_b = directory.filePath("boundB.png");
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::red);
+        ASSERT_TRUE(image.save(path_a, "PNG"));
+        image.fill(Qt::blue);
+        ASSERT_TRUE(image.save(path_b, "PNG"));
+    }
+
+    auto run_replacements = [&](const int replacements)
+    {
+        ImportCandidateListModel model;
+        ImportCandidate candidate;
+        candidate.source_path = path_a.toStdString();
+        candidate.display_name = "boundA.png";
+        candidate.size_bytes = 16;
+        model.setCandidates({candidate});
+        std::uint64_t scan_generation = 1;
+        StudioImportThumbnailController controller(make_host(&model, &scan_generation));
+        std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+        controller.setObservationSink(&trail);
+        std::promise<void> gate_promise;
+        controller.installDecodeGate(gate_promise.get_future().share());
+        controller.clearObservations();
+        controller.ensure(0);
+        QGuiApplication::processEvents();
+        ASSERT_TRUE(wait_for([&] { return controller.physicalOutstandingCount() > 0; }));
+        EXPECT_EQ(controller.physicalOutstandingCount(), 1U);
+        EXPECT_FALSE(controller.physicalDrained());
+        // Admission may be cleared by reset while physical work remains.
+        EXPECT_LE(controller.dispatchedCount(), 1U);
+
+        std::size_t max_physical = controller.physicalOutstandingCount();
+        std::uint64_t max_dispatched = controller.dispatchedCount();
+        for (int i = 0; i < replacements; ++i)
+        {
+            const bool use_b = (i % 2) == 0;
+            candidate.source_path = (use_b ? path_b : path_a).toStdString();
+            candidate.display_name = use_b ? "boundB.png" : "boundA.png";
+            model.setCandidates({candidate});
+            ++scan_generation;
+            controller.cancel("source_replaced");
+            controller.resetOperation();
+            controller.resetSourceSession();
+            EXPECT_FALSE(controller.inFlight());
+            EXPECT_LE(controller.physicalOutstandingCount(), 1U);
+            controller.ensure(0);
+            QGuiApplication::processEvents();
+            max_physical = std::max(max_physical, controller.physicalOutstandingCount());
+            max_dispatched = std::max(max_dispatched, controller.dispatchedCount());
+            EXPECT_LE(controller.physicalOutstandingCount(), 1U);
+            // demandQuiescent is not physicalDrained: pending may wait on the physical slot.
+            if (controller.physicalOutstandingCount() > 0 && controller.pendingCount() > 0)
+            {
+                EXPECT_FALSE(controller.demandQuiescent());
+                EXPECT_FALSE(controller.physicalDrained());
+            }
+        }
+        EXPECT_LE(max_physical, 1U);
+        // At most one dispatch per drained physical slot; replacements must not fan out.
+        EXPECT_LE(max_dispatched, static_cast<std::uint64_t>(replacements) + 1U);
+        EXPECT_LE(controller.dispatchedCount(), static_cast<std::uint64_t>(replacements) + 1U);
+        // With the gate held, extra ensures must not enqueue unbounded executor posts.
+        EXPECT_LE(controller.physicalOutstandingCount(), 1U);
+
+        gate_promise.set_value();
+        controller.clearDecodeGate();
+        ASSERT_TRUE(wait_for(
+            [&] { return controller.physicalDrained() && !model.thumbnail(0).isNull(); }, 60000));
+        EXPECT_EQ(controller.physicalOutstandingCount(), 0U);
+        EXPECT_TRUE(controller.demandQuiescent());
+        EXPECT_EQ(model.sourcePath(0), candidate.source_path);
+    };
+
+    run_replacements(20);
+    run_replacements(100);
+}
+
+TEST(StudioImportThumbnailScheduler, SourceReplacementABAAndCloseReopenKeepLatest)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path_a = directory.filePath("abaA.png");
+    const auto path_b = directory.filePath("abaB.png");
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::red);
+        ASSERT_TRUE(image.save(path_a, "PNG"));
+        image.fill(Qt::blue);
+        ASSERT_TRUE(image.save(path_b, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path_a.toStdString();
+    candidate.display_name = "abaA.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+    std::uint64_t scan_generation = 1;
+    bool page_open = true;
+    StudioImportThumbnailController::Host host = make_host(&model, &scan_generation);
+    host.page_open = [&] { return page_open; };
+    StudioImportThumbnailController controller(std::move(host));
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.ensure(0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.physicalOutstandingCount() > 0; }));
+
+    auto replace_with = [&](const QString &path, const char *name)
+    {
+        candidate.source_path = path.toStdString();
+        candidate.display_name = name;
+        model.setCandidates({candidate});
+        ++scan_generation;
+        controller.cancel("aba_replace");
+        controller.resetOperation();
+        controller.resetSourceSession();
+        controller.ensure(0);
+        QGuiApplication::processEvents();
+        EXPECT_LE(controller.physicalOutstandingCount(), 1U);
+    };
+
+    replace_with(path_b, "abaB.png"); // A -> B
+    replace_with(path_a, "abaA.png"); // B -> A
+    EXPECT_EQ(model.sourcePath(0), path_a);
+
+    page_open = false;
+    controller.cancel("page_closed");
+    controller.resetOperation();
+    controller.resetSourceSession();
+    controller.ensure(0);
+    EXPECT_EQ(controller.pendingCount(), 0U);
+    page_open = true;
+    controller.ensure(0);
+    QGuiApplication::processEvents();
+    EXPECT_LE(controller.physicalOutstandingCount(), 1U);
+
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for(
+        [&] { return controller.physicalDrained() && !model.thumbnail(0).isNull(); }, 60000));
+    EXPECT_EQ(model.sourcePath(0), path_a);
+    EXPECT_EQ(model.thumbnail(0).pixelColor(0, 0), QColor(Qt::red));
+    EXPECT_TRUE(controller.demandQuiescent());
+    EXPECT_TRUE(controller.physicalDrained());
+}
+
+TEST(StudioImportThumbnailScheduler, StalePhysicalCompletionDoesNotClearNewLoading)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path_a = directory.filePath("staleA.png");
+    const auto path_b = directory.filePath("staleB.png");
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::red);
+        ASSERT_TRUE(image.save(path_a, "PNG"));
+        image.fill(Qt::blue);
+        ASSERT_TRUE(image.save(path_b, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path_a.toStdString();
+    candidate.display_name = "staleA.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+    std::uint64_t scan_generation = 1;
+    StudioImportThumbnailController controller(make_host(&model, &scan_generation));
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.ensure(0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+    EXPECT_TRUE(model.thumbnailLoading(0));
+
+    candidate.source_path = path_b.toStdString();
+    candidate.display_name = "staleB.png";
+    model.setCandidates({candidate});
+    ++scan_generation;
+    controller.cancel("stale_session");
+    controller.resetOperation();
+    controller.resetSourceSession();
+    EXPECT_FALSE(controller.inFlight());
+    EXPECT_EQ(controller.physicalOutstandingCount(), 1U);
+    controller.ensure(0);
+    QGuiApplication::processEvents();
+    EXPECT_TRUE(model.thumbnailLoading(0));
+    EXPECT_LE(controller.physicalOutstandingCount(), 1U);
+    // Latest demand stays pending while the stale physical worker drains.
+    EXPECT_TRUE(controller.pendingCount() > 0 || controller.inFlight());
+
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for(
+        [&] { return controller.physicalDrained() && !model.thumbnail(0).isNull(); }, 60000));
+    EXPECT_FALSE(model.thumbnailLoading(0));
+    EXPECT_EQ(model.sourcePath(0), path_b);
+    EXPECT_EQ(model.thumbnail(0).pixelColor(0, 0), QColor(Qt::blue));
+}
+
+TEST(StudioImportThumbnailScheduler, PostRejectReleasesPhysicalSlot)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = "/tmp/post-reject-missing.png";
+    candidate.display_name = "missing.png";
+    candidate.size_bytes = 1;
+    model.setCandidates({candidate});
+    QString error;
+    StudioImportThumbnailController::Host host = make_host(&model);
+    host.set_error = [&](QString message) { error = std::move(message); };
+    StudioImportThumbnailController controller(std::move(host));
+    controller.executor().request_stop();
+    controller.ensure(0);
+    QGuiApplication::processEvents();
+    // Kick may attempt start; post must reject and release any physical accounting.
+    ASSERT_TRUE(wait_for(
+        [&]
+        {
+            return controller.physicalOutstandingCount() == 0 &&
+                   (controller.discardedCount() > 0 || !error.isEmpty() ||
+                    controller.demandQuiescent());
+        },
+        10000));
+    EXPECT_EQ(controller.physicalOutstandingCount(), 0U);
+    EXPECT_FALSE(controller.inFlight());
 }
 
 } // namespace ravo
