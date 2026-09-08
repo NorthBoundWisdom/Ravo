@@ -615,31 +615,54 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
+          evidence_root="${RUNNER_TEMP}/ravo-packaged-evidence"
+          rm -rf "${evidence_root}"
+          mkdir -p "${evidence_root}"
+          # Publish the evidence directory before validation so always() upload
+          # still finds files when a checker fails under set -e.
+          echo "PACKAGED_EVIDENCE_DIR=${evidence_root}" >> "$GITHUB_ENV"
           artifacts=( ${{ matrix.artifact_path }} )
           if [[ ${#artifacts[@]} -eq 0 ]]; then
+            printf '%s\n' '{"status":"FAIL","reason":"no artifacts matched","pattern":"${{ matrix.artifact_path }}","run_id":"'"${GITHUB_RUN_ID}"'","run_attempt":"'"${GITHUB_RUN_ATTEMPT}"'"}'               > "${evidence_root}/missing-artifacts.evidence.json"
             echo "ERROR: no artifacts matched ${{ matrix.artifact_path }}"
             exit 1
           fi
           work="${RUNNER_TEMP}/ravo-packaged-runtime"
           rm -rf "${work}"
           mkdir -p "${work}"
-          evidence_root="${RUNNER_TEMP}/ravo-packaged-evidence"
-          rm -rf "${evidence_root}"
-          mkdir -p "${evidence_root}"
+          status=0
           for artifact in "${artifacts[@]}"; do
             base="$(basename "${artifact}")"
             evidence="${evidence_root}/${base}.evidence.json"
-            python Ravo/tools/check_packaged_runtime.py "${artifact}"               --workdir "${work}/${base}"               --repo-root "${GITHUB_WORKSPACE}"               --evidence-json "${evidence}"               --require-smoke
+            if command -v sha256sum >/dev/null 2>&1; then
+              digest="$(sha256sum "${artifact}" | awk '{print $1}')"
+            else
+              digest="$(shasum -a 256 "${artifact}" | awk '{print $1}')"
+            fi
+            meta="${evidence_root}/${base}.meta.json"
+            printf '%s\n' "{"artifact":"${base}","digest_sha256":"${digest}","source_sha":"${GITHUB_SHA}","run_id":"${GITHUB_RUN_ID}","run_attempt":"${GITHUB_RUN_ATTEMPT}"}" > "${meta}"
+            if ! python Ravo/tools/check_packaged_runtime.py "${artifact}" \
+              --workdir "${work}/${base}" \
+              --repo-root "${GITHUB_WORKSPACE}" \
+              --evidence-json "${evidence}" \
+              --require-smoke; then
+              status=1
+              if [[ ! -f "${evidence}" ]]; then
+                printf '%s\n' "{"status":"FAIL","reason":"checker exited without evidence","artifact":"${base}","digest_sha256":"${digest}","source_sha":"${GITHUB_SHA}","run_id":"${GITHUB_RUN_ID}","run_attempt":"${GITHUB_RUN_ATTEMPT}"}" > "${evidence}"
+              fi
+            fi
           done
-          echo "PACKAGED_EVIDENCE_DIR=${evidence_root}" >> "$GITHUB_ENV"
+          exit "${status}"
 
       - name: Upload packaged runtime evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: packaged-runtime-evidence-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.PACKAGED_EVIDENCE_DIR }}/*.evidence.json
-          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/ravo-packaged-evidence/*.evidence.json
+            ${{ runner.temp }}/ravo-packaged-evidence/*.meta.json
+          if-no-files-found: error
           retention-days: 14
 
       - name: Upload Ravo package

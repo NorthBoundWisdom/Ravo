@@ -507,5 +507,39 @@ class DmgTopLevelSymlinkTests(unittest.TestCase):
 
 
 
+class EvidenceCollectionOrderTests(unittest.TestCase):
+    def test_failed_checker_still_writes_evidence_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            payload = tmp_path / "payload"
+            payload.mkdir()
+            _write_fake_cli(payload / "ravo")
+            artifact = tmp_path / "one.zip"
+            with zipfile.ZipFile(artifact, "w") as zf:
+                zf.write(payload / "ravo", arcname="ravo")
+            evidence_root = tmp_path / "evidence"
+            evidence_root.mkdir()
+            evidence = evidence_root / "one.zip.evidence.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CHECKER),
+                    str(artifact),
+                    "--workdir",
+                    str(tmp_path / "work"),
+                    "--require-smoke",
+                    "--evidence-json",
+                    str(evidence),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertTrue(evidence.is_file())
+            self.assertIn("studio_payload", evidence.read_text(encoding="utf-8"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
