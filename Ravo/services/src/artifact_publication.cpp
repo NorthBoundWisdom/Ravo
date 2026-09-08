@@ -40,4 +40,22 @@ Result<void> publish_text_artifact_no_replace(const std::string_view destination
     }
 }
 
+Result<void> publish_bytes_artifact_no_replace(const std::string_view destination,
+                                               const std::vector<std::uint8_t> &bytes,
+                                               const CancellationToken &cancellation)
+{
+    auto published = write_bytes_atomically(destination, bytes, cancellation);
+    if (published)
+        return {};
+    auto error = std::move(published).error();
+    const auto reason = error.context.find("reason");
+    if (reason != error.context.end() && reason->second.starts_with("encoded_"))
+        reason->second.replace(0U, std::string_view("encoded").size(), "artifact");
+    if (error.code == ErrorCode::kConflict)
+        error.message = "Artifact destination already exists";
+    else if (error.code == ErrorCode::kIo)
+        error.message = "Unable to publish artifact";
+    return error;
+}
+
 } // namespace ravo

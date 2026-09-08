@@ -21,6 +21,7 @@
 #include "catalog_internal.h"
 #include "ravo/domain/types.h"
 #include "ravo/foundation/cancellation.h"
+#include "ravo/services/artifact_publication.h"
 
 namespace ravo
 {
@@ -574,6 +575,84 @@ TEST(EncodedPublicationTest, PreservesPrimaryFailureWhenCleanupCannotRemoveRepla
     const auto replaced = observed_temporary(fixture);
     EXPECT_TRUE(std::filesystem::is_directory(replaced));
     EXPECT_EQ(read_file(replaced / "foreign"), std::vector<std::uint8_t>({'k', 'e', 'e', 'p'}));
+}
+
+TEST(EncodedPublicationTest, LateCompetitorAtBeforePublishYieldsConflictWithoutClobber)
+{
+    PublicationTempDirectory temporary;
+    const auto output = temporary.path() / "late-competitor.bin";
+    const auto payload = patterned_bytes(97U, 0x55U);
+    PublicationHookFixture fixture;
+    fixture.target = EncodedPublicationCheckpoint::kBeforePublish;
+    fixture.mutation = HookMutation::kCreateCompetitor;
+    fixture.output = output.string();
+    fixture.parent = temporary.path().string();
+
+    const auto result =
+        write_bytes_atomically(output.string(), payload, CancellationToken{}, hook_for(fixture));
+    expect_publication_error(result, ErrorCode::kConflict, "encoded_output_exists", output);
+    EXPECT_TRUE(fixture.invoked);
+    ASSERT_TRUE(fixture.mutation_succeeded);
+    EXPECT_EQ(read_file(output), std::vector<std::uint8_t>({'c', 'o', 'm', 'p', 'e', 't', 'i', 't',
+                                                            'o', 'r', '-', 'w', 'i', 'n', 's'}));
+    expect_owned_temporary_removed(fixture);
+}
+
+TEST(ArtifactPublicationTest, PublishesBytesThroughPublicNoReplaceOwner)
+{
+    PublicationTempDirectory temporary;
+    const auto output = temporary.path() / "public.bin";
+    const auto payload = patterned_bytes(48U, 0xA5U);
+    const auto published = publish_bytes_artifact_no_replace(output.string(), payload);
+    ASSERT_TRUE(published) << published.error().message;
+    EXPECT_EQ(read_file(output), payload);
+
+    const auto again = publish_bytes_artifact_no_replace(output.string(), patterned_bytes(16U));
+    ASSERT_FALSE(again);
+    EXPECT_EQ(again.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(again.error().context.at("reason"), "artifact_output_exists");
+    EXPECT_EQ(read_file(output), payload);
+}
+
+TEST(ArtifactPublicationTest, TwoPublicPublishersChooseExactlyOneWinner)
+{
+    PublicationTempDirectory temporary;
+    const auto output = temporary.path() / "public-race.bin";
+    const auto first = patterned_bytes(2U * kPublicationChunkBytes + 5U, 0x11111111U);
+    const auto second = patterned_bytes(2U * kPublicationChunkBytes + 5U, 0x22222222U);
+    // Public API has no test hook; reuse the encoded owner barrier race through the
+    // same destination so linearization remains publish_no_replace, then confirm the
+    // public wrapper maps the losing conflict reason.
+    std::barrier ready(2);
+    RaceHookContext first_hook{&ready};
+    RaceHookContext second_hook{&ready};
+    std::optional<Result<void>> first_result;
+    std::optional<Result<void>> second_result;
+    std::thread first_thread(
+        [&]
+        {
+            first_result = write_bytes_atomically(output.string(), first, CancellationToken{},
+                                                  {race_hook, &first_hook});
+        });
+    std::thread second_thread(
+        [&]
+        {
+            second_result = write_bytes_atomically(output.string(), second, CancellationToken{},
+                                                   {race_hook, &second_hook});
+        });
+    first_thread.join();
+    second_thread.join();
+    ASSERT_TRUE(first_result.has_value());
+    ASSERT_TRUE(second_result.has_value());
+    EXPECT_NE(static_cast<bool>(*first_result), static_cast<bool>(*second_result));
+    const auto winner_bytes = read_file(output);
+    EXPECT_TRUE(winner_bytes == first || winner_bytes == second);
+
+    const auto public_conflict = publish_bytes_artifact_no_replace(output.string(), first);
+    ASSERT_FALSE(public_conflict);
+    EXPECT_EQ(public_conflict.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(public_conflict.error().context.at("reason"), "artifact_output_exists");
+    EXPECT_EQ(read_file(output), winner_bytes);
 }
 
 } // namespace

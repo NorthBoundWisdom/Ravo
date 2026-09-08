@@ -6,7 +6,7 @@
 #include <variant>
 
 #include "ravo/adapters/qt_raster_decoder.h"
-#include "ravo/adapters/text_file.h"
+#include "ravo/services/artifact_publication.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/services/catalog_service.h"
@@ -163,7 +163,7 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
             return verified.error();
         }
         const auto artifact = std::move(verified).value();
-        auto written = write_file_bytes_atomically(flags.output, encoded.value());
+        auto written = publish_bytes_artifact_no_replace(flags.output, encoded.value());
         if (!written)
         {
             return written.error();
