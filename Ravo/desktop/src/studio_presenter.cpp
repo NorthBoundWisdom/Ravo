@@ -1313,8 +1313,8 @@ void StudioPresenter::pollCatalogRevision()
                     listing = load_catalog_listing(service_.get(), query, collapse);
                     if (!selected.empty())
                     {
-                        recipe = service_->load_recipe(selected);
-                        history = service_->list_recipe_history(selected);
+                        recipe = service_->develop().load_recipe(selected);
+                        history = service_->develop().list_recipe_history(selected);
                     }
                 }
             }
@@ -1746,8 +1746,8 @@ void StudioPresenter::startNextImportItem()
             Result<ImportItemResult> imported =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                imported = service_->import_one(path, cancellation, policy, defer, skip_existing,
-                                                expected_hash);
+                imported = service_->import().import_one(path, cancellation, policy, defer,
+                                                         skip_existing, expected_hash);
             QMetaObject::invokeMethod(
                 this,
                 [this, path, imported = std::move(imported)]() mutable

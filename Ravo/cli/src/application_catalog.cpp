@@ -873,7 +873,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             request.expected_catalog_revision = flags.value().expected_revision;
             return run_catalog_import_plan(service, request);
         }
-        auto imported = service.execute_import(request);
+        auto imported = service.import().execute_import(request);
         if (!imported)
         {
             return imported.error();
@@ -1044,7 +1044,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return make_error(ErrorCode::kInvalidArgument, "catalog recipe requires --asset-id");
         }
-        auto recipe = service.load_recipe(flags.value().asset_id);
+        auto recipe = service.develop().load_recipe(flags.value().asset_id);
         if (!recipe)
         {
             return recipe.error();
@@ -1059,7 +1059,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return parsed.error();
         }
-        auto has_edits = service.asset_has_edits(flags.value().asset_id);
+        auto has_edits = service.develop().asset_has_edits(flags.value().asset_id);
         if (!has_edits)
         {
             return has_edits.error();
@@ -1076,7 +1076,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return make_error(ErrorCode::kInvalidArgument, "catalog develop requires --asset-id");
         }
-        auto loaded = service.load_recipe(flags.value().asset_id);
+        auto loaded = service.develop().load_recipe(flags.value().asset_id);
         if (!loaded)
         {
             return loaded.error();
@@ -1138,7 +1138,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return applied.error();
         }
-        auto saved = service.save_develop(flags.value().asset_id, params.value());
+        auto saved = service.develop().save_develop(flags.value().asset_id, params.value());
         if (!saved)
         {
             return saved.error();
@@ -1172,7 +1172,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         auto fields = parse_develop_apply_fields(flags.value().fields);
         if (!fields)
             return fields.error();
-        auto source_recipe = service.load_recipe(flags.value().from_asset);
+        auto source_recipe = service.develop().load_recipe(flags.value().from_asset);
         if (!source_recipe)
             return source_recipe.error();
         auto source = develop_from_recipe(source_recipe.value());
@@ -1185,7 +1185,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         for (const auto asset_id : flags.value().asset_ids)
             request.asset_ids.emplace_back(asset_id);
         request.expected_revision = flags.value().expected_revision;
-        auto applied = service.apply_develop_selection(request);
+        auto applied = service.develop().apply_develop_selection(request);
         if (!applied)
             return applied.error();
         JsonValue::Array items;
@@ -1381,7 +1381,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return make_error(ErrorCode::kInvalidArgument, "catalog history requires --asset-id");
         }
-        auto history = service.list_recipe_history(flags.value().asset_id);
+        auto history = service.develop().list_recipe_history(flags.value().asset_id);
         if (!history)
         {
             return history.error();
@@ -1408,7 +1408,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog snapshot requires --asset-id and --label");
         }
-        auto saved = service.create_recipe_snapshot(flags.value().asset_id, flags.value().label);
+        auto saved =
+            service.develop().create_recipe_snapshot(flags.value().asset_id, flags.value().label);
         if (!saved)
         {
             return saved.error();
@@ -1422,8 +1423,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog restore requires --asset-id and --history-id");
         }
-        auto restored =
-            service.restore_recipe_history(flags.value().asset_id, *flags.value().history_id);
+        auto restored = service.develop().restore_recipe_history(flags.value().asset_id,
+                                                                 *flags.value().history_id);
         if (!restored)
         {
             return restored.error();

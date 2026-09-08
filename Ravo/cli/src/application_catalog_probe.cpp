@@ -36,7 +36,7 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
                               {{"path", std::string(flags.output)}});
         }
     }
-    auto stored_before = service.load_recipe(flags.asset_id);
+    auto stored_before = service.develop().load_recipe(flags.asset_id);
     if (!stored_before)
     {
         return stored_before.error();
@@ -51,7 +51,8 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
     {
         return previews_before.error();
     }
-    auto source = flags.baseline ? service.load_baseline_recipe(flags.asset_id) : stored_before;
+    auto source =
+        flags.baseline ? service.develop().load_baseline_recipe(flags.asset_id) : stored_before;
     if (!source)
     {
         return source.error();
@@ -87,7 +88,7 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
     {
         return statistics.error();
     }
-    auto stored_after = service.load_recipe(flags.asset_id);
+    auto stored_after = service.develop().load_recipe(flags.asset_id);
     if (!stored_after)
     {
         return stored_after.error();

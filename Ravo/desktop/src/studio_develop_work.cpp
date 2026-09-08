@@ -70,8 +70,8 @@ void StudioPresenter::load_develop_for_selection()
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
-                loaded = service_->load_recipe(asset_id);
-                history = service_->list_recipe_history(asset_id);
+                loaded = service_->develop().load_recipe(asset_id);
+                history = service_->develop().list_recipe_history(asset_id);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -527,7 +527,7 @@ void StudioPresenter::kick_develop_work()
             {
                 if (job.save)
                 {
-                    saved = service_->save_develop_with_history(
+                    saved = service_->develop().save_develop_with_history(
                         job.asset_id, job.params,
                         RecipeSaveOptions{
                             .history_write = job.history_write,

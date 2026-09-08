@@ -182,7 +182,7 @@ void StudioImportScanController::startRescan()
                     return make_error(ErrorCode::kIo,
                                       "Import source folder is unavailable: " + root,
                                       {{"reason", "import_source_unavailable"}});
-                return service->scan_import_candidates(
+                return service->import().scan_import_candidates(
                     {root}, root, recursive, token, publish,
                     [self, root, generation](const std::vector<std::string> &paths)
                     {
