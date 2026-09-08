@@ -320,6 +320,167 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 LOG_ERROR(logger(), "Select All smoke needs an ineligible duplicate candidate");
                 return false;
             }
+
+            // Gallery mutation negatives: Import must not rate/flag/navigate the restored
+            // Gallery selection through production Shortcuts while the Import page is open.
+            if (presenter->visibleCount() < 1 || presenter->assets()->assetIdAt(0).isEmpty())
+            {
+                LOG_ERROR(logger(), "Gallery mutation smoke needs a seeded Gallery asset");
+                return false;
+            }
+            const QString gallery_asset = presenter->assets()->assetIdAt(0);
+            presenter->selectAsset(gallery_asset);
+            QEventLoop select_gallery;
+            QTimer::singleShot(30, &select_gallery, &QEventLoop::quit);
+            select_gallery.exec();
+            if (presenter->selectedAssetId() != gallery_asset)
+            {
+                LOG_ERROR(logger(), "Failed to select Gallery asset before Import mutation smoke");
+                return false;
+            }
+            const auto snapshot_gallery = [&]()
+            {
+                const auto asset = presenter->assets()->assetById(gallery_asset);
+                QVariantMap snap;
+                snap.insert(QStringLiteral("selected"), presenter->selectedAssetId());
+                snap.insert(QStringLiteral("count"), presenter->selectedCount());
+                if (asset)
+                {
+                    snap.insert(QStringLiteral("rating"), asset->review.rating);
+                    snap.insert(QStringLiteral("picked"), asset->review.picked);
+                    snap.insert(QStringLiteral("rejected"), asset->review.rejected);
+                }
+                return snap;
+            };
+            const auto baseline = snapshot_gallery();
+            if (!baseline.contains(QStringLiteral("rating")))
+            {
+                LOG_ERROR(logger(), "Gallery asset missing from model for mutation smoke");
+                return false;
+            }
+            const auto wait_idle = [&]()
+            {
+                QElapsedTimer idle_timer;
+                idle_timer.start();
+                while (presenter->busy() || presenter->catalogOperationActive() ||
+                       presenter->importWorkActive())
+                {
+                    if (idle_timer.elapsed() > 30000)
+                        return false;
+                    QEventLoop wait_idle_loop;
+                    QTimer::singleShot(20, &wait_idle_loop, &QEventLoop::quit);
+                    wait_idle_loop.exec();
+                }
+                return true;
+            };
+            const auto send_window_key =
+                [&](const int key, const Qt::KeyboardModifiers mods = Qt::NoModifier)
+            {
+                QKeyEvent press(QEvent::KeyPress, key, mods);
+                QKeyEvent release(QEvent::KeyRelease, key, mods);
+                QCoreApplication::sendEvent(window, &press);
+                QCoreApplication::sendEvent(window, &release);
+                QEventLoop key_loop;
+                QTimer::singleShot(30, &key_loop, &QEventLoop::quit);
+                key_loop.exec();
+            };
+            const auto assert_gallery_unchanged = [&](const char *label) -> bool
+            {
+                if (!wait_idle())
+                {
+                    LOG_ERROR(logger(), "{}: timed out waiting for idle after Import key", label);
+                    return false;
+                }
+                const auto now = snapshot_gallery();
+                if (now.value(QStringLiteral("selected")) !=
+                        baseline.value(QStringLiteral("selected")) ||
+                    now.value(QStringLiteral("count")) != baseline.value(QStringLiteral("count")) ||
+                    now.value(QStringLiteral("rating")) !=
+                        baseline.value(QStringLiteral("rating")) ||
+                    now.value(QStringLiteral("picked")) !=
+                        baseline.value(QStringLiteral("picked")) ||
+                    now.value(QStringLiteral("rejected")) !=
+                        baseline.value(QStringLiteral("rejected")))
+                {
+                    LOG_ERROR(logger(),
+                              "{} mutated Gallery asset rating/flag/selection under Import", label);
+                    return false;
+                }
+                return true;
+            };
+            const auto rating_shortcut_enabled = [&]()
+            {
+                for (const auto &value : commands->shortcutEntries())
+                {
+                    const auto entry = value.toMap();
+                    if (entry.value(QStringLiteral("actionId")).toString() ==
+                        QStringLiteral("studio.photo.rating_5"))
+                        return entry.value(QStringLiteral("enabled")).toBool();
+                }
+                return false;
+            };
+            if (rating_shortcut_enabled())
+            {
+                LOG_ERROR(logger(),
+                          "Import open must disable Gallery rating_5 shortcut for stale selection");
+                return false;
+            }
+            keyboard_grid->forceActiveFocus();
+            QEventLoop focus_mut_grid;
+            QTimer::singleShot(20, &focus_mut_grid, &QEventLoop::quit);
+            focus_mut_grid.exec();
+            if (commands->textInputActive() || commands->modalOpen())
+            {
+                LOG_ERROR(logger(), "Mutation grid focus must leave text/modal gates inactive");
+                return false;
+            }
+            // Separate keys so auto-advance cannot confuse which asset would have changed.
+            send_window_key(Qt::Key_5);
+            if (!assert_gallery_unchanged("Key_5"))
+                return false;
+            send_window_key(Qt::Key_X);
+            if (!assert_gallery_unchanged("Key_X"))
+                return false;
+            send_window_key(Qt::Key_P);
+            if (!assert_gallery_unchanged("Key_P"))
+                return false;
+            send_window_key(Qt::Key_U);
+            if (!assert_gallery_unchanged("Key_U"))
+                return false;
+            // Gallery nav shortcuts are blocked; Import grid may still consume Right locally.
+            const auto gallery_selected_before_nav = presenter->selectedAssetId();
+            send_window_key(Qt::Key_Right);
+            if (!assert_gallery_unchanged("Key_Right"))
+                return false;
+            if (presenter->selectedAssetId() != gallery_selected_before_nav)
+            {
+                LOG_ERROR(logger(), "Import Right must not change Gallery selectedAssetId");
+                return false;
+            }
+            auto *mutation_tree =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importSourceFolderTree"));
+            if (!mutation_tree)
+            {
+                LOG_ERROR(logger(), "Import source tree missing for Gallery mutation smoke");
+                return false;
+            }
+            mutation_tree->forceActiveFocus();
+            QEventLoop focus_mut_tree;
+            QTimer::singleShot(20, &focus_mut_tree, &QEventLoop::quit);
+            focus_mut_tree.exec();
+            send_window_key(Qt::Key_5);
+            if (!assert_gallery_unchanged("source-tree Key_5"))
+                return false;
+            send_window_key(Qt::Key_X);
+            if (!assert_gallery_unchanged("source-tree Key_X"))
+                return false;
+            send_window_key(Qt::Key_P);
+            if (!assert_gallery_unchanged("source-tree Key_P"))
+                return false;
+            send_window_key(Qt::Key_U);
+            if (!assert_gallery_unchanged("source-tree Key_U"))
+                return false;
+
             const auto select_all_shortcut_gate = [&](int *entries_out, bool *enabled_out)
             {
                 int entries = 0;
