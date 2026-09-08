@@ -651,3 +651,10 @@ private:
 };
 
 } // namespace ravo
+
+#include "ravo/services/library_service.h"
+#include "ravo/services/develop_service.h"
+#include "ravo/services/metadata_service.h"
+#include "ravo/services/import_service.h"
+#include "ravo/services/ingest_service.h"
+#include "ravo/services/recovery_service.h"

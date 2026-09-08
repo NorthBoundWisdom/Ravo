@@ -500,7 +500,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         std::size_t pending_count = 0U;
         if (!flags.value().asset_id.empty())
         {
-            auto state = service.recovery_state(flags.value().asset_id);
+            auto state = service.recovery().recovery_state(flags.value().asset_id);
             if (!state)
             {
                 return state.error();
@@ -532,7 +532,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             flags.value().asset_id.empty() ?
                 std::nullopt :
                 std::optional<std::string_view>{flags.value().asset_id};
-        auto synchronized = service.sync_recovery(asset_id, CancellationToken{});
+        auto synchronized = service.recovery().sync_recovery(asset_id, CancellationToken{});
         if (!synchronized)
         {
             return synchronized.error();
@@ -558,7 +558,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog backup requires --backup <absent-directory>");
         }
-        auto backup = service.create_backup(flags.value().backup, CancellationToken{});
+        auto backup = service.recovery().create_backup(flags.value().backup, CancellationToken{});
         if (!backup)
         {
             return backup.error();
@@ -567,7 +567,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     }
     if (subcommand == "backup-policy")
     {
-        auto policy = service.backup_policy();
+        auto policy = service.recovery().backup_policy();
         if (!policy)
             return policy.error();
         if (has_schedule_options)
@@ -602,7 +602,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                                  std::chrono::system_clock::now().time_since_epoch())
                                  .count();
-            policy = service.set_backup_policy(std::move(policy).value(), now);
+            policy = service.recovery().set_backup_policy(std::move(policy).value(), now);
             if (!policy)
                 return policy.error();
         }
@@ -613,7 +613,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                              std::chrono::system_clock::now().time_since_epoch())
                              .count();
-        auto scheduled = service.run_scheduled_backup(now, CancellationToken{}, true);
+        auto scheduled = service.recovery().run_scheduled_backup(now, CancellationToken{}, true);
         if (!scheduled)
             return scheduled.error();
         return backup_schedule_to_json(scheduled.value());
@@ -631,7 +631,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     }
     if (subcommand == "folders")
     {
-        auto folders = service.list_folders();
+        auto folders = service.library().list_folders();
         if (!folders)
             return folders.error();
         JsonValue::Array items;
@@ -646,7 +646,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return make_error(
                 ErrorCode::kInvalidArgument,
                 "catalog folder-relink requires --folder-id <id> --replacement <directory>");
-        auto relinked = service.relink_folder(
+        auto relinked = service.library().relink_folder(
             flags.value().folder_id, flags.value().replacement_directory, CancellationToken{});
         if (!relinked)
             return relinked.error();
@@ -657,8 +657,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().folder_uri.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog folder-remove requires --folder-uri <uri>");
-        auto removed =
-            service.remove_folder_from_catalog(flags.value().folder_uri, CancellationToken{});
+        auto removed = service.library().remove_folder_from_catalog(flags.value().folder_uri,
+                                                                    CancellationToken{});
         if (!removed)
             return removed.error();
         return JsonValue{JsonValue::Object{
@@ -668,7 +668,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     }
     if (subcommand == "sets")
     {
-        auto sets = service.list_library_sets();
+        auto sets = service.library().list_library_sets();
         if (!sets)
             return sets.error();
         JsonValue::Array items;
@@ -704,8 +704,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             asset_ids.emplace_back(flags.value().asset_id);
         for (const auto asset_id : flags.value().asset_ids)
             asset_ids.emplace_back(asset_id);
-        auto created = service.create_library_set(kind.value(), flags.value().set_name, query,
-                                                  asset_ids, flags.value().expected_revision);
+        auto created =
+            service.library().create_library_set(kind.value(), flags.value().set_name, query,
+                                                 asset_ids, flags.value().expected_revision);
         if (!created)
             return created.error();
         return library_set_mutation_to_json(created.value());
@@ -715,8 +716,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().set_id.empty() || flags.value().set_name.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog set-rename requires --set-id <id> --name <name>");
-        auto renamed = service.rename_library_set(flags.value().set_id, flags.value().set_name,
-                                                  flags.value().expected_revision);
+        auto renamed = service.library().rename_library_set(
+            flags.value().set_id, flags.value().set_name, flags.value().expected_revision);
         if (!renamed)
             return renamed.error();
         return library_set_mutation_to_json(renamed.value());
@@ -726,8 +727,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().set_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog set-delete requires --set-id <id>");
-        auto deleted =
-            service.delete_library_set(flags.value().set_id, flags.value().expected_revision);
+        auto deleted = service.library().delete_library_set(flags.value().set_id,
+                                                            flags.value().expected_revision);
         if (!deleted)
             return deleted.error();
         return JsonValue{JsonValue::Object{
@@ -937,7 +938,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     }
     if (subcommand == "list")
     {
-        auto snapshot = service.snapshot();
+        auto snapshot = service.library().snapshot();
         if (!snapshot)
         {
             return snapshot.error();
@@ -947,7 +948,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return query.error();
         }
-        auto listed = service.list_assets(query.value(), !flags.value().stack_expanded);
+        auto listed = service.library().list_assets(query.value(), !flags.value().stack_expanded);
         if (!listed)
         {
             return listed.error();
@@ -1221,7 +1222,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog rate requires --asset-id and --rating");
         }
-        auto rated = service.set_rating(flags.value().asset_id, *flags.value().rating);
+        auto rated = service.library().set_rating(flags.value().asset_id, *flags.value().rating);
         if (!rated)
         {
             return rated.error();
@@ -1252,7 +1253,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return make_error(ErrorCode::kInvalidArgument, "catalog tag requires --asset-id");
         }
-        auto asset = service.list_assets();
+        auto asset = service.library().list_assets();
         if (!asset)
         {
             return asset.error();
@@ -1320,7 +1321,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return make_error(ErrorCode::kInvalidArgument, "catalog metadata requires --asset-id");
         }
-        auto loaded = service.list_assets();
+        auto loaded = service.library().list_assets();
         if (!loaded)
         {
             return loaded.error();

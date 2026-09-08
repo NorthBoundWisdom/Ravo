@@ -129,7 +129,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     {
         return listing;
     }
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     if (snapshot)
     {
         listing.revision = snapshot.value().revision;
@@ -137,7 +137,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     LibraryPageRequest page_request;
     page_request.query = query;
     page_request.collapse_stacks = collapse_stacks;
-    auto page = service->list_assets_page(page_request);
+    auto page = service->library().list_assets_page(page_request);
     if (page)
     {
         listing.total = page.value().total;
@@ -148,7 +148,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     {
         listing.assets = page.error();
     }
-    listing.folders = service->list_folders();
+    listing.folders = service->library().list_folders();
     listing.library_sets = service->list_library_sets();
     listing.capture_facets = service->list_capture_facets(query);
     listing.location_facets = service->list_location_facets(query);
@@ -374,7 +374,7 @@ StudioPresenter::make_catalog_service(const std::string &path, const bool create
     auto service =
         std::make_unique<CatalogService>(*engine_, std::move(repository).value(), std::move(raster),
                                          std::move(cache).value(), std::move(recovery).value());
-    auto resumed = service->sync_recovery(std::nullopt);
+    auto resumed = service->recovery().sync_recovery(std::nullopt);
     if (!resumed)
     {
         return resumed.error();

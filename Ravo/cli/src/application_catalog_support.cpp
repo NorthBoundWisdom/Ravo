@@ -68,7 +68,7 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     auto service = std::make_unique<CatalogService>(
         engine, std::move(repository).value(), std::make_unique<QtRasterDecoder>(),
         std::move(cache).value(), std::move(recovery).value());
-    auto resumed = service->sync_recovery(std::nullopt);
+    auto resumed = service->recovery().sync_recovery(std::nullopt);
     if (!resumed)
     {
         return resumed.error();
