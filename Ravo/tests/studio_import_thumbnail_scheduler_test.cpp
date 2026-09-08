@@ -871,4 +871,66 @@ TEST(StudioImportThumbnailScheduler, ResetSourceSessionDropsStaleInFlightTermina
     EXPECT_EQ(model.thumbnail(0).pixelColor(0, 0), QColor(Qt::blue));
 }
 
+TEST(StudioImportThumbnailScheduler, EvictionClearsInspectedAndCapacityDeferredIsNotLoading)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    constexpr int kRows = 300;
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates;
+    for (int row = 0; row < kRows; ++row)
+    {
+        const auto path = directory.filePath(QStringLiteral("e%1.png").arg(row));
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::darkGreen);
+        ASSERT_TRUE(image.save(path, "PNG"));
+        ImportCandidate candidate;
+        candidate.source_path = path.toStdString();
+        candidate.display_name = QStringLiteral("e%1.png").arg(row).toStdString();
+        candidate.size_bytes = 16;
+        candidates.push_back(std::move(candidate));
+    }
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<int> demand(kRows);
+    for (int row = 0; row < kRows; ++row)
+        demand[static_cast<std::size_t>(row)] = row;
+    controller.setViewportDemand(demand, 0, 0);
+    ASSERT_TRUE(wait_for([&] { return controller.demandQuiescent(); }, 60000));
+    EXPECT_EQ(controller.demandSatisfiedCount() + controller.demandFailedCount(),
+              StudioImportThumbnailController::kDemandDecodeBudget);
+    EXPECT_GT(controller.demandCapacityDeferredCount(), 0U);
+    int loading = 0;
+    int deferred_loading = 0;
+    for (int row = 0; row < kRows; ++row)
+    {
+        loading += model.thumbnailLoading(row) ? 1 : 0;
+        if (model.thumbnail(row).isNull() && !model.inspected(row) && model.thumbnailLoading(row))
+            ++deferred_loading;
+    }
+    EXPECT_EQ(loading, 0);
+    EXPECT_EQ(deferred_loading, 0);
+
+    // Force eviction of early rows by finishing beyond the count budget via direct model path,
+    // then admit scroll-back under a fresh demand generation.
+    QImage filler(16, 16, QImage::Format_RGB888);
+    filler.fill(Qt::red);
+    for (int row = 0; row < kRows; ++row)
+        model.finishThumbnail(row, filler);
+    EXPECT_FALSE(model.inspected(0));
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+    EXPECT_FALSE(model.thumbnailLoading(0));
+
+    controller.setViewportDemand({0, 1, 2, 3}, 0, 0);
+    ASSERT_TRUE(wait_for(
+        [&]
+        {
+            return controller.demandQuiescent() && !model.thumbnail(0).isNull() &&
+                   model.inspected(0);
+        },
+        30000));
+    EXPECT_FALSE(model.thumbnailLoading(0));
+}
+
 } // namespace ravo

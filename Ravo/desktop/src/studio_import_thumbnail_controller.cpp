@@ -304,10 +304,12 @@ void StudioImportThumbnailController::ensure(const int row)
     if (demandDecodeSlotsUsed() >= kDemandDecodeBudget)
     {
         markDemandTerminal(row, DemandTerminal::kCapacityDeferred);
+        host_.model->setThumbnailLoading(row, false);
         return;
     }
     if (!pending_rows_.insert(row).second)
         return;
+    host_.model->setThumbnailLoading(row, true);
     trimPendingToCap();
     pending_high_water_ = std::max(pending_high_water_, pending_rows_.size());
     scheduleKick();
@@ -354,6 +356,7 @@ void StudioImportThumbnailController::replenishPendingFromDemand()
         {
             // Already resident for this demand — treat as satisfied without re-decode.
             markDemandTerminal(row, DemandTerminal::kSatisfied);
+            host_.model->setThumbnailLoading(row, false);
             return;
         }
         if (pending_rows_.count(row) > 0)
@@ -361,9 +364,11 @@ void StudioImportThumbnailController::replenishPendingFromDemand()
         if (demandDecodeSlotsUsed() >= kDemandDecodeBudget)
         {
             markDemandTerminal(row, DemandTerminal::kCapacityDeferred);
+            host_.model->setThumbnailLoading(row, false);
             return;
         }
         pending_rows_.insert(row);
+        host_.model->setThumbnailLoading(row, true);
     };
     if (current_row_ >= 0)
         consider(current_row_);
@@ -426,6 +431,8 @@ void StudioImportThumbnailController::trimPendingToCap()
         if (drop < 0)
             break;
         pending_rows_.erase(drop);
+        if (host_.model)
+            host_.model->setThumbnailLoading(drop, false);
     }
 }
 
@@ -471,7 +478,10 @@ void StudioImportThumbnailController::kick()
         {
             if (host_.model && row >= 0 && row < host_.model->rowCount() &&
                 !host_.model->thumbnail(row).isNull() && !hasDemandTerminal(row))
+            {
                 markDemandTerminal(row, DemandTerminal::kSatisfied);
+                host_.model->setThumbnailLoading(row, false);
+            }
             record(ObservationEvent{
                 ObservationEvent::Kind::kDiscarded,
                 RequestIdentity{row,
@@ -488,6 +498,11 @@ void StudioImportThumbnailController::kick()
 
 void StudioImportThumbnailController::clearPending()
 {
+    if (host_.model)
+    {
+        for (const int row : pending_rows_)
+            host_.model->setThumbnailLoading(row, false);
+    }
     pending_rows_.clear();
 }
 
@@ -546,6 +561,8 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
                                                CancellationToken token)
 {
     in_flight_ = false;
+    if (host_.model)
+        host_.model->setThumbnailLoading(identity.row, false);
     if (stopped_)
     {
         record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,

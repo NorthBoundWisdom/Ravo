@@ -58,6 +58,7 @@ Rectangle {
             required property url thumbnailUrl
             required property string errorText
             required property bool inspected
+            required property bool thumbnailLoading
             readonly property bool inViewport: y + height >= candidateGrid.contentY && y <= candidateGrid.contentY + candidateGrid.height
             readonly property bool keyboardCurrent: index === candidateGrid.currentIndex && candidateGrid.grid.activeFocus
             onInViewportChanged: if (inViewport)
@@ -94,7 +95,7 @@ Rectangle {
                     anchors.centerIn: parent
                     width: 28
                     height: 28
-                    running: !candidateDelegate.inspected && candidateDelegate.eligible
+                    running: candidateDelegate.thumbnailLoading && candidateDelegate.eligible
                     visible: running
                 }
 

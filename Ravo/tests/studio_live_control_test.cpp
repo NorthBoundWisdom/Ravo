@@ -695,6 +695,11 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(
         QStringLiteral("onIndexChanged: root.presenter.ensureImportThumbnail(index)")));
     EXPECT_TRUE(source.contains(QStringLiteral("required property bool inspected")));
+    EXPECT_TRUE(source.contains(QStringLiteral("required property bool thumbnailLoading")));
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "running: candidateDelegate.thumbnailLoading && candidateDelegate.eligible")));
+    EXPECT_FALSE(source.contains(
+        QStringLiteral("running: !candidateDelegate.inspected && candidateDelegate.eligible")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportOrganization")));
     EXPECT_TRUE(source.contains(QStringLiteral("By month (YYYY/MM)")));
     EXPECT_TRUE(source.contains(QStringLiteral("ImportFolderTree")));

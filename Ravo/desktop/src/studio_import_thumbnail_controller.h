@@ -85,12 +85,13 @@ public:
 
     // Resource contract (demand generation scoped):
     // - not-dispatched: in demand, no terminal yet, may enter pending
-    // - in-flight: decode running for this generation
-    // - satisfied / failed: decode finished; eviction may drop pixels but must not
-    //   auto-retry within the same demand generation
-    // - capacity-deferred: visible demand beyond decode/cache budget for this generation
-    // Eviction expresses residency only. A new setViewportDemand clears terminals so
-    // scroll-back can rebuild missing pixels under a fresh generation.
+    // - in-flight / queued: model thumbnailLoading=true (QML spinner)
+    // - satisfied / failed: decode finished; eviction may drop pixels + clear inspected
+    //   but must not auto-retry within the same demand generation
+    // - capacity-deferred: visible demand beyond decode/cache budget; not loading
+    // Model inspected tracks residency/completion for the historical contract.
+    // Controller terminals track demand completion. New setViewportDemand / resetSourceSession
+    // clears terminals so scroll-back can rebuild missing pixels under a fresh generation.
     enum class DemandTerminal : std::uint8_t
     {
         kSatisfied,

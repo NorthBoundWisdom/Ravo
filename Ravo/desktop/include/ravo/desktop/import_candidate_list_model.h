@@ -37,6 +37,7 @@ public:
         ThumbnailUrlRole,
         ErrorRole,
         InspectedRole,
+        ThumbnailLoadingRole,
     };
 
     explicit ImportCandidateListModel(QObject *parent = nullptr);
@@ -57,9 +58,11 @@ public:
     void applyScanBatch(int first, std::vector<ImportCandidate> candidates);
     void finishThumbnail(int row, QImage image, std::optional<TaskError> error = {});
     void setThumbnail(int row, QImage image);
+    void setThumbnailLoading(int row, bool loading);
     [[nodiscard]] QImage thumbnail(int row) const;
     [[nodiscard]] QString sourcePath(int row) const;
     [[nodiscard]] bool inspected(int row) const;
+    [[nodiscard]] bool thumbnailLoading(int row) const;
     [[nodiscard]] QStringList selectedPaths() const;
     [[nodiscard]] quint64 selectedPathsCallCount() const noexcept
     {
@@ -100,6 +103,7 @@ private:
         bool selected = true;
         bool highlighted = false;
         bool inspected = false;
+        bool thumbnail_loading = false;
         std::uint64_t thumbnail_revision = 0U;
         std::optional<TaskError> thumbnail_error;
     };

@@ -58,6 +58,8 @@ QVariant ImportCandidateListModel::data(const QModelIndex &index, const int role
                                      QString{};
     case InspectedRole:
         return row.inspected;
+    case ThumbnailLoadingRole:
+        return row.thumbnail_loading;
     default:
         return {};
     }
@@ -71,7 +73,7 @@ QHash<int, QByteArray> ImportCandidateListModel::roleNames() const
             {SelectedRole, "selected"},         {HighlightedRole, "highlighted"},
             {EligibleRole, "eligible"},         {DuplicateRole, "duplicate"},
             {ThumbnailUrlRole, "thumbnailUrl"}, {ErrorRole, "errorText"},
-            {InspectedRole, "inspected"}};
+            {InspectedRole, "inspected"},       {ThumbnailLoadingRole, "thumbnailLoading"}};
 }
 
 int ImportCandidateListModel::selectedCount() const noexcept
@@ -183,7 +185,7 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
     highlighted_rows_.clear();
     rows_.reserve(candidates.size());
     for (auto &candidate : candidates)
-        rows_.push_back({std::move(candidate), {}, false, false, false, 0U, {}});
+        rows_.push_back({std::move(candidate), {}, false, false, false, false, 0U, {}});
     for (auto &row : rows_)
         row.selected =
             select_new_candidates_ && row.candidate.supported && !row.candidate.duplicate;
@@ -199,7 +201,7 @@ void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
     const int row = rowCount();
     beginInsertRows({}, row, row);
     const bool selected = select_new_candidates_ && candidate.supported && !candidate.duplicate;
-    rows_.push_back({std::move(candidate), {}, selected, false, false, 0U, {}});
+    rows_.push_back({std::move(candidate), {}, selected, false, false, false, 0U, {}});
     if (selected)
         ++selection_revision_;
     if (selected)
@@ -313,11 +315,14 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
         auto &old = rows_[static_cast<std::size_t>(evicted)];
         if (!old.thumbnail.isNull())
             thumbnail_bytes_ -= static_cast<qulonglong>(old.thumbnail.sizeInBytes());
-        // Eviction drops residency only. inspected stays true so demand completion is
-        // not silently reopened; the thumbnail controller admits scroll-back rebuilds
-        // via a new demand generation rather than unconditional retry.
+        // Eviction drops residency and restores the historical inspected=false contract.
+        // Demand completion lives in the thumbnail controller terminals; a new demand
+        // generation (or resetSourceSession) re-admits scroll-back rebuilds.
         old.thumbnail = {};
-        emit dataChanged(index(evicted, 0), index(evicted, 0), {ThumbnailUrlRole});
+        old.inspected = false;
+        old.thumbnail_loading = false;
+        emit dataChanged(index(evicted, 0), index(evicted, 0),
+                         {ThumbnailUrlRole, InspectedRole, ThumbnailLoadingRole});
     };
     while (thumbnail_rows_.size() > maximum_cached_thumbnails)
         evict_front();
@@ -379,9 +384,11 @@ void ImportCandidateListModel::finishThumbnail(const int row, QImage image,
         return;
     auto &entry = rows_[static_cast<std::size_t>(row)];
     entry.inspected = true;
+    entry.thumbnail_loading = false;
     entry.thumbnail_error = std::move(error);
     setThumbnail(row, std::move(image));
-    emit dataChanged(index(row, 0), index(row, 0), {InspectedRole, ErrorRole});
+    emit dataChanged(index(row, 0), index(row, 0),
+                     {InspectedRole, ErrorRole, ThumbnailLoadingRole});
 }
 
 QImage ImportCandidateListModel::thumbnail(const int row) const
@@ -399,6 +406,22 @@ QString ImportCandidateListModel::sourcePath(const int row) const
 bool ImportCandidateListModel::inspected(const int row) const
 {
     return row >= 0 && row < rowCount() && rows_[static_cast<std::size_t>(row)].inspected;
+}
+
+void ImportCandidateListModel::setThumbnailLoading(const int row, const bool loading)
+{
+    if (row < 0 || row >= rowCount())
+        return;
+    auto &entry = rows_[static_cast<std::size_t>(row)];
+    if (entry.thumbnail_loading == loading)
+        return;
+    entry.thumbnail_loading = loading;
+    emit dataChanged(index(row, 0), index(row, 0), {ThumbnailLoadingRole});
+}
+
+bool ImportCandidateListModel::thumbnailLoading(const int row) const
+{
+    return row >= 0 && row < rowCount() && rows_[static_cast<std::size_t>(row)].thumbnail_loading;
 }
 
 QStringList ImportCandidateListModel::selectedPaths() const
