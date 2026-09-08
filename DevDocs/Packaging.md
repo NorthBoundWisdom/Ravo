@@ -136,6 +136,13 @@ enabling any non-stub provider. Default network posture stays no automatic
 upload; credentials remain desktop-only (ADR-0121).
 
 
+## Probe artifact evidence (packaged runtime)
+
+Packaged `catalog probe --output` evidence requires nested `artifact` fields:
+`type/version/path/mime_type/width/height/byte_count/color_profile/color_profile_fingerprint/content_sha256`.
+Meta JSON validation requires `artifact`, `digest_sha256`, `source_sha`, `run_id`,
+and `run_attempt`. This remains distinct from build-tree CLI evidence.
+
 ## Packaged runtime out-of-tree check
 
 `Ravo/tools/check_packaged_runtime.py` validates a DMG/ZIP/AppImage/DEB from the

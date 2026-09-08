@@ -225,6 +225,11 @@ reopen/backup/restore corpus scenarios under REL-01.
 
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
+Next vertical scenario only: **source offline → restore → reopen the same
+library** on a real mixed directory with immutable source bytes and persistent
+readback. Do not expand Import page structure further in that tranche.
+
+
 **Status:** macOS host C2-style evidence recorded for candidate
 `07dbb9ef4aad7e23f891fdb1adf6ea0b9d966ff9` — report id
 `20260905_020736` under `~/Documents/RavoEvidence/reports/` (hashed corpus

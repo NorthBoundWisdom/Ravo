@@ -1734,3 +1734,12 @@ CLI and Studio project that contract without expanding paths themselves. See
 does not reopen the same demand as unconditional retry. A new `setViewportDemand`
 clears terminals so scroll-back can rebuild. Observation trails are opt-in
 (test sink / bounded ring); production keeps constant-space counters.
+
+
+## Studio command workspace
+
+Interactive Studio commands are scoped by an active workspace (Gallery, Import,
+or Develop) owned in desktop C++ command policy. Import is not implied by
+`Condition::kAlways`. Image probe artifacts are verified through the shared
+RasterDecoder owner before publication; CLI JSON describes the artifact without
+owning a second codec.

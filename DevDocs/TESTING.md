@@ -1536,3 +1536,22 @@ digest upload for this SHA. Do not upgrade REL-02 / C3 from these unit gates alo
 - `Ravo/tools/test_check_packaged_runtime.py` identity + catalog + isolation suites
 
 Sanitizer (TSan/ASan) Import gate races: **UNTESTED** on this host (not configured).
+
+## Studio command workspace (Import)
+
+Live Studio interactive commands share one C++ workspace policy
+(`active_command_workspace` / `command_workspace_support`). While Import is
+open, Gallery selection mutations (rating/flag/nav/remove/recipe edit) stay
+blocked; Select All, cancel, and listed window globals remain available.
+Gallery selection is preserved for restore after Import closes. Validation:
+`StudioImportKeyboard.ImportWorkspaceBlocksGallerySelectionCommands` and the
+production Import layout smoke path inside `ravo_studio --smoke`.
+
+## Probe image artifact contract
+
+`catalog probe --output` emits a versioned nested `artifact` object
+(`ravo.image_artifact` v1) after verifying immutable encoded PNG bytes through
+the shared RasterDecoder owner. Packaged runtime checks consume that contract
+and stream the file under a hard byte cap; they do not own a second PNG/ICC
+decoder. Build-tree create/import/probe/reopen evidence is not packaged PASS.
+
