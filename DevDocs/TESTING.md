@@ -1514,6 +1514,18 @@ paths: Windows temporary directories may be inside Home. Tests wait for
 asynchronous ancestor discovery before activating the destination row.
 
 
+## Import recovery and packaged gate follow-up (post-969e3bc)
+
+Closed on this branch against `mac_clang_debug` command tests + `test_check_packaged_runtime.py`:
+
+- thumbnail session reset + residency/demand split restore CopyDefault / ThumbnailCache
+- demand-generation identity and unselected Select All text routing
+- packaged CLI envelope/membership, probe IHDR integrity, DMG top-level symlink skip
+- CI publishes `PACKAGED_EVIDENCE_DIR` before validation and uploads fixed evidence paths on failure
+
+Still UNTESTED here: TSan Import matrix, real DMG/AppImage/DEB host unpack, live `package_rehearsal`
+digest upload for this SHA. Do not upgrade REL-02 / C3 from these unit gates alone.
+
 ## Import hardening follow-up tests (post-c94850e)
 
 - `StudioImportThumbnailScheduler.OverBudgetDemandReachesFiniteTerminalWithoutThrash`

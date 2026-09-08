@@ -319,4 +319,121 @@ TEST(StudioImportRoundtrip, RepeatedIntentsRemainQuiescentWithBoundedDiagnostics
     EXPECT_FALSE(presenter.importPageOpen());
 }
 
+TEST(StudioImportRoundtrip, ImportRecoveryWorkflowCoversSourceSwitchEvictionAndReopen)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-roundtrip");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto source_a = directory.filePath("source-a");
+    const auto source_b = directory.filePath("source-b");
+    const auto destination = directory.filePath("destination");
+    const auto catalog = directory.filePath("library.sqlite");
+    ASSERT_TRUE(QDir().mkpath(source_a));
+    ASSERT_TRUE(QDir().mkpath(source_b));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    for (int i = 0; i < 4; ++i)
+    {
+        ASSERT_TRUE(
+            photo(source_a + QStringLiteral("/a%1.png").arg(i), QColor(20 + i * 40, 10, 10)));
+        ASSERT_TRUE(
+            photo(source_b + QStringLiteral("/b%1.png").arg(i), QColor(10, 20 + i * 40, 10)));
+    }
+    const auto hash_a0 = file_sha256(source_a + "/a0.png");
+    ASSERT_FALSE(hash_a0.isEmpty());
+
+    int library_total = 0;
+    {
+        StudioPresenter presenter;
+        presenter.createCatalogFromPath(catalog);
+        ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+        presenter.openImportPage();
+        presenter.importSourceFolders()->resetWithRoots(
+            {{directory.path(), QStringLiteral("fixture"), true}});
+        presenter.importDestinationFolders()->resetWithRoots(
+            {{directory.path(), QStringLiteral("fixture"), true}});
+        presenter.setImportMode(QStringLiteral("copy"));
+        presenter.setImportSourceRoot(source_a);
+        presenter.setImportDestination(destination);
+        ASSERT_TRUE(wait_until(
+            [&] { return !presenter.importScanActive() && presenter.importReady(); }, 30000));
+        auto *model = presenter.importCandidates();
+        ASSERT_EQ(model->rowCount(), 4);
+        for (int row = 0; row < model->rowCount(); ++row)
+            presenter.ensureImportThumbnail(row);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                for (int row = 0; row < model->rowCount(); ++row)
+                    if (!model->inspected(row) || model->thumbnail(row).isNull())
+                        return false;
+                return true;
+            },
+            30000));
+
+        presenter.setImportSourceRoot(source_b);
+        ASSERT_TRUE(wait_until(
+            [&] { return model->rowCount() == 4 && !presenter.importScanActive(); }, 30000));
+        for (int row = 0; row < model->rowCount(); ++row)
+            presenter.ensureImportThumbnail(row);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                for (int row = 0; row < model->rowCount(); ++row)
+                    if (!model->inspected(row) || model->thumbnail(row).isNull())
+                        return false;
+                return true;
+            },
+            30000));
+
+        presenter.setImportSourceRoot(source_a);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return model->rowCount() == 4 && !presenter.importScanActive() &&
+                       presenter.importReady();
+            },
+            30000));
+        for (int row = 0; row < model->rowCount(); ++row)
+            presenter.ensureImportThumbnail(row);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                for (int row = 0; row < model->rowCount(); ++row)
+                    if (!model->inspected(row) || model->thumbnail(row).isNull())
+                        return false;
+                return true;
+            },
+            30000));
+
+        presenter.startPlannedImport();
+        presenter.closeImportPage();
+        ASSERT_TRUE(wait_until(
+            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            30000));
+        EXPECT_EQ(file_sha256(source_a + "/a0.png"), hash_a0);
+
+        presenter.openImportPage();
+        presenter.setImportSourceRoot(source_a);
+        presenter.setImportDestination(destination);
+        ASSERT_TRUE(wait_until(
+            [&] { return !presenter.importScanActive() && presenter.importReady(); }, 30000));
+        presenter.startPlannedImport();
+        ASSERT_TRUE(wait_until(
+            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            30000));
+        ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+        EXPECT_GE(presenter.lastImportCount(), 1);
+        EXPECT_EQ(file_sha256(source_a + "/a0.png"), hash_a0);
+
+        library_total = presenter.libraryTotal();
+        EXPECT_GE(library_total, 1);
+        presenter.closeImportPage();
+    }
+    StudioPresenter reopened;
+    reopened.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return reopened.catalogOpen() && !reopened.busy(); }));
+    EXPECT_EQ(reopened.libraryTotal(), library_total);
+}
+
 } // namespace ravo

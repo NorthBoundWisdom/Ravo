@@ -162,8 +162,10 @@ Explicit non-claims (recorded as UNTESTED residuals by the tool):
 - AppImage FUSE direct launch (extract-via-`--appimage-extract` is a separate PASS when unpack succeeds)
 - host package rehearsal evidence until a rehearsal/tag run uploads digests for the same SHA
 
-`Ravo/tools/test_check_packaged_runtime.py` covers identity resolution, catalog fake-CLI negatives,
-AppImage AppRun-at-root, minimal PATH, and evidence-on-failure without requiring Qt.
+`Ravo/tools/test_check_packaged_runtime.py` covers identity resolution, versioned CLI envelope
+acceptance/rejection, exact asset membership, probe IHDR integrity, DMG top-level absolute symlink
+skip, AppImage AppRun-at-root, minimal PATH, and evidence-on-failure without requiring Qt.
+CI publishes packaged evidence before the validate loop so failed checkers still upload JSON.
 
 ## Minimum validation
 
