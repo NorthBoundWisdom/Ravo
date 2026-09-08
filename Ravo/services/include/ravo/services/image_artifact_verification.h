@@ -33,7 +33,11 @@ struct ImageArtifactExpectation
     std::string_view mime_type = "image/png";
     std::optional<std::uint32_t> width;
     std::optional<std::uint32_t> height;
+    // Exact decoded identifier when set (not a free-form description match).
     std::optional<std::string_view> color_profile;
+    // Exact color_profile_fingerprint(decoded) when set — binds renderer/encoder
+    // identity without treating builtin vs embedded descriptors as interchangeable.
+    std::optional<std::string_view> color_profile_fingerprint;
     std::size_t max_encoded_bytes = 64U * 1024U * 1024U;
 };
 

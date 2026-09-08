@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <QByteArray>
+#include <QColorSpace>
+
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -26,6 +30,28 @@ namespace
         rgb[i + 2U] = b;
     }
     return rgb;
+}
+
+[[nodiscard]] ColorProfileState builtin_named(const std::string_view identifier)
+{
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kBuiltin;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = std::string(identifier);
+    return profile;
+}
+
+[[nodiscard]] ColorProfileState embedded_icc_from_qt(const QColorSpace &space)
+{
+    const QByteArray bytes = space.iccProfile();
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kIcc;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = "embedded_icc";
+    profile.icc_bytes.assign(reinterpret_cast<const std::uint8_t *>(bytes.constData()),
+                             reinterpret_cast<const std::uint8_t *>(bytes.constData()) +
+                                 bytes.size());
+    return profile;
 }
 
 [[nodiscard]] ColorProfileState builtin_srgb()
@@ -182,6 +208,116 @@ TEST(ImageArtifactVerification, ReportsActualMediaTypeFromContent)
     auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
     ASSERT_TRUE(verified) << verified.error().message;
     EXPECT_EQ(verified.value().mime_type, "image/png");
+}
+
+TEST(ImageArtifactVerification, AcceptsBuiltinSrgbLinearRec709AndDisplayP3RoundTrips)
+{
+    QtRasterDecoder decoder;
+    struct Case
+    {
+        const char *identifier;
+    };
+    const std::array cases{Case{"srgb"}, Case{"linear_rec709"}, Case{"display_p3"}};
+    for (const auto &test_case : cases)
+    {
+        ColorProfileState profile = builtin_named(test_case.identifier);
+        auto encoded = decoder.encode(4, 2, solid_rgb(4, 2, 11, 22, 33), profile,
+                                      ExportFormat::kPng, {}, {}, {});
+        ASSERT_TRUE(encoded) << test_case.identifier << ": " << encoded.error().message;
+        auto decoded = decoder.decode_memory(encoded.value(), 0U, {});
+        ASSERT_TRUE(decoded) << test_case.identifier << ": " << decoded.error().message;
+        ImageArtifactExpectation expected;
+        expected.mime_type = "image/png";
+        expected.width = 4;
+        expected.height = 2;
+        expected.color_profile = decoded.value().color_profile.identifier;
+        const auto fingerprint = color_profile_fingerprint(decoded.value().color_profile);
+        expected.color_profile_fingerprint = fingerprint;
+        auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
+        ASSERT_TRUE(verified) << test_case.identifier << ": " << verified.error().message;
+        EXPECT_EQ(verified.value().color_profile, decoded.value().color_profile.identifier);
+        EXPECT_EQ(verified.value().color_profile_fingerprint, fingerprint);
+    }
+}
+
+TEST(ImageArtifactVerification, AcceptsEmbeddedSrgbIccIdentityWithoutConfusingBuiltinDescriptor)
+{
+    QtRasterDecoder decoder;
+    ColorProfileState embedded = embedded_icc_from_qt(QColorSpace(QColorSpace::SRgb));
+    ASSERT_FALSE(embedded.icc_bytes.empty());
+    auto encoded =
+        decoder.encode(2, 2, solid_rgb(2, 2, 4, 5, 6), embedded, ExportFormat::kPng, {}, {}, {});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    auto decoded = decoder.decode_memory(encoded.value(), 0U, {});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    // Exact decoded identity may be embedded_icc or a recognized builtin depending on
+    // accompanying cICP; bind through the color owner fingerprint either way.
+    ImageArtifactExpectation expected;
+    expected.mime_type = "image/png";
+    expected.color_profile = decoded.value().color_profile.identifier;
+    const auto fingerprint = color_profile_fingerprint(decoded.value().color_profile);
+    expected.color_profile_fingerprint = fingerprint;
+    auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
+    ASSERT_TRUE(verified) << verified.error().message;
+    EXPECT_EQ(verified.value().color_profile_fingerprint, fingerprint);
+    // Builtin srgb fingerprint must not silently accept a different decoded identity.
+    ColorProfileState builtin = builtin_named("srgb");
+    expected.color_profile = "srgb";
+    expected.color_profile_fingerprint = color_profile_fingerprint(builtin);
+    if (decoded.value().color_profile.identifier != "srgb" ||
+        color_profile_fingerprint(decoded.value().color_profile) !=
+            color_profile_fingerprint(builtin))
+    {
+        auto rejected = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
+        ASSERT_FALSE(rejected);
+        EXPECT_TRUE(rejected.error().context.at("reason") == "color_profile_mismatch" ||
+                    rejected.error().context.at("reason") == "color_profile_fingerprint_mismatch");
+    }
+}
+
+TEST(ImageArtifactVerification, RejectsSamePrimariesDifferentTransferExpectation)
+{
+    QtRasterDecoder decoder;
+    ColorProfileState linear = builtin_named("linear_rec709");
+    auto encoded =
+        decoder.encode(2, 2, solid_rgb(2, 2, 7, 8, 9), linear, ExportFormat::kPng, {}, {}, {});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    auto decoded = decoder.decode_memory(encoded.value(), 0U, {});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    // Encoded linear Rec.709 must not satisfy an sRGB TRC expectation, whether the
+    // adapter reports linear_rec709 or an embedded ICC carrying that transfer.
+    EXPECT_NE(decoded.value().color_profile.identifier, "srgb");
+    EXPECT_NE(color_profile_fingerprint(decoded.value().color_profile),
+              color_profile_fingerprint(builtin_named("srgb")));
+    ImageArtifactExpectation expected;
+    expected.mime_type = "image/png";
+    expected.color_profile = "srgb";
+    expected.color_profile_fingerprint = color_profile_fingerprint(builtin_named("srgb"));
+    auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
+    ASSERT_FALSE(verified);
+    EXPECT_TRUE(verified.error().context.at("reason") == "color_profile_mismatch" ||
+                verified.error().context.at("reason") == "color_profile_fingerprint_mismatch");
+    EXPECT_NE(verified.error().context.at("actual"), "srgb");
+}
+
+TEST(ImageArtifactVerification, RejectsWrongColorFingerprintEvenWhenIdentifierMatches)
+{
+    QtRasterDecoder decoder;
+    ColorProfileState profile = builtin_named("display_p3");
+    auto encoded =
+        decoder.encode(2, 2, solid_rgb(2, 2, 1, 2, 3), profile, ExportFormat::kPng, {}, {}, {});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    auto decoded = decoder.decode_memory(encoded.value(), 0U, {});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    ImageArtifactExpectation expected;
+    expected.mime_type = "image/png";
+    expected.color_profile = decoded.value().color_profile.identifier;
+    expected.color_profile_fingerprint = color_profile_fingerprint(builtin_named("srgb"));
+    ASSERT_NE(expected.color_profile_fingerprint,
+              color_profile_fingerprint(decoded.value().color_profile));
+    auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
+    ASSERT_FALSE(verified);
+    EXPECT_EQ(verified.error().context.at("reason"), "color_profile_fingerprint_mismatch");
 }
 
 } // namespace

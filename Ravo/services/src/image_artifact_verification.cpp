@@ -118,13 +118,24 @@ Result<VerifiedImageArtifact> verify_encoded_image_artifact(
                            {"actual", profile.identifier},
                            {"content_sha256", content_sha256}});
     }
+    const auto actual_fingerprint = color_profile_fingerprint(profile);
+    if (expected.color_profile_fingerprint.has_value() &&
+        *expected.color_profile_fingerprint != std::string_view(actual_fingerprint))
+    {
+        return make_error(ErrorCode::kConflict,
+                          "Decoded color profile fingerprint does not match expectation",
+                          {{"reason", "color_profile_fingerprint_mismatch"},
+                           {"expected", std::string(*expected.color_profile_fingerprint)},
+                           {"actual", actual_fingerprint},
+                           {"content_sha256", content_sha256}});
+    }
 
     VerifiedImageArtifact report;
     report.mime_type = raster.media_type;
     report.width = raster.width;
     report.height = raster.height;
     report.color_profile = profile.identifier;
-    report.color_profile_fingerprint = color_profile_fingerprint(profile);
+    report.color_profile_fingerprint = actual_fingerprint;
     report.byte_count = static_cast<std::uint64_t>(encoded.size());
     report.content_sha256 = content_sha256;
     return report;

@@ -10,6 +10,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/services/catalog_service.h"
+#include "ravo/foundation/color.h"
 #include "ravo/services/image_artifact_verification.h"
 
 namespace ravo::cli_internal
@@ -153,9 +154,34 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
         expectation.mime_type = "image/png";
         expectation.width = previewed.value().width;
         expectation.height = previewed.value().height;
-        // Encoded PNG may embed ICC even when the preview profile is builtin
-        // sRGB; report the decoded artifact identity separately from the
-        // compatible top-level color_profile field.
+        // Bind encoded identity through the color owner fingerprint, not by
+        // assuming builtin sRGB and embedded sRGB ICC descriptors are the same.
+        // engine.encode_png keeps builtin sRGB as the sRGB-chunk identity; other
+        // owned ICC payloads decode as embedded_icc with the same ICC bytes.
+        const auto &preview_profile = previewed.value().color_profile;
+        std::string expected_fingerprint;
+        if (preview_profile.kind == ColorProfileKind::kBuiltin &&
+            preview_profile.identifier == "srgb")
+        {
+            ColorProfileState expected_profile;
+            expected_profile.kind = ColorProfileKind::kBuiltin;
+            expected_profile.model = ColorModel::kRgb;
+            expected_profile.identifier = "srgb";
+            expected_fingerprint = color_profile_fingerprint(expected_profile);
+            expectation.color_profile = "srgb";
+            expectation.color_profile_fingerprint = expected_fingerprint;
+        }
+        else if (!preview_profile.icc_bytes.empty())
+        {
+            ColorProfileState expected_profile;
+            expected_profile.kind = ColorProfileKind::kIcc;
+            expected_profile.model = ColorModel::kRgb;
+            expected_profile.identifier = "embedded_icc";
+            expected_profile.icc_bytes = preview_profile.icc_bytes;
+            expected_fingerprint = color_profile_fingerprint(expected_profile);
+            expectation.color_profile = "embedded_icc";
+            expectation.color_profile_fingerprint = expected_fingerprint;
+        }
         auto verified =
             verify_encoded_image_artifact(raster_decoder, encoded.value(), expectation, {});
         if (!verified)
