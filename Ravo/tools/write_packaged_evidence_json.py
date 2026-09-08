@@ -49,66 +49,80 @@ def write_json(path: Path, payload: dict[str, object]) -> None:
         raise SystemExit(f"written JSON failed validation: {path}")
 
 
-def _require_string(payload: dict[str, object], key: str, *, min_len: int = 1) -> str | None:
-    value = payload.get(key)
-    if not isinstance(value, str) or len(value) < min_len:
-        return f"missing/invalid {key}"
-    return None
-
-
 def validate_json_files(paths: list[Path]) -> None:
+    from packaged_evidence_schema import (
+        compare_meta_evidence_pair,
+        load_json_object,
+        pair_key_from_filename,
+        validate_evidence_payload,
+        validate_meta_payload,
+    )
+
     failures: list[str] = []
     seen_digests: dict[str, Path] = {}
+    metas: dict[str, tuple[Path, dict]] = {}
+    evidences: dict[str, tuple[Path, dict]] = {}
+
     for path in paths:
         if not path.is_file():
             failures.append(f"missing: {path}")
             continue
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            payload = load_json_object(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
             failures.append(f"{path}: {exc}")
             continue
-        if not isinstance(payload, dict):
-            failures.append(f"{path}: evidence payload must be an object")
-            continue
         name = path.name
+        label = str(path)
         if name.endswith(".meta.json"):
-            for key, minimum in (
-                ("artifact", 1),
-                ("digest_sha256", 64),
-                ("source_sha", 7),
-                ("run_id", 1),
-                ("run_attempt", 1),
-            ):
-                error = _require_string(payload, key, min_len=minimum)
-                if error:
-                    failures.append(f"{path}: {error}")
+            failures.extend(validate_meta_payload(payload, path_label=label))
             digest = payload.get("digest_sha256")
             if isinstance(digest, str):
                 previous = seen_digests.get(digest)
                 if previous is not None and previous != path:
-                    failures.append(
-                        f"{path}: digest_sha256 duplicates {previous.name}"
-                    )
+                    failures.append(f"{path}: digest_sha256 duplicates {previous.name}")
                 seen_digests[digest] = path
+            pair_key = pair_key_from_filename(name)
+            if pair_key is not None:
+                metas[pair_key] = (path, payload)
         elif name.endswith(".evidence.json"):
-            error = _require_string(payload, "status")
-            if error:
-                failures.append(f"{path}: {error}")
-            # When checker evidence includes identity fields, keep them consistent.
-            for key in ("artifact", "digest_sha256", "source_sha", "run_id", "run_attempt"):
-                if key in payload:
-                    error = _require_string(payload, key)
-                    if error:
-                        failures.append(f"{path}: {error}")
-            stages = payload.get("stages")
-            if stages is not None:
-                if not isinstance(stages, dict) or not stages:
-                    failures.append(f"{path}: stages must be a non-empty object when present")
-                else:
-                    names = list(stages.keys())
-                    if len(names) != len(set(names)):
-                        failures.append(f"{path}: stages keys must be unique")
+            failures.extend(validate_evidence_payload(payload, path_label=label))
+            pair_key = pair_key_from_filename(name)
+            if pair_key is not None:
+                evidences[pair_key] = (path, payload)
+        else:
+            failures.append(f"{path}: unrecognized evidence filename (want *.meta.json or *.evidence.json)")
+
+    # Pair when both sides appear in the same validate batch (CI). Meta-only
+    # batches remain valid for serializer unit checks. PASS evidence alone fails.
+    if metas and evidences:
+        for key, (meta_path, meta_payload) in metas.items():
+            paired = evidences.get(key)
+            if paired is None:
+                failures.append(f"{meta_path}: missing paired evidence for artifact key {key!r}")
+                continue
+            evidence_path, evidence_payload = paired
+            failures.extend(
+                compare_meta_evidence_pair(
+                    meta_payload,
+                    evidence_payload,
+                    pair_label=f"{meta_path.name}+{evidence_path.name}",
+                )
+            )
+        for key, (evidence_path, evidence_payload) in evidences.items():
+            if key in metas:
+                continue
+            if evidence_payload.get("status") == "PASS":
+                failures.append(
+                    f"{evidence_path}: PASS evidence missing paired meta for {key!r}"
+                )
+    else:
+        for key, (evidence_path, evidence_payload) in evidences.items():
+            if evidence_payload.get("status") == "PASS":
+                failures.append(
+                    f"{evidence_path}: PASS evidence missing paired meta for {key!r}"
+                )
+
     if failures:
         raise SystemExit("JSON validation failed:\n" + "\n".join(failures))
 

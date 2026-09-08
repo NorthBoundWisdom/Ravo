@@ -745,10 +745,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo-root", type=Path, default=None,
                         help="Reject workdirs inside this build/source tree")
     parser.add_argument("--evidence-json", type=Path, default=None)
+    parser.add_argument(
+        "--artifact-basename",
+        default=None,
+        help="Archive basename written into evidence identity (defaults to artifact name)",
+    )
+    parser.add_argument("--source-sha", default=None, help="Source commit SHA for evidence pairing")
+    parser.add_argument("--run-id", default=None, help="CI run id for evidence pairing")
+    parser.add_argument("--run-attempt", default=None, help="CI run attempt for evidence pairing")
     args = parser.parse_args(argv)
     artifact = args.artifact.resolve()
     results: dict[str, str] = {}
     residuals: list[str] = []
+    digest = ""
+    artifact_basename = args.artifact_basename or args.artifact.name
 
     def record(name: str, status: Status, detail: str = "") -> None:
         results[name] = status.value
@@ -757,8 +767,43 @@ def main(argv: list[str] | None = None) -> int:
         if status == Status.UNTESTED:
             residuals.append(line)
 
+    def write_evidence(*, reason: str | None = None, status_override: str | None = None) -> None:
+        if not args.evidence_json:
+            return
+        from packaged_evidence_schema import build_evidence_payload
+
+        early_fail = not bool(digest)
+        payload = build_evidence_payload(
+            artifact_basename=artifact_basename,
+            digest_sha256=digest if digest else ("0" * 64),
+            results=results,
+            residuals=residuals,
+            require_smoke=bool(args.require_smoke),
+            host={
+                "platform": sys.platform,
+                "python": sys.version.split()[0],
+            },
+            cli=str(cli) if cli is not None else None,
+            studio=str(studio) if studio is not None else None,
+            source_sha=args.source_sha,
+            run_id=args.run_id,
+            run_attempt=args.run_attempt,
+            reason=reason,
+            status_override=("FAIL" if early_fail else status_override),
+        )
+        if early_fail:
+            payload.pop("digest_sha256", None)
+            if reason is None and "reason" not in payload:
+                payload["reason"] = "artifact missing or digest unavailable"
+        args.evidence_json.parent.mkdir(parents=True, exist_ok=True)
+        args.evidence_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    cli = None
+    studio = None
+
     if not artifact.is_file():
         print(f"ERROR: artifact missing: {artifact}", file=sys.stderr)
+        write_evidence(reason=f"artifact missing: {artifact}", status_override="FAIL")
         return 1
     digest = sha256_file(artifact)
     print(f"artifact={artifact}")
@@ -774,16 +819,16 @@ def main(argv: list[str] | None = None) -> int:
         work = args.workdir.resolve()
         if work.exists() and any(work.iterdir()):
             print(f"ERROR: workdir is not empty (refuse polluted directory): {work}", file=sys.stderr)
+            write_evidence(reason=f"workdir is not empty: {work}", status_override="FAIL")
             return 1
         work.mkdir(parents=True, exist_ok=True)
         repo = args.repo_root.resolve() if args.repo_root else None
         if repo is not None and is_under(work, repo):
             print(f"ERROR: workdir is inside repo/build tree: {work}", file=sys.stderr)
+            write_evidence(reason=f"workdir inside repo/build tree: {work}", status_override="FAIL")
             return 1
 
     exit_code = 0
-    cli = None
-    studio = None
     try:
         try:
             root = unpack(artifact, work)
@@ -928,21 +973,7 @@ def main(argv: list[str] | None = None) -> int:
             exit_code = 1
 
     finally:
-        if args.evidence_json:
-            payload = {
-                "artifact": str(artifact),
-                "sha256": digest,
-                "results": results,
-                "residuals": residuals,
-                "require_smoke": bool(args.require_smoke),
-                "host": {
-                    "platform": sys.platform,
-                    "python": sys.version.split()[0],
-                },
-                "cli": str(cli) if cli is not None else None,
-                "studio": str(studio) if studio is not None else None,
-            }
-            args.evidence_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        write_evidence()
         if tmp_ctx is not None:
             tmp_ctx.cleanup()
 

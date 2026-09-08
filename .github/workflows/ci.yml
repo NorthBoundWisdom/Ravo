@@ -633,9 +633,12 @@ jobs:
           if [[ ${#artifacts[@]} -eq 0 ]]; then
             python3 Ravo/tools/write_packaged_evidence_json.py \
               --output "${evidence_root}/missing-artifacts.evidence.json" \
+              --field type=ravo.packaged_evidence \
+              --field-json version=1 \
               --field status=FAIL \
               --field "reason=no artifacts matched" \
               --field "pattern=${{ matrix.artifact_path }}" \
+              --field source_sha="${GITHUB_SHA}" \
               --field run_id="${GITHUB_RUN_ID}" \
               --field run_attempt="${GITHUB_RUN_ATTEMPT}"
             echo "ERROR: no artifacts matched ${{ matrix.artifact_path }}"
@@ -665,18 +668,24 @@ jobs:
               --workdir "${work}/${base}" \
               --repo-root "${GITHUB_WORKSPACE}" \
               --evidence-json "${evidence}" \
+              --artifact-basename "${base}" \
+              --source-sha "${GITHUB_SHA}" \
+              --run-id "${GITHUB_RUN_ID}" \
+              --run-attempt "${GITHUB_RUN_ATTEMPT}" \
               --require-smoke; then
               status=1
               if [[ ! -f "${evidence}" ]]; then
                 python3 Ravo/tools/write_packaged_evidence_json.py \
                   --output "${evidence}" \
+                  --field type=ravo.packaged_evidence \
+                  --field-json version=1 \
                   --field status=FAIL \
                   --field "reason=checker exited without evidence" \
                   --field "artifact=${base}" \
                   --field "digest_sha256=${digest}" \
                   --field "source_sha=${GITHUB_SHA}" \
-                  --field "run_id=${GITHUB_RUN_ID}" \
-                  --field "run_attempt=${GITHUB_RUN_ATTEMPT}"
+                  --field run_id="${GITHUB_RUN_ID}" \
+                  --field run_attempt="${GITHUB_RUN_ATTEMPT}"
               fi
             fi
           done
