@@ -618,6 +618,98 @@ class ProbePngMethodAndBudgetTests(unittest.TestCase):
                 cpr._PROBE_PNG_MAX_FILE_BYTES = original
 
 
+class ProbeColorIdentityTests(unittest.TestCase):
+    def test_srgb_chunk_matches_srgb_not_linear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "srgb.png"
+            path.write_bytes(cpr.build_rgb_png_bytes(include_srgb=True))
+            decoded = cpr.decode_png_pixels(path)
+            self.assertEqual(decoded.color_profile_id, "srgb")
+            self.assertEqual(decoded.color_container, "srgb_chunk")
+            self.assertTrue(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
+            self.assertTrue(cpr.probe_profile_matches_artifact("sRGB", decoded.color_profile_id))
+            self.assertFalse(
+                cpr.probe_profile_matches_artifact("srgb-linear", decoded.color_profile_id)
+            )
+            self.assertFalse(
+                cpr.probe_profile_matches_artifact("linear_rec709", decoded.color_profile_id)
+            )
+
+    def test_embedded_srgb_icc_matches_srgb_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "icc-srgb.png"
+            profile = cpr.build_minimal_icc_profile("sRGB IEC61966-2.1")
+            path.write_bytes(
+                cpr.build_rgb_png_bytes(include_srgb=False, iccp_profile=profile)
+            )
+            decoded = cpr.decode_png_pixels(path)
+            self.assertEqual(decoded.color_container, "iccp")
+            self.assertEqual(decoded.color_profile_id, "srgb")
+            self.assertTrue(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
+            self.assertFalse(
+                cpr.probe_profile_matches_artifact("embedded_icc", decoded.color_profile_id)
+            )
+
+    def test_cicp_linear_not_interchangeable_with_srgb(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cicp-linear.png"
+            path.write_bytes(
+                cpr.build_rgb_png_bytes(include_srgb=False, cicp=(1, 8, 0, 1))
+            )
+            decoded = cpr.decode_png_pixels(path)
+            self.assertEqual(decoded.color_profile_id, "linear_rec709")
+            self.assertTrue(
+                cpr.probe_profile_matches_artifact("srgb-linear", decoded.color_profile_id)
+            )
+            self.assertFalse(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
+
+    def test_rejects_empty_corrupt_and_mismatch_icc(self) -> None:
+        import struct
+        import zlib
+
+        def chunk(tag: bytes, data: bytes) -> bytes:
+            return (
+                struct.pack(">I", len(data))
+                + tag
+                + data
+                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            empty = Path(tmp) / "empty-icc.png"
+            ihdr = struct.pack(">IIBBBBB", 4, 4, 8, 2, 0, 0, 0)
+            rows = b"".join([bytes([0]) + bytes([1, 2, 3] * 4) for _ in range(4)])
+            empty.write_bytes(
+                b"\x89PNG\r\n\x1a\n"
+                + chunk(b"IHDR", ihdr)
+                + chunk(b"iCCP", b"icc\x00\x00")
+                + chunk(b"IDAT", zlib.compress(rows, 9))
+                + chunk(b"IEND", b"")
+            )
+            with self.assertRaisesRegex(ValueError, "iCCP"):
+                cpr.decode_png_pixels(empty)
+
+            corrupt = Path(tmp) / "corrupt-icc.png"
+            corrupt.write_bytes(
+                cpr.build_rgb_png_bytes(include_srgb=False, iccp_profile=b"not-an-icc-profile")
+            )
+            with self.assertRaisesRegex(ValueError, "ICC"):
+                cpr.decode_png_pixels(corrupt)
+
+            mismatch = Path(tmp) / "mismatch.png"
+            other = cpr.build_minimal_icc_profile("Adobe RGB (1998)")
+            mismatch.write_bytes(
+                cpr.build_rgb_png_bytes(include_srgb=False, iccp_profile=other)
+            )
+            decoded = cpr.decode_png_pixels(mismatch)
+            self.assertEqual(decoded.color_profile_id, "embedded_icc")
+            self.assertFalse(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
+            self.assertTrue(
+                cpr.probe_profile_matches_artifact("embedded_icc", decoded.color_profile_id)
+            )
+
+
+
 class DmgTopLevelSymlinkTests(unittest.TestCase):
     def test_absolute_applications_symlink_is_skipped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
