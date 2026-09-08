@@ -530,6 +530,12 @@ void StudioImportThumbnailController::resetSourceSession()
     visible_demand_.clear();
     prefetch_demand_.clear();
     current_row_ = -1;
+    // Release the UI admission latch so ensure/setViewportDemand can dispatch for the new
+    // source/session even while a cancelled worker is still draining. finishUi matches
+    // in_flight_demand_generation_ before clearing a newer latch.
+    in_flight_ = false;
+    in_flight_row_ = -1;
+    in_flight_demand_generation_ = 0;
     ++demand_generation_;
 }
 
@@ -558,6 +564,7 @@ void StudioImportThumbnailController::shutdown()
     current_row_ = -1;
     in_flight_ = false;
     in_flight_row_ = -1;
+    in_flight_demand_generation_ = 0;
     kick_scheduled_ = false;
     clearDecodeGate();
     observation_sink_ = nullptr;
@@ -578,10 +585,24 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
                                                std::optional<TaskError> error,
                                                CancellationToken token)
 {
-    in_flight_ = false;
-    in_flight_row_ = -1;
+    // Only the request that currently owns the latch may release it. A stale completion
+    // after resetSourceSession must not drop a newer in-flight admission for the same row.
+    const bool owns_inflight = in_flight_ && identity.row == in_flight_row_ &&
+                               identity.demand_generation == in_flight_demand_generation_;
+    if (owns_inflight)
+    {
+        in_flight_ = false;
+        in_flight_row_ = -1;
+        in_flight_demand_generation_ = 0;
+    }
     if (host_.model)
-        host_.model->setThumbnailLoading(identity.row, false);
+    {
+        const bool same_row_identity =
+            host_.model->generation() == identity.model_generation &&
+            host_.model->sourcePath(identity.row) == identity.source_path;
+        if (owns_inflight || same_row_identity)
+            host_.model->setThumbnailLoading(identity.row, false);
+    }
     if (stopped_)
     {
         record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,
@@ -664,6 +685,7 @@ void StudioImportThumbnailController::start(const int row)
     const auto token = operation_.token();
     in_flight_ = true;
     in_flight_row_ = row;
+    in_flight_demand_generation_ = identity.demand_generation;
     record(ObservationEvent{ObservationEvent::Kind::kDispatched, identity, {}, {}});
     const bool queued = executor_.post(
         [this, identity, token]()
@@ -725,6 +747,7 @@ void StudioImportThumbnailController::start(const int row)
     {
         in_flight_ = false;
         in_flight_row_ = -1;
+        in_flight_demand_generation_ = 0;
         record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,
                                 DiscardReason::kPostRejected, "post"});
         if (host_.set_error)

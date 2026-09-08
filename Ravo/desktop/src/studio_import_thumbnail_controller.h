@@ -106,8 +106,10 @@ public:
                            int current_row = -1);
     void kick();
     void clearPending();
-    // UI-thread source/model session boundary: drop pending, terminals, and demand sets so a
-    // Presenter ensure path can rebuild after rescan/reopen without a viewport workaround.
+    // UI-thread source/model session boundary: drop pending, terminals, demand sets, and the
+    // in-flight admission latch so a Presenter ensure path can rebuild after rescan/reopen
+    // without a viewport workaround. A worker that outlives the session still finishes as
+    // stale and must not clear a newer latch.
     void resetSourceSession();
     void cancel(const char *reason);
     void resetOperation();
@@ -229,6 +231,7 @@ private:
     int current_row_ = -1;
     bool in_flight_ = false;
     int in_flight_row_ = -1;
+    std::uint64_t in_flight_demand_generation_ = 0;
     bool stopped_ = false;
     bool kick_scheduled_ = false;
 
