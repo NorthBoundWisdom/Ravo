@@ -813,6 +813,7 @@ read_png_file_candidate(const std::string_view path, const CancellationToken *co
     result.height = static_cast<std::uint32_t>(image.height());
     result.source_width = static_cast<std::uint32_t>(source_size.width());
     result.source_height = static_cast<std::uint32_t>(source_size.height());
+    result.media_type = std::string(kMediaTypePng);
     result.color_profile = std::move(color_profile);
     result.pixel_format = RasterPixelFormat::kRgb8;
     result.alpha_mode = RasterAlphaMode::kOpaque;

@@ -325,6 +325,7 @@ prepare_tiff_reader(QImageReader &reader, const TiffContract &contract,
     result.height = static_cast<std::uint32_t>(image.height());
     result.source_width = static_cast<std::uint32_t>(source_size.width());
     result.source_height = static_cast<std::uint32_t>(source_size.height());
+    result.media_type = std::string(kMediaTypeTiff);
     result.color_profile = std::move(color_profile);
     result.pixel_format = RasterPixelFormat::kRgb8;
     result.alpha_mode = RasterAlphaMode::kOpaque;

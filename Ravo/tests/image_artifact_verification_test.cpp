@@ -132,5 +132,57 @@ TEST(ImageArtifactVerification, HonorsCancellation)
     ASSERT_FALSE(verified);
 }
 
+TEST(ImageArtifactVerification, RejectsPngWhenJpegExpected)
+{
+    QtRasterDecoder decoder;
+    ColorProfileState profile = builtin_srgb();
+    auto encoded =
+        decoder.encode(2, 2, solid_rgb(2, 2, 9, 8, 7), profile, ExportFormat::kPng, {}, {}, {});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    ImageArtifactExpectation expected;
+    expected.mime_type = "image/jpeg";
+    expected.width = 2;
+    expected.height = 2;
+    auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
+    ASSERT_FALSE(verified);
+    EXPECT_EQ(verified.error().context.at("reason"), "mime_type_mismatch");
+    EXPECT_EQ(verified.error().context.at("actual"), "image/png");
+    EXPECT_EQ(verified.error().context.at("expected"), "image/jpeg");
+}
+
+TEST(ImageArtifactVerification, RejectsJpegWhenPngExpected)
+{
+    QtRasterDecoder decoder;
+    ColorProfileState profile = builtin_srgb();
+    JpegExportOptions jpeg;
+    jpeg.quality = 90;
+    auto encoded =
+        decoder.encode(2, 2, solid_rgb(2, 2, 3, 4, 5), profile, ExportFormat::kJpeg, jpeg, {}, {});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    ImageArtifactExpectation expected;
+    expected.mime_type = "image/png";
+    expected.width = 2;
+    expected.height = 2;
+    auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
+    ASSERT_FALSE(verified);
+    EXPECT_EQ(verified.error().context.at("reason"), "mime_type_mismatch");
+    EXPECT_EQ(verified.error().context.at("actual"), "image/jpeg");
+}
+
+TEST(ImageArtifactVerification, ReportsActualMediaTypeFromContent)
+{
+    QtRasterDecoder decoder;
+    ColorProfileState profile = builtin_srgb();
+    auto encoded =
+        decoder.encode(3, 2, solid_rgb(3, 2, 1, 2, 3), profile, ExportFormat::kPng, {}, {}, {});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    // Extension-style disguise must not affect content recognition.
+    ImageArtifactExpectation expected;
+    expected.mime_type = "image/png";
+    auto verified = verify_encoded_image_artifact(decoder, encoded.value(), expected, {});
+    ASSERT_TRUE(verified) << verified.error().message;
+    EXPECT_EQ(verified.value().mime_type, "image/png");
+}
+
 } // namespace
 } // namespace ravo

@@ -195,7 +195,7 @@ parse_tiff_contract(std::span<const std::uint8_t> bytes, std::string_view source
                                                   const CancellationToken &cancellation,
                                                   std::string_view context,
                                                   std::optional<ColorProfileState> color_profile,
-                                                  QSize source_size);
+                                                  QSize source_size, std::string media_type);
 [[nodiscard]] Result<RasterInfo> probe_jpeg_bytes(const QByteArray &bytes, std::string_view source);
 [[nodiscard]] Result<DecodedRaster> decode_jpeg_bytes(const QByteArray &bytes,
                                                       std::uint32_t max_edge,

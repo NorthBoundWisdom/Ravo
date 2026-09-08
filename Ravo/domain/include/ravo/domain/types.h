@@ -1312,6 +1312,8 @@ struct DecodedRaster
     // They preserve the density proof required by engine working buffers.
     std::uint32_t source_width = 0;
     std::uint32_t source_height = 0;
+    // Content-recognized media type from the raster adapter (not caller claim).
+    std::string media_type;
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
     RasterPixelFormat pixel_format = RasterPixelFormat::kRgb8;

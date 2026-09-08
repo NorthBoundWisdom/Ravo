@@ -257,7 +257,7 @@ Result<DecodedRaster> decode_native(std::span<const std::uint8_t> bytes, std::ui
     return decode_raster(
         std::move(output), max_edge, cancellation, source,
         ColorProfileState{ColorProfileKind::kBuiltin, ColorModel::kRgb, "srgb", {}},
-        apply_display_rotation_to_size(original, rotate_quarters));
+        apply_display_rotation_to_size(original, rotate_quarters), std::string("image/heic"));
 }
 #endif
 } // namespace

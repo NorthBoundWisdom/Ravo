@@ -214,8 +214,10 @@ Result<DecodedRaster> QtRasterDecoder::decode(const std::string_view path,
         return prepared.error();
     }
     const QSize source_size = transformed_reader_size(reader);
+    const std::string recognized_media_type = media_type_for_format(reader.format());
     apply_scaled_decode_size(reader, max_edge);
-    return decode_raster(reader.read(), max_edge, cancellation, path, std::nullopt, source_size);
+    return decode_raster(reader.read(), max_edge, cancellation, path, std::nullopt, source_size,
+                         recognized_media_type);
 }
 
 Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t> &encoded,
@@ -307,9 +309,10 @@ Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint
     }
     const QSize source_size =
         apply_display_rotation_to_size(transformed_reader_size(reader), rotate_quarters);
+    const std::string recognized_media_type = media_type_for_format(reader.format());
     apply_scaled_decode_size(reader, max_edge);
     return decode_raster(apply_display_rotation(reader.read(), rotate_quarters), max_edge,
-                         cancellation, "memory", std::nullopt, source_size);
+                         cancellation, "memory", std::nullopt, source_size, recognized_media_type);
 }
 
 Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(

@@ -597,7 +597,7 @@ void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge
                                                   const CancellationToken &cancellation,
                                                   const std::string_view context,
                                                   std::optional<ColorProfileState> color_profile,
-                                                  const QSize source_size)
+                                                  const QSize source_size, std::string media_type)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -634,6 +634,7 @@ void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge
     result.height = static_cast<std::uint32_t>(image.height());
     result.source_width = static_cast<std::uint32_t>(original_size.width());
     result.source_height = static_cast<std::uint32_t>(original_size.height());
+    result.media_type = std::move(media_type);
     result.color_profile =
         color_profile ? std::move(*color_profile) : color_profile_for_image(image);
     result.pixel_format = RasterPixelFormat::kRgb8;

@@ -480,7 +480,8 @@ read_jpeg_file_candidate(const std::string_view path, const CancellationToken *c
     }
     image = apply_display_rotation(std::move(image), rotate_quarters);
     return decode_raster(std::move(image), max_edge, cancellation, source,
-                         std::move(contract).value().color_profile, source_size);
+                         std::move(contract).value().color_profile, source_size,
+                         std::string(kMediaTypeJpeg));
 }
 
 } // namespace ravo::qt_raster_internal

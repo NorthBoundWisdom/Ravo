@@ -65,6 +65,20 @@ Result<VerifiedImageArtifact> verify_encoded_image_artifact(
     }
 
     const auto &raster = decoded.value();
+    if (raster.media_type.empty())
+    {
+        return make_error(ErrorCode::kIo, "Decoded image artifact is missing media type",
+                          {{"reason", "missing_media_type"}, {"content_sha256", content_sha256}});
+    }
+    if (raster.media_type != expected.mime_type)
+    {
+        return make_error(ErrorCode::kConflict,
+                          "Decoded image media type does not match expectation",
+                          {{"reason", "mime_type_mismatch"},
+                           {"expected", std::string(expected.mime_type)},
+                           {"actual", raster.media_type},
+                           {"content_sha256", content_sha256}});
+    }
     if (raster.width == 0U || raster.height == 0U)
     {
         return make_error(ErrorCode::kIo, "Decoded image artifact has empty dimensions",
@@ -106,7 +120,7 @@ Result<VerifiedImageArtifact> verify_encoded_image_artifact(
     }
 
     VerifiedImageArtifact report;
-    report.mime_type = std::string(expected.mime_type);
+    report.mime_type = raster.media_type;
     report.width = raster.width;
     report.height = raster.height;
     report.color_profile = profile.identifier;
