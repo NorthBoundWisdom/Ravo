@@ -13,10 +13,17 @@
 
 #include "ravo/foundation/error.h"
 
+// studio_command_registration.h is desktop-src private; forward the helpers
+// type via a nested include path from the implementation TUs only.
+
 namespace ravo
 {
 
 class StudioPresenter;
+namespace command_registration
+{
+struct Helpers;
+}
 
 struct StudioDevelopField
 {
@@ -104,6 +111,14 @@ private:
                                                      const QVariant &argument,
                                                      const QString &source);
     void refresh();
+
+    // Feature contributions into the single command registry (fail-fast IDs).
+    void registerLibraryCommands(const command_registration::Helpers &helpers);
+    void registerImportCommands(const command_registration::Helpers &helpers);
+    void registerExportCommands(const command_registration::Helpers &helpers);
+    void registerRecoveryCommands(const command_registration::Helpers &helpers);
+    void registerDevelopCommands(const command_registration::Helpers &helpers);
+    void registerViewCommands(const command_registration::Helpers &helpers);
 
     StudioPresenter &presenter_;
     std::unique_ptr<Impl> impl_;

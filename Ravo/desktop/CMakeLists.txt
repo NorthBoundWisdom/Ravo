@@ -18,6 +18,12 @@ target_sources(ravo_desktop
     src/preview_request_owner.cpp
     src/studio_command_controller.cpp
     src/studio_command_controller_registry.cpp
+    src/studio_command_register_library.cpp
+    src/studio_command_register_import.cpp
+    src/studio_command_register_export.cpp
+    src/studio_command_register_recovery.cpp
+    src/studio_command_register_develop.cpp
+    src/studio_command_register_view.cpp
     src/studio_command_controller_validators.cpp
     src/studio_command_controller_detail.h
     src/studio_command_internal.cpp
