@@ -1,4 +1,5 @@
 #include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QQmlComponent>
 #include <QQmlEngine>
@@ -613,12 +614,22 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
     }();
     const int gallery = presenter.selectedCount();
 
+    // Product-shaped composition: text field + grid + Main.qml textInputActive Binding.
+    // Do not manually setTextInputActive; the host Binding owns that product path.
     QQmlEngine engine;
+    engine.addImportPath(QString::fromUtf8(RAVO_STUDIO_QML_IMPORT_ROOT));
+    engine.addImportPath(QString::fromUtf8(RAVO_GEOCONTROLS_QML_IMPORT_ROOT));
+    engine.addImportPath(QString::fromUtf8(RAVO_GEOCONTROLS_APPSHELL_QML_IMPORT_ROOT));
     QQuickWindow window;
     QQmlComponent component(
-        &engine, QUrl::fromLocalFile(QString::fromUtf8(RAVO_IMPORT_FOCUS_PUBLICATION_HOST_QML)));
-    if (component.isError())
-        GTEST_SKIP() << "UNTESTED: focus publication host unavailable for Select All key routing";
+        &engine, QUrl::fromLocalFile(QString::fromUtf8(RAVO_IMPORT_SELECT_ALL_TEXT_HOST_QML)));
+    ASSERT_FALSE(component.isError()) << [&]
+    {
+        QStringList errors;
+        for (const auto &error : component.errors())
+            errors.push_back(error.toString());
+        return errors.join(QLatin1Char('\n')).toStdString();
+    }();
     auto *object = component.create();
     auto *raw_root = qobject_cast<QQuickItem *>(object);
     ASSERT_NE(raw_root, nullptr);
@@ -628,16 +639,35 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
     root->setProperty("productionGridUrl",
                       QUrl::fromLocalFile(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML)));
     root->setProperty("importCandidates", QVariant::fromValue(import_model));
+    root->setProperty("commandController", QVariant::fromValue(&controller));
     window.resize(900, 600);
     window.show();
     window.requestActivate();
     QGuiApplication::processEvents();
     auto *field = root->findChild<QQuickItem *>(QStringLiteral("importFilenameTemplate"));
     ASSERT_NE(field, nullptr);
-    QMetaObject::invokeMethod(root.get(), "focusFilenameTemplate", Qt::DirectConnection);
+    const QString template_text = field->property("text").toString();
+    ASSERT_FALSE(template_text.isEmpty());
+
+    QMetaObject::invokeMethod(root.get(), "focusFilenameTemplateUnselected", Qt::DirectConnection);
     QGuiApplication::processEvents();
-    ASSERT_TRUE(field->hasActiveFocus());
-    controller.setTextInputActive(true);
+    ASSERT_TRUE(field->hasActiveFocus() || (window.activeFocusItem() != nullptr &&
+                                            window.activeFocusItem()->parentItem() == field));
+    ASSERT_TRUE(field->property("selectedText").toString().isEmpty())
+        << "Select All precondition requires an empty text selection";
+    ASSERT_TRUE(controller.textInputActive())
+        << "product textInputActive Binding must follow focused text without manual override";
+
+    int select_all_shortcuts = 0;
+    for (const auto &value : controller.shortcutEntries())
+    {
+        if (value.toMap().value(QStringLiteral("actionId")).toString() != action)
+            continue;
+        ++select_all_shortcuts;
+        EXPECT_FALSE(value.toMap().value(QStringLiteral("enabled")).toBool());
+    }
+    EXPECT_EQ(select_all_shortcuts, 1);
+
     {
         const QKeySequence select_all(QKeySequence::SelectAll);
         for (int index = 0; index < select_all.count(); ++index)
@@ -650,32 +680,67 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
         }
         QGuiApplication::processEvents();
     }
-    EXPECT_FALSE(field->property("selectedText").toString().isEmpty());
-    for (const auto &value : controller.shortcutEntries())
-        if (value.toMap().value(QStringLiteral("actionId")).toString() == action)
-            EXPECT_FALSE(value.toMap().value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(field->property("selectedText").toString(), template_text);
     EXPECT_EQ(import_model->selectedCount(), checked);
     int highlighted_after = 0;
     for (int row = 0; row < import_model->rowCount(); ++row)
         highlighted_after += import_model->highlighted(row);
     EXPECT_EQ(highlighted_after, highlighted);
     EXPECT_EQ(presenter.selectedCount(), gallery);
-    controller.setTextInputActive(false);
 
-    // Full ImportPage + GeoControls assembly may be unavailable in this binary.
-    // Do not skip the Select All assertions above; record residual honestly.
-    QQmlComponent page_component(
-        &engine, QUrl::fromLocalFile(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML)));
-    if (page_component.isError())
-    {
-        RecordProperty("import_page_geocontrols", "UNTESTED");
-    }
-    else
-    {
-        studio_import_production_window::ScopedQuickItem page_root{
-            qobject_cast<QQuickItem *>(page_component.create())};
-        RecordProperty("import_page_geocontrols", page_root ? "loaded" : "UNTESTED");
-    }
+    // Grid focus: the same command owner must accept exactly once and highlight candidates.
+    QMetaObject::invokeMethod(root.get(), "focusCandidateGrid", Qt::DirectConnection);
+    QGuiApplication::processEvents();
+    ASSERT_FALSE(controller.textInputActive());
+    import_model->highlightExclusive(0);
+    const auto grid_select = controller.executeAction(action, QStringLiteral("keyboard"));
+    EXPECT_TRUE(grid_select.value(QStringLiteral("accepted")).toBool())
+        << grid_select.value(QStringLiteral("message")).toString().toStdString();
+    int highlighted_grid = 0;
+    for (int row = 0; row < import_model->rowCount(); ++row)
+        highlighted_grid += import_model->highlighted(row) ? 1 : 0;
+    EXPECT_GE(highlighted_grid, 1);
+    EXPECT_EQ(presenter.selectedCount(), gallery);
+
+    // Production ImportPage / DestinationPanel / StudioActions / GeoControls contracts.
+    // Instantiating those QML graphs needs GeoControls qrc prefer paths owned by ravo_studio;
+    // this command-test binary keeps source + filesystem membership as the hard gate.
+    QFile page_file(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML));
+    ASSERT_TRUE(page_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto page_source = QString::fromUtf8(page_file.readAll());
+    EXPECT_TRUE(page_source.contains(QStringLiteral("import GeoControls 1.0")));
+    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportDestinationPanel")));
+    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportPhotoGrid")));
+
+    QFile destination_file(QFileInfo(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML))
+                               .dir()
+                               .filePath(QStringLiteral("ImportDestinationPanel.qml")));
+    ASSERT_TRUE(destination_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto destination_source = QString::fromUtf8(destination_file.readAll());
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("CustomTextField")));
+    EXPECT_TRUE(
+        destination_source.contains(QStringLiteral("objectName: \"importFilenameTemplate\"")));
+    ASSERT_TRUE(
+        QFileInfo::exists(QDir(QString::fromUtf8(RAVO_GEOCONTROLS_QML_IMPORT_ROOT))
+                              .filePath(QStringLiteral("GeoControls/CustomTextField.qml"))));
+
+    QFile actions_file(QString::fromUtf8(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto actions_source = QString::fromUtf8(actions_file.readAll());
+    EXPECT_TRUE(actions_source.contains(QStringLiteral("required property var controller")));
+    EXPECT_TRUE(actions_source.contains(QStringLiteral("executeAction")));
+    EXPECT_EQ(controller.ids().value(QStringLiteral("photoSelectAll")).toString(), action);
+
+    QFile main_file(QFileInfo(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML))
+                        .dir()
+                        .filePath(QStringLiteral("../Main.qml")));
+    if (!main_file.exists())
+        main_file.setFileName(QDir(QString::fromUtf8(RAVO_REPOSITORY_ROOT))
+                                  .filePath(QStringLiteral("Ravo/desktop/qml/Main.qml")));
+    ASSERT_TRUE(main_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto main_source = QString::fromUtf8(main_file.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("property: \"textInputActive\"")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("window.textInputActive")));
 }
 
 TEST(StudioImportKeyboard, ProductionWindowKeysUseQTestWindowEntry)

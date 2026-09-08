@@ -1,35 +1,50 @@
-// Behavioral host: filename template TextField + production ImportCandidateGrid.
-// Used to prove passive candidate publication does not steal text focus.
+// Composition host: filename template text + production candidate grid + command textInputActive binding.
+// Mirrors Main.qml textInputActive ownership without loading the full Studio shell.
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
 
 Item {
     id: root
     width: 900
     height: 600
+
     property var importCandidates
+    property var commandController
     property url productionGridUrl
     property alias templateField: filenameTemplate
     property alias gridHost: host
 
-    function focusFilenameTemplate() {
-        focusFilenameTemplateAndSelectAll();
+    readonly property bool textInputActive: {
+        const item = Window.window ? Window.window.activeFocusItem : null;
+        return !!(item && (item instanceof TextInput || item instanceof TextEdit));
+    }
+
+    onTextInputActiveChanged: syncTextInputActive()
+    onCommandControllerChanged: syncTextInputActive()
+
+    function syncTextInputActive() {
+        if (root.commandController)
+            root.commandController.textInputActive = root.textInputActive;
     }
 
     function focusFilenameTemplateUnselected() {
         filenameTemplate.forceActiveFocus();
         filenameTemplate.cursorPosition = filenameTemplate.text.length;
         filenameTemplate.deselect();
+        syncTextInputActive();
     }
 
     function focusFilenameTemplateAndSelectAll() {
         filenameTemplate.forceActiveFocus();
         filenameTemplate.selectAll();
+        syncTextInputActive();
     }
 
     function focusCandidateGrid() {
         if (host.item)
             host.item.focusGrid();
+        syncTextInputActive();
     }
 
     TextField {
@@ -42,6 +57,7 @@ Item {
         height: 36
         text: "{date}_{stem}_{seq}"
         selectByMouse: true
+        onActiveFocusChanged: root.syncTextInputActive()
     }
 
     Loader {

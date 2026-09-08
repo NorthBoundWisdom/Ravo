@@ -473,6 +473,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_IMPORT_CANDIDATE_GRID_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ImportCandidateGrid.qml"
   RAVO_IMPORT_PHOTO_GRID_HOST_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_photo_grid_host.qml"
   RAVO_IMPORT_FOCUS_PUBLICATION_HOST_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_focus_publication_host.qml"
+  RAVO_IMPORT_SELECT_ALL_TEXT_HOST_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_select_all_text_host.qml"
   RAVO_STUDIO_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/Ravo/desktop"
   RAVO_GEOCONTROLS_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/_deps/geocontrols/Controls"
   RAVO_GEOCONTROLS_APPSHELL_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/_deps/geocontrols/AppShell"
