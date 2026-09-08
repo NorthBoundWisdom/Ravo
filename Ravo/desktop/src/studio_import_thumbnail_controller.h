@@ -56,6 +56,7 @@ public:
         int row = -1;
         std::uint64_t model_generation = 0;
         std::uint64_t scan_generation = 0;
+        std::uint64_t demand_generation = 0;
         QString source_path;
     };
 
@@ -227,6 +228,7 @@ private:
     std::uint64_t demand_generation_ = 0;
     int current_row_ = -1;
     bool in_flight_ = false;
+    int in_flight_row_ = -1;
     bool stopped_ = false;
     bool kick_scheduled_ = false;
 

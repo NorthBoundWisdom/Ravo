@@ -933,4 +933,109 @@ TEST(StudioImportThumbnailScheduler, EvictionClearsInspectedAndCapacityDeferredI
     EXPECT_FALSE(model.thumbnailLoading(0));
 }
 
+TEST(StudioImportThumbnailScheduler, IdenticalViewportDemandIsIdempotent)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(8);
+    for (int row = 0; row < 8; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    controller.setViewportDemand({0, 1, 2}, 1, 1);
+    const auto generation = controller.demandGeneration();
+    const auto terminals = controller.demandTerminalCount();
+    const auto pending = controller.pendingCount();
+    for (int i = 0; i < 100; ++i)
+        controller.setViewportDemand({0, 1, 2}, 1, 1);
+    EXPECT_EQ(controller.demandGeneration(), generation);
+    EXPECT_EQ(controller.demandTerminalCount(), terminals);
+    EXPECT_EQ(controller.pendingCount(), pending);
+}
+
+TEST(StudioImportThumbnailScheduler, StaleDemandCompletionDoesNotWriteNewTerminals)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path_a = directory.filePath("demandA.png");
+    const auto path_b = directory.filePath("demandB.png");
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::red);
+        ASSERT_TRUE(image.save(path_a, "PNG"));
+        image.fill(Qt::blue);
+        ASSERT_TRUE(image.save(path_b, "PNG"));
+    }
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(2);
+    candidates[0].source_path = path_a.toStdString();
+    candidates[0].display_name = "demandA.png";
+    candidates[0].size_bytes = 16;
+    candidates[1].source_path = path_b.toStdString();
+    candidates[1].display_name = "demandB.png";
+    candidates[1].size_bytes = 16;
+    model.setCandidates(candidates);
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.setViewportDemand({0}, 0, 0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+    const auto old_gen = controller.demandGeneration();
+
+    controller.setViewportDemand({1}, 0, 1);
+    EXPECT_GT(controller.demandGeneration(), old_gen);
+    EXPECT_EQ(controller.demandTerminalCount(), 0U);
+
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
+    // Old completion may warm row 0 cache but must not mark terminals for the new demand.
+    EXPECT_EQ(controller.demandSatisfiedCount(), 0U);
+    ASSERT_TRUE(wait_for(
+        [&] { return controller.demandQuiescent() && !model.thumbnail(1).isNull(); }, 30000));
+    EXPECT_EQ(model.thumbnail(1).pixelColor(0, 0), QColor(Qt::blue));
+    EXPECT_FALSE(model.thumbnail(0).isNull());
+}
+
+TEST(StudioImportThumbnailScheduler, InFlightRowIsNotDoublePendingUnderSameDemand)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path = directory.filePath("once.png");
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::cyan);
+        ASSERT_TRUE(image.save(path, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path.toStdString();
+    candidate.display_name = "once.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.clearObservations();
+    controller.setViewportDemand({0}, 0, 0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+    controller.ensure(0);
+    controller.setViewportDemand({0}, 0, 0); // idempotent
+    EXPECT_EQ(controller.pendingCount(), 0U);
+    EXPECT_EQ(controller.dispatchedCount(), 1U);
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for(
+        [&] { return controller.demandQuiescent() && !model.thumbnail(0).isNull(); }, 30000));
+    EXPECT_EQ(controller.dispatchedCount(), 1U);
+}
+
 } // namespace ravo

@@ -293,6 +293,8 @@ void StudioImportThumbnailController::ensure(const int row)
         return;
     if (hasDemandTerminal(row) || !host_.model->thumbnail(row).isNull())
         return;
+    if (in_flight_ && in_flight_row_ == row)
+        return;
     // Legacy ensure must not re-promote off-viewport rows over active demand.
     if (!visible_demand_.empty() || !prefetch_demand_.empty() || current_row_ >= 0)
     {
@@ -321,22 +323,34 @@ void StudioImportThumbnailController::setViewportDemand(const std::vector<int> &
 {
     if (stopped_)
         return;
-    ++demand_generation_;
-    clearDemandTerminals();
-    visible_demand_.clear();
-    prefetch_demand_.clear();
-    current_row_ = current_row;
+    std::set<int> next_visible;
     for (const int row : visible_rows)
         if (row >= 0)
-            visible_demand_.insert(row);
+            next_visible.insert(row);
+    std::set<int> next_prefetch;
     if (!visible_rows.empty() && prefetch_rows > 0 && host_.model)
     {
         const int last = *std::max_element(visible_rows.begin(), visible_rows.end());
         for (int row = last + 1; row <= last + prefetch_rows && row < host_.model->rowCount();
              ++row)
-            prefetch_demand_.insert(row);
+            next_prefetch.insert(row);
     }
-    // Replace pending with current demand only (drop scrolled-away rows).
+    // Identical normalized demand is idempotent: do not clear terminals or re-decode.
+    if (current_row == current_row_ && next_visible == visible_demand_ &&
+        next_prefetch == prefetch_demand_)
+        return;
+    ++demand_generation_;
+    clearDemandTerminals();
+    visible_demand_ = std::move(next_visible);
+    prefetch_demand_ = std::move(next_prefetch);
+    current_row_ = current_row;
+    // Replace pending with current demand only (drop scrolled-away rows). Keep an
+    // in-flight row that remains in demand from being double-counted as pending.
+    if (host_.model)
+    {
+        for (const int row : pending_rows_)
+            host_.model->setThumbnailLoading(row, false);
+    }
     pending_rows_.clear();
     replenishPendingFromDemand();
     scheduleKick();
@@ -360,6 +374,8 @@ void StudioImportThumbnailController::replenishPendingFromDemand()
             return;
         }
         if (pending_rows_.count(row) > 0)
+            return;
+        if (in_flight_ && in_flight_row_ == row)
             return;
         if (demandDecodeSlotsUsed() >= kDemandDecodeBudget)
         {
@@ -487,6 +503,7 @@ void StudioImportThumbnailController::kick()
                 RequestIdentity{row,
                                 host_.model ? host_.model->generation() : 0,
                                 host_.scan_generation ? host_.scan_generation() : 0,
+                                demand_generation_,
                                 {}},
                 DiscardReason::kSkippedReady, "already ready"});
             continue;
@@ -540,6 +557,7 @@ void StudioImportThumbnailController::shutdown()
     prefetch_demand_.clear();
     current_row_ = -1;
     in_flight_ = false;
+    in_flight_row_ = -1;
     kick_scheduled_ = false;
     clearDecodeGate();
     observation_sink_ = nullptr;
@@ -561,6 +579,7 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
                                                CancellationToken token)
 {
     in_flight_ = false;
+    in_flight_row_ = -1;
     if (host_.model)
         host_.model->setThumbnailLoading(identity.row, false);
     if (stopped_)
@@ -587,6 +606,16 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
     {
         record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,
                                 DiscardReason::kStaleGeneration, "scan_generation"});
+    }
+    else if (identity.demand_generation != demand_generation_)
+    {
+        // Warm cache for a still-matching row without touching the new demand terminals.
+        if (host_.model && host_.model->generation() == identity.model_generation &&
+            host_.model->sourcePath(identity.row) == identity.source_path && !image.isNull() &&
+            !error.has_value())
+            host_.model->finishThumbnail(identity.row, image, {});
+        record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,
+                                DiscardReason::kStaleGeneration, "demand_generation"});
     }
     else if (!token.check())
     {
@@ -630,9 +659,11 @@ void StudioImportThumbnailController::start(const int row)
     identity.row = row;
     identity.model_generation = host_.model->generation();
     identity.scan_generation = host_.scan_generation ? host_.scan_generation() : 0U;
+    identity.demand_generation = demand_generation_;
     identity.source_path = source;
     const auto token = operation_.token();
     in_flight_ = true;
+    in_flight_row_ = row;
     record(ObservationEvent{ObservationEvent::Kind::kDispatched, identity, {}, {}});
     const bool queued = executor_.post(
         [this, identity, token]()
@@ -693,6 +724,7 @@ void StudioImportThumbnailController::start(const int row)
     if (!queued)
     {
         in_flight_ = false;
+        in_flight_row_ = -1;
         record(ObservationEvent{ObservationEvent::Kind::kDiscarded, identity,
                                 DiscardReason::kPostRejected, "post"});
         if (host_.set_error)
