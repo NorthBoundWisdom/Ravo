@@ -746,4 +746,129 @@ TEST(StudioImportThumbnailScheduler, ObservationSinkClearedOnShutdown)
     EXPECT_EQ(trail.size(), size_before);
 }
 
+TEST(StudioImportThumbnailScheduler, ResetSourceSessionClearsTerminalsForEnsureRebuild)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates;
+    for (int row = 0; row < 3; ++row)
+    {
+        const auto path = directory.filePath(QStringLiteral("s%1.png").arg(row));
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(row == 0 ? Qt::red : (row == 1 ? Qt::green : Qt::blue));
+        ASSERT_TRUE(image.save(path, "PNG"));
+        ImportCandidate candidate;
+        candidate.source_path = path.toStdString();
+        candidate.display_name = QStringLiteral("s%1.png").arg(row).toStdString();
+        candidate.size_bytes = 16;
+        candidates.push_back(std::move(candidate));
+    }
+    model.setCandidates(candidates);
+    std::uint64_t scan_generation = 1;
+    StudioImportThumbnailController controller(make_host(&model, &scan_generation));
+    for (int row = 0; row < 3; ++row)
+        controller.ensure(row);
+    ASSERT_TRUE(wait_for(
+        [&]
+        {
+            for (int row = 0; row < 3; ++row)
+                if (!model.inspected(row) || model.thumbnail(row).isNull())
+                    return false;
+            return controller.demandQuiescent();
+        },
+        30000));
+    EXPECT_EQ(controller.demandTerminalCount(), 3U);
+
+    // Same-count model replacement without session reset leaves row terminals that
+    // reject ensure — the reopen/rescan regression before resetSourceSession.
+    std::vector<ImportCandidate> replaced;
+    for (int row = 0; row < 3; ++row)
+    {
+        const auto path = directory.filePath(QStringLiteral("r%1.png").arg(row));
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::darkYellow);
+        ASSERT_TRUE(image.save(path, "PNG"));
+        ImportCandidate candidate;
+        candidate.source_path = path.toStdString();
+        candidate.display_name = QStringLiteral("r%1.png").arg(row).toStdString();
+        candidate.size_bytes = 16;
+        replaced.push_back(std::move(candidate));
+    }
+    ++scan_generation;
+    model.setCandidates(replaced);
+    EXPECT_EQ(model.rowCount(), 3);
+    EXPECT_GT(controller.demandTerminalCount(), 0U);
+    for (int row = 0; row < 3; ++row)
+        controller.ensure(row);
+    EXPECT_EQ(controller.pendingCount(), 0U);
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+
+    controller.cancel("model_replaced");
+    controller.resetOperation();
+    controller.resetSourceSession();
+    EXPECT_EQ(controller.demandTerminalCount(), 0U);
+    for (int row = 0; row < 3; ++row)
+        controller.ensure(row);
+    ASSERT_TRUE(wait_for(
+        [&]
+        {
+            for (int row = 0; row < 3; ++row)
+                if (!model.inspected(row) || model.thumbnail(row).isNull())
+                    return false;
+            return controller.demandQuiescent();
+        },
+        30000));
+    EXPECT_FALSE(model.thumbnail(0).isNull());
+}
+
+TEST(StudioImportThumbnailScheduler, ResetSourceSessionDropsStaleInFlightTerminalWrite)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path_a = directory.filePath("genA.png");
+    const auto path_b = directory.filePath("genB.png");
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::red);
+        ASSERT_TRUE(image.save(path_a, "PNG"));
+        image.fill(Qt::blue);
+        ASSERT_TRUE(image.save(path_b, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path_a.toStdString();
+    candidate.display_name = "genA.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+    std::uint64_t scan_generation = 1;
+    StudioImportThumbnailController controller(make_host(&model, &scan_generation));
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.ensure(0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+
+    candidate.source_path = path_b.toStdString();
+    candidate.display_name = "genB.png";
+    model.setCandidates({candidate});
+    ++scan_generation;
+    controller.cancel("session_reset");
+    controller.resetOperation();
+    controller.resetSourceSession();
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for([&] { return !controller.inFlight(); }, 10000));
+    EXPECT_TRUE(model.thumbnail(0).isNull());
+    EXPECT_EQ(controller.demandTerminalCount(), 0U);
+
+    controller.ensure(0);
+    ASSERT_TRUE(wait_for(
+        [&] { return controller.demandQuiescent() && !model.thumbnail(0).isNull(); }, 30000));
+    EXPECT_EQ(model.sourcePath(0), path_b);
+    EXPECT_EQ(model.thumbnail(0).pixelColor(0, 0), QColor(Qt::blue));
+}
+
 } // namespace ravo

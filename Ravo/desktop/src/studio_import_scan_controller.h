@@ -36,7 +36,7 @@ public:
         std::function<bool(const QString &root)> recursive_for_root;
         std::function<void()> emit_page_changed;
         std::function<void(QString)> set_error;
-        std::function<void()> prepare_thumbnails_for_rescan; // cancel/reset/clear pending
+        std::function<void()> prepare_thumbnails_for_rescan; // cancel/reset/resetSourceSession
         std::function<void()> clear_preflight_active;
     };
 

@@ -104,6 +104,9 @@ public:
                            int current_row = -1);
     void kick();
     void clearPending();
+    // UI-thread source/model session boundary: drop pending, terminals, and demand sets so a
+    // Presenter ensure path can rebuild after rescan/reopen without a viewport workaround.
+    void resetSourceSession();
     void cancel(const char *reason);
     void resetOperation();
     void shutdown(); // cancel, reset engine on executor, stop+wait

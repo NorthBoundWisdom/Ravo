@@ -491,6 +491,16 @@ void StudioImportThumbnailController::clearPending()
     pending_rows_.clear();
 }
 
+void StudioImportThumbnailController::resetSourceSession()
+{
+    clearPending();
+    clearDemandTerminals();
+    visible_demand_.clear();
+    prefetch_demand_.clear();
+    current_row_ = -1;
+    ++demand_generation_;
+}
+
 void StudioImportThumbnailController::cancel(const char *reason)
 {
     static_cast<void>(operation_.cancel(reason));

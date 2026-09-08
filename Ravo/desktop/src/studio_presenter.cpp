@@ -202,7 +202,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
                 {
                     import_workspace_->thumbnails->cancel("import_source_changed");
                     import_workspace_->thumbnails->resetOperation();
-                    import_workspace_->thumbnails->clearPending();
+                    import_workspace_->thumbnails->resetSourceSession();
                 }
             },
             [this] { import_preflight_active_ = false; },

@@ -358,7 +358,7 @@ void StudioPresenter::closeImportPage()
     import_preflight_active_ = false;
     import_page_open_ = false;
     if (import_workspace_->thumbnails)
-        import_workspace_->thumbnails->clearPending();
+        import_workspace_->thumbnails->resetSourceSession();
     import_candidates_.setCandidates({});
     emit importPageChanged();
 }
