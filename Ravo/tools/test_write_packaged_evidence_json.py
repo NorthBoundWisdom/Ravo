@@ -63,13 +63,47 @@ class WritePackagedEvidenceJsonTests(unittest.TestCase):
 
     def test_validate_accepts_written_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "ok.json"
+            out = Path(tmp) / "ok.meta.json"
             proc = self._run(
-                ["--output", str(out), "--field", "artifact=a.dmg", "--field", "status=PASS"]
+                [
+                    "--output",
+                    str(out),
+                    "--field",
+                    "artifact=a.dmg",
+                    "--field",
+                    "digest_sha256=" + ("ab" * 32),
+                    "--field",
+                    "source_sha=fb670f72",
+                    "--field",
+                    "run_id=1",
+                    "--field",
+                    "run_attempt=1",
+                ]
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
             proc = self._run(["--validate", str(out)])
             self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_validate_rejects_meta_missing_source_sha(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "bad.meta.json"
+            proc = self._run(
+                [
+                    "--output",
+                    str(out),
+                    "--field",
+                    "artifact=a.dmg",
+                    "--field",
+                    "digest_sha256=" + ("cd" * 32),
+                    "--field",
+                    "run_id=1",
+                    "--field",
+                    "run_attempt=1",
+                ]
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            proc = self._run(["--validate", str(out)])
+            self.assertNotEqual(proc.returncode, 0)
 
 
 if __name__ == "__main__":
