@@ -241,6 +241,12 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] Result<JsonValue> run_catalog_convert_command(CatalogService &service,
                                                             std::string_view subcommand,
                                                             const CatalogCliArguments &flags);
+[[nodiscard]] Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine,
+                                                          CatalogService &service,
+                                                          const CatalogCliArguments &flags);
+[[nodiscard]] Result<JsonValue> run_catalog_export_command(CatalogService &service,
+                                                           std::string_view subcommand,
+                                                           const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue>
 run_perspective_analysis(const EngineFacade &engine, std::span<const std::string_view> positional);
 [[nodiscard]] Result<JsonValue> run_noise_command(std::span<const std::string_view> positional);
