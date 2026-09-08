@@ -39,6 +39,13 @@ namespace testing
 class CatalogServiceTestControl;
 }
 
+class LibraryService;
+class DevelopService;
+class MetadataService;
+class ImportService;
+class IngestService;
+class RecoveryService;
+
 struct RecipeSaveOptions
 {
     RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew;
@@ -138,9 +145,24 @@ public:
 
     CatalogService(const CatalogService &) = delete;
     CatalogService &operator=(const CatalogService &) = delete;
-    CatalogService(CatalogService &&) noexcept = default;
-    CatalogService &operator=(CatalogService &&) noexcept = default;
+    // Capability faces hold `this`; moving the facade would dangle them.
+    CatalogService(CatalogService &&) = delete;
+    CatalogService &operator=(CatalogService &&) = delete;
     ~CatalogService();
+
+    // Focused capability faces (same target). Prefer these at new call sites.
+    [[nodiscard]] LibraryService &library() noexcept;
+    [[nodiscard]] const LibraryService &library() const noexcept;
+    [[nodiscard]] DevelopService &develop() noexcept;
+    [[nodiscard]] const DevelopService &develop() const noexcept;
+    [[nodiscard]] MetadataService &metadata() noexcept;
+    [[nodiscard]] const MetadataService &metadata() const noexcept;
+    [[nodiscard]] ImportService &import() noexcept;
+    [[nodiscard]] const ImportService &import() const noexcept;
+    [[nodiscard]] IngestService &ingest() noexcept;
+    [[nodiscard]] const IngestService &ingest() const noexcept;
+    [[nodiscard]] RecoveryService &recovery() noexcept;
+    [[nodiscard]] const RecoveryService &recovery() const noexcept;
 
     [[nodiscard]] Result<CatalogSnapshot> snapshot() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const;
@@ -569,6 +591,13 @@ private:
                       const ExportOptions &options, const CancellationToken &cancellation,
                       RenderSampleKind sample_kind);
 
+    std::unique_ptr<LibraryService> library_capability_;
+    std::unique_ptr<DevelopService> develop_capability_;
+    std::unique_ptr<MetadataService> metadata_capability_;
+    std::unique_ptr<ImportService> import_capability_;
+    std::unique_ptr<IngestService> ingest_capability_;
+    std::unique_ptr<RecoveryService> recovery_capability_;
+
     const EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;
     std::unique_ptr<RasterDecoder> raster_;
@@ -612,6 +641,12 @@ private:
     [[nodiscard]] Result<void> ensure_ai_suggestions_loaded() const;
     [[nodiscard]] Result<void> persist_ai_suggestion(const AiSuggestion &suggestion);
 
+    friend class LibraryService;
+    friend class DevelopService;
+    friend class MetadataService;
+    friend class ImportService;
+    friend class IngestService;
+    friend class RecoveryService;
     friend class testing::CatalogServiceTestControl;
 };
 

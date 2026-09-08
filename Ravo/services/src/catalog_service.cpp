@@ -1,4 +1,10 @@
 #include "ravo/services/catalog_service.h"
+#include "ravo/services/library_service.h"
+#include "ravo/services/develop_service.h"
+#include "ravo/services/metadata_service.h"
+#include "ravo/services/import_service.h"
+#include "ravo/services/ingest_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include <chrono>
 #include <cmath>
@@ -99,6 +105,72 @@ CatalogService::CatalogService(const EngineFacade &engine,
     , cache_(std::move(cache))
     , recovery_(std::move(recovery))
 {
+    library_capability_ = std::make_unique<LibraryService>(*this);
+    develop_capability_ = std::make_unique<DevelopService>(*this);
+    metadata_capability_ = std::make_unique<MetadataService>(*this);
+    import_capability_ = std::make_unique<ImportService>(*this);
+    ingest_capability_ = std::make_unique<IngestService>(*this);
+    recovery_capability_ = std::make_unique<RecoveryService>(*this);
+}
+
+LibraryService &CatalogService::library() noexcept
+{
+    return *library_capability_;
+}
+
+const LibraryService &CatalogService::library() const noexcept
+{
+    return *library_capability_;
+}
+
+DevelopService &CatalogService::develop() noexcept
+{
+    return *develop_capability_;
+}
+
+const DevelopService &CatalogService::develop() const noexcept
+{
+    return *develop_capability_;
+}
+
+MetadataService &CatalogService::metadata() noexcept
+{
+    return *metadata_capability_;
+}
+
+const MetadataService &CatalogService::metadata() const noexcept
+{
+    return *metadata_capability_;
+}
+
+ImportService &CatalogService::import() noexcept
+{
+    return *import_capability_;
+}
+
+const ImportService &CatalogService::import() const noexcept
+{
+    return *import_capability_;
+}
+
+IngestService &CatalogService::ingest() noexcept
+{
+    return *ingest_capability_;
+}
+
+const IngestService &CatalogService::ingest() const noexcept
+{
+    return *ingest_capability_;
+}
+
+RecoveryService &CatalogService::recovery() noexcept
+{
+    return *recovery_capability_;
+}
+
+const RecoveryService &CatalogService::recovery() const noexcept
+{
+    return *recovery_capability_;
 }
 
 CatalogService::~CatalogService()
@@ -151,17 +223,7 @@ Result<void> CatalogService::close()
 
 Result<CatalogSnapshot> CatalogService::snapshot() const
 {
-    if (repository_ == nullptr || cache_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto snapshot = repository_->snapshot();
-    if (!snapshot)
-    {
-        return snapshot.error();
-    }
-    snapshot.value().cache_root = cache_->root();
-    return snapshot;
+    return library_capability_->snapshot();
 }
 
 Result<std::vector<AssetRecord>> CatalogService::list_assets() const
