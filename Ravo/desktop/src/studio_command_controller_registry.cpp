@@ -1606,6 +1606,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                 present(command::kWindowDismiss, argument);
             else if (assistant_open_)
                 setAssistantOpen(false);
+            else if (presenter_.importPageOpen())
+                presenter_.closeImportPage();
             else if (presenter_.catalogOpen())
                 presenter_.returnToGrid();
         });

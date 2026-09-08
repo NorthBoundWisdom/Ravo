@@ -39,6 +39,25 @@ enum class Condition
     kCatalogOperation,
 };
 
+// Live Studio interactive commands are scoped to one active workspace.
+// Import is never implied by Condition::kAlways; only explicit Import support
+// may run while the Import page is open (Select All, cancel, listed globals).
+enum class CommandWorkspace
+{
+    kGallery,
+    kImport,
+    kDevelop,
+};
+
+using WorkspaceSupport = unsigned;
+
+inline constexpr WorkspaceSupport kWorkspaceGallery = 1u << 0;
+inline constexpr WorkspaceSupport kWorkspaceImport = 1u << 1;
+inline constexpr WorkspaceSupport kWorkspaceDevelop = 1u << 2;
+inline constexpr WorkspaceSupport kWorkspaceGalleryDevelop = kWorkspaceGallery | kWorkspaceDevelop;
+inline constexpr WorkspaceSupport kWorkspaceAll =
+    kWorkspaceGallery | kWorkspaceImport | kWorkspaceDevelop;
+
 using Validator = std::function<QString(const QVariant &)>;
 using Handler = std::function<void(const QVariant &, const QString &)>;
 
@@ -69,8 +88,11 @@ struct State
     QString reason;
 };
 
+[[nodiscard]] CommandWorkspace active_command_workspace(const StudioPresenter &presenter);
+[[nodiscard]] WorkspaceSupport command_workspace_support(const QString &command_id);
+[[nodiscard]] bool workspace_supports(WorkspaceSupport support, CommandWorkspace workspace);
 [[nodiscard]] State resolve_state(const StudioPresenter &presenter, Condition condition,
-                                  bool settings_open);
+                                  bool settings_open, const QString &command_id);
 [[nodiscard]] QVariantMap accepted();
 [[nodiscard]] QVariantMap rejected(const QString &code, const QString &message);
 

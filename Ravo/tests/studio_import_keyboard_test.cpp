@@ -816,4 +816,168 @@ TEST(StudioImportKeyboard, ProductionWindowKeysUseQTestWindowEntry)
     EXPECT_NE(host.currentIndex(), before);
 }
 
+TEST(StudioImportKeyboard, ImportWorkspaceBlocksGallerySelectionCommands)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(Qt::cyan);
+    const QString one = directory.filePath(QStringLiteral("one.png"));
+    const QString two = directory.filePath(QStringLiteral("two.png"));
+    ASSERT_TRUE(image.save(one, "PNG"));
+    image.fill(Qt::magenta);
+    ASSERT_TRUE(image.save(two, "PNG"));
+    presenter.importFilePaths({one, two});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 2 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+
+    const QString asset_a = presenter.assets()->assetIdAt(0);
+    presenter.selectAsset(asset_a);
+    ASSERT_EQ(presenter.selectedAssetId(), asset_a);
+    ASSERT_EQ(presenter.selectedRating(), 0);
+    ASSERT_FALSE(presenter.selectedPicked());
+    ASSERT_FALSE(presenter.selectedRejected());
+
+    // Gallery baseline: rating remains available with a selection.
+    const auto rating_action = QStringLiteral("studio.photo.rating_5");
+    const auto gallery_rating = controller.action(rating_action);
+    EXPECT_TRUE(gallery_rating.value(QStringLiteral("enabled")).toBool())
+        << gallery_rating.value(QStringLiteral("disabledReason")).toString().toStdString();
+
+    const QString source = directory.filePath(QStringLiteral("import-source"));
+    ASSERT_TRUE(QDir().mkpath(source));
+    QImage fresh(16, 16, QImage::Format_RGB888);
+    fresh.fill(QColor(10, 200, 30));
+    ASSERT_TRUE(fresh.save(source + QStringLiteral("/a.png"), "PNG"));
+    fresh.fill(QColor(200, 30, 10));
+    ASSERT_TRUE(fresh.save(source + QStringLiteral("/b.png"), "PNG"));
+    presenter.openImportPage();
+    ASSERT_TRUE(presenter.importPageOpen());
+    // Gallery selection must remain for restore after Import closes.
+    EXPECT_EQ(presenter.selectedAssetId(), asset_a);
+    presenter.setImportMode(QStringLiteral("add"));
+    presenter.setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.importCandidates()->rowCount() > 0 &&
+                   presenter.importScanTotal() > 0 && !presenter.importScanActive();
+        },
+        30000))
+        << presenter.errorText().toStdString();
+
+    controller.setTextInputActive(false);
+    controller.setModalOpen(false);
+
+    const auto expect_blocked =
+        [&](const QString &action_id, const QString &command_id, const QVariant &argument = {})
+    {
+        const auto state = controller.action(action_id);
+        EXPECT_FALSE(state.value(QStringLiteral("enabled")).toBool()) << action_id.toStdString();
+        EXPECT_TRUE(state.value(QStringLiteral("disabledReason"))
+                        .toString()
+                        .contains(QStringLiteral("Import")))
+            << state.value(QStringLiteral("disabledReason")).toString().toStdString();
+        const auto via_action = controller.executeAction(action_id, QStringLiteral("keyboard"));
+        EXPECT_FALSE(via_action.value(QStringLiteral("accepted")).toBool())
+            << action_id.toStdString();
+        const auto via_command =
+            controller.executeCommand(command_id, argument, QStringLiteral("keyboard"));
+        EXPECT_FALSE(via_command.value(QStringLiteral("accepted")).toBool())
+            << command_id.toStdString();
+        bool shortcut_enabled = false;
+        int shortcut_entries = 0;
+        for (const auto &value : controller.shortcutEntries())
+        {
+            const auto entry = value.toMap();
+            if (entry.value(QStringLiteral("actionId")).toString() != action_id)
+                continue;
+            ++shortcut_entries;
+            shortcut_enabled = entry.value(QStringLiteral("enabled")).toBool();
+        }
+        EXPECT_GE(shortcut_entries, 1) << action_id.toStdString();
+        EXPECT_FALSE(shortcut_enabled) << action_id.toStdString();
+    };
+
+    expect_blocked(rating_action, QStringLiteral("studio.photo.set_rating"), 5);
+    expect_blocked(QStringLiteral("studio.photo.toggle_pick"),
+                   QStringLiteral("studio.photo.toggle_pick"));
+    expect_blocked(QStringLiteral("studio.photo.toggle_reject"),
+                   QStringLiteral("studio.photo.toggle_reject"));
+    expect_blocked(QStringLiteral("studio.photo.cull_unflag"),
+                   QStringLiteral("studio.photo.cull_unflag"));
+    expect_blocked(QStringLiteral("studio.photo.next"), QStringLiteral("studio.photo.next"));
+    expect_blocked(QStringLiteral("studio.photo.previous"),
+                   QStringLiteral("studio.photo.previous"));
+    expect_blocked(QStringLiteral("studio.photo.request_remove"),
+                   QStringLiteral("studio.photo.request_remove"));
+
+    // Always-condition library open is not an Import passport.
+    expect_blocked(QStringLiteral("studio.library.open"), QStringLiteral("studio.library.open"));
+
+    EXPECT_EQ(presenter.selectedAssetId(), asset_a);
+    EXPECT_EQ(presenter.selectedRating(), 0);
+    EXPECT_FALSE(presenter.selectedPicked());
+    EXPECT_FALSE(presenter.selectedRejected());
+
+    // Select All remains the Import candidate path.
+    const auto select_all = QStringLiteral("studio.photo.select_all");
+    const auto select_state = controller.action(select_all);
+    EXPECT_TRUE(select_state.value(QStringLiteral("enabled")).toBool())
+        << select_state.value(QStringLiteral("disabledReason")).toString().toStdString();
+    EXPECT_TRUE(controller.executeAction(select_all, QStringLiteral("keyboard"))
+                    .value(QStringLiteral("accepted"))
+                    .toBool());
+    EXPECT_EQ(presenter.selectedAssetId(), asset_a);
+
+    // Listed globals stay available; Escape closes Import without clearing Gallery selection.
+    EXPECT_TRUE(controller.action(QStringLiteral("studio.window.show_about"))
+                    .value(QStringLiteral("enabled"))
+                    .toBool());
+    EXPECT_TRUE(
+        controller
+            .executeAction(QStringLiteral("studio.window.dismiss"), QStringLiteral("keyboard"))
+            .value(QStringLiteral("accepted"))
+            .toBool());
+    EXPECT_FALSE(presenter.importPageOpen());
+    EXPECT_EQ(presenter.selectedAssetId(), asset_a);
+    EXPECT_EQ(presenter.selectedRating(), 0);
+
+    // Gallery rating works again after Import closes.
+    EXPECT_TRUE(controller.action(rating_action).value(QStringLiteral("enabled")).toBool());
+    EXPECT_TRUE(controller.executeAction(rating_action, QStringLiteral("keyboard"))
+                    .value(QStringLiteral("accepted"))
+                    .toBool());
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            for (int row = 0; row < presenter.assets()->rowCount(); ++row)
+            {
+                if (presenter.assets()->assetIdAt(row) != asset_a)
+                    continue;
+                const auto rating =
+                    presenter.assets()
+                        ->data(presenter.assets()->index(row, 0), AssetListModel::RatingRole)
+                        .toInt();
+                return rating == 5;
+            }
+            return false;
+        }))
+        << presenter.errorText().toStdString();
+}
+
 } // namespace ravo

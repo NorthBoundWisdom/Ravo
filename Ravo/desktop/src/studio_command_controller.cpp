@@ -41,11 +41,63 @@ QVariantMap rejected(const QString &code, const QString &message)
 
 namespace command_controller_detail
 {
+CommandWorkspace active_command_workspace(const StudioPresenter &presenter)
+{
+    if (presenter.importPageOpen())
+        return CommandWorkspace::kImport;
+    if (presenter.browseMode() == QLatin1String("develop"))
+        return CommandWorkspace::kDevelop;
+    return CommandWorkspace::kGallery;
+}
+
+WorkspaceSupport command_workspace_support(const QString &command_id)
+{
+    // Explicit Import support only. Condition::kAlways is not an Import passport.
+    static const QSet<QString> import_supported{
+        QLatin1String(command::kPhotoSelectAll), QLatin1String(command::kLibraryCancelOperation),
+        QLatin1String(command::kWindowSettings), QLatin1String(command::kWindowAssistant),
+        QLatin1String(command::kWindowClose),    QLatin1String(command::kWindowQuit),
+        QLatin1String(command::kWindowAbout),    QLatin1String(command::kWindowPalette),
+        QLatin1String(command::kWindowDismiss),
+    };
+    if (import_supported.contains(command_id))
+        return kWorkspaceAll;
+    return kWorkspaceGalleryDevelop;
+}
+
+bool workspace_supports(const WorkspaceSupport support, const CommandWorkspace workspace)
+{
+    switch (workspace)
+    {
+    case CommandWorkspace::kGallery:
+        return (support & kWorkspaceGallery) != 0U;
+    case CommandWorkspace::kImport:
+        return (support & kWorkspaceImport) != 0U;
+    case CommandWorkspace::kDevelop:
+        return (support & kWorkspaceDevelop) != 0U;
+    }
+    return false;
+}
+
 State resolve_state(const StudioPresenter &presenter, const Condition condition,
-                    const bool settings_open)
+                    const bool settings_open, const QString &command_id)
 {
     if (settings_open && condition != Condition::kAlways)
         return {false, tr_command(QStringLiteral("Close Settings to use this command."))};
+    const auto workspace = active_command_workspace(presenter);
+    if (!command_id.isEmpty() &&
+        !workspace_supports(command_workspace_support(command_id), workspace))
+    {
+        switch (workspace)
+        {
+        case CommandWorkspace::kImport:
+            return {false, tr_command(QStringLiteral("Close Import to use this command."))};
+        case CommandWorkspace::kDevelop:
+            return {false, tr_command(QStringLiteral("Leave Edit to use this command."))};
+        case CommandWorkspace::kGallery:
+            return {false, tr_command(QStringLiteral("Command unavailable in Gallery."))};
+        }
+    }
     const bool catalog_open = presenter.catalogOpen();
     const bool selection = !presenter.selectedAssetId().isEmpty();
     const bool ready = catalog_open && !presenter.busy() && !presenter.importWorkActive();
@@ -166,7 +218,8 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     const auto command_found = impl_->commands.constFind(found->command_id);
     if (command_found == impl_->commands.cend())
         return {};
-    const auto state = resolve_state(presenter_, command_found->condition, settings_open_);
+    const auto state =
+        resolve_state(presenter_, command_found->condition, settings_open_, command_found->id);
     QString title = tr_command(found->title);
     if (found->id == QLatin1String(command::kPhotoToggleReject) && presenter_.selectedRejected())
         title = tr_command(QStringLiteral("Unreject"));
@@ -399,9 +452,15 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
                           {{"reason", "command_unavailable"}});
     }
     const bool enter_develop = presenter_.browseMode() != QLatin1String("develop");
+    if (presenter_.importPageOpen())
+    {
+        return make_error(ErrorCode::kConflict,
+                          "Studio command is unavailable while Import is open",
+                          {{"reason", "command_unavailable"}});
+    }
     const auto state = resolve_state(
         presenter_, enter_develop ? Condition::kReadySelection : Condition::kDevelopSelection,
-        settings_open_);
+        settings_open_, QString{});
     if (!state.enabled)
     {
         return make_error(ErrorCode::kConflict, state.reason.toUtf8().toStdString(),
@@ -450,7 +509,11 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
 Result<bool> StudioCommandController::applyLocalAdjustment(const QString &action,
                                                            const QVariantMap &arguments)
 {
-    const auto state = resolve_state(presenter_, Condition::kDevelopSelection, settings_open_);
+    if (presenter_.importPageOpen())
+        return make_error(ErrorCode::kConflict, "Local adjustment command is unavailable",
+                          {{"reason", "command_unavailable"}});
+    const auto state =
+        resolve_state(presenter_, Condition::kDevelopSelection, settings_open_, QString{});
     if (modal_open_ || !state.enabled)
         return make_error(ErrorCode::kConflict, "Local adjustment command is unavailable",
                           {{"reason", "command_unavailable"}});
@@ -504,7 +567,7 @@ QVariantMap StudioCommandController::executeCommandInternal(const QString &comma
         emit dispatchRejected(command_id, QStringLiteral("invalid_source"), message);
         return rejected(QStringLiteral("invalid_source"), message);
     }
-    const auto state = resolve_state(presenter_, found->condition, settings_open_);
+    const auto state = resolve_state(presenter_, found->condition, settings_open_, found->id);
     if (!state.enabled)
     {
         emit dispatchRejected(command_id, QStringLiteral("unavailable"), state.reason);
