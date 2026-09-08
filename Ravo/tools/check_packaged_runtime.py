@@ -272,6 +272,7 @@ def write_minimal_png(path: Path, *, width: int = 8, height: int = 8) -> None:
 
 
 def _cli_json(proc: subprocess.CompletedProcess[str]) -> dict | None:
+    """Backward-compatible raw JSON object parse (tests / diagnostics only)."""
     text = (proc.stdout or "").strip()
     if not text:
         return None
@@ -280,6 +281,27 @@ def _cli_json(proc: subprocess.CompletedProcess[str]) -> dict | None:
     except json.JSONDecodeError:
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def parse_cli_success_envelope(proc: subprocess.CompletedProcess[str]) -> dict | None:
+    """Accept only the versioned ravo.cli.result success envelope with object data.
+
+    Rejects bare data objects, wrong type/version, ok=false, and non-object data.
+    """
+    payload = _cli_json(proc)
+    if payload is None:
+        return None
+    if payload.get("type") != "ravo.cli.result":
+        return None
+    version = payload.get("version")
+    if version != 1 and version != "1":
+        return None
+    if payload.get("ok") is not True:
+        return None
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return None
+    return data
 
 
 def _run_cli(cli: Path, args: list[str], env: dict[str, str], timeout: int = 120) -> subprocess.CompletedProcess[str]:
@@ -320,16 +342,20 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
         for name in stages:
             record(name, Status.UNTESTED, f"catalog create launch failed: {exc}")
         return
-    create_json = _cli_json(create)
-    if create.returncode != 0 or create_json is None:
+    create_data = parse_cli_success_envelope(create)
+    if create.returncode != 0 or create_data is None:
         detail = ((create.stderr or create.stdout or "")[:240])
-        # Host without QSQLITE / packaged CLI surface → UNTESTED; otherwise FAIL below.
         if create.returncode != 0 and "QSQLITE" in (create.stderr or ""):
             for name in stages:
                 record(name, Status.FAIL, f"missing QSQLITE: {detail}")
             return
-        if create.returncode != 0 and create_json is None and not catalog.is_file():
-            # Fake exit-0 without creating a DB is a product FAIL when create claimed success.
+        raw = _cli_json(create)
+        if create.returncode == 0 and raw is not None and raw.get("ok") is False:
+            record("catalog_create_open", Status.FAIL, "create envelope ok=false with exit 0")
+            for name in stages[1:]:
+                record(name, Status.FAIL, "catalog create rejected")
+            return
+        if create.returncode != 0 and create_data is None and not catalog.is_file():
             if create.returncode == 0:
                 record("catalog_create_open", Status.FAIL, "create exited 0 without library.sqlite")
                 for name in stages[1:]:
@@ -338,7 +364,7 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
             for name in stages:
                 record(name, Status.UNTESTED, f"catalog create unavailable: {detail}")
             return
-        record("catalog_create_open", Status.FAIL, f"create failed: {detail}")
+        record("catalog_create_open", Status.FAIL, f"create failed or invalid envelope: {detail}")
         for name in stages[1:]:
             record(name, Status.FAIL, "catalog create failed")
         return
@@ -347,13 +373,27 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
         for name in stages[1:]:
             record(name, Status.FAIL, "catalog create did not produce a library")
         return
-    data = create_json.get("data", create_json)
-    if not isinstance(data, dict) or "catalog_id" not in data:
+    catalog_id = create_data.get("catalog_id")
+    if not isinstance(catalog_id, str) or not catalog_id:
         record("catalog_create_open", Status.FAIL, "create JSON missing catalog_id")
         for name in stages[1:]:
             record(name, Status.FAIL, "invalid create schema")
         return
-    record("catalog_create_open", Status.PASS, str(catalog))
+    # Separate process reopen/list proves the catalog identity is durable.
+    try:
+        listed_after_create = _run_cli(cli, ["catalog", "list", "--catalog", str(catalog), "--json"], env)
+    except Exception as exc:  # noqa: BLE001
+        record("catalog_create_open", Status.FAIL, f"list after create failed: {exc}")
+        for name in stages[1:]:
+            record(name, Status.FAIL, "catalog reopen unavailable")
+        return
+    list_after_data = parse_cli_success_envelope(listed_after_create)
+    if listed_after_create.returncode != 0 or list_after_data is None:
+        record("catalog_create_open", Status.FAIL, "list after create rejected envelope")
+        for name in stages[1:]:
+            record(name, Status.FAIL, "catalog reopen failed")
+        return
+    record("catalog_create_open", Status.PASS, f"catalog_id={catalog_id}")
 
     try:
         imported = _run_cli(
@@ -367,31 +407,55 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
         for name in stages[2:]:
             record(name, Status.FAIL, "import did not run")
         return
-    import_json = _cli_json(imported)
-    if imported.returncode != 0 or import_json is None:
+    import_data = parse_cli_success_envelope(imported)
+    if imported.returncode != 0 or import_data is None:
         record("catalog_synthetic_import", Status.FAIL,
                ((imported.stderr or imported.stdout or "")[:240]))
         for name in stages[2:]:
             record(name, Status.FAIL, "import failed")
         return
-    import_data = import_json.get("data", import_json)
-    items = import_data.get("items") if isinstance(import_data, dict) else None
-    if not isinstance(items, list) or not items:
-        record("catalog_synthetic_import", Status.FAIL, "import JSON missing items")
+    items = import_data.get("items")
+    imported_count = import_data.get("imported")
+    failed_count = import_data.get("failed")
+    if not isinstance(items, list) or len(items) != 1:
+        record("catalog_synthetic_import", Status.FAIL, "import JSON items must be exactly one")
         for name in stages[2:]:
             record(name, Status.FAIL, "import schema invalid")
         return
-    asset = items[0].get("asset") if isinstance(items[0], dict) else None
+    if imported_count != 1 or failed_count != 0:
+        record("catalog_synthetic_import", Status.FAIL,
+               f"import counts imported={imported_count!r} failed={failed_count!r}")
+        for name in stages[2:]:
+            record(name, Status.FAIL, "import counts invalid")
+        return
+    item0 = items[0]
+    if not isinstance(item0, dict) or item0.get("status") != "imported":
+        record("catalog_synthetic_import", Status.FAIL, "import item status not imported")
+        for name in stages[2:]:
+            record(name, Status.FAIL, "import status invalid")
+        return
+    asset = item0.get("asset") if isinstance(item0, dict) else None
     asset_id = asset.get("id") if isinstance(asset, dict) else None
-    if not asset_id:
+    asset_uri = asset.get("uri") if isinstance(asset, dict) else None
+    if not isinstance(asset_id, str) or not asset_id:
         record("catalog_synthetic_import", Status.FAIL, "import JSON missing asset id")
         for name in stages[2:]:
             record(name, Status.FAIL, "import missing asset id")
+        return
+    if not isinstance(asset_uri, str) or not asset_uri:
+        record("catalog_synthetic_import", Status.FAIL, "import JSON missing asset uri")
+        for name in stages[2:]:
+            record(name, Status.FAIL, "import missing asset uri")
         return
     if sha256_file(png) != source_sha or png.stat().st_size != source_stat.st_size:
         record("catalog_synthetic_import", Status.FAIL, "import mutated source png hash/size")
         for name in stages[2:]:
             record(name, Status.FAIL, "source mutated")
+        return
+    if png.stat().st_mtime_ns != source_stat.st_mtime_ns:
+        record("catalog_synthetic_import", Status.FAIL, "import mutated source mtime")
+        for name in stages[2:]:
+            record(name, Status.FAIL, "source mtime mutated")
         return
     record("catalog_synthetic_import", Status.PASS, f"asset_id={asset_id}")
 
@@ -410,8 +474,8 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
         record("catalog_probe_or_render", Status.FAIL, str(exc))
         record("catalog_reopen_hash", Status.FAIL, "probe did not run")
         return
-    probe_json = _cli_json(probed)
-    if probed.returncode != 0 or probe_json is None or not probe_out.is_file() or probe_out.stat().st_size <= 0:
+    probe_data = parse_cli_success_envelope(probed)
+    if probed.returncode != 0 or probe_data is None or not probe_out.is_file() or probe_out.stat().st_size <= 0:
         record("catalog_probe_or_render", Status.FAIL,
                ((probed.stderr or probed.stdout or "")[:240]))
         record("catalog_reopen_hash", Status.FAIL, "probe failed")
@@ -427,27 +491,27 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
     except Exception as exc:  # noqa: BLE001
         record("catalog_reopen_hash", Status.FAIL, str(exc))
         return
-    list_json = _cli_json(listed)
-    if listed.returncode != 0 or list_json is None:
+    list_data = parse_cli_success_envelope(listed)
+    if listed.returncode != 0 or list_data is None:
         record("catalog_reopen_hash", Status.FAIL, ((listed.stderr or listed.stdout or "")[:240]))
         return
-    list_data = list_json.get("data", list_json)
-    # Accept either assets array or count>=1 shapes used by current CLI.
-    assets = None
-    if isinstance(list_data, dict):
-        assets = list_data.get("assets") or list_data.get("items")
-    ok = False
-    if isinstance(assets, list) and any(
-        isinstance(a, dict) and a.get("id") == asset_id for a in assets
-    ):
-        ok = True
-    elif isinstance(list_data, dict) and str(list_data.get("count", "")) not in ("", "0"):
-        ok = True
-    if not ok:
-        record("catalog_reopen_hash", Status.FAIL, "reopen/list missing imported asset")
+    assets = list_data.get("assets")
+    if not isinstance(assets, list):
+        record("catalog_reopen_hash", Status.FAIL, "list JSON missing assets array")
         return
-    if sha256_file(png) != source_sha:
-        record("catalog_reopen_hash", Status.FAIL, "source hash changed after reopen")
+    # Reject count-only / bool / null / negative disguises — membership must match asset id+uri.
+    matched = [
+        a for a in assets
+        if isinstance(a, dict) and a.get("id") == asset_id and isinstance(a.get("uri"), str) and a.get("uri")
+    ]
+    if len(matched) != 1:
+        record("catalog_reopen_hash", Status.FAIL, "reopen/list missing exact imported asset id/uri")
+        return
+    if sha256_file(png) != source_sha or png.stat().st_size != source_stat.st_size:
+        record("catalog_reopen_hash", Status.FAIL, "source hash/size changed after reopen")
+        return
+    if png.stat().st_mtime_ns != source_stat.st_mtime_ns:
+        record("catalog_reopen_hash", Status.FAIL, "source mtime changed after reopen")
         return
     record("catalog_reopen_hash", Status.PASS, f"asset_id={asset_id}")
 

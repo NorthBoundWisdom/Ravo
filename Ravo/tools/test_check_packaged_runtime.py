@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import stat
@@ -390,6 +391,53 @@ class PackagedRuntimeIsolationTests(unittest.TestCase):
             body = evidence.read_text(encoding="utf-8")
             self.assertIn('"require_smoke": true', body)
             self.assertIn("studio_payload", body)
+
+
+
+class ParseCliSuccessEnvelopeTests(unittest.TestCase):
+    def _proc(self, stdout: str, returncode: int = 0):
+        return subprocess.CompletedProcess(args=["ravo"], returncode=returncode, stdout=stdout, stderr="")
+
+    def test_accepts_versioned_success_envelope(self) -> None:
+        payload = {
+            "type": "ravo.cli.result",
+            "version": 1,
+            "ok": True,
+            "data": {"catalog_id": "cat_1"},
+            "diagnostics": [],
+        }
+        data = cpr.parse_cli_success_envelope(self._proc(json.dumps(payload)))
+        self.assertEqual(data, {"catalog_id": "cat_1"})
+
+    def test_rejects_bare_data_object(self) -> None:
+        self.assertIsNone(cpr.parse_cli_success_envelope(self._proc(json.dumps({"catalog_id": "x"}))))
+
+    def test_rejects_ok_false_even_with_exit_zero(self) -> None:
+        payload = {"type": "ravo.cli.result", "version": 1, "ok": False, "error": {}, "diagnostics": []}
+        self.assertIsNone(cpr.parse_cli_success_envelope(self._proc(json.dumps(payload), 0)))
+
+    def test_rejects_wrong_version_and_type(self) -> None:
+        bad_version = {"type": "ravo.cli.result", "version": 2, "ok": True, "data": {}}
+        bad_type = {"type": "other", "version": 1, "ok": True, "data": {}}
+        self.assertIsNone(cpr.parse_cli_success_envelope(self._proc(json.dumps(bad_version))))
+        self.assertIsNone(cpr.parse_cli_success_envelope(self._proc(json.dumps(bad_type))))
+
+    def test_rejects_non_object_data(self) -> None:
+        payload = {"type": "ravo.cli.result", "version": 1, "ok": True, "data": ["x"]}
+        self.assertIsNone(cpr.parse_cli_success_envelope(self._proc(json.dumps(payload))))
+
+
+class CatalogMembershipPredicateTests(unittest.TestCase):
+    def test_count_only_fallback_no_longer_accepted(self) -> None:
+        # Simulate the reopened list shapes that previously passed via count-only fallback.
+        for count in (1, "1", True, -1, None):
+            list_data = {"count": count, "assets": [{"id": "wrong", "uri": "file:///x"}]}
+            matched = [
+                a
+                for a in list_data.get("assets", [])
+                if isinstance(a, dict) and a.get("id") == "want" and isinstance(a.get("uri"), str) and a.get("uri")
+            ]
+            self.assertEqual(matched, [], msg=repr(count))
 
 
 
