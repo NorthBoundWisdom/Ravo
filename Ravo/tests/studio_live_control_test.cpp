@@ -236,7 +236,8 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
         << main.errorString().toStdString();
     const auto source = QString::fromUtf8(main.readAll());
-    EXPECT_TRUE(source.contains(QStringLiteral("property string viewportAssetId")));
+    EXPECT_TRUE(source.contains(QStringLiteral("InspectZoomController")));
+    EXPECT_TRUE(source.contains(QStringLiteral("property alias viewportAssetId")));
     EXPECT_TRUE(source.contains(QStringLiteral("function centerPhotoViewport()")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("window.viewportAssetId !== studio.selectedAssetId")));
@@ -245,12 +246,8 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("inspectRoiDebounce.restart()")));
     EXPECT_TRUE(source.contains(QStringLiteral("StudioGpuPreviewItem")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onBrowseModeChanged()")));
-    EXPECT_TRUE(source.contains(QStringLiteral("scroller.contentX = maxX / 2")));
-    EXPECT_TRUE(source.contains(QStringLiteral("scroller.contentY = maxY / 2")));
     EXPECT_TRUE(source.contains(QStringLiteral("boundsBehavior: Flickable.StopAtBounds")));
     EXPECT_TRUE(source.contains(QStringLiteral("function seekNavigatorViewport(nx, ny)")));
-    EXPECT_TRUE(source.contains(QStringLiteral("Math.min(maxX")));
-    EXPECT_TRUE(source.contains(QStringLiteral("Math.min(maxY")));
     EXPECT_TRUE(source.contains(QStringLiteral("WheelHandler")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.viewAdjustZoom")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.viewToggleActualSize")));
@@ -258,8 +255,6 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("cropToolActive")));
     EXPECT_TRUE(source.contains(QStringLiteral("function togglePhotoInspectZoom(stagePos)")));
     EXPECT_TRUE(source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportWidth")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("previewPlaceholderReady")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: previewPlaceholderImage")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedThumbnailUrl")));
@@ -279,6 +274,21 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
     EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));
+
+    QFile zoom(QFileInfo(main).dir().filePath(QStringLiteral("inspect/InspectZoomController.qml")));
+    ASSERT_TRUE(zoom.open(QIODevice::ReadOnly | QIODevice::Text))
+        << zoom.errorString().toStdString();
+    const auto zoom_source = QString::fromUtf8(zoom.readAll());
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("property string viewportAssetId")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("scroller.contentX = maxX / 2")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("scroller.contentY = maxY / 2")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("Math.min(maxX")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("Math.min(maxY")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("studio.previewViewportWidth")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("studio.previewViewportHeight")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("function centerPhotoViewport()")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("function seekNavigatorViewport(nx, ny)")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
 }
 
 TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLoupeAndEdit)

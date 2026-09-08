@@ -483,11 +483,18 @@ TEST(StudioQmlContract, DevelopReviewToolbarOffersSynchronizedBeforeAfterCompari
     EXPECT_TRUE(main_source.contains(QStringLiteral("comparisonReady")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("studio.comparisonBeforeUrl")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: comparisonBeforeImage")));
-    EXPECT_TRUE(
-        main_source.contains(QStringLiteral("return window.comparisonReady ? width * 2 : width")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("InspectZoomController")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("comparisonReady: window.comparisonReady")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("text: qsTr(\"Before\")")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("text: qsTr(\"After\")")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("!studio.comparisonActive")));
+
+    QFile zoom(
+        QFileInfo(main_qml).dir().filePath(QStringLiteral("inspect/InspectZoomController.qml")));
+    ASSERT_TRUE(zoom.open(QIODevice::ReadOnly | QIODevice::Text))
+        << zoom.errorString().toStdString();
+    const auto zoom_source = QString::fromUtf8(zoom.readAll());
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("return comparisonReady ? width * 2 : width")));
 
     QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
     ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
