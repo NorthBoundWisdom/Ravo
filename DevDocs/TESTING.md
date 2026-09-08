@@ -384,6 +384,34 @@ launches every locale. Refresh catalogs only through the project i18n workflow
 so current source and locale-specific historical translations remain separate
 and reproducible.
 
+## CI required checks (release governance)
+
+`main` is protected by repository ruleset `22562825` (`Ravo main release gate`).
+Required check contexts on every update to `main`:
+
+- `Static checks`
+- `mac_clang_debug`
+- `mac_clang_release`
+- `linux_clang_debug`
+- `linux_clang_release`
+- `win_msvc_release`
+
+Baseline evidence for the pre-plan SHA `50a598ba`: GitHub Actions run
+`34250867888` concluded **success** with those contexts green (package/release
+jobs skipped on non-tag). Same-SHA release qualification means tag packaging may
+only publish artifacts produced for that SHA after this matrix is green; see
+`DevDocs/Packaging.md` for the ruleset payload, read-back command, and emergency
+PR-only admin bypass policy.
+
+Local Static parity before push:
+
+```text
+python3 Ravo/tools/freeze_legacy_manifest.py --check
+python3 Ravo/tools/check_ravo_dependency_boundary.py
+python3 Ravo/tools/check_vertical_slice_plan.py
+python3 Ravo/tools/check_fixture_classification_ledger.py
+```
+
 ## Photo-management performance evidence
 
 All timing uses one host monotonic clock. Enumeration begins immediately before
