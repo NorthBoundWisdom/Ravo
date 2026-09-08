@@ -708,6 +708,13 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
         for name in stages[2:]:
             record(name, Status.FAIL, "import missing asset uri")
         return
+    expected_uri = expected_file_uri(png)
+    if asset_uri != expected_uri:
+        record("catalog_synthetic_import", Status.FAIL,
+               f"import uri {asset_uri!r} != expected {expected_uri!r}")
+        for name in stages[2:]:
+            record(name, Status.FAIL, "import uri mismatch")
+        return
     if sha256_file(png) != source_sha or png.stat().st_size != source_stat.st_size:
         record("catalog_synthetic_import", Status.FAIL, "import mutated source png hash/size")
         for name in stages[2:]:
@@ -795,16 +802,13 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
         record("catalog_reopen_hash", Status.FAIL, ((listed.stderr or listed.stdout or "")[:240]))
         return
     assets = list_data.get("assets")
-    if not isinstance(assets, list):
-        record("catalog_reopen_hash", Status.FAIL, "list JSON missing assets array")
+    ok, detail = exact_catalog_asset_membership(assets, asset_id=asset_id, asset_uri=asset_uri)
+    if not ok:
+        record("catalog_reopen_hash", Status.FAIL, detail)
         return
-    # Reject count-only / bool / null / negative disguises — membership must match asset id+uri.
-    matched = [
-        a for a in assets
-        if isinstance(a, dict) and a.get("id") == asset_id and isinstance(a.get("uri"), str) and a.get("uri")
-    ]
-    if len(matched) != 1:
-        record("catalog_reopen_hash", Status.FAIL, "reopen/list missing exact imported asset id/uri")
+    # Defense in depth: reopen URI must also equal the expected source URI.
+    if asset_uri != expected_file_uri(png):
+        record("catalog_reopen_hash", Status.FAIL, "reopen uri drifted from expected source uri")
         return
     if sha256_file(png) != source_sha or png.stat().st_size != source_stat.st_size:
         record("catalog_reopen_hash", Status.FAIL, "source hash/size changed after reopen")

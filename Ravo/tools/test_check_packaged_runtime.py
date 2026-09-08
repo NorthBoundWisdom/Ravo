@@ -429,16 +429,54 @@ class ParseCliSuccessEnvelopeTests(unittest.TestCase):
 
 class CatalogMembershipPredicateTests(unittest.TestCase):
     def test_count_only_fallback_no_longer_accepted(self) -> None:
-        # Simulate the reopened list shapes that previously passed via count-only fallback.
         for count in (1, "1", True, -1, None):
-            list_data = {"count": count, "assets": [{"id": "wrong", "uri": "file:///x"}]}
-            matched = [
-                a
-                for a in list_data.get("assets", [])
-                if isinstance(a, dict) and a.get("id") == "want" and isinstance(a.get("uri"), str) and a.get("uri")
-            ]
-            self.assertEqual(matched, [], msg=repr(count))
+            assets = [{"id": "wrong", "uri": "file:///x"}]
+            ok, _ = cpr.exact_catalog_asset_membership(
+                assets, asset_id="want", asset_uri="file:///expected/source/synthetic.png"
+            )
+            self.assertFalse(ok, msg=repr(count))
 
+    def test_rejects_id_match_with_wrong_uri(self) -> None:
+        ok, detail = cpr.exact_catalog_asset_membership(
+            [{"id": "asset-1", "uri": "file:///different/wrong.png"}],
+            asset_id="asset-1",
+            asset_uri="file:///expected/source/synthetic.png",
+        )
+        self.assertFalse(ok)
+        self.assertIn("exact", detail)
+
+    def test_rejects_uri_match_with_wrong_id(self) -> None:
+        ok, _ = cpr.exact_catalog_asset_membership(
+            [{"id": "other", "uri": "file:///expected/source/synthetic.png"}],
+            asset_id="asset-1",
+            asset_uri="file:///expected/source/synthetic.png",
+        )
+        self.assertFalse(ok)
+
+    def test_rejects_extra_or_duplicate_members(self) -> None:
+        uri = "file:///expected/source/synthetic.png"
+        ok, detail = cpr.exact_catalog_asset_membership(
+            [{"id": "asset-1", "uri": uri}, {"id": "extra", "uri": "file:///y"}],
+            asset_id="asset-1",
+            asset_uri=uri,
+        )
+        self.assertFalse(ok)
+        self.assertIn("exactly one", detail)
+        ok, _ = cpr.exact_catalog_asset_membership(
+            [{"id": "asset-1", "uri": uri}, {"id": "asset-1", "uri": uri}],
+            asset_id="asset-1",
+            asset_uri=uri,
+        )
+        self.assertFalse(ok)
+
+    def test_accepts_exact_single_member(self) -> None:
+        uri = "file:///expected/source/synthetic.png"
+        ok, _ = cpr.exact_catalog_asset_membership(
+            [{"id": "asset-1", "uri": uri}],
+            asset_id="asset-1",
+            asset_uri=uri,
+        )
+        self.assertTrue(ok)
 
 
 class DecodePngPixelsTests(unittest.TestCase):
