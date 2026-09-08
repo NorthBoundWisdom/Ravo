@@ -8,6 +8,7 @@ With --require-smoke, missing required stages fail closed (no UNTESTED success).
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import enum
 import hashlib
 import json
@@ -304,26 +305,244 @@ def _cli_json(proc: subprocess.CompletedProcess[str]) -> dict | None:
 
 
 
-def read_png_ihdr(path: Path) -> tuple[int, int]:
-    """Decode IHDR width/height from a real PNG; reject truncated or non-PNG payloads."""
+@dataclass(frozen=True)
+class DecodedPng:
+    """Fully decoded PNG pixels plus color-chunk identity for packaged evidence checks.
+
+    This is a packaging-acceptance decoder (stdlib zlib + PNG filters), not a product
+    image algorithm. Product decode ownership remains in the Qt raster PNG adapter.
+    """
+
+    width: int
+    height: int
+    pixels: bytes  # RGB888, width*height*3
+    color_profile_id: str | None
+    bit_depth: int
+    color_type: int
+
+
+def _paeth_predictor(a: int, b: int, c: int) -> int:
+    p = a + b - c
+    pa = abs(p - a)
+    pb = abs(p - b)
+    pc = abs(p - c)
+    if pa <= pb and pa <= pc:
+        return a
+    if pb <= pc:
+        return b
+    return c
+
+
+def _reconstruct_png_scanlines(raw: bytes, width: int, height: int, bpp: int) -> bytes:
+    stride = width * bpp
+    expected = (stride + 1) * height
+    if len(raw) < expected:
+        raise ValueError("truncated PNG image data")
+    if len(raw) != expected:
+        # Extra trailing bytes after a complete image are not accepted for probe artifacts.
+        raise ValueError("PNG image data length mismatch")
+    out = bytearray(stride * height)
+    prev = bytearray(stride)
+    offset = 0
+    for row in range(height):
+        filter_type = raw[offset]
+        offset += 1
+        cur = bytearray(raw[offset : offset + stride])
+        offset += stride
+        if filter_type == 0:
+            pass
+        elif filter_type == 1:
+            for i in range(stride):
+                left = cur[i - bpp] if i >= bpp else 0
+                cur[i] = (cur[i] + left) & 0xFF
+        elif filter_type == 2:
+            for i in range(stride):
+                cur[i] = (cur[i] + prev[i]) & 0xFF
+        elif filter_type == 3:
+            for i in range(stride):
+                left = cur[i - bpp] if i >= bpp else 0
+                cur[i] = (cur[i] + ((left + prev[i]) // 2)) & 0xFF
+        elif filter_type == 4:
+            for i in range(stride):
+                left = cur[i - bpp] if i >= bpp else 0
+                up = prev[i]
+                up_left = prev[i - bpp] if i >= bpp else 0
+                cur[i] = (cur[i] + _paeth_predictor(left, up, up_left)) & 0xFF
+        else:
+            raise ValueError(f"unsupported PNG filter type {filter_type}")
+        out[row * stride : (row + 1) * stride] = cur
+        prev = cur
+    return bytes(out)
+
+
+def decode_png_pixels(path: Path) -> DecodedPng:
+    """Fully decode a PNG by inflating IDAT and reconstructing pixels.
+
+    Rejects signature-only payloads, missing IDAT (including the 45-byte
+    signature+IHDR+IEND shape), truncated/corrupt zlib streams, bad CRCs, and
+    unsupported probe color types. Returns RGB888 pixels and a color-profile
+    identity derived from sRGB/iCCP chunks when present.
+    """
     data = path.read_bytes()
-    if len(data) < 33 or data[:8] != b"\x89PNG\r\n\x1a\n":
+    if len(data) < 8 or data[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("not a PNG")
-    length = int.from_bytes(data[8:12], "big")
-    chunk = data[12:16]
-    if chunk != b"IHDR" or length < 13 or len(data) < 24 + length:
+    pos = 8
+    width = height = bit_depth = color_type = None
+    idat = bytearray()
+    saw_iend = False
+    color_profile_id: str | None = None
+    while pos + 12 <= len(data):
+        length = int.from_bytes(data[pos : pos + 4], "big")
+        pos += 4
+        if pos + 4 + length + 4 > len(data):
+            raise ValueError("truncated PNG chunk")
+        tag = data[pos : pos + 4]
+        pos += 4
+        chunk = data[pos : pos + length]
+        pos += length
+        crc_expected = int.from_bytes(data[pos : pos + 4], "big")
+        pos += 4
+        crc_actual = zlib.crc32(tag + chunk) & 0xFFFFFFFF
+        if crc_actual != crc_expected:
+            raise ValueError(f"PNG chunk CRC mismatch for {tag!r}")
+        if tag == b"IHDR":
+            if width is not None:
+                raise ValueError("duplicate IHDR")
+            if length < 13:
+                raise ValueError("truncated IHDR")
+            width = int.from_bytes(chunk[0:4], "big")
+            height = int.from_bytes(chunk[4:8], "big")
+            bit_depth = chunk[8]
+            color_type = chunk[9]
+            if width <= 0 or height <= 0:
+                raise ValueError("non-positive PNG dimensions")
+            if bit_depth != 8 or color_type not in (2, 6):
+                raise ValueError(f"unsupported PNG format depth={bit_depth} type={color_type}")
+        elif tag == b"IDAT":
+            if width is None:
+                raise ValueError("IDAT before IHDR")
+            idat.extend(chunk)
+        elif tag == b"IEND":
+            saw_iend = True
+            break
+        elif tag == b"sRGB":
+            if length < 1:
+                raise ValueError("malformed sRGB chunk")
+            color_profile_id = "srgb"
+        elif tag == b"iCCP":
+            color_profile_id = "embedded_icc"
+        # ignore other ancillary chunks
+    if width is None or height is None or bit_depth is None or color_type is None:
         raise ValueError("missing or truncated IHDR")
-    width = int.from_bytes(data[16:20], "big")
-    height = int.from_bytes(data[20:24], "big")
-    if width <= 0 or height <= 0:
-        raise ValueError("non-positive PNG dimensions")
-    return width, height
+    if not idat:
+        raise ValueError("PNG missing IDAT (no pixel data)")
+    if not saw_iend:
+        raise ValueError("PNG missing IEND")
+    try:
+        raw = zlib.decompress(bytes(idat))
+    except zlib.error as exc:
+        raise ValueError(f"PNG IDAT inflate failed: {exc}") from exc
+    bpp = 3 if color_type == 2 else 4
+    reconstructed = _reconstruct_png_scanlines(raw, width, height, bpp)
+    if color_type == 6:
+        rgb = bytearray(width * height * 3)
+        for i in range(width * height):
+            rgb[i * 3 : i * 3 + 3] = reconstructed[i * 4 : i * 4 + 3]
+        pixels = bytes(rgb)
+    else:
+        pixels = reconstructed
+    return DecodedPng(
+        width=width,
+        height=height,
+        pixels=pixels,
+        color_profile_id=color_profile_id,
+        bit_depth=bit_depth,
+        color_type=color_type,
+    )
+
+
+def read_png_ihdr(path: Path) -> tuple[int, int]:
+    """Compatibility wrapper: full decode then return dimensions."""
+    decoded = decode_png_pixels(path)
+    return decoded.width, decoded.height
 
 
 def supported_probe_color_profile(value: object) -> bool:
     if not isinstance(value, str):
         return False
-    return value.casefold() in {"srgb", "srgb-linear", "display-p3"}
+    return value.casefold() in {"srgb", "srgb-linear", "display-p3", "embedded_icc"}
+
+
+def probe_profile_matches_artifact(json_profile: object, artifact_profile_id: str | None) -> bool:
+    """Require JSON color_profile to correspond to PNG color chunks when present."""
+    if not isinstance(json_profile, str) or not json_profile:
+        return False
+    json_id = json_profile.casefold()
+    if not supported_probe_color_profile(json_id):
+        return False
+    if artifact_profile_id is None:
+        # Encoder may omit an explicit chunk for the builtin sRGB path; accept only srgb*.
+        return json_id in {"srgb", "srgb-linear"}
+    art = artifact_profile_id.casefold()
+    if art == "srgb":
+        return json_id in {"srgb", "srgb-linear"}
+    if art == "embedded_icc":
+        return json_id == "embedded_icc"
+    return json_id == art
+
+
+def _is_ascii_path_byte(character: int) -> bool:
+    return (
+        (ord("A") <= character <= ord("Z"))
+        or (ord("a") <= character <= ord("z"))
+        or (ord("0") <= character <= ord("9"))
+        or character in {ord("/"), ord("-"), ord("_"), ord("."), ord("~"), ord(":")}
+    )
+
+
+def percent_encode_path(path: str) -> str:
+    """Mirror Ravo domain percent_encode_path for exact file URI equality."""
+    out = bytearray()
+    for byte in path.encode("utf-8"):
+        if byte >= 0x80 or _is_ascii_path_byte(byte):
+            out.append(byte)
+        else:
+            out.extend(f"%{byte:02X}".encode("ascii"))
+    return out.decode("utf-8")
+
+
+def expected_file_uri(path: Path) -> str:
+    """Build the product file URI for an absolute local path (POSIX / Windows)."""
+    resolved = path.resolve()
+    generic = resolved.as_posix()
+    if len(generic) >= 2 and generic[1] == ":":
+        # Windows drive path already lacks a leading slash in as_posix sometimes;
+        # pathlib on Windows yields like C:/...
+        pass
+    encoded = percent_encode_path(generic)
+    if encoded.startswith("/"):
+        return "file://" + encoded
+    return "file:///" + encoded
+
+
+def exact_catalog_asset_membership(
+    assets: object, *, asset_id: str, asset_uri: str
+) -> tuple[bool, str]:
+    """Require exact id+uri membership with no extras/duplicates for a one-asset catalog."""
+    if not isinstance(assets, list):
+        return False, "list JSON missing assets array"
+    matches = []
+    for entry in assets:
+        if not isinstance(entry, dict):
+            return False, "assets entry is not an object"
+        if entry.get("id") == asset_id and entry.get("uri") == asset_uri:
+            matches.append(entry)
+    if len(matches) != 1:
+        return False, "reopen/list missing exact imported asset id/uri equality"
+    if len(assets) != 1:
+        return False, f"temporary catalog must contain exactly one asset, got {len(assets)}"
+    return True, "ok"
+
 
 def parse_cli_success_envelope(proc: subprocess.CompletedProcess[str]) -> dict | None:
     """Accept only the versioned ravo.cli.result success envelope with object data.
@@ -523,31 +742,43 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
         record("catalog_reopen_hash", Status.FAIL, "probe failed")
         return
     try:
-        ihdr_w, ihdr_h = read_png_ihdr(probe_out)
+        decoded = decode_png_pixels(probe_out)
     except ValueError as exc:
-        record("catalog_probe_or_render", Status.FAIL, f"probe PNG invalid: {exc}")
+        record("catalog_probe_or_render", Status.FAIL, f"probe PNG decode failed: {exc}")
+        record("catalog_reopen_hash", Status.FAIL, "probe artifact invalid")
+        return
+    if len(decoded.pixels) != decoded.width * decoded.height * 3:
+        record("catalog_probe_or_render", Status.FAIL, "probe pixel buffer size mismatch")
         record("catalog_reopen_hash", Status.FAIL, "probe artifact invalid")
         return
     json_w = probe_data.get("width")
     json_h = probe_data.get("height")
-    if json_w != ihdr_w or json_h != ihdr_h:
+    # CLI may emit width/height as JSON numbers or numeric strings.
+    def _as_int(value: object) -> int | None:
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        return None
+    iw, ih = _as_int(json_w), _as_int(json_h)
+    if iw != decoded.width or ih != decoded.height:
         record("catalog_probe_or_render", Status.FAIL,
-               f"probe JSON size {json_w}x{json_h} != IHDR {ihdr_w}x{ihdr_h}")
+               f"probe JSON size {json_w}x{json_h} != decoded {decoded.width}x{decoded.height}")
         record("catalog_reopen_hash", Status.FAIL, "probe dimensions mismatch")
         return
-    if not supported_probe_color_profile(probe_data.get("color_profile")):
-        record("catalog_probe_or_render", Status.FAIL, "unsupported or missing color_profile")
+    if not probe_profile_matches_artifact(probe_data.get("color_profile"), decoded.color_profile_id):
+        record("catalog_probe_or_render", Status.FAIL,
+               f"color_profile JSON {probe_data.get('color_profile')!r} != artifact {decoded.color_profile_id!r}")
         record("catalog_reopen_hash", Status.FAIL, "probe profile invalid")
         return
     if probe_data.get("asset_id") != asset_id:
         record("catalog_probe_or_render", Status.FAIL, "probe asset_id mismatch")
         record("catalog_reopen_hash", Status.FAIL, "probe identity invalid")
         return
+    # Local evidence digest only — protocol has no content_hash field to compare.
     probe_sha = sha256_file(probe_out)
-    if not probe_sha or len(probe_sha) != 64:
-        record("catalog_probe_or_render", Status.FAIL, "probe artifact hash unavailable")
-        record("catalog_reopen_hash", Status.FAIL, "probe hash invalid")
-        return
     if sha256_file(png) != source_sha or png.stat().st_mtime_ns != source_stat.st_mtime_ns:
         record("catalog_probe_or_render", Status.FAIL, "probe mutated source bytes/mtime")
         record("catalog_reopen_hash", Status.FAIL, "source mutated during probe")

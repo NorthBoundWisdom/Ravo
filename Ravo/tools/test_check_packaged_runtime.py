@@ -441,19 +441,24 @@ class CatalogMembershipPredicateTests(unittest.TestCase):
 
 
 
-class ReadPngIhdrTests(unittest.TestCase):
-    def test_accepts_minimal_png_dimensions(self) -> None:
+class DecodePngPixelsTests(unittest.TestCase):
+    def test_accepts_minimal_png_full_decode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "ok.png"
             cpr.write_minimal_png(path, width=16, height=12)
+            decoded = cpr.decode_png_pixels(path)
+            self.assertEqual((decoded.width, decoded.height), (16, 12))
+            self.assertEqual(len(decoded.pixels), 16 * 12 * 3)
+            self.assertEqual(decoded.color_profile_id, "srgb")
             self.assertEqual(cpr.read_png_ihdr(path), (16, 12))
+            self.assertTrue(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
 
     def test_rejects_signature_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "sig.png"
             path.write_bytes(b"\x89PNG\r\n\x1a\n")
             with self.assertRaises(ValueError):
-                cpr.read_png_ihdr(path)
+                cpr.decode_png_pixels(path)
 
     def test_rejects_truncated_ihdr(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -462,9 +467,55 @@ class ReadPngIhdrTests(unittest.TestCase):
             data = path.read_bytes()
             path.write_bytes(data[:20])
             with self.assertRaises(ValueError):
-                cpr.read_png_ihdr(path)
+                cpr.decode_png_pixels(path)
 
+    def test_rejects_forty_five_byte_no_idat(self) -> None:
+        import struct
+        import zlib
 
+        def chunk(tag: bytes, data: bytes) -> bytes:
+            return (
+                struct.pack(">I", len(data))
+                + tag
+                + data
+                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+            )
+
+        ihdr = struct.pack(">IIBBBBB", 8, 8, 8, 2, 0, 0, 0)
+        payload = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IEND", b"")
+        self.assertEqual(len(payload), 45)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "noidat.png"
+            path.write_bytes(payload)
+            with self.assertRaisesRegex(ValueError, "IDAT"):
+                cpr.decode_png_pixels(path)
+
+    def test_rejects_corrupt_crc_and_truncated_idat(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "crc.png"
+            cpr.write_minimal_png(path, width=8, height=8)
+            data = bytearray(path.read_bytes())
+            data[20] ^= 0xFF
+            path.write_bytes(data)
+            with self.assertRaisesRegex(ValueError, "CRC"):
+                cpr.decode_png_pixels(path)
+
+            path2 = Path(tmp) / "truncidat.png"
+            cpr.write_minimal_png(path2, width=8, height=8)
+            raw = path2.read_bytes()
+            # Drop trailing bytes so the final IDAT/IEND region is truncated.
+            path2.write_bytes(raw[:-10])
+            with self.assertRaises(ValueError):
+                cpr.decode_png_pixels(path2)
+
+    def test_expected_file_uri_is_exact_not_lowercased(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Case Sensitive.png"
+            path.write_bytes(b"x")
+            uri = cpr.expected_file_uri(path)
+            self.assertIn("Case%20Sensitive.png", uri)
+            self.assertTrue(uri.startswith("file://"))
+            self.assertNotEqual(uri, uri.lower())
 
 class DmgTopLevelSymlinkTests(unittest.TestCase):
     def test_absolute_applications_symlink_is_skipped(self) -> None:
