@@ -743,6 +743,48 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
     EXPECT_TRUE(main_source.contains(QStringLiteral("window.textInputActive")));
 }
 
+TEST(StudioImportKeyboard, SelectAllThroughProductionStudioActions)
+{
+    // Behavioral Select All through production ImportPage/StudioActions/Shortcuts runs in
+    // ravo_studio smoke_import_layout (GeoControls qrc prefer paths). This binary keeps the
+    // production membership / wiring contracts that must remain true for that smoke to work.
+    ensure_qt_core();
+    QFile page_file(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML));
+    ASSERT_TRUE(page_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto page_source = QString::fromUtf8(page_file.readAll());
+    EXPECT_TRUE(page_source.contains(QStringLiteral("import GeoControls 1.0")));
+    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportDestinationPanel")));
+    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportPhotoGrid")));
+    EXPECT_TRUE(page_source.contains(QStringLiteral("objectName: \"importWorkspace\"")));
+
+    QFile actions_file(QString::fromUtf8(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto actions_source = QString::fromUtf8(actions_file.readAll());
+    EXPECT_TRUE(actions_source.contains(QStringLiteral("required property var controller")));
+    EXPECT_TRUE(actions_source.contains(QStringLiteral("executeAction")));
+
+    QFile shortcuts_file(QFileInfo(QString::fromUtf8(RAVO_STUDIO_ACTIONS_QML))
+                             .dir()
+                             .filePath(QStringLiteral("StudioCommandShortcuts.qml")));
+    ASSERT_TRUE(shortcuts_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto shortcuts_source = QString::fromUtf8(shortcuts_file.readAll());
+    EXPECT_TRUE(shortcuts_source.contains(QStringLiteral("shortcutEntries")));
+    EXPECT_TRUE(shortcuts_source.contains(QStringLiteral("executeAction")));
+    EXPECT_TRUE(shortcuts_source.contains(QStringLiteral("Qt.WindowShortcut")));
+
+    QFile main_file(QDir(QString::fromUtf8(RAVO_REPOSITORY_ROOT))
+                        .filePath(QStringLiteral("Ravo/desktop/qml/Main.qml")));
+    ASSERT_TRUE(main_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto main_source = QString::fromUtf8(main_file.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("StudioActions")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("StudioCommandShortcuts")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ImportPage")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("property: \"textInputActive\"")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("window.textInputActive")));
+    // Removing production Actions/Shortcuts wiring must remain detectable.
+    EXPECT_FALSE(main_source.contains(QStringLiteral("DuplicateSelectAllHost")));
+}
+
 TEST(StudioImportKeyboard, ProductionWindowKeysUseQTestWindowEntry)
 {
     ensure_qt_core();
