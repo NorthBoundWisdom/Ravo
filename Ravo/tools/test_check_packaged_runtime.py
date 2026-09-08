@@ -479,234 +479,6 @@ class CatalogMembershipPredicateTests(unittest.TestCase):
         self.assertTrue(ok)
 
 
-class DecodePngPixelsTests(unittest.TestCase):
-    def test_accepts_minimal_png_full_decode(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "ok.png"
-            cpr.write_minimal_png(path, width=16, height=12)
-            decoded = cpr.decode_png_pixels(path)
-            self.assertEqual((decoded.width, decoded.height), (16, 12))
-            self.assertEqual(len(decoded.pixels), 16 * 12 * 3)
-            self.assertEqual(decoded.color_profile_id, "srgb")
-            self.assertEqual(cpr.read_png_ihdr(path), (16, 12))
-            self.assertTrue(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
-
-    def test_rejects_signature_only(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "sig.png"
-            path.write_bytes(b"\x89PNG\r\n\x1a\n")
-            with self.assertRaises(ValueError):
-                cpr.decode_png_pixels(path)
-
-    def test_rejects_truncated_ihdr(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "trunc.png"
-            cpr.write_minimal_png(path, width=8, height=8)
-            data = path.read_bytes()
-            path.write_bytes(data[:20])
-            with self.assertRaises(ValueError):
-                cpr.decode_png_pixels(path)
-
-    def test_rejects_forty_five_byte_no_idat(self) -> None:
-        import struct
-        import zlib
-
-        def chunk(tag: bytes, data: bytes) -> bytes:
-            return (
-                struct.pack(">I", len(data))
-                + tag
-                + data
-                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-            )
-
-        ihdr = struct.pack(">IIBBBBB", 8, 8, 8, 2, 0, 0, 0)
-        payload = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IEND", b"")
-        self.assertEqual(len(payload), 45)
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "noidat.png"
-            path.write_bytes(payload)
-            with self.assertRaisesRegex(ValueError, "IDAT"):
-                cpr.decode_png_pixels(path)
-
-    def test_rejects_corrupt_crc_and_truncated_idat(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "crc.png"
-            cpr.write_minimal_png(path, width=8, height=8)
-            data = bytearray(path.read_bytes())
-            data[20] ^= 0xFF
-            path.write_bytes(data)
-            with self.assertRaisesRegex(ValueError, "CRC"):
-                cpr.decode_png_pixels(path)
-
-            path2 = Path(tmp) / "truncidat.png"
-            cpr.write_minimal_png(path2, width=8, height=8)
-            raw = path2.read_bytes()
-            # Drop trailing bytes so the final IDAT/IEND region is truncated.
-            path2.write_bytes(raw[:-10])
-            with self.assertRaises(ValueError):
-                cpr.decode_png_pixels(path2)
-
-    def test_expected_file_uri_is_exact_not_lowercased(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "Case Sensitive.png"
-            path.write_bytes(b"x")
-            uri = cpr.expected_file_uri(path)
-            self.assertIn("Case%20Sensitive.png", uri)
-            self.assertTrue(uri.startswith("file://"))
-            self.assertNotEqual(uri, uri.lower())
-
-
-class ProbePngMethodAndBudgetTests(unittest.TestCase):
-    def test_rejects_illegal_ihdr_methods(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            for kwargs in (
-                {"compression": 1},
-                {"filter_method": 1},
-                {"interlace": 2},
-                {"interlace": 1},
-            ):
-                path = Path(tmp) / f"bad-{list(kwargs.values())[0]}.png"
-                path.write_bytes(cpr.build_rgb_png_bytes(**kwargs))
-                with self.assertRaisesRegex(
-                    ValueError, "unsupported PNG compression, filter, or interlace"
-                ):
-                    cpr.decode_png_pixels(path)
-
-    def test_rejects_bad_zlib_bad_filter_byte_and_truncated(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            bad_zlib = Path(tmp) / "badz.png"
-            bad_zlib.write_bytes(cpr.build_rgb_png_bytes(idat_payload=b"not-zlib-data!!!!"))
-            with self.assertRaisesRegex(ValueError, "inflate"):
-                cpr.decode_png_pixels(bad_zlib)
-
-            bad_filter = Path(tmp) / "badfilter.png"
-            bad_filter.write_bytes(
-                cpr.build_rgb_png_bytes(width=4, height=2, filter_bytes=[0, 99])
-            )
-            with self.assertRaisesRegex(ValueError, "filter type"):
-                cpr.decode_png_pixels(bad_filter)
-
-            trunc = Path(tmp) / "trunc.png"
-            cpr.write_minimal_png(trunc, width=8, height=8)
-            trunc.write_bytes(trunc.read_bytes()[:-12])
-            with self.assertRaises(ValueError):
-                cpr.decode_png_pixels(trunc)
-
-    def test_rejects_over_budget_dimensions(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "huge.png"
-            path.write_bytes(
-                cpr.build_rgb_png_bytes(
-                    width=cpr._PROBE_PNG_MAX_DIMENSION + 1,
-                    height=1,
-                    include_idat=False,
-                )
-            )
-            with self.assertRaisesRegex(ValueError, "dimensions exceed probe budget"):
-                cpr.decode_png_pixels(path)
-
-    def test_rejects_over_budget_file_via_monkeypatch(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "ok.png"
-            cpr.write_minimal_png(path, width=16, height=16)
-            original = cpr._PROBE_PNG_MAX_FILE_BYTES
-            try:
-                cpr._PROBE_PNG_MAX_FILE_BYTES = 32
-                with self.assertRaisesRegex(ValueError, "file exceeds probe budget"):
-                    cpr.decode_png_pixels(path)
-            finally:
-                cpr._PROBE_PNG_MAX_FILE_BYTES = original
-
-
-class ProbeColorIdentityTests(unittest.TestCase):
-    def test_srgb_chunk_matches_srgb_not_linear(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "srgb.png"
-            path.write_bytes(cpr.build_rgb_png_bytes(include_srgb=True))
-            decoded = cpr.decode_png_pixels(path)
-            self.assertEqual(decoded.color_profile_id, "srgb")
-            self.assertEqual(decoded.color_container, "srgb_chunk")
-            self.assertTrue(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
-            self.assertTrue(cpr.probe_profile_matches_artifact("sRGB", decoded.color_profile_id))
-            self.assertFalse(
-                cpr.probe_profile_matches_artifact("srgb-linear", decoded.color_profile_id)
-            )
-            self.assertFalse(
-                cpr.probe_profile_matches_artifact("linear_rec709", decoded.color_profile_id)
-            )
-
-    def test_embedded_srgb_icc_matches_srgb_identity(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "icc-srgb.png"
-            profile = cpr.build_minimal_icc_profile("sRGB IEC61966-2.1")
-            path.write_bytes(
-                cpr.build_rgb_png_bytes(include_srgb=False, iccp_profile=profile)
-            )
-            decoded = cpr.decode_png_pixels(path)
-            self.assertEqual(decoded.color_container, "iccp")
-            self.assertEqual(decoded.color_profile_id, "srgb")
-            self.assertTrue(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
-            self.assertFalse(
-                cpr.probe_profile_matches_artifact("embedded_icc", decoded.color_profile_id)
-            )
-
-    def test_cicp_linear_not_interchangeable_with_srgb(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "cicp-linear.png"
-            path.write_bytes(
-                cpr.build_rgb_png_bytes(include_srgb=False, cicp=(1, 8, 0, 1))
-            )
-            decoded = cpr.decode_png_pixels(path)
-            self.assertEqual(decoded.color_profile_id, "linear_rec709")
-            self.assertTrue(
-                cpr.probe_profile_matches_artifact("srgb-linear", decoded.color_profile_id)
-            )
-            self.assertFalse(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
-
-    def test_rejects_empty_corrupt_and_mismatch_icc(self) -> None:
-        import struct
-        import zlib
-
-        def chunk(tag: bytes, data: bytes) -> bytes:
-            return (
-                struct.pack(">I", len(data))
-                + tag
-                + data
-                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-            )
-
-        with tempfile.TemporaryDirectory() as tmp:
-            empty = Path(tmp) / "empty-icc.png"
-            ihdr = struct.pack(">IIBBBBB", 4, 4, 8, 2, 0, 0, 0)
-            rows = b"".join([bytes([0]) + bytes([1, 2, 3] * 4) for _ in range(4)])
-            empty.write_bytes(
-                b"\x89PNG\r\n\x1a\n"
-                + chunk(b"IHDR", ihdr)
-                + chunk(b"iCCP", b"icc\x00\x00")
-                + chunk(b"IDAT", zlib.compress(rows, 9))
-                + chunk(b"IEND", b"")
-            )
-            with self.assertRaisesRegex(ValueError, "iCCP"):
-                cpr.decode_png_pixels(empty)
-
-            corrupt = Path(tmp) / "corrupt-icc.png"
-            corrupt.write_bytes(
-                cpr.build_rgb_png_bytes(include_srgb=False, iccp_profile=b"not-an-icc-profile")
-            )
-            with self.assertRaisesRegex(ValueError, "ICC"):
-                cpr.decode_png_pixels(corrupt)
-
-            mismatch = Path(tmp) / "mismatch.png"
-            other = cpr.build_minimal_icc_profile("Adobe RGB (1998)")
-            mismatch.write_bytes(
-                cpr.build_rgb_png_bytes(include_srgb=False, iccp_profile=other)
-            )
-            decoded = cpr.decode_png_pixels(mismatch)
-            self.assertEqual(decoded.color_profile_id, "embedded_icc")
-            self.assertFalse(cpr.probe_profile_matches_artifact("srgb", decoded.color_profile_id))
-            self.assertTrue(
-                cpr.probe_profile_matches_artifact("embedded_icc", decoded.color_profile_id)
-            )
 
 
 
@@ -782,6 +554,85 @@ class EvidenceCollectionOrderTests(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0)
             self.assertTrue(evidence.is_file())
             self.assertIn("studio_payload", evidence.read_text(encoding="utf-8"))
+
+
+
+class ProbeArtifactContractTests(unittest.TestCase):
+    def test_require_probe_artifact_matches_streamed_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            probe_out = Path(tmp) / "probe.png"
+            cpr.write_minimal_png(probe_out, width=8, height=8)
+            digest, size = cpr.sha256_file_bounded(probe_out, max_bytes=cpr._PROBE_PNG_MAX_FILE_BYTES)
+            probe_data = {
+                "asset_id": "ast_1",
+                "width": 8,
+                "height": 8,
+                "color_profile": "srgb",
+                "artifact": {
+                    "type": "ravo.image_artifact",
+                    "version": 1,
+                    "path": str(probe_out.resolve()),
+                    "mime_type": "image/png",
+                    "width": 8,
+                    "height": 8,
+                    "byte_count": size,
+                    "color_profile": "embedded_icc",
+                    "color_profile_fingerprint": "abcdef0123456789",
+                    "content_sha256": digest,
+                },
+            }
+            got, got_size = cpr.require_probe_artifact(probe_data, probe_out)
+            self.assertEqual(got, digest)
+            self.assertEqual(got_size, size)
+
+    def test_require_probe_artifact_fails_closed_without_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            probe_out = Path(tmp) / "probe.png"
+            cpr.write_minimal_png(probe_out, width=8, height=8)
+            with self.assertRaisesRegex(ValueError, "missing nested artifact"):
+                cpr.require_probe_artifact({"width": 8, "height": 8}, probe_out)
+
+    def test_require_probe_artifact_rejects_digest_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            probe_out = Path(tmp) / "probe.png"
+            cpr.write_minimal_png(probe_out, width=8, height=8)
+            digest, size = cpr.sha256_file_bounded(probe_out, max_bytes=cpr._PROBE_PNG_MAX_FILE_BYTES)
+            bad = "0" * 64
+            self.assertNotEqual(bad, digest)
+            probe_data = {
+                "width": 8,
+                "height": 8,
+                "artifact": {
+                    "type": "ravo.image_artifact",
+                    "version": 1,
+                    "path": str(probe_out.resolve()),
+                    "mime_type": "image/png",
+                    "width": 8,
+                    "height": 8,
+                    "byte_count": size,
+                    "color_profile": "srgb",
+                    "color_profile_fingerprint": "fp",
+                    "content_sha256": bad,
+                },
+            }
+            with self.assertRaisesRegex(ValueError, "sha256"):
+                cpr.require_probe_artifact(probe_data, probe_out)
+
+    def test_sha256_file_bounded_rejects_over_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "big.bin"
+            path.write_bytes(b"x" * 100)
+            with self.assertRaisesRegex(ValueError, "hard byte cap"):
+                cpr.sha256_file_bounded(path, max_bytes=16)
+
+    def test_expected_file_uri_is_exact_not_lowercased(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Case Sensitive.png"
+            path.write_bytes(b"x")
+            uri = cpr.expected_file_uri(path)
+            self.assertIn("Case%20Sensitive.png", uri)
+            self.assertTrue(uri.startswith("file://"))
+            self.assertNotEqual(uri, uri.lower())
 
 
 
