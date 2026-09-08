@@ -233,8 +233,7 @@ QString preset_field_group(const std::string_view field)
     if (field == "exposure" || field == "contrast" || field == "highlights" || field == "shadows" ||
         field == "whites" || field == "blacks" || field == "gamma" || field == "rgbLevels" ||
         field == "sigmoid" || field == "rapidrawTone" || field == "toneEqual" ||
-        field == "lightSectionState" ||
-        field == "toneEqualSectionState")
+        field == "lightSectionState" || field == "toneEqualSectionState")
         return QCoreApplication::translate("DevelopPanel", "Light");
     if (field == "rgbCurve" || field == "toneCurve" || field == "curvesSectionState")
         return QCoreApplication::translate("DevelopPanel", "Curves");
@@ -443,7 +442,7 @@ void StudioPresenter::reload_recipe_history()
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
-                history = service_->list_recipe_history(asset_id);
+                history = service_->develop().list_recipe_history(asset_id);
             }
             QMetaObject::invokeMethod(
                 this,

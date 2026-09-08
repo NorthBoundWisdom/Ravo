@@ -1210,7 +1210,7 @@ void StudioPresenter::pasteParametersToSelection()
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
-                applied = service_->apply_develop_selection(
+                applied = service_->develop().apply_develop_selection(
                     request,
                     [this](const std::size_t completed, const std::size_t total,
                            const DevelopApplyItemResult *)

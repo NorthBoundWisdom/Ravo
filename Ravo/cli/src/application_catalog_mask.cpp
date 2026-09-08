@@ -76,7 +76,7 @@ Result<JsonValue> run_catalog_mask_command(const EngineFacade &engine,
     if (!session)
         return session.error();
     auto &service = *session.value();
-    auto revision = service.snapshot();
+    auto revision = service.library().snapshot();
     if (!revision)
         return revision.error();
     auto loaded = service.load_recipe(flags["--asset-id"]);
@@ -195,7 +195,7 @@ Result<JsonValue> run_catalog_mask_command(const EngineFacade &engine,
         params = develop_from_recipe(loaded.value());
         if (!params)
             return params.error();
-        revision = service.snapshot();
+        revision = service.library().snapshot();
         if (!revision)
             return revision.error();
     }

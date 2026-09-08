@@ -1091,7 +1091,7 @@ void StudioPresenter::renameSnapshot(const int history_id, const QString &label)
             Result<AssetRecord> renamed = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
-                renamed = service_->rename_recipe_snapshot(asset_id, history_id, text);
+                renamed = service_->develop().rename_recipe_snapshot(asset_id, history_id, text);
             }
             QMetaObject::invokeMethod(
                 this,

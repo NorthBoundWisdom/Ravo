@@ -663,7 +663,7 @@ void StudioPresenter::startPlannedImport()
         {
             auto ready = service_ == nullptr ?
                              Result<void>{make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                             service_->preflight_import(request);
+                             service_->import().preflight_import(request);
             QMetaObject::invokeMethod(
                 this,
                 [this, generation, ready = std::move(ready), request = std::move(request)]() mutable
@@ -754,7 +754,7 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
                 auto detailed = service_ == nullptr ?
                                     Result<IngestBatchResult>{
                                         make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                                    service_->execute_ingest_detailed(
+                                    service_->ingest().execute_ingest_detailed(
                                         ingest,
                                         [this](const std::size_t completed, const std::size_t total,
                                                const ImportItemResult *item)
@@ -819,7 +819,7 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
                 service_ == nullptr ?
                     Result<ImportBatchResult>{
                         make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                    service_->execute_import(
+                    service_->import().execute_import(
                         request,
                         [this](const std::size_t completed, const std::size_t total,
                                const ImportItemResult *item)

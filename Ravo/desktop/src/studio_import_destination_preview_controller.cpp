@@ -111,9 +111,10 @@ void StudioImportDestinationPreviewController::start()
         [this, request = std::move(request), generation]
         {
             auto *service = host_.service ? host_.service() : nullptr;
-            auto preview = service != nullptr ? service->preview_import_destinations(request) :
-                                                Result<ImportDestinationPreview>{make_error(
-                                                    ErrorCode::kIo, "Catalog session is closed")};
+            auto preview = service != nullptr ?
+                               service->import().preview_import_destinations(request) :
+                               Result<ImportDestinationPreview>{
+                                   make_error(ErrorCode::kIo, "Catalog session is closed")};
             const QPointer<StudioImportDestinationPreviewController> self(this);
             QMetaObject::invokeMethod(
                 host_.callback_receiver,

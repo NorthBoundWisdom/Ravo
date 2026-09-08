@@ -131,8 +131,13 @@ the next one.
 
 ## CI-01 — Green and enforceable main
 
-**Status:** Open. A prior same-SHA three-platform Debug run passed, but the
-reviewed head's run was incomplete, and `main` remains unprotected.
+**Status:** Ruleset enforced. Repository ruleset `22562825` (`Ravo main release
+gate`) is **active** on `refs/heads/main` with required contexts Static checks +
+mac/linux Debug+Release smoke presets + `win_msvc_release`. Baseline SHA
+`50a598ba` CI run `34250867888` was green. Emergency bypass is admin PR-only;
+payload and policy live in `DevDocs/Packaging.md` / `DevDocs/TESTING.md`.
+Remaining: keep the matrix green on every main tip; do not weaken required
+contexts without restoring the documented payload.
 
 **Remaining work:**
 

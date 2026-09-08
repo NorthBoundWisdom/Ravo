@@ -135,6 +135,7 @@ add_executable(ravo_catalog_tests
   catalog_test_support.cpp
   catalog_test.cpp
   catalog_recovery_test.cpp
+  mixed_corpus_reopen_recovery_test.cpp
   catalog_library_test.cpp
   catalog_recipe_test.cpp
   catalog_develop_test.cpp
@@ -401,8 +402,11 @@ gtest_discover_tests(ravo_image_artifact_verification_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-image-artifact")
 
-add_executable(ravo_encoded_publication_tests encoded_publication_test.cpp)
-target_link_libraries(ravo_encoded_publication_tests PRIVATE GTest::gtest_main ravo_services)
+add_executable(ravo_encoded_publication_tests
+  encoded_publication_test.cpp
+  mutation_publication_contract_test.cpp)
+target_link_libraries(ravo_encoded_publication_tests
+  PRIVATE GTest::gtest_main ravo_services ravo_adapters Qt6::Gui)
 target_include_directories(ravo_encoded_publication_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Ravo/services/src
   ${CMAKE_CURRENT_SOURCE_DIR})

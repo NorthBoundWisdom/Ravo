@@ -129,7 +129,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     {
         return listing;
     }
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     if (snapshot)
     {
         listing.revision = snapshot.value().revision;
@@ -137,7 +137,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     LibraryPageRequest page_request;
     page_request.query = query;
     page_request.collapse_stacks = collapse_stacks;
-    auto page = service->list_assets_page(page_request);
+    auto page = service->library().list_assets_page(page_request);
     if (page)
     {
         listing.total = page.value().total;
@@ -148,7 +148,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     {
         listing.assets = page.error();
     }
-    listing.folders = service->list_folders();
+    listing.folders = service->library().list_folders();
     listing.library_sets = service->list_library_sets();
     listing.capture_facets = service->list_capture_facets(query);
     listing.location_facets = service->list_location_facets(query);
@@ -374,7 +374,7 @@ StudioPresenter::make_catalog_service(const std::string &path, const bool create
     auto service =
         std::make_unique<CatalogService>(*engine_, std::move(repository).value(), std::move(raster),
                                          std::move(cache).value(), std::move(recovery).value());
-    auto resumed = service->sync_recovery(std::nullopt);
+    auto resumed = service->recovery().sync_recovery(std::nullopt);
     if (!resumed)
     {
         return resumed.error();
@@ -1313,8 +1313,8 @@ void StudioPresenter::pollCatalogRevision()
                     listing = load_catalog_listing(service_.get(), query, collapse);
                     if (!selected.empty())
                     {
-                        recipe = service_->load_recipe(selected);
-                        history = service_->list_recipe_history(selected);
+                        recipe = service_->develop().load_recipe(selected);
+                        history = service_->develop().list_recipe_history(selected);
                     }
                 }
             }
@@ -1746,8 +1746,8 @@ void StudioPresenter::startNextImportItem()
             Result<ImportItemResult> imported =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                imported = service_->import_one(path, cancellation, policy, defer, skip_existing,
-                                                expected_hash);
+                imported = service_->import().import_one(path, cancellation, policy, defer,
+                                                         skip_existing, expected_hash);
             QMetaObject::invokeMethod(
                 this,
                 [this, path, imported = std::move(imported)]() mutable

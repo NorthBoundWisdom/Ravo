@@ -13,7 +13,7 @@ namespace ravo::cli_internal
 {
 Result<JsonValue> run_catalog_import_plan(CatalogService &service, const ImportRequest &request)
 {
-    auto preview = service.preview_import_destinations(request);
+    auto preview = service.import().preview_import_destinations(request);
     if (!preview)
         return preview.error();
     JsonValue::Array folders;
@@ -95,8 +95,8 @@ Result<JsonValue> run_catalog_ingest_command(CatalogService &service, std::strin
         std::vector<std::string> inputs;
         for (const auto input : flags.inputs)
             inputs.emplace_back(input);
-        auto scan =
-            service.scan_import_candidates(inputs, inputs.front(), flags.import_recursive, {});
+        auto scan = service.import().scan_import_candidates(inputs, inputs.front(),
+                                                            flags.import_recursive, {});
         if (!scan)
             return scan.error();
         JsonValue::Array items;
@@ -125,7 +125,7 @@ Result<JsonValue> run_catalog_ingest_command(CatalogService &service, std::strin
     }
     if (subcommand == "ingest-probe")
     {
-        auto support = service.probe_ingest_native_support();
+        auto support = service.ingest().probe_ingest_native_support();
         if (!support)
             return support.error();
         return native_support_json(support.value());
@@ -175,7 +175,7 @@ Result<JsonValue> run_catalog_ingest_command(CatalogService &service, std::strin
                                   {{"organization", std::string(flags.import_organization)}});
             }
         }
-        auto detailed = service.execute_ingest_detailed(request);
+        auto detailed = service.ingest().execute_ingest_detailed(request);
         if (!detailed)
             return detailed.error();
 

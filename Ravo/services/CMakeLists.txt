@@ -35,6 +35,12 @@ target_sources(ravo_services
     src/export_delivery_color.cpp
     src/original_copy.cpp
     src/catalog_service.cpp
+    src/library_service.cpp
+    src/develop_service.cpp
+    src/metadata_service.cpp
+    src/import_service.cpp
+    src/ingest_service.cpp
+    src/recovery_service.cpp
     src/catalog_develop_batch.cpp
     src/catalog_service_internal.cpp
     src/catalog_transfer.cpp

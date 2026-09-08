@@ -125,6 +125,106 @@ existing Release for the tag, or any GitHub API failure is a hard workflow
 failure; the workflow does not overwrite an existing release.
 
 
+## Required CI checks and release gate
+
+Ravo enforces a repository ruleset on `main` so ordinary pushes and merges cannot
+skip the same-SHA Static + platform matrix that package/release jobs already
+`needs`.
+
+| Item | Value |
+| --- | --- |
+| Ruleset id | `22562825` |
+| Name | `Ravo main release gate` |
+| Target | branch `refs/heads/main` |
+| Enforcement | `active` |
+| Protect rules | `deletion`, `non_fast_forward`, `required_status_checks` (strict) |
+| Required check contexts | `Static checks`, `mac_clang_debug`, `mac_clang_release`, `linux_clang_debug`, `linux_clang_release`, `win_msvc_release` |
+| HTML | https://github.com/NorthBoundWisdom/Ravo/rules/22562825 |
+
+These contexts are the GitHub Actions check-run names from `.github/workflows/ci.yml`
+(`static` job display name plus each `build` matrix `preset`). Package and Publish
+GitHub Release remain tag- or rehearsal-gated and already require `static` +
+`build` on the same workflow run / SHA. The ruleset closes the governance gap:
+passing CI on a feature branch does not authorize a red or incomplete `main`.
+
+### Emergency bypass policy
+
+Ordinary contributors cannot bypass required checks. Repository admins may bypass
+**only through a pull request** (`bypass_mode: pull_request` for RepositoryRole
+admin). Direct push bypass is intentionally unavailable.
+
+When an emergency override is required (broken gate falsely blocking a fix,
+incident response):
+
+1. Open a PR with the minimal fix and an explicit `EMERGENCY BYPASS` note in the
+   description naming the failing check, the incident, and the follow-up SHA that
+   will restore the gate.
+2. Use the admin PR bypass to merge only that PR.
+3. File or update a DevDocs/TODO item the same day to restore a green required
+   matrix on `main` and remove any temporary workflow exceptions.
+4. Do not disable the ruleset, remove required contexts, or switch enforcement to
+   `disabled` without a dated ADR-style note and a restore deadline.
+
+Read-back verification (maintainers):
+
+```text
+gh api repos/NorthBoundWisdom/Ravo/rulesets/22562825
+```
+
+If the API ever returns 404 or an empty ruleset list, treat `main` as unprotected
+until the payload below is re-applied and read back.
+
+### Ruleset payload (recreate if missing)
+
+```json
+{
+  "name": "Ravo main release gate",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {"context": "Static checks"},
+          {"context": "mac_clang_debug"},
+          {"context": "mac_clang_release"},
+          {"context": "linux_clang_debug"},
+          {"context": "linux_clang_release"},
+          {"context": "win_msvc_release"}
+        ]
+      }
+    }
+  ],
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "pull_request"
+    }
+  ]
+}
+```
+
+Create with:
+
+```text
+gh api repos/NorthBoundWisdom/Ravo/rulesets -X POST --input ruleset.json
+```
+
+Then confirm id/enforcement/required contexts via the read-back command above.
+Do not claim the gate exists without that evidence.
+
 ## AI provider packaging residual (AI-00 / AI-01)
 
 AI-01 ships with the in-tree deterministic stub provider only
