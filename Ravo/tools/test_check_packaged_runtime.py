@@ -555,6 +555,69 @@ class DecodePngPixelsTests(unittest.TestCase):
             self.assertTrue(uri.startswith("file://"))
             self.assertNotEqual(uri, uri.lower())
 
+
+class ProbePngMethodAndBudgetTests(unittest.TestCase):
+    def test_rejects_illegal_ihdr_methods(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            for kwargs in (
+                {"compression": 1},
+                {"filter_method": 1},
+                {"interlace": 2},
+                {"interlace": 1},
+            ):
+                path = Path(tmp) / f"bad-{list(kwargs.values())[0]}.png"
+                path.write_bytes(cpr.build_rgb_png_bytes(**kwargs))
+                with self.assertRaisesRegex(
+                    ValueError, "unsupported PNG compression, filter, or interlace"
+                ):
+                    cpr.decode_png_pixels(path)
+
+    def test_rejects_bad_zlib_bad_filter_byte_and_truncated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            bad_zlib = Path(tmp) / "badz.png"
+            bad_zlib.write_bytes(cpr.build_rgb_png_bytes(idat_payload=b"not-zlib-data!!!!"))
+            with self.assertRaisesRegex(ValueError, "inflate"):
+                cpr.decode_png_pixels(bad_zlib)
+
+            bad_filter = Path(tmp) / "badfilter.png"
+            bad_filter.write_bytes(
+                cpr.build_rgb_png_bytes(width=4, height=2, filter_bytes=[0, 99])
+            )
+            with self.assertRaisesRegex(ValueError, "filter type"):
+                cpr.decode_png_pixels(bad_filter)
+
+            trunc = Path(tmp) / "trunc.png"
+            cpr.write_minimal_png(trunc, width=8, height=8)
+            trunc.write_bytes(trunc.read_bytes()[:-12])
+            with self.assertRaises(ValueError):
+                cpr.decode_png_pixels(trunc)
+
+    def test_rejects_over_budget_dimensions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "huge.png"
+            path.write_bytes(
+                cpr.build_rgb_png_bytes(
+                    width=cpr._PROBE_PNG_MAX_DIMENSION + 1,
+                    height=1,
+                    include_idat=False,
+                )
+            )
+            with self.assertRaisesRegex(ValueError, "dimensions exceed probe budget"):
+                cpr.decode_png_pixels(path)
+
+    def test_rejects_over_budget_file_via_monkeypatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ok.png"
+            cpr.write_minimal_png(path, width=16, height=16)
+            original = cpr._PROBE_PNG_MAX_FILE_BYTES
+            try:
+                cpr._PROBE_PNG_MAX_FILE_BYTES = 32
+                with self.assertRaisesRegex(ValueError, "file exceeds probe budget"):
+                    cpr.decode_png_pixels(path)
+            finally:
+                cpr._PROBE_PNG_MAX_FILE_BYTES = original
+
+
 class DmgTopLevelSymlinkTests(unittest.TestCase):
     def test_absolute_applications_symlink_is_skipped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

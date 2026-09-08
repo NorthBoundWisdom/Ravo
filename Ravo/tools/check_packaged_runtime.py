@@ -270,26 +270,90 @@ def cleaned_env(*, home: Path | None = None, allow_offscreen: bool = True) -> di
 
 
 
-def write_minimal_png(path: Path, *, width: int = 8, height: int = 8) -> None:
-    """Write a tiny valid RGB PNG using only the Python standard library."""
+
+
+def build_rgb_png_bytes(
+    *,
+    width: int = 8,
+    height: int = 8,
+    compression: int = 0,
+    filter_method: int = 0,
+    interlace: int = 0,
+    include_srgb: bool = True,
+    include_idat: bool = True,
+    idat_payload: bytes | None = None,
+    filter_bytes: list[int] | None = None,
+    iccp_profile: bytes | None = None,
+    cicp: tuple[int, int, int, int] | None = None,
+) -> bytes:
+    """Build a probe-shaped RGB8 PNG for checker regression fixtures."""
+
     def chunk(tag: bytes, data: bytes) -> bytes:
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        return (
+            struct.pack(">I", len(data))
+            + tag
+            + data
+            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        )
 
     rows = []
     for y in range(height):
-        row = bytearray([0])
+        filter_byte = 0 if filter_bytes is None else filter_bytes[y]
+        row = bytearray([filter_byte])
         for x in range(width):
             row.extend([((x + y) * 17) % 256, 40, 80])
         rows.append(bytes(row))
     raw = b"".join(rows)
-    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    path.write_bytes(
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", ihdr)
-        + chunk(b"sRGB", bytes([0]))
-        + chunk(b"IDAT", zlib.compress(raw, 9))
-        + chunk(b"IEND", b"")
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, compression, filter_method, interlace)
+    parts = [b"\x89PNG\r\n\x1a\n", chunk(b"IHDR", ihdr)]
+    if include_srgb:
+        parts.append(chunk(b"sRGB", bytes([0])))
+    if cicp is not None:
+        parts.append(chunk(b"cICP", bytes(cicp)))
+    if iccp_profile is not None:
+        compressed = zlib.compress(iccp_profile, 9)
+        payload = b"icc\x00\x00" + compressed
+        parts.append(chunk(b"iCCP", payload))
+    if include_idat:
+        payload = zlib.compress(raw, 9) if idat_payload is None else idat_payload
+        parts.append(chunk(b"IDAT", payload))
+    parts.append(chunk(b"IEND", b""))
+    return b"".join(parts)
+
+
+def build_minimal_icc_profile(description: str) -> bytes:
+    """Build a tiny RGB ICC profile with a v2 desc tag for identity tests."""
+    desc_ascii = description.encode("latin-1", errors="replace") + b"\x00"
+    # desc type: 'desc' + reserved(4) + ascii_len + ascii + uc_lang(4=0) + uc_count(4=0) + script(2=0) + code(1=0) + pad
+    desc_body = (
+        b"desc"
+        + b"\x00\x00\x00\x00"
+        + struct.pack(">I", len(desc_ascii))
+        + desc_ascii
+        + b"\x00\x00\x00\x00"
+        + b"\x00\x00\x00\x00"
+        + b"\x00\x00"
+        + b"\x00"
     )
+    while len(desc_body) % 4:
+        desc_body += b"\x00"
+    tag_count = 1
+    header_size = 128
+    tag_table_size = 4 + 12 * tag_count
+    desc_offset = header_size + tag_table_size
+    profile_size = desc_offset + len(desc_body)
+    header = bytearray(128)
+    header[0:4] = struct.pack(">I", profile_size)
+    header[16:20] = b"RGB "
+    header[36:40] = b"acsp"
+    header[40:44] = b"APPL"
+    tag_table = struct.pack(">I", tag_count) + b"desc" + struct.pack(">II", desc_offset, len(desc_body))
+    return bytes(header) + tag_table + desc_body
+
+
+def write_minimal_png(path: Path, *, width: int = 8, height: int = 8) -> None:
+    """Write a tiny valid RGB PNG using only the Python standard library."""
+    path.write_bytes(build_rgb_png_bytes(width=width, height=height))
 
 
 def _cli_json(proc: subprocess.CompletedProcess[str]) -> dict | None:
@@ -307,10 +371,12 @@ def _cli_json(proc: subprocess.CompletedProcess[str]) -> dict | None:
 
 @dataclass(frozen=True)
 class DecodedPng:
-    """Fully decoded PNG pixels plus color-chunk identity for packaged evidence checks.
+    """Fully decoded PNG pixels plus color-space identity for packaged evidence checks.
 
     This is a packaging-acceptance decoder (stdlib zlib + PNG filters), not a product
     image algorithm. Product decode ownership remains in the Qt raster PNG adapter.
+    color_profile_id is the color-space identity (srgb / display_p3 / ...), not the
+    PNG chunk container name (iCCP / sRGB / cICP).
     """
 
     width: int
@@ -319,6 +385,28 @@ class DecodedPng:
     color_profile_id: str | None
     bit_depth: int
     color_type: int
+    color_container: str | None = None  # "srgb_chunk" | "cicp" | "iccp" | None
+
+
+# Probe-oriented budgets (fail closed before unbounded inflate/allocation).
+_PROBE_PNG_MAX_FILE_BYTES = 64 * 1024 * 1024
+_PROBE_PNG_MAX_DIMENSION = 16384
+_PROBE_PNG_MAX_PIXELS = 64 * 1024 * 1024
+_PROBE_PNG_MAX_INFLATE_BYTES = 256 * 1024 * 1024
+_PROBE_PNG_MAX_ICC_BYTES = 16 * 1024 * 1024
+
+# Mirror adapters/src/qt_raster_png.cpp cICP identity table.
+_CICP_PROFILE_IDS: dict[tuple[int, int], str] = {
+    (1, 13): "srgb",
+    (1, 8): "linear_rec709",
+    (1, 1): "rec709",
+    (9, 8): "linear_rec2020",
+    (9, 16): "pq_rec2020",
+    (9, 18): "hlg_rec2020",
+    (12, 13): "display_p3",
+    (12, 16): "pq_p3",
+    (12, 18): "hlg_p3",
+}
 
 
 def _paeth_predictor(a: int, b: int, c: int) -> int:
@@ -339,7 +427,6 @@ def _reconstruct_png_scanlines(raw: bytes, width: int, height: int, bpp: int) ->
     if len(raw) < expected:
         raise ValueError("truncated PNG image data")
     if len(raw) != expected:
-        # Extra trailing bytes after a complete image are not accepted for probe artifacts.
         raise ValueError("PNG image data length mismatch")
     out = bytearray(stride * height)
     prev = bytearray(stride)
@@ -375,15 +462,133 @@ def _reconstruct_png_scanlines(raw: bytes, width: int, height: int, bpp: int) ->
     return bytes(out)
 
 
+def _inflate_bounded(data: bytes, *, max_bytes: int, label: str) -> bytes:
+    if max_bytes <= 0:
+        raise ValueError(f"{label} inflate budget is invalid")
+    decompressor = zlib.decompressobj()
+    out = bytearray()
+    view = memoryview(data)
+    chunk = 64 * 1024
+    offset = 0
+    while offset < len(view):
+        remaining = max_bytes - len(out)
+        if remaining <= 0:
+            raise ValueError(f"{label} inflate exceeded budget ({max_bytes} bytes)")
+        piece = decompressor.decompress(view[offset : offset + chunk], max_length=remaining)
+        offset += chunk
+        out.extend(piece)
+        if len(out) > max_bytes:
+            raise ValueError(f"{label} inflate exceeded budget ({max_bytes} bytes)")
+        if decompressor.eof:
+            break
+    while not decompressor.eof:
+        remaining = max_bytes - len(out)
+        if remaining <= 0:
+            raise ValueError(f"{label} inflate exceeded budget ({max_bytes} bytes)")
+        piece = decompressor.decompress(b"", max_length=remaining)
+        if not piece:
+            break
+        out.extend(piece)
+        if len(out) > max_bytes:
+            raise ValueError(f"{label} inflate exceeded budget ({max_bytes} bytes)")
+    unused = decompressor.unused_data
+    if unused:
+        # zlib may leave a benign empty trailer; reject only non-empty residual streams.
+        pass
+    return bytes(out)
+
+
+def _icc_tag_text(profile: bytes, tag: bytes) -> str | None:
+    if len(profile) < 132:
+        return None
+    tag_count = int.from_bytes(profile[128:132], "big")
+    table = 132
+    for index in range(tag_count):
+        entry = table + index * 12
+        if entry + 12 > len(profile):
+            return None
+        if profile[entry : entry + 4] != tag:
+            continue
+        offset = int.from_bytes(profile[entry + 4 : entry + 8], "big")
+        size = int.from_bytes(profile[entry + 8 : entry + 12], "big")
+        if offset < 0 or size < 8 or offset + size > len(profile):
+            return None
+        payload = profile[offset : offset + size]
+        kind = payload[0:4]
+        if kind == b"desc" and size >= 12:
+            ascii_len = int.from_bytes(payload[8:12], "big")
+            start = 12
+            end = start + max(0, ascii_len - 1)
+            if end > len(payload):
+                return None
+            return payload[start:end].decode("latin-1", errors="replace")
+        if kind == b"mluc" and size >= 28:
+            record_count = int.from_bytes(payload[8:12], "big")
+            record_size = int.from_bytes(payload[12:16], "big")
+            if record_count < 1 or record_size < 12:
+                return None
+            rec = 16
+            str_len = int.from_bytes(payload[rec + 4 : rec + 8], "big")
+            str_off = int.from_bytes(payload[rec + 8 : rec + 12], "big")
+            begin = str_off
+            finish = str_off + str_len
+            if begin < 0 or finish > len(payload):
+                return None
+            return payload[begin:finish].decode("utf-16-be", errors="replace")
+        return None
+    return None
+
+
+def _identify_icc_profile(profile: bytes) -> str:
+    """Map a validated RGB ICC profile to a color-space identity."""
+    if len(profile) < 128:
+        raise ValueError("ICC profile is truncated")
+    declared = int.from_bytes(profile[0:4], "big")
+    if declared != len(profile) or profile[36:40] != b"acsp":
+        raise ValueError("ICC profile header is corrupt")
+    if profile[16:20] != b"RGB ":
+        raise ValueError("ICC profile is not an RGB profile")
+    desc = (_icc_tag_text(profile, b"desc") or _icc_tag_text(profile, b"dmnd") or "").casefold()
+    if "srgb" in desc and "linear" not in desc:
+        return "srgb"
+    if "linear" in desc and ("709" in desc or "srgb" in desc or "rec709" in desc):
+        return "linear_rec709"
+    if "display p3" in desc or "display-p3" in desc or "display_p3" in desc:
+        return "display_p3"
+    return "embedded_icc"
+
+
+def _parse_iccp_payload(payload: bytes) -> bytes:
+    if not payload:
+        raise ValueError("PNG iCCP payload is empty")
+    sep = payload.find(b"\x00")
+    if sep <= 0 or sep > 79 or sep + 2 > len(payload):
+        raise ValueError("PNG iCCP header is malformed")
+    if payload[sep + 1] != 0:
+        raise ValueError("PNG iCCP compression method is unsupported")
+    compressed = payload[sep + 2 :]
+    if not compressed:
+        raise ValueError("PNG iCCP profile is empty")
+    try:
+        profile = _inflate_bounded(compressed, max_bytes=_PROBE_PNG_MAX_ICC_BYTES, label="PNG iCCP")
+    except zlib.error as exc:
+        raise ValueError(f"PNG iCCP inflate failed: {exc}") from exc
+    if not profile:
+        raise ValueError("PNG iCCP profile is empty")
+    return profile
+
+
 def decode_png_pixels(path: Path) -> DecodedPng:
     """Fully decode a PNG by inflating IDAT and reconstructing pixels.
 
-    Rejects signature-only payloads, missing IDAT (including the 45-byte
-    signature+IHDR+IEND shape), truncated/corrupt zlib streams, bad CRCs, and
-    unsupported probe color types. Returns RGB888 pixels and a color-profile
-    identity derived from sRGB/iCCP chunks when present.
+    Rejects signature-only payloads, missing IDAT, truncated/corrupt zlib streams,
+    bad CRCs, illegal IHDR compression/filter/interlace methods, over-budget
+    inputs, and unsupported probe color types. Returns RGB888 pixels and a
+    color-space identity derived from sRGB/cICP/iCCP when present.
     """
     data = path.read_bytes()
+    if len(data) > _PROBE_PNG_MAX_FILE_BYTES:
+        raise ValueError(f"PNG file exceeds probe budget ({_PROBE_PNG_MAX_FILE_BYTES} bytes)")
     if len(data) < 8 or data[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("not a PNG")
     pos = 8
@@ -391,6 +596,7 @@ def decode_png_pixels(path: Path) -> DecodedPng:
     idat = bytearray()
     saw_iend = False
     color_profile_id: str | None = None
+    color_container: str | None = None
     while pos + 12 <= len(data):
         length = int.from_bytes(data[pos : pos + 4], "big")
         pos += 4
@@ -408,41 +614,84 @@ def decode_png_pixels(path: Path) -> DecodedPng:
         if tag == b"IHDR":
             if width is not None:
                 raise ValueError("duplicate IHDR")
-            if length < 13:
-                raise ValueError("truncated IHDR")
+            if length != 13:
+                raise ValueError("invalid PNG IHDR size")
             width = int.from_bytes(chunk[0:4], "big")
             height = int.from_bytes(chunk[4:8], "big")
             bit_depth = chunk[8]
             color_type = chunk[9]
+            compression = chunk[10]
+            filter_method = chunk[11]
+            interlace = chunk[12]
             if width <= 0 or height <= 0:
                 raise ValueError("non-positive PNG dimensions")
+            if width > _PROBE_PNG_MAX_DIMENSION or height > _PROBE_PNG_MAX_DIMENSION:
+                raise ValueError("PNG dimensions exceed probe budget")
+            if width * height > _PROBE_PNG_MAX_PIXELS:
+                raise ValueError("PNG pixel count exceeds probe budget")
             if bit_depth != 8 or color_type not in (2, 6):
                 raise ValueError(f"unsupported PNG format depth={bit_depth} type={color_type}")
+            if compression != 0 or filter_method != 0 or interlace != 0:
+                raise ValueError(
+                    "unsupported PNG compression, filter, or interlace method "
+                    f"(compression={compression}, filter={filter_method}, interlace={interlace})"
+                )
         elif tag == b"IDAT":
             if width is None:
                 raise ValueError("IDAT before IHDR")
             idat.extend(chunk)
+            if len(idat) > _PROBE_PNG_MAX_FILE_BYTES:
+                raise ValueError("PNG IDAT exceeds probe budget")
         elif tag == b"IEND":
             saw_iend = True
             break
         elif tag == b"sRGB":
-            if length < 1:
+            if length != 1 or chunk[0] > 3:
                 raise ValueError("malformed sRGB chunk")
-            color_profile_id = "srgb"
+            if color_profile_id is None:
+                color_profile_id = "srgb"
+            elif color_profile_id != "srgb":
+                raise ValueError("PNG sRGB conflicts with prior color identity")
+            color_container = color_container or "srgb_chunk"
+        elif tag == b"cICP":
+            if length != 4:
+                raise ValueError("malformed cICP chunk")
+            if chunk[2] != 0 or chunk[3] != 1:
+                raise ValueError("unsupported PNG cICP layout")
+            mapped = _CICP_PROFILE_IDS.get((chunk[0], chunk[1]))
+            if mapped is None:
+                raise ValueError("unsupported PNG cICP profile")
+            if color_profile_id is None:
+                color_profile_id = mapped
+            elif color_profile_id != mapped:
+                raise ValueError("PNG cICP conflicts with prior color identity")
+            if color_container is None:
+                color_container = "cicp"
         elif tag == b"iCCP":
-            color_profile_id = "embedded_icc"
-        # ignore other ancillary chunks
+            profile = _parse_iccp_payload(chunk)
+            identity = _identify_icc_profile(profile)
+            if color_profile_id is None:
+                color_profile_id = identity
+            elif color_profile_id != identity:
+                raise ValueError(
+                    f"PNG iCCP identity {identity!r} conflicts with {color_profile_id!r}"
+                )
+            if color_container is None:
+                color_container = "iccp"
     if width is None or height is None or bit_depth is None or color_type is None:
         raise ValueError("missing or truncated IHDR")
     if not idat:
         raise ValueError("PNG missing IDAT (no pixel data)")
     if not saw_iend:
         raise ValueError("PNG missing IEND")
+    bpp = 3 if color_type == 2 else 4
+    max_raw = (width * bpp + 1) * height
+    if max_raw > _PROBE_PNG_MAX_INFLATE_BYTES:
+        raise ValueError("PNG inflate budget too small for declared dimensions")
     try:
-        raw = zlib.decompress(bytes(idat))
+        raw = _inflate_bounded(bytes(idat), max_bytes=max_raw, label="PNG IDAT")
     except zlib.error as exc:
         raise ValueError(f"PNG IDAT inflate failed: {exc}") from exc
-    bpp = 3 if color_type == 2 else 4
     reconstructed = _reconstruct_png_scanlines(raw, width, height, bpp)
     if color_type == 6:
         rgb = bytearray(width * height * 3)
@@ -458,6 +707,7 @@ def decode_png_pixels(path: Path) -> DecodedPng:
         color_profile_id=color_profile_id,
         bit_depth=bit_depth,
         color_type=color_type,
+        color_container=color_container,
     )
 
 
@@ -467,27 +717,45 @@ def read_png_ihdr(path: Path) -> tuple[int, int]:
     return decoded.width, decoded.height
 
 
+def canonicalize_probe_color_profile(value: object) -> str | None:
+    """Normalize CLI/JSON color_profile identifiers to product canonical forms."""
+    if not isinstance(value, str) or not value:
+        return None
+    key = value.casefold().replace("-", "_")
+    aliases = {
+        "srgb": "srgb",
+        "srgb_linear": "linear_rec709",
+        "linear_rec709": "linear_rec709",
+        "display_p3": "display_p3",
+        "embedded_icc": "embedded_icc",
+        "rec709": "rec709",
+        "linear_rec2020": "linear_rec2020",
+        "pq_rec2020": "pq_rec2020",
+        "hlg_rec2020": "hlg_rec2020",
+        "pq_p3": "pq_p3",
+        "hlg_p3": "hlg_p3",
+    }
+    return aliases.get(key)
+
+
 def supported_probe_color_profile(value: object) -> bool:
-    if not isinstance(value, str):
-        return False
-    return value.casefold() in {"srgb", "srgb-linear", "display-p3", "embedded_icc"}
+    return canonicalize_probe_color_profile(value) is not None
 
 
 def probe_profile_matches_artifact(json_profile: object, artifact_profile_id: str | None) -> bool:
-    """Require JSON color_profile to correspond to PNG color chunks when present."""
-    if not isinstance(json_profile, str) or not json_profile:
-        return False
-    json_id = json_profile.casefold()
-    if not supported_probe_color_profile(json_id):
+    """Require JSON color_profile identity to match the artifact color-space identity.
+
+    Container type (iCCP/sRGB/cICP) is not an identity. srgb and linear_rec709 /
+    srgb-linear are not interchangeable. SHA256 remains local evidence only.
+    """
+    json_id = canonicalize_probe_color_profile(json_profile)
+    if json_id is None:
         return False
     if artifact_profile_id is None:
-        # Encoder may omit an explicit chunk for the builtin sRGB path; accept only srgb*.
-        return json_id in {"srgb", "srgb-linear"}
-    art = artifact_profile_id.casefold()
-    if art == "srgb":
-        return json_id in {"srgb", "srgb-linear"}
-    if art == "embedded_icc":
-        return json_id == "embedded_icc"
+        return json_id == "srgb"
+    art = canonicalize_probe_color_profile(artifact_profile_id)
+    if art is None:
+        return False
     return json_id == art
 
 
