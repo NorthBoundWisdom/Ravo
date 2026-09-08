@@ -41,6 +41,7 @@
 #include "ravo/recipe/style.h"
 #include "ravo/services/catalog_service.h"
 #include "ravo/services/artifact_publication.h"
+#include "ravo/services/image_artifact_verification.h"
 
 namespace ravo::cli_internal
 {
@@ -1171,12 +1172,41 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {
                 return encoded.error();
             }
+            QtRasterDecoder raster_decoder;
+            ImageArtifactExpectation expectation;
+            expectation.mime_type = "image/png";
+            expectation.width = previewed.value().width;
+            expectation.height = previewed.value().height;
+            // Encoded PNG may embed ICC even when the preview profile is builtin
+            // sRGB; report the decoded artifact identity separately from the
+            // compatible top-level color_profile field.
+            auto verified =
+                verify_encoded_image_artifact(raster_decoder, encoded.value(), expectation, {});
+            if (!verified)
+            {
+                return verified.error();
+            }
+            const auto artifact = std::move(verified).value();
             auto written = write_file_bytes_atomically(flags.value().output, encoded.value());
             if (!written)
             {
                 return written.error();
             }
             payload.emplace("output", std::string(flags.value().output));
+            payload.emplace(
+                "artifact",
+                JsonValue::Object{
+                    {"type", artifact.type},
+                    {"version", JsonValue::number(std::to_string(artifact.version))},
+                    {"path", std::string(flags.value().output)},
+                    {"mime_type", artifact.mime_type},
+                    {"width", JsonValue::number(std::to_string(artifact.width))},
+                    {"height", JsonValue::number(std::to_string(artifact.height))},
+                    {"byte_count", JsonValue::number(std::to_string(artifact.byte_count))},
+                    {"color_profile", artifact.color_profile},
+                    {"color_profile_fingerprint", artifact.color_profile_fingerprint},
+                    {"content_sha256", artifact.content_sha256},
+                });
         }
         return JsonValue{std::move(payload)};
     }
