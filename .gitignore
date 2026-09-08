@@ -23,7 +23,7 @@ cmake-build-debug/
 install
 Downloads
 userdoc/site/
-
+.ravo_patch
 # Local agent/helpers and host test scratch (never share)
 _fix_lock.py
 _qt.py
