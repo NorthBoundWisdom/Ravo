@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import struct
 import zlib
 import subprocess
@@ -137,6 +138,25 @@ def is_under(path: Path, root: Path) -> bool:
         return False
 
 
+def copy_dmg_top_level_entry(child: Path, dest: Path) -> str:
+    """Copy one DMG mount child into dest. Returns action: copied|linked|skipped."""
+    target = dest / child.name
+    st = child.lstat()
+    if stat.S_ISLNK(st.st_mode):
+        link_target = os.readlink(child)
+        if os.path.isabs(link_target) or child.name in {"Applications", "Trash"}:
+            return "skipped"
+        target.symlink_to(link_target)
+        return "linked"
+    if stat.S_ISDIR(st.st_mode):
+        shutil.copytree(child, target, symlinks=True)
+        return "copied"
+    if stat.S_ISREG(st.st_mode):
+        shutil.copy2(child, target)
+        return "copied"
+    return "skipped"
+
+
 def unpack(artifact: Path, dest: Path) -> Path:
     suffix = "".join(artifact.suffixes).lower()
     if artifact.suffix.lower() == ".zip" or suffix.endswith(".zip"):
@@ -152,11 +172,7 @@ def unpack(artifact: Path, dest: Path) -> Path:
         )
         try:
             for child in mount.iterdir():
-                target = dest / child.name
-                if child.is_dir():
-                    shutil.copytree(child, target, symlinks=True)
-                else:
-                    shutil.copy2(child, target)
+                copy_dmg_top_level_entry(child, dest)
         finally:
             subprocess.run(["hdiutil", "detach", str(mount)], check=False)
         return dest
@@ -185,6 +201,10 @@ def unpack(artifact: Path, dest: Path) -> Path:
         if not squash.is_dir():
             raise RuntimeError("AppImage extract produced no squashfs-root AppDir")
         apprun = squash / "AppRun"
+        if apprun.is_symlink():
+            resolved = apprun.resolve()
+            if not is_under(resolved, squash):
+                raise RuntimeError("AppImage AppRun symlink escapes squashfs-root")
         if not apprun.is_file():
             raise RuntimeError("AppImage AppDir missing AppRun at extract root")
         return squash

@@ -466,5 +466,46 @@ class ReadPngIhdrTests(unittest.TestCase):
 
 
 
+class DmgTopLevelSymlinkTests(unittest.TestCase):
+    def test_absolute_applications_symlink_is_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mount = root / "mnt"
+            out = root / "out"
+            mount.mkdir()
+            out.mkdir()
+            external = root / "external"
+            external.mkdir()
+            marker = external / "marker.txt"
+            marker.write_text("outside", encoding="utf-8")
+            app = mount / "Ravo.app"
+            app.mkdir()
+            (app / "Contents").mkdir()
+            (mount / "Applications").symlink_to(external)
+            actions = {
+                "app": cpr.copy_dmg_top_level_entry(app, out),
+                "applications": cpr.copy_dmg_top_level_entry(mount / "Applications", out),
+            }
+            self.assertEqual(actions["app"], "copied")
+            self.assertEqual(actions["applications"], "skipped")
+            self.assertTrue((out / "Ravo.app" / "Contents").is_dir())
+            self.assertFalse((out / "Applications").exists())
+            self.assertFalse((out / "marker.txt").exists())
+
+    def test_relative_in_package_symlink_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mount = root / "mnt"
+            out = root / "out"
+            mount.mkdir()
+            out.mkdir()
+            (mount / "Payload").mkdir()
+            (mount / "Alias").symlink_to("Payload")
+            self.assertEqual(cpr.copy_dmg_top_level_entry(mount / "Alias", out), "linked")
+            self.assertTrue((out / "Alias").is_symlink())
+            self.assertEqual(os.readlink(out / "Alias"), "Payload")
+
+
+
 if __name__ == "__main__":
     unittest.main()
