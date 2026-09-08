@@ -623,7 +623,13 @@ jobs:
           echo "PACKAGED_EVIDENCE_DIR=${evidence_root}" >> "$GITHUB_ENV"
           artifacts=( ${{ matrix.artifact_path }} )
           if [[ ${#artifacts[@]} -eq 0 ]]; then
-            printf '%s\n' '{"status":"FAIL","reason":"no artifacts matched","pattern":"${{ matrix.artifact_path }}","run_id":"'"${GITHUB_RUN_ID}"'","run_attempt":"'"${GITHUB_RUN_ATTEMPT}"'"}'               > "${evidence_root}/missing-artifacts.evidence.json"
+            python3 Ravo/tools/write_packaged_evidence_json.py \
+              --output "${evidence_root}/missing-artifacts.evidence.json" \
+              --field status=FAIL \
+              --field "reason=no artifacts matched" \
+              --field "pattern=${{ matrix.artifact_path }}" \
+              --field run_id="${GITHUB_RUN_ID}" \
+              --field run_attempt="${GITHUB_RUN_ATTEMPT}"
             echo "ERROR: no artifacts matched ${{ matrix.artifact_path }}"
             exit 1
           fi
@@ -640,18 +646,40 @@ jobs:
               digest="$(shasum -a 256 "${artifact}" | awk '{print $1}')"
             fi
             meta="${evidence_root}/${base}.meta.json"
-            printf '%s\n' "{"artifact":"${base}","digest_sha256":"${digest}","source_sha":"${GITHUB_SHA}","run_id":"${GITHUB_RUN_ID}","run_attempt":"${GITHUB_RUN_ATTEMPT}"}" > "${meta}"
-            if ! python Ravo/tools/check_packaged_runtime.py "${artifact}" \
+            python3 Ravo/tools/write_packaged_evidence_json.py \
+              --output "${meta}" \
+              --field "artifact=${base}" \
+              --field "digest_sha256=${digest}" \
+              --field "source_sha=${GITHUB_SHA}" \
+              --field "run_id=${GITHUB_RUN_ID}" \
+              --field "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            if ! python3 Ravo/tools/check_packaged_runtime.py "${artifact}" \
               --workdir "${work}/${base}" \
               --repo-root "${GITHUB_WORKSPACE}" \
               --evidence-json "${evidence}" \
               --require-smoke; then
               status=1
               if [[ ! -f "${evidence}" ]]; then
-                printf '%s\n' "{"status":"FAIL","reason":"checker exited without evidence","artifact":"${base}","digest_sha256":"${digest}","source_sha":"${GITHUB_SHA}","run_id":"${GITHUB_RUN_ID}","run_attempt":"${GITHUB_RUN_ATTEMPT}"}" > "${evidence}"
+                python3 Ravo/tools/write_packaged_evidence_json.py \
+                  --output "${evidence}" \
+                  --field status=FAIL \
+                  --field "reason=checker exited without evidence" \
+                  --field "artifact=${base}" \
+                  --field "digest_sha256=${digest}" \
+                  --field "source_sha=${GITHUB_SHA}" \
+                  --field "run_id=${GITHUB_RUN_ID}" \
+                  --field "run_attempt=${GITHUB_RUN_ATTEMPT}"
               fi
             fi
           done
+          # Validate every uploaded evidence/meta file is real JSON before upload.
+          shopt -s nullglob
+          evidence_files=("${evidence_root}"/*.evidence.json "${evidence_root}"/*.meta.json)
+          if [[ ${#evidence_files[@]} -eq 0 ]]; then
+            echo "ERROR: no packaged evidence JSON produced"
+            exit 1
+          fi
+          python3 Ravo/tools/write_packaged_evidence_json.py --validate "${evidence_files[@]}"
           exit "${status}"
 
       - name: Upload packaged runtime evidence
