@@ -18,6 +18,7 @@
 #include <QTemporaryDir>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QAbstractItemModel>
 #include "ravo/foundation/log.h"
 #include "ravo/desktop/studio_presenter.h"
 
@@ -240,8 +241,10 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 return false;
             }
             // Filename template lives in copy/move mode and starts collapsed.
+            // Use the presenter API so the field text is a non-empty production template.
             presenter->setImportMode(QStringLiteral("copy"));
             presenter->setImportDestination(select_all_dir.path());
+            presenter->setImportFilenameTemplate(QStringLiteral("RavoSelectAll_{date}_{seq}"));
             for (QObject *parent = field->parent(); parent; parent = parent->parent())
             {
                 if (parent->property("expanded").isValid())
@@ -270,6 +273,18 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 QTimer::singleShot(20, &wait_scan, &QEventLoop::quit);
                 wait_scan.exec();
             }
+            // Production Import workspace must not be treated as a dialog modal.
+            // Re-applying importPageOpen into modalOpen must remain detectable here.
+            QEventLoop modal_bind;
+            QTimer::singleShot(20, &modal_bind, &QEventLoop::quit);
+            modal_bind.exec();
+            if (commands->modalOpen())
+            {
+                LOG_ERROR(
+                    logger(),
+                    "Import workspace must not set modalOpen; production shortcuts stay gated");
+                return false;
+            }
             presenter->importCandidates()->highlightExclusive(0);
             QEventLoop candidate_ready;
             QTimer::singleShot(30, &candidate_ready, &QEventLoop::quit);
@@ -291,6 +306,38 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 LOG_ERROR(logger(), "Select All smoke needs more than one eligible candidate");
                 return false;
             }
+            int duplicate_rows = 0;
+            for (int row = 0; row < presenter->importCandidates()->rowCount(); ++row)
+            {
+                if (presenter->importCandidates()
+                        ->data(presenter->importCandidates()->index(row, 0),
+                               ImportCandidateListModel::DuplicateRole)
+                        .toBool())
+                    ++duplicate_rows;
+            }
+            if (duplicate_rows < 1)
+            {
+                LOG_ERROR(logger(), "Select All smoke needs an ineligible duplicate candidate");
+                return false;
+            }
+            const auto select_all_shortcut_gate = [&](int *entries_out, bool *enabled_out)
+            {
+                int entries = 0;
+                bool enabled = false;
+                for (const auto &value : commands->shortcutEntries())
+                {
+                    const auto entry = value.toMap();
+                    if (entry.value(QStringLiteral("actionId")).toString() !=
+                        QStringLiteral("studio.photo.select_all"))
+                        continue;
+                    ++entries;
+                    enabled = entry.value(QStringLiteral("enabled")).toBool();
+                }
+                if (entries_out)
+                    *entries_out = entries;
+                if (enabled_out)
+                    *enabled_out = enabled;
+            };
             const auto send_select_all = [&]()
             {
                 const QKeySequence select_all(QKeySequence::SelectAll);
@@ -314,10 +361,31 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                     count += model->highlighted(row) ? 1 : 0;
                 return count;
             };
+            const auto exact_eligible_highlighted = [&]()
+            {
+                auto *model = presenter->importCandidates();
+                for (int row = 0; row < model->rowCount(); ++row)
+                {
+                    const bool is_eligible =
+                        model->data(model->index(row, 0), ImportCandidateListModel::EligibleRole)
+                            .toBool();
+                    if (model->highlighted(row) != is_eligible)
+                        return false;
+                }
+                return highlighted_count() == eligible;
+            };
 
+            // Text context (neg for candidates): production textInputActive Binding owns the gate.
+            const QString template_text = field->property("text").toString();
+            if (template_text.isEmpty())
+            {
+                LOG_ERROR(logger(),
+                          "Presenter filename template must be non-empty before Select All");
+                return false;
+            }
             field->forceActiveFocus();
             if (field->property("cursorPosition").isValid())
-                field->setProperty("cursorPosition", field->property("text").toString().size());
+                field->setProperty("cursorPosition", template_text.size());
             QMetaObject::invokeMethod(field, "deselect", Qt::DirectConnection);
             QEventLoop focus_text;
             QTimer::singleShot(20, &focus_text, &QEventLoop::quit);
@@ -325,10 +393,22 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             if (!commands->textInputActive() ||
                 !field->property("selectedText").toString().isEmpty())
             {
-                LOG_ERROR(logger(), "Filename template must start unselected with textInputActive");
+                LOG_ERROR(
+                    logger(),
+                    "Filename template must start unselected with production textInputActive");
                 return false;
             }
-            const QString template_text = field->property("text").toString();
+            {
+                int entries = 0;
+                bool enabled = true;
+                select_all_shortcut_gate(&entries, &enabled);
+                if (entries != 1 || enabled)
+                {
+                    LOG_ERROR(logger(),
+                              "Text focus must keep exactly one disabled Select All shortcut");
+                    return false;
+                }
+            }
             send_select_all();
             if (field->property("selectedText").toString() != template_text ||
                 highlighted_count() != 1)
@@ -338,10 +418,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 return false;
             }
 
-            // Import is modal in Main.qml; clear modalOpen so production Shortcuts can dispatch.
-            commands->setModalOpen(false);
-            commands->setTextInputActive(false);
-            // Ensure the action is available for the import candidate set.
+            // Grid context (pos): production bindings only — no modalOpen/textInputActive overrides.
             {
                 const auto state = commands->action(QStringLiteral("studio.photo.select_all"));
                 if (!state.value(QStringLiteral("enabled")).toBool())
@@ -356,37 +433,149 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             QEventLoop focus_grid;
             QTimer::singleShot(20, &focus_grid, &QEventLoop::quit);
             focus_grid.exec();
-            if (commands->textInputActive())
+            if (commands->textInputActive() || commands->modalOpen())
             {
-                LOG_ERROR(logger(), "Grid focus must clear textInputActive");
+                LOG_ERROR(logger(), "Grid focus must clear textInputActive with modalOpen false");
                 return false;
             }
+            {
+                int entries = 0;
+                bool enabled = false;
+                select_all_shortcut_gate(&entries, &enabled);
+                if (entries != 1 || !enabled)
+                {
+                    LOG_ERROR(logger(),
+                              "Import grid must expose exactly one enabled Select All shortcut");
+                    return false;
+                }
+            }
+            const int gallery_selected = presenter->selectedCount();
             presenter->importCandidates()->highlightExclusive(0);
+            int highlight_batches = 0;
+            QMetaObject::Connection highlight_watch =
+                QObject::connect(presenter->importCandidates(), &QAbstractItemModel::dataChanged,
+                                 presenter->importCandidates(),
+                                 [&highlight_batches](const QModelIndex &, const QModelIndex &,
+                                                      const QList<int> &roles)
+                                 {
+                                     if (roles.isEmpty() ||
+                                         roles.contains(ImportCandidateListModel::HighlightedRole))
+                                         ++highlight_batches;
+                                 });
             send_select_all();
-            if (highlighted_count() != eligible)
+            QObject::disconnect(highlight_watch);
+            if (highlight_batches < 1)
+            {
+                LOG_ERROR(logger(),
+                          "One Select All key must drive the candidate highlight command (got {})",
+                          highlight_batches);
+                return false;
+            }
+            if (!exact_eligible_highlighted())
             {
                 LOG_ERROR(logger(), "Grid Select All must highlight exact eligible set ({} vs {})",
                           highlighted_count(), eligible);
                 return false;
             }
-            for (int row = 0; row < presenter->importCandidates()->rowCount(); ++row)
+            if (presenter->selectedCount() != gallery_selected)
             {
-                const bool is_eligible = presenter->importCandidates()
-                                             ->data(presenter->importCandidates()->index(row, 0),
-                                                    ImportCandidateListModel::EligibleRole)
-                                             .toBool();
-                if (presenter->importCandidates()->highlighted(row) != is_eligible)
-                {
-                    LOG_ERROR(logger(), "Select All highlighted ineligible or missed eligible row");
-                    return false;
-                }
+                LOG_ERROR(logger(), "Import Select All must not mutate Gallery selection");
+                return false;
             }
+            // Idempotent second Select All — still one owner, no growth beyond eligible.
             send_select_all();
-            if (highlighted_count() != eligible)
+            if (!exact_eligible_highlighted())
             {
                 LOG_ERROR(logger(), "Second Select All must remain idempotent on eligible set");
                 return false;
             }
+
+            // Source tree focus (pos): non-text focus keeps Select All eligible for candidates.
+            auto *source_tree =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importSourceFolderTree"));
+            if (!source_tree)
+            {
+                LOG_ERROR(logger(), "Import source folder tree missing for Select All context");
+                return false;
+            }
+            presenter->importCandidates()->highlightExclusive(0);
+            source_tree->forceActiveFocus();
+            QEventLoop focus_tree;
+            QTimer::singleShot(20, &focus_tree, &QEventLoop::quit);
+            focus_tree.exec();
+            if (commands->textInputActive() || commands->modalOpen())
+            {
+                LOG_ERROR(logger(), "Source tree focus must leave text/modal gates inactive");
+                return false;
+            }
+            {
+                int entries = 0;
+                bool enabled = false;
+                select_all_shortcut_gate(&entries, &enabled);
+                if (entries != 1 || !enabled)
+                {
+                    LOG_ERROR(logger(), "Source tree focus must keep Select All shortcut enabled");
+                    return false;
+                }
+            }
+            send_select_all();
+            if (!exact_eligible_highlighted())
+            {
+                LOG_ERROR(logger(), "Source tree Select All must highlight exact eligible set");
+                return false;
+            }
+
+            // Real dialog modal (neg): production aboutDialog must block the shortcut path.
+            presenter->importCandidates()->highlightExclusive(0);
+            if (!QMetaObject::invokeMethod(window, "openAboutDialog", Qt::DirectConnection))
+            {
+                LOG_ERROR(logger(), "Unable to open production About dialog for modal gating");
+                return false;
+            }
+            QEventLoop about_open;
+            QTimer::singleShot(40, &about_open, &QEventLoop::quit);
+            about_open.exec();
+            if (!commands->modalOpen())
+            {
+                LOG_ERROR(logger(), "About dialog must set production modalOpen");
+                return false;
+            }
+            {
+                int entries = 0;
+                bool enabled = true;
+                select_all_shortcut_gate(&entries, &enabled);
+                if (entries != 1 || enabled)
+                {
+                    LOG_ERROR(logger(), "Real modal must disable the Select All shortcut entry");
+                    return false;
+                }
+            }
+            send_select_all();
+            if (highlighted_count() != 1)
+            {
+                LOG_ERROR(logger(), "Select All must not mutate candidates while a dialog is open");
+                return false;
+            }
+            auto *about = window->findChild<QObject *>(QStringLiteral("aboutDialog"));
+            if (!about || !about->property("visible").toBool())
+            {
+                LOG_ERROR(logger(), "Production aboutDialog is not visible for modal gating");
+                return false;
+            }
+            if (!QMetaObject::invokeMethod(about, "close", Qt::DirectConnection))
+            {
+                LOG_ERROR(logger(), "Unable to close production aboutDialog");
+                return false;
+            }
+            QEventLoop about_close;
+            QTimer::singleShot(40, &about_close, &QEventLoop::quit);
+            about_close.exec();
+            if (commands->modalOpen())
+            {
+                LOG_ERROR(logger(), "Closing About must clear production modalOpen");
+                return false;
+            }
+
             // Restore layout fixtures after catalog/source/destination mutations above.
             for (auto *model :
                  {presenter->importSourceFolders(), presenter->importDestinationFolders()})

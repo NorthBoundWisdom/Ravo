@@ -643,7 +643,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: studio.importPageOpen || removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible
+        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible
     }
 
     StudioCommandShortcuts {
@@ -1685,6 +1685,7 @@ ApplicationWindow {
 
     MessageDialog {
         id: aboutDialog
+        objectName: "aboutDialog"
         parentItem: window.contentItem
         titleText: qsTr("About Ravo Studio")
         messageText: qsTr("Ravo Studio is a local photo library and editor.")

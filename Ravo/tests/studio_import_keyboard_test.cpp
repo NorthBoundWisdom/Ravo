@@ -404,6 +404,18 @@ TEST(StudioImportKeyboard, SelectAllCommandOwnsImportGalleryAndTextContexts)
     EXPECT_GE(highlighted, 1);
     EXPECT_EQ(presenter.selectedCount(), gallery_selected);
 
+    // Import page open is not itself a modal; real modalOpen still blocks shortcuts.
+    controller.setTextInputActive(false);
+    controller.setModalOpen(false);
+    for (const auto &value : controller.shortcutEntries())
+        if (value.toMap().value(QStringLiteral("actionId")).toString() == action)
+            EXPECT_TRUE(value.toMap().value(QStringLiteral("enabled")).toBool());
+    controller.setModalOpen(true);
+    for (const auto &value : controller.shortcutEntries())
+        if (value.toMap().value(QStringLiteral("actionId")).toString() == action)
+            EXPECT_FALSE(value.toMap().value(QStringLiteral("enabled")).toBool());
+    controller.setModalOpen(false);
+
     // Text input yields: command must not change Import highlight/check.
     import_model->highlightExclusive(0);
     const int checked = import_model->selectedCount();
@@ -783,6 +795,14 @@ TEST(StudioImportKeyboard, SelectAllThroughProductionStudioActions)
     EXPECT_TRUE(main_source.contains(QStringLiteral("window.textInputActive")));
     // Removing production Actions/Shortcuts wiring must remain detectable.
     EXPECT_FALSE(main_source.contains(QStringLiteral("DuplicateSelectAllHost")));
+    // Import workspace is not a dialog modal; real dialogs still gate shortcuts.
+    const auto modal_pos = main_source.indexOf(QStringLiteral("property: \"modalOpen\""));
+    ASSERT_GE(modal_pos, 0);
+    const auto modal_slice = main_source.mid(modal_pos, 500);
+    EXPECT_FALSE(modal_slice.contains(QStringLiteral("studio.importPageOpen")))
+        << "Re-introducing importPageOpen into modalOpen must fail this contract";
+    EXPECT_TRUE(modal_slice.contains(QStringLiteral("aboutDialog.visible")));
+    EXPECT_TRUE(modal_slice.contains(QStringLiteral("removeDialog.visible")));
 }
 
 TEST(StudioImportKeyboard, ProductionWindowKeysUseQTestWindowEntry)
