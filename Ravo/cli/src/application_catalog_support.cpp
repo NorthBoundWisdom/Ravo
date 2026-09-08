@@ -46,6 +46,41 @@
 
 namespace ravo::cli_internal
 {
+
+Result<void> validate_catalog_backup_family_flags(const std::string_view subcommand,
+                                                  const CatalogCliArguments &flags)
+{
+    const bool backup_family = subcommand == "backup" || subcommand == "backup-verify" ||
+                               subcommand == "backup-restore" || subcommand == "backup-policy" ||
+                               subcommand == "backup-run";
+    if (!backup_family)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Not a backup-family catalog command",
+                          {{"subcommand", std::string(subcommand)}});
+    }
+    if ((subcommand == "backup" || subcommand == "backup-verify" ||
+         subcommand == "backup-restore") &&
+        flags.backup.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "catalog backup commands require --backup <directory>");
+    }
+    if (subcommand == "backup-restore" && flags.output.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "catalog backup-restore requires --output <catalog path>");
+    }
+    const bool has_schedule_options =
+        !flags.schedule_directory.empty() || !flags.schedule_interval_minutes.empty() ||
+        !flags.schedule_retention_count.empty() || !flags.schedule_enabled.empty();
+    if (has_schedule_options && subcommand != "backup-policy")
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Backup schedule options are only valid for catalog backup-policy");
+    }
+    return {};
+}
+
 [[nodiscard]] Result<std::unique_ptr<CatalogService>>
 open_catalog_session(const EngineFacade &engine, const std::string_view path, const bool create)
 {

@@ -104,6 +104,31 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return develop_fields_json();
     }
+    const bool backup_family = subcommand == "backup" || subcommand == "backup-verify" ||
+                               subcommand == "backup-restore" || subcommand == "backup-policy" ||
+                               subcommand == "backup-run";
+    const bool export_family = subcommand == "export" || subcommand == "export-batch" ||
+                               subcommand == "export-preset-save" ||
+                               subcommand == "export-job-create" ||
+                               subcommand == "export-job-resume";
+    if (subcommand == "probe")
+    {
+        auto validated = validate_catalog_probe_flags(flags.value());
+        if (!validated)
+            return validated.error();
+    }
+    if (export_family)
+    {
+        auto validated = validate_catalog_export_family_flags(subcommand, flags.value());
+        if (!validated)
+            return validated.error();
+    }
+    if (backup_family)
+    {
+        auto validated = validate_catalog_backup_family_flags(subcommand, flags.value());
+        if (!validated)
+            return validated.error();
+    }
     if (!flags.value().output.empty() && subcommand != "export" && subcommand != "probe" &&
         subcommand != "backup-restore" && subcommand != "preview")
     {

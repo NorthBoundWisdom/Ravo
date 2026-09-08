@@ -254,6 +254,12 @@ run_perspective_analysis(const EngineFacade &engine, std::span<const std::string
 [[nodiscard]] bool ends_with_png(std::string_view path) noexcept;
 [[nodiscard]] Result<JsonValue> run_studio_command(const EngineFacade &engine,
                                                    std::span<const std::string_view> positional);
+
+[[nodiscard]] Result<void> validate_catalog_probe_flags(const CatalogCliArguments &flags);
+[[nodiscard]] Result<void> validate_catalog_export_family_flags(std::string_view subcommand,
+                                                                const CatalogCliArguments &flags);
+[[nodiscard]] Result<void> validate_catalog_backup_family_flags(std::string_view subcommand,
+                                                                const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue> run_catalog_command(const EngineFacade &engine,
                                                     std::span<const std::string_view> positional);
 [[nodiscard]] Result<JsonValue>

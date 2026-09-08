@@ -13,9 +13,44 @@
 
 namespace ravo::cli_internal
 {
+
+Result<void> validate_catalog_export_family_flags(const std::string_view subcommand,
+                                                  const CatalogCliArguments &flags)
+{
+    const bool export_family = subcommand == "export" || subcommand == "export-batch" ||
+                               subcommand == "export-preset-save" ||
+                               subcommand == "export-job-create" ||
+                               subcommand == "export-job-resume";
+    if (!export_family)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Not an export-family catalog command",
+                          {{"subcommand", std::string(subcommand)}});
+    }
+    if (subcommand == "export" && flags.output.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "catalog export requires --output");
+    }
+    if (subcommand == "export-batch" && flags.output_directory.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "catalog export-batch requires --output-dir");
+    }
+    if (subcommand == "export" || subcommand == "export-batch")
+    {
+        if (flags.asset_id.empty() && flags.asset_ids.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog export requires --asset-id");
+        }
+    }
+    return {};
+}
+
 Result<JsonValue> run_catalog_export_command(CatalogService &service, std::string_view subcommand,
                                              const CatalogCliArguments &flags)
 {
+    auto validated = validate_catalog_export_family_flags(subcommand, flags);
+    if (!validated)
+        return validated.error();
     if (subcommand == "export-preset-save")
     {
         if (flags.output.empty())

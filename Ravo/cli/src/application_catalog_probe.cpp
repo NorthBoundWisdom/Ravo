@@ -15,21 +15,31 @@
 
 namespace ravo::cli_internal
 {
-Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogService &service,
-                                            const CatalogCliArguments &flags)
+
+Result<void> validate_catalog_probe_flags(const CatalogCliArguments &flags)
 {
+    // Command-local acceptance for probe. Shared catalog dispatch still rejects
+    // probe-only flags on other subcommands.
     if (flags.asset_id.empty())
     {
         return make_error(ErrorCode::kInvalidArgument, "catalog probe requires --asset-id");
     }
+    if (!flags.output.empty() && !ends_with_png(flags.output))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "catalog probe --output must be a .png path",
+                          {{"path", std::string(flags.output)}});
+    }
+    return {};
+}
+
+Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogService &service,
+                                            const CatalogCliArguments &flags)
+{
+    auto validated = validate_catalog_probe_flags(flags);
+    if (!validated)
+        return validated.error();
     if (!flags.output.empty())
     {
-        if (!ends_with_png(flags.output))
-        {
-            return make_error(ErrorCode::kInvalidArgument,
-                              "catalog probe --output must be a .png path",
-                              {{"path", std::string(flags.output)}});
-        }
         if (std::filesystem::exists(std::filesystem::path(std::string(flags.output))))
         {
             return make_error(ErrorCode::kConflict, "Output path already exists",
