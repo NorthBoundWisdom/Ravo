@@ -54,6 +54,10 @@ jobs:
         working-directory: Ravo/tools
         run: python -m unittest test_check_packaged_runtime.py
 
+      - name: Test packaged evidence JSON serializer
+        working-directory: Ravo/tools
+        run: python -m unittest test_write_packaged_evidence_json.py
+
       - name: Validate FreeCM project commands
         run: python FreeCM/tools/validate_repo_commands.py .
 
