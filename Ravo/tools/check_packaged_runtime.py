@@ -283,6 +283,28 @@ def _cli_json(proc: subprocess.CompletedProcess[str]) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+
+def read_png_ihdr(path: Path) -> tuple[int, int]:
+    """Decode IHDR width/height from a real PNG; reject truncated or non-PNG payloads."""
+    data = path.read_bytes()
+    if len(data) < 33 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG")
+    length = int.from_bytes(data[8:12], "big")
+    chunk = data[12:16]
+    if chunk != b"IHDR" or length < 13 or len(data) < 24 + length:
+        raise ValueError("missing or truncated IHDR")
+    width = int.from_bytes(data[16:20], "big")
+    height = int.from_bytes(data[20:24], "big")
+    if width <= 0 or height <= 0:
+        raise ValueError("non-positive PNG dimensions")
+    return width, height
+
+
+def supported_probe_color_profile(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    return value.casefold() in {"srgb", "srgb-linear", "display-p3"}
+
 def parse_cli_success_envelope(proc: subprocess.CompletedProcess[str]) -> dict | None:
     """Accept only the versioned ravo.cli.result success envelope with object data.
 
@@ -480,11 +502,37 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
                ((probed.stderr or probed.stdout or "")[:240]))
         record("catalog_reopen_hash", Status.FAIL, "probe failed")
         return
-    if probe_out.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
-        record("catalog_probe_or_render", Status.FAIL, "probe output is not a PNG")
+    try:
+        ihdr_w, ihdr_h = read_png_ihdr(probe_out)
+    except ValueError as exc:
+        record("catalog_probe_or_render", Status.FAIL, f"probe PNG invalid: {exc}")
         record("catalog_reopen_hash", Status.FAIL, "probe artifact invalid")
         return
-    record("catalog_probe_or_render", Status.PASS, str(probe_out))
+    json_w = probe_data.get("width")
+    json_h = probe_data.get("height")
+    if json_w != ihdr_w or json_h != ihdr_h:
+        record("catalog_probe_or_render", Status.FAIL,
+               f"probe JSON size {json_w}x{json_h} != IHDR {ihdr_w}x{ihdr_h}")
+        record("catalog_reopen_hash", Status.FAIL, "probe dimensions mismatch")
+        return
+    if not supported_probe_color_profile(probe_data.get("color_profile")):
+        record("catalog_probe_or_render", Status.FAIL, "unsupported or missing color_profile")
+        record("catalog_reopen_hash", Status.FAIL, "probe profile invalid")
+        return
+    if probe_data.get("asset_id") != asset_id:
+        record("catalog_probe_or_render", Status.FAIL, "probe asset_id mismatch")
+        record("catalog_reopen_hash", Status.FAIL, "probe identity invalid")
+        return
+    probe_sha = sha256_file(probe_out)
+    if not probe_sha or len(probe_sha) != 64:
+        record("catalog_probe_or_render", Status.FAIL, "probe artifact hash unavailable")
+        record("catalog_reopen_hash", Status.FAIL, "probe hash invalid")
+        return
+    if sha256_file(png) != source_sha or png.stat().st_mtime_ns != source_stat.st_mtime_ns:
+        record("catalog_probe_or_render", Status.FAIL, "probe mutated source bytes/mtime")
+        record("catalog_reopen_hash", Status.FAIL, "source mutated during probe")
+        return
+    record("catalog_probe_or_render", Status.PASS, f"{probe_out};sha256={probe_sha}")
 
     try:
         listed = _run_cli(cli, ["catalog", "list", "--catalog", str(catalog), "--json"], env)

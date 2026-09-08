@@ -441,5 +441,30 @@ class CatalogMembershipPredicateTests(unittest.TestCase):
 
 
 
+class ReadPngIhdrTests(unittest.TestCase):
+    def test_accepts_minimal_png_dimensions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ok.png"
+            cpr.write_minimal_png(path, width=16, height=12)
+            self.assertEqual(cpr.read_png_ihdr(path), (16, 12))
+
+    def test_rejects_signature_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sig.png"
+            path.write_bytes(b"\x89PNG\r\n\x1a\n")
+            with self.assertRaises(ValueError):
+                cpr.read_png_ihdr(path)
+
+    def test_rejects_truncated_ihdr(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trunc.png"
+            cpr.write_minimal_png(path, width=8, height=8)
+            data = path.read_bytes()
+            path.write_bytes(data[:20])
+            with self.assertRaises(ValueError):
+                cpr.read_png_ihdr(path)
+
+
+
 if __name__ == "__main__":
     unittest.main()
