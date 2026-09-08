@@ -291,9 +291,14 @@ void StudioImportThumbnailController::ensure(const int row)
 {
     if (!gatesAllowWork() || !host_.model || row < 0 || row >= host_.model->rowCount())
         return;
+    // Residency / terminal / in-flight / pending idempotence must precede capacity.
+    // Otherwise a repeat ensure at a full pending set marks an already-queued row
+    // kCapacityDeferred, clears loading, and lets kick drop it via hasDemandTerminal.
     if (hasDemandTerminal(row) || !host_.model->thumbnail(row).isNull())
         return;
     if (in_flight_ && in_flight_row_ == row)
+        return;
+    if (pending_rows_.count(row) > 0)
         return;
     // Legacy ensure must not re-promote off-viewport rows over active demand.
     if (!visible_demand_.empty() || !prefetch_demand_.empty() || current_row_ >= 0)
@@ -309,8 +314,7 @@ void StudioImportThumbnailController::ensure(const int row)
         host_.model->setThumbnailLoading(row, false);
         return;
     }
-    if (!pending_rows_.insert(row).second)
-        return;
+    pending_rows_.insert(row);
     host_.model->setThumbnailLoading(row, true);
     trimPendingToCap();
     pending_high_water_ = std::max(pending_high_water_, pending_rows_.size());

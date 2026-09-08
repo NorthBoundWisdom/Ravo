@@ -1038,4 +1038,129 @@ TEST(StudioImportThumbnailScheduler, InFlightRowIsNotDoublePendingUnderSameDeman
     EXPECT_EQ(controller.dispatchedCount(), 1U);
 }
 
+TEST(StudioImportThumbnailScheduler, RepeatEnsureAtFullPendingDoesNotCapacityDefer)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    constexpr int kRows = 300;
+    std::vector<ImportCandidate> candidates(static_cast<std::size_t>(kRows));
+    for (int row = 0; row < kRows; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    controller.clearObservations();
+
+    // Fill pending to the hard cap without a viewport demand set.
+    for (int row = 0; row < static_cast<int>(StudioImportThumbnailController::kPendingHardCap);
+         ++row)
+        controller.ensure(row);
+    EXPECT_EQ(controller.pendingCount(), StudioImportThumbnailController::kPendingHardCap);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 0U);
+    EXPECT_TRUE(model.thumbnailLoading(0));
+    EXPECT_EQ(controller.demandTerminalCount(), 0U);
+    const auto generation = controller.demandGeneration();
+    const auto dispatched_before = controller.dispatchedCount();
+    const auto pending_before = controller.pendingCount();
+
+    // Saturated pending: repeat ensure of an already-queued row must be idempotent.
+    controller.ensure(0);
+    EXPECT_EQ(controller.pendingCount(), pending_before);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 0U);
+    EXPECT_EQ(controller.demandTerminalCount(), 0U);
+    EXPECT_TRUE(model.thumbnailLoading(0));
+    EXPECT_EQ(controller.demandGeneration(), generation);
+    EXPECT_EQ(controller.dispatchedCount(), dispatched_before);
+
+    // 257th distinct row is a true new admission and must defer at capacity.
+    controller.ensure(static_cast<int>(StudioImportThumbnailController::kPendingHardCap));
+    EXPECT_EQ(controller.pendingCount(), StudioImportThumbnailController::kPendingHardCap);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 1U);
+    EXPECT_FALSE(
+        model.thumbnailLoading(static_cast<int>(StudioImportThumbnailController::kPendingHardCap)));
+    EXPECT_EQ(controller.demandGeneration(), generation);
+    EXPECT_EQ(controller.dispatchedCount(), dispatched_before);
+
+    // Boundary: ensuring row 255 (last admitted) again stays pending, not deferred.
+    const int last_admitted =
+        static_cast<int>(StudioImportThumbnailController::kPendingHardCap) - 1;
+    controller.ensure(last_admitted);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 1U);
+    EXPECT_TRUE(model.thumbnailLoading(last_admitted));
+    EXPECT_EQ(controller.dispatchedCount(), dispatched_before);
+}
+
+TEST(StudioImportThumbnailScheduler, EnsureBudgetBoundaries255And256)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(400);
+    for (int row = 0; row < 400; ++row)
+        candidates[static_cast<std::size_t>(row)].source_path = std::to_string(row);
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+
+    for (int row = 0; row < 255; ++row)
+        controller.ensure(row);
+    EXPECT_EQ(controller.pendingCount(), 255U);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 0U);
+    controller.ensure(0);
+    EXPECT_EQ(controller.pendingCount(), 255U);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 0U);
+    EXPECT_TRUE(model.thumbnailLoading(0));
+
+    controller.ensure(255);
+    EXPECT_EQ(controller.pendingCount(), 256U);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 0U);
+    controller.ensure(255);
+    EXPECT_EQ(controller.pendingCount(), 256U);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 0U);
+    EXPECT_TRUE(model.thumbnailLoading(255));
+
+    controller.ensure(256);
+    EXPECT_EQ(controller.pendingCount(), 256U);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 1U);
+    EXPECT_FALSE(model.thumbnailLoading(256));
+}
+
+TEST(StudioImportThumbnailScheduler, InFlightReensureDoesNotDispatchTwice)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path = directory.filePath("inflight-reensure.png");
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(Qt::darkCyan);
+        ASSERT_TRUE(image.save(path, "PNG"));
+    }
+    ImportCandidateListModel model;
+    ImportCandidate candidate;
+    candidate.source_path = path.toStdString();
+    candidate.display_name = "inflight-reensure.png";
+    candidate.size_bytes = 16;
+    model.setCandidates({candidate});
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    std::promise<void> gate_promise;
+    controller.installDecodeGate(gate_promise.get_future().share());
+    controller.clearObservations();
+    controller.ensure(0);
+    QGuiApplication::processEvents();
+    ASSERT_TRUE(wait_for([&] { return controller.inFlight(); }));
+    const auto generation = controller.demandGeneration();
+    const auto dispatched = controller.dispatchedCount();
+    for (int i = 0; i < 32; ++i)
+        controller.ensure(0);
+    EXPECT_EQ(controller.dispatchedCount(), dispatched);
+    EXPECT_EQ(controller.pendingCount(), 0U);
+    EXPECT_EQ(controller.demandGeneration(), generation);
+    EXPECT_EQ(controller.demandCapacityDeferredCount(), 0U);
+    gate_promise.set_value();
+    controller.clearDecodeGate();
+    ASSERT_TRUE(wait_for(
+        [&] { return controller.demandQuiescent() && !model.thumbnail(0).isNull(); }, 30000));
+    EXPECT_EQ(controller.dispatchedCount(), 1U);
+}
+
 } // namespace ravo
