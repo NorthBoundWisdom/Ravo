@@ -70,6 +70,37 @@ TEST_F(CliTest, VersionJsonUsesTheVersionedEnvelopeAndNoStderrLogs)
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
+TEST_F(CliTest, HelpExitsZeroWithoutTreatingHelpAsInvalidCommand)
+{
+    for (const char *flag : {"--help", "-h", "help"})
+    {
+        std::ostringstream stdout_stream;
+        std::ostringstream stderr_stream;
+        const CliApplication application(engine, stdout_stream, stderr_stream);
+        const std::vector<std::string_view> arguments{flag};
+        EXPECT_EQ(application.run(std::span{arguments}), 0) << flag;
+        EXPECT_FALSE(stdout_stream.str().empty()) << flag;
+        EXPECT_NE(stdout_stream.str().find("Usage:"), std::string::npos) << flag;
+        EXPECT_TRUE(stderr_stream.str().empty()) << flag << " stderr=" << stderr_stream.str();
+    }
+}
+
+TEST_F(CliTest, HelpJsonUsesTheVersionedEnvelope)
+{
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    const std::vector<std::string_view> arguments{"--help", "--json"};
+    EXPECT_EQ(application.run(std::span{arguments}), 0);
+    const auto parsed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    const auto *ok = parsed.value().find("ok");
+    ASSERT_NE(ok, nullptr);
+    ASSERT_NE(ok->boolean_if(), nullptr);
+    EXPECT_TRUE(*ok->boolean_if());
+    EXPECT_TRUE(stderr_stream.str().empty());
+}
+
 TEST_F(CliTest, RealCliJsonStdoutContainsOnlyTheProtocolEnvelope)
 {
     QProcess process;

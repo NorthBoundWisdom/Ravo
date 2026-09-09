@@ -70,7 +70,7 @@ parse_arguments(const std::span<const std::string_view> arguments)
             parsed.json = true;
             continue;
         }
-        if (argument == "--version")
+        if (argument == "--version" || argument == "--help" || argument == "-h")
         {
             parsed.positional.push_back(argument);
             continue;
@@ -283,6 +283,32 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
         return emit(JsonValue{JsonValue::Object{
                         {"name", "Ravo"}, {"protocol", "ravo-cli/v1"}, {"version", RAVO_VERSION}}},
                     json);
+    }
+    if (positional.size() == 1 && (positional.front() == "--help" || positional.front() == "-h" ||
+                                   positional.front() == "help"))
+    {
+        // Packaged runtime smoke launches `ravo --help` and requires exit 0.
+        // Keep the contract human-readable by default; --json returns a stable object.
+        if (json)
+        {
+            return emit(
+                JsonValue{JsonValue::Object{
+                    {"name", "Ravo"},
+                    {"protocol", "ravo-cli/v1"},
+                    {"usage", "ravo [--json] <command> [args]"},
+                    {"commands",
+                     JsonValue::Array{"--version", "--help", "catalog", "studio", "recipe",
+                                      "render", "inspect", "display-profile", "perspective", "iq",
+                                      "noise", "lut", "develop-fields", "operations"}},
+                    {"version", RAVO_VERSION}}},
+                true);
+        }
+        stdout_stream_
+            << "Ravo " << RAVO_VERSION << " CLI\n"
+            << "Usage: ravo [--json] <command> [args]\n"
+            << "Commands: --version, --help, catalog, studio, recipe, render, inspect,\n"
+            << "          display-profile, perspective, iq, noise, lut, develop-fields, operations\n";
+        return 0;
     }
     if (positional.size() == 1 && positional.front() == "develop-fields")
     {

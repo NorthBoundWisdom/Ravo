@@ -45,8 +45,8 @@
         "Ravo/tests/cli_iq_test.cpp",
         "Ravo/tests/cli_catalog_args_parse_test.cpp"
       ],
-      "case_count": 84,
-      "case_sha256": "3f83262e1093aceb5dc3252f555a4bd71851ac39e9acb3ee471f2181d95c2168"
+      "case_count": 86,
+      "case_sha256": "26e272d9b3d2306497a71a3655ac1a35e374239ed537afc3fa18ba880f7b3f83"
     },
     {
       "sources": [
