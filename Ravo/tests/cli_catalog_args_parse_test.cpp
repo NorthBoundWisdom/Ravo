@@ -1,4 +1,5 @@
 #include <clocale>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -140,6 +141,42 @@ TEST(CliCatalogArgsParseTest, ExportJobCreateParsesMultiAssetDirectoryFlags)
     EXPECT_EQ(parsed.value().export_job, "/tmp/job.json");
     EXPECT_EQ(parsed.value().job_id, "job-1");
     EXPECT_EQ(parsed.value().filename_template, "{stem}-{index}");
+}
+
+TEST(CliCatalogArgsParseTest, OfflineProxyMaxTotalBytesUsesUint64)
+{
+    const auto parse_with = [](const std::string_view value)
+    {
+        return cli_internal::parse_catalog_flags(std::vector<std::string_view>{
+            "catalog", "offline-proxy-evict", "--max-total-bytes", value});
+    };
+
+    auto eight_gib = parse_with("8589934592");
+    ASSERT_TRUE(eight_gib) << eight_gib.error().message;
+    ASSERT_TRUE(eight_gib.value().max_total_bytes.has_value());
+    EXPECT_EQ(*eight_gib.value().max_total_bytes, 8589934592ULL);
+
+    auto one = parse_with("1");
+    ASSERT_TRUE(one) << one.error().message;
+    ASSERT_TRUE(one.value().max_total_bytes.has_value());
+    EXPECT_EQ(*one.value().max_total_bytes, 1ULL);
+
+    auto zero = parse_with("0");
+    ASSERT_FALSE(zero);
+    EXPECT_NE(zero.error().message.find("must be positive"), std::string::npos);
+
+    auto negative = parse_with("-1");
+    ASSERT_FALSE(negative);
+    EXPECT_EQ(negative.error().code, ErrorCode::kInvalidArgument);
+
+    auto max_u64 = parse_with("18446744073709551615");
+    ASSERT_TRUE(max_u64) << max_u64.error().message;
+    ASSERT_TRUE(max_u64.value().max_total_bytes.has_value());
+    EXPECT_EQ(*max_u64.value().max_total_bytes, UINT64_C(18446744073709551615));
+
+    auto overflow = parse_with("18446744073709551616");
+    ASSERT_FALSE(overflow);
+    EXPECT_EQ(overflow.error().code, ErrorCode::kInvalidArgument);
 }
 
 } // namespace
