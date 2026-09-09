@@ -1,4 +1,5 @@
 #include "ravo/services/catalog_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include <algorithm>
 #include <charconv>
@@ -561,10 +562,10 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
 
 } // namespace
 
-Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_view destination,
-                                                            const CancellationToken &cancellation)
+Result<CatalogBackupArtifact> RecoveryService::create_backup(const std::string_view destination,
+                                                             const CancellationToken &cancellation)
 {
-    if (repository_ == nullptr || recovery_ == nullptr)
+    if (catalog_->repository_ == nullptr || catalog_->recovery_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     if (destination.empty())
         return make_error(ErrorCode::kInvalidArgument,
@@ -590,9 +591,9 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
     const auto checkpoint = [this, &cancellation](const std::string_view name,
                                                   const std::string_view path) -> Result<void>
     {
-        if (testing_backup_checkpoint_)
+        if (catalog_->testing_backup_checkpoint_)
         {
-            auto injected = testing_backup_checkpoint_(name, path);
+            auto injected = catalog_->testing_backup_checkpoint_(name, path);
             if (!injected)
             {
                 auto error = std::move(injected).error();
@@ -620,10 +621,10 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
     auto synchronized = sync_recovery(std::nullopt, cancellation);
     if (!synchronized)
         return synchronized.error();
-    auto before = repository_->snapshot();
+    auto before = catalog_->repository_->snapshot();
     if (!before)
         return before.error();
-    auto states_before = repository_->list_recovery_states();
+    auto states_before = catalog_->repository_->list_recovery_states();
     if (!states_before)
         return states_before.error();
     if (std::any_of(states_before.value().begin(), states_before.value().end(),
@@ -672,7 +673,8 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
         return fail(ready.error());
 
     const auto stage_catalog = stage.path() / path_from_utf8(kCatalogBackupCatalogFilename);
-    auto catalog = repository_->create_backup_database(path_utf8(stage_catalog), cancellation);
+    auto catalog =
+        catalog_->repository_->create_backup_database(path_utf8(stage_catalog), cancellation);
     if (!catalog)
         return fail(catalog.error());
     if (catalog.value().catalog_id != before.value().catalog_id ||
@@ -693,7 +695,7 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
         active = cancellation.check();
         if (!active)
             return fail(active.error());
-        auto source = recovery_->verify(state.asset_id, state.generation, cancellation);
+        auto source = catalog_->recovery_->verify(state.asset_id, state.generation, cancellation);
         if (!source)
         {
             auto error = source.error();
@@ -712,8 +714,8 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
             error.context.insert_or_assign("reason", "backup_sidecar_copy_failed");
             return fail(std::move(error));
         }
-        auto verified = recovery_->verify_artifact(path_utf8(output_sidecar), state.asset_id,
-                                                   state.generation, cancellation);
+        auto verified = catalog_->recovery_->verify_artifact(
+            path_utf8(output_sidecar), state.asset_id, state.generation, cancellation);
         if (!verified)
             return fail(verified.error());
         if (verified.value().sha256 != source.value().sha256 ||
@@ -766,10 +768,10 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
     if (!ready)
         return fail(ready.error());
 
-    auto after = repository_->snapshot();
+    auto after = catalog_->repository_->snapshot();
     if (!after)
         return fail(after.error());
-    auto states_after = repository_->list_recovery_states();
+    auto states_after = catalog_->repository_->list_recovery_states();
     if (!states_after)
         return fail(states_after.error());
     if (after.value().catalog_id != before.value().catalog_id ||
@@ -922,12 +924,26 @@ Result<CatalogBackupVerification> verify_catalog_backup(
 }
 
 Result<CatalogBackupVerification>
+RecoveryService::verify_backup(const std::string_view backup_directory,
+                               const CancellationToken &cancellation) const
+{
+    if (catalog_->repository_ == nullptr || catalog_->recovery_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return verify_catalog_backup(*catalog_->repository_, *catalog_->recovery_, backup_directory,
+                                 cancellation);
+}
+
+Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_view destination,
+                                                            const CancellationToken &cancellation)
+{
+    return recovery().create_backup(destination, cancellation);
+}
+
+Result<CatalogBackupVerification>
 CatalogService::verify_backup(const std::string_view backup_directory,
                               const CancellationToken &cancellation) const
 {
-    if (repository_ == nullptr || recovery_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return verify_catalog_backup(*repository_, *recovery_, backup_directory, cancellation);
+    return recovery().verify_backup(backup_directory, cancellation);
 }
 
 } // namespace ravo

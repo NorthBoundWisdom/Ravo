@@ -1,4 +1,5 @@
 #include "ravo/services/catalog_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include <algorithm>
 #include <charconv>
@@ -89,21 +90,21 @@ struct VerifiedScheduledBackup
 
 } // namespace
 
-Result<CatalogBackupPolicy> CatalogService::backup_policy() const
+Result<CatalogBackupPolicy> RecoveryService::backup_policy() const
 {
-    if (repository_ == nullptr)
+    if (catalog_->repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->backup_policy();
+    return catalog_->repository_->backup_policy();
 }
 
-Result<CatalogBackupPolicy> CatalogService::set_backup_policy(CatalogBackupPolicy policy,
-                                                              const std::int64_t now_unix_ms)
+Result<CatalogBackupPolicy> RecoveryService::set_backup_policy(CatalogBackupPolicy policy,
+                                                               const std::int64_t now_unix_ms)
 {
-    if (repository_ == nullptr)
+    if (catalog_->repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     if (now_unix_ms < 0)
         return make_error(ErrorCode::kInvalidArgument, "Backup policy time must be non-negative");
-    auto current = repository_->backup_policy();
+    auto current = catalog_->repository_->backup_policy();
     if (!current)
         return current.error();
     current.value().enabled = policy.enabled;
@@ -130,24 +131,24 @@ Result<CatalogBackupPolicy> CatalogService::set_backup_policy(CatalogBackupPolic
                 ErrorCode::kValidation, "Scheduled backup destination is not an existing directory",
                 "backup_schedule_destination_invalid", path_utf8(destination), error.message());
     }
-    auto saved = repository_->save_backup_policy(current.value());
+    auto saved = catalog_->repository_->save_backup_policy(current.value());
     if (!saved)
         return saved.error();
     return current.value();
 }
 
 Result<CatalogBackupScheduleResult>
-CatalogService::run_scheduled_backup(const std::int64_t now_unix_ms,
-                                     const CancellationToken &cancellation, const bool force)
+RecoveryService::run_scheduled_backup(const std::int64_t now_unix_ms,
+                                      const CancellationToken &cancellation, const bool force)
 {
-    if (repository_ == nullptr || recovery_ == nullptr)
+    if (catalog_->repository_ == nullptr || catalog_->recovery_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     if (now_unix_ms < 0)
         return make_error(ErrorCode::kInvalidArgument, "Backup schedule time must be non-negative");
     auto active = cancellation.check();
     if (!active)
         return active.error();
-    auto policy = repository_->backup_policy();
+    auto policy = catalog_->repository_->backup_policy();
     if (!policy)
         return policy.error();
     CatalogBackupScheduleResult result;
@@ -168,10 +169,10 @@ CatalogService::run_scheduled_backup(const std::int64_t now_unix_ms,
                                     path_utf8(destination_root), destination_error.message());
         policy.value().last_error = error.message;
         policy.value().next_run_unix_ms = next_run(now_unix_ms, policy.value().interval_minutes);
-        static_cast<void>(repository_->save_backup_policy(policy.value()));
+        static_cast<void>(catalog_->repository_->save_backup_policy(policy.value()));
         return error;
     }
-    auto snapshot = repository_->snapshot();
+    auto snapshot = catalog_->repository_->snapshot();
     if (!snapshot)
         return snapshot.error();
     if (!safe_catalog_id(snapshot.value().catalog_id))
@@ -185,7 +186,7 @@ CatalogService::run_scheduled_backup(const std::int64_t now_unix_ms,
     {
         policy.value().last_error = backup.error().message;
         policy.value().next_run_unix_ms = next_run(now_unix_ms, policy.value().interval_minutes);
-        static_cast<void>(repository_->save_backup_policy(policy.value()));
+        static_cast<void>(catalog_->repository_->save_backup_policy(policy.value()));
         return backup.error();
     }
     result.ran = true;
@@ -199,7 +200,7 @@ CatalogService::run_scheduled_backup(const std::int64_t now_unix_ms,
             policy.value().last_error = error.message;
             policy.value().next_run_unix_ms =
                 next_run(now_unix_ms, policy.value().interval_minutes);
-            auto saved = repository_->save_backup_policy(policy.value());
+            auto saved = catalog_->repository_->save_backup_policy(policy.value());
             if (!saved)
             {
                 error.context.insert_or_assign("policy_update_failed", "true");
@@ -298,7 +299,7 @@ CatalogService::run_scheduled_backup(const std::int64_t now_unix_ms,
     policy.value().next_run_unix_ms = next_run(now_unix_ms, policy.value().interval_minutes);
     policy.value().last_backup_bytes = backup.value().catalog.bytes + backup.value().sidecar_bytes;
     policy.value().last_error.reset();
-    auto saved = repository_->save_backup_policy(policy.value());
+    auto saved = catalog_->repository_->save_backup_policy(policy.value());
     if (!saved)
     {
         auto error = saved.error();
@@ -308,6 +309,24 @@ CatalogService::run_scheduled_backup(const std::int64_t now_unix_ms,
     }
     result.policy = policy.value();
     return result;
+}
+
+Result<CatalogBackupPolicy> CatalogService::backup_policy() const
+{
+    return recovery().backup_policy();
+}
+
+Result<CatalogBackupPolicy> CatalogService::set_backup_policy(CatalogBackupPolicy policy,
+                                                              const std::int64_t now_unix_ms)
+{
+    return recovery().set_backup_policy(std::move(policy), now_unix_ms);
+}
+
+Result<CatalogBackupScheduleResult>
+CatalogService::run_scheduled_backup(const std::int64_t now_unix_ms,
+                                     const CancellationToken &cancellation, const bool force)
+{
+    return recovery().run_scheduled_backup(now_unix_ms, cancellation, force);
 }
 
 } // namespace ravo

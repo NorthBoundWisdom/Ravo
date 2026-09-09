@@ -187,7 +187,7 @@ Result<void> CatalogService::close()
     std::optional<TaskError> recovery_error;
     if (recovery_ != nullptr)
     {
-        auto synchronized = sync_recovery(std::nullopt);
+        auto synchronized = recovery().sync_recovery(std::nullopt);
         if (!synchronized)
         {
             recovery_error = synchronized.error();
@@ -372,20 +372,12 @@ CatalogService::list_previews_for_assets(const std::vector<std::string> &asset_i
 
 Result<AssetRecoveryState> CatalogService::recovery_state(const std::string_view asset_id) const
 {
-    if (repository_ == nullptr || recovery_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    return repository_->recovery_state(asset_id);
+    return recovery().recovery_state(asset_id);
 }
 
 Result<std::vector<AssetRecoveryState>> CatalogService::pending_recovery() const
 {
-    if (repository_ == nullptr || recovery_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    return repository_->list_pending_recovery();
+    return recovery().pending_recovery();
 }
 
 Result<RecoveryArtifact>
@@ -474,65 +466,7 @@ Result<RecoverySyncResult>
 CatalogService::sync_recovery(const std::optional<std::string_view> asset_id,
                               const CancellationToken &cancellation)
 {
-    if (repository_ == nullptr || recovery_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    RecoverySyncResult result;
-    result.root = recovery_->root();
-    if (asset_id)
-    {
-        auto state = repository_->recovery_state(*asset_id);
-        if (!state)
-        {
-            return state.error();
-        }
-        result.pending_before = state.value().pending() ? 1U : 0U;
-        auto artifact = synchronize_recovery_asset(*asset_id, cancellation);
-        if (!artifact)
-        {
-            return artifact.error();
-        }
-        result.artifacts.push_back(std::move(artifact).value());
-    }
-    else
-    {
-        auto pending = repository_->list_pending_recovery();
-        if (!pending)
-        {
-            return pending.error();
-        }
-        result.pending_before = pending.value().size();
-        result.artifacts.reserve(pending.value().size());
-        for (const auto &state : pending.value())
-        {
-            auto active = cancellation.check();
-            if (!active)
-            {
-                auto error = active.error();
-                error.context.insert_or_assign("completed_count",
-                                               std::to_string(result.artifacts.size()));
-                return error;
-            }
-            auto artifact = synchronize_recovery_asset(state.asset_id, cancellation);
-            if (!artifact)
-            {
-                auto error = artifact.error();
-                error.context.insert_or_assign("asset_id", state.asset_id);
-                error.context.insert_or_assign("completed_count",
-                                               std::to_string(result.artifacts.size()));
-                return error;
-            }
-            result.artifacts.push_back(std::move(artifact).value());
-        }
-    }
-    auto remaining = repository_->list_pending_recovery();
-    if (!remaining)
-    {
-        return remaining.error();
-    }
-    result.pending_after = remaining.value().size();
-    return result;
+    return recovery().sync_recovery(asset_id, cancellation);
 }
 
 Result<std::vector<FolderRecord>> CatalogService::list_folders() const
