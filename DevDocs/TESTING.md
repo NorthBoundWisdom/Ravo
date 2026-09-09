@@ -468,6 +468,13 @@ probe rather than a pass.
 probe (directory exists / enumeration can begin) is not REL-01 evidence. Do not
 treat a non-empty directory check as mixed-corpus recovery qualification or C3.
 
+`MixedCorpusReopenRecoveryTest.PhotoCorpusOfflineRestoreReopenVertical` is a
+bounded opt-in vertical (max 8 selected assets, staged copies only). When
+`RAVO_PHOTO_CORPUS` is unset it skips as UNTESTED. Passing it contracts offline
+restore/reopen for the selected subset; it is not REL-01 C3 complete and must
+not invent missing PNG/TIFF/X-Trans coverage.
+
+
 
 ## Test framework and target boundaries
 
