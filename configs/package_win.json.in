@@ -37,6 +37,7 @@
     ]
   },
   "windows": {
+    "includeOffscreenPlugin": true,
     "windeployqt": "@RAVO_PACKAGE_QT_BIN_DIR@/windeployqt.exe",
     "dllSearchPaths": @RAVO_PACKAGE_RUNTIME_SEARCH_PATHS_JSON@,
     "requiredDlls": [],

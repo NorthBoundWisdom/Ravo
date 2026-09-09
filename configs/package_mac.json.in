@@ -36,6 +36,7 @@
     "removeBundlePaths": [
       "Contents/PlugIns/sqldrivers/libqsqlmimer.dylib"
     ],
+    "includeOffscreenPlugin": true,
     "dmgOutputPath": "@RAVO_PACKAGE_DIST_ROOT@/@RAVO_PACKAGE_DIST_NAME@.dmg",
     "dmgVolumeName": "Ravo Studio",
     "verifyBundledQt": true,

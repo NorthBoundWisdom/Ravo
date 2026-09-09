@@ -41,6 +41,8 @@ QtObject {
     }
 
     function inspectSourceWidth() {
+        if (!studio)
+            return 1;
         if (studio.zoomMode === "actual" && studio.selectedWorkingWidth > 0)
             return Math.max(1, Math.round(studio.selectedWorkingWidth / devicePixelRatio));
         const width = Math.max(studio.previewViewportWidth, 1);
@@ -48,6 +50,8 @@ QtObject {
     }
 
     function inspectSourceHeight() {
+        if (!studio)
+            return 1;
         if (studio.zoomMode === "actual" && studio.selectedWorkingHeight > 0)
             return Math.max(1, Math.round(studio.selectedWorkingHeight / devicePixelRatio));
         return Math.max(studio.previewViewportHeight, 1);

@@ -289,8 +289,15 @@ validate Windows DLL deployment or the Linux AppDir runtime.
 Installed launch must work after the archive is copied away from the build
 tree. Settings, logs, and live-control sockets use `QStandardPaths` under the
 user home or an explicit `RAVO_LIVE_CONTROL_DIR`, never the build tree.
-Distribution Studio binaries ship the native Qt platform plugin (`cocoa`,
-`windows`, or the Linux desktop plugin), not `offscreen`. Linux DEB launchers
+Distribution Studio binaries always ship the native Qt platform plugin
+(`cocoa`, `windows`, or the Linux desktop plugin). macOS packages also set
+`mac.includeOffscreenPlugin` so FreeCM copies `libqoffscreen.dylib` beside
+cocoa: packaged `--require-smoke` forces `QT_QPA_PLATFORM=offscreen` with a
+cleaned env that cannot see the host Qt plugin path. Linux copies the full
+Qt `plugins` tree (including offscreen); Windows packages set `windows.includeOffscreenPlugin` so FreeCM passes
+`--include-plugins qoffscreen` to windeployqt (same as the Studio POST_BUILD
+deploy). Offscreen packaged smoke still does not prove
+a native desktop session. Linux DEB launchers
 under `/usr/bin` exec `/opt/RavoStudio/bin/...` and are valid only after
 `dpkg -i`. A Linux payload may still `RUNPATH` the packaging host's Qt prefix
 for transitive ICU; that is a host-kit leftover, not a build-tree dependency.
