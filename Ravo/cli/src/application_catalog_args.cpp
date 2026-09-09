@@ -111,13 +111,13 @@ namespace ravo::cli_internal
 parse_catalog_flags(const std::span<const std::string_view> positional)
 {
     CatalogCliArguments result;
-    const bool batch_export = positional.size() > 1U && positional[1] == "export-batch";
-    const bool multi_asset =
-        batch_export ||
-        (positional.size() > 1U &&
-         (positional[1] == "preview-rebuild" || positional[1] == "set-create" ||
-          positional[1] == "set-add" || positional[1] == "set-remove" || positional[1] == "stack" ||
-          positional[1] == "develop-apply" || positional[1] == "cull-burst-accept"));
+    const auto subcommand = positional.size() > 1U ? positional[1] : std::string_view{};
+    const bool export_directory_command =
+        subcommand == "export-batch" || subcommand == "export-job-create";
+    const bool multi_asset = export_directory_command || subcommand == "preview-rebuild" ||
+                             subcommand == "set-create" || subcommand == "set-add" ||
+                             subcommand == "set-remove" || subcommand == "stack" ||
+                             subcommand == "develop-apply" || subcommand == "cull-burst-accept";
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -725,7 +725,7 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
         else if (option == "--output")
         {
-            if (batch_export)
+            if (export_directory_command)
             {
                 return make_error(ErrorCode::kInvalidArgument,
                                   "Batch export uses --output-dir, not --output");
@@ -736,7 +736,7 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.output = value;
         }
-        else if (batch_export && option == "--output-dir")
+        else if (export_directory_command && option == "--output-dir")
         {
             if (!result.output_directory.empty())
             {
@@ -745,7 +745,7 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.output_directory = value;
         }
-        else if (batch_export && option == "--filename-template")
+        else if (export_directory_command && option == "--filename-template")
         {
             if (!result.filename_template.empty())
             {

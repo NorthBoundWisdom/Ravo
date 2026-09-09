@@ -112,5 +112,35 @@ TEST(CliCatalogArgsParseTest, DuplicateSmartPreviewEnsureIsRejected)
               std::string::npos);
 }
 
+TEST(CliCatalogArgsParseTest, ExportJobCreateParsesMultiAssetDirectoryFlags)
+{
+    const std::vector<std::string_view> args{
+        "catalog",
+        "export-job-create",
+        "--asset-id",
+        "asset-a",
+        "--asset-id",
+        "asset-b",
+        "--output-dir",
+        "/tmp/output",
+        "--export-job",
+        "/tmp/job.json",
+        "--job-id",
+        "job-1",
+        "--filename-template",
+        "{stem}-{index}",
+    };
+    auto parsed = cli_internal::parse_catalog_flags(args);
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_TRUE(parsed.value().asset_id.empty());
+    ASSERT_EQ(parsed.value().asset_ids.size(), 2U);
+    EXPECT_EQ(parsed.value().asset_ids[0], "asset-a");
+    EXPECT_EQ(parsed.value().asset_ids[1], "asset-b");
+    EXPECT_EQ(parsed.value().output_directory, "/tmp/output");
+    EXPECT_EQ(parsed.value().export_job, "/tmp/job.json");
+    EXPECT_EQ(parsed.value().job_id, "job-1");
+    EXPECT_EQ(parsed.value().filename_template, "{stem}-{index}");
+}
+
 } // namespace
 } // namespace ravo

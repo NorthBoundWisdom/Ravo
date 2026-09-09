@@ -42,6 +42,21 @@ Result<void> validate_catalog_export_family_flags(const std::string_view subcomm
             return make_error(ErrorCode::kInvalidArgument, "catalog export requires --asset-id");
         }
     }
+    if (subcommand == "export-job-create")
+    {
+        if (flags.asset_ids.empty() || flags.output_directory.empty() || flags.export_job.empty() ||
+            flags.job_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export-job-create requires --asset-id, --output-dir, "
+                              "--export-job, and --job-id");
+        }
+    }
+    if (subcommand == "export-job-resume" && flags.export_job.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "catalog export-job-resume requires --export-job");
+    }
     return {};
 }
 

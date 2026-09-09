@@ -1521,4 +1521,95 @@ TEST_F(CliTest, CatalogCliFloatParsingRejectsMalformedLocaleAndDuplicateOptions)
     }
 }
 
+TEST_F(CliTest, ExportJobCreateAcceptsMultiAssetDirectoryContract)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-export-job-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto output_dir = (root / "exports").string();
+    const auto job_path = (root / "job.json").string();
+    std::filesystem::create_directories(output_dir);
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
+                      "frozen" / "0000-nop" / "expected.png")
+                         .generic_u8string();
+    const std::string png_path(png.begin(), png.end());
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", png_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_EQ(items->array_if()->size(), 1U);
+    const auto *asset = items->array_if()->front().find("asset");
+    ASSERT_NE(asset, nullptr);
+    const auto *asset_id = asset->find("id");
+    ASSERT_NE(asset_id, nullptr);
+    ASSERT_NE(asset_id->string_if(), nullptr);
+    const auto id = *asset_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "export-job-create", "--catalog", catalog, "--asset-id", id,
+                  "--output-dir", output_dir, "--export-job", job_path, "--job-id", "job-1",
+                  "--filename-template", "{stem}-{sequence}", "--json"}),
+              0)
+        << stdout_stream.str() << stderr_stream.str();
+    auto created = parse_json(stdout_stream.str());
+    ASSERT_TRUE(created) << created.error().message;
+    const auto *created_data = created.value().find("data");
+    ASSERT_NE(created_data, nullptr);
+    const auto *job_id = created_data->find("job_id");
+    ASSERT_NE(job_id, nullptr);
+    ASSERT_NE(job_id->string_if(), nullptr);
+    EXPECT_EQ(*job_id->string_if(), "job-1");
+    const auto *output = created_data->find("output");
+    ASSERT_NE(output, nullptr);
+    ASSERT_NE(output->string_if(), nullptr);
+    EXPECT_EQ(*output->string_if(), job_path);
+    ASSERT_TRUE(std::filesystem::exists(job_path));
+
+    auto job_text = read_utf8_text_file(job_path, 1 << 20);
+    ASSERT_TRUE(job_text) << job_text.error().message;
+    auto job_json = parse_json(job_text.value());
+    ASSERT_TRUE(job_json) << job_json.error().message;
+    // Job document may be wrapped or flat; accept either top-level or nested fields.
+    const JsonValue *job_root = &job_json.value();
+    const auto *jid = job_root->find("job_id");
+    if (jid == nullptr || jid->string_if() == nullptr)
+    {
+        // try common wrapper
+        FAIL() << "job file missing job_id: " << job_text.value();
+    }
+    EXPECT_EQ(*jid->string_if(), "job-1");
+    const auto *out_dir = job_root->find("output_directory");
+    ASSERT_NE(out_dir, nullptr);
+    ASSERT_NE(out_dir->string_if(), nullptr);
+    EXPECT_EQ(*out_dir->string_if(), output_dir);
+    const auto *asset_ids = job_root->find("asset_ids");
+    ASSERT_NE(asset_ids, nullptr);
+    ASSERT_NE(asset_ids->array_if(), nullptr);
+    ASSERT_EQ(asset_ids->array_if()->size(), 1U);
+    ASSERT_NE(asset_ids->array_if()->front().string_if(), nullptr);
+    EXPECT_EQ(*asset_ids->array_if()->front().string_if(), id);
+}
+
 } // namespace ravo
