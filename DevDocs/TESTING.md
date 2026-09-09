@@ -384,24 +384,31 @@ launches every locale. Refresh catalogs only through the project i18n workflow
 so current source and locale-specific historical translations remain separate
 and reproducible.
 
-## CI required checks (release governance)
+## Direct-main development loop
 
-`main` is protected by repository ruleset `22562825` (`Ravo main release gate`).
-Required check contexts on every update to `main`:
+Ravo is a single-developer repository. The normal loop is:
 
-- `Static checks`
-- `mac_clang_debug`
-- `mac_clang_release`
-- `linux_clang_debug`
-- `linux_clang_release`
-- `win_msvc_release`
+```text
+targeted local tests
+→ push main
+→ remote matrix
+→ stop-and-fix on red
+```
 
-Baseline evidence for the pre-plan SHA `50a598ba`: GitHub Actions run
-`34250867888` concluded **success** with those contexts green (package/release
-jobs skipped on non-tag). Same-SHA release qualification means tag packaging may
-only publish artifacts produced for that SHA after this matrix is green; see
-`DevDocs/Packaging.md` for the ruleset payload, read-back command, and emergency
-PR-only admin bypass policy.
+Rules:
+
+- no force push to `main`
+- no amend of published `main`
+- no claiming green until the exact pushed SHA passes
+- a red or incomplete `main` blocks further planned product work and release
+  qualification; repair forward with a new commit
+
+`main` history safety is ruleset `22562825` (`Ravo main history safety`):
+deletion and non-fast-forward protection only. CI contexts
+(`Static checks`, `mac_clang_debug`, `mac_clang_release`, `linux_clang_debug`,
+`linux_clang_release`, `win_msvc_release`) still run on every push as post-push
+verification. Same-SHA release qualification remains tag-gated; see
+`DevDocs/Packaging.md` for the ruleset payload and read-back command.
 
 Local Static parity before push:
 

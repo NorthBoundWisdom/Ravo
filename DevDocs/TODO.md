@@ -105,7 +105,7 @@ proposal chrome and the tethered-studio probe do not count as product progress.
 
 | Order | ID | Priority | Outcome |
 | ---: | --- | --- | --- |
-| 1 | CI-01 | P0 | Keep the latest main SHA green and make the gate enforceable |
+| 1 | CI-01 | P0 | Keep the latest main SHA green under direct-push history safety |
 | 2 | COR-01 | P0 | Fix reviewed mutation, rollback, and support-file safety defects |
 | 3 | REL-01 | P0 | Prove source safety, catalog durability, interruption recovery, and upgrade |
 | 4 | PERF-01 | P0 | Freeze Gallery, viewer, Develop, analysis, and large-library budgets |
@@ -129,38 +129,38 @@ the next one.
 
 # P0 — Repository, correctness, and release gates
 
-## CI-01 — Green and enforceable main
+## CI-01 — Green main under direct-push history safety
 
-**Status:** Ruleset enforced. Repository ruleset `22562825` (`Ravo main release
-gate`) is **active** on `refs/heads/main` with required contexts Static checks +
-mac/linux Debug+Release smoke presets + `win_msvc_release`. Baseline SHA
-`50a598ba` CI run `34250867888` was green. Emergency bypass is admin PR-only;
-payload and policy live in `DevDocs/Packaging.md` / `DevDocs/TESTING.md`.
-Remaining: keep the matrix green on every main tip; do not weaken required
-contexts without restoring the documented payload.
+**Status:** History safety active. Repository ruleset `22562825`
+(`Ravo main history safety`) is **active** on `refs/heads/main` with
+`deletion` + `non_fast_forward` only (no required_status_checks; empty
+bypass_actors). Direct pushes to `main` are the normal development path for
+this single-developer repository. Every pushed main SHA still receives the
+normal CI matrix as post-push verification. Payload and policy live in
+`DevDocs/Packaging.md` / `DevDocs/TESTING.md`. Remaining: keep the matrix green
+on every main tip; repair forward rather than rewriting published history.
 
 **Remaining work:**
 
-- require Static checks and macOS/Windows/Linux jobs through a repository
-  ruleset or equivalent branch policy;
+- keep `main` protected from deletion and non-fast-forward rewrites;
 - do not accept another product-state commit or tag while the latest main run is
   queued, in progress, failed, or cancelled;
-- add a Release or RelWithDebInfo compile plus minimal CLI/Studio smoke job;
+- keep Release / RelWithDebInfo compile plus minimal CLI/Studio smoke on the
+  matrix;
 - make tag packaging and release publication depend on the same successful
   source SHA, with no red-commit or skipped-job path;
-- document required checks and a narrow, auditable emergency override policy;
+- document direct-main policy and fix-forward repair (no required-check
+  merge gate pretending to be the daily path);
 - keep flaky tests visible and owned rather than converting them to permanent
   skips.
 
 **Acceptance gate:**
 
-- the latest main SHA has one successful Static/macOS/Windows/Linux matrix;
-- ordinary changes cannot bypass required checks;
-- release configuration compiles and launches outside the Debug-only path;
-- tag publication cannot use a failed, cancelled, incomplete, or superseded
-  gate;
-- no required job is `continue-on-error`, silently narrowed, or replaced by a
-  documentation-only run.
+- main history is protected from deletion/non-fast-forward updates;
+- every pushed main SHA receives the normal CI matrix;
+- a red/incomplete main blocks subsequent product work and release qualification;
+- package/release operates only from a successful same-SHA workflow;
+- published main history is repaired forward rather than rewritten.
 
 ## COR-01 — Reviewed correctness defects before further feature breadth
 
