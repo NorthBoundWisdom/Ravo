@@ -120,12 +120,12 @@ Result<VerifiedImageArtifact> verify_encoded_image_artifact(
     }
     const auto actual_fingerprint = color_profile_fingerprint(profile);
     if (expected.color_profile_fingerprint.has_value() &&
-        *expected.color_profile_fingerprint != std::string_view(actual_fingerprint))
+        *expected.color_profile_fingerprint != actual_fingerprint)
     {
         return make_error(ErrorCode::kConflict,
                           "Decoded color profile fingerprint does not match expectation",
                           {{"reason", "color_profile_fingerprint_mismatch"},
-                           {"expected", std::string(*expected.color_profile_fingerprint)},
+                           {"expected", *expected.color_profile_fingerprint},
                            {"actual", actual_fingerprint},
                            {"content_sha256", content_sha256}});
     }

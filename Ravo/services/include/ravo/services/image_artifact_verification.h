@@ -37,7 +37,8 @@ struct ImageArtifactExpectation
     std::optional<std::string_view> color_profile;
     // Exact color_profile_fingerprint(decoded) when set — binds renderer/encoder
     // identity without treating builtin vs embedded descriptors as interchangeable.
-    std::optional<std::string_view> color_profile_fingerprint;
+    // Owning string: callers assign computed fingerprints; string_view would dangle.
+    std::optional<std::string> color_profile_fingerprint;
     std::size_t max_encoded_bytes = 64U * 1024U * 1024U;
 };
 
