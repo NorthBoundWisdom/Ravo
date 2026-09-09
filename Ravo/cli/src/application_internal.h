@@ -255,6 +255,7 @@ run_perspective_analysis(const EngineFacade &engine, std::span<const std::string
 [[nodiscard]] Result<JsonValue> run_studio_command(const EngineFacade &engine,
                                                    std::span<const std::string_view> positional);
 
+[[nodiscard]] bool catalog_output_flag_is_allowed(std::string_view subcommand) noexcept;
 [[nodiscard]] Result<void> validate_catalog_probe_flags(const CatalogCliArguments &flags);
 [[nodiscard]] Result<void> validate_catalog_export_family_flags(std::string_view subcommand,
                                                                 const CatalogCliArguments &flags);

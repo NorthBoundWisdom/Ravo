@@ -43,6 +43,14 @@
 
 namespace ravo::cli_internal
 {
+
+bool catalog_output_flag_is_allowed(const std::string_view subcommand) noexcept
+{
+    // Actual --output consumers today. Keep this list equal to runtime readers of flags.output.
+    return subcommand == "export" || subcommand == "export-preset-save" || subcommand == "probe" ||
+           subcommand == "preview" || subcommand == "backup-restore" || subcommand == "dng-convert";
+}
+
 [[nodiscard]] Result<std::vector<std::string>>
 parse_develop_apply_fields(const std::string_view text)
 {
@@ -129,13 +137,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (!validated)
             return validated.error();
     }
-    if (!flags.value().output.empty() && subcommand != "export" && subcommand != "probe" &&
-        subcommand != "backup-restore" && subcommand != "preview")
+    if (!flags.value().output.empty() && !catalog_output_flag_is_allowed(subcommand))
     {
-        return make_error(
-            ErrorCode::kInvalidArgument,
-            "--output is only valid for catalog export, probe, preview, or backup-restore",
-            {{"subcommand", std::string(subcommand)}});
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--output is not valid for this catalog subcommand",
+                          {{"subcommand", std::string(subcommand)}});
     }
     if (subcommand == "preview" && !flags.value().output.empty() && !flags.value().roi.has_value())
     {

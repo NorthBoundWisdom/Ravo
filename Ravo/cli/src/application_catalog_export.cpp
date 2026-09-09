@@ -26,24 +26,40 @@ Result<void> validate_catalog_export_family_flags(const std::string_view subcomm
         return make_error(ErrorCode::kInvalidArgument, "Not an export-family catalog command",
                           {{"subcommand", std::string(subcommand)}});
     }
-    if (subcommand == "export" && flags.output.empty())
+    if (subcommand == "export")
     {
-        return make_error(ErrorCode::kInvalidArgument, "catalog export requires --output");
+        if (flags.output.empty())
+            return make_error(ErrorCode::kInvalidArgument, "catalog export requires --output");
+        if (flags.asset_id.empty() && flags.asset_ids.empty())
+            return make_error(ErrorCode::kInvalidArgument, "catalog export requires --asset-id");
     }
-    if (subcommand == "export-batch" && flags.output_directory.empty())
+    if (subcommand == "export-batch")
+    {
+        if (!flags.output.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export-batch uses --output-dir, not --output");
+        }
+        if (flags.output_directory.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export-batch requires --output-dir");
+        }
+        if (flags.asset_id.empty() && flags.asset_ids.empty())
+            return make_error(ErrorCode::kInvalidArgument, "catalog export requires --asset-id");
+    }
+    if (subcommand == "export-preset-save" && flags.output.empty())
     {
         return make_error(ErrorCode::kInvalidArgument,
-                          "catalog export-batch requires --output-dir");
-    }
-    if (subcommand == "export" || subcommand == "export-batch")
-    {
-        if (flags.asset_id.empty() && flags.asset_ids.empty())
-        {
-            return make_error(ErrorCode::kInvalidArgument, "catalog export requires --asset-id");
-        }
+                          "catalog export-preset-save requires --output");
     }
     if (subcommand == "export-job-create")
     {
+        if (!flags.output.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export-job-create uses --output-dir, not --output");
+        }
         if (flags.asset_ids.empty() || flags.output_directory.empty() || flags.export_job.empty() ||
             flags.job_id.empty())
         {
