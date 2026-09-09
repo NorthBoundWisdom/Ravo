@@ -263,8 +263,8 @@ on failure. Opt-in `workflow_dispatch` `package_rehearsal` (commit `af61a522`) r
 without creating tags or GitHub Releases and uploads per-artifact evidence JSON.
 
 Explicit non-claims (recorded as UNTESTED residuals by the tool):
-- native display / installed desktop session (offscreen smoke ≠ native plugins)
-- Debian `dpkg` install and `/usr/bin` launcher success (unpack ≠ install)
+- native display / installed desktop session (offscreen smoke != native plugins)
+- Debian `dpkg` install and `/usr/bin` launcher success (unpack != install)
 - AppImage FUSE direct launch (extract-via-`--appimage-extract` is a separate PASS when unpack succeeds)
 - host package rehearsal evidence until a rehearsal/tag run uploads digests for the same SHA
 

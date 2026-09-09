@@ -763,7 +763,11 @@ def main(argv: list[str] | None = None) -> int:
     def record(name: str, status: Status, detail: str = "") -> None:
         results[name] = status.value
         line = f"{status.value}: {name}" + (f" ({detail})" if detail else "")
-        print(line)
+        try:
+            print(line)
+        except UnicodeEncodeError:
+            # Windows CI consoles are often cp1252; keep evidence write path alive.
+            print(line.encode("ascii", "replace").decode("ascii"))
         if status == Status.UNTESTED:
             residuals.append(line)
 
@@ -938,9 +942,9 @@ def main(argv: list[str] | None = None) -> int:
                 record(name, Status.UNTESTED, "cli unavailable")
 
         record("native_display_session", Status.UNTESTED,
-               "offscreen smoke ≠ native packaged plugins/session")
+               "offscreen smoke != native packaged plugins/session")
         if artifact.suffix.lower() == ".deb":
-            record("dpkg_install_launcher", Status.UNTESTED, "unpack ≠ install")
+            record("dpkg_install_launcher", Status.UNTESTED, "unpack != install")
         if ".AppImage" in artifact.name:
             # Extract path is exercised by unpack(); FUSE direct launch remains separate.
             if results.get("unpack") == Status.PASS.value:
