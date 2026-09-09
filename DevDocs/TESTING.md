@@ -464,6 +464,11 @@ Corpus results are host-local evidence and stay outside the repository. They
 cannot satisfy another OS/toolchain gate, and an unset corpus is a skipped
 probe rather than a pass.
 
+`RAVO_PHOTO_CORPUS` is the only private photo corpus entry point. An availability
+probe (directory exists / enumeration can begin) is not REL-01 evidence. Do not
+treat a non-empty directory check as mixed-corpus recovery qualification or C3.
+
+
 ## Test framework and target boundaries
 
 ### Source-size and split integrity

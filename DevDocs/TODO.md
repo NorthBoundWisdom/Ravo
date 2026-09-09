@@ -264,6 +264,8 @@ corpus upgrade evidence remain open. Do not claim C3.
 Use an explicit read-only mixed RAW/raster corpus in `RAVO_PHOTO_CORPUS`, a
 Release build, and a unique temporary root for every generated catalog,
 preview, recovery mirror, proxy, derived file, backup, and report.
+`RAVO_PHOTO_CORPUS` is the only private photo corpus entry point; do not use a
+separate REL-01-only env var. An availability probe is not REL-01 evidence.
 
 The corpus must cover Bayer and X-Trans cameras, DNG, JPEG, PNG, TIFF, adjacent
 XMP, same-stem RAW+JPEG, malformed/truncated/unsupported inputs, large and

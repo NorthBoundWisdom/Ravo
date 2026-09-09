@@ -20,7 +20,9 @@ namespace
 
 // REL-01: mixed-corpus reopen/recovery qualification.
 // Public path uses the checked-in PNG fixture + temp catalogs (no fake C3).
-// Private photographer corpora stay UNTESTED unless RAVO_REL01_PRIVATE_CORPUS is set.
+// Private photographer corpora stay UNTESTED unless RAVO_PHOTO_CORPUS is set.
+// Availability probe != REL-01 evidence; RAVO_PHOTO_CORPUS is the only private
+// photo corpus entry point.
 
 class MixedCorpusReopenRecoveryTest : public CatalogServiceTest
 {
@@ -71,23 +73,28 @@ TEST_F(MixedCorpusReopenRecoveryTest, PublicFixtureImportBackupRestoreReopen)
     ASSERT_TRUE(restored_service.close());
 }
 
-TEST_F(MixedCorpusReopenRecoveryTest, PrivateCorpusAvailabilityIsHonest)
+TEST_F(MixedCorpusReopenRecoveryTest, PhotoCorpusHarnessReportsUnavailableHonestly)
 {
-    const char *corpus = std::getenv("RAVO_REL01_PRIVATE_CORPUS");
+    const char *corpus = std::getenv("RAVO_PHOTO_CORPUS");
     if (corpus == nullptr || *corpus == '\0')
     {
-        GTEST_SKIP() << "UNTESTED: private REL-01 corpus unavailable "
-                        "(set RAVO_REL01_PRIVATE_CORPUS to exercise private C3)";
+        GTEST_SKIP() << "UNTESTED: RAVO_PHOTO_CORPUS unset "
+                        "(availability probe only; not REL-01 evidence)";
     }
     const std::filesystem::path root_path{corpus};
     if (!std::filesystem::is_directory(root_path))
     {
-        GTEST_SKIP() << "UNTESTED: RAVO_REL01_PRIVATE_CORPUS is not a directory";
+        GTEST_SKIP() << "UNTESTED: RAVO_PHOTO_CORPUS is not a directory";
     }
+    // Prove enumeration can begin. One directory entry is not mixed-corpus recovery
+    // qualification and must not be described as REL-01 PASS evidence.
+    std::error_code ec;
+    auto it = std::filesystem::directory_iterator(root_path, ec);
+    ASSERT_FALSE(ec) << ec.message();
     std::size_t entries = 0;
-    for (const auto &entry : std::filesystem::directory_iterator(root_path))
+    for (; it != std::filesystem::directory_iterator{}; ++it)
     {
-        static_cast<void>(entry);
+        static_cast<void>(*it);
         ++entries;
         break;
     }
