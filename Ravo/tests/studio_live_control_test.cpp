@@ -237,24 +237,22 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
         << main.errorString().toStdString();
     const auto source = QString::fromUtf8(main.readAll());
     EXPECT_TRUE(source.contains(QStringLiteral("InspectZoomController")));
-    EXPECT_TRUE(source.contains(QStringLiteral("property alias viewportAssetId")));
-    EXPECT_TRUE(source.contains(QStringLiteral("function centerPhotoViewport()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: inspectZoom")));
     EXPECT_TRUE(
-        source.contains(QStringLiteral("window.viewportAssetId !== studio.selectedAssetId")));
+        source.contains(QStringLiteral("inspectZoom.viewportAssetId !== studio.selectedAssetId")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onZoomChanged()")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onEditChanged()")));
     EXPECT_TRUE(source.contains(QStringLiteral("inspectRoiDebounce.restart()")));
     EXPECT_TRUE(source.contains(QStringLiteral("StudioGpuPreviewItem")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onBrowseModeChanged()")));
     EXPECT_TRUE(source.contains(QStringLiteral("boundsBehavior: Flickable.StopAtBounds")));
-    EXPECT_TRUE(source.contains(QStringLiteral("function seekNavigatorViewport(nx, ny)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("inspectZoom.seekNavigatorViewport")));
     EXPECT_TRUE(source.contains(QStringLiteral("WheelHandler")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.viewAdjustZoom")));
-    EXPECT_TRUE(source.contains(QStringLiteral("ids.viewToggleActualSize")));
-    EXPECT_TRUE(source.contains(QStringLiteral("photoInspectEnabled")));
+    EXPECT_TRUE(source.contains(QStringLiteral("inspectZoom.photoInspectEnabled")));
     EXPECT_TRUE(source.contains(QStringLiteral("cropToolActive")));
     EXPECT_TRUE(source.contains(QStringLiteral("function togglePhotoInspectZoom(stagePos)")));
-    EXPECT_TRUE(source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("inspectZoom.applyPhotoViewportAfterZoom")));
     EXPECT_TRUE(source.contains(QStringLiteral("previewPlaceholderReady")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: previewPlaceholderImage")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedThumbnailUrl")));
@@ -266,14 +264,17 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("function beginInspectZoomAnimation()")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: inspectZoomAnim")));
-    EXPECT_TRUE(source.contains(QStringLiteral("inspectStageLockW")));
-    EXPECT_TRUE(source.contains(QStringLiteral("inspectAnimScale")));
+    EXPECT_TRUE(source.contains(QStringLiteral("inspectZoom.inspectStageLockW")));
+    EXPECT_TRUE(source.contains(QStringLiteral("inspectZoom.inspectAnimScale")));
     EXPECT_TRUE(source.contains(QStringLiteral("transform: Scale")));
     EXPECT_TRUE(source.contains(QStringLiteral(
         "cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive || studio.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
     EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("property alias viewportAssetId")));
+    EXPECT_TRUE(source.contains(QStringLiteral("property: \"scroller\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("property: \"photoPlane\"")));
 
     QFile zoom(QFileInfo(main).dir().filePath(QStringLiteral("inspect/InspectZoomController.qml")));
     ASSERT_TRUE(zoom.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -289,6 +290,11 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function centerPhotoViewport()")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function seekNavigatorViewport(nx, ny)")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("function beginInspectZoomAnimation(")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("function togglePhotoInspectZoom(stagePos)")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("readonly property rect navigatorVisible")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("return comparisonReady ? width * 2 : width")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("ids.viewToggleActualSize")));
 }
 
 TEST(StudioQmlContract, FilmstripWheelScrollsHorizontallyAndPhotoInfoSpansGridLoupeAndEdit)
