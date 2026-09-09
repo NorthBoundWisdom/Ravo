@@ -158,20 +158,23 @@ def resolve_range(
             raise WhitespaceCheckError(f"push after sha not in repository: {after}")
 
         if ref.startswith("refs/tags/"):
+            # For annotated tags the push event's after SHA names the tag object,
+            # while rev-list/diff ranges require the peeled commit.
+            tag_commit = rev_parse(git_executable, repo, f"{after}^{{commit}}")
             tip = default_branch_tip(git_executable, repo)
-            parents = commit_parents(git_executable, repo, after)
+            parents = commit_parents(git_executable, repo, tag_commit)
             if tip is None:
                 if not parents:
-                    return "tag_root", EMPTY_TREE, after
+                    return "tag_root", EMPTY_TREE, tag_commit
                 raise WhitespaceCheckError(
                     "tag push has no default-branch baseline; refusing silent empty-diff success"
                 )
-            if tip == after:
+            if tip == tag_commit:
                 if not parents:
-                    return "tag_root", EMPTY_TREE, after
-                return "tag", parents[0], after
-            base = merge_base(git_executable, repo, tip, after)
-            return "tag", base, after
+                    return "tag_root", EMPTY_TREE, tag_commit
+                return "tag", parents[0], tag_commit
+            base = merge_base(git_executable, repo, tip, tag_commit)
+            return "tag", base, tag_commit
 
         if is_zero_sha(before):
             parents = commit_parents(git_executable, repo, after)

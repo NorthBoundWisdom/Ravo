@@ -196,6 +196,34 @@ class ChangedWhitespaceTest(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertTrue(first)
 
+    def test_annotated_tag_push_peels_tag_object_to_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            init_repo(repo)
+            first = commit_file(repo, "a.txt", "one\n", "one")
+            tip = commit_file(repo, "b.txt", "two  \n", "two")
+            run(repo, ["tag", "-a", "v1", "-m", "Version 1", tip])
+            tag_object = run(repo, ["rev-parse", "v1^{tag}"])
+            self.assertNotEqual(tag_object, tip)
+            event = write_event(
+                repo,
+                {
+                    "before": whitespace.ZERO_SHA,
+                    "after": tag_object,
+                    "ref": "refs/tags/v1",
+                },
+            )
+            mode, base, head = whitespace.resolve_range(
+                whitespace.load_event(event),
+                git_executable="git",
+                repo=repo,
+                event_name="push",
+            )
+            self.assertEqual((mode, base, head), ("tag", first, tip))
+            self.assertEqual(
+                whitespace.check(repo=repo, event_path=event, event_name="push"), 1
+            )
+
     def test_manual_dispatch_uses_parent_when_on_default(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
