@@ -2,6 +2,12 @@
 
 #include "ravo/services/catalog_service.h"
 
+#include <filesystem>
+#include <utility>
+
+#include "ravo/domain/types.h"
+#include "ravo/domain/uri.h"
+
 namespace ravo
 {
 
@@ -27,39 +33,124 @@ Result<CatalogSnapshot> LibraryService::snapshot() const
 
 Result<std::vector<AssetRecord>> LibraryService::list_assets() const
 {
-    return catalog_->list_assets();
+    return list_assets(LibraryQuery{}, true);
 }
 
 Result<std::vector<AssetRecord>> LibraryService::list_assets(const LibraryQuery &query) const
 {
-    return catalog_->list_assets(query);
+    return list_assets(query, true);
 }
 
 Result<std::vector<AssetRecord>> LibraryService::list_assets(const LibraryQuery &query,
                                                              const bool collapse_stacks) const
 {
-    return catalog_->list_assets(query, collapse_stacks);
+    if (catalog_->repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto valid_query = validate_library_query(query);
+    if (!valid_query)
+    {
+        return valid_query.error();
+    }
+    std::vector<AssetRecord> assets;
+    LibraryPageRequest page_request;
+    page_request.query = query;
+    page_request.collapse_stacks = collapse_stacks;
+    page_request.limit = kLibraryPageMaximumSize;
+    while (true)
+    {
+        auto page = list_assets_page(page_request);
+        if (!page)
+            return page.error();
+        assets.insert(assets.end(), page.value().assets.begin(), page.value().assets.end());
+        if (!page.value().has_more || page.value().assets.empty())
+            break;
+        page_request.offset += page.value().assets.size();
+        page_request.known_total = page.value().total;
+        page_request.after_asset_id = page.value().assets.back().id;
+    }
+    return assets;
 }
 
 Result<LibraryPage> LibraryService::list_assets_page(const LibraryPageRequest &request) const
 {
-    return catalog_->list_assets_page(request);
+    if (catalog_->repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto valid = validate_library_page_request(request);
+    if (!valid)
+        return valid.error();
+    LibraryPageRequest expanded = request;
+    if (!request.query.collection_id.empty())
+    {
+        auto set = catalog_->repository_->find_library_set(request.query.collection_id);
+        if (!set)
+            return set.error();
+        if (!set.value())
+        {
+            return make_error(
+                ErrorCode::kNotFound, "Library set was not found",
+                {{"set_id", request.query.collection_id}, {"reason", "unknown_library_set"}});
+        }
+        if (set.value()->kind == LibrarySetKind::kSmart)
+        {
+            if (!set.value()->query)
+            {
+                return make_error(ErrorCode::kValidation, "A smart library set requires a query",
+                                  {{"reason", "invalid_library_set_query"}});
+            }
+            LibraryQuery session = request.query;
+            session.collection_id.clear();
+            expanded.query = *set.value()->query;
+            expanded.query.sort_field = request.query.sort_field;
+            expanded.query.sort_direction = request.query.sort_direction;
+            expanded.additional_query = std::move(session);
+            auto extra_valid = validate_library_page_request(expanded);
+            if (!extra_valid)
+                return extra_valid.error();
+        }
+    }
+    return catalog_->repository_->list_assets_page(expanded);
 }
 
 Result<std::vector<FolderRecord>> LibraryService::list_folders() const
 {
-    return catalog_->list_folders();
+    if (catalog_->repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto folders = catalog_->repository_->list_folders();
+    if (!folders)
+        return folders.error();
+    for (auto &folder : folders.value())
+    {
+        if (folder.id.empty())
+            continue;
+        auto location = normalize_local_input(folder.uri);
+        if (!location)
+            return location.error();
+        std::error_code error;
+        folder.missing = !std::filesystem::is_directory(
+            std::filesystem::path(
+                std::u8string(location.value().path.begin(), location.value().path.end())),
+            error);
+        if (error)
+            folder.missing = true;
+    }
+    return folders;
 }
 
 Result<std::vector<LibrarySetRecord>> LibraryService::list_library_sets() const
 {
-    return catalog_->list_library_sets();
+    if (catalog_->repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return catalog_->repository_->list_library_sets();
 }
 
 Result<std::optional<LibrarySetRecord>>
 LibraryService::find_library_set(const std::string_view set_id) const
 {
-    return catalog_->find_library_set(set_id);
+    if (catalog_->repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return catalog_->repository_->find_library_set(set_id);
 }
 
 Result<LibrarySetMutation>
@@ -154,13 +245,19 @@ LibraryService::remove_folder_from_catalog(const std::string_view folder_uri,
 
 Result<std::vector<PreviewRecord>> LibraryService::list_previews() const
 {
-    return catalog_->list_previews();
+    if (catalog_->repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    return catalog_->repository_->list_previews();
 }
 
 Result<std::vector<PreviewRecord>>
 LibraryService::list_previews_for_assets(const std::vector<std::string> &asset_ids) const
 {
-    return catalog_->list_previews_for_assets(asset_ids);
+    if (catalog_->repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return catalog_->repository_->list_previews_for_assets(asset_ids);
 }
 
 Result<AssetRecord> LibraryService::set_rating(const std::string_view asset_id, const int rating)

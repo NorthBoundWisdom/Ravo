@@ -228,99 +228,34 @@ Result<CatalogSnapshot> CatalogService::snapshot() const
 
 Result<std::vector<AssetRecord>> CatalogService::list_assets() const
 {
-    return list_assets(LibraryQuery{}, true);
+    return library().list_assets();
 }
 
 Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery &query) const
 {
-    return list_assets(query, true);
+    return library().list_assets(query);
 }
 
 Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery &query,
                                                              const bool collapse_stacks) const
 {
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto valid_query = validate_library_query(query);
-    if (!valid_query)
-    {
-        return valid_query.error();
-    }
-    std::vector<AssetRecord> assets;
-    LibraryPageRequest page_request;
-    page_request.query = query;
-    page_request.collapse_stacks = collapse_stacks;
-    page_request.limit = kLibraryPageMaximumSize;
-    while (true)
-    {
-        auto page = list_assets_page(page_request);
-        if (!page)
-            return page.error();
-        assets.insert(assets.end(), page.value().assets.begin(), page.value().assets.end());
-        if (!page.value().has_more || page.value().assets.empty())
-            break;
-        page_request.offset += page.value().assets.size();
-        page_request.known_total = page.value().total;
-        page_request.after_asset_id = page.value().assets.back().id;
-    }
-    return assets;
+    return library().list_assets(query, collapse_stacks);
 }
 
 Result<LibraryPage> CatalogService::list_assets_page(const LibraryPageRequest &request) const
 {
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    auto valid = validate_library_page_request(request);
-    if (!valid)
-        return valid.error();
-    LibraryPageRequest expanded = request;
-    if (!request.query.collection_id.empty())
-    {
-        auto set = repository_->find_library_set(request.query.collection_id);
-        if (!set)
-            return set.error();
-        if (!set.value())
-        {
-            return make_error(
-                ErrorCode::kNotFound, "Library set was not found",
-                {{"set_id", request.query.collection_id}, {"reason", "unknown_library_set"}});
-        }
-        if (set.value()->kind == LibrarySetKind::kSmart)
-        {
-            if (!set.value()->query)
-            {
-                return make_error(ErrorCode::kValidation, "A smart library set requires a query",
-                                  {{"reason", "invalid_library_set_query"}});
-            }
-            LibraryQuery session = request.query;
-            session.collection_id.clear();
-            expanded.query = *set.value()->query;
-            expanded.query.sort_field = request.query.sort_field;
-            expanded.query.sort_direction = request.query.sort_direction;
-            expanded.additional_query = std::move(session);
-            auto extra_valid = validate_library_page_request(expanded);
-            if (!extra_valid)
-                return extra_valid.error();
-        }
-    }
-    return repository_->list_assets_page(expanded);
+    return library().list_assets_page(request);
 }
 
 Result<std::vector<LibrarySetRecord>> CatalogService::list_library_sets() const
 {
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->list_library_sets();
+    return library().list_library_sets();
 }
 
 Result<std::optional<LibrarySetRecord>>
 CatalogService::find_library_set(const std::string_view set_id) const
 {
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->find_library_set(set_id);
+    return library().find_library_set(set_id);
 }
 
 Result<LibrarySetMutation>
@@ -426,19 +361,13 @@ CatalogService::find_library_stack(const std::string_view stack_id) const
 
 Result<std::vector<PreviewRecord>> CatalogService::list_previews() const
 {
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    return repository_->list_previews();
+    return library().list_previews();
 }
 
 Result<std::vector<PreviewRecord>>
 CatalogService::list_previews_for_assets(const std::vector<std::string> &asset_ids) const
 {
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->list_previews_for_assets(asset_ids);
+    return library().list_previews_for_assets(asset_ids);
 }
 
 Result<AssetRecoveryState> CatalogService::recovery_state(const std::string_view asset_id) const
@@ -608,27 +537,7 @@ CatalogService::sync_recovery(const std::optional<std::string_view> asset_id,
 
 Result<std::vector<FolderRecord>> CatalogService::list_folders() const
 {
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    auto folders = repository_->list_folders();
-    if (!folders)
-        return folders.error();
-    for (auto &folder : folders.value())
-    {
-        if (folder.id.empty())
-            continue;
-        auto location = normalize_local_input(folder.uri);
-        if (!location)
-            return location.error();
-        std::error_code error;
-        folder.missing = !std::filesystem::is_directory(
-            std::filesystem::path(
-                std::u8string(location.value().path.begin(), location.value().path.end())),
-            error);
-        if (error)
-            folder.missing = true;
-    }
-    return folders;
+    return library().list_folders();
 }
 
 Result<AssetRecord> CatalogService::set_rating(const std::string_view asset_id, const int rating)
