@@ -63,8 +63,10 @@ runs:
         set -euo pipefail
         # GitHub-hosted images ship a Google Chrome apt source that periodically
         # fails apt-get update with Hash Sum mismatch and aborts the whole job.
-        # Ravo does not need that repo for bootstrap packages.
-        sudo rm -f /etc/apt/sources.list.d/google-chrome.list           /etc/apt/sources.list.d/google-chrome*.list || true
+        # Ravo does not need that repo for bootstrap packages — delete any matching
+        # source list and cached index shards before updating.
+        sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*chrome*' -o -iname '*google*' \) -print -delete || true
+        sudo find /var/lib/apt/lists -maxdepth 1 -type f \( -iname '*chrome*' -o -iname '*google*' \) -delete || true
         sudo apt-get update
         sudo apt-get install -y ninja-build clang pkg-config libpng-dev zlib1g-dev
 
