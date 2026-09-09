@@ -274,6 +274,7 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "--ensure can only be specified once");
             result.ensure = true;
+            continue;
         }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {

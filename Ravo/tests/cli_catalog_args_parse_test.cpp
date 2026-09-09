@@ -84,5 +84,33 @@ TEST(CliCatalogArgsParseTest, DuplicateFloatOptionsAreRejected)
               std::string::npos);
 }
 
+TEST(CliCatalogArgsParseTest, SmartPreviewEnsureIsBooleanFlag)
+{
+    const std::vector<std::string_view> args{"catalog", "smart-preview", "--asset-id", "asset-1",
+                                             "--ensure"};
+    auto parsed = cli_internal::parse_catalog_flags(args);
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_EQ(parsed.value().asset_id, "asset-1");
+    EXPECT_TRUE(parsed.value().ensure);
+
+    const std::vector<std::string_view> with_following{
+        "catalog", "smart-preview", "--asset-id", "asset-1", "--ensure", "--max-edge", "2048"};
+    auto parsed_following = cli_internal::parse_catalog_flags(with_following);
+    ASSERT_TRUE(parsed_following) << parsed_following.error().message;
+    EXPECT_TRUE(parsed_following.value().ensure);
+    ASSERT_TRUE(parsed_following.value().max_edge.has_value());
+    EXPECT_EQ(*parsed_following.value().max_edge, 2048);
+}
+
+TEST(CliCatalogArgsParseTest, DuplicateSmartPreviewEnsureIsRejected)
+{
+    const std::vector<std::string_view> args{"catalog", "smart-preview", "--asset-id",
+                                             "asset-1", "--ensure",      "--ensure"};
+    auto rejected = cli_internal::parse_catalog_flags(args);
+    ASSERT_FALSE(rejected);
+    EXPECT_NE(rejected.error().message.find("--ensure can only be specified once"),
+              std::string::npos);
+}
+
 } // namespace
 } // namespace ravo
