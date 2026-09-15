@@ -56,17 +56,17 @@
   "dependencies": {
     "Exiv2": {
       "remote": "https://github.com/Exiv2/exiv2.git",
-      "commit": "dc9364baa5d75395ab7d71c470f1e94bbe792a93",
+      "commit": "d9524e7e4b8f35cf6ce7401b6efef7d40a3e6d8e",
       "repoName": "exiv2"
     },
     "LibJpegTurbo": {
       "remote": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
-      "commit": "1157d37cfab977f8f7f8344aededdfd951222c89",
+      "commit": "7b5fee3f7a83b5c2bdbb52d5dd6ce6bfc53b6b58",
       "repoName": "libjpeg-turbo"
     },
     "LibRaw": {
       "remote": "https://github.com/LibRaw/LibRaw.git",
-      "commit": "df226ea4178ccd74245f4f13c23adddfa01411c9",
+      "commit": "116924e5bcb9483ef9c5fbe7f3cfc5a8a4b97064",
       "repoName": "LibRaw"
     },
     "RawSpeed": {
@@ -81,7 +81,7 @@
     },
     "LensFun": {
       "remote": "https://github.com/lensfun/lensfun.git",
-      "commit": "23e8cb8050d680c7a293edb3d48b600754665f05",
+      "commit": "230b33c9f25ae8025ae08b230e7379939f2eaf49",
       "repoName": "lensfun"
     },
     "LibTIFF": {
@@ -91,7 +91,7 @@
     },
     "LittleCMS": {
       "remote": "https://github.com/mm2/Little-CMS.git",
-      "commit": "47270ff27e4e05e8ceae3dcc26fabe78364c6d26",
+      "commit": "8105f59f3204be8b3e9931f92d98dc2bbc3f9cff",
       "repoName": "Little-CMS"
     }
   }

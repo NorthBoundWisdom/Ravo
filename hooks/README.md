@@ -18,7 +18,9 @@ git submodule update --init FreeCM
 cp hooks/path.ini.sample hooks/path.ini
 ```
 
-`CLANG_FORMAT_PATH` must point to an executable `clang-format`.
+`CLANG_FORMAT_PATH` must point to an executable `clang-format`. Prefer the
+Homebrew prefix shim (`/opt/homebrew/bin/clang-format` or
+`/usr/local/bin/clang-format`); do not pin a Cellar versioned file.
 `QMLFORMAT_PATH` is optional; leave it empty to skip QML/JS formatting.
 `SOURCE_ROOTS=Ravo` keeps clang-format and qmlformat on first-party sources.
 The `FreeCM/` submodule stays outside that root.
