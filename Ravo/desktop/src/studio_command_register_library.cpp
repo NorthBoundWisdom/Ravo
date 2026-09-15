@@ -14,8 +14,6 @@ void StudioCommandController::registerLibraryCommands(const command_registration
 {
     const auto &add = helpers.add;
     const auto &present = helpers.present;
-    const auto &request_confirmation = helpers.request_confirmation;
-    const auto &confirmation_validator = helpers.confirmation_validator;
     const auto &request_preset_confirmation = helpers.request_preset_confirmation;
     const auto &preset_confirmation_validator = helpers.preset_confirmation_validator;
     const auto &clear_confirmation = helpers.clear_confirmation;

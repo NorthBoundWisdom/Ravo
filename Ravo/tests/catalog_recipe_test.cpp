@@ -263,7 +263,9 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRo
         asset_id, second,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
-                          .coalesce_history_id = coalesce_id});
+                          .coalesce_history_id = coalesce_id,
+                          .defer_recovery_publication = false,
+                          .expected_revision = {}});
     ASSERT_TRUE(second_saved) << second_saved.error().message;
     ASSERT_TRUE(second_saved.value().history_id);
     EXPECT_EQ(*second_saved.value().history_id, coalesce_id);
@@ -283,7 +285,9 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRo
         asset_id, second,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kUnchanged,
                           .discard_history_after_seq = {},
-                          .coalesce_history_id = coalesce_id});
+                          .coalesce_history_id = coalesce_id,
+                          .defer_recovery_publication = false,
+                          .expected_revision = {}});
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().code, ErrorCode::kValidation);
     auto after_invalid = service->snapshot();
@@ -298,7 +302,9 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRo
         asset_id, third,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
-                          .coalesce_history_id = coalesce_id});
+                          .coalesce_history_id = coalesce_id,
+                          .defer_recovery_publication = false,
+                          .expected_revision = {}});
     ASSERT_TRUE(after_snapshot) << after_snapshot.error().message;
     ASSERT_TRUE(after_snapshot.value().history_id);
     EXPECT_NE(*after_snapshot.value().history_id, coalesce_id);
@@ -355,7 +361,9 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalesceFailureRollsBackRecipeHistoryAnd
         asset_id, rejected,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
-                          .coalesce_history_id = *first_saved.value().history_id});
+                          .coalesce_history_id = *first_saved.value().history_id,
+                          .defer_recovery_publication = false,
+                          .expected_revision = {}});
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kIo);
 
@@ -413,7 +421,9 @@ TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
         service->save_develop(asset_id, second,
                               RecipeSaveOptions{.history_write = RecipeHistoryWrite::kUnchanged,
                                                 .discard_history_after_seq = {},
-                                                .coalesce_history_id = {}});
+                                                .coalesce_history_id = {},
+                                                .defer_recovery_publication = false,
+                                                .expected_revision = {}});
     ASSERT_TRUE(previewed) << previewed.error().message;
     auto preview_history = service->list_recipe_history(asset_id);
     ASSERT_TRUE(preview_history) << preview_history.error().message;
@@ -434,6 +444,8 @@ TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
                                             .history_write = RecipeHistoryWrite::kAppendIfNew,
                                             .discard_history_after_seq = middle.seq,
                                             .coalesce_history_id = {},
+                                            .defer_recovery_publication = false,
+                                            .expected_revision = {},
                                         });
     ASSERT_TRUE(edited) << edited.error().message;
     auto truncated = service->list_recipe_history(asset_id);
@@ -538,6 +550,8 @@ TEST_F(CatalogServiceTest, HistoryDiscardAndAppendShareRecipeTransaction)
                                             .history_write = RecipeHistoryWrite::kAppendIfNew,
                                             .discard_history_after_seq = cursor_seq,
                                             .coalesce_history_id = {},
+                                            .defer_recovery_publication = false,
+                                            .expected_revision = {},
                                         });
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kIo);
@@ -1767,6 +1781,9 @@ TEST_F(CatalogServiceTest, Cor01DevelopSaveBindsExpectedRevision)
     auto saved = service->save_develop_with_history(
         asset_id, first,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = {},
+                          .defer_recovery_publication = false,
                           .expected_revision = revision});
     ASSERT_TRUE(saved) << saved.error().message;
     EXPECT_GT(saved.value().revision, revision);
@@ -1776,6 +1793,9 @@ TEST_F(CatalogServiceTest, Cor01DevelopSaveBindsExpectedRevision)
     auto stale = service->save_develop_with_history(
         asset_id, second,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = {},
+                          .defer_recovery_publication = false,
                           .expected_revision = revision});
     ASSERT_FALSE(stale);
     EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
@@ -1842,6 +1862,9 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     auto saved = service->save_develop_with_history(
         asset_id, multi,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = {},
+                          .defer_recovery_publication = false,
                           .expected_revision = snap_rev.value().revision});
     ASSERT_TRUE(saved) << saved.error().message;
 
@@ -1924,6 +1947,9 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     auto fresh = service->save_develop_with_history(
         asset_id, bump,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = {},
+                          .defer_recovery_publication = false,
                           .expected_revision = stale_rev});
     ASSERT_TRUE(fresh) << fresh.error().message;
     EXPECT_GT(fresh.value().revision, stale_rev);
@@ -1934,6 +1960,9 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     auto stale = service->save_develop_with_history(
         asset_id, hijack,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = {},
+                          .defer_recovery_publication = false,
                           .expected_revision = stale_rev});
     ASSERT_FALSE(stale);
     EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
