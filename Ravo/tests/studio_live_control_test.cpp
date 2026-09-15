@@ -262,6 +262,14 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
         "studio.gpuPreviewGeneration === 0 && !studio.previewLoading && previewImage.source.toString().length === 0 && (studio.selectedAssetId.length === 0 || studio.selectedImportState === \"missing\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitWidth")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitHeight")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportWidth")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportHeight")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedWorkingWidth")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedWorkingHeight")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("return window.comparisonReady ? width * 2 : width")));
+    EXPECT_FALSE(source.contains(QStringLiteral("inspectZoom.inspectSourceWidth")));
+    EXPECT_FALSE(source.contains(QStringLiteral("inspectZoom.inspectSourceHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("function beginInspectZoomAnimation()")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: inspectZoomAnim")));
     EXPECT_TRUE(source.contains(QStringLiteral("inspectZoom.inspectStageLockW")));
@@ -285,15 +293,17 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("scroller.contentY = maxY / 2")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("Math.min(maxX")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("Math.min(maxY")));
-    EXPECT_TRUE(zoom_source.contains(QStringLiteral("studio.previewViewportWidth")));
-    EXPECT_TRUE(zoom_source.contains(QStringLiteral("studio.previewViewportHeight")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("previewStage.sourceW")));
+    EXPECT_TRUE(zoom_source.contains(QStringLiteral("previewStage.sourceH")));
+    EXPECT_FALSE(zoom_source.contains(QStringLiteral("function inspectSourceWidth()")));
+    EXPECT_FALSE(zoom_source.contains(QStringLiteral("function inspectSourceHeight()")));
+    EXPECT_FALSE(zoom_source.contains(QStringLiteral("studio.previewViewportWidth")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function centerPhotoViewport()")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function seekNavigatorViewport(nx, ny)")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function beginInspectZoomAnimation(")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function togglePhotoInspectZoom(stagePos)")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("readonly property rect navigatorVisible")));
-    EXPECT_TRUE(zoom_source.contains(QStringLiteral("return comparisonReady ? width * 2 : width")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("ids.viewToggleActualSize")));
 }
 

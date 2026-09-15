@@ -53,7 +53,6 @@ ApplicationWindow {
     InspectZoomController {
         id: inspectZoom
         studio: studio
-        devicePixelRatio: Screen.devicePixelRatio
         comparisonReady: window.comparisonReady
         // scroller/photoPlane/previewImage bound after they exist via Binding/onCompleted below
     }
@@ -848,8 +847,18 @@ ApplicationWindow {
                                     yScale: inspectZoom.inspectAnimScale
                                 }
 
-                                readonly property real sourceW: inspectZoom.inspectSourceWidth()
-                                readonly property real sourceH: inspectZoom.inspectSourceHeight()
+                                // Inline studio Q_PROPERTY reads so Fit/Fill track previewChanged.
+                                readonly property real sourceW: {
+                                    if (studio.zoomMode === "actual" && studio.selectedWorkingWidth > 0)
+                                        return Math.max(1, Math.round(studio.selectedWorkingWidth / Screen.devicePixelRatio));
+                                    const width = Math.max(studio.previewViewportWidth > 0 ? studio.previewViewportWidth : studio.selectedWorkingWidth, 1);
+                                    return window.comparisonReady ? width * 2 : width;
+                                }
+                                readonly property real sourceH: {
+                                    if (studio.zoomMode === "actual" && studio.selectedWorkingHeight > 0)
+                                        return Math.max(1, Math.round(studio.selectedWorkingHeight / Screen.devicePixelRatio));
+                                    return Math.max(studio.previewViewportHeight > 0 ? studio.previewViewportHeight : studio.selectedWorkingHeight, 1);
+                                }
                                 readonly property real containScale: Math.min(width / sourceW, height / sourceH)
                                 readonly property real baseW: sourceW * containScale
                                 readonly property real baseH: sourceH * containScale

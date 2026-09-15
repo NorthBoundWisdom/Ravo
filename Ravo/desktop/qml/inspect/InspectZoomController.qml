@@ -10,7 +10,6 @@ QtObject {
     property var previewImage
     property var previewStage
     property var studioActions
-    property real devicePixelRatio: 1
 
     property string viewportAssetId: ""
     property var inspectViewportFocus: null
@@ -38,23 +37,6 @@ QtObject {
         if (studio.browseMode === "grid" || studio.browseMode === "survey" || (studio.browseMode === "develop" && studio.cropToolActive))
             return false;
         return previewImage.status === Image.Ready && studio.previewUrl.toString().length > 0;
-    }
-
-    function inspectSourceWidth() {
-        if (!studio)
-            return 1;
-        if (studio.zoomMode === "actual" && studio.selectedWorkingWidth > 0)
-            return Math.max(1, Math.round(studio.selectedWorkingWidth / devicePixelRatio));
-        const width = Math.max(studio.previewViewportWidth, 1);
-        return comparisonReady ? width * 2 : width;
-    }
-
-    function inspectSourceHeight() {
-        if (!studio)
-            return 1;
-        if (studio.zoomMode === "actual" && studio.selectedWorkingHeight > 0)
-            return Math.max(1, Math.round(studio.selectedWorkingHeight / devicePixelRatio));
-        return Math.max(studio.previewViewportHeight, 1);
     }
 
     function centerPhotoViewportNow() {
@@ -99,8 +81,8 @@ QtObject {
     }
 
     function unlockedPhotoStageSize(mode, factor) {
-        const srcW = root.inspectSourceWidth();
-        const srcH = root.inspectSourceHeight();
+        const srcW = previewStage ? Math.max(1, previewStage.sourceW) : 1;
+        const srcH = previewStage ? Math.max(1, previewStage.sourceH) : 1;
         if (mode === "fit")
             return {
                 "w": scroller.width,
@@ -123,8 +105,8 @@ QtObject {
     }
 
     function photoPlaneRectForStage(stageW, stageH) {
-        const srcW = root.inspectSourceWidth();
-        const srcH = root.inspectSourceHeight();
+        const srcW = previewStage ? Math.max(1, previewStage.sourceW) : 1;
+        const srcH = previewStage ? Math.max(1, previewStage.sourceH) : 1;
         const contain = Math.min(stageW / srcW, stageH / srcH);
         const planeW = srcW * contain;
         const planeH = srcH * contain;
