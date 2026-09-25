@@ -56,43 +56,35 @@
   "dependencies": {
     "Exiv2": {
       "remote": "https://github.com/Exiv2/exiv2.git",
-      "commit": "d9524e7e4b8f35cf6ce7401b6efef7d40a3e6d8e",
-      "repoName": "exiv2"
+      "commit": "c69c2e9fca21cab6d16c6fd58eb70ab0b697c06b"
     },
     "LibJpegTurbo": {
       "remote": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
-      "commit": "7b5fee3f7a83b5c2bdbb52d5dd6ce6bfc53b6b58",
-      "repoName": "libjpeg-turbo"
+      "commit": "03c9a9d795c08ab06d625e5fc3bf0ae8b26f9652"
     },
     "LibRaw": {
       "remote": "https://github.com/LibRaw/LibRaw.git",
-      "commit": "116924e5bcb9483ef9c5fbe7f3cfc5a8a4b97064",
-      "repoName": "LibRaw"
+      "commit": "0694b5ac18ac19dfe6a18e11104ad190682222bd"
     },
     "RawSpeed": {
       "remote": "https://github.com/darktable-org/rawspeed.git",
-      "commit": "c835b05aecfacb7343f7c424abd620aa12116c3f",
-      "repoName": "rawspeed"
+      "commit": "c835b05aecfacb7343f7c424abd620aa12116c3f"
     },
     "GeoControls": {
       "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",
-      "commit": "76481057a71ef9fbce1a9eb332732185a954b69f",
-      "repoName": "GeoControls"
+      "commit": "f83700238d9af0a60a272ddc94e4a1b006c5967d"
     },
     "LensFun": {
       "remote": "https://github.com/lensfun/lensfun.git",
-      "commit": "230b33c9f25ae8025ae08b230e7379939f2eaf49",
-      "repoName": "lensfun"
+      "commit": "bbd4332a9ec566fd9aa548c9e0d8ced238c56261"
     },
     "LibTIFF": {
       "remote": "https://gitlab.com/libtiff/libtiff.git",
-      "commit": "dd0ed2c6198fb8fe736ec0329d24a50cfbb2f2ae",
-      "repoName": "libtiff"
+      "commit": "0962d91b19f172eba97caf2ee31995a39d99768b"
     },
     "LittleCMS": {
       "remote": "https://github.com/mm2/Little-CMS.git",
-      "commit": "8105f59f3204be8b3e9931f92d98dc2bbc3f9cff",
-      "repoName": "Little-CMS"
+      "commit": "a0b0d7a69b13b461bdbd9cff9f7f1d59ccd1858c"
     }
   }
 }
