@@ -211,6 +211,9 @@ TEST(XTransDemosaicTest, DecodeAndRealFixtureHaveFrozenCfaAndPreviewGolden)
     ASSERT_TRUE(raw) << raw.error().message;
     EXPECT_EQ(raw.value().cfa_width, 6U);
     EXPECT_EQ(raw.value().cfa_height, 6U);
+    // This fixture stores its uniform pedestal in a 6x6 black repeat grid.
+    EXPECT_EQ(raw.value().black_level, 1022);
+    EXPECT_EQ(raw.value().pixels[0] - raw.value().black_level, 1549 - 1022);
     EXPECT_EQ(std::count(raw.value().cfa_channels.begin(), raw.value().cfa_channels.end(), 0U), 8);
     EXPECT_EQ(std::count(raw.value().cfa_channels.begin(), raw.value().cfa_channels.end(), 1U), 20);
     EXPECT_EQ(std::count(raw.value().cfa_channels.begin(), raw.value().cfa_channels.end(), 2U), 8);
@@ -219,7 +222,7 @@ TEST(XTransDemosaicTest, DecodeAndRealFixtureHaveFrozenCfaAndPreviewGolden)
                                    XTransDemosaicMode::kMarkesteijn3, CancellationToken{});
     ASSERT_TRUE(preview) << preview.error().message;
     EXPECT_EQ(raw.value().pixels, source);
-    EXPECT_EQ(quantized_image_hash(preview.value()), 16117879839220596880ULL);
+    EXPECT_EQ(quantized_image_hash(preview.value()), 8619865009885270448ULL);
 }
 
 TEST(XTransDemosaicTest, InvalidModeCfaCancellationAndMemoryAreExplicit)

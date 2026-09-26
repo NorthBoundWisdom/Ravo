@@ -802,9 +802,11 @@ gated (ADR-0096).
   at the pre-commit seam (ADR-0067).
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v11 validates complete decode, explicit input/output
+- RAW preview contract v12 validates complete decode, explicit input/output
   profiles, default opposed highlight reconstruction, and default RapidRAW
   Basic tone; the raster baseline must not receive a second display transform.
+  Synthetic DNG black-level tests cover uniform and unequal 2×2 pedestals,
+  exact zero-signal and illuminated CFA values, and source-byte preservation.
   RapidRAW tone requires strict schema validation, fixed normalization and
   directional samples for every global control, CPU/GPU comparison, bounded
   blur memory, all-control Debug/Release latency, and catalog reset/reopen/export.

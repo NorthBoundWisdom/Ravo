@@ -165,7 +165,8 @@ vignette_payload(const std::array<double, 5> coefficients = {})
 
 [[nodiscard]] bool write_synthetic_dng(const std::filesystem::path &path,
                                        const std::span<const std::uint8_t> list2,
-                                       const std::span<const std::uint8_t> list3)
+                                       const std::span<const std::uint8_t> list3,
+                                       const std::array<float, 4> *black_grid = nullptr)
 {
     constexpr std::uint32_t width = 32U;
     constexpr std::uint32_t height = 32U;
@@ -191,7 +192,9 @@ vignette_payload(const std::array<double, 5> coefficients = {})
     const std::array<std::uint8_t, 4> dng_backward_version{1U, 3U, 0U, 0U};
     const std::array<std::uint16_t, 2> cfa_repeat{2U, 2U};
     const std::array<std::uint8_t, 4> cfa_pattern{0U, 1U, 1U, 2U};
-    const std::array<std::uint16_t, 2> black_repeat{1U, 1U};
+    const std::array<std::uint16_t, 2> black_repeat{
+        static_cast<std::uint16_t>(black_grid ? 2U : 1U),
+        static_cast<std::uint16_t>(black_grid ? 2U : 1U)};
     const std::array<float, 1> black_level{100.0F};
     const std::array<std::uint32_t, 1> white_level{1100U};
     const std::array<float, 2> default_scale{1.0F, 1.0F};
@@ -220,8 +223,9 @@ vignette_payload(const std::array<double, 5> coefficients = {})
     set(TIFFSetField(tiff, TIFFTAG_CFAPATTERN, static_cast<std::uint16_t>(cfa_pattern.size()),
                      cfa_pattern.data()));
     set(TIFFSetField(tiff, TIFFTAG_BLACKLEVELREPEATDIM, black_repeat.data()));
-    set(TIFFSetField(tiff, TIFFTAG_BLACKLEVEL, static_cast<std::uint16_t>(black_level.size()),
-                     black_level.data()));
+    set(TIFFSetField(tiff, TIFFTAG_BLACKLEVEL,
+                     static_cast<std::uint16_t>(black_grid ? black_grid->size() : black_level.size()),
+                     black_grid ? black_grid->data() : black_level.data()));
     set(TIFFSetField(tiff, TIFFTAG_WHITELEVEL, static_cast<std::uint16_t>(white_level.size()),
                      white_level.data()));
     set(TIFFSetField(tiff, TIFFTAG_DEFAULTSCALE, default_scale.data()));
@@ -248,7 +252,10 @@ vignette_payload(const std::array<double, 5> coefficients = {})
     {
         for (std::uint32_t x = 0U; x < width; ++x)
         {
-            row[x] = static_cast<std::uint16_t>(200U + y * width + x);
+            row[x] = black_grid ?
+                static_cast<std::uint16_t>((*black_grid)[(y % 2U) * 2U + x % 2U] +
+                                           (x < 16U ? 0U : 200U)) :
+                static_cast<std::uint16_t>(200U + y * width + x);
         }
         ok = TIFFWriteScanline(tiff, row.data(), y, 0U) >= 0;
     }
@@ -311,6 +318,49 @@ void ensure_qt_core()
     static char *argv[] = {executable, nullptr};
     static auto *application = new QCoreApplication(argc, argv);
     static_cast<void>(application);
+}
+
+TEST(DngOpcodeTest, RepeatingBlackPedestalIsRemovedBeforeWhiteBalance)
+{
+    SyntheticDngDirectory directory;
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    for (const auto grid : {std::array<float, 4>{128, 128, 128, 128},
+                            std::array<float, 4>{128, 160, 192, 224},
+                            std::array<float, 4>{1024, 1024, 1024, 1024}})
+    {
+        const auto path = directory.path() / "black.dng";
+        ASSERT_TRUE(write_synthetic_dng(path, {}, {}, &grid));
+        const auto source_hash = file_hash(path);
+        auto decoded = engine.value().decode_raw_frame(path.string(), CancellationToken{});
+        ASSERT_TRUE(decoded) << decoded.error().message;
+        const auto &raw = decoded.value();
+        for (std::uint32_t y = 0; y < raw.height; ++y)
+        {
+            for (std::uint32_t x = 0; x < raw.width; ++x)
+            {
+                EXPECT_EQ(static_cast<int>(raw.pixels[y * raw.width + x]) - raw.black_level,
+                          x < 16U ? 0 : 200) << x << "," << y;
+            }
+        }
+        EXPECT_EQ(file_hash(path), source_hash);
+    }
+}
+
+TEST(DngOpcodeTest, RejectsBlackPedestalAtWhiteWithoutChangingSource)
+{
+    SyntheticDngDirectory directory;
+    const auto path = directory.path() / "invalid-black.dng";
+    const std::array<float, 4> grid{1100, 1100, 1100, 1100};
+    ASSERT_TRUE(write_synthetic_dng(path, {}, {}, &grid));
+    const auto source_hash = file_hash(path);
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto decoded = engine.value().decode_raw_frame(path.string(), CancellationToken{});
+    ASSERT_FALSE(decoded);
+    EXPECT_EQ(decoded.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(decoded.error().context.at("reason"), "invalid_raw_black_level");
+    EXPECT_EQ(file_hash(path), source_hash);
 }
 
 TEST(DngOpcodeTest, LibRawOwnsAndExecutesSyntheticFileOpcodesWithoutSourceMutation)

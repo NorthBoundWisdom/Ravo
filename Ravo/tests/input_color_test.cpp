@@ -441,10 +441,10 @@ TEST(InputColorTest, Frozen0000EnhancedMatrixHasARealMire1WorkingReference)
         sums[1] += working.value().rgb[index + 1U];
         sums[2] += working.value().rgb[index + 2U];
     }
-    // Ravo-owned linear-working reference after the default RCD demosaic.
-    EXPECT_NEAR(sums[0], 464.57423225, 1.0e-3);
-    EXPECT_NEAR(sums[1], 432.70967261, 1.0e-3);
-    EXPECT_NEAR(sums[2], 413.46526048, 1.0e-3);
+    // Ravo-owned reference after per-channel black correction and RCD demosaic.
+    EXPECT_NEAR(sums[0], 464.58521133, 1.0e-3);
+    EXPECT_NEAR(sums[1], 432.58816427, 1.0e-3);
+    EXPECT_NEAR(sums[2], 413.49279067, 1.0e-3);
     EXPECT_EQ(decoded.value().pixels, original_pixels);
     EXPECT_EQ(decoded.value().color_profile, original_profile);
 }

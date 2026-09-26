@@ -1010,8 +1010,30 @@ try
     result.width = region.value().width;
     result.height = region.value().height;
     result.rotate_quarters = clockwise_quarters_from_libraw_flip(sizes.flip);
-    result.black_level = static_cast<std::int32_t>(
-        std::min(raw.color.black, static_cast<unsigned>(std::numeric_limits<std::int32_t>::max())));
+    // unpack() leaves channel and repeating DNG black offsets separate. Fold
+    // their common pedestal into our scalar black, and remove only the residual
+    // from each CFA sample before white balance or demosaic can amplify it.
+    const auto &black = raw.color.cblack;
+    const std::uint64_t black_rows = black[4];
+    const std::uint64_t black_columns = black[5];
+    const auto black_count = black_rows * black_columns;
+    if ((black_rows == 0U) != (black_columns == 0U) ||
+        black_count > std::size(raw.color.cblack) - 6U)
+    {
+        return make_error(ErrorCode::kValidation, "Invalid RAW black-level repeat grid",
+                          {{"reason", "invalid_raw_black_grid"}});
+    }
+    const auto channel_min = *std::min_element(black, black + 4);
+    const auto grid_min = black_count == 0U ? 0U :
+        *std::min_element(black + 6, black + 6 + black_count);
+    const std::uint64_t common_black =
+        static_cast<std::uint64_t>(raw.color.black) + channel_min + grid_min;
+    if (common_black >= (raw.color.maximum > 0 ? raw.color.maximum : 65535U))
+    {
+        return make_error(ErrorCode::kValidation, "RAW black level reaches the white level",
+                          {{"reason", "invalid_raw_black_level"}});
+    }
+    result.black_level = static_cast<std::int32_t>(common_black);
     result.white_level = raw.color.maximum > 0 ? raw.color.maximum : 65535U;
     std::copy(std::begin(raw.rawdata.color.linear_max), std::end(raw.rawdata.color.linear_max),
               result.linear_response_limits.begin());
@@ -1026,15 +1048,8 @@ try
     result.make = raw.idata.make;
     result.model = raw.idata.model;
     result.dng_opcodes = std::move(dng_opcodes).value();
-    float deflicker_black = 0.0F;
-    for (std::size_t channel = 0; channel < 4U; ++channel)
-    {
-        const auto separate =
-            static_cast<std::uint16_t>(raw.rawdata.color.black + raw.rawdata.color.cblack[channel]);
-        deflicker_black += static_cast<float>(separate);
-    }
     result.exposure_deflicker_black_level =
-        static_cast<std::uint16_t>(std::round(deflicker_black / 4.0F));
+        static_cast<std::uint16_t>(result.black_level);
     const unsigned deflicker_white = raw.rawdata.color.linear_max[0] != 0U ?
                                          raw.rawdata.color.linear_max[0] :
                                          raw.rawdata.color.maximum;
@@ -1120,7 +1135,24 @@ try
                              region.value().left;
         const auto row_offset =
             static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) * result.width);
-        std::copy_n(source, result.width, result.pixels.begin() + row_offset);
+        for (std::uint32_t x = 0; x < result.width; ++x)
+        {
+            const auto active_y = region.value().relative_top + y;
+            const auto active_x = region.value().relative_left + x;
+            const int channel = xtrans ? raw.idata.xtrans[active_y % 6U][active_x % 6U] :
+                decoder.value()->COLOR(static_cast<int>(region.value().top + y),
+                                       static_cast<int>(region.value().left + x));
+            if (channel < 0 || channel > 3)
+            {
+                return make_error(ErrorCode::kUnsupported, "Unsupported RAW black-level channel");
+            }
+            const auto grid = black_count == 0U ? 0U :
+                black[6U + (active_y % black_rows) * black_columns + active_x % black_columns];
+            const std::uint64_t residual =
+                static_cast<std::uint64_t>(black[channel] - channel_min) + grid - grid_min;
+            result.pixels[static_cast<std::size_t>(row_offset) + x] =
+                residual < source[x] ? static_cast<std::uint16_t>(source[x] - residual) : 0U;
+        }
     }
     return result;
 }

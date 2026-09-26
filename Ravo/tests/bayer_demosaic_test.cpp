@@ -289,6 +289,11 @@ TEST(BayerDemosaicTest, RealCanonRawHasFrozenRcdAndPpgGoldens)
     ASSERT_TRUE(engine) << engine.error().message;
     auto raw = engine.value().decode_raw_frame(input.string(), CancellationToken{});
     ASSERT_TRUE(raw) << raw.error().message;
+    // Fixture sensor codes are 2761/4987; the two channel pedestals are
+    // 1015/1016. The owned CFA retains only the common 1015 pedestal.
+    EXPECT_EQ(raw.value().black_level, 1015);
+    EXPECT_EQ(raw.value().pixels[0], 2761);
+    EXPECT_EQ(raw.value().pixels[1], 4986);
     const auto original = raw.value().pixels;
     auto rcd = demosaic_bayer(raw.value(), 320U, 213U, {1.0F, 1.0F, 1.0F, 1.0F},
                               BayerDemosaicMode::kRcd, CancellationToken{});
@@ -297,8 +302,8 @@ TEST(BayerDemosaicTest, RealCanonRawHasFrozenRcdAndPpgGoldens)
     ASSERT_TRUE(rcd) << rcd.error().message;
     ASSERT_TRUE(ppg) << ppg.error().message;
     EXPECT_EQ(raw.value().pixels, original);
-    EXPECT_EQ(quantized_image_hash(rcd.value()), 6825562484246184936ULL);
-    EXPECT_EQ(quantized_image_hash(ppg.value()), 17162427211048796534ULL);
+    EXPECT_EQ(quantized_image_hash(rcd.value()), 1203299066550313723ULL);
+    EXPECT_EQ(quantized_image_hash(ppg.value()), 3721858525313755225ULL);
     EXPECT_NE(quantized_image_hash(rcd.value()), quantized_image_hash(ppg.value()));
 }
 

@@ -649,11 +649,17 @@ embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 `embedded-jpeg`. It is not editable scene-linear data. Gallery grid cells keep
 that browse thumbnail; Standard/1:1 import drain does not replace it with
 processed RAW. Loupe, Develop, scopes, export, and `request_preview` with
-`prefer_embedded_preview=false` use preview contract v11: full CPU
+`prefer_embedded_preview=false` use preview contract v12: full CPU
 decode/render of the RAW. Its successful decode owns the effective source
 dimensions; settled publication repairs older catalog rows, while transient
 interactive/probe requests remain read-only. Import writes a colour-calibration
-baseline for RAW:
+baseline for RAW. The Engine decoder folds LibRaw's global, per-channel and
+repeating DNG black levels into a common pedestal plus per-sample residual
+correction before white balance/demosaic. Repeat coordinates remain relative
+to the active sensor area, including any default-crop offset. Invalid repeat
+dimensions or a pedestal reaching white fail structurally. Decode owns the
+corrected CFA buffer and checks cancellation per row; source bytes are unchanged.
+Preview v12 invalidates images rendered without that correction. The baseline is:
 opposed highlight reconstruction, as-shot white balance from LibRaw `cam_mul`,
 the camera input matrix (`enhanced_matrix` via input profile `source`),
 `ravo.display.rapidraw-basic`, and `ravo.detail.sharpen` at the accepted Lab USM
