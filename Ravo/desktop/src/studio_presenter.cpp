@@ -298,6 +298,13 @@ StudioPresenter::StudioPresenter(QObject *parent)
 
 StudioPresenter::~StudioPresenter()
 {
+    static_cast<void>(thumbnail_presentation_cancel_.cancel("window_closed"));
+    static_cast<void>(library_reload_cancel_.cancel("window_closed"));
+    pending_thumbnail_presentations_.clear();
+    thumbnail_presentation_executor_.request_stop();
+    thumbnail_presentation_executor_.wait();
+    if (!thumbnail_presented_root_.isEmpty())
+        QDir(thumbnail_presented_root_).removeRecursively();
     release_gpu_preview_presented_surface();
     release_gpu_roi_presented_surface();
     if (catalog_revision_timer_ != nullptr)
@@ -657,6 +664,10 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
                                   std::unordered_map<std::string, QString> thumbnail_states,
                                   const std::size_t total, const bool has_more)
 {
+    static_cast<void>(thumbnail_presentation_cancel_.cancel("library_listing_replaced"));
+    thumbnail_presentation_cancel_ = CancellationSource{};
+    pending_thumbnail_presentations_.clear();
+    thumbnail_presentation_revisions_.clear();
     ++library_query_generation_;
     const QString previous = selected_asset_id_;
     const auto incoming_thumbs = thumbnail_urls;
@@ -1115,15 +1126,23 @@ void StudioPresenter::reloadVisibleAssets()
     {
         return;
     }
+    resetThumbnailDemand();
+    static_cast<void>(library_reload_cancel_.cancel("library_query_replaced"));
+    library_reload_cancel_ = CancellationSource{};
+    const auto cancellation = library_reload_cancel_.token();
+    const auto generation = ++library_query_generation_;
     executor_.post(
-        [this, query = current_query(), collapse = collapse_stacks_]()
+        [this, query = current_query(), collapse = collapse_stacks_, cancellation, generation]()
         {
+            if (cancellation.is_cancellation_requested())
+                return;
             auto listing = load_catalog_listing(service_.get(), query, collapse);
             QMetaObject::invokeMethod(
                 this,
-                [this, listing = std::move(listing)]() mutable
+                [this, listing = std::move(listing), cancellation, generation]() mutable
                 {
-                    if (import_work_active_)
+                    if (import_work_active_ || cancellation.is_cancellation_requested() ||
+                        generation != library_query_generation_)
                         return;
                     if (!listing.assets)
                     {
@@ -1166,7 +1185,7 @@ void StudioPresenter::reloadVisibleAssets()
                                 listing.has_more);
                 },
                 Qt::QueuedConnection);
-        });
+        }, TaskPriority::kForeground);
 }
 
 void StudioPresenter::loadNextLibraryPage()

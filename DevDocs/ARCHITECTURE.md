@@ -236,7 +236,19 @@ hit area, scaled through the existing theme API. These are QML layout choices,
 not new import policy or dependency changes.
 
 Gallery and import-workspace grid cells fit available width in the 120–320
-range and have a vertical scroll bar. `positionViewAtIndex` runs only when the
+range and have a vertical scroll bar. Gallery list publication never decodes or
+encodes monitor-presented thumbnails on the UI thread. A presenter-owned serial
+display worker processes one immutable source/profile snapshot at a time;
+pending requests coalesce by asset within the bounded resident library pages.
+Conversion uses at most a 320-pixel long edge, with one shared immutable monitor
+profile. The ephemeral PNG cache keys source path/size/mtime and source/monitor
+profile identity; folder revisits reuse it. Pending thumbnails remain placeholders
+until presentation completes. Conversion/publication failures remain visible,
+and generation checks reject replaced folder/profile results. Window teardown
+cancels and joins this worker before removing its cache. Folder reloads cancel
+obsolete thumbnail demand and enqueue foreground catalog queries with latest-query
+publication checks; SQL remains on the existing catalog executor.
+`positionViewAtIndex` runs only when the
 selected Gallery item leaves the viewport. Import cells use a separate highlight
 from the import checkbox: Command/Control extends the highlight, Shift selects a
 range, the single C++ Select All command routes Command/Control+A to the open

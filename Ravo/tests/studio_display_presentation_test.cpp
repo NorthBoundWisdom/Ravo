@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <vector>
 
 #include <QColor>
@@ -7,6 +8,9 @@
 #include <QCoreApplication>
 #include <QImage>
 #include <QTemporaryDir>
+#include <QDir>
+#include <QFileInfo>
+#include <QElapsedTimer>
 #include <QThread>
 #include <gtest/gtest.h>
 
@@ -108,6 +112,134 @@ TEST(StudioDisplayPresentationTest, ViewContractsAreMachineVisible)
     }
     EXPECT_TRUE(saw_display_transformed);
     EXPECT_TRUE(saw_scopes);
+}
+
+TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndReusesDisplayCache)
+{
+    ensure_qt_core();
+    init_logging("ravo-folder-presentation-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto catalog = directory.filePath("library.sqlite");
+    const auto cache = catalog + ".preview";
+    ASSERT_TRUE(QDir().mkpath(cache));
+    ASSERT_TRUE(QDir().mkpath(directory.filePath("photos")));
+    QImage preview(1600, 1066, QImage::Format_RGB888);
+    preview.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    preview.fill(QColor(200, 40, 40));
+    ASSERT_TRUE(preview.save(cache + "/full.png"));
+    auto repository = SqliteCatalogRepository::create(catalog.toStdString());
+    ASSERT_TRUE(repository);
+    for (int row = 0; row < 200; ++row)
+    {
+        const auto photo = directory.filePath(QStringLiteral("photos/%1.png").arg(row));
+        QImage source(16, 16, QImage::Format_RGB888);
+        source.fill(Qt::red);
+        ASSERT_TRUE(source.save(photo));
+        auto location = normalize_local_input(photo.toStdString());
+        ASSERT_TRUE(location);
+        AssetRecord asset;
+        asset.id = "ast_folder_" + std::to_string(row);
+        asset.normalized_uri = location.value().uri;
+        asset.media_type = std::string(kMediaTypePng);
+        asset.width = asset.height = 16U;
+        asset.created_unix_ms = row + 1;
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+        PreviewRecord record;
+        record.asset_id = asset.id;
+        record.cache_key = asset.id;
+        record.width = 1600U;
+        record.height = 1066U;
+        record.state = std::string(kPreviewStateReady);
+        record.cache_relpath = "full.png";
+        ASSERT_TRUE(repository.value()->upsert_preview(record));
+    }
+    ASSERT_TRUE(repository.value()->close());
+    repository.value().reset();
+    StudioDisplayPresentation display;
+    ASSERT_TRUE(display.injectSyntheticMatrixForTesting());
+    auto owned_presenter = std::make_unique<StudioPresenter>();
+    auto &presenter = *owned_presenter;
+    presenter.bindDisplayPresentation(&display);
+    bool observed_pending_presentation = false;
+    QObject::connect(&presenter, &StudioPresenter::filterChanged, [&]
+    {
+        if (presenter.visibleCount() == 200)
+            observed_pending_presentation |= presenter.assets()->thumbnailState("ast_folder_0") == "presenting";
+    });
+    presenter.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000));
+    EXPECT_TRUE(observed_pending_presentation);
+    const auto ready = [&]
+    {
+        if (presenter.visibleCount() != 200)
+            return false;
+        for (int row = 0; row < 200; ++row)
+            if (presenter.assets()->thumbnailState("ast_folder_" + std::to_string(row)) != "ready")
+                return false;
+        return true;
+    };
+    ASSERT_TRUE(wait_until(ready, 30000)) << presenter.errorText().toStdString();
+    const auto thumbnail = [&]
+    {
+        const int row = presenter.assets()->indexOf("ast_folder_0");
+        return presenter.assets()->data(presenter.assets()->index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
+    };
+    const auto cached = thumbnail();
+    const auto timestamp = QFileInfo(cached.toLocalFile()).lastModified();
+    EXPECT_EQ(QImage(cached.toLocalFile()).width(), 320);
+    const auto folder_location = normalize_local_input(directory.filePath("photos").toStdString());
+    const auto empty_location = normalize_local_input(directory.filePath("empty").toStdString());
+    ASSERT_TRUE(folder_location);
+    ASSERT_TRUE(empty_location);
+    const QString folder = QString::fromStdString(folder_location.value().uri);
+    const QString empty = QString::fromStdString(empty_location.value().uri);
+    presenter.selectFolder(empty);
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 0; }));
+    QElapsedTimer timer;
+    timer.start();
+    presenter.selectFolder(folder);
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 200; }));
+    RecordProperty("folder_listing_ms", timer.elapsed());
+    ASSERT_TRUE(wait_until(ready, 30000));
+    EXPECT_EQ(thumbnail(), cached);
+    EXPECT_EQ(QFileInfo(cached.toLocalFile()).lastModified(), timestamp);
+    presenter.selectFolder(empty);
+    presenter.selectFolder(folder);
+    presenter.selectFolder(empty);
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 0; }));
+    EXPECT_EQ(presenter.selectedFolderUri(), empty);
+    presenter.selectFolder(folder);
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 200; }));
+    owned_presenter.reset();
+    EXPECT_FALSE(QFileInfo::exists(cached.toLocalFile()));
+}
+
+TEST(StudioDisplayPresentationPerformanceProbe, MeasuresPrivateCatalogFolderSwitch)
+{
+    const char *catalog = std::getenv("RAVO_FOLDER_PERF_CATALOG");
+    const char *folder = std::getenv("RAVO_FOLDER_PERF_URI");
+    if (!catalog || !folder)
+        GTEST_SKIP() << "requires a private catalog copy and explicit folder URI";
+    ensure_qt_core();
+    init_logging("ravo-folder-performance");
+    StudioDisplayPresentation display;
+    StudioPresenter presenter;
+    presenter.bindDisplayPresentation(&display);
+    presenter.openCatalogFromPath(QString::fromUtf8(catalog));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000));
+    for (int run = 0; run < 3; ++run)
+    {
+        presenter.selectFolder(QStringLiteral("file:///ravo-folder-performance-empty"));
+        ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 0; }, 30000));
+        QElapsedTimer timer;
+        timer.start();
+        presenter.selectFolder(QString::fromUtf8(folder));
+        ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() > 0; }, 30000))
+            << presenter.errorText().toStdString();
+        RecordProperty("folder_listing_ms_" + std::to_string(run), timer.elapsed());
+        RecordProperty("folder_total", presenter.libraryTotal());
+    }
 }
 
 TEST(StudioDisplayPresentationTest, GalleryThumbnailAppliesMonitorPresentation)

@@ -37,12 +37,14 @@ catalog-independent thumbnail scheduling are defined by
 [ADR-0102](adr/0102-planned-managed-import-workspace.md), with typed
 desktop preference ownership in [ADR-0066](adr/0066-typed-desktop-language-setting.md).
 Their current contracts and reproducible validation live in architecture and testing above.
-Embedded Exif altitude defaults and strict malformed-tag handling are owned by
-the Engine metadata reader, documented in architecture and testing above.
 Import scan and execution exclude the current catalog's preview and support
 trees; path identity and regression coverage live in those same authorities.
 They also define Import's source-file context menu and its generation-bound
 candidate identity, isolated from Gallery commands.
+Embedded Exif altitude defaults and strict malformed-tag handling are owned by
+the Engine metadata reader, documented in architecture and testing above.
+Gallery folder publication, background monitor-thumbnail presentation and its
+private-catalog latency probe are documented in those same authorities.
 RAW black-level normalization and preview-cache invalidation are specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with synthetic DNG coverage in
 [TESTING.md](TESTING.md).

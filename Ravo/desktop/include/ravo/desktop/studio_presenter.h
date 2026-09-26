@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -50,6 +51,7 @@ namespace ravo
 class StudioCommandController;
 class StudioLiveSessionController;
 class StudioDisplayPresentation;
+struct DisplayPresentationState;
 namespace testing
 {
 class StudioImportTestControl;
@@ -1156,9 +1158,7 @@ private:
     [[nodiscard]] bool publish_gpu_preview_presented_surface(const QImage &presented);
     [[nodiscard]] bool publish_gpu_roi_presented_surface(const QImage &presented);
     void clear_thumbnail_presentation_cache();
-    [[nodiscard]] QUrl present_gallery_thumbnail_url(const std::string &asset_id,
-                                                     const QString &base_path,
-                                                     const ColorProfileState &source_profile);
+    void startNextThumbnailPresentation();
     void remember_thumbnail_base(const std::string &asset_id, const QString &base_path,
                                  const ColorProfileState &source_profile,
                                  const QString &thumb_state);
@@ -1220,6 +1220,14 @@ private:
     SerialExecutor executor_;
     SerialExecutor filesystem_executor_;
     SerialExecutor preview_analysis_executor_;
+    SerialExecutor thumbnail_presentation_executor_;
+    CancellationSource thumbnail_presentation_cancel_;
+    CancellationSource library_reload_cancel_;
+    std::map<std::string, std::function<void()>> pending_thumbnail_presentations_;
+    bool thumbnail_presentation_in_flight_ = false;
+    std::shared_ptr<const DisplayPresentationState> thumbnail_display_state_;
+    std::uint64_t thumbnail_presentation_revision_ = 0;
+    std::unordered_map<std::string, std::uint64_t> thumbnail_presentation_revisions_;
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
     CancellationSource shutdown_;

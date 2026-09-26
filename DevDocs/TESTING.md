@@ -1594,6 +1594,15 @@ digest upload for this SHA. Do not upgrade REL-02 / C3 from these unit gates alo
 
 Sanitizer (TSan/ASan) Import gate races: **UNTESTED** on this host (not configured).
 
+Gallery folder-presentation tests populate 200 full-size cached previews and
+require list publication while thumbnail presentation is pending, 320-pixel
+display output, cache URL/mtime reuse and rejection of rapid obsolete folder
+results. `StudioDisplayPresentationPerformanceProbe.MeasuresPrivateCatalogFolderSwitch`
+accepts `RAVO_FOLDER_PERF_CATALOG` (a private catalog backup/restore with a copied
+preview cache) and `RAVO_FOLDER_PERF_URI`; it records three listing latencies
+separately from thumbnail completion. It skips without explicit inputs and
+must never be pointed at the user's live catalog.
+
 ## Studio command workspace (Import)
 
 Live Studio interactive commands share one C++ workspace policy
