@@ -5,20 +5,82 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "tools" / "check_packaged_runtime.py"
+CMAKE_FOR_TESTS = shutil.which("cmake")
 
 # Import module helpers for focused extract/env cases.
 sys.path.insert(0, str(ROOT / "tools"))
 import check_packaged_runtime as cpr  # noqa: E402
+
+
+class LinuxIcuPayloadTests(unittest.TestCase):
+    def test_missing_icu_cannot_be_satisfied_by_host_libraries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            lib = root / "usr/lib"
+            lib.mkdir(parents=True)
+            (lib / "libQt6Core.so.6").write_bytes(b"\x7fELFfixture")
+            needed = " (NEEDED) Shared library: [libicui18n.so.73]\n"
+            with mock.patch.object(cpr.subprocess, "run", return_value=mock.Mock(stdout=needed)):
+                with self.assertRaisesRegex(RuntimeError, "Missing bundled ICU.*libicui18n.so.73"):
+                    cpr.check_linux_icu_payload(root, lib)
+                (lib / "libicui18n.so.74").write_bytes(b"\x7fELFwrong-version")
+                with self.assertRaisesRegex(RuntimeError, "libicui18n.so.73"):
+                    cpr.check_linux_icu_payload(root, lib)
+
+    @unittest.skipIf(os.name == "nt", "Linux SONAME symlink layout requires POSIX")
+    def test_exact_icu_triplet_and_soname_symlinks_are_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            lib = root / "usr/lib"
+            lib.mkdir(parents=True)
+            (lib / "libQt6Core.so.6").write_bytes(b"\x7fELFfixture")
+            names = [f"libicu{name}.so.73" for name in ("i18n", "uc", "data")]
+            for name in names:
+                (lib / (name + ".2")).write_bytes(b"\x7fELFfixture")
+                (lib / name).symlink_to(name + ".2")
+            needed = "\n".join(f" (NEEDED) Shared library: [{name}]" for name in names)
+            with mock.patch.object(cpr.subprocess, "run", return_value=mock.Mock(stdout=needed)):
+                self.assertEqual(cpr.check_linux_icu_payload(root, lib), sorted(names))
+
+    def test_readelf_failure_is_not_silently_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "broken.so").write_bytes(b"\x7fELFbroken")
+            with mock.patch.object(cpr.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "readelf")):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    cpr.check_linux_icu_payload(root, root)
+
+    @unittest.skipUnless(CMAKE_FOR_TESTS, "CMake is required to verify runtime collection")
+    def test_linux_runtime_collection_includes_versioned_icu_from_configured_prefix(self) -> None:
+        source = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+        start = source.index('  set(_ravo_linux_runtime_libraries "")')
+        end = source.index('  list(REMOVE_DUPLICATES _ravo_linux_runtime_libraries)', start)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            names = ["libQt6Core.so.6", "libicui18n.so.73", "libicuuc.so.73", "libicudata.so.73.2"]
+            for name in names:
+                (root / name).touch()
+            script = root / "collect.cmake"
+            output = root / "libraries.txt"
+            script.write_text(
+                f'set(_ravo_package_runtime_search_paths "{root.as_posix()}")\n' + source[start:end] +
+                f'file(WRITE "{output.as_posix()}" "${{_ravo_linux_runtime_libraries}}")\n',
+                encoding="utf-8",
+            )
+            subprocess.run([CMAKE_FOR_TESTS, "-P", str(script)], check=True, capture_output=True)
+            self.assertEqual({Path(p).name for p in output.read_text().split(";")}, set(names))
 
 
 def _write_fake_cli(path: Path, exit_code: int = 0) -> None:

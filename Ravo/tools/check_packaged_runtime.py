@@ -12,6 +12,7 @@ import enum
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import stat
@@ -228,6 +229,45 @@ def unpack(artifact: Path, dest: Path) -> Path:
         subprocess.run(["dpkg-deb", "-x", str(artifact), str(dest)], check=True)
         return dest
     raise SystemExit(f"unsupported artifact type: {artifact}")
+
+
+def check_linux_icu_payload(root: Path, library_dir: Path) -> list[str]:
+    """Require the exact ICU SONAMEs used by shipped ELF files inside the payload.
+
+    A successful host ldd/smoke is insufficient: the CI host may provide ICU
+    that is absent on the recipient distribution (GitHub issue #3).
+    """
+    needed: set[str] = set()
+    seen: set[Path] = set()
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        resolved = path.resolve()
+        if not is_under(resolved, root.resolve()):
+            raise RuntimeError(f"Payload file escapes artifact root: {path}")
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        with resolved.open("rb") as stream:
+            if stream.read(4) != b"\x7fELF":
+                continue
+        result = subprocess.run(
+            ["readelf", "--dynamic", "--wide", str(resolved)],
+            capture_output=True, text=True, check=True, timeout=30, env=env,
+        )
+        needed.update(re.findall(
+            r"\(NEEDED\)[^\n]*\[(libicu[^/\s\]]*\.so(?:\.[0-9]+)*)\]", result.stdout
+        ))
+    for name in sorted(needed):
+        library = library_dir / name
+        if not library.is_file() or not is_under(library.resolve(), root.resolve()):
+            raise RuntimeError(f"Missing bundled ICU dependency: {name} (expected {library})")
+        with library.open("rb") as stream:
+            if stream.read(4) != b"\x7fELF":
+                raise RuntimeError(f"Bundled ICU dependency is not ELF: {library}")
+    return sorted(needed)
 
 
 def _path_looks_like_dev_qt(entry: str) -> bool:
@@ -850,6 +890,15 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         record("cli_payload", Status.PASS, str(cli))
         print(f"cli={cli}")
+
+        if artifact.name.endswith(".AppImage") or artifact.suffix.lower() == ".deb":
+            try:
+                icu = check_linux_icu_payload(root, cli.parent.parent / "lib")
+                record("linux_icu_payload", Status.PASS, ", ".join(icu) or "no ICU dependencies")
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                record("linux_icu_payload", Status.FAIL, str(exc))
+                print(f"ERROR: Linux ICU payload check failed: {exc}", file=sys.stderr)
+                return 1
 
         studio, studio_hits = find_studio(root)
         if studio is None:

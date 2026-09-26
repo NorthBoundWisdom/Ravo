@@ -107,6 +107,13 @@ AppDir payload. CI uses pinned appimagetool 1.9.1 and type2 runtime 20251108
 assets with fixed SHA256 checks. The DEB installs the private payload under
 `/opt/RavoStudio` and owns launchers for `ravo_studio` and `ravo` under
 `/usr/bin`; neither format falls back to the former AppDir tar archive.
+The Linux runtime list includes the ICU libraries from the configured runtime
+prefixes, preserving versioned SONAME links alongside Qt. Package verification
+uses `readelf` to check ICU `DT_NEEDED` entries throughout the shipped ELF
+payload against its private `lib` directory. Host-installed ICU cannot satisfy
+this check; missing versions fail even if a build-host smoke succeeds (issue #3).
+Linux verification therefore requires binutils/readelf in addition to the
+existing unpack tools.
 
 ## GitHub Actions
 

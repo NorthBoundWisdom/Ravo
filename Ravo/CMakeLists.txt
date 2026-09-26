@@ -690,6 +690,8 @@ elseif(UNIX)
     file(GLOB _ravo_prefix_runtime_libraries LIST_DIRECTORIES FALSE
       "${_ravo_library_dir}/libQt6*.so"
       "${_ravo_library_dir}/libQt6*.so.*"
+      "${_ravo_library_dir}/libicu*.so"
+      "${_ravo_library_dir}/libicu*.so.*"
       "${_ravo_library_dir}/libpng*.so"
       "${_ravo_library_dir}/libpng*.so.*"
       "${_ravo_library_dir}/libquill*.so"

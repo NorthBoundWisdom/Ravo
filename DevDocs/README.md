@@ -28,6 +28,8 @@ The Global/Mask Develop workspace and Recipe v4 local groups are specified in
 
 Product execution belongs only in [TODO.md](TODO.md).
 Three-platform package evidence belongs in [Packaging.md](Packaging.md) (includes packaged-runtime checker + `package_rehearsal`).
+That document also owns Linux ICU runtime bundling and the package-local
+SONAME verification gate; build-host libraries cannot substitute for payload files.
 
 The import workspace, exact-content classification with visible disabled duplicate
 photos, remembered source/destination paths in Home-rooted folder trees, and the
