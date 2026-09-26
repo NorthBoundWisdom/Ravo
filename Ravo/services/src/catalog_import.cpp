@@ -406,7 +406,7 @@ Result<ImportBatchResult> CatalogService::execute_import_impl(
             return valid_template.error();
     }
 
-    auto paths = collect_import_paths(request.inputs, request.cancellation, request.recursive);
+    auto paths = enumerate_import_inputs(request.inputs, request.cancellation, request.recursive);
     if (!paths)
         return paths.error();
     std::map<std::string, ImportCandidate> checked;

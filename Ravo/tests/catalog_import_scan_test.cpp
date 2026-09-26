@@ -59,6 +59,83 @@ TEST_F(CatalogServiceTest, ImportDefaultsAbsentExifAltitudeReferenceAndPreserves
     EXPECT_EQ(file_sha256(path.string()), source_hash);
 }
 
+TEST_F(CatalogServiceTest, ImportScanAndExecutionExcludeCatalogOwnedTrees)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto cache = std::filesystem::path(database_path + ".preview");
+    const auto support = std::filesystem::path(database_path + ".ravo") / "offline-edit-proxies";
+    const auto similar = std::filesystem::path(database_path + ".preview-photos");
+    std::filesystem::create_directories(cache / "nested");
+    std::filesystem::create_directories(support);
+    std::filesystem::create_directories(similar);
+    const auto original = root / "original.png";
+    const auto cached = cache / "nested" / "v11_ast_example.png";
+    const auto proxy = support / "proxy.png";
+    ASSERT_TRUE(write_photo(original, Qt::red));
+    ASSERT_TRUE(write_photo(cached, Qt::green));
+    ASSERT_TRUE(write_photo(proxy, Qt::blue));
+    ASSERT_TRUE(write_photo(similar / "photo.png", Qt::yellow));
+    // A cache-looking filename outside the owned trees is still a user photo.
+    ASSERT_TRUE(write_photo(root / "v11_ast_user_photo.png", Qt::cyan));
+    const auto original_hash = file_sha256(original.string());
+    const auto cache_hash = file_sha256(cached.string());
+    const auto revision = service->snapshot().value().revision;
+    auto scan = service->scan_import_candidates({root.string()}, root.string(), true, {});
+    ASSERT_TRUE(scan) << scan.error().message;
+    ASSERT_EQ(scan.value().candidates.size(), 3U);
+    EXPECT_EQ(service->snapshot().value().revision, revision);
+    EXPECT_TRUE(service->list_assets().value().empty());
+    auto flat = service->enumerate_import_inputs({root.string()}, {}, false);
+    ASSERT_TRUE(flat) << flat.error().message;
+    EXPECT_EQ(flat.value().size(), 2U);
+    auto owned = service->enumerate_import_inputs({cache.string(), support.string(),
+                                                   cached.string(), proxy.string()}, {});
+    ASSERT_TRUE(owned) << owned.error().message;
+    EXPECT_TRUE(owned.value().empty());
+
+    ImportRequest request;
+    request.inputs = {root.string(), cached.string(), proxy.string()};
+    request.mode = ImportTransferMode::kAdd;
+    request.defer_previews = true;
+    auto imported = service->execute_import(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    EXPECT_EQ(imported.value().imported, 3U);
+    EXPECT_EQ(service->list_assets().value().size(), 3U);
+    EXPECT_EQ(file_sha256(original.string()), original_hash);
+    EXPECT_EQ(file_sha256(cached.string()), cache_hash);
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    EXPECT_EQ(service->list_assets().value().size(), 3U);
+    auto direct_batch = service->import_inputs({cached.string(), proxy.string()}, {});
+    ASSERT_TRUE(direct_batch) << direct_batch.error().message;
+    EXPECT_TRUE(direct_batch.value().empty());
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("test"));
+    auto cancelled = service->enumerate_import_inputs({root.string()}, cancellation.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+}
+
+#ifndef _WIN32
+TEST_F(CatalogServiceTest, ImportScanExcludesAliasesIntoCatalogOwnedTrees)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto cache = std::filesystem::path(database_path + ".preview");
+    const auto cached = cache / "cached.png";
+    ASSERT_TRUE(write_photo(cached, Qt::green));
+    const auto alias = root / "alias";
+    const auto linked_file = root / "linked.png";
+    std::filesystem::create_directory_symlink(cache, alias);
+    std::filesystem::create_symlink(cached, linked_file);
+    for (const auto &input : {root, alias, alias / "cached.png", linked_file})
+    {
+        auto paths = service->enumerate_import_inputs({input.string()}, {});
+        ASSERT_TRUE(paths) << paths.error().message;
+        EXPECT_TRUE(paths.value().empty());
+    }
+}
+#endif
+
 TEST_F(CatalogServiceTest, ImportScanFindsRenamedCatalogAndBatchContentWithoutPublishing)
 {
     ASSERT_TRUE(open_service(true));

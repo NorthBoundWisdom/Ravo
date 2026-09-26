@@ -81,7 +81,8 @@ struct EncodedPublicationCheckpointHook
 [[nodiscard]] bool is_import_candidate(const std::filesystem::path &path);
 [[nodiscard]] Result<std::vector<std::string>>
 collect_import_paths(const std::vector<std::string> &inputs, const CancellationToken &cancellation,
-                     bool recursive = true);
+                     bool recursive = true,
+                     const std::vector<std::string> &excluded_roots = {});
 [[nodiscard]] std::string fnv1a64_hex(std::string_view text);
 [[nodiscard]] Recipe identity_recipe_for(const AssetRecord &asset, const std::string &path);
 [[nodiscard]] DevelopParams baseline_develop_for(const AssetRecord &asset);

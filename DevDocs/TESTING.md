@@ -65,7 +65,10 @@ cancellation cleanup, source-change and Move cleanup failures, CLI JSON,
 workspace selection, highlight versus import-check, named placeholder publication before thumbnail decode,
 named Gallery placeholders as soon as Import starts, and cancellable
 background preview policies (ADR-0102/
-0104). Import-scan tests cover same-path, renamed/copied content, same-batch
+0104). Import-scan tests cover catalog preview/support-tree exclusion through
+scan and execution, explicit descendant inputs, POSIX symlink aliases,
+similarly named ordinary photo folders and source preservation. They also cover
+same-path, renamed/copied content, same-batch
 duplicates, equal-size/different-byte inputs, source mutation, revision conflict,
 cancellation, and v16-to-v17 index migration/backfill. The derived hash table
 must preserve catalog revision, source bytes, and edit history. CLI subprocess

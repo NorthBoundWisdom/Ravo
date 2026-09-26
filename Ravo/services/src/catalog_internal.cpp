@@ -171,8 +171,35 @@ void drop_raw_companion_jpegs(std::vector<std::string> &files)
 
 [[nodiscard]] Result<std::vector<std::string>>
 collect_import_paths(const std::vector<std::string> &inputs, const CancellationToken &cancellation,
-                     const bool recursive)
+                     const bool recursive, const std::vector<std::string> &excluded_roots)
 {
+    std::vector<std::filesystem::path> excluded;
+    for (const auto &root : excluded_roots)
+    {
+        std::error_code error;
+        auto canonical = std::filesystem::weakly_canonical(utf8_path(root), error);
+        if (error)
+            return make_error(ErrorCode::kIo, "Unable to resolve catalog-owned import exclusion",
+                              {{"path", root}, {"detail", error.message()}});
+        excluded.push_back(std::move(canonical));
+    }
+    const auto is_excluded = [&](const std::filesystem::path &candidate) -> Result<bool>
+    {
+        if (excluded.empty())
+            return false;
+        std::error_code error;
+        const auto canonical = std::filesystem::weakly_canonical(candidate, error);
+        if (error)
+            return make_error(ErrorCode::kIo, "Unable to resolve import candidate",
+                              {{"path", path_utf8(candidate)}, {"detail", error.message()}});
+        for (const auto &root : excluded)
+        {
+            if (std::mismatch(root.begin(), root.end(), canonical.begin(), canonical.end()).first ==
+                root.end())
+                return true;
+        }
+        return false;
+    };
     std::vector<std::string> files;
     for (const auto &input : inputs)
     {
@@ -189,6 +216,11 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
         std::error_code error;
         const std::filesystem::path path(
             std::u8string(location.value().path.begin(), location.value().path.end()));
+        auto excluded_input = is_excluded(path);
+        if (!excluded_input)
+            return excluded_input.error();
+        if (excluded_input.value())
+            continue;
         if (std::filesystem::is_regular_file(path, error) && !error)
         {
             files.push_back(location.value().path);
@@ -210,6 +242,11 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
                 return still_active.error();
             if (!is_import_candidate(candidate))
                 return {};
+            auto excluded_candidate = is_excluded(candidate);
+            if (!excluded_candidate)
+                return excluded_candidate.error();
+            if (excluded_candidate.value())
+                return {};
             const auto utf8 = candidate.generic_u8string();
             files.emplace_back(reinterpret_cast<const char *>(utf8.data()), utf8.size());
             if (files.size() > kImportBatchMaximumAssets)
@@ -223,6 +260,20 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
             for (std::filesystem::recursive_directory_iterator iterator(path, options, error), end;
                  iterator != end && !error; iterator.increment(error))
             {
+                auto active = cancellation.check();
+                if (!active)
+                    return active.error();
+                if (iterator->is_directory(error) && !error)
+                {
+                    auto excluded_directory = is_excluded(iterator->path());
+                    if (!excluded_directory)
+                        return excluded_directory.error();
+                    if (excluded_directory.value())
+                        iterator.disable_recursion_pending();
+                    continue;
+                }
+                if (error)
+                    break;
                 if (!iterator->is_regular_file(error) || error)
                     continue;
                 auto appended = append_candidate(iterator->path());

@@ -545,7 +545,13 @@ each input; partial success must not lose failure detail.
 
 First-version import only registers sources: it never copies, moves, renames,
 rewrites metadata, or deletes them. Codec probing confirms a format; extensions
-are only candidate filters. Enumeration drops a JPEG that shares a parent
+are only candidate filters. CatalogService supplies its preview-cache root and
+`<catalog>.ravo` support root to the shared import enumerator. Scan and import
+execution prune these trees, including explicitly selected descendants and
+symbolic-link aliases, using canonical path components rather than filename
+patterns. Ordinary PNGs and similarly named sibling directories remain
+candidates. Path-resolution errors propagate and traversal checks cancellation
+before directory pruning. Enumeration drops a JPEG that shares a parent
 directory and case-insensitive stem with a RAW in the same input set; the RAW
 is the catalog original and the JPEG is a non-cataloged companion. Ambiguous
 `.jpg`/`.jpeg` pairs for one stem fail closed. One LibRaw open reads RAW

@@ -373,16 +373,20 @@ CatalogService::enumerate_import_inputs(const std::vector<std::string> &paths,
                                         const CancellationToken &cancellation,
                                         const bool recursive) const
 {
-    if (repository_ == nullptr)
+    if (repository_ == nullptr || cache_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return collect_import_paths(paths, cancellation, recursive);
+    auto catalog = repository_->snapshot();
+    if (!catalog)
+        return catalog.error();
+    return collect_import_paths(paths, cancellation, recursive,
+                                {cache_->root(), catalog.value().database_path + ".ravo"});
 }
 
 Result<std::vector<ImportItemResult>> CatalogService::import_inputs(
     const std::vector<std::string> &paths, const CancellationToken &cancellation,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress)
 {
-    auto files = collect_import_paths(paths, cancellation);
+    auto files = enumerate_import_inputs(paths, cancellation);
     if (!files)
     {
         return files.error();
