@@ -1,4 +1,6 @@
 #include <filesystem>
+#include <fstream>
+#include "capture_metadata_test_support.h"
 #include <QColorSpace>
 #include <QFile>
 #include <QImage>
@@ -24,6 +26,38 @@ bool write_photo(const std::filesystem::path &path, const QColor &color)
     return image.save(QString::fromStdString(path.string()), "PNG");
 }
 } // namespace
+
+
+TEST_F(CatalogServiceTest, ImportDefaultsAbsentExifAltitudeReferenceAndPreservesSource)
+{
+    ASSERT_TRUE(open_service(true));
+    auto bytes = test_support::make_capture_exif_tiff();
+    ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(bytes, 34853U, 5U, 0xC005U));
+    const auto path = root / "default-altitude-ref.tif";
+    {
+        std::ofstream output(path, std::ios::binary);
+        output.write(reinterpret_cast<const char *>(bytes.data()),
+                     static_cast<std::streamsize>(bytes.size()));
+    }
+    const auto source_hash = file_sha256(path.string());
+    const auto imported = service->import_one(path.string(), {});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().status, ImportItemStatus::kImported);
+    ASSERT_TRUE(imported.value().asset);
+    const auto &capture = imported.value().asset->capture;
+    ASSERT_TRUE(capture.location);
+    ASSERT_TRUE(capture.location->altitude);
+    EXPECT_EQ(capture.location->altitude->magnitude_mm, 123456U);
+    EXPECT_EQ(capture.location->altitude->reference, CaptureAltitudeReference::kAboveSeaLevel);
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    const auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value()[0].capture, capture);
+    EXPECT_EQ(file_sha256(path.string()), source_hash);
+}
 
 TEST_F(CatalogServiceTest, ImportScanFindsRenamedCatalogAndBatchContentWithoutPublishing)
 {

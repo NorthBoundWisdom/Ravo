@@ -930,6 +930,21 @@ TEST(EngineFacadeTest, RejectsMalformedPresentExifFieldsWithoutSilentOmission)
     profile.altitude_ref = 2U;
     expect_reason("invalid-altitude-ref.tif", profile, "invalid_capture_altitude_ref");
 
+    auto default_reference = test_support::make_capture_exif_tiff();
+    ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(default_reference, 34853U, 5U, 0xC005U));
+    auto defaulted = read_bytes("default-altitude-ref.tif", default_reference);
+    ASSERT_TRUE(defaulted) << defaulted.error().message;
+    ASSERT_TRUE(defaulted.value().location);
+    ASSERT_TRUE(defaulted.value().location->altitude);
+    EXPECT_EQ(defaulted.value().location->altitude->magnitude_mm, 123456U);
+    EXPECT_EQ(defaulted.value().location->altitude->reference,
+              EngineCaptureAltitudeReference::kAboveSeaLevel);
+    auto missing_value = test_support::make_capture_exif_tiff();
+    ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(missing_value, 34853U, 6U, 0xC006U));
+    auto missing_altitude = read_bytes("missing-altitude-value.tif", missing_value);
+    ASSERT_FALSE(missing_altitude);
+    EXPECT_EQ(missing_altitude.error().context.at("reason"), "incomplete_capture_altitude");
+
     auto partial = test_support::make_capture_exif_tiff();
     ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(partial, 34853U, 1U, 0xC001U));
     auto rejected = read_bytes("partial-location.tif", partial);

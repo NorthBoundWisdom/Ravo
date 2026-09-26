@@ -762,8 +762,10 @@ resolve_engine_location(const AsciiTag &lat_ref, const Rational3Tag &lat, const 
         lon_ref.status == AsciiTagStatus::kPresent && lon.status == AsciiTagStatus::kPresent;
     const bool any_alt =
         alt_ref.status == AsciiTagStatus::kPresent || alt.status == AsciiTagStatus::kPresent;
-    const bool all_alt =
-        alt_ref.status == AsciiTagStatus::kPresent && alt.status == AsciiTagStatus::kPresent;
+    // Exif GPSAltitudeRef has default 0. A missing reference is valid when
+    // GPSAltitude is present; malformed present tags were rejected above.
+    const bool all_alt = alt.status == AsciiTagStatus::kPresent;
+    const auto altitude_reference = alt_ref.status == AsciiTagStatus::kPresent ? alt_ref.value : 0U;
     if (!any_pair && !any_alt)
     {
         return std::optional<EngineCaptureLocation>{};
@@ -776,7 +778,7 @@ resolve_engine_location(const AsciiTag &lat_ref, const Rational3Tag &lat, const 
     }
     if (any_alt && !all_alt)
     {
-        return capture_read_error("Capture altitude requires both the value and reference 0 or 1",
+        return capture_read_error("Capture altitude reference requires an altitude value",
                                   "incomplete_capture_altitude", "gps_altitude");
     }
     if (any_alt && !all_pair)
@@ -815,13 +817,13 @@ resolve_engine_location(const AsciiTag &lat_ref, const Rational3Tag &lat, const 
     location.longitude_e6 = longitude.value();
     if (all_alt)
     {
-        if (alt_ref.value != 0U && alt_ref.value != 1U)
+        if (altitude_reference != 0U && altitude_reference != 1U)
         {
             return capture_read_error("Capture altitude reference must be 0 or 1",
                                       "invalid_capture_altitude_ref", "gps_altitude_ref",
                                       alt_ref.path);
         }
-        const std::uint32_t maximum = alt_ref.value == 1U ? 12000000U : 100000000U;
+        const std::uint32_t maximum = altitude_reference == 1U ? 12000000U : 100000000U;
         auto mm = engine_altitude_to_mm(alt.value, maximum, "gps_altitude", alt.path);
         if (!mm)
         {
@@ -829,7 +831,7 @@ resolve_engine_location(const AsciiTag &lat_ref, const Rational3Tag &lat, const 
         }
         EngineCaptureAltitude altitude;
         altitude.magnitude_mm = mm.value();
-        altitude.reference = alt_ref.value == 1U ? EngineCaptureAltitudeReference::kBelowSeaLevel :
+        altitude.reference = altitude_reference == 1U ? EngineCaptureAltitudeReference::kBelowSeaLevel :
                                                    EngineCaptureAltitudeReference::kAboveSeaLevel;
         location.altitude = altitude;
     }

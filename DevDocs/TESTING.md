@@ -1318,7 +1318,10 @@ gated (ADR-0096).
   preview-free backups (ADR-0097). Metadata refresh and privacy stripping
   remain unclaimed S9 work.
 - Capture refresh tests modify committed Exif source bytes after import, then
-  prove Make/Model/numeric/date/GPS re-read, identity refresh, close/reopen, and
+  prove Make/Model/numeric/date/GPS re-read. Missing GPSAltitudeRef is tested
+  against Exif's default 0, including import/reopen and source-byte preservation;
+  a reference without an altitude and malformed explicit references still fail.
+  Refresh tests also prove identity refresh, close/reopen, and
   one revision increment. A forced SQLite revision trigger and entry
   cancellation preserve the old capture row and revision. Export privacy tests
   cover domain mode parsing, disabled-snapshot payload rejection, Studio typed

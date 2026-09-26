@@ -555,7 +555,14 @@ container with no browse JPEG must first-frame-decode before
 `commit_imported_asset`. Import does not perform a 1600px full decode when a
 browse JPEG exists. It validates trusted metadata before transactionally
 publishing an asset. Cancellation stops undispatched work; committed results
-remain valid. Missing, directory, unrecognized, unpack-failed, oversized,
+remain valid. Embedded Exif GPSAltitudeRef uses its specified default 0 when
+absent and GPSAltitude is present (the Exif field's
+[defined default](https://developer.android.com/reference/androidx/exifinterface/media/ExifInterface#TAG_GPS_ALTITUDE_REF)).
+The Engine metadata reader materializes that
+reference before domain validation; it does not discard the altitude or relax
+validation of malformed present tags, missing altitude values or incomplete
+latitude/longitude pairs. Catalog and export retain the explicit reference.
+Missing, directory, unrecognized, unpack-failed, oversized,
 malformed or mandatory-unsupported DNG opcode, and unsupported CFA
 full-decode inputs fail with stable `reason` context.
 

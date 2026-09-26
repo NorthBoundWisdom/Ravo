@@ -37,6 +37,8 @@ catalog-independent thumbnail scheduling are defined by
 [ADR-0102](adr/0102-planned-managed-import-workspace.md), with typed
 desktop preference ownership in [ADR-0066](adr/0066-typed-desktop-language-setting.md).
 Their current contracts and reproducible validation live in architecture and testing above.
+Embedded Exif altitude defaults and strict malformed-tag handling are owned by
+the Engine metadata reader, documented in architecture and testing above.
 RAW black-level normalization and preview-cache invalidation are specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with synthetic DNG coverage in
 [TESTING.md](TESTING.md).
