@@ -477,6 +477,19 @@ void StudioPresenter::deletePreset(const QString &path)
 
 QString StudioPresenter::selectedPhotoDebugInfo() const
 {
+    if (importPageOpen())
+    {
+        const QString path = importContextPath();
+        if (path.isEmpty())
+            return {};
+        const auto index = import_candidates_.index(import_context_row_, 0);
+        return QStringLiteral("ravo.debug.import-photo 1\npath=%1\nuri=%2\ndisplay_name=%3\nsize_bytes=%4\nduplicate=%5")
+            .arg(path, QUrl::fromLocalFile(path).toString(),
+                 import_candidates_.data(index, ImportCandidateListModel::DisplayNameRole).toString(),
+                 import_candidates_.data(index, ImportCandidateListModel::SizeBytesRole).toString(),
+                 import_candidates_.data(index, ImportCandidateListModel::DuplicateRole).toBool() ?
+                     QStringLiteral("true") : QStringLiteral("false"));
+    }
     const auto asset = assets_.assetById(selected_asset_id_);
     if (!asset)
         return {};

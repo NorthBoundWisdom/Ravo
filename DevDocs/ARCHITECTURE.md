@@ -244,6 +244,15 @@ import workspace regardless of grid/tree focus (but not text input), and the che
 to every highlighted eligible cell. C++ passes `--catalog <library.sqlite>` to the presenter; QML opens
 it at session start rather than a default library.
 
+Import has its own source-file context menu: Copy Info, Reveal in File Manager,
+Select All highlights, Check All and Uncheck All. The presenter binds the
+right-click target to candidate row, source path and model generation; source
+rescan, replacement, Import close or active import/preflight invalidates it.
+Copy/reveal reuse registered commands but resolve that candidate, including a
+duplicate, rather than the preserved Gallery selection. Copy emits
+`ravo.debug.import-photo 1` with candidate identity, size and duplicate state.
+Catalog review/edit/export/delete commands stay unavailable in Import.
+
 Library filtering is a value boundary, not UI-built SQL. `LibraryQuery` owns
 validated review, folder/tag, text/media/edit, camera/capture/numeric ranges
 and stable sort state; CatalogService rejects an invalid query before loading

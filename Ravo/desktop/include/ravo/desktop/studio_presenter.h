@@ -451,6 +451,8 @@ public:
     [[nodiscard]] bool libraryHasMore() const noexcept;
     [[nodiscard]] QVariantMap backupScheduleStatus() const;
     [[nodiscard]] bool importPageOpen() const noexcept;
+    [[nodiscard]] QString importContextPath() const;
+    Q_INVOKABLE bool setImportContextRow(int row);
     [[nodiscard]] bool importScanActive() const noexcept;
     [[nodiscard]] int importDuplicateCount() const noexcept;
     [[nodiscard]] int importScanCompleted() const noexcept;
@@ -1024,6 +1026,7 @@ public:
     Q_INVOKABLE void loadNextLibraryPage();
     void pollCatalogRevision();
 signals:
+    void importContextChanged();
     void editingScopeChanged();
     void catalogChanged();
     void busyChanged();
@@ -1232,6 +1235,9 @@ private:
     FolderListModel folders_;
     LibrarySetListModel library_sets_;
     ImportCandidateListModel import_candidates_;
+    int import_context_row_ = -1;
+    std::uint64_t import_context_generation_ = 0;
+    QString import_context_path_;
     FilesystemBrowserModel import_source_folders_;
     FilesystemBrowserModel import_destination_folders_;
     LibraryQuery query_;

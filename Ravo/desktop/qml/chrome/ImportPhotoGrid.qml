@@ -9,6 +9,7 @@ Rectangle {
     id: root
     objectName: "importPhotoGrid"
     required property var presenter
+    property var commands
     property alias selectionAnchor: candidateGrid.selectionAnchor
     property real preferredCell: 180
     property string sourceIdentity: presenter.importSourceRoot
@@ -17,6 +18,33 @@ Rectangle {
     Layout.fillWidth: true
     Layout.fillHeight: true
     color: Theme.windowColor
+
+    StudioContextMenu {
+        id: importMenu
+        objectName: "importPhotoContextMenu"
+        StudioContextMenuItem {
+            objectName: "importCopyInfoMenuItem"
+            action: root.commands ? root.commands.copyPhotoInfo : null
+        }
+        StudioContextMenuItem {
+            objectName: "importRevealMenuItem"
+            action: root.commands ? root.commands.revealInFileManager : null
+        }
+        StudioContextMenuSeparator {}
+        StudioContextMenuItem {
+            text: qsTranslate("StudioCommands", "Select All")
+            enabled: root.commands !== undefined && root.commands !== null
+            onTriggered: root.commands.trigger(root.commands.ids.photoSelectAll)
+        }
+        StudioContextMenuItem {
+            text: qsTr("Check All")
+            onTriggered: root.presenter.importCandidates.setAllSelected(true)
+        }
+        StudioContextMenuItem {
+            text: qsTr("Uncheck All")
+            onTriggered: root.presenter.importCandidates.setAllSelected(false)
+        }
+    }
 
     BusyIndicator {
         anchors.centerIn: parent
@@ -66,7 +94,6 @@ Rectangle {
             onSourcePathChanged: root.presenter.ensureImportThumbnail(index)
             onThumbnailUrlChanged: if (inViewport && thumbnailUrl.toString().length === 0)
                 root.presenter.ensureImportThumbnail(index)
-            enabled: eligible
             opacity: duplicate ? 0.45 : 1
             width: candidateGrid.cellWidth
             height: candidateGrid.cellHeight
@@ -140,6 +167,7 @@ Rectangle {
                 MouseArea {
                     id: candidateMouse
                     hoverEnabled: true
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                     anchors.fill: parent
                     z: -1
 
@@ -149,7 +177,12 @@ Rectangle {
                     onReleased: preventStealing = false
                     onCanceled: preventStealing = false
                     onClicked: function (mouse) {
-                        candidateGrid.applyMouseSelection(index, mouse.modifiers);
+                        if (mouse.button === Qt.RightButton) {
+                            if (root.presenter.setImportContextRow(index))
+                                importMenu.popup();
+                        } else if (eligible) {
+                            candidateGrid.applyMouseSelection(index, mouse.modifiers);
+                        }
                     }
                 }
             }

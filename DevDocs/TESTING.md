@@ -1600,6 +1600,11 @@ Live Studio interactive commands share one C++ workspace policy
 (`active_command_workspace` / `command_workspace_support`). While Import is
 open, Gallery selection mutations (rating/flag/nav/remove/recipe edit) stay
 blocked; Select All, cancel, and listed window globals remain available.
+Copy Info and Reveal in File Manager accept a generation-bound Import context
+candidate, never the Gallery selection. The context-command regression covers
+duplicates, missing files, candidate replacement, invalid rows and page close;
+the production smoke verifies Import menu bindings and sends a real right-click
+event to a duplicate candidate without enabling its import checkbox.
 Gallery selection is preserved for restore after Import closes. Validation:
 `StudioImportKeyboard.ImportWorkspaceBlocksGallerySelectionCommands` and the
 production Import layout smoke path inside `ravo_studio --smoke`.

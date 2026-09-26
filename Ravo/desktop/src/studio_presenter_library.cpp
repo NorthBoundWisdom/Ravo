@@ -580,12 +580,14 @@ QString StudioPresenter::selectedUri() const
 void StudioPresenter::revealSelectedPhotoInFileManager()
 {
     const auto asset = assets_.assetById(selected_asset_id_);
-    if (!asset)
+    const QString import_path = importContextPath();
+    if (importPageOpen() ? import_path.isEmpty() : !asset)
     {
         setError(QCoreApplication::translate("StudioPresenter", "Select a photo first."));
         return;
     }
-    const auto path = local_file_path_from_asset_uri(qstring_from_utf8(asset->normalized_uri));
+    const auto path = local_file_path_from_asset_uri(importPageOpen() ?
+        QUrl::fromLocalFile(import_path).toString() : qstring_from_utf8(asset->normalized_uri));
     if (!path)
     {
         setError(QCoreApplication::translate("StudioPresenter",

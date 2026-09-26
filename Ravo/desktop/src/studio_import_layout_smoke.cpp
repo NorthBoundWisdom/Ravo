@@ -9,6 +9,7 @@
 #include <QQuickWindow>
 #include <QTimer>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QImage>
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/studio_command_controller.h"
@@ -107,6 +108,19 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         }
         if (size.width() == 1440 && size.height() == 900)
         {
+            const auto *context_menu =
+                workspace->findChild<QObject *>(QStringLiteral("importPhotoContextMenu"));
+            const auto *reveal_item =
+                workspace->findChild<QObject *>(QStringLiteral("importRevealMenuItem"));
+            const auto *copy_item =
+                workspace->findChild<QObject *>(QStringLiteral("importCopyInfoMenuItem"));
+            if (!context_menu || !reveal_item || !copy_item ||
+                !reveal_item->property("action").value<QObject *>() ||
+                !copy_item->property("action").value<QObject *>())
+            {
+                LOG_ERROR(logger(), "Import context menu must bind its registered source commands");
+                return false;
+            }
             auto *keyboard_grid =
                 workspace->findChild<QQuickItem *>(QStringLiteral("importCandidateKeyboardGrid"));
             if (!keyboard_grid)
@@ -307,19 +321,48 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 return false;
             }
             int duplicate_rows = 0;
+            int duplicate_row = -1;
             for (int row = 0; row < presenter->importCandidates()->rowCount(); ++row)
             {
                 if (presenter->importCandidates()
                         ->data(presenter->importCandidates()->index(row, 0),
                                ImportCandidateListModel::DuplicateRole)
                         .toBool())
+                {
                     ++duplicate_rows;
+                    duplicate_row = row;
+                }
             }
             if (duplicate_rows < 1)
             {
                 LOG_ERROR(logger(), "Select All smoke needs an ineligible duplicate candidate");
                 return false;
             }
+            keyboard_grid->setProperty("currentIndex", duplicate_row);
+            QCoreApplication::processEvents();
+            auto *context_cell = qobject_cast<QQuickItem *>(
+                keyboard_grid->property("currentItem").value<QObject *>());
+            auto *source_menu = workspace->findChild<QObject *>(QStringLiteral("importPhotoContextMenu"));
+            if (!context_cell || !source_menu)
+                return false;
+            const QPointF point = context_cell->mapToScene(
+                QPointF(context_cell->width() / 2, context_cell->height() / 2));
+            const QPointF global = window->mapToGlobal(point.toPoint());
+            QMouseEvent context_press(QEvent::MouseButtonPress, point, global,
+                                      Qt::RightButton, Qt::RightButton, Qt::NoModifier);
+            QMouseEvent context_release(QEvent::MouseButtonRelease, point, global,
+                                        Qt::RightButton, Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(window, &context_press);
+            QCoreApplication::sendEvent(window, &context_release);
+            QCoreApplication::processEvents();
+            if (!source_menu->property("visible").toBool() ||
+                presenter->importContextPath() != presenter->importCandidates()->sourcePath(duplicate_row))
+            {
+                LOG_ERROR(logger(), "Import right click must open source commands for a duplicate");
+                return false;
+            }
+            QMetaObject::invokeMethod(source_menu, "close");
+            QCoreApplication::processEvents();
 
             // Gallery mutation negatives: Import must not rate/flag/navigate the restored
             // Gallery selection through production Shortcuts while the Import page is open.

@@ -275,7 +275,8 @@ ApplicationWindow {
     }
 
     function showPhotoMenu() {
-        photoMenu.popup();
+        if (!studio.importPageOpen)
+            photoMenu.popup();
     }
 
     function askRemoveFolder() {
@@ -1193,6 +1194,7 @@ ApplicationWindow {
 
                         TapHandler {
                             acceptedButtons: Qt.RightButton
+                            enabled: !studio.importPageOpen
                             onTapped: window.showPhotoMenu()
                         }
 
@@ -1302,6 +1304,7 @@ ApplicationWindow {
         visible: studio.importPageOpen
         z: 25
         presenter: studio
+        commands: studioActions
         onCloseRequested: studio.closeImportPage()
     }
 

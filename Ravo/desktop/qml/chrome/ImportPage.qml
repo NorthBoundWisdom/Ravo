@@ -7,6 +7,7 @@ Rectangle {
     id: root
     objectName: "importWorkspace"
     required property var presenter
+    property var commands
     signal closeRequested
     readonly property bool compact: width < 1000
     readonly property bool locked: presenter.importWorkActive || presenter.importPreflightActive
@@ -142,6 +143,7 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     presenter: root.presenter
+                    commands: root.commands
                     preferredCell: thumbnailSize.value
                     enabled: !root.locked
                 }

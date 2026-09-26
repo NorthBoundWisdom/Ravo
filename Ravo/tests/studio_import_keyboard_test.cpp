@@ -26,6 +26,65 @@ namespace ravo
 {
 using namespace studio_test_support;
 using studio_import_keyboard_harness::ImportKeyboardHarness;
+
+TEST(StudioImportKeyboard, ContextCommandsUseCandidateIdentityAndRejectStaleTargets)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    QImage gallery_image(16, 16, QImage::Format_RGB888);
+    gallery_image.fill(Qt::cyan);
+    const auto gallery_path = directory.filePath("gallery.png");
+    ASSERT_TRUE(gallery_image.save(gallery_path, "PNG"));
+    presenter.importFilePaths({gallery_path});
+    ASSERT_TRUE(wait_until([&]
+    {
+        return !presenter.busy() && !presenter.selectedAssetId().isEmpty();
+    }));
+    const auto source = directory.filePath("source");
+    ASSERT_TRUE(QDir().mkpath(source));
+    presenter.openImportPage();
+    presenter.setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    ImportCandidate candidate;
+    candidate.source_path = directory.filePath("candidate.png").toStdString();
+    candidate.display_name = "candidate.png";
+    candidate.duplicate = true;
+    candidate.supported = true;
+    presenter.importCandidates()->setCandidates({candidate});
+    const auto gallery_selection = presenter.selectedAssetId();
+    ASSERT_TRUE(presenter.setImportContextRow(0));
+    EXPECT_EQ(presenter.importContextPath(), QString::fromStdString(candidate.source_path));
+    EXPECT_TRUE(controller.action("studio.photo.copy_info").value("enabled").toBool());
+    EXPECT_TRUE(controller.action("studio.photo.reveal_in_file_manager").value("enabled").toBool());
+    EXPECT_TRUE(presenter.selectedPhotoDebugInfo().contains("path=" + QString::fromStdString(candidate.source_path)));
+    EXPECT_TRUE(presenter.selectedPhotoDebugInfo().contains("duplicate=true"));
+    EXPECT_FALSE(presenter.selectedPhotoDebugInfo().contains(gallery_path));
+    EXPECT_EQ(presenter.selectedAssetId(), gallery_selection);
+    // Missing source reports an error without opening a file manager or using Gallery.
+    presenter.revealSelectedPhotoInFileManager();
+    EXPECT_FALSE(presenter.errorText().isEmpty());
+    presenter.importCandidates()->setCandidates({candidate});
+    EXPECT_TRUE(presenter.importContextPath().isEmpty());
+    EXPECT_TRUE(presenter.selectedPhotoDebugInfo().isEmpty());
+    EXPECT_FALSE(controller.executeCommand("studio.photo.copy_info", {}, "test")
+                     .value("accepted").toBool());
+    EXPECT_FALSE(presenter.setImportContextRow(-1));
+    ASSERT_TRUE(presenter.setImportContextRow(0));
+    presenter.setImportSourceRoot(source);
+    EXPECT_TRUE(presenter.importContextPath().isEmpty());
+    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    presenter.importCandidates()->setCandidates({candidate});
+    ASSERT_TRUE(presenter.setImportContextRow(0));
+    presenter.closeImportPage();
+    EXPECT_TRUE(presenter.importContextPath().isEmpty());
+    EXPECT_EQ(presenter.selectedAssetId(), gallery_selection);
+}
 using studio_import_keyboard_harness::make_candidates;
 TEST(StudioImportKeyboard, HarnessLifetimeIsExplicit)
 {

@@ -41,6 +41,8 @@ Embedded Exif altitude defaults and strict malformed-tag handling are owned by
 the Engine metadata reader, documented in architecture and testing above.
 Import scan and execution exclude the current catalog's preview and support
 trees; path identity and regression coverage live in those same authorities.
+They also define Import's source-file context menu and its generation-bound
+candidate identity, isolated from Gallery commands.
 RAW black-level normalization and preview-cache invalidation are specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with synthetic DNG coverage in
 [TESTING.md](TESTING.md).

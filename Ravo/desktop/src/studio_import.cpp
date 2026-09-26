@@ -357,10 +357,30 @@ void StudioPresenter::closeImportPage()
         import_workspace_->scan->abandon("import_page_closed");
     import_preflight_active_ = false;
     import_page_open_ = false;
+    import_context_row_ = -1;
+    import_context_path_.clear();
     if (import_workspace_->thumbnails)
         import_workspace_->thumbnails->resetSourceSession();
     import_candidates_.setCandidates({});
     emit importPageChanged();
+}
+
+QString StudioPresenter::importContextPath() const
+{
+    if (!import_page_open_ || import_work_active_ || import_preflight_active_ ||
+        import_context_generation_ != import_candidates_.generation() ||
+        import_candidates_.sourcePath(import_context_row_) != import_context_path_)
+        return {};
+    return import_context_path_;
+}
+
+bool StudioPresenter::setImportContextRow(const int row)
+{
+    import_context_row_ = row;
+    import_context_generation_ = import_candidates_.generation();
+    import_context_path_ = import_candidates_.sourcePath(row);
+    emit importContextChanged();
+    return !importContextPath().isEmpty();
 }
 
 void StudioPresenter::setImportSourceRoot(const QString &path)
@@ -515,6 +535,9 @@ void StudioPresenter::rescanImportSource()
     if (service_ == nullptr || !import_workspace_ || !import_workspace_->scan ||
         import_workspace_->draft.source_root.isEmpty() || import_work_active_)
         return;
+    import_context_row_ = -1;
+    import_context_path_.clear();
+    emit importContextChanged();
     static_cast<void>(import_operation_.cancel("import_source_changed"));
     import_operation_ = CancellationSource{};
     import_workspace_->scan->startRescan();

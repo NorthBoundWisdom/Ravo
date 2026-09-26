@@ -59,6 +59,7 @@ WorkspaceSupport command_workspace_support(const QString &command_id)
         QLatin1String(command::kWindowClose),    QLatin1String(command::kWindowQuit),
         QLatin1String(command::kWindowAbout),    QLatin1String(command::kWindowPalette),
         QLatin1String(command::kWindowDismiss),
+        QLatin1String(command::kPhotoCopyInfo), QLatin1String(command::kPhotoRevealInFileManager),
     };
     if (import_supported.contains(command_id))
         return kWorkspaceAll;
@@ -98,6 +99,11 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
             return {false, tr_command(QStringLiteral("Command unavailable in Gallery."))};
         }
     }
+    if (workspace == CommandWorkspace::kImport &&
+        (command_id == QLatin1String(command::kPhotoCopyInfo) ||
+         command_id == QLatin1String(command::kPhotoRevealInFileManager)))
+        return !presenter.importContextPath().isEmpty() ? State{} :
+            State{false, tr_command(QStringLiteral("Select a photo first."))};
     const bool catalog_open = presenter.catalogOpen();
     const bool selection = !presenter.selectedAssetId().isEmpty();
     const bool ready = catalog_open && !presenter.busy() && !presenter.importWorkActive();
