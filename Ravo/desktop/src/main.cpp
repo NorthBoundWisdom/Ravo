@@ -21,6 +21,7 @@
 #include <QQmlContext>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QScopeGuard>
 #include "studio_import_layout_smoke.h"
 #include <QQuickStyle>
 #include <QString>
@@ -303,6 +304,11 @@ int main(int argc, char *argv[])
         qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
 #endif
 
+    // Logging outlives Qt, the presenter and every owner-managed worker. In
+    // particular, cancellation can still log while presenter destruction joins
+    // a thumbnail task after the event loop has stopped.
+    ravo::init_logging("RavoStudio");
+    const auto logging_lifetime = qScopeGuard([] { ravo::shutdown_logging(); });
     QGuiApplication application(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("Ravo Studio"));
     QGuiApplication::setOrganizationName(QStringLiteral("Ravo"));
@@ -335,7 +341,6 @@ int main(int argc, char *argv[])
 #endif
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
-    ravo::init_logging("RavoStudio");
     const QStringList arguments = QCoreApplication::arguments();
     const bool smoke = arguments.contains(QStringLiteral("--smoke"));
     QString catalog_path;
@@ -358,7 +363,6 @@ int main(int argc, char *argv[])
             if (index + 1 >= arguments.size() || arguments.at(index + 1).trimmed().isEmpty())
             {
                 LOG_ERROR(ravo::logger(), "--language requires a locale code");
-                ravo::shutdown_logging();
                 return 1;
             }
             requested_language = arguments.at(++index);
@@ -370,7 +374,6 @@ int main(int argc, char *argv[])
             if (requested_language.trimmed().isEmpty())
             {
                 LOG_ERROR(ravo::logger(), "--language requires a locale code");
-                ravo::shutdown_logging();
                 return 1;
             }
         }
@@ -382,7 +385,6 @@ int main(int argc, char *argv[])
     {
         LOG_ERROR(ravo::logger(), "requested UI language failed: {}",
                   requested_language.toStdString());
-        ravo::shutdown_logging();
         return 1;
     }
     auto apply_ui_font = [&language_manager]()
@@ -400,6 +402,15 @@ int main(int argc, char *argv[])
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &application,
                      apply_ui_font);
     ravo::StudioPresenter presenter;
+    if (smoke)
+    {
+        // QObject destruction follows the presenter's worker cancellation/join.
+        // Exercise logging at that boundary, not just while main() is running.
+        QObject::connect(&presenter, &QObject::destroyed, []
+        {
+            LOG_INFO(ravo::logger(), "Ravo Studio smoke presenter teardown complete");
+        });
+    }
     ravo::StudioStartupController startup_controller(presenter,
                                                      presenter.defaultCatalogFile().toLocalFile());
     ravo::StudioCommandController command_controller(presenter);
@@ -407,7 +418,6 @@ int main(int argc, char *argv[])
     if (!assistant_controller.initialize())
     {
         LOG_ERROR(ravo::logger(), "assistant settings failed to initialize");
-        ravo::shutdown_logging();
         return 1;
     }
     ravo::StudioWindowGeometry window_geometry;
@@ -416,7 +426,6 @@ int main(int argc, char *argv[])
     {
         LOG_ERROR(ravo::logger(), "window geometry failed to initialize: {}",
                   window_geometry.lastError().toStdString());
-        ravo::shutdown_logging();
         return 1;
     }
     auto live_session = ravo::StudioLiveSessionController::create(presenter, command_controller);
@@ -424,7 +433,6 @@ int main(int argc, char *argv[])
     {
         LOG_ERROR(ravo::logger(), "live Studio control failed to initialize: {}",
                   live_session.error().message);
-        ravo::shutdown_logging();
         return 1;
     }
     if (smoke)
@@ -519,10 +527,9 @@ int main(int argc, char *argv[])
             LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
         else
             LOG_INFO(ravo::logger(), "Ravo Studio smoke loaded");
-        ravo::shutdown_logging();
         return loaded ? 0 : 1;
     }
     const int exit_code = QGuiApplication::exec();
-    ravo::shutdown_logging();
+    LOG_INFO(ravo::logger(), "Ravo Studio event loop stopped exit_code={}", exit_code);
     return exit_code;
 }

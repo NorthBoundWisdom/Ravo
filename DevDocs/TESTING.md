@@ -100,8 +100,10 @@ destination-preview tests check single/date/month/hierarchy and second-copy
 counts against actual import, no early directory/media/catalog publication,
 selection/organization replacement, close cancellation, and stale/corrupt/conflict
 errors. CLI subprocess tests verify the versioned `catalog import-plan` JSON.
-The ordinary Studio QML smoke checks a temporary directory's real disclosure
-handler, expand/collapse result, and hit-area dimensions. It also activates a
+The ordinary Studio QML smoke logs after presenter destruction has cancelled
+and joined its workers, so an early logging shutdown fails the real executable
+smoke. It checks a temporary directory's real disclosure handler,
+expand/collapse result, and hit-area dimensions. It also activates a
 loaded collapsed directory row and verifies
 that the folder choice reaches the presenter despite synchronous delegate replacement.
 Import grid/action/panel bounds are exercised at

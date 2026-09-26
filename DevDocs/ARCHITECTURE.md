@@ -119,6 +119,10 @@ QML retains only transient focus/popup state and thin action binding, not a
 second table of IDs, titles, shortcuts, or enablement.
 
 `StudioStartupController` owns the one-shot startup handoff on the UI thread.
+The process logging scope is created before `QGuiApplication` and destroyed
+after Qt, desktop owners and their joined workers, including early-return
+initialization failures. Cancellation and teardown may still emit diagnostics;
+the logger must never shut down merely because the event loop has returned.
 It opens the explicit or default library through the existing presenter and
 waits for queued publication of the complete initial listing or error before
 showing the main window. First run requests the registered Create Library
