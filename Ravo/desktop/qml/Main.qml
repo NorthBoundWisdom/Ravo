@@ -41,6 +41,7 @@ ApplicationWindow {
     readonly property bool studioInteractive: !settingsOpen && !studio.importPageOpen && !studioCommands.paletteOpen
     readonly property bool textInputActive: activeFocusItem && (activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit)
     property string lastGalleryMode: "grid"
+    readonly property var photoPresenter: studio
     property string pendingExportFormat: ""
     property var pendingExportOptions: ({})
     property string pendingExportFilenameTemplate: ""
@@ -52,7 +53,8 @@ ApplicationWindow {
     }
     InspectZoomController {
         id: inspectZoom
-        studio: studio
+        objectName: "photoInspectZoomController"
+        studio: window.photoPresenter
         comparisonReady: window.comparisonReady
         // scroller/photoPlane/previewImage bound after they exist via Binding/onCompleted below
     }
@@ -76,6 +78,8 @@ ApplicationWindow {
     }
 
     function togglePhotoInspectZoom(stagePos) {
+        if (inspectZoom.inspectZoomAnimating)
+            window.commitInspectZoomAnimation();
         inspectZoom.togglePhotoInspectZoom(stagePos);
     }
 
@@ -85,17 +89,6 @@ ApplicationWindow {
 
     function commitInspectZoomAnimation() {
         inspectZoom.commitInspectZoomAnimation(inspectZoomAnim);
-    }
-
-    Timer {
-        id: inspectClickTimer
-        interval: Math.max(180, Qt.styleHints.mouseDoubleClickInterval)
-        repeat: false
-        onTriggered: {
-            if (inspectZoom.pendingInspectStagePos)
-                window.togglePhotoInspectZoom(inspectZoom.pendingInspectStagePos);
-            inspectZoom.pendingInspectStagePos = null;
-        }
     }
 
     ParallelAnimation {
@@ -776,6 +769,7 @@ ApplicationWindow {
 
                         Flickable {
                             id: scroller
+                            objectName: "photoInspectScroller"
                             anchors.fill: parent
                             anchors.margins: Fonts.size8
                             clip: true
@@ -819,6 +813,7 @@ ApplicationWindow {
 
                             Item {
                                 id: previewStage
+                                objectName: "photoInspectStage"
                                 width: {
                                     if (inspectZoom.inspectStageLockW >= 0)
                                         return inspectZoom.inspectStageLockW;
@@ -867,6 +862,7 @@ ApplicationWindow {
 
                                 Item {
                                     id: photoPlane
+                                    objectName: "photoInspectPlane"
                                     width: previewStage.baseW * previewStage.rotateScale
                                     height: previewStage.baseH * previewStage.rotateScale
                                     x: (previewStage.width - width) / 2
@@ -1051,11 +1047,12 @@ ApplicationWindow {
                                 TapHandler {
                                     id: photoSurfaceTap
                                     acceptedButtons: Qt.LeftButton
+                                    gesturePolicy: TapHandler.DragThreshold
                                     enabled: studio.browseMode !== "grid"
                                     onTapped: function (eventPoint, button) {
-                                        if (studio.localEditing && !studio.maskParametricAssistActive)
+                                        if (studio.browseMode === "develop" && studio.localEditing && !studio.maskParametricAssistActive)
                                             return;
-                                        if (photoSurfaceTap.tapCount > 1)
+                                        if (studio.browseMode === "develop" && photoSurfaceTap.tapCount > 1)
                                             return;
                                         if (!inspectZoom.photoInspectEnabled || !inspectZoom.inspectPointInPhoto(eventPoint.position))
                                             return;
@@ -1077,20 +1074,7 @@ ApplicationWindow {
                                             studioActions.assistParametricMask((eventPoint.position.x - photoPlane.x) / w, (eventPoint.position.y - photoPlane.y) / h);
                                             return;
                                         }
-                                        if (studio.browseMode === "loupe") {
-                                            inspectZoom.pendingInspectStagePos = eventPoint.position;
-                                            inspectClickTimer.restart();
-                                            return;
-                                        }
                                         window.togglePhotoInspectZoom(eventPoint.position);
-                                    }
-                                    onDoubleTapped: function (eventPoint, button) {
-                                        if (studio.localEditing)
-                                            return;
-                                        inspectClickTimer.stop();
-                                        inspectZoom.pendingInspectStagePos = null;
-                                        if (studio.browseMode === "loupe")
-                                            studioActions.openGallery("grid");
                                     }
                                 }
 

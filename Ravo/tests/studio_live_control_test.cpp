@@ -278,8 +278,9 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral(
         "cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive || studio.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
-    EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
-    EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("inspectClickTimer")));
+    EXPECT_FALSE(source.contains(QStringLiteral("onDoubleTapped")));
+    EXPECT_TRUE(source.contains(QStringLiteral("gesturePolicy: TapHandler.DragThreshold")));
     EXPECT_FALSE(source.contains(QStringLiteral("property alias viewportAssetId")));
     EXPECT_TRUE(source.contains(QStringLiteral("property: \"scroller\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("property: \"photoPlane\"")));

@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-29
+- Updated: 2026-09-27
 - Extends: [ADR-0060](0060-studio-navigation-lifecycle.md)
 
 ## Context
@@ -27,8 +28,12 @@ was already using.
   relaid out every frame; the real Fit/Fill/Actual/custom layout is applied
   once when the animation finishes. Asset, browse-mode, wheel, and Fit/Fill/1:1
   changes abort the animation and still recenter as in ADR-0060.
-- Crop mode keeps pointer ownership. Loupe double-click still returns to
-  Gallery; a delayed single click distinguishes the two gestures there.
+- Crop and local authoring tools keep pointer ownership. Loupe clicks dispatch
+  immediately without a double-click delay or a double-click return to Gallery.
+  A rapid second click commits the active zoom animation before toggling back;
+  drag-threshold gestures remain panning rather than click-to-zoom.
+- A ready native GPU preview admits inspect input even when the hidden CPU
+  Image has no source. Comparison still requires its visible CPU image to be ready.
 - `studio.view.toggle_actual_size` is the only new command. It is not a fourth
   zoom radio and is not persisted.
 

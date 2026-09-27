@@ -27,6 +27,9 @@ The Global/Mask Develop workspace and Recipe v4 local groups are specified in
 | [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history | Mutable implementation status |
 
 Product execution belongs only in [TODO.md](TODO.md).
+Immediate photo click-to-1:1 and view restoration are specified in
+[ADR-0076](adr/0076-photo-inspect-toggle-actual-size.md), with current ownership
+and input tests in architecture and testing above.
 Three-platform package evidence belongs in [Packaging.md](Packaging.md) (includes packaged-runtime checker + `package_rehearsal`).
 That document also owns Linux ICU runtime bundling and the package-local
 SONAME verification gate; build-host libraries cannot substitute for payload files.

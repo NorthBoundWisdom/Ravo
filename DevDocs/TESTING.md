@@ -871,6 +871,11 @@ gated (ADR-0096).
   uncommitted transaction, or temporary preview.
 - Manual viewer acceptance covers at least loading/ready/missing/unsupported/
   failed, fit, 100%, click-to-1:1 restore, and pan.
+- The production QML smoke imports a profiled raster and delivers two real
+  mouse clicks to the photo surface: Actual must be immediate and the second
+  click must restore Fit while staying in Loupe. Dynamic QML tests separately
+  cover native-GPU readiness with the CPU Image empty, comparison, grid and crop
+  exclusions; presenter tests retain Fill and custom-factor restoration.
 - Gallery-grid scrolling uses browse thumbnails only; it must not queue a
   1600px processed preview for the selected grid item. Opening a catalog with
   existing cache must not rerun an `ensureThumbnail` work queue for every image.

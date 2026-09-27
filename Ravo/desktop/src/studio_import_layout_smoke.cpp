@@ -11,6 +11,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QImage>
+#include <QColorSpace>
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include <QMetaObject>
@@ -1024,6 +1025,72 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             if (model->rowCount() != 1)
                 return false;
         }
+    }
+    // Exercise the production photo surface, including the first click and a
+    // quick second click. Static QML checks cannot detect a self-bound presenter.
+    presenter->closeImportPage();
+    const auto inspect_catalog = directory.filePath(QStringLiteral("inspect-click.sqlite"));
+    const auto inspect_photo = directory.filePath(QStringLiteral("inspect-click.png"));
+    QImage inspect_image(1600, 1000, QImage::Format_RGB888);
+    inspect_image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    inspect_image.fill(Qt::cyan);
+    if (!inspect_image.save(inspect_photo))
+        return false;
+    const auto wait_ready = [](const auto &ready)
+    {
+        QElapsedTimer timer;
+        timer.start();
+        while (!ready())
+        {
+            if (timer.elapsed() > 30000)
+                return false;
+            QEventLoop loop;
+            QTimer::singleShot(10, &loop, &QEventLoop::quit);
+            loop.exec();
+        }
+        return true;
+    };
+    presenter->createCatalogFromPath(inspect_catalog);
+    if (!wait_ready([&] { return presenter->catalogPath() == inspect_catalog && !presenter->busy(); }))
+        return false;
+    presenter->importFilePaths({inspect_photo});
+    if (!wait_ready([&] { return !presenter->busy() && !presenter->importWorkActive() &&
+                               presenter->visibleCount() == 1 &&
+                               presenter->selectedUri().endsWith(QStringLiteral("inspect-click.png")); }))
+        return false;
+    window->resize(1440, 900);
+    presenter->setBrowseMode(QStringLiteral("loupe"));
+    presenter->setZoomMode(QStringLiteral("fit"));
+    auto *zoom = window->findChild<QObject *>(QStringLiteral("photoInspectZoomController"));
+    auto *scroller = window->findChild<QQuickItem *>(QStringLiteral("photoInspectScroller"));
+    if (!zoom || !scroller || !wait_ready([&] { return zoom->property("photoInspectEnabled").toBool(); }))
+    {
+        LOG_ERROR(logger(), "Photo click zoom did not become ready: mode={} preview={} error={} bound={}",
+                  presenter->browseMode().toStdString(), presenter->previewUrl().toString().toStdString(),
+                  presenter->errorText().toStdString(),
+                  zoom && zoom->property("studio").value<QObject *>() == presenter);
+        return false;
+    }
+    const auto click_photo = [&]
+    {
+        const auto point = scroller->mapToScene(QPointF(scroller->width() / 2, scroller->height() / 2));
+        const QPointF global = window->mapToGlobal(point.toPoint());
+        QMouseEvent press(QEvent::MouseButtonPress, point, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent release(QEvent::MouseButtonRelease, point, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &press);
+        QCoreApplication::sendEvent(window, &release);
+    };
+    click_photo();
+    if (presenter->zoomMode() != QStringLiteral("actual"))
+    {
+        LOG_ERROR(logger(), "Single photo click must immediately select 1:1");
+        return false;
+    }
+    click_photo();
+    if (presenter->zoomMode() != QStringLiteral("fit") || presenter->browseMode() != QStringLiteral("loupe"))
+    {
+        LOG_ERROR(logger(), "Second photo click must restore Fit without leaving Loupe");
+        return false;
     }
     return true;
 }

@@ -14,7 +14,6 @@ QtObject {
     property string viewportAssetId: ""
     property var inspectViewportFocus: null
     property var inspectViewportRestore: null
-    property var pendingInspectStagePos: null
     property var inspectZoomFrom: null
     property var inspectZoomCommit: null
     property real savedInspectContentX: 0
@@ -32,11 +31,12 @@ QtObject {
     property bool comparisonReady: false
 
     readonly property bool photoInspectEnabled: {
-        if (!studio || !previewImage)
+        if (!studio)
             return false;
         if (studio.browseMode === "grid" || studio.browseMode === "survey" || (studio.browseMode === "develop" && studio.cropToolActive))
             return false;
-        return previewImage.status === Image.Ready && studio.previewUrl.toString().length > 0;
+        const gpuReady = studio.gpuPreviewGeneration > 0 && !comparisonReady;
+        return gpuReady || (!!previewImage && previewImage.status === Image.Ready && studio.previewUrl.toString().length > 0);
     }
 
     function centerPhotoViewportNow() {

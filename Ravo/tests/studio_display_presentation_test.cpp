@@ -7,6 +7,8 @@
 #include <QColorSpace>
 #include <QCoreApplication>
 #include <QImage>
+#include <QQmlEngine>
+#include <QQmlComponent>
 #include <QTemporaryDir>
 #include <QDir>
 #include <QFileInfo>
@@ -44,6 +46,41 @@ void ensure_qt_core()
     static char *argv[] = {executable, nullptr};
     static auto *application = new QCoreApplication(argc, argv);
     static_cast<void>(application);
+}
+
+TEST(StudioQmlContract, InspectZoomAdmitsGpuSurfaceWithoutHiddenImageReadiness)
+{
+    ensure_qt_core();
+    QQmlEngine engine;
+    QQmlComponent state(&engine);
+    state.setData(R"(import QtQuick
+QtObject {
+    property string browseMode: "loupe"
+    property bool cropToolActive: false
+    property int gpuPreviewGeneration: 0
+    property url previewUrl: "image://preview/photo"
+    property int status: 0
+})", QUrl{});
+    std::unique_ptr<QObject> studio(state.create());
+    ASSERT_NE(studio, nullptr) << state.errorString().toStdString();
+    QQmlComponent component(&engine, QUrl::fromLocalFile(QStringLiteral(
+        RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/inspect/InspectZoomController.qml")));
+    std::unique_ptr<QObject> zoom(component.create());
+    ASSERT_NE(zoom, nullptr) << component.errorString().toStdString();
+    zoom->setProperty("studio", QVariant::fromValue(studio.get()));
+    zoom->setProperty("previewImage", QVariant::fromValue(studio.get()));
+    EXPECT_FALSE(zoom->property("photoInspectEnabled").toBool());
+    studio->setProperty("gpuPreviewGeneration", 1);
+    EXPECT_TRUE(zoom->property("photoInspectEnabled").toBool());
+    zoom->setProperty("comparisonReady", true);
+    EXPECT_FALSE(zoom->property("photoInspectEnabled").toBool());
+    studio->setProperty("status", 1); // Image.Ready
+    EXPECT_TRUE(zoom->property("photoInspectEnabled").toBool());
+    studio->setProperty("browseMode", "grid");
+    EXPECT_FALSE(zoom->property("photoInspectEnabled").toBool());
+    studio->setProperty("browseMode", "develop");
+    studio->setProperty("cropToolActive", true);
+    EXPECT_FALSE(zoom->property("photoInspectEnabled").toBool());
 }
 
 TEST(StudioDisplayPresentationTest, ScreenTokenRefreshLeavesRecipeUnchanged)

@@ -184,6 +184,13 @@ library filters remain session state, and catalog, service, recipe, export,
 task, and engine values stay in typed owning contracts. No old configuration
 key is read (ADR-0066/0081/0115).
 
+Loupe photo clicks immediately toggle Actual/1:1 and the previous Fit, Fill or
+custom view through the C++ zoom command. The QML inspect controller borrows the
+presenter explicitly, accepts visible GPU surfaces without waiting for a hidden
+CPU Image, and separates clicks from drags. A rapid second click completes the
+current animation and restores the preceding view rather than opening the grid
+([ADR-0076](adr/0076-photo-inspect-toggle-actual-size.md)).
+
 Gallery grid schedules only `kThumbnailMaxEdge` browse thumbnails, never a
 1600px processed preview merely for a selected grid item; all scopes are
 calculated from that thumbnail. Loupe/develop requests full decode. On
