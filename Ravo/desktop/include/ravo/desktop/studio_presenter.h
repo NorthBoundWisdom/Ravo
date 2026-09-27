@@ -15,6 +15,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <QCache>
 #include <QImage>
 #include <QList>
 #include <QMutex>
@@ -1194,6 +1195,7 @@ private:
         bool ignore_straighten = false;
         bool refresh_preview = true;
         bool settle_preview = false;
+        bool prefer_cached_settled_preview = false;
         bool comparison_before = false;
         std::optional<std::string> overlay_mask_id;
         std::optional<std::uint64_t> request_revision;
@@ -1314,6 +1316,9 @@ private:
     QImage preview_image_;
     QImage comparison_before_image_;
     QImage preview_base_image_;
+    // UI-thread-owned, unpresented pixels. KiB costs bound bytes and a 1 MiB
+    // minimum cost also caps entry/key overhead at 64 recent resources.
+    QCache<QString, QImage> decoded_preview_images_{64 * 1024};
     QImage comparison_before_base_image_;
     ColorProfileState preview_output_profile_;
     ColorProfileState comparison_before_output_profile_;

@@ -1119,6 +1119,10 @@ struct PreviewRequest
     // CLI, PNG cache, gold tests, and overlay compositing keep true. Studio
     // interactive GPU display sets false so the Engine can skip CPU readback.
     bool need_cpu_pixels = true;
+    // Initial viewer selection may reuse an exact, recipe-keyed settled PNG
+    // instead of rebuilding the interactive working buffer. This explicitly
+    // permits kDefaultPreviewMaxEdge output; overlays and ROI never use it.
+    bool prefer_cached_settled_preview = false;
 };
 
 struct PreviewResult

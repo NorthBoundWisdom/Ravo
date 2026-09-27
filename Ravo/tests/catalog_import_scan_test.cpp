@@ -1,3 +1,5 @@
+#include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include "capture_metadata_test_support.h"
@@ -8,6 +10,9 @@
 #include <QSqlQuery>
 #include <gtest/gtest.h>
 #include "catalog_test_support.h"
+#include "catalog_service_test_support.h"
+#include "ravo/recipe/develop.h"
+#include "interactive_perf_report.h"
 #include "catalog_repository_test_control.h"
 #include "ravo/adapters/text_file.h"
 #include "ravo/domain/uri.h"
@@ -26,7 +31,6 @@ bool write_photo(const std::filesystem::path &path, const QColor &color)
     return image.save(QString::fromStdString(path.string()), "PNG");
 }
 } // namespace
-
 
 TEST_F(CatalogServiceTest, ImportDefaultsAbsentExifAltitudeReferenceAndPreservesSource)
 {
@@ -88,8 +92,8 @@ TEST_F(CatalogServiceTest, ImportScanAndExecutionExcludeCatalogOwnedTrees)
     auto flat = service->enumerate_import_inputs({root.string()}, {}, false);
     ASSERT_TRUE(flat) << flat.error().message;
     EXPECT_EQ(flat.value().size(), 2U);
-    auto owned = service->enumerate_import_inputs({cache.string(), support.string(),
-                                                   cached.string(), proxy.string()}, {});
+    auto owned = service->enumerate_import_inputs(
+        {cache.string(), support.string(), cached.string(), proxy.string()}, {});
     ASSERT_TRUE(owned) << owned.error().message;
     EXPECT_TRUE(owned.value().empty());
 
@@ -401,6 +405,17 @@ TEST_F(CatalogServiceTest, ImportThumbnailDecoderNeedsNoCatalogAndPreservesPixel
     }
     service.reset();
     EXPECT_TRUE(decode_import_thumbnail(engine, raster, png_fixture_path(), {}));
+    auto embedded = engine.extract_embedded_preview(raw_fixture_path(), kThumbnailMaxEdge, {});
+    ASSERT_TRUE(embedded) << embedded.error().message;
+    auto jpeg = raster.decode_memory(embedded.value().bytes, kThumbnailMaxEdge, {},
+                                     embedded.value().rotate_quarters);
+    ASSERT_TRUE(jpeg) << jpeg.error().message;
+    auto browse = decode_import_thumbnail(engine, raster, raw_fixture_path(), {});
+    ASSERT_TRUE(browse) << browse.error().message;
+    EXPECT_EQ(browse.value().srgb, jpeg.value().rgb);
+    EXPECT_EQ(browse.value().width, jpeg.value().width);
+    EXPECT_EQ(browse.value().height, jpeg.value().height);
+    EXPECT_NE(browse.value().color_profile.kind, ColorProfileKind::kMissing);
     auto missing = decode_import_thumbnail(engine, raster, (root / "missing.png").string(), {});
     ASSERT_FALSE(missing);
     ASSERT_TRUE(write_utf8_text_file_atomically((root / "corrupt.png").string(), "corrupt"));
@@ -411,4 +426,150 @@ TEST_F(CatalogServiceTest, ImportThumbnailDecoderNeedsNoCatalogAndPreservesPixel
     ASSERT_FALSE(stopped);
     EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
 }
+
+TEST_F(CatalogServiceTest, WarmRawPreviewAndDevelopSelectionDoNotUnpackRawAfterReopen)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_hash = file_sha256(raw_fixture_path());
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported);
+    ASSERT_TRUE(imported.value().asset);
+    PreviewRequest request;
+    request.asset_id = imported.value().asset->id;
+    auto cold = service->request_preview(request);
+    ASSERT_TRUE(cold) << cold.error().message;
+    const auto pixels = file_sha256(cold.value().cache_path);
+    auto recipe = service->load_recipe(request.asset_id);
+    ASSERT_TRUE(recipe);
+    auto params = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(params);
+    ASSERT_TRUE(service->close());
+    ASSERT_TRUE(open_service(false));
+    EXPECT_FALSE(testing::CatalogServiceTestControl::has_decoded_raw(*service));
+
+    auto warm = service->request_preview(request);
+    ASSERT_TRUE(warm) << warm.error().message;
+    EXPECT_EQ(warm.value().cache_key, cold.value().cache_key);
+    EXPECT_EQ(file_sha256(warm.value().cache_path), pixels);
+    EXPECT_FALSE(testing::CatalogServiceTestControl::has_decoded_raw(*service));
+
+    request.max_edge = kInteractivePreviewMaxEdge;
+    request.persist_preview_record = false;
+    request.prefer_cached_settled_preview = true;
+    request.request_revision = 42U;
+    auto selection = service->request_preview(request, params.value());
+    ASSERT_TRUE(selection) << selection.error().message;
+    EXPECT_EQ(selection.value().cache_path, cold.value().cache_path);
+    EXPECT_EQ(selection.value().request_revision, 42U);
+    EXPECT_EQ(selection.value().width, cold.value().width);
+    EXPECT_FALSE(testing::CatalogServiceTestControl::has_decoded_raw(*service));
+
+    CancellationSource cancellation;
+    static_cast<void>(cancellation.cancel("switch_superseded"));
+    request.cancellation = cancellation.token();
+    auto cancelled = service->request_preview(request, params.value());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_FALSE(testing::CatalogServiceTestControl::has_decoded_raw(*service));
+    EXPECT_EQ(file_sha256(raw_fixture_path()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, CachedSettledSelectionCannotServeChangedLiveRecipe)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported);
+    ASSERT_TRUE(imported.value().asset);
+    PreviewRequest request;
+    request.asset_id = imported.value().asset->id;
+    ASSERT_TRUE(service->request_preview(request));
+    auto recipe = service->load_recipe(request.asset_id);
+    ASSERT_TRUE(recipe);
+    auto params = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(params);
+    ASSERT_TRUE(service->close());
+    ASSERT_TRUE(open_service(false));
+    request.max_edge = 160U;
+    request.persist_preview_record = false;
+    request.prefer_cached_settled_preview = true;
+    params.value().exposure_ev = 1.0;
+    auto changed = service->request_preview(request, params.value());
+    ASSERT_TRUE(changed) << changed.error().message;
+    EXPECT_TRUE(changed.value().cache_path.empty());
+    EXPECT_FALSE(changed.value().rgb.empty());
+    EXPECT_TRUE(testing::CatalogServiceTestControl::has_decoded_raw(*service));
+}
+
+TEST_F(CatalogServiceTest, WarmProcessedRawThumbnailDoesNotUnpackRawAndCorruptionRebuilds)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported);
+    ASSERT_TRUE(imported.value().asset);
+    PreviewRequest request;
+    request.asset_id = imported.value().asset->id;
+    request.max_edge = kThumbnailMaxEdge;
+    request.purpose = PreviewPurpose::kBrowse;
+    // Exercise the processed thumbnail lane, including cameras without JPEGs.
+    request.prefer_embedded_preview = false;
+    auto cold = service->request_preview(request);
+    ASSERT_TRUE(cold) << cold.error().message;
+    const auto expected_hash = file_sha256(cold.value().cache_path);
+    ASSERT_TRUE(service->close());
+    ASSERT_TRUE(open_service(false));
+    auto warm = service->request_preview(request);
+    ASSERT_TRUE(warm) << warm.error().message;
+    EXPECT_FALSE(testing::CatalogServiceTestControl::has_decoded_raw(*service));
+    EXPECT_EQ(file_sha256(warm.value().cache_path), expected_hash);
+    {
+        std::ofstream corrupt(warm.value().cache_path, std::ios::binary | std::ios::trunc);
+        corrupt << "invalid PNG";
+    }
+    auto rebuilt = service->request_preview(request);
+    ASSERT_TRUE(rebuilt) << rebuilt.error().message;
+    EXPECT_TRUE(testing::CatalogServiceTestControl::has_decoded_raw(*service));
+    EXPECT_EQ(file_sha256(rebuilt.value().cache_path), expected_hash);
+}
+
+TEST_F(CatalogServiceTest, ImportThumbnailPerformanceObservation)
+{
+    const char *path = std::getenv("RAVO_IMPORT_THUMBNAIL_PERF_INPUT");
+    if (path == nullptr)
+        GTEST_SKIP() << "set RAVO_IMPORT_THUMBNAIL_PERF_INPUT for a real-camera observation";
+    const auto hash = file_sha256(path);
+    const QtRasterDecoder raster;
+    auto reference = decode_import_thumbnail(engine, raster, path, {});
+    ASSERT_TRUE(reference) << reference.error().message;
+    const auto warmups = interactive_perf_report::warmups_from_env();
+    const auto recorded = interactive_perf_report::recorded_samples_from_env();
+    ASSERT_GT(recorded, 0U);
+    std::vector<std::int64_t> samples;
+    for (std::size_t index = 0; index < warmups + recorded; ++index)
+    {
+        const auto started = std::chrono::steady_clock::now();
+        auto decoded = decode_import_thumbnail(engine, raster, path, {});
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                                 std::chrono::steady_clock::now() - started)
+                                 .count();
+        ASSERT_TRUE(decoded) << decoded.error().message;
+        EXPECT_EQ(decoded.value().srgb, reference.value().srgb);
+        EXPECT_EQ(decoded.value().width, reference.value().width);
+        EXPECT_EQ(decoded.value().height, reference.value().height);
+        if (index >= warmups)
+            samples.push_back(elapsed);
+    }
+    interactive_perf_report::CaseMeta meta;
+    meta.case_id = "import_camera_jpeg_thumbnail";
+    meta.path = "import_thumbnail_decode";
+    meta.source_kind = "caller_supplied_camera_file";
+    meta.cache_state = "warm_os_cache_no_decoded_image_cache";
+    meta.file_count = 1U;
+    meta.workers = 1;
+    meta.max_edge = kThumbnailMaxEdge;
+    meta.warmups = warmups;
+    meta.recorded_samples = recorded;
+    interactive_perf_report::emit_case(meta, samples);
+    EXPECT_EQ(file_sha256(path), hash);
+}
+
 } // namespace ravo

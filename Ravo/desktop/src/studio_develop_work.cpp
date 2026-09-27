@@ -438,6 +438,7 @@ void StudioPresenter::enqueue_preview()
         .ignore_crop = crop_guides,
         .ignore_straighten = false,
         .settle_preview = progressive_develop,
+        .prefer_cached_settled_preview = progressive_develop,
         .overlay_mask_id = current_overlay_mask_id(develop_),
         .request_revision = request_revision,
         .intent_started_at = std::chrono::steady_clock::now(),
@@ -551,6 +552,7 @@ void StudioPresenter::kick_develop_work()
                     request.persist_preview_record =
                         job.comparison_before ? false : !job.interactive;
                     request.cancellation = cancellation;
+                    request.prefer_cached_settled_preview = job.prefer_cached_settled_preview;
                     // Pure interactive frames publish the Engine-owned native
                     // display surface. Desktop snapshots its display RGB8 for
                     // identity/scopes without forcing a float-buffer readback.
@@ -682,7 +684,10 @@ void StudioPresenter::kick_develop_work()
                     // A progressive live frame is visible now, but a queued
                     // settled frame still owns the completion state. Keep the
                     // lifecycle busy until that exact request publishes.
-                    preview_loading_ = job.settle_preview;
+                    const bool settle_preview =
+                        job.settle_preview && !(job.prefer_cached_settled_preview && preview &&
+                                                !preview.value().cache_path.empty());
+                    preview_loading_ = settle_preview;
                     if (!preview)
                     {
                         if (preview.error().code == ErrorCode::kCancelled)
@@ -751,7 +756,7 @@ void StudioPresenter::kick_develop_work()
                             static_cast<qlonglong>(intent_to_image_us));
                     }
                     emit previewChanged();
-                    if (job.settle_preview)
+                    if (settle_preview)
                     {
                         pending_preview_ = PendingDevelopWork{
                             .save = false,

@@ -27,6 +27,11 @@ namespace ravo
 {
 using namespace catalog_service_internal;
 
+bool testing::CatalogServiceTestControl::has_decoded_raw(const CatalogService &service)
+{
+    return service.decoded_raw_.has_value() || service.browse_decoded_raw_.has_value();
+}
+
 void testing::CatalogServiceTestControl::set_before_import_publication(
     CatalogService &service, std::function<void()> callback)
 {

@@ -52,6 +52,8 @@ Embedded Exif altitude defaults and strict malformed-tag handling are owned by
 the Engine metadata reader, documented in architecture and testing above.
 Gallery folder publication, background monitor-thumbnail presentation and its
 private-catalog latency probe are documented in those same authorities.
+They also define cache-first RAW selection, settled-frame reuse on Develop
+entry, and camera-JPEG-first Import thumbnails.
 RAW black-level normalization and preview-cache invalidation are specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with synthetic DNG coverage in
 [TESTING.md](TESTING.md).

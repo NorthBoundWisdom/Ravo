@@ -198,7 +198,8 @@ prepare_preview_analysis(const QImage &identity_image, const QImage &scope_sourc
     return result;
 }
 
-[[nodiscard]] Result<QImage> preview_result_image(const PreviewResult &preview)
+[[nodiscard]] Result<QImage> preview_result_image(const PreviewResult &preview,
+                                                  QCache<QString, QImage> &decoded_images)
 {
     if (!preview.rgb.empty())
     {
@@ -231,12 +232,24 @@ prepare_preview_analysis(const QImage &identity_image, const QImage &scope_sourc
     {
         return make_error(ErrorCode::kValidation, "Preview returned neither pixels nor a resource");
     }
-    QImage cached(qstring_from_utf8(preview.cache_path));
+    const QFileInfo file(qstring_from_utf8(preview.cache_path));
+    if (!file.isFile())
+        return make_error(ErrorCode::kIo, "Preview resource could not be loaded",
+                          {{"path", preview.cache_path}});
+    const QString key = file.absoluteFilePath() + QLatin1Char('\n') + QString::number(file.size()) +
+                        QLatin1Char('\n') +
+                        QString::number(file.lastModified().toMSecsSinceEpoch());
+    if (const auto *cached = decoded_images.object(key))
+        return *cached;
+    QImage cached(file.absoluteFilePath());
     if (cached.isNull())
     {
         return make_error(ErrorCode::kIo, "Preview resource could not be loaded",
                           {{"path", preview.cache_path}});
     }
+    const auto cost = std::max<qsizetype>(1024, (cached.sizeInBytes() + 1023) / 1024);
+    if (cost <= decoded_images.maxCost())
+        decoded_images.insert(key, new QImage(cached), static_cast<int>(cost));
     return cached;
 }
 
@@ -272,20 +285,21 @@ prepare_preview_analysis(const QImage &identity_image, const QImage &scope_sourc
 }
 
 Result<QUrl> prepare_gallery_thumbnail(const QString &base_path,
-                                      const ColorProfileState &source_profile,
-                                      const DisplayPresentationState &display,
-                                      const QString &root, const CancellationToken &cancellation)
+                                       const ColorProfileState &source_profile,
+                                       const DisplayPresentationState &display, const QString &root,
+                                       const CancellationToken &cancellation)
 {
     if (auto active = cancellation.check(); !active)
         return active.error();
     const QFileInfo file(base_path);
     QByteArray identity = base_path.toUtf8() + '\n' + QByteArray::number(file.size()) + '\n' +
-        QByteArray::number(file.lastModified().toMSecsSinceEpoch()) + '\n' +
-        QByteArray::fromStdString(display.profile_fingerprint) + '\n' +
-        QByteArray::fromStdString(source_profile.identifier);
+                          QByteArray::number(file.lastModified().toMSecsSinceEpoch()) + '\n' +
+                          QByteArray::fromStdString(display.profile_fingerprint) + '\n' +
+                          QByteArray::fromStdString(source_profile.identifier);
     identity.append(reinterpret_cast<const char *>(source_profile.icc_bytes.data()),
                     static_cast<qsizetype>(source_profile.icc_bytes.size()));
-    const QString key = QString::fromLatin1(QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
+    const QString key =
+        QString::fromLatin1(QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
     const QString output = QDir(root).filePath(key + QStringLiteral(".png"));
     if (QFileInfo::exists(output))
         return QUrl::fromLocalFile(output);
@@ -293,8 +307,10 @@ Result<QUrl> prepare_gallery_thumbnail(const QString &base_path,
     const auto size = reader.size();
     if (!size.isValid())
         return make_error(ErrorCode::kIo, "Gallery thumbnail has invalid dimensions");
-    if (size.width() > static_cast<int>(kThumbnailMaxEdge) || size.height() > static_cast<int>(kThumbnailMaxEdge))
-        reader.setScaledSize(size.scaled(kThumbnailMaxEdge, kThumbnailMaxEdge, Qt::KeepAspectRatio));
+    if (size.width() > static_cast<int>(kThumbnailMaxEdge) ||
+        size.height() > static_cast<int>(kThumbnailMaxEdge))
+        reader.setScaledSize(
+            size.scaled(kThumbnailMaxEdge, kThumbnailMaxEdge, Qt::KeepAspectRatio));
     QImage base = reader.read().convertToFormat(QImage::Format_RGB888);
     if (base.isNull())
         return make_error(ErrorCode::kIo, "Unable to decode gallery thumbnail");
@@ -307,12 +323,12 @@ Result<QUrl> prepare_gallery_thumbnail(const QString &base_path,
     for (int y = 0; y < base.height(); ++y)
         std::copy_n(base.constScanLine(y), row_bytes,
                     pixels.data() + static_cast<std::size_t>(y) * row_bytes);
-    auto converted = apply_display_presentation_rgb8(pixels, width, height,
-                                                     source_profile, display, cancellation);
+    auto converted = apply_display_presentation_rgb8(pixels, width, height, source_profile, display,
+                                                     cancellation);
     if (!converted)
         return converted.error();
-    QImage presented(converted.value().rgb8.data(), base.width(), base.height(),
-                     base.width() * 3, QImage::Format_RGB888);
+    QImage presented(converted.value().rgb8.data(), base.width(), base.height(), base.width() * 3,
+                     QImage::Format_RGB888);
     const auto &icc = converted.value().color_profile.icc_bytes;
     if (!icc.empty())
         presented.setColorSpace(QColorSpace::fromIccProfile(QByteArray(
@@ -582,11 +598,14 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
             setError(QStringLiteral("Gallery display cache location is unavailable."));
             return;
         }
-        thumbnail_presented_root_ = QDir(cache_root)
-            .filePath(QStringLiteral("ravo-gallery-display-%1").arg(reinterpret_cast<quintptr>(this), 0, 16));
+        thumbnail_presented_root_ =
+            QDir(cache_root)
+                .filePath(QStringLiteral("ravo-gallery-display-%1")
+                              .arg(reinterpret_cast<quintptr>(this), 0, 16));
     }
-    if (!thumbnail_display_state_ || thumbnail_display_state_->profile_fingerprint !=
-        display_presentation_->presentationState().profile_fingerprint)
+    if (!thumbnail_display_state_ ||
+        thumbnail_display_state_->profile_fingerprint !=
+            display_presentation_->presentationState().profile_fingerprint)
         thumbnail_display_state_ = std::make_shared<const DisplayPresentationState>(
             display_presentation_->presentationState());
     const auto display = thumbnail_display_state_;
@@ -596,9 +615,7 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
     if (pending_thumbnail_presentations_.size() >= kMaximumPendingThumbnailRequests)
     {
         std::erase_if(pending_thumbnail_presentations_, [this](const auto &entry)
-        {
-            return !assets_.assetById(qstring_from_utf8(entry.first));
-        });
+                      { return !assets_.assetById(qstring_from_utf8(entry.first)); });
         if (pending_thumbnail_presentations_.size() >= kMaximumPendingThumbnailRequests &&
             !pending_thumbnail_presentations_.contains(asset_id))
         {
@@ -608,36 +625,41 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
         }
     }
     assets_.setThumbnail(asset_id, {}, QStringLiteral("presenting"));
-    pending_thumbnail_presentations_[asset_id] =
-        [this, asset_id, base_path, source_profile, display, root, generation, revision,
-         cancellation, thumb_state]
-        {
-            auto result = prepare_gallery_thumbnail(base_path, source_profile, *display, root, cancellation);
-            QMetaObject::invokeMethod(this,
-                [this, asset_id, generation, revision, result = std::move(result), thumb_state]() mutable
+    pending_thumbnail_presentations_[asset_id] = [this, asset_id, base_path, source_profile,
+                                                  display, root, generation, revision, cancellation,
+                                                  thumb_state]
+    {
+        auto result =
+            prepare_gallery_thumbnail(base_path, source_profile, *display, root, cancellation);
+        QMetaObject::invokeMethod(
+            this,
+            [this, asset_id, generation, revision, result = std::move(result),
+             thumb_state]() mutable
+            {
+                thumbnail_presentation_in_flight_ = false;
+                const auto latest = thumbnail_presentation_revisions_.find(asset_id);
+                if (generation == library_query_generation_ &&
+                    latest != thumbnail_presentation_revisions_.end() &&
+                    latest->second == revision && assets_.assetById(qstring_from_utf8(asset_id)))
                 {
-                    thumbnail_presentation_in_flight_ = false;
-                    const auto latest = thumbnail_presentation_revisions_.find(asset_id);
-                    if (generation == library_query_generation_ &&
-                        latest != thumbnail_presentation_revisions_.end() && latest->second == revision &&
-                        assets_.assetById(qstring_from_utf8(asset_id)))
+                    if (result)
                     {
-                        if (result)
-                        {
-                            assets_.setThumbnail(asset_id, result.value(), thumb_state);
-                            if (selected_asset_id_ == qstring_from_utf8(asset_id) && browse_mode_ == QLatin1String("grid"))
-                                refresh_scopes_from_thumbnail(selected_asset_id_);
-                        }
-                        else if (result.error().code != ErrorCode::kCancelled)
-                        {
-                            assets_.setThumbnail(asset_id, {}, QStringLiteral("failed"));
-                            setError(qstring_from_utf8(result.error().message));
-                        }
-                        emit thumbnailsChanged();
+                        assets_.setThumbnail(asset_id, result.value(), thumb_state);
+                        if (selected_asset_id_ == qstring_from_utf8(asset_id) &&
+                            browse_mode_ == QLatin1String("grid"))
+                            refresh_scopes_from_thumbnail(selected_asset_id_);
                     }
-                    startNextThumbnailPresentation();
-                }, Qt::QueuedConnection);
-        };
+                    else if (result.error().code != ErrorCode::kCancelled)
+                    {
+                        assets_.setThumbnail(asset_id, {}, QStringLiteral("failed"));
+                        setError(qstring_from_utf8(result.error().message));
+                    }
+                    emit thumbnailsChanged();
+                }
+                startNextThumbnailPresentation();
+            },
+            Qt::QueuedConnection);
+    };
     startNextThumbnailPresentation();
 }
 
@@ -658,7 +680,9 @@ void StudioPresenter::reapply_display_presentation_to_cached_thumbnails()
         const QString state = assets_.thumbnailState(asset_id);
         const QString publish_state = state.isEmpty() ? QStringLiteral("ready") : state;
         remember_thumbnail_base(asset_id, base_path, profile,
-                                publish_state == QStringLiteral("presenting") ? QStringLiteral("ready") : publish_state);
+                                publish_state == QStringLiteral("presenting") ?
+                                    QStringLiteral("ready") :
+                                    publish_state);
     }
     emit thumbnailsChanged();
 }
@@ -1003,7 +1027,7 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
     }
     else
     {
-        auto prepared = preview_result_image(preview);
+        auto prepared = preview_result_image(preview, decoded_preview_images_);
         if (!prepared)
         {
             setError(qstring_from_utf8(prepared.error().message));
@@ -1046,6 +1070,15 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         }
     }
     preview_output_profile_ = preview.color_profile;
+    if (!preview.cache_path.empty() && displayed.colorSpace().isValid())
+    {
+        const auto icc = displayed.colorSpace().iccProfile();
+        preview_output_profile_.kind = ColorProfileKind::kIcc;
+        preview_output_profile_.model = ColorModel::kRgb;
+        preview_output_profile_.identifier = "embedded_icc";
+        const auto *begin = reinterpret_cast<const std::uint8_t *>(icc.constData());
+        preview_output_profile_.icc_bytes.assign(begin, begin + icc.size());
+    }
     preview_base_image_ = displayed;
     QImage presented = apply_display_presentation_image(displayed, preview_output_profile_);
     {
@@ -1089,7 +1122,7 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
             live_preview_color_profile_id_ = QStringLiteral("embedded-icc");
     }
     live_preview_pixel_sha256_.clear();
-    preview_url_ = !preview.rgb.empty() || native_snapshot ?
+    preview_url_ = !preview.rgb.empty() || native_snapshot || preserve_viewport_extent ?
                        QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision)) :
                        QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
     schedule_preview_analysis(displayed, owned, revision, preview.asset_id,
@@ -1099,7 +1132,7 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
 void StudioPresenter::show_comparison_before_result(const PreviewResult &preview,
                                                     const std::uint64_t revision)
 {
-    auto prepared = preview_result_image(preview);
+    auto prepared = preview_result_image(preview, decoded_preview_images_);
     if (!prepared)
     {
         setError(qstring_from_utf8(prepared.error().message));
@@ -1220,8 +1253,8 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
     }
     const auto id = utf8_from_qstring(asset_id);
     const QString state = assets_.thumbnailState(id);
-    if (state == QLatin1String("ready") || state == QLatin1String("presenting") || state == QLatin1String("missing") ||
-        state == QLatin1String("failed"))
+    if (state == QLatin1String("ready") || state == QLatin1String("presenting") ||
+        state == QLatin1String("missing") || state == QLatin1String("failed"))
     {
         return;
     }
@@ -1674,7 +1707,8 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
                     }
                     else
                     {
-                        auto prepared = preview_result_image(preview.value());
+                        auto prepared =
+                            preview_result_image(preview.value(), decoded_preview_images_);
                         if (!prepared)
                         {
                             setError(qstring_from_utf8(prepared.error().message));

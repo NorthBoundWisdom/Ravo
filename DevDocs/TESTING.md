@@ -846,10 +846,12 @@ gated (ADR-0096).
   prefix parameter change must retain or replace the generation atomically.
   A drag applies the remaining complete recipe to that cached prefix. Entering
   Develop and an ordinary committed style/develop change must publish the exact
-  live memory preview before its persisted settled preview. Embedded JPEG must
-  not become editable data. CLI/Studio share the `request_preview` contract;
-  late results are dropped by request revision. Entering Develop while the
-  selected Recipe is still loading defers that live request; the first frame
+  live memory preview before its persisted settled preview. An exact settled-cache
+  hit may instead be republished as the initial owned live frame, without RAW
+  unpack. Embedded JPEG must not become editable data. CLI/Studio share the
+  `request_preview` contract; late results are dropped by request revision.
+  Entering Develop while the selected Recipe is still loading defers that live
+  request; the first frame
   must use the loaded parameters and its display-RGB snapshot must remain
   available to identity and scope analysis.
 - Scopes collect from the current declared display-referred RGB preview: RGB
@@ -858,6 +860,17 @@ gated (ADR-0096).
   RAW decode on selection; loupe/develop still use processed preview and never
   treat embedded JPEG as editable data.
 - Quickly switching assets drops late results from old request revisions.
+- Warm RAW settled previews and processed browse thumbnails must hit their
+  exact disk key after catalog reopen without populating a decoded RAW slot.
+  Initial Develop may opt into the matching settled frame; changed live
+  parameters must miss, cancelled selection must fail, and corrupt PNG cache
+  must rebuild. Source hashes remain unchanged. Import candidate thumbnails
+  extract camera JPEGs without full RAW crop/opcode inspection; decoded JPEG
+  pixels, orientation and declared profile are verified independently.
+- Rapid cached Develop revisits must publish the selected asset's owned pixels,
+  including an A/B/A burst with distinguishable source colours. Recent decoded
+  PNG caching must retain ICC presentation and the existing stale-result and
+  presenter-destruction contracts.
 - A rapid pure-interactive burst publishes the active frame, replaces only the
   bounded pending request, advances image revisions monotonically, and ends on
   pixels that match the latest parameters. Save, selection, close, comparison,

@@ -193,10 +193,24 @@ current animation and restores the preceding view rather than opening the grid
 
 Gallery grid schedules only `kThumbnailMaxEdge` browse thumbnails, never a
 1600px processed preview merely for a selected grid item; all scopes are
-calculated from that thumbnail. Loupe/develop requests full decode. On
-open/import, presenters seed ready cache paths from the preview table. A cold
-cache starts only from active GridView/filmstrip delegates plus one GridView
-row of look-ahead: desktop C++ deduplicates the bounded demand set, holds at
+calculated from that thumbnail. Loupe/develop resolves the exact recipe cache
+before RAW unpack; only a cache miss requires decode. Initial Develop selection
+may explicitly request a cached 1600px settled frame instead of rebuilding the
+960px interactive buffer. The key includes source fingerprint, recipe and
+external colour/LUT identities; ROI and mask overlays cannot use this shortcut.
+The service remains serialized on its owning executor, uses the existing
+bounded disk cache, and checks cancellation before returning a selection hit.
+Subsequent edits still render from scene-linear RAW, and close releases all
+working buffers. Desktop additionally keeps an LRU of unpresented decoded PNG
+pixels (64 MiB pixel budget, at most 64 entries), keyed by resource path, size
+and modification time. It checks file existence before a hit, preserves embedded
+ICC for display conversion, and clears this UI-thread-owned cache on catalog
+replacement or presenter destruction. A cached settled selection is republished
+as owned live pixels without queuing a duplicate settled frame. No embedded JPEG
+becomes editable input. On open/import, presenters seed ready cache paths from
+the preview table. A cold cache starts only from active GridView/filmstrip
+delegates plus one GridView row of look-ahead: desktop C++ deduplicates the
+bounded demand set, holds at
 most one background thumbnail request in flight, and lets newer viewport
 demand lead older queued demand. It does not prefill every asset in a loaded
 page. Foreground Develop cancels the active browse token; the same owner
@@ -217,10 +231,14 @@ support and duplicates in batches; failed/duplicate rows become disabled without
 resetting intervening user check intent. A separate presenter-owned serial
 thumbnail worker owns its own Engine and raster adapter, never the catalog or
 its Engine. It invokes the same catalog-independent service decode used by CLI/
-Catalog browse, prioritizes current/visible rows and prefetch before a one-pass
-background sweep, and publishes one owned result at a time. Pending demand is
-bounded to 256 rows plus one running decode; at most 256 decoded workspace images
-are retained, with visible rows protected and viewport re-demand after eviction.
+Catalog browse. Camera JPEG extraction precedes full RAW crop/opcode inspection;
+the latter still gates import/edit admission and the existing render path for
+files without an embedded JPEG. Extraction cancellation and malformed input
+remain explicit failures. It prioritizes current/visible rows and prefetch before
+a one-pass background sweep, and publishes one owned result at a time. Pending
+demand is bounded to 256 rows plus one running decode; at most 256 decoded
+workspace images are retained, with visible rows protected and viewport
+re-demand after eviction.
 Selection totals are cached, and scan updates
 publish one model notification per batch rather than per-row full-list recounts.
 Scan/thumbnail failures stay distinct: thumbnail errors stop that row's spinner

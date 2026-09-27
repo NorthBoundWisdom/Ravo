@@ -290,6 +290,23 @@ Result<RasterBuffer> decode_import_thumbnail(const EngineFacade &engine,
         if (decoded)
             return raster_from_decoded(std::move(decoded).value());
     }
+    // Browse pixels do not need sensor crop/opcode validation. Extract the
+    // camera JPEG first, leaving full RAW inspection to import/edit admission.
+    auto embedded =
+        engine.extract_embedded_preview(location.value().path, kThumbnailMaxEdge, cancellation);
+    if (embedded)
+    {
+        auto decoded = raster.decode_memory(embedded.value().bytes, kThumbnailMaxEdge, cancellation,
+                                            embedded.value().rotate_quarters);
+        if (!decoded)
+            return decoded.error();
+        auto result = raster_from_decoded(std::move(decoded).value());
+        if (result.color_profile.kind == ColorProfileKind::kMissing)
+            result.color_profile = embedded.value().color_profile;
+        return result;
+    }
+    if (embedded.error().code != ErrorCode::kUnsupported)
+        return embedded.error();
     auto inspected = engine.inspect_with_embedded_preview(location.value().path, kThumbnailMaxEdge,
                                                           cancellation);
     if (!inspected)

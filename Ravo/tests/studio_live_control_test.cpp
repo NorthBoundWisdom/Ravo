@@ -110,7 +110,10 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
     presenter.startPlannedImport();
     ASSERT_TRUE(wait_until([&] { return !presenter.importPageOpen(); }, 30000))
         << presenter.errorText().toStdString();
-    EXPECT_GE(presenter.visibleCount(), 1);
+    // Gallery handoff precedes asynchronous preflight. Wait for placeholder
+    // publication independently; closing the Import page is not a commit fence.
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() >= 1; }, 30000))
+        << presenter.errorText().toStdString();
     EXPECT_FALSE(presenter.assets()
                      ->data(presenter.assets()->index(0, 0), AssetListModel::DisplayNameRole)
                      .toString()

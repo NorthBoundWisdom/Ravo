@@ -14,6 +14,7 @@
 #include <QColor>
 #include <QColorSpace>
 #include <QImage>
+#include <QDir>
 #include <QEventLoop>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -115,6 +116,49 @@ TEST(StudioGpuPreviewSnapshotTest, RejectsAnInvalidSurface)
 }
 #endif
 
+TEST(StudioPresenterTest, CachedDevelopRevisitAndRapidSwitchPublishSelectedPixels)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    QStringList photos;
+    for (const auto &name : {QStringLiteral("a.png"), QStringLiteral("b.png")})
+    {
+        QImage image(320, 200, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(name == QLatin1String("a.png") ? QColor(180, 20, 40) : QColor(20, 40, 180));
+        photos.push_back(directory.filePath(name));
+        ASSERT_TRUE(image.save(photos.back(), "PNG"));
+    }
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.importFilePaths(photos);
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 2 && !presenter.busy(); }));
+    const auto first = presenter.assets()->assetIdAt(0);
+    const auto second = presenter.assets()->assetIdAt(1);
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    const auto ready = [&]
+    { return !presenter.previewLoading() && !presenter.previewImage().isNull(); };
+    for (const auto &id : {first, second})
+    {
+        presenter.selectAsset(id);
+        ASSERT_TRUE(wait_until(ready)) << presenter.errorText().toStdString();
+    }
+    presenter.selectAsset(first);
+    presenter.selectAsset(second);
+    presenter.selectAsset(first);
+    ASSERT_TRUE(wait_until(ready)) << presenter.errorText().toStdString();
+    EXPECT_EQ(presenter.selectedAssetId(), first);
+    const auto asset = presenter.assets()->assetById(first);
+    ASSERT_TRUE(asset);
+    const QColor expected =
+        asset->normalized_uri.ends_with("a.png") ? QColor(180, 20, 40) : QColor(20, 40, 180);
+    EXPECT_EQ(presenter.previewImage().pixelColor(0, 0), expected);
+    EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+}
+
 TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
 {
     ensure_qt_core();
@@ -145,7 +189,7 @@ TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
         asset_id = setup.selectedAssetId();
         setup.openDevelop();
         ASSERT_TRUE(
-            wait_until([&] { return !setup.previewLoading() && setup.previewUrl().isLocalFile(); }))
+            wait_until([&] { return !setup.previewLoading() && !setup.previewImage().isNull(); }))
             << setup.errorText().toStdString();
         setup.setDevelopNumber(QStringLiteral("exposure"), 1.0);
         ASSERT_TRUE(wait_until(
@@ -157,6 +201,9 @@ TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
             << setup.errorText().toStdString();
     }
 
+    // This contract exercises the uncached first render and its GPU publication.
+    // Cached initial frames have a separate exact-pixel revisit contract above.
+    ASSERT_TRUE(QDir(catalog + QStringLiteral(".preview")).removeRecursively());
     StudioPresenter presenter;
     presenter.openCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until(
@@ -416,25 +463,22 @@ TEST(StudioRapidRawTonePerformanceProbe, MeasuresAllToneControls)
     presenter.selectAsset(QString::fromUtf8(asset_id));
     ASSERT_TRUE(wait_until(
         [&]
-        {
-            return presenter.selectedAssetId() == QString::fromUtf8(asset_id) &&
-                   !presenter.busy();
-        },
+        { return presenter.selectedAssetId() == QString::fromUtf8(asset_id) && !presenter.busy(); },
         30000));
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until([&] { return preview_settled(presenter); }, 30000));
     ASSERT_TRUE(presenter.editRapidRawToneControlsEnabled());
 
     const std::array<QString, 7> fields{
-        QStringLiteral("rapidrawEvShift"),   QStringLiteral("rapidrawExposure"),
-        QStringLiteral("rapidrawContrast"),  QStringLiteral("rapidrawHighlights"),
-        QStringLiteral("rapidrawShadows"),   QStringLiteral("rapidrawWhites"),
+        QStringLiteral("rapidrawEvShift"),  QStringLiteral("rapidrawExposure"),
+        QStringLiteral("rapidrawContrast"), QStringLiteral("rapidrawHighlights"),
+        QStringLiteral("rapidrawShadows"),  QStringLiteral("rapidrawWhites"),
         QStringLiteral("rapidrawBlacks"),
     };
     const std::array<double, 7> baselines{
-        presenter.editRapidRawEvShift(),   presenter.editRapidRawExposure(),
-        presenter.editRapidRawContrast(),  presenter.editRapidRawHighlights(),
-        presenter.editRapidRawShadows(),   presenter.editRapidRawWhites(),
+        presenter.editRapidRawEvShift(),  presenter.editRapidRawExposure(),
+        presenter.editRapidRawContrast(), presenter.editRapidRawHighlights(),
+        presenter.editRapidRawShadows(),  presenter.editRapidRawWhites(),
         presenter.editRapidRawBlacks(),
     };
     std::vector<std::int64_t> samples;

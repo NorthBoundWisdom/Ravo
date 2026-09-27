@@ -1190,7 +1190,8 @@ void StudioPresenter::reloadVisibleAssets()
                                 listing.has_more);
                 },
                 Qt::QueuedConnection);
-        }, TaskPriority::kForeground);
+        },
+        TaskPriority::kForeground);
 }
 
 void StudioPresenter::loadNextLibraryPage()
@@ -1514,6 +1515,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                     last_import_count_ = 0U;
                     last_import_selected_ = false;
                     catalog_path_ = qstring_from_utf8(path);
+                    decoded_preview_images_.clear();
                     thumbnail_requests_.clear();
                     clear_thumbnail_presentation_cache();
                     emit catalogChanged();
@@ -1618,6 +1620,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                     last_import_count_ = 0U;
                     last_import_selected_ = false;
                     catalog_path_ = qstring_from_utf8(path);
+                    decoded_preview_images_.clear();
                     reload_presets();
                     selected_asset_id_.clear();
                     clear_displayed_preview();

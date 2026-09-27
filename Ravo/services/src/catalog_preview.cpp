@@ -588,8 +588,12 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                      asset.id, extracted.error().message);
         }
     }
-    if (original_exists && is_raw_media_type(working.media_type))
+    // ROI needs sensor dimensions immediately. Ordinary previews first consult
+    // the recipe-keyed disk cache below; a warm image switch must not unpack RAW.
+    const auto resolve_raw_dimensions = [&]() -> Result<void>
     {
+        if (!original_exists || !is_raw_media_type(working.media_type))
+            return {};
         auto decoded = cached_raw_frame(working, render_path, request.cancellation, lane);
         if (!decoded)
         {
@@ -615,6 +619,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                 }
             }
         }
+        return {};
+    };
+    if (request.roi.has_value())
+    {
+        auto resolved = resolve_raw_dimensions();
+        if (!resolved)
+            return resolved.error();
     }
     auto baseline_recipe = baseline_recipe_for(working, location.value().path);
     if (!baseline_recipe)
@@ -762,8 +773,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         // Cache keys must remain filesystem-safe; fold the proxy tag into hex.
         cache_digest += "_opx_" + fnv1a64_hex(offline_proxy_cache_tag);
     }
-    const auto cache_key =
-        make_preview_cache_key(asset.id, width, height, fingerprint, cache_digest);
+    auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint, cache_digest);
 
     PreviewResult result;
     result.asset_id = asset.id;
@@ -775,6 +785,30 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     result.preview_apply_mode = using_offline_proxy ?
                                     std::string(kOfflineEditPreviewApplyIdentityBaked) :
                                     std::string(kOfflineEditPreviewApplyCatalogRecipe);
+
+    if (interactive && request.prefer_cached_settled_preview && !request.overlay_mask_id &&
+        original_exists && !using_offline_proxy)
+    {
+        std::uint32_t settled_width = 0;
+        std::uint32_t settled_height = 0;
+        fit_within_max_edge(source_width, source_height, kDefaultPreviewMaxEdge, settled_width,
+                            settled_height);
+        const auto settled_key = make_preview_cache_key(asset.id, settled_width, settled_height,
+                                                        fingerprint, edit_digest);
+        auto existing = cache_->existing_png(settled_key);
+        if (!existing)
+            return existing.error();
+        if (existing.value())
+        {
+            if (auto active = request.cancellation.check(); !active)
+                return active.error();
+            result.cache_key = settled_key;
+            result.cache_path = *existing.value();
+            result.width = settled_width;
+            result.height = settled_height;
+            return result;
+        }
+    }
 
     if (!interactive)
     {
@@ -808,6 +842,14 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                            {"asset_id", asset.id},
                            {"reason", "original_missing"}});
     }
+
+    auto resolved = resolve_raw_dimensions();
+    if (!resolved)
+        return resolved.error();
+    // A first decode may correct imported sensor/crop dimensions. Publish only
+    // under the corrected identity, so subsequent visits find the exact pixels.
+    cache_key = make_preview_cache_key(asset.id, width, height, fingerprint, cache_digest);
+    result.cache_key = cache_key;
 
     if (using_offline_proxy)
     {
