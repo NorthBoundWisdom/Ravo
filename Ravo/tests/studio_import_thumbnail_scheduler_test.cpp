@@ -7,8 +7,10 @@
 #include <thread>
 
 #include <QGuiApplication>
+#include <QEventLoop>
 #include <QTemporaryDir>
 #include <QImage>
+#include <QTimer>
 #include <gtest/gtest.h>
 
 #include "ravo/desktop/import_candidate_list_model.h"
@@ -60,10 +62,41 @@ TEST(StudioImportThumbnailScheduler, BackgroundPassFollowsViewportAndKeepsVisibl
     controller.setObservationSink(&trail);
     controller.startBackgroundPass();
     controller.setViewportDemand({298, 299}, 0, 298);
-    ASSERT_TRUE(wait_for([&] { return controller.completedRows().size() == 300 &&
-                                    controller.demandQuiescent(); }, 30000));
+    // Keep the real event loop running between observations. Sleeping after
+    // each processEvents() call adds a delay to every worker/UI round trip,
+    // multiplying host timer coalescing by 300 even when decode is fast.
+    QEventLoop completion_loop;
+    QTimer deadline;
+    deadline.setSingleShot(true);
+    deadline.setTimerType(Qt::PreciseTimer);
+    QObject::connect(&deadline, &QTimer::timeout, &completion_loop, &QEventLoop::quit);
+    QTimer observation;
+    QObject::connect(&observation, &QTimer::timeout, &completion_loop,
+                     [&]
+                     {
+                         if (controller.completedCount() == 300 && controller.demandQuiescent())
+                             completion_loop.quit();
+                     });
+    deadline.start(30000);
+    observation.start(10);
+    completion_loop.exec();
+    observation.stop();
+    deadline.stop();
+    ASSERT_TRUE(controller.completedCount() == 300 && controller.demandQuiescent())
+        << "completed=" << controller.completedCount()
+        << " dispatched=" << controller.dispatchedCount()
+        << " pending=" << controller.pendingCount()
+        << " physical_outstanding=" << controller.physicalOutstandingCount();
+    EXPECT_TRUE(controller.physicalDrained());
     const auto dispatched = controller.dispatchedRows();
     ASSERT_EQ(dispatched.size(), 300U);
+    const auto completed = controller.completedRows();
+    ASSERT_EQ(completed.size(), 300U);
+    std::set<int> expected_rows;
+    for (int row = 0; row < 300; ++row)
+        expected_rows.insert(row);
+    EXPECT_EQ(std::set<int>(dispatched.begin(), dispatched.end()), expected_rows);
+    EXPECT_EQ(std::set<int>(completed.begin(), completed.end()), expected_rows);
     EXPECT_EQ(dispatched[0], 298);
     EXPECT_EQ(dispatched[1], 299);
     EXPECT_EQ(dispatched[2], 0);

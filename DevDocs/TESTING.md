@@ -1630,8 +1630,12 @@ source. With the catalog executor blocked, tests require Gallery visibility and 
 immediately after the click. Cancellation, source disappearance and destination
 conflict must release busy state without importing or remembering a failed draft.
 The 300-candidate thumbnail scheduler regression asserts viewport-first dispatch,
-finite one-pass offscreen work, cache limits and
-visible-pixel residency. Tests requiring final duplicate classification explicitly
+exactly-once completion of every row, finite one-pass offscreen work, cache limits
+and visible-pixel residency. It waits in a real Qt event loop with a 30-second
+watchdog and reports completion/pending/in-flight counts on failure. The test
+must not add a polling sleep to each worker/UI handoff; this is a scheduling
+contract, not a host-dependent decode latency benchmark.
+Tests requiring final duplicate classification explicitly
 wait for scan completion rather than using button readiness as a scan oracle.
 
 Live Studio interactive commands share one C++ workspace policy
