@@ -110,6 +110,9 @@ public:
     find_import_content(std::uint64_t size_bytes, std::string_view sha256) const override;
     [[nodiscard]] Result<void> commit_refreshed_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_asset(const AssetRecord &asset) override;
+    [[nodiscard]] Result<std::int64_t>
+    update_preview_state(const AssetRecord &asset,
+                         std::optional<std::int64_t> expected_generation = {}) override;
     [[nodiscard]] Result<void> update_review(std::string_view asset_id,
                                              const ReviewState &review) override;
     [[nodiscard]] Result<std::int64_t> commit_review(std::string_view asset_id,
@@ -126,7 +129,8 @@ public:
                   std::optional<std::string_view> recipe_json, std::string_view history_json,
                   RecipeHistoryWrite history_write,
                   std::optional<std::int64_t> discard_history_after_seq,
-                  std::optional<std::int64_t> coalesce_history_id) override;
+                  std::optional<std::int64_t> coalesce_history_id,
+                  RecipeCommitPrecondition precondition = {}) override;
     [[nodiscard]] Result<void> replace_asset_tags(std::string_view asset_id,
                                                   const std::vector<std::string> &tags) override;
     [[nodiscard]] Result<LibraryCaptureFacets> list_capture_facets() const override;
@@ -177,7 +181,9 @@ public:
     [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const override;
     [[nodiscard]] Result<std::vector<PreviewRecord>>
     list_previews_for_assets(const std::vector<std::string> &asset_ids) const override;
-    [[nodiscard]] Result<void> upsert_preview(const PreviewRecord &preview) override;
+    [[nodiscard]] Result<void>
+    upsert_preview(const PreviewRecord &preview,
+                   std::optional<std::int64_t> expected_generation = {}) override;
     [[nodiscard]] Result<AssetRecoveryState>
     recovery_state(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::vector<AssetRecoveryState>> list_pending_recovery() const override;

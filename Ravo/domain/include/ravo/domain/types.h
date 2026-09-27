@@ -49,6 +49,15 @@ struct RecipeCommitResult
 {
     std::int64_t revision = 0;
     std::optional<std::int64_t> history_id;
+    std::int64_t history_head = 0;
+};
+
+// Checked inside the recipe write transaction, before recipe/history mutation.
+struct RecipeCommitPrecondition
+{
+    std::optional<std::int64_t> catalog_revision;
+    std::optional<std::int64_t> asset_generation;
+    std::optional<std::int64_t> history_head;
 };
 
 inline constexpr std::size_t kTagMaxLength = 128;
@@ -1123,6 +1132,15 @@ struct PreviewRequest
     // instead of rebuilding the interactive working buffer. This explicitly
     // permits kDefaultPreviewMaxEdge output; overlays and ROI never use it.
     bool prefer_cached_settled_preview = false;
+    // Nonpersistent crop workspace: full transformed source and canonical crop mapping.
+    bool crop_workspace = false;
+};
+
+struct CropPreviewGeometry
+{
+    PreviewNormRect region{0.0, 0.0, 1.0, 1.0};
+    double width_scale = 1.0;
+    double height_scale = 1.0;
 };
 
 struct PreviewResult
@@ -1148,6 +1166,7 @@ struct PreviewResult
     std::uint32_t gpu_display_width = 0;
     std::uint32_t gpu_display_height = 0;
     std::uint64_t gpu_display_native_surface = 0;
+    std::optional<CropPreviewGeometry> crop_geometry;
 };
 
 struct PreviewRebuildItemResult

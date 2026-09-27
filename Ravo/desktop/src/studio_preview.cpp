@@ -697,6 +697,11 @@ int StudioPresenter::previewViewportWidth() const noexcept
     return preview_viewport_width_;
 }
 
+QVariantMap StudioPresenter::cropPreviewLayout() const
+{
+    return crop_preview_layout_;
+}
+
 int StudioPresenter::previewViewportHeight() const noexcept
 {
     return preview_viewport_height_;
@@ -754,6 +759,7 @@ void StudioPresenter::clear_displayed_preview()
     comparison_before_output_profile_ = {};
     preview_viewport_width_ = 0;
     preview_viewport_height_ = 0;
+    crop_preview_layout_.clear();
     preview_mask_alpha_.clear();
     live_preview_revision_ = 0;
     live_preview_width_ = 0;
@@ -1103,6 +1109,17 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         gpu_preview_native_surface_ = 0;
         gpu_preview_width_ = 0;
         gpu_preview_height_ = 0;
+    }
+    crop_preview_layout_.clear();
+    if (preview.crop_geometry)
+    {
+        const auto &geometry = *preview.crop_geometry;
+        crop_preview_layout_ = {{"x", geometry.region.x},
+                                {"y", geometry.region.y},
+                                {"width", geometry.region.width},
+                                {"height", geometry.region.height},
+                                {"widthScale", geometry.width_scale},
+                                {"heightScale", geometry.height_scale}};
     }
     const QSize viewport_size =
         stable_preview_viewport_size(QSize(preview_viewport_width_, preview_viewport_height_),

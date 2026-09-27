@@ -2,6 +2,7 @@
 #include "studio_import_destination_preview_controller.h"
 #include "studio_import_scan_controller.h"
 #include "studio_import_workspace.h"
+#include "studio_import_worker.h"
 
 #include <algorithm>
 #include <cstring>
@@ -200,9 +201,8 @@ bool StudioPresenter::importReady() const
 {
     const bool native = import_ingest_transport_ == QLatin1String("ptp-usb") ||
                         import_ingest_transport_ == QLatin1String("mtp");
-    return import_page_open_ && !native &&
-           !import_preflight_active_ && !import_work_active_ && import_workspace_->scan &&
-           import_workspace_->scan->catalogRevision().has_value() &&
+    return import_page_open_ && !native && !import_preflight_active_ && !import_work_active_ &&
+           import_workspace_->scan && import_workspace_->scan->catalogRevision().has_value() &&
            import_candidates_.selectedCount() > 0 &&
            import_workspace_->draft.mode != QLatin1String("move") &&
            (import_workspace_->draft.mode == QLatin1String("add") ||
@@ -314,6 +314,7 @@ void StudioPresenter::openImportPage()
 {
     if (catalog_path_.isEmpty() || import_work_active_)
         return;
+    cancelImportPreviews();
     import_page_open_ = true;
     import_workspace_->draft.mode = QStringLiteral("copy");
     const auto source = StudioImportPreferences{}.loadLastSource();
@@ -533,7 +534,7 @@ void StudioPresenter::refreshImportNativeSupport()
 
 void StudioPresenter::rescanImportSource()
 {
-    if (service_ == nullptr || !import_workspace_ || !import_workspace_->scan ||
+    if (!catalogOpen() || !import_workspace_ || !import_workspace_->scan ||
         import_workspace_->draft.source_root.isEmpty() || import_work_active_)
         return;
     import_context_row_ = -1;
@@ -638,8 +639,7 @@ void StudioPresenter::publishImportItem(const ImportItemResult &item, const int 
 void StudioPresenter::startPlannedImport()
 {
     const QStringList selected = import_candidates_.selectedPaths();
-    if (!import_page_open_ ||
-        import_work_active_ || import_preflight_active_ || selected.isEmpty())
+    if (!import_page_open_ || import_work_active_ || import_preflight_active_ || selected.isEmpty())
         return;
     if (!(import_workspace_->scan && import_workspace_->scan->catalogRevision()))
     {
@@ -678,6 +678,8 @@ void StudioPresenter::startPlannedImport()
     }
 
     ImportRequest request = plannedImportRequest();
+    cancelImportPreviews();
+    ++import_generation_;
     // Enumeration supplies stable candidate identities. Stop optional classification
     // before queueing preflight; preflight/import still recheck duplicates and hashes.
     import_workspace_->scan->bumpGeneration("import_preflight_started");
@@ -697,12 +699,13 @@ void StudioPresenter::startPlannedImport()
     setStatus(QCoreApplication::translate("ImportPage", "Checking destination…"));
     setError({});
     emit importPageChanged();
-    executor_.post(
+    import_worker_->executor().post(
         [this, generation, request = std::move(request)]() mutable
         {
-            auto ready = service_ == nullptr ?
+            auto *service = import_worker_->service();
+            auto ready = service == nullptr ?
                              Result<void>{make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                             service_->import().preflight_import(request);
+                             service->import().preflight_import(request);
             QMetaObject::invokeMethod(
                 this,
                 [this, generation, ready = std::move(ready), request = std::move(request)]() mutable
@@ -716,22 +719,28 @@ void StudioPresenter::startPlannedImport()
                     if (!ready)
                     {
                         setImportWork(0, 0, false);
-                        setError(ready.error().code == ErrorCode::kCancelled ? QString{} :
-                                 qstring_from_utf8(ready.error().message));
-                        setStatus(ready.error().code == ErrorCode::kCancelled ?
-                            QCoreApplication::translate("StudioPresenter", "Import cancelled after %1 of %2 photos.")
-                                .arg(0).arg(request.inputs.size()) :
-                            QCoreApplication::translate("StudioPresenter", "Import failed."));
+                        setError(ready.error().code == ErrorCode::kCancelled ?
+                                     QString{} :
+                                     qstring_from_utf8(ready.error().message));
+                        setStatus(
+                            ready.error().code == ErrorCode::kCancelled ?
+                                QCoreApplication::translate(
+                                    "StudioPresenter", "Import cancelled after %1 of %2 photos.")
+                                    .arg(0)
+                                    .arg(request.inputs.size()) :
+                                QCoreApplication::translate("StudioPresenter", "Import failed."));
                         return;
                     }
                     beginPlannedImport(std::move(request));
                 },
                 Qt::QueuedConnection);
-        });
+        },
+        TaskPriority::kForeground);
 }
 
 void StudioPresenter::beginPlannedImport(ImportRequest request)
 {
+    const auto generation = import_generation_;
     if (import_workspace_->thumbnails)
         import_workspace_->thumbnails->cancel("planned_import_started");
     const bool ingest_copy =
@@ -793,37 +802,43 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
         ingest.cancellation = request.cancellation;
         if (!import_resume_batch_id_.isEmpty())
             ingest.resume_batch_id = utf8_from_qstring(import_resume_batch_id_);
-        executor_.post(
-            [this, ingest = std::move(ingest)]() mutable
+        import_worker_->executor().post(
+            [this, generation, ingest = std::move(ingest)]() mutable
             {
-                auto detailed = service_ == nullptr ?
-                                    Result<IngestBatchResult>{
-                                        make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                                    service_->ingest().execute_ingest_detailed(
-                                        ingest,
-                                        [this](const std::size_t completed, const std::size_t total,
+                auto *service = import_worker_->service();
+                auto detailed =
+                    service == nullptr ?
+                        Result<IngestBatchResult>{
+                            make_error(ErrorCode::kIo, "Catalog session is closed")} :
+                        service->ingest().execute_ingest_detailed(
+                            ingest,
+                            [this, generation](const std::size_t completed, const std::size_t total,
                                                const ImportItemResult *item)
-                                        {
-                                            ImportItemResult copy;
-                                            if (item != nullptr)
-                                                copy = *item;
-                                            QMetaObject::invokeMethod(
-                                                this,
-                                                [this, completed, total, copy = std::move(copy),
-                                                 has_item = item != nullptr]
-                                                {
-                                                    setImportWork(static_cast<int>(completed),
-                                                                  static_cast<int>(total), true);
-                                                    if (has_item)
-                                                        publishImportItem(
-                                                            copy, static_cast<int>(completed) - 1);
-                                                },
-                                                Qt::QueuedConnection);
-                                        });
+                            {
+                                ImportItemResult copy;
+                                if (item != nullptr)
+                                    copy = *item;
+                                QMetaObject::invokeMethod(
+                                    this,
+                                    [this, generation, completed, total, copy = std::move(copy),
+                                     has_item = item != nullptr]
+                                    {
+                                        if (generation != import_generation_)
+                                            return;
+                                        setImportWork(static_cast<int>(completed),
+                                                      static_cast<int>(total), true);
+                                        if (has_item)
+                                            publishImportItem(copy,
+                                                              static_cast<int>(completed) - 1);
+                                    },
+                                    Qt::QueuedConnection);
+                            });
                 QMetaObject::invokeMethod(
                     this,
-                    [this, detailed = std::move(detailed)]() mutable
+                    [this, generation, detailed = std::move(detailed)]() mutable
                     {
+                        if (generation != import_generation_)
+                            return;
                         if (!detailed)
                         {
                             setImportWork(0, 0, false);
@@ -854,29 +869,33 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
                         finishImportBatch();
                     },
                     Qt::QueuedConnection);
-            });
+            },
+            TaskPriority::kForeground);
         return;
     }
-    executor_.post(
-        [this, request = std::move(request)]() mutable
+    import_worker_->executor().post(
+        [this, generation, request = std::move(request)]() mutable
         {
+            auto *service = import_worker_->service();
             auto batch =
-                service_ == nullptr ?
+                service == nullptr ?
                     Result<ImportBatchResult>{
                         make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                    service_->import().execute_import(
+                    service->import().execute_import(
                         request,
-                        [this](const std::size_t completed, const std::size_t total,
-                               const ImportItemResult *item)
+                        [this, generation](const std::size_t completed, const std::size_t total,
+                                           const ImportItemResult *item)
                         {
                             ImportItemResult copy;
                             if (item != nullptr)
                                 copy = *item;
                             QMetaObject::invokeMethod(
                                 this,
-                                [this, completed, total, copy = std::move(copy),
+                                [this, generation, completed, total, copy = std::move(copy),
                                  has_item = item != nullptr]
                                 {
+                                    if (generation != import_generation_)
+                                        return;
                                     setImportWork(static_cast<int>(completed),
                                                   static_cast<int>(total), true);
                                     if (has_item)
@@ -886,8 +905,10 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
                         });
             QMetaObject::invokeMethod(
                 this,
-                [this, batch = std::move(batch)]() mutable
+                [this, generation, batch = std::move(batch)]() mutable
                 {
+                    if (generation != import_generation_)
+                        return;
                     if (!batch)
                     {
                         setImportWork(0, 0, false);
@@ -908,7 +929,8 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
                     finishImportBatch();
                 },
                 Qt::QueuedConnection);
-        });
+        },
+        TaskPriority::kForeground);
 }
 
 void StudioPresenter::startNextImportPreview()
@@ -924,18 +946,26 @@ void StudioPresenter::startNextImportPreview()
     pending_import_preview_ids_.pop_front();
     const auto policy = pending_import_preview_policy_;
     const auto token = import_preview_operation_.token();
-    executor_.post(
-        [this, asset_id, policy, token]
+    const auto generation = import_preview_generation_;
+    import_worker_->executor().post(
+        [this, asset_id, policy, token, generation]
         {
+            auto *service = import_worker_->service();
             auto preview =
-                service_ == nullptr ?
+                service == nullptr ?
                     Result<PreviewResult>{make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                    service_->build_import_preview(asset_id, policy, token);
-            static_cast<void>(preview);
+                    service->build_import_preview(asset_id, policy, token);
             QMetaObject::invokeMethod(
                 this,
-                [this]
+                [this, generation, preview = std::move(preview)]
                 {
+                    if (generation != import_preview_generation_)
+                        return;
+                    if (!preview && preview.error().code != ErrorCode::kCancelled &&
+                        !(preview.error().code == ErrorCode::kConflict &&
+                          preview.error().context.contains("reason") &&
+                          preview.error().context.at("reason") == "stale_preview_state"))
+                        setError(qstring_from_utf8(preview.error().message));
                     ++import_preview_work_completed_;
                     emit libraryWorkChanged();
                     startNextImportPreview();
@@ -949,7 +979,11 @@ void StudioPresenter::cancelImportPreviews()
     if (!import_preview_work_active_)
         return;
     static_cast<void>(import_preview_operation_.cancel("user_cancelled"));
+    ++import_preview_generation_;
     pending_import_preview_ids_.clear();
+    import_preview_work_active_ = false;
+    import_preview_work_total_ = import_preview_work_completed_;
+    emit libraryWorkChanged();
 }
 
 void StudioPresenter::requestFilesystemListing(FilesystemBrowserModel *browser, const QString &path,

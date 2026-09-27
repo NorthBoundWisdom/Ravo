@@ -167,3 +167,5 @@ supersession relationship when direction changes.
 | [0157](0157-agpl-rapidraw-tone-pipeline.md) | Accepted | AGPL RapidRAW tone-pipeline assimilation with versioned CPU/QRhi ownership |
 | [0158](0158-mask-scoped-develop-workspace.md) | Accepted | Global/local Develop scopes, whole-group masking, direct drawing, and versioned CLI control |
 | [0159](0159-owned-heic-macos-decode.md) | Accepted | Bounded owned macOS 14+ ImageIO HEIC/HEIF primary SDR decode, explicit other-host unavailability, original preservation |
+| [0160](0160-foreground-preview-and-import-isolation.md) | Accepted | Independent foreground/import owners; photo-scoped recipe and preview publication guards |
+| [0161](0161-full-source-crop-workspace.md) | Accepted | Complete transformed crop backdrop, fixed source scale, canonical output-frame mapping |

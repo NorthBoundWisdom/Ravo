@@ -429,8 +429,11 @@ Result<ImportBatchResult> CatalogService::execute_import_impl(
     std::map<std::string, ImportCandidate> checked;
     if (request.skip_existing)
     {
-        auto scan = scan_import_candidates(request.inputs, request.source_root.value_or(""),
-                                           request.recursive, request.cancellation);
+        // Import revalidates source hashes, duplicate identities and destinations
+        // at publication. Unrelated photo edits must not invalidate this planning pass.
+        auto scan =
+            scan_import_candidates_impl(request.inputs, request.source_root.value_or(""),
+                                        request.recursive, request.cancellation, {}, {}, false);
         if (!scan)
             return scan.error();
         for (auto &candidate : scan.value().candidates)
@@ -585,6 +588,10 @@ Result<ImportBatchResult> CatalogService::execute_import_impl(
                 if (!asset)
                     return asset.error();
                 duplicate.already_imported = std::move(asset).value();
+                if (!duplicate.already_imported)
+                    return make_error(ErrorCode::kConflict,
+                                      "Import duplicate changed during planning",
+                                      {{"reason", "import_duplicate_changed"}, {"path", source}});
             }
             plan.push_back(std::move(duplicate));
             continue;
@@ -804,6 +811,15 @@ Result<ImportBatchResult> CatalogService::execute_import_impl(
             preview.folders.push_back(std::move(folder));
         *destination_preview = std::move(preview);
     }
+    if (request.expected_catalog_revision)
+    {
+        auto current = snapshot();
+        if (!current)
+            return current.error();
+        if (current.value().revision != *request.expected_catalog_revision)
+            return make_error(ErrorCode::kConflict, "Catalog changed during import preflight",
+                              {{"reason", "import_scan_stale"}});
+    }
     if (preflight_only)
         return batch;
     batch.items.reserve(plan.size());
@@ -882,6 +898,23 @@ Result<ImportBatchResult> CatalogService::execute_import_impl(
         }
         if (planned.already_imported)
         {
+            auto current = repository_->find_asset_by_id(planned.already_imported->id);
+            if (!current || !current.value() ||
+                current.value()->normalized_uri != planned.already_imported->normalized_uri ||
+                current.value()->content_fingerprint !=
+                    planned.already_imported->content_fingerprint)
+            {
+                auto error = current ? make_error(ErrorCode::kConflict,
+                                                  "Import duplicate changed before publication",
+                                                  {{"reason", "import_duplicate_changed"},
+                                                   {"asset_id", planned.already_imported->id}}) :
+                                       current.error();
+                batch.items.push_back(failed_item(planned.candidate.source_path, std::move(error)));
+                ++batch.failed;
+                if (progress)
+                    progress(index + 1U, plan.size(), &batch.items.back());
+                continue;
+            }
             ImportItemResult duplicate;
             duplicate.status = ImportItemStatus::kDuplicate;
             duplicate.input_path = planned.candidate.source_path;

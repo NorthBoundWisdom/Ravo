@@ -531,6 +531,167 @@ TEST_F(CatalogServiceTest, WarmProcessedRawThumbnailDoesNotUnpackRawAndCorruptio
     EXPECT_EQ(file_sha256(rebuilt.value().cache_path), expected_hash);
 }
 
+TEST_F(CatalogServiceTest, PhotoEditAllowsUnrelatedImportAndRejectsChangedRecipe)
+{
+    ASSERT_TRUE(open_service(true));
+    ASSERT_TRUE(write_photo(root / "first.png", Qt::green));
+    ASSERT_TRUE(write_photo(root / "second.png", Qt::blue));
+    auto imported = service->import_one((root / "first.png").string(), {});
+    ASSERT_TRUE(imported);
+    ASSERT_TRUE(imported.value().asset);
+    const auto id = imported.value().asset->id;
+    auto recipe = service->load_recipe(id);
+    ASSERT_TRUE(recipe);
+    auto base = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(base);
+    RecipeSaveOptions observed;
+    observed.expected_base = base.value();
+    observed.expected_source = recipe.value().asset;
+    auto unrelated = service->import_one((root / "second.png").string(), {});
+    ASSERT_TRUE(unrelated);
+    ASSERT_EQ(unrelated.value().status, ImportItemStatus::kImported);
+    auto next = base.value();
+    next.exposure_ev = 0.5;
+    auto saved = service->save_develop_with_history(id, next, observed);
+    ASSERT_TRUE(saved) << saved.error().message;
+    auto history = service->list_recipe_history(id);
+    ASSERT_TRUE(history);
+    next.exposure_ev = 1.0;
+    auto stale = service->save_develop_with_history(id, next, observed);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(stale.error().context.at("reason"), "stale_recipe_state");
+    auto actual = service->load_recipe(id);
+    ASSERT_TRUE(actual);
+    auto params = develop_from_recipe(actual.value());
+    ASSERT_TRUE(params);
+    EXPECT_DOUBLE_EQ(params.value().exposure_ev, 0.5);
+    auto after = service->list_recipe_history(id);
+    ASSERT_TRUE(after);
+    EXPECT_EQ(after.value().size(), history.value().size());
+}
+
+TEST_F(CatalogServiceTest, PreviewPublicationRejectsChangedRecipeAndPreservesCurrentRecord)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    ASSERT_TRUE(imported.value().asset);
+    const auto id = imported.value().asset->id;
+    auto recipe = service->load_recipe(id);
+    ASSERT_TRUE(recipe);
+    auto params = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(params);
+    params.value().exposure_ev = 0.5;
+    auto before = sqlite_repository->list_previews();
+    ASSERT_TRUE(before);
+    bool changed = false;
+    testing::CatalogServiceTestControl::set_before_preview_cache_publication(
+        *service,
+        [&]
+        {
+            if (changed)
+                return;
+            changed = true;
+            ASSERT_TRUE(service->save_develop(id, params.value()));
+        });
+    PreviewRequest request;
+    request.asset_id = id;
+    request.max_edge = 17U;
+    auto rendered = service->request_preview(request);
+    ASSERT_TRUE(changed);
+    ASSERT_FALSE(rendered);
+    EXPECT_EQ(rendered.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(rendered.error().context.at("reason"), "stale_preview_state");
+    auto after = sqlite_repository->list_previews();
+    ASSERT_TRUE(after);
+    ASSERT_EQ(after.value().size(), before.value().size());
+    ASSERT_FALSE(after.value().empty());
+    EXPECT_EQ(after.value().front().cache_key, before.value().front().cache_key);
+}
+
+TEST_F(CatalogServiceTest, PreviewDimensionsCannotOverwriteConcurrentPhotoReview)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    ASSERT_TRUE(imported.value().asset);
+    auto stale = *imported.value().asset;
+    ASSERT_TRUE(service->set_rating(stale.id, 4));
+    auto before = sqlite_repository->recovery_state(stale.id);
+    ASSERT_TRUE(before);
+    stale.width = 123U;
+    auto updated = sqlite_repository->update_preview_state(stale, before.value().generation);
+    ASSERT_TRUE(updated);
+    auto after = sqlite_repository->find_asset_by_id(stale.id);
+    ASSERT_TRUE(after);
+    ASSERT_TRUE(after.value());
+    EXPECT_EQ(after.value()->review.rating, 4);
+    EXPECT_EQ(after.value()->width, 123U);
+    auto generation = sqlite_repository->recovery_state(stale.id);
+    ASSERT_TRUE(generation);
+    EXPECT_EQ(generation.value().generation, updated.value());
+    EXPECT_GT(updated.value(), before.value().generation);
+    stale.width = 456U;
+    auto obsolete = sqlite_repository->update_preview_state(stale, before.value().generation);
+    ASSERT_FALSE(obsolete);
+    EXPECT_EQ(obsolete.error().code, ErrorCode::kConflict);
+    stale.normalized_uri += ".replaced";
+    auto wrong_source = sqlite_repository->update_preview_state(stale, updated.value());
+    ASSERT_FALSE(wrong_source);
+    EXPECT_EQ(wrong_source.error().context.at("reason"), "stale_preview_source");
+    after = sqlite_repository->find_asset_by_id(stale.id);
+    ASSERT_TRUE(after);
+    ASSERT_TRUE(after.value());
+    EXPECT_EQ(after.value()->width, 123U);
+    EXPECT_EQ(after.value()->review.rating, 4);
+}
+
+TEST_F(CatalogServiceTest, CropWorkspaceIsFullSourceAndCannotPersist)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    ASSERT_TRUE(imported.value().asset);
+    const auto id = imported.value().asset->id;
+    auto recipe = service->load_recipe(id);
+    ASSERT_TRUE(recipe);
+    auto params = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(params);
+    params.value().straighten_degrees = 22.0;
+    params.value().crop_width = 0.7;
+    params.value().crop_height = 0.7;
+    auto before = sqlite_repository->list_previews();
+    ASSERT_TRUE(before);
+    const auto source_hash = file_sha256(png_fixture_path());
+    PreviewRequest request;
+    request.asset_id = id;
+    request.max_edge = 320;
+    request.ignore_crop = true;
+    request.crop_workspace = true;
+    auto invalid = service->request_preview(request, params.value());
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().code, ErrorCode::kInvalidArgument);
+    request.persist_preview_record = false;
+    auto preview = service->request_preview(request, params.value());
+    ASSERT_TRUE(preview) << preview.error().message;
+    ASSERT_TRUE(preview.value().crop_geometry);
+    EXPECT_GT(preview.value().width, 320U);
+    ASSERT_GE(preview.value().rgb.size(), 3U);
+    EXPECT_EQ(preview.value().rgb[0], 118);
+    EXPECT_EQ(preview.value().rgb[1], 118);
+    EXPECT_EQ(preview.value().rgb[2], 118);
+    EXPECT_TRUE(preview.value().cache_path.empty());
+    EXPECT_LT(preview.value().crop_geometry->region.width, 1.0);
+    auto after = sqlite_repository->list_previews();
+    ASSERT_TRUE(after);
+    ASSERT_EQ(after.value().size(), before.value().size());
+    EXPECT_EQ(after.value().front().cache_key, before.value().front().cache_key);
+    EXPECT_EQ(serialize_recipe(service->load_recipe(id).value()).value(),
+              serialize_recipe(recipe.value()).value());
+    EXPECT_EQ(file_sha256(png_fixture_path()), source_hash);
+}
+
 TEST_F(CatalogServiceTest, ImportThumbnailPerformanceObservation)
 {
     const char *path = std::getenv("RAVO_IMPORT_THUMBNAIL_PERF_INPUT");

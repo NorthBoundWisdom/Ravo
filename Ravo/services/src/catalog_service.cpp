@@ -21,6 +21,7 @@
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/local_adjustment.h"
 #include "ravo/recipe/recipe.h"
 
 namespace ravo
@@ -102,13 +103,17 @@ testing::CatalogServiceTestControl::roi_linear_working_generation(const CatalogS
 CatalogService::CatalogService(const EngineFacade &engine,
                                std::unique_ptr<CatalogRepository> repository,
                                std::unique_ptr<RasterDecoder> raster,
-                               std::unique_ptr<PreviewCache> cache,
-                               std::unique_ptr<RecoveryStore> recovery)
+                               std::shared_ptr<PreviewCache> cache,
+                               std::unique_ptr<RecoveryStore> recovery,
+                               std::shared_ptr<std::mutex> recovery_publication_mutex)
     : engine_(&engine)
     , repository_(std::move(repository))
     , raster_(std::move(raster))
     , cache_(std::move(cache))
     , recovery_(std::move(recovery))
+    , recovery_publication_mutex_(recovery_publication_mutex ?
+                                      std::move(recovery_publication_mutex) :
+                                      std::make_shared<std::mutex>())
 {
     library_capability_ = std::make_unique<LibraryService>(*this);
     develop_capability_ = std::make_unique<DevelopService>(*this);
@@ -389,6 +394,7 @@ Result<RecoveryArtifact>
 CatalogService::synchronize_recovery_asset(const std::string_view asset_id,
                                            const CancellationToken &cancellation)
 {
+    const std::lock_guard publication_lock(*recovery_publication_mutex_);
     if (repository_ == nullptr || recovery_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -966,6 +972,60 @@ Result<RecipeSaveResult> CatalogService::save_recipe_with_history(const std::str
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
+    std::optional<std::int64_t> expected_generation;
+    if (options.expected_base)
+    {
+        if (!options.expected_source)
+            return make_error(ErrorCode::kInvalidArgument, "Photo edit has no observed source",
+                              {{"reason", "missing_recipe_edit_source"}});
+        auto before = repository_->recovery_state(asset_id);
+        if (!before)
+            return before.error();
+        auto current = load_recipe(asset_id);
+        if (!current)
+            return current.error();
+        auto params = develop_from_recipe(current.value());
+        if (!params)
+            return params.error();
+        if (auto promoted = promote_legacy_local_adjustments(params.value()); !promoted)
+            return promoted.error();
+        auto expected_params = *options.expected_base;
+        if (auto promoted = promote_legacy_local_adjustments(expected_params); !promoted)
+            return promoted.error();
+        auto expected_path = normalize_local_input(options.expected_source->input_uri);
+        auto current_path = normalize_local_input(current.value().asset.input_uri);
+        if (!expected_path)
+            return expected_path.error();
+        if (!current_path)
+            return current_path.error();
+        auto expected_recipe = recipe_from_develop(current.value().asset, expected_params);
+        auto current_recipe = recipe_from_develop(current.value().asset, params.value());
+        if (!expected_recipe)
+            return expected_recipe.error();
+        if (!current_recipe)
+            return current_recipe.error();
+        auto expected_json = serialize_recipe(expected_recipe.value());
+        auto current_json = serialize_recipe(current_recipe.value());
+        if (!expected_json)
+            return expected_json.error();
+        if (!current_json)
+            return current_json.error();
+        if (options.expected_source->id != asset_id ||
+            expected_path.value().uri != current_path.value().uri ||
+            options.expected_source->content_hash != current.value().asset.content_hash ||
+            expected_json.value() != current_json.value())
+            return make_error(
+                ErrorCode::kConflict, "Photo changed since its recipe was loaded",
+                {{"reason", "stale_recipe_state"}, {"asset_id", std::string(asset_id)}});
+        auto after = repository_->recovery_state(asset_id);
+        if (!after)
+            return after.error();
+        if (before.value().generation != after.value().generation)
+            return make_error(
+                ErrorCode::kConflict, "Photo changed while checking its recipe",
+                {{"reason", "stale_recipe_state"}, {"asset_id", std::string(asset_id)}});
+        expected_generation = after.value().generation;
+    }
     if (options.expected_revision)
     {
         auto current = snapshot();
@@ -1032,7 +1092,9 @@ Result<RecipeSaveResult> CatalogService::save_recipe_with_history(const std::str
     const std::string history_json = recipe_json.value_or(std::string{});
     const auto committed = repository_->commit_recipe(
         asset_id, stored.schema_version, recipe_json_view, history_json, options.history_write,
-        options.discard_history_after_seq, options.coalesce_history_id);
+        options.discard_history_after_seq, options.coalesce_history_id,
+        RecipeCommitPrecondition{options.expected_revision, expected_generation,
+                                 options.expected_history_head});
     if (!committed)
     {
         return committed.error();
@@ -1047,7 +1109,7 @@ Result<RecipeSaveResult> CatalogService::save_recipe_with_history(const std::str
         }
     }
     return RecipeSaveResult{*asset.value(), committed.value().revision,
-                            committed.value().history_id};
+                            committed.value().history_id, committed.value().history_head};
 }
 
 Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id,

@@ -608,6 +608,50 @@ Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
     return {};
 }
 
+Result<std::int64_t>
+SqliteCatalogRepository::update_preview_state(const AssetRecord &asset,
+                                              const std::optional<std::int64_t> expected_generation)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery begin(impl_->database);
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE")))
+        return map_sql_error(begin, "begin_preview_state");
+    auto before = recovery_state(asset.id);
+    if (!before)
+        return impl_->abort_transaction(before.error());
+    if (expected_generation && before.value().generation != *expected_generation)
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kConflict, "Photo changed during preview",
+                       {{"asset_id", asset.id}, {"reason", "stale_preview_state"}}));
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "UPDATE asset SET width = ?, height = ?, import_state = ?, error_code = ?, "
+        "error_message = ? WHERE id = ? AND normalized_uri = ? AND content_fingerprint IS ?"));
+    query.addBindValue(optional_u32(asset.width));
+    query.addBindValue(optional_u32(asset.height));
+    query.addBindValue(qstring_from_utf8(asset.import_state));
+    query.addBindValue(optional_string(asset.error_code));
+    query.addBindValue(optional_string(asset.error_message));
+    query.addBindValue(qstring_from_utf8(asset.id));
+    query.addBindValue(qstring_from_utf8(asset.normalized_uri));
+    query.addBindValue(optional_string(asset.content_fingerprint));
+    if (!query.exec())
+        return impl_->abort_transaction(map_sql_error(query, "update_preview_state"));
+    if (query.numRowsAffected() != 1)
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kConflict, "Photo source changed during preview",
+                       {{"asset_id", asset.id}, {"reason", "stale_preview_source"}}));
+    auto after = recovery_state(asset.id);
+    if (!after)
+        return impl_->abort_transaction(after.error());
+    if (!impl_->database.commit())
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit preview state",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    return after.value().generation;
+}
+
 Result<void> SqliteCatalogRepository::update_asset(const AssetRecord &asset)
 {
     if (impl_ == nullptr)
@@ -942,11 +986,26 @@ SqliteCatalogRepository::list_previews_for_assets(const std::vector<std::string>
     return previews;
 }
 
-Result<void> SqliteCatalogRepository::upsert_preview(const PreviewRecord &preview)
+Result<void>
+SqliteCatalogRepository::upsert_preview(const PreviewRecord &preview,
+                                        const std::optional<std::int64_t> expected_generation)
 {
     if (impl_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    if (expected_generation)
+    {
+        QSqlQuery begin(impl_->database);
+        if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE")))
+            return map_sql_error(begin, "begin_preview_publication");
+        auto current = recovery_state(preview.asset_id);
+        if (!current)
+            return impl_->abort_transaction(current.error());
+        if (current.value().generation != *expected_generation)
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kConflict, "Photo changed while rendering preview",
+                           {{"asset_id", preview.asset_id}, {"reason", "stale_preview_state"}}));
     }
     QSqlQuery query(impl_->database);
     query.prepare(QStringLiteral(
@@ -966,8 +1025,13 @@ Result<void> SqliteCatalogRepository::upsert_preview(const PreviewRecord &previe
     query.addBindValue(optional_i64(preview.last_success_unix_ms));
     if (!query.exec())
     {
-        return map_sql_error(query, "upsert_preview");
+        auto error = map_sql_error(query, "upsert_preview");
+        return expected_generation ? impl_->abort_transaction(error) : error;
     }
+    if (expected_generation && !impl_->database.commit())
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit preview",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
     return {};
 }
 

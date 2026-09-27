@@ -12,6 +12,12 @@ private by default, and reproducible enough to audit.
 
 ## Document authority
 
+Full-source crop rotation and its output-frame mapping are specified in
+[ADR-0161](adr/0161-full-source-crop-workspace.md).
+
+Foreground preview/import isolation and photo-scoped edit conflicts are specified
+in [ADR-0160](adr/0160-foreground-preview-and-import-isolation.md).
+
 The Global/Mask Develop workspace and Recipe v4 local groups are specified in
 [ADR-0158](adr/0158-mask-scoped-develop-workspace.md); current ownership is in
 [ARCHITECTURE.md](ARCHITECTURE.md) and validation policy in

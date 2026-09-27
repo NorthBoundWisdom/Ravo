@@ -161,7 +161,7 @@ Repeated destination selection does not reset a healthy tree. Listing
 uses a separate presenter-owned serial filesystem worker, joined before model
 destruction, so image render/decode cannot block disclosure requests. Loading
 state and errors are model roles; Qt disclosure buttons only forward intents.
-Destination previews run on the catalog executor using the exact import
+Destination previews run on the import executor using the exact import
 preflight planner, with a separate cancellation source, debounce timer and
 generation. `ravo-import-destination-preview/v1` exposes primary/second-copy
 folder paths, create flags and descendant-inclusive photo counts through Studio
@@ -244,11 +244,13 @@ publish one model notification per batch rather than per-row full-list recounts.
 Scan/thumbnail failures stay distinct: thumbnail errors stop that row's spinner
 and remain visible but do not decide import eligibility. Import requires completed
 enumeration; remaining classification and thumbnails do not gate the button.
-The import service still performs revision/hash and duplicate preflight.
+The import service still performs source/hash, destination and duplicate preflight;
+explicit CLI revision preconditions remain strict.
 Source replacement, page close and import start cancel thumbnail work; generation
 and source identity reject late completions. Window destruction cancels and joins
-the worker and destroys its Engine on that worker. Catalog import still runs on
-its original serial owner. Clicking Import immediately enters Gallery; successful
+the worker and destroys its Engine on that worker. Catalog import runs on its
+dedicated serial owner, separate from foreground previews. Clicking Import immediately
+enters Gallery; successful
 preflight publishes named placeholders, each cataloged photo fills its cell, and
 viewport demand loads a browse thumbnail so the user can inspect while later
 items and selected previews continue.
@@ -274,7 +276,8 @@ until presentation completes. Conversion/publication failures remain visible,
 and generation checks reject replaced folder/profile results. Window teardown
 cancels and joins this worker before removing its cache. Folder reloads cancel
 obsolete thumbnail demand and enqueue foreground catalog queries with latest-query
-publication checks; SQL remains on the existing catalog executor.
+publication checks; foreground queries retain their catalog connection, while
+import SQL uses the import executor's private connection.
 `positionViewAtIndex` runs only when the
 selected Gallery item leaves the viewport. Import cells use a separate highlight
 from the import checkbox: Command/Control extends the highlight, Shift selects a
@@ -450,10 +453,13 @@ and is released on selection change, Develop exit, crop/pick/mask entry, or
 window destruction. The existing single-photo Before/After command remains a
 separate view toggle.
 
-Develop crop is interactive: crop-tool preview removes only the final crop and
-renders the canonical CPU Perspective operation, including angle. Photo and
-mask overlay therefore arrive in the same post-homography coordinates; the
-crop frame remains screen-axis aligned. Selection and crop-handle dragging
+Develop crop is interactive: its nonpersistent preview removes manual and
+automatic Perspective cropping to show the complete transformed source.
+Engine `plan_crop_preview` supplies the constrained output rectangle within that
+backdrop. Fit uses the pre-Perspective source diagonal, so rotating does not zoom
+the photo. The screen-axis-aligned crop frame maps to the original recipe's
+constrained coordinates; saved recipes and export retain their geometry
+([ADR-0161](adr/0161-full-source-crop-workspace.md)). Selection and crop-handle dragging
 change in-memory parameters only; release writes the recipe through the same
 Develop commit path as the right-panel controls. History restore, Original,
 and snapshot restore use that path with a session undo step and without
@@ -599,9 +605,14 @@ value inside `StudioImportWorkspace`, which also owns:
 - `StudioImportDestinationPreviewController` — debounce timer, key, published folders
 
 `ImportCandidateListModel` stays the selection/highlight/thumbnail-pixel owner on
-the Presenter (Q_PROPERTY). CatalogService/engine stay on the Presenter catalog
-executor; controllers borrow via Host callbacks. Shutdown order: destination
-preview → thumbnails → scan abandon, then catalog executor stop.
+the Presenter (Q_PROPERTY). `StudioImportWorker` owns a separate serial executor,
+Engine, CatalogService and SQLite connection for scan, destination planning,
+preflight, transfer and deferred previews. Controllers borrow through Host callbacks.
+The foreground executor owns selection, recipe loading and rendering. Both services
+share one synchronized preview cache and recovery-publication mutex. Shutdown cancels
+destination preview, thumbnails and scans, drains import work, then releases the
+foreground service. Catalog and operation generations reject late UI results
+([ADR-0160](adr/0160-foreground-preview-and-import-isolation.md)).
 
 `ImportRequest` carries catalog ID, file/directory input, recursion/format
 policy, resource budget, cancellation token, and correlation ID.
@@ -665,8 +676,9 @@ eligible. Enumeration publishes all placeholders before classification; provisio
 checks are cleared as unsupported/duplicate rows are classified. Duplicate rows
 reject single/range/all highlights and checks. Thumbnail completion never changes
 scan-owned identity, hashes, support or duplicate status. The desktop honors an intervening Uncheck All,
-and rejects completions by scan generation. Preflight validates the observed
-catalog revision and selected hashes before switching to Gallery. Hashing checks
+and rejects completions by scan generation. Desktop preflight validates selected
+hashes, duplicates and destinations before switching to Gallery. Explicit CLI
+catalog-revision preconditions remain strict. Hashing checks
 cancellation between bounded reads; copying and catalog publication retain their
 existing serial owner. Concurrent duplicate publication is checked inside the
 asset transaction; already published output paths remain explicit in conflicts.
@@ -683,10 +695,18 @@ can rebuild it from originals. `catalog import-scan --json` projects the
 `catalog import/ingest --skip-existing` shares Studio's content policy.
 
 Studio first enumerates a deterministic bounded input list, then dispatches one
-normal-priority `import_one` task at a time. It queues the next item only after
-observing the current result. Foreground Develop uses the existing priority
-lane and can run between items; cancellation leaves committed assets valid and
-stops all undispatched paths. Catalog commits remain serialized (ADR-0100).
+`import_one` task at a time on the import executor. It queues the next item only
+after observing the current result. Foreground Develop can run during scan,
+preflight or transfer; cancellation leaves committed assets valid and stops
+undispatched paths. SQLite serializes short write transactions. Desktop recipe
+saves compare the observed source and canonical recipe, then atomically guard
+the photo's generation and any history branch being replaced. Unrelated imports
+do not invalidate an edit; real same-photo conflicts remain explicit.
+
+Preview publication also guards the photo generation. Derived dimension/status
+updates cannot overwrite ratings or other authoritative photo fields. Rotation
+dragging requests cancellable engine previews, including crop mode; releasing
+the gesture persists the final angle through the same guarded recipe path.
 
 ### Preview
 

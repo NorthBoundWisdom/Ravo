@@ -10,6 +10,7 @@ target_sources(ravo_engine
     src/capability_color_equalizer.cpp
     src/capability_tone_equalizer.cpp
     src/canvas_frame.cpp
+    src/crop_preview.cpp
     src/canvas_frame.h
     src/color_balance_rgb.cpp
     src/color_balance_rgb.h

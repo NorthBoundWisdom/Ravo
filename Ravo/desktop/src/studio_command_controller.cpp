@@ -54,12 +54,17 @@ WorkspaceSupport command_workspace_support(const QString &command_id)
 {
     // Explicit Import support only. Condition::kAlways is not an Import passport.
     static const QSet<QString> import_supported{
-        QLatin1String(command::kPhotoSelectAll), QLatin1String(command::kLibraryCancelOperation),
-        QLatin1String(command::kWindowSettings), QLatin1String(command::kWindowAssistant),
-        QLatin1String(command::kWindowClose),    QLatin1String(command::kWindowQuit),
-        QLatin1String(command::kWindowAbout),    QLatin1String(command::kWindowPalette),
+        QLatin1String(command::kPhotoSelectAll),
+        QLatin1String(command::kLibraryCancelOperation),
+        QLatin1String(command::kWindowSettings),
+        QLatin1String(command::kWindowAssistant),
+        QLatin1String(command::kWindowClose),
+        QLatin1String(command::kWindowQuit),
+        QLatin1String(command::kWindowAbout),
+        QLatin1String(command::kWindowPalette),
         QLatin1String(command::kWindowDismiss),
-        QLatin1String(command::kPhotoCopyInfo), QLatin1String(command::kPhotoRevealInFileManager),
+        QLatin1String(command::kPhotoCopyInfo),
+        QLatin1String(command::kPhotoRevealInFileManager),
     };
     if (import_supported.contains(command_id))
         return kWorkspaceAll;
@@ -102,8 +107,9 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     if (workspace == CommandWorkspace::kImport &&
         (command_id == QLatin1String(command::kPhotoCopyInfo) ||
          command_id == QLatin1String(command::kPhotoRevealInFileManager)))
-        return !presenter.importContextPath().isEmpty() ? State{} :
-            State{false, tr_command(QStringLiteral("Select a photo first."))};
+        return !presenter.importContextPath().isEmpty() ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Select a photo first."))};
     const bool catalog_open = presenter.catalogOpen();
     const bool selection = !presenter.selectedAssetId().isEmpty();
     const bool ready = catalog_open && !presenter.busy() && !presenter.importWorkActive();
@@ -465,17 +471,16 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
                           {{"reason", "command_unavailable"}});
     }
     const auto state = resolve_state(
-        presenter_, enter_develop ? Condition::kReadySelection : Condition::kDevelopSelection,
+        presenter_, enter_develop ? Condition::kSelection : Condition::kDevelopSelection,
         settings_open_, QString{});
     if (!state.enabled)
     {
         return make_error(ErrorCode::kConflict, state.reason.toUtf8().toStdString(),
                           {{"reason", "command_unavailable"}});
     }
-    if (!presenter_.develop_loaded_ || presenter_.busy_ || presenter_.import_work_active_ ||
-        presenter_.mask_gesture_before_ || presenter_.local_creation_before_ ||
-        presenter_.develop_job_in_flight_ || presenter_.pending_save_ ||
-        presenter_.pending_preview_)
+    if (!presenter_.develop_loaded_ || presenter_.busy_ || presenter_.mask_gesture_before_ ||
+        presenter_.local_creation_before_ || presenter_.develop_job_in_flight_ ||
+        presenter_.pending_save_ || presenter_.pending_preview_)
     {
         return make_error(ErrorCode::kConflict, "Studio Develop state is busy",
                           {{"reason", "busy"}});

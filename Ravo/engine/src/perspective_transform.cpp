@@ -48,8 +48,7 @@ using Matrix = std::array<double, 9>;
         for (std::size_t column = 0U; column < 3U; ++column)
         {
             for (std::size_t inner = 0U; inner < 3U; ++inner)
-                result[row * 3U + column] +=
-                    left[row * 3U + inner] * right[inner * 3U + column];
+                result[row * 3U + column] += left[row * 3U + inner] * right[inner * 3U + column];
         }
     }
     return result;
@@ -66,8 +65,7 @@ using Matrix = std::array<double, 9>;
     const double g = matrix[6];
     const double h = matrix[7];
     const double i = matrix[8];
-    const double determinant =
-        a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    const double determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
     if (!std::isfinite(determinant) || std::abs(determinant) < kDenominatorEpsilon)
         return make_error(ErrorCode::kValidation, "Perspective homography is singular",
                           {{"reason", "degenerate_perspective_homography"}});
@@ -77,8 +75,8 @@ using Matrix = std::array<double, 9>;
         (f * g - d * i) * scale, (a * i - c * g) * scale, (c * d - a * f) * scale,
         (d * h - e * g) * scale, (b * g - a * h) * scale, (a * e - b * d) * scale,
     };
-    if (!std::all_of(result.begin(), result.end(), [](const double value)
-                     { return std::isfinite(value); }))
+    if (!std::all_of(result.begin(), result.end(),
+                     [](const double value) { return std::isfinite(value); }))
         return make_error(ErrorCode::kValidation, "Perspective inverse is non-finite",
                           {{"reason", "degenerate_perspective_homography"}});
     return result;
@@ -111,44 +109,37 @@ using Matrix = std::array<double, 9>;
     const double horizontal_exponential = std::exp(params.horizontal_shift);
 
     Matrix current{0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
-    const Matrix rotation{cosine,
-                          -sine,
-                          -0.5 * v * cosine + 0.5 * u * sine + 0.5 * v,
-                          sine,
-                          cosine,
-                          -0.5 * v * sine - 0.5 * u * cosine + 0.5 * u,
-                          0.0,
-                          0.0,
-                          1.0};
+    const Matrix rotation{cosine, -sine,  -0.5 * v * cosine + 0.5 * u * sine + 0.5 * v,
+                          sine,   cosine, -0.5 * v * sine - 0.5 * u * cosine + 0.5 * u,
+                          0.0,    0.0,    1.0};
     current = multiply(rotation, current);
     const Matrix shear{1.0, params.shear, 0.0, params.shear, 1.0, 0.0, 0.0, 0.0, 1.0};
     current = multiply(shear, current);
 
-    const Matrix vertical{
-        vertical_exponential,
-        0.0,
-        0.0,
-        0.5 * (vertical_exponential - 1.0) * u / v,
-        2.0 * vertical_exponential / (vertical_exponential + 1.0),
-        -0.5 * (vertical_exponential - 1.0) * u / (vertical_exponential + 1.0),
-        (vertical_exponential - 1.0) / v,
-        0.0,
-        1.0};
+    const Matrix vertical{vertical_exponential,
+                          0.0,
+                          0.0,
+                          0.5 * (vertical_exponential - 1.0) * u / v,
+                          2.0 * vertical_exponential / (vertical_exponential + 1.0),
+                          -0.5 * (vertical_exponential - 1.0) * u / (vertical_exponential + 1.0),
+                          (vertical_exponential - 1.0) / v,
+                          0.0,
+                          1.0};
     current = multiply(vertical, current);
 
     const Matrix swap{0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
     current = multiply(swap, current);
 
-    const Matrix horizontal{
-        horizontal_exponential,
-        0.0,
-        0.0,
-        0.5 * (horizontal_exponential - 1.0) * v / u,
-        2.0 * horizontal_exponential / (horizontal_exponential + 1.0),
-        -0.5 * (horizontal_exponential - 1.0) * v / (horizontal_exponential + 1.0),
-        (horizontal_exponential - 1.0) / u,
-        0.0,
-        1.0};
+    const Matrix horizontal{horizontal_exponential,
+                            0.0,
+                            0.0,
+                            0.5 * (horizontal_exponential - 1.0) * v / u,
+                            2.0 * horizontal_exponential / (horizontal_exponential + 1.0),
+                            -0.5 * (horizontal_exponential - 1.0) * v /
+                                (horizontal_exponential + 1.0),
+                            (horizontal_exponential - 1.0) / u,
+                            0.0,
+                            1.0};
     current = multiply(horizontal, current);
 
     // Generic ashift mode makes orthographic compression and aspect scaling
@@ -183,8 +174,8 @@ horizontal_interval(const std::array<PerspectivePoint, 4> &quad, const double y)
     }
     if (count < 2U)
         return std::nullopt;
-    const auto bounds = std::minmax_element(intersections.begin(), intersections.begin() +
-                                                                          static_cast<std::ptrdiff_t>(count));
+    const auto bounds = std::minmax_element(
+        intersections.begin(), intersections.begin() + static_cast<std::ptrdiff_t>(count));
     if (!std::isfinite(*bounds.first) || !std::isfinite(*bounds.second) ||
         *bounds.second <= *bounds.first)
         return std::nullopt;
@@ -209,8 +200,7 @@ horizontal_interval(const std::array<PerspectivePoint, 4> &quad, const double y)
     return (right - left) * (bottom - top);
 }
 
-[[nodiscard]] Result<PerspectiveRect>
-maximal_safe_crop(const std::array<PerspectivePoint, 4> &quad)
+[[nodiscard]] Result<PerspectiveRect> maximal_safe_crop(const std::array<PerspectivePoint, 4> &quad)
 {
     double minimum_y = std::numeric_limits<double>::max();
     double maximum_y = std::numeric_limits<double>::lowest();
@@ -219,8 +209,7 @@ maximal_safe_crop(const std::array<PerspectivePoint, 4> &quad)
         minimum_y = std::min(minimum_y, point.y);
         maximum_y = std::max(maximum_y, point.y);
     }
-    if (!std::isfinite(minimum_y) || !std::isfinite(maximum_y) ||
-        maximum_y - minimum_y < 1.0e-6)
+    if (!std::isfinite(minimum_y) || !std::isfinite(maximum_y) || maximum_y - minimum_y < 1.0e-6)
         return make_error(ErrorCode::kValidation, "Perspective safe crop is empty",
                           {{"reason", "empty_perspective_safe_crop"}});
 
@@ -233,8 +222,7 @@ maximal_safe_crop(const std::array<PerspectivePoint, 4> &quad)
         for (std::size_t bottom_index = top_index + 1U; bottom_index <= kSafeCropSamples;
              ++bottom_index)
         {
-            const double bottom =
-                minimum_y + static_cast<double>(bottom_index) * initial_step;
+            const double bottom = minimum_y + static_cast<double>(bottom_index) * initial_step;
             PerspectiveRect candidate{};
             const double area = crop_area(quad, top, bottom, &candidate);
             if (area > best_area)
@@ -304,8 +292,7 @@ void sample_bilinear(const LinearWorkingBuffer &input, const double x, const dou
     for (std::size_t channel = 0U; channel < 3U; ++channel)
     {
         const float top = input.rgb[i00 + channel] * (1.0F - tx) + input.rgb[i10 + channel] * tx;
-        const float bottom =
-            input.rgb[i01 + channel] * (1.0F - tx) + input.rgb[i11 + channel] * tx;
+        const float bottom = input.rgb[i01 + channel] * (1.0F - tx) + input.rgb[i11 + channel] * tx;
         output[channel] = top * (1.0F - ty) + bottom * ty;
     }
 }
@@ -326,12 +313,10 @@ void sample_lanczos(const LinearWorkingBuffer &input, const double x, const doub
         {
             if (sample_x < 0 || sample_x >= static_cast<int>(input.width))
                 continue;
-            const double weight =
-                wy * lanczos_weight(x - static_cast<double>(sample_x), radius);
-            const std::size_t index =
-                (static_cast<std::size_t>(sample_y) * input.width +
-                 static_cast<std::size_t>(sample_x)) *
-                3U;
+            const double weight = wy * lanczos_weight(x - static_cast<double>(sample_x), radius);
+            const std::size_t index = (static_cast<std::size_t>(sample_y) * input.width +
+                                       static_cast<std::size_t>(sample_x)) *
+                                      3U;
             for (std::size_t channel = 0U; channel < sums.size(); ++channel)
                 sums[channel] += weight * static_cast<double>(input.rgb[index + channel]);
             weight_sum += weight;
@@ -414,9 +399,9 @@ try
         return make_error(ErrorCode::kValidation,
                           "Perspective analysis raster channel count is invalid",
                           {{"reason", "channel_count_mismatch"}});
-    const double scale = std::min(
-        1.0, static_cast<double>(kPerspectiveAnalysisMaxEdge) /
-                 static_cast<double>(std::max(raster.width, raster.height)));
+    const double scale =
+        std::min(1.0, static_cast<double>(kPerspectiveAnalysisMaxEdge) /
+                          static_cast<double>(std::max(raster.width, raster.height)));
     analysis_width = std::max<std::uint32_t>(
         16U, static_cast<std::uint32_t>(std::lround(static_cast<double>(raster.width) * scale)));
     analysis_height = std::max<std::uint32_t>(
@@ -428,16 +413,16 @@ try
         auto active = cancellation.check();
         if (!active)
             return active.error();
-        const auto source_y = std::min(
-            raster.height - 1U,
-            static_cast<std::uint32_t>((static_cast<std::uint64_t>(y) * raster.height) /
-                                       analysis_height));
+        const auto source_y =
+            std::min(raster.height - 1U,
+                     static_cast<std::uint32_t>((static_cast<std::uint64_t>(y) * raster.height) /
+                                                analysis_height));
         for (std::uint32_t x = 0U; x < analysis_width; ++x)
         {
-            const auto source_x = std::min(
-                raster.width - 1U,
-                static_cast<std::uint32_t>((static_cast<std::uint64_t>(x) * raster.width) /
-                                           analysis_width));
+            const auto source_x =
+                std::min(raster.width - 1U,
+                         static_cast<std::uint32_t>((static_cast<std::uint64_t>(x) * raster.width) /
+                                                    analysis_width));
             const std::size_t source =
                 (static_cast<std::size_t>(source_y) * raster.width + source_x) * 3U;
             luma[static_cast<std::size_t>(y) * analysis_width + x] =
@@ -487,8 +472,8 @@ try
         return make_error(ErrorCode::kNotFound, "Perspective analysis found no usable edges",
                           {{"reason", "no_perspective_lines"}});
     const std::size_t percentile = positive_magnitudes.size() * 7U / 10U;
-    std::nth_element(positive_magnitudes.begin(), positive_magnitudes.begin() +
-                                                      static_cast<std::ptrdiff_t>(percentile),
+    std::nth_element(positive_magnitudes.begin(),
+                     positive_magnitudes.begin() + static_cast<std::ptrdiff_t>(percentile),
                      positive_magnitudes.end());
     const double threshold =
         std::max({positive_magnitudes[percentile], maximum_magnitude * 0.08, 0.015});
@@ -504,10 +489,10 @@ try
                 continue;
             const double angle = gradient_angle[index];
             const bool horizontal_normal = std::abs(std::cos(angle)) >= std::abs(std::sin(angle));
-            const double before = horizontal_normal ? magnitude[index - 1U] :
-                                                      magnitude[index - analysis_width];
-            const double after = horizontal_normal ? magnitude[index + 1U] :
-                                                     magnitude[index + analysis_width];
+            const double before =
+                horizontal_normal ? magnitude[index - 1U] : magnitude[index - analysis_width];
+            const double after =
+                horizontal_normal ? magnitude[index + 1U] : magnitude[index + analysis_width];
             if (value < before || value < after)
                 continue;
             edges.push_back({static_cast<double>(x), static_cast<double>(y), value, angle});
@@ -515,7 +500,8 @@ try
     }
     if (edges.size() > kPerspectiveAnalysisMaxEdgePoints)
     {
-        std::sort(edges.begin(), edges.end(), [](const EdgePoint &left, const EdgePoint &right)
+        std::sort(edges.begin(), edges.end(),
+                  [](const EdgePoint &left, const EdgePoint &right)
                   {
                       return std::tie(left.magnitude, left.y, left.x) >
                              std::tie(right.magnitude, right.y, right.x);
@@ -527,9 +513,8 @@ try
                           "Perspective analysis found too few usable edge points",
                           {{"reason", "no_perspective_lines"}});
 
-    const auto rho_limit = static_cast<std::int32_t>(
-        std::ceil(std::hypot(static_cast<double>(analysis_width - 1U),
-                             static_cast<double>(analysis_height - 1U))));
+    const auto rho_limit = static_cast<std::int32_t>(std::ceil(std::hypot(
+        static_cast<double>(analysis_width - 1U), static_cast<double>(analysis_height - 1U))));
     const std::size_t rho_bins = static_cast<std::size_t>(rho_limit) * 2U + 1U;
     std::vector<double> accumulator(kPerspectiveThetaBins * rho_bins, 0.0);
     constexpr std::array<double, 5> angular_weights{0.35, 0.7, 1.0, 0.7, 0.35};
@@ -539,8 +524,9 @@ try
             edge.normal_angle / std::numbers::pi * static_cast<double>(kPerspectiveThetaBins)));
         for (std::int32_t delta = -2; delta <= 2; ++delta)
         {
-            const auto wrapped = (center + delta + static_cast<std::int32_t>(kPerspectiveThetaBins)) %
-                                 static_cast<std::int32_t>(kPerspectiveThetaBins);
+            const auto wrapped =
+                (center + delta + static_cast<std::int32_t>(kPerspectiveThetaBins)) %
+                static_cast<std::int32_t>(kPerspectiveThetaBins);
             const double theta = static_cast<double>(wrapped) * std::numbers::pi /
                                  static_cast<double>(kPerspectiveThetaBins);
             const auto rho = static_cast<std::int32_t>(
@@ -553,8 +539,8 @@ try
         }
     }
     const double maximum_vote = *std::max_element(accumulator.begin(), accumulator.end());
-    const double vote_cutoff = std::max(maximum_vote * 0.10,
-                                        threshold * std::min(analysis_width, analysis_height) * 0.08);
+    const double vote_cutoff =
+        std::max(maximum_vote * 0.10, threshold * std::min(analysis_width, analysis_height) * 0.08);
     std::vector<HoughPeak> candidates;
     for (std::size_t theta = 0U; theta < kPerspectiveThetaBins; ++theta)
     {
@@ -565,8 +551,8 @@ try
                 candidates.push_back({theta, static_cast<std::int32_t>(rho) - rho_limit, vote});
         }
     }
-    std::sort(candidates.begin(), candidates.end(), [](const HoughPeak &left,
-                                                       const HoughPeak &right)
+    std::sort(candidates.begin(), candidates.end(),
+              [](const HoughPeak &left, const HoughPeak &right)
               {
                   return std::tie(left.vote, left.theta, left.rho) >
                          std::tie(right.vote, right.theta, right.rho);
@@ -574,13 +560,17 @@ try
     std::vector<HoughPeak> peaks;
     for (const auto &candidate : candidates)
     {
-        const bool duplicate = std::any_of(peaks.begin(), peaks.end(), [&](const HoughPeak &peak)
-        {
-            const std::size_t direct = candidate.theta > peak.theta ? candidate.theta - peak.theta :
-                                                                      peak.theta - candidate.theta;
-            const std::size_t theta_distance = std::min(direct, kPerspectiveThetaBins - direct);
-            return theta_distance <= 4U && std::abs(candidate.rho - peak.rho) <= 8;
-        });
+        const bool duplicate =
+            std::any_of(peaks.begin(), peaks.end(),
+                        [&](const HoughPeak &peak)
+                        {
+                            const std::size_t direct = candidate.theta > peak.theta ?
+                                                           candidate.theta - peak.theta :
+                                                           peak.theta - candidate.theta;
+                            const std::size_t theta_distance =
+                                std::min(direct, kPerspectiveThetaBins - direct);
+                            return theta_distance <= 4U && std::abs(candidate.rho - peak.rho) <= 8;
+                        });
         if (!duplicate)
             peaks.push_back(candidate);
         if (peaks.size() >= kPerspectiveAnalysisMaxLines * 2U)
@@ -590,10 +580,10 @@ try
     std::vector<PerspectiveGuideLine> lines;
     const double minimum_length =
         std::max(12.0, static_cast<double>(std::min(analysis_width, analysis_height)) * 0.12);
-    const double scale_x = static_cast<double>(raster.width - 1U) /
-                           static_cast<double>(analysis_width - 1U);
-    const double scale_y = static_cast<double>(raster.height - 1U) /
-                           static_cast<double>(analysis_height - 1U);
+    const double scale_x =
+        static_cast<double>(raster.width - 1U) / static_cast<double>(analysis_width - 1U);
+    const double scale_y =
+        static_cast<double>(raster.height - 1U) / static_cast<double>(analysis_height - 1U);
     for (const auto &peak : peaks)
     {
         const double theta = static_cast<double>(peak.theta) * std::numbers::pi /
@@ -686,10 +676,10 @@ catch (const std::bad_alloc &)
     }
     if (errors.empty())
         return std::numeric_limits<double>::max();
-    std::sort(errors.begin(), errors.end(), [](const auto &left, const auto &right)
-              { return left.first < right.first; });
-    const std::size_t retained = errors.size() <= 3U ? errors.size() :
-                                                        (errors.size() * 3U + 3U) / 4U;
+    std::sort(errors.begin(), errors.end(),
+              [](const auto &left, const auto &right) { return left.first < right.first; });
+    const std::size_t retained =
+        errors.size() <= 3U ? errors.size() : (errors.size() * 3U + 3U) / 4U;
     double weighted_error = 0.0;
     double weights = 0.0;
     for (std::size_t index = 0U; index < retained; ++index)
@@ -722,10 +712,11 @@ Result<PerspectiveLayout> compute_perspective_layout(const std::uint32_t width,
         PerspectiveLayout identity;
         identity.forward = identity_matrix();
         identity.inverse = identity_matrix();
-        identity.source_quad = {{{0.0, 0.0},
-                                 {static_cast<double>(width - 1U), 0.0},
-                                 {static_cast<double>(width - 1U), static_cast<double>(height - 1U)},
-                                 {0.0, static_cast<double>(height - 1U)}}};
+        identity.source_quad = {
+            {{0.0, 0.0},
+             {static_cast<double>(width - 1U), 0.0},
+             {static_cast<double>(width - 1U), static_cast<double>(height - 1U)},
+             {0.0, static_cast<double>(height - 1U)}}};
         identity.safe_crop = {0.0, 0.0, static_cast<double>(width - 1U),
                               static_cast<double>(height - 1U)};
         identity.full_width = identity.output_width = width;
@@ -734,8 +725,8 @@ Result<PerspectiveLayout> compute_perspective_layout(const std::uint32_t width,
     }
 
     Matrix forward = reference_homography(width, height, params);
-    constexpr std::array<std::array<double, 2>, 4> normalized_corners{{
-        {0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}}};
+    constexpr std::array<std::array<double, 2>, 4> normalized_corners{
+        {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}}};
     std::array<PerspectivePoint, 4> quad{};
     double minimum_x = std::numeric_limits<double>::max();
     double minimum_y = std::numeric_limits<double>::max();
@@ -743,9 +734,9 @@ Result<PerspectiveLayout> compute_perspective_layout(const std::uint32_t width,
     double maximum_y = std::numeric_limits<double>::lowest();
     for (std::size_t index = 0U; index < quad.size(); ++index)
     {
-        auto point = transform(forward,
-                               normalized_corners[index][0] * static_cast<double>(width - 1U),
-                               normalized_corners[index][1] * static_cast<double>(height - 1U));
+        auto point =
+            transform(forward, normalized_corners[index][0] * static_cast<double>(width - 1U),
+                      normalized_corners[index][1] * static_cast<double>(height - 1U));
         if (!point)
             return point.error();
         quad[index] = point.value();
@@ -795,10 +786,10 @@ Result<PerspectiveLayout> compute_perspective_layout(const std::uint32_t width,
     {
         const double left = std::ceil(std::max(0.0, safe.value().left));
         const double top = std::ceil(std::max(0.0, safe.value().top));
-        const double right = std::floor(
-            std::min(static_cast<double>(layout.full_width - 1U), safe.value().right));
-        const double bottom = std::floor(
-            std::min(static_cast<double>(layout.full_height - 1U), safe.value().bottom));
+        const double right =
+            std::floor(std::min(static_cast<double>(layout.full_width - 1U), safe.value().right));
+        const double bottom =
+            std::floor(std::min(static_cast<double>(layout.full_height - 1U), safe.value().bottom));
         if (!(right >= left) || !(bottom >= top))
             return make_error(ErrorCode::kValidation, "Perspective safe crop contains no pixels",
                               {{"reason", "empty_perspective_safe_crop"}});
@@ -815,6 +806,38 @@ Result<PerspectiveLayout> compute_perspective_layout(const std::uint32_t width,
     return layout;
 }
 
+Result<std::vector<std::uint8_t>> perspective_source_coverage(const std::uint32_t width,
+                                                              const std::uint32_t height,
+                                                              const PerspectiveLayout &layout,
+                                                              const CancellationToken &cancellation)
+try
+{
+    const auto count = static_cast<std::uint64_t>(layout.full_width) * layout.full_height;
+    if (width == 0 || height == 0 || count == 0 || count > std::vector<std::uint8_t>{}.max_size())
+        return make_error(ErrorCode::kValidation, "Crop coverage dimensions are invalid");
+    std::vector<std::uint8_t> coverage(static_cast<std::size_t>(count), 0);
+    auto rows = detail::for_each_row(
+        layout.full_height, cancellation,
+        [&](const std::uint32_t row)
+        {
+            for (std::uint32_t column = 0; column < layout.full_width; ++column)
+            {
+                const auto source = transform(layout.inverse, column, row);
+                if (source && source.value().x >= 0.0 && source.value().y >= 0.0 &&
+                    source.value().x <= static_cast<double>(width - 1U) &&
+                    source.value().y <= static_cast<double>(height - 1U))
+                    coverage[static_cast<std::size_t>(row) * layout.full_width + column] = 255;
+            }
+        });
+    if (!rows)
+        return rows.error();
+    return coverage;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Crop coverage allocation failed");
+}
+
 Result<LinearWorkingBuffer> apply_perspective(const LinearWorkingBuffer &input,
                                               const PerspectiveParams &params,
                                               const CancellationToken &cancellation)
@@ -828,8 +851,8 @@ try
     auto layout = compute_perspective_layout(input.width, input.height, params);
     if (!layout)
         return layout.error();
-    const std::uint64_t output_channels = static_cast<std::uint64_t>(layout.value().output_width) *
-                                          layout.value().output_height * 3U;
+    const std::uint64_t output_channels =
+        static_cast<std::uint64_t>(layout.value().output_width) * layout.value().output_height * 3U;
     if (output_channels > std::vector<float>{}.max_size())
         return make_error(ErrorCode::kValidation, "Perspective output dimensions overflow",
                           {{"reason", "dimensions_overflow"}});
@@ -849,17 +872,15 @@ try
         {
             for (std::uint32_t column = 0U; column < output.width; ++column)
             {
-                const double target_x =
-                    static_cast<double>(layout.value().output_left + column);
+                const double target_x = static_cast<double>(layout.value().output_left + column);
                 const double target_y = static_cast<double>(layout.value().output_top + row);
                 const auto source = transform(layout.value().inverse, target_x, target_y);
                 if (!source || source.value().x < 0.0 || source.value().y < 0.0 ||
                     source.value().x > static_cast<double>(input.width - 1U) ||
                     source.value().y > static_cast<double>(input.height - 1U))
                     continue;
-                float *destination =
-                    output.rgb.data() +
-                    (static_cast<std::size_t>(row) * output.width + column) * 3U;
+                float *destination = output.rgb.data() +
+                                     (static_cast<std::size_t>(row) * output.width + column) * 3U;
                 if (params.interpolation == kPerspectiveInterpolationBilinear)
                     sample_bilinear(input, source.value().x, source.value().y, destination);
                 else
@@ -880,11 +901,11 @@ catch (const std::bad_alloc &)
                       {{"reason", "allocation_failed"}});
 }
 
-Result<PerspectiveAnalysis>
-fit_perspective_guides(const std::uint32_t width, const std::uint32_t height,
-                       const std::vector<PerspectiveGuideLine> &lines,
-                       const PerspectiveAnalysisMode mode,
-                       const CancellationToken &cancellation)
+Result<PerspectiveAnalysis> fit_perspective_guides(const std::uint32_t width,
+                                                   const std::uint32_t height,
+                                                   const std::vector<PerspectiveGuideLine> &lines,
+                                                   const PerspectiveAnalysisMode mode,
+                                                   const CancellationToken &cancellation)
 try
 {
     if (!analysis_mode_supported(mode))
@@ -905,9 +926,8 @@ try
                             std::isfinite(line.x2) && std::isfinite(line.y2) &&
                             std::isfinite(line.weight) && line.weight > 0.0;
         const bool bounded = line.x1 >= -2.0 && line.y1 >= -2.0 && line.x2 >= -2.0 &&
-                             line.y2 >= -2.0 && line.x1 <= width + 1.0 &&
-                             line.x2 <= width + 1.0 && line.y1 <= height + 1.0 &&
-                             line.y2 <= height + 1.0;
+                             line.y2 >= -2.0 && line.x1 <= width + 1.0 && line.x2 <= width + 1.0 &&
+                             line.y1 <= height + 1.0 && line.y2 <= height + 1.0;
         if (!finite || !bounded || std::hypot(line.x2 - line.x1, line.y2 - line.y1) < 2.0)
             return make_error(ErrorCode::kValidation, "Perspective guide line is invalid",
                               {{"reason", "invalid_perspective_guides"}});
@@ -927,15 +947,13 @@ try
         }
         else
         {
-            return make_error(ErrorCode::kValidation,
-                              "Perspective guide orientation is invalid",
+            return make_error(ErrorCode::kValidation, "Perspective guide orientation is invalid",
                               {{"reason", "invalid_perspective_guides"}});
         }
     }
     const bool needs_vertical = mode != PerspectiveAnalysisMode::kHorizontal;
     const bool needs_horizontal = mode != PerspectiveAnalysisMode::kVertical;
-    if ((needs_vertical && vertical_count < 2U) ||
-        (needs_horizontal && horizontal_count < 2U))
+    if ((needs_vertical && vertical_count < 2U) || (needs_horizontal && horizontal_count < 2U))
         return make_error(ErrorCode::kNotFound, "Perspective analysis has too few guide lines",
                           {{"reason", "insufficient_perspective_lines"},
                            {"vertical_count", std::to_string(vertical_count)},
@@ -967,20 +985,19 @@ try
         {
         case 0:
             params.rotation_degrees = std::clamp(params.rotation_degrees + delta,
-                                                 kPerspectiveRotationMin,
-                                                 kPerspectiveRotationMax);
+                                                 kPerspectiveRotationMin, kPerspectiveRotationMax);
             break;
         case 1:
-            params.vertical_shift = std::clamp(params.vertical_shift + delta,
-                                               kPerspectiveShiftMin, kPerspectiveShiftMax);
+            params.vertical_shift = std::clamp(params.vertical_shift + delta, kPerspectiveShiftMin,
+                                               kPerspectiveShiftMax);
             break;
         case 2:
             params.horizontal_shift = std::clamp(params.horizontal_shift + delta,
                                                  kPerspectiveShiftMin, kPerspectiveShiftMax);
             break;
         default:
-            params.shear = std::clamp(params.shear + delta, kPerspectiveShearMin,
-                                      kPerspectiveShearMax);
+            params.shear =
+                std::clamp(params.shear + delta, kPerspectiveShearMin, kPerspectiveShearMax);
             break;
         }
         return params;
@@ -999,8 +1016,8 @@ try
                 double selected_score = best_score;
                 for (const double direction : {-1.0, 1.0})
                 {
-                    PerspectiveParams candidate =
-                        adjusted(best, variable, direction * steps[static_cast<std::size_t>(variable)]);
+                    PerspectiveParams candidate = adjusted(
+                        best, variable, direction * steps[static_cast<std::size_t>(variable)]);
                     const double score = line_fit_objective(width, height, lines, mode, candidate);
                     if (score + 1.0e-14 < selected_score)
                     {
@@ -1033,8 +1050,7 @@ try
     result.horizontal_line_count = horizontal_count;
     result.analyzed_width = width;
     result.analyzed_height = height;
-    result.residual_degrees =
-        std::sqrt(std::max(0.0, best_score)) * 180.0 / std::numbers::pi;
+    result.residual_degrees = std::sqrt(std::max(0.0, best_score)) * 180.0 / std::numbers::pi;
     return result;
 }
 catch (const std::bad_alloc &)
@@ -1043,9 +1059,9 @@ catch (const std::bad_alloc &)
                       {{"reason", "allocation_failed"}});
 }
 
-Result<PerspectiveAnalysis>
-analyze_perspective_raster(const RasterBuffer &raster, const PerspectiveAnalysisMode mode,
-                           const CancellationToken &cancellation)
+Result<PerspectiveAnalysis> analyze_perspective_raster(const RasterBuffer &raster,
+                                                       const PerspectiveAnalysisMode mode,
+                                                       const CancellationToken &cancellation)
 try
 {
     std::uint32_t analysis_width = 0U;
@@ -1053,8 +1069,8 @@ try
     auto lines = detect_perspective_lines(raster, analysis_width, analysis_height, cancellation);
     if (!lines)
         return lines.error();
-    auto fitted = fit_perspective_guides(raster.width, raster.height, lines.value(), mode,
-                                         cancellation);
+    auto fitted =
+        fit_perspective_guides(raster.width, raster.height, lines.value(), mode, cancellation);
     if (!fitted)
         return fitted.error();
     fitted.value().analyzed_width = analysis_width;

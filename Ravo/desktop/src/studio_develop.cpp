@@ -483,12 +483,15 @@ QString StudioPresenter::selectedPhotoDebugInfo() const
         if (path.isEmpty())
             return {};
         const auto index = import_candidates_.index(import_context_row_, 0);
-        return QStringLiteral("ravo.debug.import-photo 1\npath=%1\nuri=%2\ndisplay_name=%3\nsize_bytes=%4\nduplicate=%5")
+        return QStringLiteral(
+                   "ravo.debug.import-photo 1\npath=%1\nuri=%2\ndisplay_name=%3\nsize_bytes=%4\nduplicate=%5")
             .arg(path, QUrl::fromLocalFile(path).toString(),
-                 import_candidates_.data(index, ImportCandidateListModel::DisplayNameRole).toString(),
+                 import_candidates_.data(index, ImportCandidateListModel::DisplayNameRole)
+                     .toString(),
                  import_candidates_.data(index, ImportCandidateListModel::SizeBytesRole).toString(),
                  import_candidates_.data(index, ImportCandidateListModel::DuplicateRole).toBool() ?
-                     QStringLiteral("true") : QStringLiteral("false"));
+                     QStringLiteral("true") :
+                     QStringLiteral("false"));
     }
     const auto asset = assets_.assetById(selected_asset_id_);
     if (!asset)
@@ -928,14 +931,6 @@ void StudioPresenter::previewDevelopNumber(const QString &name, const double val
     }
     if (!localEditing())
         retarget_instance_edit_after_field(next, field);
-    if (name == QLatin1String("straighten"))
-    {
-        if (crop_tool_active_)
-        {
-            mutate_scoped_develop(std::move(next), DevelopEdit::Overlay);
-            return;
-        }
-    }
     mutate_scoped_develop(std::move(next), DevelopEdit::Preview);
 }
 
@@ -1465,6 +1460,10 @@ double StudioPresenter::selected_working_aspect() const
         const QMutexLocker lock(&preview_image_mutex_);
         if (!preview_image_.isNull() && preview_image_.height() > 0)
         {
+            if (!crop_preview_layout_.isEmpty())
+                return (preview_image_.width() * crop_preview_layout_.value("width").toDouble()) /
+                       std::max(1.0, preview_image_.height() *
+                                         crop_preview_layout_.value("height").toDouble());
             return static_cast<double>(preview_image_.width()) /
                    static_cast<double>(preview_image_.height());
         }

@@ -442,6 +442,7 @@ add_executable(ravo_desktop_command_tests
   studio_window_geometry_test.cpp
   studio_startup_test.cpp
   studio_import_workspace_test.cpp
+  studio_pipeline_priority_test.cpp
   studio_import_destination_preview_test.cpp
   studio_import_keyboard_test.cpp
   studio_import_keyboard_perf_test.cpp

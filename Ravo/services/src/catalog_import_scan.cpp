@@ -34,6 +34,17 @@ Result<ImportScanResult> CatalogService::scan_import_candidates(
     const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress,
     const std::function<void(const std::vector<std::string> &)> &enumerated)
 {
+    return scan_import_candidates_impl(inputs, source_root, recursive, cancellation, progress,
+                                       enumerated, true);
+}
+
+Result<ImportScanResult> CatalogService::scan_import_candidates_impl(
+    const std::vector<std::string> &inputs, const std::string_view source_root,
+    const bool recursive, const CancellationToken &cancellation,
+    const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress,
+    const std::function<void(const std::vector<std::string> &)> &enumerated,
+    const bool require_stable_revision)
+{
     if (!repository_)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     if (inputs.empty())
@@ -218,9 +229,10 @@ Result<ImportScanResult> CatalogService::scan_import_candidates(
     auto current = repository_->snapshot();
     if (!current)
         return current.error();
-    if (current.value().revision != result.catalog_revision)
+    if (require_stable_revision && current.value().revision != result.catalog_revision)
         return make_error(ErrorCode::kConflict, "Catalog changed during import scan; scan again",
                           {{"reason", "import_scan_stale"}});
+    result.catalog_revision = current.value().revision;
     return result;
 }
 } // namespace ravo

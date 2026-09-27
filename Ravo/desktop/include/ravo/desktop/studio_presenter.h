@@ -52,11 +52,13 @@ namespace ravo
 class StudioCommandController;
 class StudioLiveSessionController;
 class StudioDisplayPresentation;
+class StudioImportWorker;
 struct DisplayPresentationState;
 namespace testing
 {
 class StudioImportTestControl;
-}
+class StudioPipelineTestControl;
+} // namespace testing
 
 class StudioImportThumbnailController;
 class StudioImportDestinationPreviewController;
@@ -206,6 +208,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSaturation READ editSaturation NOTIFY editChanged)
     Q_PROPERTY(int editRotateQuarters READ editRotateQuarters NOTIFY editChanged)
     Q_PROPERTY(double editCropX READ editCropX NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap cropPreviewLayout READ cropPreviewLayout NOTIFY previewChanged)
     Q_PROPERTY(double editCropY READ editCropY NOTIFY editChanged)
     Q_PROPERTY(double editCropWidth READ editCropWidth NOTIFY editChanged)
     Q_PROPERTY(double editCropHeight READ editCropHeight NOTIFY editChanged)
@@ -630,6 +633,7 @@ public:
     [[nodiscard]] double editSaturation() const noexcept;
     [[nodiscard]] int editRotateQuarters() const noexcept;
     [[nodiscard]] double editCropX() const noexcept;
+    [[nodiscard]] QVariantMap cropPreviewLayout() const;
     [[nodiscard]] double editCropY() const noexcept;
     [[nodiscard]] double editCropWidth() const noexcept;
     [[nodiscard]] double editCropHeight() const noexcept;
@@ -1064,6 +1068,7 @@ signals:
 private:
     friend class StudioCommandController;
     friend class testing::StudioImportTestControl;
+    friend class testing::StudioPipelineTestControl;
     friend class StudioLiveSessionController;
 
     void setBusy(bool busy);
@@ -1200,11 +1205,18 @@ private:
         std::optional<std::string> overlay_mask_id;
         std::optional<std::uint64_t> request_revision;
         std::chrono::steady_clock::time_point intent_started_at{};
-        std::optional<std::int64_t> expected_catalog_revision;
+        std::optional<AssetDescriptor> expected_source;
+        std::optional<std::int64_t> expected_history_head;
     };
     [[nodiscard]] LibraryQuery current_query() const;
-    [[nodiscard]] Result<std::unique_ptr<CatalogService>>
-    make_catalog_service(const std::string &path, bool create);
+    struct PreparedCatalogSession
+    {
+        std::unique_ptr<CatalogService> service;
+        std::shared_ptr<PreviewCache> cache;
+        std::shared_ptr<std::mutex> recovery_publication_mutex;
+    };
+    [[nodiscard]] Result<PreparedCatalogSession> make_catalog_service(const std::string &path,
+                                                                      bool create);
     void mutate_selected_review(
         const std::function<Result<AssetRecord>(CatalogService &, std::string_view)> &action);
     void apply_cull_review_request(CullReviewFlagAction flag_action, std::optional<int> rating,
@@ -1220,6 +1232,7 @@ private:
     void startImportDestinationPreview();
 
     SerialExecutor executor_;
+    std::unique_ptr<StudioImportWorker> import_worker_;
     SerialExecutor filesystem_executor_;
     SerialExecutor preview_analysis_executor_;
     SerialExecutor thumbnail_presentation_executor_;
@@ -1272,6 +1285,8 @@ private:
     bool import_page_open_ = false;
     std::unique_ptr<StudioImportWorkspace> import_workspace_;
     bool import_preview_work_active_ = false;
+    std::uint64_t import_generation_ = 0;
+    std::uint64_t import_preview_generation_ = 0;
     int import_preview_work_completed_ = 0;
     int import_preview_work_total_ = 0;
     bool import_preflight_active_ = false;
@@ -1430,6 +1445,10 @@ private:
     int curve_family_ = 0;
     int curve_channel_ = 0;
     DevelopParams saved_develop_{};
+    std::optional<AssetDescriptor> loaded_recipe_asset_;
+    QVariantMap crop_preview_layout_;
+    // Durable head, updated with save results; independent of async history rows.
+    std::int64_t loaded_recipe_history_head_ = 0;
     std::optional<DevelopParams> displayed_develop_;
     std::vector<DevelopParams> undo_stack_;
     std::vector<DevelopParams> redo_stack_;

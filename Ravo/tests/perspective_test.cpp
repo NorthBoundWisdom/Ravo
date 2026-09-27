@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "perspective_transform.h"
+#include "ravo/engine/crop_preview.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/perspective.h"
 
@@ -18,7 +19,7 @@ namespace
 {
 
 [[nodiscard]] LinearWorkingBuffer grid_image(const std::uint32_t width = 96U,
-                                              const std::uint32_t height = 72U)
+                                             const std::uint32_t height = 72U)
 {
     LinearWorkingBuffer image;
     image.width = width;
@@ -51,8 +52,8 @@ namespace
     std::uint64_t hash = 1469598103934665603ULL;
     for (const float sample : image.rgb)
     {
-        const auto quantized = static_cast<std::int32_t>(
-            std::lround(std::clamp(sample, -4.0F, 4.0F) * 16384.0F));
+        const auto quantized =
+            static_cast<std::int32_t>(std::lround(std::clamp(sample, -4.0F, 4.0F) * 16384.0F));
         for (std::uint32_t byte = 0U; byte < 4U; ++byte)
         {
             hash ^= static_cast<std::uint8_t>(static_cast<std::uint32_t>(quantized) >> (byte * 8U));
@@ -107,9 +108,9 @@ TEST(PerspectiveRecipeTest, CanonicalDevelopRoundTripAndStrictSchema)
     params.perspective_interpolation_index = 1;
     auto recipe = recipe_from_develop({"asset", "file:///grid.png", std::nullopt}, params);
     ASSERT_TRUE(recipe) << recipe.error().message;
-    const auto found = std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
-                                    [](const OperationInstance &operation)
-                                    { return operation.id == kPerspectiveOperationId; });
+    const auto found = std::find_if(
+        recipe.value().operations.begin(), recipe.value().operations.end(),
+        [](const OperationInstance &operation) { return operation.id == kPerspectiveOperationId; });
     ASSERT_NE(found, recipe.value().operations.end());
     EXPECT_EQ(found->schema_version, kPerspectiveOperationSchemaVersion);
     EXPECT_EQ(found->parameters.size(), 8U);
@@ -160,9 +161,9 @@ TEST(PerspectiveTest, SafeCropContainsOnlyMappedFinitePixelsAndPreservesSource)
     params.horizontal_shift = -0.13;
     params.shear = 0.04;
     params.constrain_crop = true;
-    for (const auto interpolation : {kPerspectiveInterpolationBilinear,
-                                     kPerspectiveInterpolationLanczos2,
-                                     kPerspectiveInterpolationLanczos3})
+    for (const auto interpolation :
+         {kPerspectiveInterpolationBilinear, kPerspectiveInterpolationLanczos2,
+          kPerspectiveInterpolationLanczos3})
     {
         params.interpolation = std::string(interpolation);
         auto output = apply_perspective(input, params, CancellationToken{});
@@ -186,9 +187,9 @@ TEST(PerspectiveTest, InterpolatorsHaveIndependentDeterministicGridGoldens)
     params.shear = -0.025;
     params.constrain_crop = false;
     std::vector<std::uint64_t> hashes;
-    for (const auto interpolation : {kPerspectiveInterpolationBilinear,
-                                     kPerspectiveInterpolationLanczos2,
-                                     kPerspectiveInterpolationLanczos3})
+    for (const auto interpolation :
+         {kPerspectiveInterpolationBilinear, kPerspectiveInterpolationLanczos2,
+          kPerspectiveInterpolationLanczos3})
     {
         params.interpolation = std::string(interpolation);
         auto first = apply_perspective(input, params, CancellationToken{});
@@ -200,8 +201,7 @@ TEST(PerspectiveTest, InterpolatorsHaveIndependentDeterministicGridGoldens)
     }
     EXPECT_NE(hashes[0], hashes[1]);
     EXPECT_NE(hashes[1], hashes[2]);
-    EXPECT_EQ(hashes, (std::vector<std::uint64_t>{16313785851501956540ULL,
-                                                  7650514657445475949ULL,
+    EXPECT_EQ(hashes, (std::vector<std::uint64_t>{16313785851501956540ULL, 7650514657445475949ULL,
                                                   13807960239381974773ULL}));
 }
 
@@ -241,8 +241,8 @@ TEST(PerspectiveAutoTest, RobustGuideFitRecoversKnownHomography)
         const double x = safe.left + safe.width() * fraction;
         const auto first = map_point(layout.value().inverse, x, safe.top);
         const auto second = map_point(layout.value().inverse, x, safe.bottom);
-        lines.push_back({first.x, first.y, second.x, second.y, 100.0,
-                         PerspectiveGuideOrientation::kVertical});
+        lines.push_back(
+            {first.x, first.y, second.x, second.y, 100.0, PerspectiveGuideOrientation::kVertical});
     }
     for (const double fraction : {0.2, 0.5, 0.8})
     {
@@ -253,8 +253,7 @@ TEST(PerspectiveAutoTest, RobustGuideFitRecoversKnownHomography)
                          PerspectiveGuideOrientation::kHorizontal});
     }
     // One high-weight diagonal outlier must not own the solution.
-    lines.push_back({20.0, 30.0, 360.0, 260.0, 1000.0,
-                     PerspectiveGuideOrientation::kHorizontal});
+    lines.push_back({20.0, 30.0, 360.0, 260.0, 1000.0, PerspectiveGuideOrientation::kHorizontal});
     auto fitted = fit_perspective_guides(width, height, lines, PerspectiveAnalysisMode::kFull,
                                          CancellationToken{});
     ASSERT_TRUE(fitted) << fitted.error().message;
@@ -270,8 +269,8 @@ TEST(PerspectiveAutoTest, DetectorFindsBothAxisFamiliesAndReportsNoSolution)
     auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
     const auto raster = axis_grid_raster();
-    auto analysis = engine.value().analyze_perspective(
-        raster, PerspectiveAnalysisMode::kFull, CancellationToken{});
+    auto analysis = engine.value().analyze_perspective(raster, PerspectiveAnalysisMode::kFull,
+                                                       CancellationToken{});
     ASSERT_TRUE(analysis) << analysis.error().message;
     EXPECT_GE(analysis.value().vertical_line_count, 2U);
     EXPECT_GE(analysis.value().horizontal_line_count, 2U);
@@ -281,11 +280,103 @@ TEST(PerspectiveAutoTest, DetectorFindsBothAxisFamiliesAndReportsNoSolution)
 
     RasterBuffer blank = raster;
     std::fill(blank.srgb.begin(), blank.srgb.end(), 64U);
-    auto missing = engine.value().analyze_perspective(
-        blank, PerspectiveAnalysisMode::kFull, CancellationToken{});
+    auto missing = engine.value().analyze_perspective(blank, PerspectiveAnalysisMode::kFull,
+                                                      CancellationToken{});
     ASSERT_FALSE(missing);
     EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
     EXPECT_EQ(missing.error().context.at("reason"), "no_perspective_lines");
+}
+
+TEST(PerspectiveTest, CropWorkspacePreservesSourceScaleAndCanonicalCropCoordinates)
+{
+    DevelopParams params;
+    params.straighten_degrees = 22.0;
+    params.crop_x = 0.1;
+    params.crop_y = 0.2;
+    params.crop_width = 0.7;
+    params.crop_height = 0.6;
+    auto recipe = recipe_from_develop({"photo", "photo.png", {}}, params);
+    ASSERT_TRUE(recipe);
+    const auto original = serialize_recipe(recipe.value());
+    ASSERT_TRUE(original);
+    auto plan = plan_crop_preview(recipe.value(), 640, 400);
+    ASSERT_TRUE(plan) << plan.error().message;
+    PerspectiveParams geometry;
+    geometry.rotation_degrees = 22.0;
+    geometry.constrain_crop = true;
+    auto canonical = compute_perspective_layout(640, 400, geometry);
+    ASSERT_TRUE(canonical);
+    EXPECT_NEAR(plan.value().x * canonical.value().full_width, canonical.value().output_left, 1e-9);
+    EXPECT_NEAR(plan.value().width * canonical.value().full_width, canonical.value().output_width,
+                1e-9);
+    EXPECT_NEAR(plan.value().height * canonical.value().full_height,
+                canonical.value().output_height, 1e-9);
+    EXPECT_NEAR(plan.value().width_scale / canonical.value().full_width,
+                1.0 / (std::ceil(std::hypot(640.0, 400.0)) + 1.0), 1e-12);
+    auto preview_params = develop_from_recipe(plan.value().recipe);
+    ASSERT_TRUE(preview_params);
+    EXPECT_FALSE(preview_params.value().perspective_constrain_crop);
+    EXPECT_DOUBLE_EQ(preview_params.value().crop_width, 1.0);
+    EXPECT_DOUBLE_EQ(preview_params.value().crop_height, 1.0);
+    EXPECT_DOUBLE_EQ(preview_params.value().straighten_degrees, 22.0);
+    const auto input = grid_image(640, 400);
+    auto cropped = apply_perspective(input, geometry, {});
+    ASSERT_TRUE(cropped);
+    geometry.constrain_crop = false;
+    auto full = apply_perspective(input, geometry, {});
+    ASSERT_TRUE(full);
+    const auto left = static_cast<std::uint32_t>(std::lround(plan.value().x * full.value().width));
+    const auto top = static_cast<std::uint32_t>(std::lround(plan.value().y * full.value().height));
+    for (std::uint32_t row = 0; row < cropped.value().height; ++row)
+    {
+        const auto full_begin =
+            full.value().rgb.begin() +
+            static_cast<std::ptrdiff_t>(((row + top) * full.value().width + left) * 3U);
+        const auto crop_begin = cropped.value().rgb.begin() +
+                                static_cast<std::ptrdiff_t>(row * cropped.value().width * 3U);
+        ASSERT_TRUE(std::equal(crop_begin, crop_begin + cropped.value().width * 3U, full_begin));
+    }
+    EXPECT_EQ(serialize_recipe(recipe.value()).value(), original.value());
+    EXPECT_FALSE(plan_crop_preview(recipe.value(), 0, 400));
+}
+
+TEST(PerspectiveTest, CropSurroundIsGrayWithoutReplacingBlackPhotoPixels)
+{
+    DevelopParams params;
+    params.straighten_degrees = 22.0;
+    auto recipe = recipe_from_develop({"photo", "photo.png", {}}, params);
+    ASSERT_TRUE(recipe);
+    auto plan = plan_crop_preview(recipe.value(), 160, 100);
+    ASSERT_TRUE(plan);
+    RenderedImage image;
+    image.width = plan.value().coverage_width;
+    image.height = plan.value().coverage_height;
+    image.rgb.resize(static_cast<std::size_t>(image.width) * image.height * 3U, 0);
+    image.gpu_display_generation = 42;
+    ASSERT_TRUE(fill_crop_preview_exterior(image, plan.value(), {}));
+    std::size_t source_pixels = 0, exterior_pixels = 0;
+    for (std::size_t pixel = 0; pixel < plan.value().source_coverage.size(); ++pixel)
+    {
+        const bool source = plan.value().source_coverage[pixel] != 0;
+        source ? ++source_pixels : ++exterior_pixels;
+        for (std::size_t channel = 0; channel < 3; ++channel)
+            ASSERT_EQ(image.rgb[pixel * 3U + channel], source ? 0 : 118);
+    }
+    EXPECT_GT(source_pixels, 0U);
+    EXPECT_GT(exterior_pixels, 0U);
+    EXPECT_EQ(image.gpu_display_generation, 0U);
+    const auto before = image.rgb;
+    CancellationSource cancel;
+    static_cast<void>(cancel.cancel("test"));
+    auto cancelled = fill_crop_preview_exterior(image, plan.value(), cancel.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(image.rgb, before);
+    auto cancelled_plan = plan_crop_preview(recipe.value(), 160, 100, cancel.token());
+    ASSERT_FALSE(cancelled_plan);
+    image.width += 1;
+    EXPECT_FALSE(fill_crop_preview_exterior(image, plan.value(), {}));
+    EXPECT_EQ(image.rgb, before);
 }
 
 } // namespace

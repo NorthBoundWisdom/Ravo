@@ -435,8 +435,9 @@ void StudioPresenter::reload_recipe_history()
         return;
     }
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    const auto observed_head = loaded_recipe_history_head_;
     executor_.post(
-        [this, asset_id]()
+        [this, asset_id, observed_head]()
         {
             Result<std::vector<RecipeHistoryEntry>> history =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -446,15 +447,18 @@ void StudioPresenter::reload_recipe_history()
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, asset_id, history = std::move(history)]() mutable
+                [this, asset_id, observed_head, history = std::move(history)]() mutable
                 {
-                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
+                    if (utf8_from_qstring(selected_asset_id_) != asset_id ||
+                        loaded_recipe_history_head_ != observed_head)
                     {
                         return;
                     }
                     if (history)
                     {
                         apply_recipe_history(history.value());
+                        loaded_recipe_history_head_ =
+                            history.value().empty() ? 0 : history.value().front().id;
                     }
                     else
                     {

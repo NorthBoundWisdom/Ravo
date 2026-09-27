@@ -44,6 +44,8 @@ void StudioPresenter::load_develop_for_selection()
     develop_ = {};
     clear_local_edit_scope();
     saved_develop_ = {};
+    loaded_recipe_asset_.reset();
+    loaded_recipe_history_head_ = 0;
     develop_loaded_ = false;
     develop_preview_deferred_ = false;
     develop_load_error_.clear();
@@ -84,6 +86,8 @@ void StudioPresenter::load_develop_for_selection()
                     if (history)
                     {
                         apply_recipe_history(history.value());
+                        loaded_recipe_history_head_ =
+                            history.value().empty() ? 0 : history.value().front().id;
                     }
                     else
                     {
@@ -134,6 +138,7 @@ void StudioPresenter::load_develop_for_selection()
                     selected_color_balance_rgb_instance_index_ = 0;
                     sync_selected_instance_edit_buffers(develop_);
                     saved_develop_ = develop_;
+                    loaded_recipe_asset_ = loaded.value().asset;
                     develop_loaded_ = true;
                     develop_load_error_.clear();
                     sync_curve_ui_from_develop();
@@ -169,6 +174,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     const auto intent_started_at = std::chrono::steady_clock::now();
     clamp_develop(params);
     const auto previous = saved_develop_;
+    const auto history_head_before = loaded_recipe_history_head_;
     const bool same_control = push_history && params != saved_develop_ &&
                               history_write == RecipeHistoryWrite::kAppendIfNew &&
                               history_coalesce_key && history_coalesce_key_ &&
@@ -251,9 +257,9 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .overlay_mask_id = current_overlay_mask_id(params),
         .request_revision = request_revision,
         .intent_started_at = intent_started_at,
-        .expected_catalog_revision = observed_catalog_revision_ >= 0 ?
-                                         std::optional<std::int64_t>{observed_catalog_revision_} :
-                                         std::nullopt,
+        .expected_source = loaded_recipe_asset_,
+        .expected_history_head =
+            discard_after ? std::optional<std::int64_t>{history_head_before} : std::nullopt,
     };
     pending_preview_.reset();
     kick_develop_work();
@@ -332,7 +338,7 @@ void StudioPresenter::preview_develop(DevelopParams params)
         .overlay_mask_id = current_overlay_mask_id(params),
         .request_revision = request_revision,
         .intent_started_at = intent_started_at,
-        .expected_catalog_revision = {},
+        .expected_source = {},
     };
     kick_develop_work();
     // Start the pixel job before notifying the broad inspector property set. QML may reevaluate
@@ -442,7 +448,7 @@ void StudioPresenter::enqueue_preview()
         .overlay_mask_id = current_overlay_mask_id(develop_),
         .request_revision = request_revision,
         .intent_started_at = std::chrono::steady_clock::now(),
-        .expected_catalog_revision = {},
+        .expected_source = {},
     };
     kick_develop_work();
 }
@@ -496,7 +502,7 @@ void StudioPresenter::kick_develop_work()
             .overlay_mask_id = {},
             .request_revision = {},
             .intent_started_at = std::chrono::steady_clock::now(),
-            .expected_catalog_revision = {},
+            .expected_source = {},
         };
     }
     else
@@ -535,7 +541,9 @@ void StudioPresenter::kick_develop_work()
                             .discard_history_after_seq = job.discard_history_after_seq,
                             .coalesce_history_id = job.coalesce_history_id,
                             .defer_recovery_publication = true,
-                            .expected_revision = job.expected_catalog_revision,
+                            .expected_base = job.previous,
+                            .expected_source = job.expected_source,
+                            .expected_history_head = job.expected_history_head,
                         });
                     save_ok = static_cast<bool>(saved);
                 }
@@ -548,6 +556,7 @@ void StudioPresenter::kick_develop_work()
                     request.request_revision = revision;
                     request.ignore_edits = job.ignore_edits;
                     request.ignore_crop = job.ignore_crop;
+                    request.crop_workspace = job.ignore_crop;
                     request.ignore_straighten = job.ignore_straighten;
                     request.persist_preview_record =
                         job.comparison_before ? false : !job.interactive;
@@ -629,6 +638,7 @@ void StudioPresenter::kick_develop_work()
                                 redo_stack_.clear();
                             }
                             saved_develop_ = job.params;
+                            loaded_recipe_history_head_ = saved.value().history_head;
                             observed_catalog_revision_ =
                                 std::max(observed_catalog_revision_, saved.value().revision);
                             assets_.updateAsset(saved.value().asset);
@@ -640,7 +650,9 @@ void StudioPresenter::kick_develop_work()
                             if (pending_save_)
                             {
                                 pending_save_->previous = job.params;
-                                pending_save_->expected_catalog_revision = saved.value().revision;
+                                if (pending_save_->expected_history_head)
+                                    pending_save_->expected_history_head =
+                                        saved.value().history_head;
                                 if (job.history_coalesce_key &&
                                     pending_save_->history_coalesce_key ==
                                         job.history_coalesce_key &&
@@ -778,7 +790,7 @@ void StudioPresenter::kick_develop_work()
                             .overlay_mask_id = {},
                             .request_revision = {},
                             .intent_started_at = job.intent_started_at,
-                            .expected_catalog_revision = {},
+                            .expected_source = {},
                         };
                     }
                     if (comparison_active_ && comparison_before_url_.isEmpty())

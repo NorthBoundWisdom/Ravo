@@ -110,6 +110,12 @@ public:
     // Failure preserves the previous asset, capture values, and revision.
     [[nodiscard]] virtual Result<void> commit_refreshed_asset(const AssetRecord &asset) = 0;
     [[nodiscard]] virtual Result<void> update_asset(const AssetRecord &asset) = 0;
+    // Atomically guard the observed generation and source identity, update only
+    // dimensions/availability, and return the resulting recovery generation.
+    // Other photo fields and failed-precondition state remain unchanged.
+    [[nodiscard]] virtual Result<std::int64_t>
+    update_preview_state(const AssetRecord &asset,
+                         std::optional<std::int64_t> expected_generation = {}) = 0;
     [[nodiscard]] virtual Result<void> update_review(std::string_view asset_id,
                                                      const ReviewState &review) = 0;
     // One transaction: review fields + catalog revision bump. Failure leaves the
@@ -138,7 +144,8 @@ public:
                   std::optional<std::string_view> recipe_json, std::string_view history_json,
                   RecipeHistoryWrite history_write,
                   std::optional<std::int64_t> discard_history_after_seq,
-                  std::optional<std::int64_t> coalesce_history_id) = 0;
+                  std::optional<std::int64_t> coalesce_history_id,
+                  RecipeCommitPrecondition precondition = {}) = 0;
     [[nodiscard]] virtual Result<void> replace_asset_tags(std::string_view asset_id,
                                                           const std::vector<std::string> &tags) = 0;
     [[nodiscard]] virtual Result<LibraryCaptureFacets> list_capture_facets() const = 0;
@@ -190,7 +197,9 @@ public:
     [[nodiscard]] virtual Result<std::vector<PreviewRecord>> list_previews() const = 0;
     [[nodiscard]] virtual Result<std::vector<PreviewRecord>>
     list_previews_for_assets(const std::vector<std::string> &asset_ids) const = 0;
-    [[nodiscard]] virtual Result<void> upsert_preview(const PreviewRecord &preview) = 0;
+    [[nodiscard]] virtual Result<void>
+    upsert_preview(const PreviewRecord &preview,
+                   std::optional<std::int64_t> expected_generation = {}) = 0;
     [[nodiscard]] virtual Result<AssetRecoveryState>
     recovery_state(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::vector<AssetRecoveryState>> list_pending_recovery() const = 0;

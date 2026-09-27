@@ -15,6 +15,7 @@
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/engine/crop_preview.h"
 #include "ravo/services/offline_edit_proxy.h"
 
 namespace ravo
@@ -38,6 +39,10 @@ Result<PreviewResult>
 CatalogService::request_preview(const PreviewRequest &request,
                                 const std::optional<DevelopParams> &live_develop)
 {
+    if (request.crop_workspace && (request.persist_preview_record || request.roi ||
+                                   !request.ignore_crop || request.prefer_cached_settled_preview))
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Crop workspace requires an uncached full preview");
     auto cancelled = request.cancellation.check();
     if (!cancelled)
     {
@@ -47,6 +52,7 @@ CatalogService::request_preview(const PreviewRequest &request,
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
+    auto generation = repository_->recovery_state(request.asset_id);
     auto asset = repository_->find_asset_by_id(request.asset_id);
     if (!asset)
     {
@@ -57,7 +63,24 @@ CatalogService::request_preview(const PreviewRequest &request,
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", request.asset_id}});
     }
-    return generate_preview(*asset.value(), request, live_develop);
+    if (!generation)
+        return generation.error();
+    return generate_preview(*asset.value(), request, live_develop, generation.value().generation);
+}
+
+Result<void>
+CatalogService::require_preview_generation(const std::string_view asset_id,
+                                           const std::optional<std::int64_t> generation) const
+{
+    if (!generation)
+        return {};
+    auto current = repository_->recovery_state(asset_id);
+    if (!current)
+        return current.error();
+    if (current.value().generation != *generation)
+        return make_error(ErrorCode::kConflict, "Photo changed while rendering preview",
+                          {{"asset_id", std::string(asset_id)}, {"reason", "stale_preview_state"}});
+    return {};
 }
 
 Result<PreviewRebuildResult> CatalogService::rebuild_previews(
@@ -189,7 +212,7 @@ Result<PreviewRebuildResult> CatalogService::rebuild_previews(
 
 Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     const AssetRecord &asset, const EmbeddedPreview &embedded, const std::uint32_t max_edge,
-    const CancellationToken &cancellation)
+    const CancellationToken &cancellation, std::optional<std::int64_t> expected_generation)
 {
     if (engine_ == nullptr || raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
     {
@@ -207,7 +230,10 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
         const auto previous_width = catalog_asset.width;
         catalog_asset.width = catalog_asset.height;
         catalog_asset.height = previous_width;
-        static_cast<void>(repository_->update_asset(catalog_asset));
+        auto updated = repository_->update_preview_state(catalog_asset, expected_generation);
+        if (!updated)
+            return updated.error();
+        expected_generation = updated.value();
     }
     std::uint32_t width = 0;
     std::uint32_t height = 0;
@@ -237,7 +263,8 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
         record.state = std::string(kPreviewStateReady);
         record.cache_relpath = cache_->relative_png_path(cache_key);
         record.last_success_unix_ms = now_unix_ms();
-        static_cast<void>(repository_->upsert_preview(record));
+        if (auto stored = repository_->upsert_preview(record, expected_generation); !stored)
+            return stored.error();
         return result;
     }
 
@@ -304,7 +331,7 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     record.state = std::string(kPreviewStateReady);
     record.cache_relpath = cache_->relative_png_path(cache_key);
     record.last_success_unix_ms = now_unix_ms();
-    const auto stored = repository_->upsert_preview(record);
+    const auto stored = repository_->upsert_preview(record, expected_generation);
     if (!stored)
     {
         return stored.error();
@@ -314,7 +341,7 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
 
 Result<PreviewResult> CatalogService::persist_companion_jpeg_browse_preview(
     const AssetRecord &asset, const std::string_view jpeg_path, const std::uint32_t max_edge,
-    const CancellationToken &cancellation)
+    const CancellationToken &cancellation, const std::optional<std::int64_t> expected_generation)
 {
     if (engine_ == nullptr || raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
     {
@@ -352,7 +379,8 @@ Result<PreviewResult> CatalogService::persist_companion_jpeg_browse_preview(
         record.state = std::string(kPreviewStateReady);
         record.cache_relpath = cache_->relative_png_path(cache_key);
         record.last_success_unix_ms = now_unix_ms();
-        static_cast<void>(repository_->upsert_preview(record));
+        if (auto stored = repository_->upsert_preview(record, expected_generation); !stored)
+            return stored.error();
         return result;
     }
 
@@ -419,7 +447,7 @@ Result<PreviewResult> CatalogService::persist_companion_jpeg_browse_preview(
     record.state = std::string(kPreviewStateReady);
     record.cache_relpath = cache_->relative_png_path(cache_key);
     record.last_success_unix_ms = now_unix_ms();
-    const auto stored = repository_->upsert_preview(record);
+    const auto stored = repository_->upsert_preview(record, expected_generation);
     if (!stored)
     {
         return stored.error();
@@ -429,7 +457,8 @@ Result<PreviewResult> CatalogService::persist_companion_jpeg_browse_preview(
 
 Result<PreviewResult>
 CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest &request,
-                                 const std::optional<DevelopParams> &live_develop)
+                                 const std::optional<DevelopParams> &live_develop,
+                                 std::int64_t expected_generation)
 {
     if (engine_ == nullptr || raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
     {
@@ -465,7 +494,10 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             working.import_state = std::string(kImportStateMissing);
             working.error_code = std::string(error_code_name(ErrorCode::kNotFound));
             working.error_message = "Original file is missing";
-            static_cast<void>(repository_->update_asset(working));
+            auto updated = repository_->update_preview_state(working, expected_generation);
+            if (!updated)
+                return updated.error();
+            expected_generation = updated.value();
         }
     }
     else if (working.import_state == kImportStateMissing)
@@ -473,7 +505,10 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         working.import_state = std::string(kImportStateImported);
         working.error_code.reset();
         working.error_message.reset();
-        static_cast<void>(repository_->update_asset(working));
+        auto updated = repository_->update_preview_state(working, expected_generation);
+        if (!updated)
+            return updated.error();
+        expected_generation = updated.value();
     }
 
     std::string render_path = location.value().path;
@@ -528,14 +563,18 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         }
         if (companion.value())
         {
-            auto persisted = persist_companion_jpeg_browse_preview(
-                working, *companion.value(), request.max_edge, request.cancellation);
+            auto persisted =
+                persist_companion_jpeg_browse_preview(working, *companion.value(), request.max_edge,
+                                                      request.cancellation, expected_generation);
             if (persisted)
             {
                 persisted.value().request_revision = request.request_revision;
                 persisted.value().original_missing = false;
                 return persisted;
             }
+            if (persisted.error().code == ErrorCode::kCancelled ||
+                persisted.error().code == ErrorCode::kConflict)
+                return persisted.error();
             LOG_INFO(ravo::logger(),
                      "companion JPEG browse preview persist failed asset={} error={}", asset.id,
                      persisted.error().message);
@@ -564,21 +603,26 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             record.state = std::string(kPreviewStateReady);
             record.cache_relpath = cache_->relative_png_path(cache_key);
             record.last_success_unix_ms = now_unix_ms();
-            static_cast<void>(repository_->upsert_preview(record));
+            if (auto stored = repository_->upsert_preview(record, expected_generation); !stored)
+                return stored.error();
             return result;
         }
         auto extracted = engine_->extract_embedded_preview(location.value().path, request.max_edge,
                                                            request.cancellation);
         if (extracted)
         {
-            auto persisted = persist_embedded_browse_preview(
-                working, extracted.value(), request.max_edge, request.cancellation);
+            auto persisted =
+                persist_embedded_browse_preview(working, extracted.value(), request.max_edge,
+                                                request.cancellation, expected_generation);
             if (persisted)
             {
                 persisted.value().request_revision = request.request_revision;
                 persisted.value().original_missing = false;
                 return persisted;
             }
+            if (persisted.error().code == ErrorCode::kCancelled ||
+                persisted.error().code == ErrorCode::kConflict)
+                return persisted.error();
             LOG_INFO(ravo::logger(), "embedded browse preview persist failed asset={} error={}",
                      asset.id, persisted.error().message);
         }
@@ -612,11 +656,12 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
             if (request.persist_preview_record)
             {
-                auto updated = repository_->update_asset(working);
+                auto updated = repository_->update_preview_state(working, expected_generation);
                 if (!updated)
                 {
                     return updated.error();
                 }
+                expected_generation = updated.value();
             }
         }
         return {};
@@ -764,7 +809,12 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                  {"reason",
                   using_offline_proxy ? "offline_proxy_roi_unsupported" : "original_missing"}});
         }
-        return generate_roi_preview(working, request, edit_recipe, render_path);
+        auto preview = generate_roi_preview(working, request, edit_recipe, render_path);
+        if (!preview)
+            return preview.error();
+        if (auto current = require_preview_generation(asset.id, expected_generation); !current)
+            return current.error();
+        return preview;
     }
     const bool interactive = !request.persist_preview_record || request.overlay_mask_id.has_value();
     std::string cache_digest = interactive ? "interactive" : edit_digest;
@@ -806,6 +856,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             result.cache_path = *existing.value();
             result.width = settled_width;
             result.height = settled_height;
+            if (auto current = require_preview_generation(asset.id, expected_generation); !current)
+                return current.error();
             return result;
         }
     }
@@ -830,7 +882,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             record.state = std::string(kPreviewStateReady);
             record.cache_relpath = cache_->relative_png_path(cache_key);
             record.last_success_unix_ms = now_unix_ms();
-            static_cast<void>(repository_->upsert_preview(record));
+            if (auto stored = repository_->upsert_preview(record, expected_generation); !stored)
+                return stored.error();
             return result;
         }
     }
@@ -857,6 +910,22 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     }
 
     const auto render_started = std::chrono::steady_clock::now();
+    std::optional<CropPreviewPlan> crop_plan;
+    const auto prepare_crop = [&](Recipe &recipe, const LinearWorkingBuffer &linear) -> Result<void>
+    {
+        if (!request.crop_workspace)
+            return {};
+        auto plan = plan_crop_preview(recipe, linear.width, linear.height, request.cancellation);
+        if (!plan)
+            return plan.error();
+        result.crop_geometry = CropPreviewGeometry{
+            {plan.value().x, plan.value().y, plan.value().width, plan.value().height},
+            plan.value().width_scale,
+            plan.value().height_scale};
+        crop_plan = std::move(plan).value();
+        recipe = std::move(crop_plan->recipe);
+        return {};
+    };
     RenderedImage rendered;
     if (is_raw_media_type(working.media_type))
     {
@@ -868,12 +937,15 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         }
         Recipe rgb_recipe = edit_recipe;
         disable_raw_preprocess(rgb_recipe);
+        if (auto prepared = prepare_crop(rgb_recipe, linear.value()->buffer); !prepared)
+            return prepared.error();
         auto applied =
             interactive && lane == PreviewLane::kForegroundDevelop &&
                     request.max_edge <= kInteractivePreviewMaxEdge ?
                 engine_->render_interactive_linear_working(
                     linear.value()->buffer, rgb_recipe, linear.value()->interactive_render_cache,
-                    request.cancellation, request.overlay_mask_id, request.need_cpu_pixels) :
+                    request.cancellation, request.overlay_mask_id,
+                    request.need_cpu_pixels || request.crop_workspace) :
                 engine_->render_linear_working(linear.value()->buffer, rgb_recipe,
                                                request.cancellation, request.overlay_mask_id);
         if (!applied)
@@ -890,12 +962,15 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         {
             return linear.error();
         }
+        if (auto prepared = prepare_crop(edit_recipe, linear.value()->buffer); !prepared)
+            return prepared.error();
         auto applied =
             interactive && lane == PreviewLane::kForegroundDevelop &&
                     request.max_edge <= kInteractivePreviewMaxEdge ?
                 engine_->render_interactive_linear_working(
                     linear.value()->buffer, edit_recipe, linear.value()->interactive_render_cache,
-                    request.cancellation, request.overlay_mask_id, request.need_cpu_pixels) :
+                    request.cancellation, request.overlay_mask_id,
+                    request.need_cpu_pixels || request.crop_workspace) :
                 engine_->render_linear_working(linear.value()->buffer, edit_recipe,
                                                request.cancellation, request.overlay_mask_id);
         if (!applied)
@@ -903,6 +978,12 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             return applied.error();
         }
         rendered = std::move(applied).value();
+    }
+    if (crop_plan)
+    {
+        auto filled = fill_crop_preview_exterior(rendered, *crop_plan, request.cancellation);
+        if (!filled)
+            return filled.error();
     }
     const auto render_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                std::chrono::steady_clock::now() - render_started)
@@ -927,6 +1008,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     }
     if (interactive)
     {
+        if (auto current = require_preview_generation(asset.id, expected_generation); !current)
+            return current.error();
         result.rgb = std::move(rendered.rgb);
         result.color_profile = std::move(rendered.color_profile);
         result.mask_alpha = std::move(rendered.mask_alpha);
@@ -960,7 +1043,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     record.state = std::string(kPreviewStateReady);
     record.cache_relpath = cache_->relative_png_path(cache_key);
     record.last_success_unix_ms = now_unix_ms();
-    const auto stored = repository_->upsert_preview(record);
+    const auto stored = repository_->upsert_preview(record, expected_generation);
     if (!stored)
     {
         return stored.error();

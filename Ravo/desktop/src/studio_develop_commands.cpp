@@ -63,10 +63,9 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     }
     if (!localEditing())
         retarget_instance_edit_after_field(next, field);
-    const bool keep_crop_guide =
-        crop_tool_active_ && crop_guide_ready_ &&
-        (name == QLatin1String("straighten") || name.startsWith(QLatin1String("perspective")));
-    mutate_scoped_develop(std::move(next), DevelopEdit::Commit, !keep_crop_guide, field);
+    // Crop guides use the engine's post-geometry frame, not a QML rotation.
+    // Publish the final geometry as well as saving it when the gesture ends.
+    mutate_scoped_develop(std::move(next), DevelopEdit::Commit, true, field);
 }
 
 void StudioPresenter::setDevelopText(const QString &name, const QString &value)

@@ -222,7 +222,10 @@ TEST(StudioQmlContract, CropOverlayShowsWhenCropToolActivates)
     EXPECT_TRUE(source.contains(QStringLiteral("straighten: studio.editStraighten")));
     EXPECT_FALSE(source.contains(
         QStringLiteral("cropToolActive && studio.cropGuideReady ? studio.editStraighten : 0")));
-    EXPECT_TRUE(source.contains(QStringLiteral("photoItem: photoPlane")));
+    EXPECT_TRUE(source.contains(QStringLiteral("photoItem: null")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.cropPreviewLayout.widthScale")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.cropPreviewLayout.x * photoPlane.width")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.cropPreviewLayout.height : 1")));
     EXPECT_TRUE(source.contains(QStringLiteral("sourceWidth: studio.selectedWorkingWidth")));
     EXPECT_TRUE(source.contains(QStringLiteral("sourceHeight: studio.selectedWorkingHeight")));
     EXPECT_TRUE(

@@ -856,8 +856,9 @@ ApplicationWindow {
                                     return Math.max(studio.previewViewportHeight > 0 ? studio.previewViewportHeight : studio.selectedWorkingHeight, 1);
                                 }
                                 readonly property real containScale: Math.min(width / sourceW, height / sourceH)
-                                readonly property real baseW: sourceW * containScale
-                                readonly property real baseH: sourceH * containScale
+                                readonly property bool cropWorkspace: studio.cropToolActive && studio.cropPreviewLayout.widthScale !== undefined
+                                readonly property real baseW: cropWorkspace ? Math.min(width, height) * studio.cropPreviewLayout.widthScale : sourceW * containScale
+                                readonly property real baseH: cropWorkspace ? Math.min(width, height) * studio.cropPreviewLayout.heightScale : sourceH * containScale
                                 readonly property real rotateScale: 1
 
                                 Item {
@@ -867,9 +868,9 @@ ApplicationWindow {
                                     height: previewStage.baseH * previewStage.rotateScale
                                     x: (previewStage.width - width) / 2
                                     y: (previewStage.height - height) / 2
-                                    // Crop mode receives the post-Perspective preview. Keeping
-                                    // this item untransformed makes the overlay coordinates the
-                                    // same normalized frame used by the engine and export.
+                                    // Crop mode receives the complete post-Perspective source.
+                                    // C++ maps the canonical output rectangle into this backdrop;
+                                    // the view does not reconstruct the homography.
                                     rotation: 0
                                     transformOrigin: Item.Center
                                     antialiasing: true
@@ -1081,12 +1082,12 @@ ApplicationWindow {
                                 CropOverlay {
                                     anchors.fill: parent
                                     visible: studio.browseMode === "develop" && studio.cropToolActive && !studio.comparisonActive && studio.previewUrl.toString().length > 0 && photoPlane.width > 1
-                                    imageX: photoPlane.x
-                                    imageY: photoPlane.y
-                                    imageWidth: photoPlane.width
-                                    imageHeight: photoPlane.height
+                                    imageX: photoPlane.x + (previewStage.cropWorkspace ? studio.cropPreviewLayout.x * photoPlane.width : 0)
+                                    imageY: photoPlane.y + (previewStage.cropWorkspace ? studio.cropPreviewLayout.y * photoPlane.height : 0)
+                                    imageWidth: photoPlane.width * (previewStage.cropWorkspace ? studio.cropPreviewLayout.width : 1)
+                                    imageHeight: photoPlane.height * (previewStage.cropWorkspace ? studio.cropPreviewLayout.height : 1)
                                     imageRotation: photoPlane.rotation
-                                    photoItem: photoPlane
+                                    photoItem: null
                                     sourceWidth: studio.selectedWorkingWidth
                                     sourceHeight: studio.selectedWorkingHeight
                                     minShortEdgePixels: studio.cropMinShortEdgePixels

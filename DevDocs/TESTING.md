@@ -795,6 +795,24 @@ gated (ADR-0096).
 
 ## Preview and viewer
 
+`PerspectiveTest.CropWorkspacePreservesSourceScaleAndCanonicalCropCoordinates`
+checks the preview-only recipe and canonical geometry mapping without altering
+the saved recipe. `StudioPipelinePriority.CropFrameChangesKeepCompletePhotoAndViewport`
+checks crop edits, rotation scale, full source extent and exit/reentry through
+the presenter. QML contracts bind the overlay to the published crop region.
+`PerspectiveTest.CropSurroundIsGrayWithoutReplacingBlackPhotoPixels` checks
+geometry-derived gray fill, preservation of black image content, cancellation
+and mismatched pixel-buffer rejection.
+
+Foreground/import scheduling contracts are covered by `StudioPipelinePriority`
+in `ravo_desktop_command_tests`: a deterministic import gate must not prevent
+an uncached selected-image preview or successive live rotation renders. Live
+gestures must leave the stored recipe unchanged until commit. Catalog tests
+cover unrelated imports, stale same-photo edits, preview generation rejection,
+and derived dimension updates that preserve concurrent review changes. Run the
+full Ravo suite for changes to these worker or repository boundaries
+([ADR-0160](adr/0160-foreground-preview-and-import-isolation.md)).
+
 - Write preview cache to a temporary file and publish atomically; a failed
   request never overwrites an existing trusted file.
 - Cache keys include source fingerprint, size, and contract version; a PNG

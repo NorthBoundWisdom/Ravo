@@ -105,7 +105,8 @@ Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
     const std::optional<std::string_view> recipe_json, const std::string_view history_json,
     const RecipeHistoryWrite history_write,
     const std::optional<std::int64_t> discard_history_after_seq,
-    const std::optional<std::int64_t> coalesce_history_id)
+    const std::optional<std::int64_t> coalesce_history_id,
+    const RecipeCommitPrecondition precondition)
 {
     if (impl_ == nullptr)
     {
@@ -122,11 +123,31 @@ Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
         return make_error(ErrorCode::kValidation, "Recipe history coalesce request is invalid",
                           {{"history_id", std::to_string(*coalesce_history_id)}});
     }
-    if (!impl_->database.transaction())
+    QSqlQuery begin(impl_->database);
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE")))
     {
-        return make_error(ErrorCode::kIo, "Unable to start recipe transaction",
-                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+        return map_sql_error(begin, "begin_recipe_transaction");
     }
+
+    QSqlQuery guard(impl_->database);
+    guard.prepare(QStringLiteral(
+        "SELECT s.revision, r.generation, COALESCE((SELECT id FROM asset_recipe_history "
+        "WHERE asset_id = r.asset_id ORDER BY seq DESC, id DESC LIMIT 1), 0) "
+        "FROM schema_info s, asset_recovery_state r WHERE s.id = 1 AND r.asset_id = ?"));
+    guard.addBindValue(qstring_from_utf8(asset_id));
+    if (!guard.exec())
+        return impl_->abort_transaction(map_sql_error(guard, "check_recipe_precondition"));
+    if (!guard.next())
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Asset does not exist",
+                                                   {{"asset_id", std::string(asset_id)}}));
+    const auto stale = [&](const std::optional<std::int64_t> expected, const int column)
+    { return expected && *expected != guard.value(column).toLongLong(); };
+    if (stale(precondition.catalog_revision, 0) || stale(precondition.asset_generation, 1) ||
+        stale(precondition.history_head, 2))
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kConflict, "Photo changed before the edit could be saved",
+                       {{"reason", "stale_recipe_state"}, {"asset_id", std::string(asset_id)}}));
+    guard.finish();
 
     if (discard_history_after_seq)
     {
@@ -227,6 +248,14 @@ Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
         return impl_->abort_transaction(map_sql_error(revision_query, "read_recipe_revision"));
     }
     const auto revision = revision_query.value(0).toLongLong();
+    QSqlQuery history_head(impl_->database);
+    history_head.prepare(QStringLiteral(
+        "SELECT id FROM asset_recipe_history WHERE asset_id = ? ORDER BY seq DESC, id DESC LIMIT 1"));
+    history_head.addBindValue(qstring_from_utf8(asset_id));
+    if (!history_head.exec())
+        return impl_->abort_transaction(map_sql_error(history_head, "read_recipe_history_head"));
+    const auto head = history_head.next() ? history_head.value(0).toLongLong() : 0;
+    history_head.finish();
     if (!impl_->database.commit())
     {
         return impl_->abort_transaction(
@@ -234,7 +263,7 @@ Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
                        {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
     }
     impl_->snapshot.revision = revision;
-    return RecipeCommitResult{revision, committed_history_id};
+    return RecipeCommitResult{revision, committed_history_id, head};
 }
 
 Result<void> SqliteCatalogRepository::upsert_writable_metadata(const std::string_view asset_id,
@@ -611,10 +640,10 @@ SqliteCatalogRepository::commit_imported_asset(const AssetRecord &asset,
         return make_error(ErrorCode::kIo, "Injected catalog import failure",
                           {{"reason", "injected_import_transaction_begin"}});
     }
-    if (!impl_->database.transaction())
+    QSqlQuery begin(impl_->database);
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE")))
     {
-        return make_error(ErrorCode::kIo, "Unable to start import publication transaction",
-                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+        return map_sql_error(begin, "begin_import_publication_transaction");
     }
     if (impl_->consume_import_failure(testing::SqliteImportFailure::kAssetBind))
     {

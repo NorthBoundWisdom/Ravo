@@ -288,23 +288,38 @@ CatalogService::import_one(const std::string_view path, const CancellationToken 
                                  kThumbnailMaxEdge, std::move(raster)};
     }
 
+    auto preview_generation = repository_->recovery_state(asset.id);
+    if (!preview_generation)
+        return preview_generation.error();
     Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Preview was not generated");
+    std::optional<TaskError> preview_publication_error;
     const auto persist_browse_thumbnail = [&]() -> Result<PreviewResult>
     {
+        auto generation = repository_->recovery_state(asset.id);
+        if (!generation)
+            return generation.error();
         PreviewRequest browse;
+        browse.asset_id = asset.id;
         browse.max_edge = kThumbnailMaxEdge;
         browse.purpose = PreviewPurpose::kBrowse;
         browse.prefer_embedded_preview = true;
         browse.cancellation = cancellation;
         Result<PreviewResult> result = make_error(ErrorCode::kIo, "Preview was not generated");
         if (jpeg_companion)
-            result = persist_companion_jpeg_browse_preview(asset, *jpeg_companion,
-                                                           kThumbnailMaxEdge, cancellation);
+            result =
+                persist_companion_jpeg_browse_preview(asset, *jpeg_companion, kThumbnailMaxEdge,
+                                                      cancellation, generation.value().generation);
+        if (!result && (result.error().code == ErrorCode::kConflict ||
+                        result.error().code == ErrorCode::kCancelled))
+            return result.error();
         if (!result && embedded_preview)
             result = persist_embedded_browse_preview(asset, *embedded_preview, kThumbnailMaxEdge,
-                                                     cancellation);
+                                                     cancellation, generation.value().generation);
+        if (!result && (result.error().code == ErrorCode::kConflict ||
+                        result.error().code == ErrorCode::kCancelled))
+            return result.error();
         if (!result)
-            result = generate_preview(asset, browse, {});
+            result = request_preview(browse);
         return result;
     };
     if (!defer_preview)
@@ -316,11 +331,12 @@ CatalogService::import_one(const std::string_view path, const CancellationToken 
             const std::uint32_t preview_edge =
                 preview_policy == ImportPreviewPolicy::kStandard ? kDefaultPreviewMaxEdge : 0U;
             PreviewRequest imported_preview;
+            imported_preview.asset_id = asset.id;
             imported_preview.max_edge = preview_edge;
             imported_preview.purpose = PreviewPurpose::kBrowse;
             imported_preview.prefer_embedded_preview = false;
             imported_preview.cancellation = cancellation;
-            preview = generate_preview(asset, imported_preview, {});
+            preview = request_preview(imported_preview);
         }
         if (!preview)
         {
@@ -332,7 +348,14 @@ CatalogService::import_one(const std::string_view path, const CancellationToken 
             failed.cache_key =
                 make_preview_cache_key(asset.id, asset.width.value_or(0), asset.height.value_or(0),
                                        asset.content_fingerprint.value_or("none"));
-            static_cast<void>(repository_->upsert_preview(failed));
+            if (preview.error().code != ErrorCode::kConflict &&
+                preview.error().code != ErrorCode::kCancelled)
+            {
+                auto recorded =
+                    repository_->upsert_preview(failed, preview_generation.value().generation);
+                if (!recorded && recorded.error().code != ErrorCode::kConflict)
+                    preview_publication_error = recorded.error();
+            }
         }
         else
         {
@@ -355,6 +378,7 @@ CatalogService::import_one(const std::string_view path, const CancellationToken 
     result.status = ImportItemStatus::kImported;
     result.input_path = location.value().path;
     result.asset = asset;
+    result.error = std::move(preview_publication_error);
     if (preview)
     {
         result.preview_cache_path = preview.value().cache_path;
@@ -363,6 +387,8 @@ CatalogService::import_one(const std::string_view path, const CancellationToken 
     auto recovered = synchronize_committed_change(asset.id, cancellation);
     if (!recovered)
     {
+        if (result.error)
+            recovered.error().context.emplace("preview_publication_error", result.error->message);
         result.error = recovered.error();
     }
     return result;

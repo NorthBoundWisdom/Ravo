@@ -64,8 +64,8 @@ ImportRequest StudioPresenter::plannedImportRequest() const
     request.recursive = false;
     request.defer_previews = true;
     request.skip_existing = true;
-    request.expected_catalog_revision =
-        import_workspace_->scan ? import_workspace_->scan->catalogRevision() : std::nullopt;
+    // Selected paths/hashes and destination conflicts are revalidated by the
+    // import service. A photo edit while this worker runs is not an import conflict.
     request.expected_content_hashes = import_candidates_.selectedContentHashes();
     request.cancellation = import_operation_.token();
     return request;

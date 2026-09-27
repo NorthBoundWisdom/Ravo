@@ -67,7 +67,7 @@ TEST(LocalAdjustmentWorkspaceTest, DrawAdjustDoneAndReopenKeepGlobalAndLocalSepa
         ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
         presenter.setDevelopNumber(QStringLiteral("exposure"), -0.65);
         ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
-        EXPECT_DOUBLE_EQ(presenter.editExposure(), -0.65);
+        EXPECT_DOUBLE_EQ(presenter.editExposure(), -0.65) << presenter.errorText().toStdString();
         ASSERT_TRUE(commands.applyLocalAdjustment(QStringLiteral("done"), {}));
         ASSERT_TRUE(
             wait_until([&] { return !presenter.localEditing() && !presenter.previewLoading(); }));

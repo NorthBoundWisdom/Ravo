@@ -6,6 +6,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -59,6 +60,10 @@ struct RecipeSaveOptions
     // When set, recipe/develop saves reject stale catalog revisions so instance
     // mutations cannot land against a superseded catalog head (COR-01).
     std::optional<std::int64_t> expected_revision;
+    // Interactive edits compare the observed photo, not unrelated catalog insertions.
+    std::optional<DevelopParams> expected_base;
+    std::optional<AssetDescriptor> expected_source;
+    std::optional<std::int64_t> expected_history_head;
 };
 
 struct RecipeSaveResult
@@ -66,6 +71,7 @@ struct RecipeSaveResult
     AssetRecord asset;
     std::int64_t revision = 0;
     std::optional<std::int64_t> history_id;
+    std::int64_t history_head = 0;
 };
 
 struct DevelopApplyRequest
@@ -139,9 +145,13 @@ restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_veri
 class CatalogService
 {
 public:
+    // Each service and its Engine/repository/decoder stay on one owner thread.
+    // Concurrent services for one catalog share a synchronized cache and the
+    // same recovery-publication mutex; the service itself is not thread-safe.
     CatalogService(const EngineFacade &engine, std::unique_ptr<CatalogRepository> repository,
-                   std::unique_ptr<RasterDecoder> raster, std::unique_ptr<PreviewCache> cache,
-                   std::unique_ptr<RecoveryStore> recovery);
+                   std::unique_ptr<RasterDecoder> raster, std::shared_ptr<PreviewCache> cache,
+                   std::unique_ptr<RecoveryStore> recovery,
+                   std::shared_ptr<std::mutex> recovery_publication_mutex = {});
 
     CatalogService(const CatalogService &) = delete;
     CatalogService &operator=(const CatalogService &) = delete;
@@ -498,6 +508,12 @@ public:
     Result<void> close();
 
 private:
+    [[nodiscard]] Result<ImportScanResult> scan_import_candidates_impl(
+        const std::vector<std::string> &inputs, std::string_view source_root, bool recursive,
+        const CancellationToken &cancellation,
+        const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress,
+        const std::function<void(const std::vector<std::string> &)> &enumerated,
+        bool require_stable_revision);
     [[nodiscard]] Result<ImportBatchResult> execute_import_impl(
         const ImportRequest &request,
         const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
@@ -559,18 +575,24 @@ private:
 
     [[nodiscard]] Result<PreviewResult>
     generate_preview(const AssetRecord &asset, const PreviewRequest &request,
-                     const std::optional<DevelopParams> &live_develop);
+                     const std::optional<DevelopParams> &live_develop,
+                     std::int64_t expected_generation);
+    [[nodiscard]] Result<void>
+    require_preview_generation(std::string_view asset_id,
+                               std::optional<std::int64_t> generation) const;
     [[nodiscard]] Result<PreviewResult> generate_roi_preview(const AssetRecord &asset,
                                                              const PreviewRequest &request,
                                                              const Recipe &recipe,
                                                              std::string_view path);
     [[nodiscard]] Result<PreviewResult>
     persist_embedded_browse_preview(const AssetRecord &asset, const EmbeddedPreview &embedded,
-                                    std::uint32_t max_edge, const CancellationToken &cancellation);
+                                    std::uint32_t max_edge, const CancellationToken &cancellation,
+                                    std::optional<std::int64_t> expected_generation = {});
     [[nodiscard]] Result<PreviewResult>
     persist_companion_jpeg_browse_preview(const AssetRecord &asset, std::string_view jpeg_path,
                                           std::uint32_t max_edge,
-                                          const CancellationToken &cancellation);
+                                          const CancellationToken &cancellation,
+                                          std::optional<std::int64_t> expected_generation = {});
     [[nodiscard]] Result<RasterBuffer>
     decode_preview_source(const AssetRecord &asset, std::string_view path, std::uint32_t max_edge,
                           const CancellationToken &cancellation, PreviewLane lane);
@@ -601,8 +623,9 @@ private:
     const EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;
     std::unique_ptr<RasterDecoder> raster_;
-    std::unique_ptr<PreviewCache> cache_;
+    std::shared_ptr<PreviewCache> cache_;
     std::unique_ptr<RecoveryStore> recovery_;
+    std::shared_ptr<std::mutex> recovery_publication_mutex_;
     // Foreground Develop and background Gallery work have independent bounded
     // decode/working ownership. A thumbnail must never evict the selected
     // photo's interactive or settled scene-linear buffers.

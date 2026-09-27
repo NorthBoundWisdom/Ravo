@@ -18,10 +18,10 @@ namespace ravo
 //   thumbnails            — decode executor/engine/pending (own SerialExecutor)
 //   destination_preview   — debounce timer/generation/key/published folders
 //   ImportCandidateListModel — remains on Presenter (Q_PROPERTY model owner)
-//   CatalogService/engine — Presenter catalog executor; controllers borrow via Host
+//   CatalogService/engine — StudioImportWorker executor; controllers borrow via Host
 //
 // Shutdown order: destination_preview.shutdown → thumbnails.shutdown → scan.abandon
-// before catalog executor stop. Async receivers are Presenter (UI) unless noted.
+// before import executor stop. Async receivers are Presenter (UI) unless noted.
 struct StudioImportWorkspace
 {
     ImportDraft draft;

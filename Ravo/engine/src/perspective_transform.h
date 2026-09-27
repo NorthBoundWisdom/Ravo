@@ -24,8 +24,14 @@ struct PerspectiveRect
     double right = 0.0;
     double bottom = 0.0;
 
-    [[nodiscard]] double width() const noexcept { return right - left; }
-    [[nodiscard]] double height() const noexcept { return bottom - top; }
+    [[nodiscard]] double width() const noexcept
+    {
+        return right - left;
+    }
+    [[nodiscard]] double height() const noexcept
+    {
+        return bottom - top;
+    }
     [[nodiscard]] bool operator==(const PerspectiveRect &) const noexcept = default;
 };
 
@@ -43,16 +49,19 @@ struct PerspectiveLayout
     std::uint32_t output_top = 0U;
 };
 
-[[nodiscard]] Result<PerspectiveLayout>
-compute_perspective_layout(std::uint32_t width, std::uint32_t height,
-                           const PerspectiveParams &params);
-[[nodiscard]] Result<LinearWorkingBuffer>
-apply_perspective(const LinearWorkingBuffer &input, const PerspectiveParams &params,
-                  const CancellationToken &cancellation);
+[[nodiscard]] Result<PerspectiveLayout> compute_perspective_layout(std::uint32_t width,
+                                                                   std::uint32_t height,
+                                                                   const PerspectiveParams &params);
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+perspective_source_coverage(std::uint32_t width, std::uint32_t height,
+                            const PerspectiveLayout &layout, const CancellationToken &cancellation);
+[[nodiscard]] Result<LinearWorkingBuffer> apply_perspective(const LinearWorkingBuffer &input,
+                                                            const PerspectiveParams &params,
+                                                            const CancellationToken &cancellation);
 [[nodiscard]] Result<PerspectiveAnalysis>
 fit_perspective_guides(std::uint32_t width, std::uint32_t height,
-                       const std::vector<PerspectiveGuideLine> &lines,
-                       PerspectiveAnalysisMode mode, const CancellationToken &cancellation);
+                       const std::vector<PerspectiveGuideLine> &lines, PerspectiveAnalysisMode mode,
+                       const CancellationToken &cancellation);
 [[nodiscard]] Result<PerspectiveAnalysis>
 analyze_perspective_raster(const RasterBuffer &raster, PerspectiveAnalysisMode mode,
                            const CancellationToken &cancellation);

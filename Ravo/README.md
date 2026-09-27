@@ -78,6 +78,14 @@ Current implementation status:
   least-recently-used rebuildable PNG deterministically across reopen
   (ADR-0047/0067).
 - Studio import opens a source / photo grid / scrollable destination workspace.
+  Scan, preflight, transfer and deferred previews have an independent worker,
+  so foreground photo loading and editing can proceed during import. Photo edits
+  reject changes to the same recipe/source without treating unrelated imports
+  as stale edits. Rotation dragging renders live previews before release commits
+  the final angle, including inside the crop tool.
+  Crop rotation shows the full transformed source at a fixed scale; the crop
+  frame maps to the saved output coordinates, without repeatedly zooming the
+  automatically cropped image.
   Copy is selected on every entry. Catalog URI and exact SHA-256 content matches
   remain in the grid as dimmed, disabled photos with thumbnails; they cannot be
   selected or checked for import. Same-content files within a scan make only the
@@ -85,8 +93,8 @@ Current implementation status:
   Folder enumeration publishes the complete named placeholder list before
   content/metadata checks. Visible thumbnails load one at a time in grid order
   on an independent worker with a bounded pixel cache; loading them does not
-  block scanning or import. Import still requires completed duplicate checks
-  and revision/hash preflight. Command/Control+A highlights all eligible import
+  block scanning or import. Import becomes available after enumeration; the service
+  revalidates duplicates and source hashes during preflight. Command/Control+A highlights all eligible import
   photos even when the folder tree has focus, while text fields retain native
   text selection.
   The destination rail holds equally sized Copy/Add/Move segments (Move stays
