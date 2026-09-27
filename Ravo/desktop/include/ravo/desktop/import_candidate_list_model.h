@@ -58,6 +58,7 @@ public:
     void applyScanBatch(int first, std::vector<ImportCandidate> candidates);
     void finishThumbnail(int row, QImage image, std::optional<TaskError> error = {});
     void setThumbnail(int row, QImage image);
+    void protectThumbnailRows(std::set<int> rows);
     void setThumbnailLoading(int row, bool loading);
     [[nodiscard]] QImage thumbnail(int row) const;
     [[nodiscard]] QString sourcePath(int row) const;
@@ -117,6 +118,7 @@ private:
     std::vector<Row> rows_;
     std::deque<int> thumbnail_rows_;
     std::set<int> highlighted_rows_;
+    std::set<int> protected_thumbnail_rows_;
     bool select_new_candidates_ = true;
     std::uint64_t generation_ = 0;
     int selected_count_ = 0;

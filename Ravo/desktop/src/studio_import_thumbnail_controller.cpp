@@ -358,6 +358,13 @@ void StudioImportThumbnailController::setViewportDemand(const std::vector<int> &
     visible_demand_ = std::move(next_visible);
     prefetch_demand_ = std::move(next_prefetch);
     current_row_ = current_row;
+    if (host_.model)
+    {
+        auto protected_rows = visible_demand_;
+        if (current_row_ >= 0)
+            protected_rows.insert(current_row_);
+        host_.model->protectThumbnailRows(std::move(protected_rows));
+    }
     // Replace pending with current demand only (drop scrolled-away rows). Keep an
     // in-flight row that remains in demand from being double-counted as pending.
     if (host_.model)
@@ -466,6 +473,13 @@ void StudioImportThumbnailController::trimPendingToCap()
     }
 }
 
+void StudioImportThumbnailController::startBackgroundPass()
+{
+    background_cursor_ = 0;
+    completed_source_rows_.clear();
+    scheduleKick();
+}
+
 void StudioImportThumbnailController::kick()
 {
     kick_scheduled_ = false;
@@ -525,6 +539,18 @@ void StudioImportThumbnailController::kick()
         start(row);
         return;
     }
+    if (!host_.model || visible_demand_.empty() || physical_outstanding_ > 0)
+        return;
+    while (background_cursor_ >= 0 && background_cursor_ < host_.model->rowCount())
+    {
+        const int row = background_cursor_++;
+        if (completed_source_rows_.contains(row) || !host_.model->thumbnail(row).isNull() ||
+            hasDemandTerminal(row))
+            continue;
+        host_.model->setThumbnailLoading(row, true);
+        start(row, true);
+        return;
+    }
 }
 
 void StudioImportThumbnailController::clearPending()
@@ -539,6 +565,10 @@ void StudioImportThumbnailController::clearPending()
 
 void StudioImportThumbnailController::resetSourceSession()
 {
+    background_cursor_ = -1;
+    completed_source_rows_.clear();
+    if (host_.model)
+        host_.model->protectThumbnailRows({});
     clearPending();
     clearDemandTerminals();
     visible_demand_.clear();
@@ -673,10 +703,11 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
     else
     {
         host_.model->finishThumbnail(identity.row, std::move(image), std::move(error));
-        if (error.has_value())
-            markDemandTerminal(identity.row, DemandTerminal::kFailed);
-        else
-            markDemandTerminal(identity.row, DemandTerminal::kSatisfied);
+        completed_source_rows_.insert(identity.row);
+        // Offscreen completion must not consume the viewport decode budget.
+        if (!identity.background)
+            markDemandTerminal(identity.row, error.has_value() ? DemandTerminal::kFailed :
+                                                               DemandTerminal::kSatisfied);
         record(ObservationEvent{ObservationEvent::Kind::kCompleted, identity, {}, {}});
     }
     if (terminal_without_retry)
@@ -688,7 +719,7 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
     scheduleKick();
 }
 
-void StudioImportThumbnailController::start(const int row)
+void StudioImportThumbnailController::start(const int row, const bool background)
 {
     if (stopped_ || !host_.model)
         return;
@@ -705,6 +736,7 @@ void StudioImportThumbnailController::start(const int row)
         return;
     }
     RequestIdentity identity;
+    identity.background = background;
     identity.row = row;
     identity.model_generation = host_.model->generation();
     identity.scan_generation = host_.scan_generation ? host_.scan_generation() : 0U;

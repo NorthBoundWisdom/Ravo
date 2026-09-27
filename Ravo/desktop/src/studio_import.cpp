@@ -201,7 +201,6 @@ bool StudioPresenter::importReady() const
     const bool native = import_ingest_transport_ == QLatin1String("ptp-usb") ||
                         import_ingest_transport_ == QLatin1String("mtp");
     return import_page_open_ && !native &&
-           !(import_workspace_->scan && import_workspace_->scan->active()) &&
            !import_preflight_active_ && !import_work_active_ && import_workspace_->scan &&
            import_workspace_->scan->catalogRevision().has_value() &&
            import_candidates_.selectedCount() > 0 &&
@@ -242,7 +241,7 @@ void StudioPresenter::validateImportDestination()
     emit importPageChanged();
     if (path.isEmpty())
         return;
-    executor_.post(
+    filesystem_executor_.post(
         [this, path]()
         {
             const QFileInfo directory(path);
@@ -348,13 +347,15 @@ void StudioPresenter::openImportPage()
 
 void StudioPresenter::closeImportPage()
 {
-    if (import_work_active_)
+    if (import_work_active_ && !import_preflight_active_)
         return;
     static_cast<void>(import_operation_.cancel("import_page_closed"));
     if (import_workspace_->thumbnails)
         import_workspace_->thumbnails->cancel("import_page_closed");
     if (import_workspace_->scan)
         import_workspace_->scan->abandon("import_page_closed");
+    if (import_preflight_active_)
+        setImportWork(0, 0, false);
     import_preflight_active_ = false;
     import_page_open_ = false;
     import_context_row_ = -1;
@@ -637,7 +638,7 @@ void StudioPresenter::publishImportItem(const ImportItemResult &item, const int 
 void StudioPresenter::startPlannedImport()
 {
     const QStringList selected = import_candidates_.selectedPaths();
-    if (!import_page_open_ || (import_workspace_->scan && import_workspace_->scan->active()) ||
+    if (!import_page_open_ ||
         import_work_active_ || import_preflight_active_ || selected.isEmpty())
         return;
     if (!(import_workspace_->scan && import_workspace_->scan->catalogRevision()))
@@ -677,8 +678,23 @@ void StudioPresenter::startPlannedImport()
     }
 
     ImportRequest request = plannedImportRequest();
+    // Enumeration supplies stable candidate identities. Stop optional classification
+    // before queueing preflight; preflight/import still recheck duplicates and hashes.
+    import_workspace_->scan->bumpGeneration("import_preflight_started");
+    import_workspace_->scan->finish();
     const auto generation = import_workspace_->scan ? import_workspace_->scan->generation() : 0U;
     import_preflight_active_ = true;
+    import_page_open_ = false;
+    import_context_row_ = -1;
+    import_context_path_.clear();
+    if (import_workspace_->thumbnails)
+    {
+        import_workspace_->thumbnails->cancel("import_preflight_started");
+        import_workspace_->thumbnails->clearPending();
+    }
+    setImportWork(0, static_cast<int>(request.inputs.size()), true);
+    setBrowseMode(QStringLiteral("grid"));
+    setStatus(QCoreApplication::translate("ImportPage", "Checking destination…"));
     setError({});
     emit importPageChanged();
     executor_.post(
@@ -691,15 +707,21 @@ void StudioPresenter::startPlannedImport()
                 this,
                 [this, generation, ready = std::move(ready), request = std::move(request)]() mutable
                 {
-                    if (!import_workspace_->scan->matches(generation) || !import_page_open_)
+                    if (!import_workspace_->scan->matches(generation) || !import_preflight_active_)
                         return;
                     import_preflight_active_ = false;
                     emit importPageChanged();
+                    if (auto active = request.cancellation.check(); !active)
+                        ready = active.error();
                     if (!ready)
                     {
-                        setError(qstring_from_utf8(ready.error().message));
-                        if (import_workspace_->thumbnails)
-                            import_workspace_->thumbnails->kick();
+                        setImportWork(0, 0, false);
+                        setError(ready.error().code == ErrorCode::kCancelled ? QString{} :
+                                 qstring_from_utf8(ready.error().message));
+                        setStatus(ready.error().code == ErrorCode::kCancelled ?
+                            QCoreApplication::translate("StudioPresenter", "Import cancelled after %1 of %2 photos.")
+                                .arg(0).arg(request.inputs.size()) :
+                            QCoreApplication::translate("StudioPresenter", "Import failed."));
                         return;
                     }
                     beginPlannedImport(std::move(request));

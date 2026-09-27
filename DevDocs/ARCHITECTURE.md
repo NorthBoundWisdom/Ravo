@@ -210,19 +210,21 @@ support and duplicates in batches; failed/duplicate rows become disabled without
 resetting intervening user check intent. A separate presenter-owned serial
 thumbnail worker owns its own Engine and raster adapter, never the catalog or
 its Engine. It invokes the same catalog-independent service decode used by CLI/
-Catalog browse, processes demanded rows in ascending grid order, and publishes
-one owned result at a time. Pending row IDs are bounded by the input limit and
-are not dropped at 64; at most 256 decoded workspace images are retained, with
-viewport re-demand after eviction. Selection totals are cached, and scan updates
+Catalog browse, prioritizes current/visible rows and prefetch before a one-pass
+background sweep, and publishes one owned result at a time. Pending demand is
+bounded to 256 rows plus one running decode; at most 256 decoded workspace images
+are retained, with visible rows protected and viewport re-demand after eviction.
+Selection totals are cached, and scan updates
 publish one model notification per batch rather than per-row full-list recounts.
 Scan/thumbnail failures stay distinct: thumbnail errors stop that row's spinner
 and remain visible but do not decide import eligibility. Import requires completed
-classification and revision/hash preflight, never completed workspace thumbnails.
+enumeration; remaining classification and thumbnails do not gate the button.
+The import service still performs revision/hash and duplicate preflight.
 Source replacement, page close and import start cancel thumbnail work; generation
 and source identity reject late completions. Window destruction cancels and joins
 the worker and destroys its Engine on that worker. Catalog import still runs on
-its original serial owner. Clicking Import publishes named Gallery
-placeholders immediately; each cataloged photo then fills that cell, and
+its original serial owner. Clicking Import immediately enters Gallery; successful
+preflight publishes named placeholders, each cataloged photo fills its cell, and
 viewport demand loads a browse thumbnail so the user can inspect while later
 items and selected previews continue.
 
@@ -264,6 +266,23 @@ Copy/reveal reuse registered commands but resolve that candidate, including a
 duplicate, rather than the preserved Gallery selection. Copy emits
 `ravo.debug.import-photo 1` with candidate identity, size and duplicate state.
 Catalog review/edit/export/delete commands stay unavailable in Import.
+
+Import becomes actionable after source enumeration publishes candidate identities
+and the observed catalog revision; neither thumbnail completion nor the remaining
+background duplicate classification gates the button. Starting import cancels
+classification and rejects its late results before preflight, while the shared
+import service still checks duplicates, known source hashes and catalog conflicts.
+The accepted click immediately switches to Gallery and publishes active import
+progress before posting preflight. Gallery's cancel action cancels that preflight;
+failure or cancellation clears the active state there without publishing assets.
+Named import placeholders appear only after successful preflight. A cancellation
+arriving after worker completion is rechecked before the UI starts the import.
+Destination availability checks use the filesystem executor independently of the
+catalog scan queue. Candidate thumbnail work first satisfies viewport/current
+demand, then performs one background pass through the remaining rows. The bounded
+pixel cache preferentially retains visible rows; completed offscreen rows are not
+repeatedly decoded after eviction. Source replacement, page close and import start
+cancel this work through the existing thumbnail owner.
 
 Library filtering is a value boundary, not UI-built SQL. `LibraryQuery` owns
 validated review, folder/tag, text/media/edit, camera/capture/numeric ranges

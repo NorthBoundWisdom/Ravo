@@ -182,9 +182,12 @@ void StudioImportScanController::startRescan()
                     return make_error(ErrorCode::kIo,
                                       "Import source folder is unavailable: " + root,
                                       {{"reason", "import_source_unavailable"}});
+                const auto snapshot = service->snapshot();
+                if (!snapshot)
+                    return snapshot.error();
                 return service->import().scan_import_candidates(
                     {root}, root, recursive, token, publish,
-                    [self, root, generation](const std::vector<std::string> &paths)
+                    [self, root, generation, revision = snapshot.value().revision](const std::vector<std::string> &paths)
                     {
                         std::vector<ImportCandidate> placeholders;
                         placeholders.reserve(paths.size());
@@ -194,7 +197,7 @@ void StudioImportScanController::startRescan()
                             return;
                         QMetaObject::invokeMethod(
                             self->host_.callback_receiver,
-                            [self, generation, placeholders = std::move(placeholders)]() mutable
+                            [self, generation, revision, placeholders = std::move(placeholders)]() mutable
                             {
                                 if (!self || !self->matches(generation))
                                     return;
@@ -205,6 +208,9 @@ void StudioImportScanController::startRescan()
                                     return;
                                 self->setTotal(static_cast<int>(placeholders.size()));
                                 model->setCandidates(std::move(placeholders), true);
+                                self->setCatalogRevision(revision);
+                                if (self->host_.candidates_enumerated)
+                                    self->host_.candidates_enumerated();
                                 if (self->host_.emit_page_changed)
                                     self->host_.emit_page_changed();
                             },

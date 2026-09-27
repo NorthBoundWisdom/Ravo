@@ -38,6 +38,7 @@ public:
         std::function<void(QString)> set_error;
         std::function<void()> prepare_thumbnails_for_rescan; // cancel/reset/resetSourceSession
         std::function<void()> clear_preflight_active;
+        std::function<void()> candidates_enumerated;
     };
 
     explicit StudioImportScanController(Host host, QObject *parent = nullptr);

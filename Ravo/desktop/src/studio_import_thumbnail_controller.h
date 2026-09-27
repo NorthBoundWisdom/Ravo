@@ -58,6 +58,7 @@ public:
         std::uint64_t scan_generation = 0;
         std::uint64_t demand_generation = 0;
         QString source_path;
+        bool background = false;
     };
 
     struct ObservationEvent
@@ -105,6 +106,7 @@ public:
     void setViewportDemand(const std::vector<int> &visible_rows, int prefetch_rows = 2,
                            int current_row = -1);
     void kick();
+    void startBackgroundPass();
     void clearPending();
     // UI-thread source/model session boundary: drop pending, terminals, demand sets, and the
     // in-flight admission latch so a Presenter ensure path can rebuild after rescan/reopen
@@ -211,7 +213,9 @@ public:
 
 private:
     void scheduleKick();
-    void start(int row);
+    void start(int row, bool background = false);
+    int background_cursor_ = -1;
+    std::set<int> completed_source_rows_;
     void trimPendingToCap();
     void replenishPendingFromDemand();
     void clearDemandTerminals();

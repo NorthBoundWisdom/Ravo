@@ -91,7 +91,7 @@ reopen and cross-catalog restart, unavailable source errors, invalid source
 preferences and failed-write preservation, successful destination persistence,
 restart/cross-catalog restore, unavailable
 destinations, settings-write failures that preserve committed photos and the
-prior destination, conflict-before-Gallery, asynchronous ancestor reveal,
+prior destination, conflict-before-import with Gallery error feedback, asynchronous ancestor reveal,
 superseded reveal cancellation, and visible directory-listing errors. Folder
 contracts cover Home roots in both panels, activation/expansion, pending-list
 deduplication, external picker paths, and repeated destination selection without
@@ -1604,6 +1604,17 @@ separately from thumbnail completion. It skips without explicit inputs and
 must never be pointed at the user's live catalog.
 
 ## Studio command workspace (Import)
+
+Import readiness is tested with duplicate classification active, all thumbnail
+work blocked and unknown candidate hashes. Copy destination validation must
+complete while the catalog executor is blocked; final import still validates the
+source. With the catalog executor blocked, tests require Gallery visibility and cancellable import state
+immediately after the click. Cancellation, source disappearance and destination
+conflict must release busy state without importing or remembering a failed draft.
+The 300-candidate thumbnail scheduler regression asserts viewport-first dispatch,
+finite one-pass offscreen work, cache limits and
+visible-pixel residency. Tests requiring final duplicate classification explicitly
+wait for scan completion rather than using button readiness as a scan oracle.
 
 Live Studio interactive commands share one C++ workspace policy
 (`active_command_workspace` / `command_workspace_support`). While Import is

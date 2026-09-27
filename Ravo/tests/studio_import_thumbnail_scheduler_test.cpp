@@ -41,6 +41,39 @@ bool wait_for(const std::function<bool()> &pred, int timeout_ms = 5000)
 }
 } // namespace
 
+TEST(StudioImportThumbnailScheduler, BackgroundPassFollowsViewportAndKeepsVisiblePixelsResident)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto path = directory.filePath("photo.png");
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.fill(Qt::green);
+    ASSERT_TRUE(image.save(path));
+    ImportCandidateListModel model;
+    std::vector<ImportCandidate> candidates(300);
+    for (auto &candidate : candidates)
+        candidate.source_path = path.toStdString();
+    model.setCandidates(std::move(candidates));
+    StudioImportThumbnailController controller(make_host(&model));
+    std::vector<StudioImportThumbnailController::ObservationEvent> trail;
+    controller.setObservationSink(&trail);
+    controller.startBackgroundPass();
+    controller.setViewportDemand({298, 299}, 0, 298);
+    ASSERT_TRUE(wait_for([&] { return controller.completedRows().size() == 300 &&
+                                    controller.demandQuiescent(); }, 30000));
+    const auto dispatched = controller.dispatchedRows();
+    ASSERT_EQ(dispatched.size(), 300U);
+    EXPECT_EQ(dispatched[0], 298);
+    EXPECT_EQ(dispatched[1], 299);
+    EXPECT_EQ(dispatched[2], 0);
+    EXPECT_FALSE(model.thumbnail(298).isNull());
+    EXPECT_FALSE(model.thumbnail(299).isNull());
+    EXPECT_LE(controller.pendingHighWater(), controller.pendingHardCap());
+    QCoreApplication::processEvents();
+    EXPECT_EQ(controller.dispatchedRows().size(), 300U);
+}
+
 TEST(StudioImportThumbnailScheduler, ViewportDemandCapsPendingAndPrefersNewViewport)
 {
     ensure_qt_core();

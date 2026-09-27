@@ -206,6 +206,11 @@ StudioPresenter::StudioPresenter(QObject *parent)
                 }
             },
             [this] { import_preflight_active_ = false; },
+            [this]
+            {
+                if (import_workspace_->thumbnails)
+                    import_workspace_->thumbnails->startBackgroundPass();
+            },
         },
         this);
     import_workspace_->thumbnails = std::make_unique<StudioImportThumbnailController>(

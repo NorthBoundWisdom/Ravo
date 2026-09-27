@@ -181,6 +181,7 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
         select_new_candidates_ = true;
     rows_.clear();
     thumbnail_rows_.clear();
+    protected_thumbnail_rows_.clear();
     thumbnail_bytes_ = 0;
     highlighted_rows_.clear();
     rows_.reserve(candidates.size());
@@ -224,7 +225,7 @@ ImportCandidateListModel::selectedContentHashes() const
 {
     std::vector<std::pair<std::string, std::string>> hashes;
     for (const auto &row : rows_)
-        if (row.selected)
+        if (row.selected && !row.candidate.content_sha256.empty())
             hashes.emplace_back(row.candidate.source_path, row.candidate.content_sha256);
     return hashes;
 }
@@ -310,8 +311,12 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
     // Metadata may describe 100,000 candidates; owned thumbnail pixels may not.
     auto evict_front = [&]
     {
-        const int evicted = thumbnail_rows_.front();
-        thumbnail_rows_.pop_front();
+        auto victim = std::find_if(thumbnail_rows_.begin(), thumbnail_rows_.end(),
+            [this](int row) { return !protected_thumbnail_rows_.contains(row); });
+        if (victim == thumbnail_rows_.end())
+            victim = thumbnail_rows_.begin();
+        const int evicted = *victim;
+        thumbnail_rows_.erase(victim);
         auto &old = rows_[static_cast<std::size_t>(evicted)];
         if (!old.thumbnail.isNull())
             thumbnail_bytes_ -= static_cast<qulonglong>(old.thumbnail.sizeInBytes());
@@ -330,6 +335,11 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
         evict_front();
     ++entry.thumbnail_revision;
     emit dataChanged(index(row, 0), index(row, 0), {ThumbnailUrlRole});
+}
+
+void ImportCandidateListModel::protectThumbnailRows(std::set<int> rows)
+{
+    protected_thumbnail_rows_ = std::move(rows);
 }
 
 void ImportCandidateListModel::applyScanBatch(const int first,
