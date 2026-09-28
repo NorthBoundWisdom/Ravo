@@ -68,6 +68,173 @@ namespace
 {
 using namespace studio_test_support;
 
+TEST(StudioCommands, LightroomCommonShortcutsRouteAndRespectFocus)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("shortcuts.png"));
+    QImage image(64, 48, QImage::Format_RGB888);
+    image.fill(QColor(80, 120, 160));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString second_photo = directory.filePath(QStringLiteral("shortcuts-second.png"));
+    image.fill(QColor(160, 120, 80));
+    ASSERT_TRUE(image.save(second_photo, "PNG"));
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.importFilePaths({photo, second_photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.selectedAssetId().isEmpty() && !presenter.busy() &&
+                   !presenter.importWorkActive() && !presenter.previewLoading();
+        }));
+    const auto entry_for = [&](const QString &sequence)
+    {
+        QVariantMap result;
+        int count = 0;
+        for (const auto &value : controller.shortcutEntries())
+        {
+            const auto entry = value.toMap();
+            if (entry.value(QStringLiteral("sequence")).toString() == sequence)
+            {
+                result = entry;
+                ++count;
+            }
+        }
+        EXPECT_EQ(count, 1) << sequence.toStdString();
+        return result;
+    };
+    const auto press = [&](const QString &sequence)
+    {
+        const auto entry = entry_for(sequence);
+        EXPECT_TRUE(entry.value(QStringLiteral("enabled")).toBool());
+        EXPECT_TRUE(controller
+                        .executeAction(entry.value(QStringLiteral("actionId")).toString(),
+                                       QStringLiteral("keyboard"))
+                        .value(QStringLiteral("accepted"))
+                        .toBool());
+    };
+    press(QStringLiteral("G"));
+    EXPECT_EQ(presenter.browseMode(), QStringLiteral("grid"));
+    press(QStringLiteral("E"));
+    EXPECT_EQ(presenter.browseMode(), QStringLiteral("loupe"));
+    presenter.setZoomMode(QStringLiteral("fit"));
+    press(QStringLiteral("Z"));
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("actual"));
+    press(QStringLiteral("Z"));
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
+    press(QStringLiteral("G"));
+    press(QStringLiteral("Space"));
+    EXPECT_EQ(presenter.browseMode(), QStringLiteral("loupe"));
+    press(QStringLiteral("D"));
+    EXPECT_EQ(presenter.browseMode(), QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && !presenter.busy(); }));
+    press(QStringLiteral("R"));
+    EXPECT_TRUE(presenter.cropToolActive());
+    press(QStringLiteral("E"));
+    EXPECT_FALSE(presenter.cropToolActive());
+    EXPECT_EQ(presenter.browseMode(), QStringLiteral("loupe"));
+    const QString first_id = presenter.assets()->assetIdAt(0);
+    const QString second_id = presenter.assets()->assetIdAt(1);
+    presenter.selectAsset(first_id);
+    for (int rating : {1, 2, 3, 4, 5, 0})
+    {
+        press(QString::number(rating));
+        ASSERT_TRUE(wait_until([&] { return presenter.selectedRating() == rating; }));
+        EXPECT_EQ(presenter.selectedAssetId(), first_id);
+    }
+    const QStringList colors{QStringLiteral("red"), QStringLiteral("yellow"),
+                             QStringLiteral("green"), QStringLiteral("blue")};
+    for (int index = 0; index < colors.size(); ++index)
+    {
+        press(QString::number(index + 6));
+        ASSERT_TRUE(wait_until([&] { return presenter.selectedColorLabel() == colors[index]; }));
+        EXPECT_EQ(presenter.selectedColorLabel(), colors[index]);
+        EXPECT_EQ(presenter.selectedAssetId(), first_id);
+    }
+    press(QStringLiteral("Right"));
+    EXPECT_EQ(presenter.selectedAssetId(), second_id);
+    press(QStringLiteral("Left"));
+    EXPECT_EQ(presenter.selectedAssetId(), first_id);
+    press(QStringLiteral("P"));
+    ASSERT_TRUE(wait_until([&] { return presenter.selectedPicked(); }));
+    int selection_changes = 0;
+    const auto selection_connection = QObject::connect(
+        &presenter, &StudioPresenter::selectionChanged, &presenter, [&] { ++selection_changes; });
+    press(QStringLiteral("P"));
+    ASSERT_TRUE(wait_until([&] { return selection_changes > 0; }));
+    QObject::disconnect(selection_connection);
+    EXPECT_TRUE(presenter.selectedPicked());
+    press(QStringLiteral("Shift+5"));
+    ASSERT_TRUE(wait_until([&] { return presenter.selectedAssetId() == second_id; }));
+    presenter.selectAsset(first_id);
+    EXPECT_TRUE(presenter.selectedPicked());
+    EXPECT_EQ(presenter.selectedRating(), 5);
+    for (const auto &key : {QStringLiteral("Shift+6"), QStringLiteral("Shift+X"),
+                            QStringLiteral("Shift+P"), QStringLiteral("Shift+U")})
+    {
+        press(key);
+        ASSERT_TRUE(wait_until([&] { return presenter.selectedAssetId() == second_id; }));
+        presenter.selectAsset(first_id);
+        if (key == QLatin1String("Shift+6"))
+            EXPECT_EQ(presenter.selectedColorLabel(), QStringLiteral("red"));
+        else if (key == QLatin1String("Shift+X"))
+            EXPECT_TRUE(presenter.selectedRejected());
+        else if (key == QLatin1String("Shift+P"))
+            EXPECT_TRUE(presenter.selectedPicked());
+        else
+        {
+            EXPECT_FALSE(presenter.selectedPicked());
+            EXPECT_FALSE(presenter.selectedRejected());
+        }
+    }
+    for (const auto &id :
+         {QStringLiteral("studio.photo.set_rating"), QStringLiteral("studio.photo.set_color")})
+    {
+        const auto rejected = controller.executeCommand(
+            id,
+            QVariantMap{{QStringLiteral("value"), 5},
+                        {QStringLiteral("advance"), QStringLiteral("yes")}},
+            QStringLiteral("keyboard"));
+        EXPECT_FALSE(rejected.value(QStringLiteral("accepted")).toBool());
+        EXPECT_EQ(rejected.value(QStringLiteral("code")).toString(),
+                  QStringLiteral("invalid_argument"));
+        EXPECT_EQ(presenter.selectedAssetId(), first_id);
+    }
+    const QStringList photo_keys{
+        QStringLiteral("G"),       QStringLiteral("E"),       QStringLiteral("D"),
+        QStringLiteral("R"),       QStringLiteral("Z"),       QStringLiteral("Space"),
+        QStringLiteral("Left"),    QStringLiteral("Right"),   QStringLiteral("0"),
+        QStringLiteral("1"),       QStringLiteral("2"),       QStringLiteral("3"),
+        QStringLiteral("4"),       QStringLiteral("5"),       QStringLiteral("6"),
+        QStringLiteral("7"),       QStringLiteral("8"),       QStringLiteral("9"),
+        QStringLiteral("Shift+5"), QStringLiteral("Shift+9"), QStringLiteral("Shift+P"),
+        QStringLiteral("Shift+X"), QStringLiteral("Shift+U")};
+    controller.setTextInputActive(true);
+    for (const auto &key : photo_keys)
+        EXPECT_FALSE(entry_for(key).value(QStringLiteral("enabled")).toBool());
+    controller.setTextInputActive(false);
+    controller.setModalOpen(true);
+    for (const auto &key : photo_keys)
+        EXPECT_FALSE(entry_for(key).value(QStringLiteral("enabled")).toBool());
+    controller.setModalOpen(false);
+    controller.setPaletteOpen(true);
+    for (const auto &key : photo_keys)
+        EXPECT_FALSE(entry_for(key).value(QStringLiteral("enabled")).toBool());
+    controller.setPaletteOpen(false);
+    EXPECT_TRUE(entry_for(QStringLiteral("E")).value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(
+        entry_for(QStringLiteral("Ctrl+Shift+V")).value(QStringLiteral("actionId")).toString(),
+        QStringLiteral("studio.edit.paste_parameters"));
+    EXPECT_EQ(
+        entry_for(QStringLiteral("Ctrl+Shift+I")).value(QStringLiteral("actionId")).toString(),
+        QStringLiteral("studio.library.import_files"));
+}
+
 TEST(PreviewRequestOwnerTest, SupersededWorkIsCancelledAndLateResultsAreRejected)
 {
     PreviewRequestOwner owner;

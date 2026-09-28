@@ -203,6 +203,25 @@ Current implementation status:
   a visible reason. The photo context menu copies versioned English identity
   and current canonical-parameter blocks without assembling recipe text in QML,
   and reveals the selected original in Finder, Explorer, or the file manager.
+- Common photo shortcuts follow Lightroom Classic: `G` grid, `E` loupe,
+  `D` Develop, `R` crop, `Left`/`Right` previous/next, `0` clear rating,
+  `1`–`5` stars, `6`–`9` red/yellow/green/blue labels, and `P`/`X`/`U`
+  pick/reject/unflag. These review keys keep the current photo; Shift plus
+  `0`–`9`, `P`, `X`, or `U` applies the review and advances after success.
+  Repeated keyboard P/X sets the flag rather than toggling it off.
+  E leaves cropping for loupe; Enter confirms cropping and stays in Develop.
+  `Z` or Space toggles the previous zoom and 100% in a
+  photo view; from grid/Survey it opens loupe. `N` opens Survey, `I` toggles
+  information, `\` toggles Before/After, and `Y` opens comparison.
+  With Cmd on macOS or Ctrl on Windows/Linux: Shift+I imports, Shift+E exports,
+  Shift+C/Shift+V copies/pastes edits, Z/Shift+Z undoes/redoes, brackets rotate,
+  R reveals the original, apostrophe creates a virtual copy, and G/Shift+G
+  stacks/unstacks. Plain Z no longer undoes edits; Shift+V no longer flips
+  vertically. Fit/Fill and Flip Vertical remain available in menus. Plain F
+  is unassigned because Studio does not provide Lightroom's screen-mode command.
+  Photo keys yield to text fields, modal dialogs, and the command palette;
+  Import retains its own candidate navigation. This is not a complete Lightroom
+  shortcut implementation (panel/screen modes are not mapped).
 - Live Studio control uses `ravo-studio-control/v1` over an owner-only local
   socket. CLI can discover sessions, read the revisioned current selection and
   current/saved recipe, commit an ordered strict Develop batch through the

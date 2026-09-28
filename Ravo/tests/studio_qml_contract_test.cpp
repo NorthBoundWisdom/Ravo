@@ -817,8 +817,7 @@ TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
     ASSERT_LT(crop_width, 0.999);
     ASSERT_LT(crop_height, 0.999);
 
-    const auto loupe = controller.ids().value(QStringLiteral("viewLoupe")).toString();
-    ASSERT_EQ(loupe, QStringLiteral("studio.view.show_loupe"));
+    const auto loupe = QStringLiteral("studio.view.confirm_or_loupe");
     bool found_return = false;
     bool found_enter = false;
     for (const auto &entry_value : controller.shortcutEntries())

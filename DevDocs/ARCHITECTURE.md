@@ -117,6 +117,16 @@ the controller issues dialog presentation requests that QML displays and returns
 Commands that depend on current control values are not in the command palette.
 QML retains only transient focus/popup state and thin action binding, not a
 second table of IDs, titles, shortcuts, or enablement.
+Photo review shortcuts use the existing C++ cull-review transaction: ordinary
+keyboard rating/colour/flag actions keep selection; Shift actions request advance
+only through the service's successful review result. Menu/control actions retain
+their existing toggle/advance semantics. Rating/colour commands accept either
+their scalar value or exactly `{value, advance}` with a boolean `advance`;
+flag commands accept an optional boolean advance intent. Invalid payloads fail
+before dispatch. No QML review state, new task owner, or optimistic navigation
+is introduced. The supported keyboard map is documented in `Ravo/README.md`.
+Loupe accepts only an absent argument or `confirm_crop`: E switches to loupe,
+while Enter's explicit confirmation intent closes cropping without leaving Develop.
 
 `StudioStartupController` owns the one-shot startup handoff on the UI thread.
 The process logging scope is created before `QGuiApplication` and destroyed

@@ -99,14 +99,30 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         command::kPhotoSetRating, Condition::kSelection,
         [](const QVariant &argument)
         {
-            const double value = argument.toDouble();
-            return numeric_argument(argument) && std::isfinite(value) &&
-                           std::floor(value) == value && value >= 0.0 && value <= 5.0 ?
+            QVariant rating = argument;
+            if (argument.metaType().id() == QMetaType::QVariantMap)
+            {
+                const auto fields = argument.toMap();
+                if (fields.size() != 2 || !fields.contains(QStringLiteral("value")) ||
+                    fields.value(QStringLiteral("advance")).metaType().id() != QMetaType::Bool)
+                    return QStringLiteral("Rating action requires value and boolean advance.");
+                rating = fields.value(QStringLiteral("value"));
+            }
+            const double value = rating.toDouble();
+            return numeric_argument(rating) && std::isfinite(value) && std::floor(value) == value &&
+                           value >= 0.0 && value <= 5.0 ?
                        QString{} :
                        QStringLiteral("Rating must be an integer between 0 and 5.");
         },
-        [this](const QVariant &argument, const QString &)
-        { presenter_.setRating(argument.toInt()); });
+        [this](const QVariant &argument, const QString &source)
+        {
+            const auto fields = argument.toMap();
+            presenter_.applyCullReview(
+                QStringLiteral("unchanged"),
+                fields.isEmpty() ? argument : fields.value(QStringLiteral("value")), QString{},
+                fields.isEmpty() ? source != QLatin1String("keyboard") :
+                                   fields.value(QStringLiteral("advance")).toBool());
+        });
     add(
         command::kPhotoSetColor, Condition::kSelection,
         [](const QVariant &argument)
@@ -114,11 +130,28 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             static const QSet<QString> values{QStringLiteral("none"),   QStringLiteral("red"),
                                               QStringLiteral("yellow"), QStringLiteral("green"),
                                               QStringLiteral("blue"),   QStringLiteral("purple")};
-            return values.contains(argument.toString()) ? QString{} :
-                                                          QStringLiteral("Unknown color label.");
+            QVariant color = argument;
+            if (argument.metaType().id() == QMetaType::QVariantMap)
+            {
+                const auto fields = argument.toMap();
+                if (fields.size() != 2 || !fields.contains(QStringLiteral("value")) ||
+                    fields.value(QStringLiteral("advance")).metaType().id() != QMetaType::Bool)
+                    return QStringLiteral("Color action requires value and boolean advance.");
+                color = fields.value(QStringLiteral("value"));
+            }
+            return values.contains(color.toString()) ? QString{} :
+                                                       QStringLiteral("Unknown color label.");
         },
-        [this](const QVariant &argument, const QString &)
-        { presenter_.setColorLabel(argument.toString()); });
+        [this](const QVariant &argument, const QString &source)
+        {
+            const auto fields = argument.toMap();
+            presenter_.applyCullReview(
+                QStringLiteral("unchanged"), QVariant{},
+                fields.isEmpty() ? argument.toString() :
+                                   fields.value(QStringLiteral("value")).toString(),
+                fields.isEmpty() ? source != QLatin1String("keyboard") :
+                                   fields.value(QStringLiteral("advance")).toBool());
+        });
     add(
         command::kPhotoSetTags, Condition::kSelection, [](const QVariant &) { return QString{}; },
         [this](const QVariant &argument, const QString &)
@@ -194,13 +227,37 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         },
         [this](const QVariant &argument, const QString &)
         { presenter_.restoreHistory(argument.toInt()); });
-    add(command::kPhotoTogglePick, Condition::kSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.togglePicked(); });
-    add(command::kPhotoToggleReject, Condition::kSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.toggleRejected(); });
-    add(command::kPhotoCullUnflag, Condition::kSelection, no_argument,
-        [this](const QVariant &, const QString &)
-        { presenter_.applyCullReview(QStringLiteral("unflag"), QVariant{}, QString{}, true); });
+    const auto optional_advance = [](const QVariant &argument)
+    {
+        return !argument.isValid() || argument.metaType().id() == QMetaType::Bool ?
+                   QString{} :
+                   QStringLiteral("Advance must be boolean.");
+    };
+    add(command::kPhotoTogglePick, Condition::kSelection, optional_advance,
+        [this](const QVariant &argument, const QString &source)
+        {
+            if (source == QLatin1String("keyboard") || argument.isValid())
+                presenter_.applyCullReview(QStringLiteral("pick"), QVariant{}, QString{},
+                                           argument.toBool());
+            else
+                presenter_.togglePicked();
+        });
+    add(command::kPhotoToggleReject, Condition::kSelection, optional_advance,
+        [this](const QVariant &argument, const QString &source)
+        {
+            if (source == QLatin1String("keyboard") || argument.isValid())
+                presenter_.applyCullReview(QStringLiteral("reject"), QVariant{}, QString{},
+                                           argument.toBool());
+            else
+                presenter_.toggleRejected();
+        });
+    add(command::kPhotoCullUnflag, Condition::kSelection, optional_advance,
+        [this](const QVariant &argument, const QString &source)
+        {
+            presenter_.applyCullReview(QStringLiteral("unflag"), QVariant{}, QString{},
+                                       argument.isValid() ? argument.toBool() :
+                                                            source != QLatin1String("keyboard"));
+        });
     add(command::kPhotoCopyInfo, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.copySelectedPhotoDebugInfo(); });
     add(command::kPhotoCopyParameters, Condition::kSelection, no_argument,
@@ -504,8 +561,21 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         [this](const QVariant &, const QString &) { presenter_.setSelectedStackPick(); });
     add(command::kViewGrid, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.returnToGrid(); });
-    add(command::kViewLoupe, Condition::kSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.openLoupe(); });
+    add(
+        command::kViewLoupe, Condition::kSelection,
+        [](const QVariant &argument)
+        {
+            return !argument.isValid() || argument == QStringLiteral("confirm_crop") ?
+                       QString{} :
+                       QStringLiteral("Loupe argument must be confirm_crop.");
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            // Enter confirms a crop in Develop; E always enters the Library loupe.
+            if (!argument.isValid() && presenter_.cropToolActive())
+                presenter_.setCropToolActive(false);
+            presenter_.openLoupe();
+        });
     add(command::kViewSurvey, Condition::kSurveySelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.openSurvey(); });
     add(command::kViewBurstCompare, Condition::kSelection, no_argument,
@@ -523,8 +593,15 @@ void StudioCommandController::registerViewCommands(const command_registration::H
     add(command::kViewActual, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
         { presenter_.setZoomMode(QStringLiteral("actual")); });
-    add(command::kViewToggleActualSize, Condition::kNonGrid, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.toggleActualSize(); });
+    add(command::kViewToggleActualSize, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &)
+        {
+            if (presenter_.browseMode() == QLatin1String("grid") ||
+                presenter_.browseMode() == QLatin1String("survey"))
+                presenter_.openLoupe();
+            else
+                presenter_.toggleActualSize();
+        });
     add(
         command::kViewSetZoomMode, Condition::kNonGrid,
         [](const QVariant &argument)
