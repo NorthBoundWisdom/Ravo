@@ -6,7 +6,6 @@ MenuItem {
     id: root
 
     property string displayText: ""
-    property bool reserveCheckColumn: checkable
     readonly property string resolvedText: displayText.length > 0 ? displayText : text
 
     implicitHeight: Math.max(Fonts.listItemHeight, Fonts.size24)
@@ -14,23 +13,27 @@ MenuItem {
     rightPadding: Fonts.size12
     spacing: Fonts.size8
 
-    // Qt's default indicator can overlap custom content. Keep an explicit,
-    // stable check column so checked and unchecked rows align.
+    // All rows reserve the same check column, including plain and submenu rows.
+    // Replace the style indicators because the content below draws both glyphs.
     indicator: Item {
         implicitWidth: 0
         implicitHeight: 0
     }
+    arrow: Item {
+        implicitWidth: 0
+        implicitHeight: 0
+        visible: false
+    }
 
     contentItem: Item {
-        implicitWidth: checkmark.width + (root.reserveCheckColumn ? Fonts.size8 : 0) + label.implicitWidth + (arrow.visible ? Fonts.size16 : 0)
+        implicitWidth: checkmark.width + Fonts.size8 + label.implicitWidth + (submenuArrow.visible ? submenuArrow.implicitWidth + Fonts.size8 : 0)
         implicitHeight: Math.max(label.implicitHeight, Fonts.size16)
 
         Text {
             id: checkmark
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            width: root.reserveCheckColumn ? Fonts.size20 : 0
-            visible: root.reserveCheckColumn
+            width: Fonts.size20
             text: root.checkable && root.checked ? "\u2713" : ""
             font: Fonts.makeBoldFont(Fonts.standardFont)
             color: root.enabled ? Theme.textColor : Theme.disabledTextColor
@@ -41,10 +44,10 @@ MenuItem {
         Text {
             id: label
             anchors.left: checkmark.right
-            anchors.right: arrow.visible ? arrow.left : parent.right
+            anchors.right: submenuArrow.visible ? submenuArrow.left : parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: root.reserveCheckColumn ? Fonts.size8 : 0
-            anchors.rightMargin: arrow.visible ? Fonts.size8 : 0
+            anchors.leftMargin: Fonts.size8
+            anchors.rightMargin: submenuArrow.visible ? Fonts.size8 : 0
             text: root.resolvedText
             font: Fonts.standardFont
             color: root.enabled ? Theme.textColor : Theme.disabledTextColor
@@ -53,7 +56,7 @@ MenuItem {
         }
 
         Text {
-            id: arrow
+            id: submenuArrow
             visible: root.subMenu !== null
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
