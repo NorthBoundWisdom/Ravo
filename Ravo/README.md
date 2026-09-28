@@ -203,6 +203,10 @@ Current implementation status:
   a visible reason. The photo context menu copies versioned English identity
   and current canonical-parameter blocks without assembling recipe text in QML,
   and reveals the selected original in Finder, Explorer, or the file manager.
+- Gallery reuses monitor-corrected thumbnails across Studio restarts. A shared
+  512 MiB disk cache avoids decoding, colour conversion and PNG encoding on a
+  warm hit; changed preview files, display contracts or monitor profiles select
+  new entries. Cold misses remain asynchronous and colour managed.
 - Common photo shortcuts follow Lightroom Classic: `G` grid, `E` loupe,
   `D` Develop, `R` crop, `Left`/`Right` previous/next, `0` clear rating,
   `1`–`5` stars, `6`–`9` red/yellow/green/blue labels, and `P`/`X`/`U`

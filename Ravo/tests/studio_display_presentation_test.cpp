@@ -12,6 +12,10 @@
 #include <QTemporaryDir>
 #include <QDir>
 #include <QFileInfo>
+#include <QFile>
+#include <QLockFile>
+#include <QScopeGuard>
+#include <QStandardPaths>
 #include <QElapsedTimer>
 #include <QThread>
 #include <gtest/gtest.h>
@@ -60,11 +64,13 @@ QtObject {
     property int gpuPreviewGeneration: 0
     property url previewUrl: "image://preview/photo"
     property int status: 0
-})", QUrl{});
+})",
+                  QUrl{});
     std::unique_ptr<QObject> studio(state.create());
     ASSERT_NE(studio, nullptr) << state.errorString().toStdString();
-    QQmlComponent component(&engine, QUrl::fromLocalFile(QStringLiteral(
-        RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/inspect/InspectZoomController.qml")));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(
+                     RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/inspect/InspectZoomController.qml")));
     std::unique_ptr<QObject> zoom(component.create());
     ASSERT_NE(zoom, nullptr) << component.errorString().toStdString();
     zoom->setProperty("studio", QVariant::fromValue(studio.get()));
@@ -157,6 +163,18 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
     init_logging("ravo-folder-presentation-tests");
     QTemporaryDir directory;
     ASSERT_TRUE(directory.isValid());
+    // This case deliberately holds the publication lock and corrupts cache files.
+    // Give it a private app-cache namespace so parallel CTest processes are safe.
+    const QString previous_name = QCoreApplication::applicationName();
+    QCoreApplication::setApplicationName("ravo-gallery-test-" +
+                                         QFileInfo(directory.path()).fileName());
+    const QString isolated_cache = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    const auto restore_cache_scope = qScopeGuard(
+        [previous_name, isolated_cache]
+        {
+            QDir(isolated_cache).removeRecursively();
+            QCoreApplication::setApplicationName(previous_name);
+        });
     const auto catalog = directory.filePath("library.sqlite");
     const auto cache = catalog + ".preview";
     ASSERT_TRUE(QDir().mkpath(cache));
@@ -188,7 +206,9 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
         record.width = 1600U;
         record.height = 1066U;
         record.state = std::string(kPreviewStateReady);
-        record.cache_relpath = "full.png";
+        record.cache_relpath = "row-" + std::to_string(row) + ".png";
+        ASSERT_TRUE(QFile::copy(cache + "/full.png",
+                                cache + "/" + QString::fromStdString(*record.cache_relpath)));
         ASSERT_TRUE(repository.value()->upsert_preview(record));
     }
     ASSERT_TRUE(repository.value()->close());
@@ -199,11 +219,15 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
     auto &presenter = *owned_presenter;
     presenter.bindDisplayPresentation(&display);
     bool observed_pending_presentation = false;
-    QObject::connect(&presenter, &StudioPresenter::filterChanged, [&]
-    {
-        if (presenter.visibleCount() == 200)
-            observed_pending_presentation |= presenter.assets()->thumbnailState("ast_folder_0") == "presenting";
-    });
+    QObject::connect(&presenter, &StudioPresenter::filterChanged,
+                     [&]
+                     {
+                         if (presenter.visibleCount() == 200)
+                             observed_pending_presentation |=
+                                 presenter.assets()->thumbnailState("ast_folder_0") == "presenting";
+                     });
+    QElapsedTimer cold_timer;
+    cold_timer.start();
     presenter.openCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000));
     EXPECT_TRUE(observed_pending_presentation);
@@ -217,10 +241,13 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
         return true;
     };
     ASSERT_TRUE(wait_until(ready, 30000)) << presenter.errorText().toStdString();
+    RecordProperty("cold_open_all_thumbnails_ms", cold_timer.elapsed());
     const auto thumbnail = [&]
     {
         const int row = presenter.assets()->indexOf("ast_folder_0");
-        return presenter.assets()->data(presenter.assets()->index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
+        return presenter.assets()
+            ->data(presenter.assets()->index(row, 0), AssetListModel::ThumbnailUrlRole)
+            .toUrl();
     };
     const auto cached = thumbnail();
     const auto timestamp = QFileInfo(cached.toLocalFile()).lastModified();
@@ -249,7 +276,97 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
     presenter.selectFolder(folder);
     ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 200; }));
     owned_presenter.reset();
-    EXPECT_FALSE(QFileInfo::exists(cached.toLocalFile()));
+    ASSERT_TRUE(QFileInfo::exists(cached.toLocalFile()));
+    // A new owner must reuse the exact published pixels without rewriting PNGs.
+    StudioPresenter reopened;
+    reopened.bindDisplayPresentation(&display);
+    timer.restart();
+    reopened.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return reopened.visibleCount() == 200 &&
+                   reopened.assets()->thumbnailState("ast_folder_0") == "ready";
+        },
+        30000));
+    RecordProperty("warm_reopen_first_thumbnail_ms", timer.elapsed());
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            for (int row = 0; row < 200; ++row)
+                if (reopened.assets()->thumbnailState("ast_folder_" + std::to_string(row)) !=
+                    "ready")
+                    return false;
+            return true;
+        },
+        30000));
+    RecordProperty("warm_reopen_all_thumbnails_ms", timer.elapsed());
+    const auto reopened_url = [&]
+    {
+        const auto row = reopened.assets()->indexOf("ast_folder_0");
+        return reopened.assets()
+            ->data(reopened.assets()->index(row, 0), AssetListModel::ThumbnailUrlRole)
+            .toUrl();
+    };
+    EXPECT_EQ(reopened_url(), cached);
+    EXPECT_EQ(QFileInfo(cached.toLocalFile()).lastModified(), timestamp);
+    // A monitor change must not reuse pixels transformed for the old monitor.
+    StudioDisplayPresentation alternate;
+    ASSERT_TRUE(alternate.valid());
+    ASSERT_NE(alternate.presentationState().profile_fingerprint,
+              display.presentationState().profile_fingerprint);
+    reopened.bindDisplayPresentation(&alternate);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return reopened.assets()->thumbnailState("ast_folder_0") == "ready" &&
+                   reopened_url() != cached;
+        },
+        30000));
+    const auto alternate_url = reopened_url();
+    {
+        QFile corrupt(alternate_url.toLocalFile());
+        ASSERT_TRUE(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        ASSERT_EQ(corrupt.write("broken"), 6);
+    }
+    const auto reload = [&]
+    {
+        reopened.selectFolder(empty);
+        EXPECT_TRUE(wait_until([&] { return reopened.visibleCount() == 0; }));
+        reopened.selectFolder(folder);
+    };
+    reload();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return reopened.assets()->thumbnailState("ast_folder_0") == "ready" &&
+                   !QImage(alternate_url.toLocalFile()).isNull();
+        },
+        30000));
+    EXPECT_EQ(reopened_url(), alternate_url);
+
+    // A replaced source preview invalidates the output; a contended publisher
+    // must report a conflict and never publish the old monitor-corrected image.
+    QImage changed(64, 48, QImage::Format_RGB888);
+    changed.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    changed.fill(Qt::blue);
+    ASSERT_TRUE(changed.save(cache + "/row-0.png"));
+    QLockFile lock(QFileInfo(alternate_url.toLocalFile()).dir().filePath("publish.lock"));
+    ASSERT_TRUE(lock.tryLock());
+    reload();
+    ASSERT_TRUE(wait_until(
+        [&] { return reopened.assets()->thumbnailState("ast_folder_0") == "failed"; }, 30000));
+    EXPECT_TRUE(reopened.errorText().contains("Gallery display cache is busy"));
+    lock.unlock();
+    reload();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return reopened.assets()->thumbnailState("ast_folder_0") == "ready" &&
+                   reopened_url() != alternate_url;
+        },
+        30000));
+    EXPECT_EQ(QImage(reopened_url().toLocalFile()).size(), QSize(64, 48));
 }
 
 TEST(StudioDisplayPresentationPerformanceProbe, MeasuresPrivateCatalogFolderSwitch)
@@ -384,6 +501,17 @@ TEST(StudioDisplayPresentationTest, GalleryThumbnailAppliesMonitorPresentation)
         }
     }
     EXPECT_TRUE(saw_gallery);
+    const auto presented_timestamp = QFileInfo(presented_url.toLocalFile()).lastModified();
+    StudioPresenter reopened;
+    reopened.bindDisplayPresentation(&display);
+    reopened.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return reopened.catalogOpen() && !reopened.busy() &&
+                   reopened.selectedThumbnailUrl() == presented_url;
+        }));
+    EXPECT_EQ(QFileInfo(presented_url.toLocalFile()).lastModified(), presented_timestamp);
 }
 
 #if defined(Q_OS_MACOS)

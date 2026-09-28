@@ -33,6 +33,8 @@ The Global/Mask Develop workspace and Recipe v4 local groups are specified in
 | [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history | Mutable implementation status |
 
 Product execution belongs only in [TODO.md](TODO.md).
+Gallery's bounded persistent display-thumbnail cache and worker lifecycle are
+specified in [ARCHITECTURE.md](ARCHITECTURE.md).
 Studio's supported photo shortcuts are listed in [Ravo/README.md](../Ravo/README.md);
 command ownership and transactional keyboard review belong to
 [ARCHITECTURE.md](ARCHITECTURE.md).

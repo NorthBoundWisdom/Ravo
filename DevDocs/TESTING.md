@@ -1635,8 +1635,12 @@ Sanitizer (TSan/ASan) Import gate races: **UNTESTED** on this host (not configur
 
 Gallery folder-presentation tests populate 200 full-size cached previews and
 require list publication while thumbnail presentation is pending, 320-pixel
-display output, cache URL/mtime reuse and rejection of rapid obsolete folder
-results. `StudioDisplayPresentationPerformanceProbe.MeasuresPrivateCatalogFolderSwitch`
+display output, cache URL/mtime reuse across owner destruction/reopen, monitor
+and source-preview invalidation, corrupt-header rebuilding, bounded publication
+lock conflicts, and rejection of rapid obsolete folder results. They record cold
+all-thumbnail and warm first/all-thumbnail latencies for synthetic fixtures;
+polling-harness timings are not native UI or real-RAW performance claims.
+`StudioDisplayPresentationPerformanceProbe.MeasuresPrivateCatalogFolderSwitch`
 accepts `RAVO_FOLDER_PERF_CATALOG` (a private catalog backup/restore with a copied
 preview cache) and `RAVO_FOLDER_PERF_URI`; it records three listing latencies
 separately from thumbnail completion. It skips without explicit inputs and

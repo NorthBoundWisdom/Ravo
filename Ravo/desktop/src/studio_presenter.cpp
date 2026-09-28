@@ -310,8 +310,6 @@ StudioPresenter::~StudioPresenter()
     pending_thumbnail_presentations_.clear();
     thumbnail_presentation_executor_.request_stop();
     thumbnail_presentation_executor_.wait();
-    if (!thumbnail_presented_root_.isEmpty())
-        QDir(thumbnail_presented_root_).removeRecursively();
     release_gpu_preview_presented_surface();
     release_gpu_roi_presented_surface();
     if (catalog_revision_timer_ != nullptr)

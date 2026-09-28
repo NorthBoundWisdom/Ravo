@@ -280,11 +280,18 @@ encodes monitor-presented thumbnails on the UI thread. A presenter-owned serial
 display worker processes one immutable source/profile snapshot at a time;
 pending requests coalesce by asset within the bounded resident library pages.
 Conversion uses at most a 320-pixel long edge, with one shared immutable monitor
-profile. The ephemeral PNG cache keys source path/size/mtime and source/monitor
-profile identity; folder revisits reuse it. Pending thumbnails remain placeholders
+profile. The persistent `ravo-gallery-display-v2` PNG cache keys immutable preview
+path/size/mtime, thumbnail extent, display contract and monitor profile fingerprint.
+The preview PNG's embedded ICC owns source colour on both first use and reopen.
+Warm worker lookups inspect only the output header, bypassing source decode,
+colour conversion and encoding. Miss publication uses the existing
+`FilesystemPreviewCache` atomic writer and shared 512 MiB budget; a bounded
+cross-process lock serializes re-index/eviction/publication on misses. Lock timeout
+is an explicit conflict, not an unprofiled-image fallback. Folder revisits and
+new Studio owners reuse persisted outputs. Pending thumbnails remain placeholders
 until presentation completes. Conversion/publication failures remain visible,
 and generation checks reject replaced folder/profile results. Window teardown
-cancels and joins this worker before removing its cache. Folder reloads cancel
+cancels and joins this worker without deleting reusable disk entries. Folder reloads cancel
 obsolete thumbnail demand and enqueue foreground catalog queries with latest-query
 publication checks; foreground queries retain their catalog connection, while
 import SQL uses the import executor's private connection.

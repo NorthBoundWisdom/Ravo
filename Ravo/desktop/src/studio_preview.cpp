@@ -2,6 +2,7 @@
 
 #include "ravo/desktop/studio_display_presentation.h"
 #include "ravo/services/display_presentation.h"
+#include "ravo/adapters/filesystem_preview_cache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,6 +13,7 @@
 #include <vector>
 
 #include <QByteArray>
+#include <QBuffer>
 #include <QColorSpace>
 #include <QCryptographicHash>
 #include <QDir>
@@ -19,7 +21,7 @@
 #include <QImage>
 #include <QImageReader>
 #include <QDateTime>
-#include <QSaveFile>
+#include <QLockFile>
 #include <QMetaObject>
 #include <QMutexLocker>
 #include <QSize>
@@ -285,23 +287,35 @@ prepare_preview_analysis(const QImage &identity_image, const QImage &scope_sourc
 }
 
 Result<QUrl> prepare_gallery_thumbnail(const QString &base_path,
-                                       const ColorProfileState &source_profile,
                                        const DisplayPresentationState &display, const QString &root,
                                        const CancellationToken &cancellation)
 {
     if (auto active = cancellation.check(); !active)
         return active.error();
     const QFileInfo file(base_path);
-    QByteArray identity = base_path.toUtf8() + '\n' + QByteArray::number(file.size()) + '\n' +
+    if (!file.isFile())
+        return make_error(ErrorCode::kNotFound, "Gallery thumbnail source is missing");
+    // The immutable preview PNG owns its embedded source profile. Runtime profile
+    // objects are absent on catalog reopen and must not change the cache identity.
+    QByteArray identity = QByteArray::number(kThumbnailMaxEdge) + '\n' +
+                          QByteArray::fromStdString(display.contract_version) + '\n' +
+                          file.absoluteFilePath().toUtf8() + '\n' +
+                          QByteArray::number(file.size()) + '\n' +
                           QByteArray::number(file.lastModified().toMSecsSinceEpoch()) + '\n' +
-                          QByteArray::fromStdString(display.profile_fingerprint) + '\n' +
-                          QByteArray::fromStdString(source_profile.identifier);
-    identity.append(reinterpret_cast<const char *>(source_profile.icc_bytes.data()),
-                    static_cast<qsizetype>(source_profile.icc_bytes.size()));
+                          QByteArray::fromStdString(display.profile_fingerprint);
     const QString key =
         QString::fromLatin1(QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
     const QString output = QDir(root).filePath(key + QStringLiteral(".png"));
-    if (QFileInfo::exists(output))
+    // Header-only warm lookup: no source decode, ICC transform, PNG encode or
+    // full directory scan. Publication below is atomic across Studio windows.
+    const auto valid_cached_header = [&]
+    {
+        QImageReader cached(output, "PNG");
+        const auto dimensions = cached.size();
+        return dimensions.isValid() && dimensions.width() <= static_cast<int>(kThumbnailMaxEdge) &&
+               dimensions.height() <= static_cast<int>(kThumbnailMaxEdge) && cached.canRead();
+    };
+    if (valid_cached_header())
         return QUrl::fromLocalFile(output);
     QImageReader reader(base_path);
     const auto size = reader.size();
@@ -314,6 +328,13 @@ Result<QUrl> prepare_gallery_thumbnail(const QString &base_path,
     QImage base = reader.read().convertToFormat(QImage::Format_RGB888);
     if (base.isNull())
         return make_error(ErrorCode::kIo, "Unable to decode gallery thumbnail");
+    ColorProfileState source_profile;
+    const QByteArray source_icc = base.colorSpace().iccProfile();
+    if (!source_icc.isEmpty())
+    {
+        source_profile.kind = ColorProfileKind::kIcc;
+        source_profile.icc_bytes.assign(source_icc.cbegin(), source_icc.cend());
+    }
     if (auto active = cancellation.check(); !active)
         return active.error();
     const auto width = static_cast<std::uint32_t>(base.width());
@@ -337,14 +358,32 @@ Result<QUrl> prepare_gallery_thumbnail(const QString &base_path,
         return active.error();
     if (!QDir().mkpath(root))
         return make_error(ErrorCode::kIo, "Unable to create gallery display cache");
-    QSaveFile file_output(output);
-    if (!file_output.open(QIODevice::WriteOnly) || !presented.save(&file_output, "PNG"))
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    if (!buffer.open(QIODevice::WriteOnly) || !presented.save(&buffer, "PNG"))
         return make_error(ErrorCode::kIo, "Unable to encode gallery display thumbnail");
+    // Serialize miss publication/eviction across processes. Re-index only on a
+    // miss so the shared 512 MiB budget includes other windows' publications.
+    QLockFile lock(QDir(root).filePath(QStringLiteral("publish.lock")));
+    if (!lock.tryLock(1000))
+        return make_error(ErrorCode::kConflict, "Gallery display cache is busy");
     if (auto active = cancellation.check(); !active)
         return active.error();
-    if (!file_output.commit())
-        return make_error(ErrorCode::kIo, "Unable to publish gallery display thumbnail");
-    return QUrl::fromLocalFile(output);
+    if (valid_cached_header())
+        return QUrl::fromLocalFile(output);
+    auto cache = FilesystemPreviewCache::create(utf8_from_qstring(root));
+    if (!cache)
+        return cache.error();
+    auto removed = cache.value()->remove_png(utf8_from_qstring(key));
+    if (!removed)
+        return removed.error();
+    if (auto active = cancellation.check(); !active)
+        return active.error();
+    auto committed = cache.value()->commit_png_bytes(
+        utf8_from_qstring(key), std::vector<std::uint8_t>(encoded.cbegin(), encoded.cend()));
+    if (!committed)
+        return committed.error();
+    return QUrl::fromLocalFile(qstring_from_utf8(committed.value()));
 }
 
 } // namespace
@@ -547,12 +586,7 @@ void StudioPresenter::clear_thumbnail_presentation_cache()
     thumbnail_presentation_revisions_.clear();
     thumbnail_base_paths_.clear();
     thumbnail_base_profiles_.clear();
-    if (!thumbnail_presented_root_.isEmpty())
-    {
-        const auto root = thumbnail_presented_root_;
-        thumbnail_presentation_executor_.post([root] { QDir(root).removeRecursively(); });
-        thumbnail_presented_root_.clear();
-    }
+    thumbnail_presented_root_.clear();
 }
 
 void StudioPresenter::startNextThumbnailPresentation()
@@ -599,9 +633,7 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
             return;
         }
         thumbnail_presented_root_ =
-            QDir(cache_root)
-                .filePath(QStringLiteral("ravo-gallery-display-%1")
-                              .arg(reinterpret_cast<quintptr>(this), 0, 16));
+            QDir(cache_root).filePath(QStringLiteral("ravo-gallery-display-v2"));
     }
     if (!thumbnail_display_state_ ||
         thumbnail_display_state_->profile_fingerprint !=
@@ -625,12 +657,10 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
         }
     }
     assets_.setThumbnail(asset_id, {}, QStringLiteral("presenting"));
-    pending_thumbnail_presentations_[asset_id] = [this, asset_id, base_path, source_profile,
-                                                  display, root, generation, revision, cancellation,
-                                                  thumb_state]
+    pending_thumbnail_presentations_[asset_id] =
+        [this, asset_id, base_path, display, root, generation, revision, cancellation, thumb_state]
     {
-        auto result =
-            prepare_gallery_thumbnail(base_path, source_profile, *display, root, cancellation);
+        auto result = prepare_gallery_thumbnail(base_path, *display, root, cancellation);
         QMetaObject::invokeMethod(
             this,
             [this, asset_id, generation, revision, result = std::move(result),
