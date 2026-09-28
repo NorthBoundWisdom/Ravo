@@ -952,7 +952,14 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
         << shared_item.errorString().toStdString();
     const auto shared_source = QString::fromUtf8(shared_item.readAll());
     EXPECT_TRUE(shared_source.contains(QStringLiteral("id: checkmark")));
-    EXPECT_TRUE(shared_source.contains(QStringLiteral("reserveCheckColumn: checkable")));
+    // Checkable, plain and submenu rows share a fixed label origin. The old
+    // conditional check column was the cause of visibly inconsistent indents.
+    EXPECT_FALSE(shared_source.contains(QStringLiteral("reserveCheckColumn")));
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("width: Fonts.size20")));
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("anchors.left: checkmark.right")));
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("anchors.leftMargin: Fonts.size8")));
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("arrow: Item {")));
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("id: submenuArrow")));
     EXPECT_TRUE(shared_source.contains(QStringLiteral("root.checkable && root.checked")));
     EXPECT_TRUE(shared_source.contains(QStringLiteral("indicator: Item")));
 
