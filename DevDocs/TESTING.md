@@ -1464,6 +1464,9 @@ per-key `focus_down_<N>` / `focus_right_<N>` samples at 1k/10k/100k synthetic
 candidates plus a legacy combined `import_candidate_keyboard_focus_move` series
 that sums Down+Right for continuity. These measure model+window input handling
 after `processEvents`, not frame presentation; they are not PERF-02/C3 admits.
+CTest discovers these two keyboard timing cases separately with `RUN_SERIAL`:
+their 50 ms focus / 100 ms page-scroll ceilings and samples stay unchanged,
+while other render/import tests cannot run concurrently on the same worker.
 
 Set `RAVO_INTERACTIVE_PERF_REPORT_PATH` to append JSONL rows; optional
 `RAVO_INTERACTIVE_PERF_WARMUPS` (default 2) and

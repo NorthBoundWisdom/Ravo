@@ -58,8 +58,8 @@
         "Ravo/tests/studio_live_control_test.cpp",
         "Ravo/tests/filesystem_browser_model_test.cpp"
       ],
-      "case_count": 126,
-      "case_sha256": "e026ba6297a86574ace03be8491a90703cfd25f8983e01633e2d63fa4c4ae628"
+      "case_count": 127,
+      "case_sha256": "6b1095dedb436a83cfa7e95e741e03d9078f66c3dff21ee8d06c096f703b379b"
     },
     {
       "sources": [

@@ -499,7 +499,15 @@ ravo_configure_target(ravo_desktop_command_tests)
 ravo_copy_windows_runtime_dlls(ravo_desktop_command_tests)
 gtest_discover_tests(ravo_desktop_command_tests
   DISCOVERY_MODE PRE_TEST
+  TEST_FILTER "-StudioImportKeyboardPerf.*"
   PROPERTIES LABELS "ravo-desktop-smoke")
+# Wall-clock keyboard budgets must not compete with parallel render/import tests.
+# Keep their original identities, sample counts, assertions and latency ceilings.
+gtest_discover_tests(ravo_desktop_command_tests
+  DISCOVERY_MODE PRE_TEST
+  TEST_FILTER "StudioImportKeyboardPerf.*"
+  TEST_LIST ravo_import_keyboard_perf_tests
+  PROPERTIES LABELS "ravo-desktop-smoke" RUN_SERIAL TRUE)
 
 add_test(
   NAME ravo_build_tree_package_verification
