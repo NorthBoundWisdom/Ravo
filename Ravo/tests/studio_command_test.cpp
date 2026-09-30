@@ -363,6 +363,12 @@ TEST(AssetListModelTest, SparsePagesKeepTotalRowsAndBoundResidentRecords)
     EXPECT_TRUE(model.rowLoaded(600));
     EXPECT_EQ(model.assetIdAt(600), QStringLiteral("ast_sparse_600"));
     EXPECT_TRUE(model.isSelected("ast_sparse_0"));
+    model.setThumbnail("ast_sparse_0", {}, QStringLiteral("presenting"));
+    model.setAssets(make_page(0), {}, {}, 10'000U);
+    EXPECT_EQ(model.thumbnailState("ast_sparse_0"), QStringLiteral("pending"));
+    model.setThumbnail("ast_sparse_0", QUrl("file:///ready.png"), QStringLiteral("ready"));
+    model.setAssets(make_page(0), {}, {}, 10'000U);
+    EXPECT_EQ(model.thumbnailState("ast_sparse_0"), QStringLiteral("ready"));
 }
 
 TEST(AssetListModelTest, GridCaptureSummaryIsCompactAndPerAsset)
@@ -1324,6 +1330,37 @@ TEST(StudioPresenterTest, ColdCatalogBuildsOnlyDemandedThumbnails)
         }))
         << presenter.errorText().toStdString();
     EXPECT_EQ(maximum_preview_total, kAssetCount - 1);
+
+    // Grid delegates request thumbnails synchronously when modelReset publishes
+    // a cold listing. Those new requests must survive the listing lifecycle.
+    const QString reset_catalog = directory.filePath(QStringLiteral("reset-library.sqlite"));
+    auto reset_repository = SqliteCatalogRepository::create(reset_catalog.toStdString());
+    ASSERT_TRUE(reset_repository);
+    for (const auto &asset : presenter.assets()->records())
+        ASSERT_TRUE(reset_repository.value()->commit_imported_asset(asset));
+    ASSERT_TRUE(reset_repository.value()->close());
+    reset_repository.value().reset();
+    StudioPresenter reset_presenter;
+    QObject::connect(reset_presenter.assets(), &QAbstractItemModel::modelReset, &reset_presenter,
+                     [&]
+                     {
+                         for (int row = 0; row < reset_presenter.assets()->rowCount(); ++row)
+                             reset_presenter.ensureThumbnail(
+                                 reset_presenter.assets()->assetIdAt(row));
+                     });
+    reset_presenter.openCatalogFromPath(reset_catalog);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            if (!reset_presenter.catalogOpen() || reset_presenter.busy() ||
+                reset_presenter.assets()->rowCount() != kAssetCount)
+                return false;
+            for (const auto &asset : reset_presenter.assets()->records())
+                if (reset_presenter.assets()->thumbnailState(asset.id) != QLatin1String("ready"))
+                    return false;
+            return !reset_presenter.previewWorkActive();
+        }))
+        << reset_presenter.errorText().toStdString();
 }
 
 TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)

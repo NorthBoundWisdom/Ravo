@@ -45,6 +45,7 @@ target_sources(ravo_desktop
     src/studio_presenter_offline_edit.cpp
     src/studio_presenter_ai_proposal.cpp
     src/studio_presenter_selection.cpp
+    src/studio_presenter_burst_compare.cpp
     src/studio_presenter_iq.cpp
     src/studio_import.cpp
     src/studio_import_worker.cpp

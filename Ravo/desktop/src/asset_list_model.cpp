@@ -204,7 +204,10 @@ void AssetListModel::setAssets(std::vector<AssetRecord> assets,
             if (const auto found = old_urls.find(asset.id); found != old_urls.end())
                 thumbnail_urls_.emplace(found->first, found->second);
         if (!thumbnail_states_.contains(asset.id))
-            if (const auto found = old_states.find(asset.id); found != old_states.end())
+            // Presentation work is scoped to the replaced listing. Completed
+            // states survive, but a cancelled presentation needs fresh demand.
+            if (const auto found = old_states.find(asset.id);
+                found != old_states.end() && found->second != QLatin1String("presenting"))
                 thumbnail_states_.emplace(found->first, found->second);
     }
     endResetModel();

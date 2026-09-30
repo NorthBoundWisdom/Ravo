@@ -636,6 +636,29 @@ TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
     const QString primary = presenter.assets()->assetIdAt(0);
     const QString other = presenter.assets()->assetIdAt(1);
     presenter.selectAsset(primary);
+    const QString burst = QStringLiteral("studio.view.burst_compare");
+    const QString previous = QStringLiteral("studio.view.burst_compare_previous");
+    const QString next = QStringLiteral("studio.view.burst_compare_next");
+    const auto unavailable = [&](const QString &id)
+    {
+        const auto before_selection = presenter.selectedAssetId();
+        const auto before_mode = presenter.browseMode();
+        const auto before_error = presenter.errorText();
+        EXPECT_FALSE(commands.action(id).value(QStringLiteral("enabled")).toBool());
+        const auto keyboard = commands.executeAction(id, QStringLiteral("keyboard"));
+        EXPECT_FALSE(keyboard.value(QStringLiteral("accepted")).toBool());
+        EXPECT_EQ(keyboard.value(QStringLiteral("code")).toString(), QStringLiteral("unavailable"));
+        EXPECT_FALSE(commands.executeCommand(id).value(QStringLiteral("accepted")).toBool());
+        for (const auto &entry : commands.shortcutEntries())
+            if (entry.toMap().value(QStringLiteral("actionId")).toString() == id)
+                EXPECT_FALSE(entry.toMap().value(QStringLiteral("enabled")).toBool());
+        EXPECT_EQ(presenter.selectedAssetId(), before_selection);
+        EXPECT_EQ(presenter.browseMode(), before_mode);
+        EXPECT_EQ(presenter.errorText(), before_error);
+    };
+    unavailable(burst);
+    unavailable(previous);
+    unavailable(next);
     presenter.toggleAssetSelected(other);
     EXPECT_EQ(presenter.selectedCount(), 2);
     commands.executeCommand(QStringLiteral("studio.view.show_survey"));
@@ -644,6 +667,8 @@ TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
     EXPECT_NE(presenter.browseMode(), QLatin1String("develop"));
     EXPECT_EQ(presenter.surveySlotCount(), 2);
     EXPECT_EQ(presenter.surveySlots().size(), 2);
+    unavailable(previous);
+    unavailable(next);
     commands.executeCommand(QStringLiteral("studio.view.show_grid"));
     ASSERT_TRUE(wait_until([&] { return presenter.browseMode() == QLatin1String("grid"); }));
     presenter.selectFolder(QString{});
@@ -669,6 +694,53 @@ TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
     ASSERT_TRUE(
         wait_until([&] { return presenter.visibleCount() == 2 && presenter.collapseStacks(); }))
         << presenter.errorText().toStdString();
+    const auto stack_focus = presenter.selectedAssetId();
+    ASSERT_TRUE(commands.action(burst).value(QStringLiteral("enabled")).toBool());
+    unavailable(previous);
+    unavailable(next);
+    // A queued compare must not reopen Survey after the user changes mode.
+    ASSERT_TRUE(commands.executeAction(burst, QStringLiteral("keyboard"))
+                    .value(QStringLiteral("accepted"))
+                    .toBool());
+    EXPECT_TRUE(presenter.burstComparePending());
+    unavailable(previous);
+    unavailable(next);
+    presenter.openLoupe();
+    presenter.returnToGrid();
+    ASSERT_TRUE(wait_until([&] { return !presenter.burstComparePending(); }));
+    EXPECT_EQ(presenter.browseMode(), QLatin1String("grid"));
+    EXPECT_FALSE(presenter.burstCompareActive());
+    presenter.returnToGrid();
+    ASSERT_TRUE(commands.executeAction(burst, QStringLiteral("keyboard"))
+                    .value(QStringLiteral("accepted"))
+                    .toBool());
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.burstComparePending() && presenter.burstCompareActive(); }));
+    EXPECT_EQ(presenter.surveySlots().size(), 2);
+    for (const auto &id : {previous, next, next, previous})
+    {
+        ASSERT_TRUE(commands.action(id).value(QStringLiteral("enabled")).toBool());
+        ASSERT_TRUE(commands.executeAction(id, QStringLiteral("keyboard"))
+                        .value(QStringLiteral("accepted"))
+                        .toBool());
+        ASSERT_TRUE(wait_until([&] { return !presenter.burstComparePending(); }));
+        EXPECT_TRUE(presenter.burstCompareActive());
+        EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+    }
+    presenter.openSurvey();
+    EXPECT_FALSE(presenter.burstCompareActive());
+    unavailable(previous);
+    unavailable(next);
+    presenter.returnToGrid();
+    unavailable(previous);
+    unavailable(next);
+    presenter.selectAsset(stack_focus);
+    presenter.unstackSelection();
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 3; }));
+    unavailable(burst);
+    unavailable(previous);
+    unavailable(next);
+    EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
 }
 
 TEST(StudioQmlContract, LibrarySidePanelShowsCommandOwnedLastImportGroup)

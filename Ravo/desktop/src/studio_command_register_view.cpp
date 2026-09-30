@@ -578,11 +578,11 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         });
     add(command::kViewSurvey, Condition::kSurveySelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.openSurvey(); });
-    add(command::kViewBurstCompare, Condition::kSelection, no_argument,
+    add(command::kViewBurstCompare, Condition::kStackSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.openBurstCompare(); });
-    add(command::kViewBurstComparePrevious, Condition::kSelection, no_argument,
+    add(command::kViewBurstComparePrevious, Condition::kBurstCompareActive, no_argument,
         [this](const QVariant &, const QString &) { presenter_.stepBurstComparePrevious(); });
-    add(command::kViewBurstCompareNext, Condition::kSelection, no_argument,
+    add(command::kViewBurstCompareNext, Condition::kBurstCompareActive, no_argument,
         [this](const QVariant &, const QString &) { presenter_.stepBurstCompareNext(); });
     add(command::kViewFit, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)

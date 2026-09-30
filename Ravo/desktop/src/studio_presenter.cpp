@@ -638,6 +638,9 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
                                   std::unordered_map<std::string, QString> thumbnail_states,
                                   const std::size_t total, const bool has_more)
 {
+    // Clear old listing demand before modelReset can synchronously admit the
+    // replacement delegates' requests. Clearing it afterwards strands them.
+    resetThumbnailDemand();
     static_cast<void>(thumbnail_presentation_cancel_.cancel("library_listing_replaced"));
     thumbnail_presentation_cancel_ = CancellationSource{};
     pending_thumbnail_presentations_.clear();
@@ -677,7 +680,6 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
     library_page_in_flight_ = false;
     library_next_offset_ = static_cast<std::size_t>(assets_.loadedCount());
     emit thumbnailsChanged();
-    resetThumbnailDemand();
     assets_.setSelectedIds(selected_ids_);
     emit filterChanged();
     emit selectionChanged();

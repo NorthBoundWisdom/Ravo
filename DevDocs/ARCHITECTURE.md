@@ -1,5 +1,18 @@
 # Ravo Architecture
 
+Burst Compare command availability is owned by the C++ command controller:
+opening requires a ready selection in a stack with at least two members;
+previous/next additionally require an active Survey burst pair. A service-resolved
+pair can authorize a focus hidden by stack collapse only within its originating
+listing generation and selected member set. Menus, palette, shortcuts and live
+commands share these conditions. Unavailable commands do not issue a service
+request or replace the error banner; stale catalog membership still fails through
+the service contract.
+Stack-pair resolution runs on the presenter's catalog executor, never the UI
+thread. While it is pending, compare commands are unavailable; completion is
+bound to catalog generation, selected IDs/primary and browse mode. Changed
+context or shutdown discards the result, and executor rejection is explicit.
+
 Companion JPEG export is a distinct `companion-jpeg` export format in the
 shared domain/service contract. CatalogService resolves a RAW's adjacent JPEG
 with the import companion resolver and publishes its original bytes through
@@ -20,6 +33,15 @@ with encoder quality or that the chosen quality is globally optimal. ICC,
 metadata and delivery effects are included before measuring. Pixel dimensions
 are unchanged by this constraint. An unreachable limit, cancellation, or output
 conflict publishes no file; no silent resize or metadata removal is added.
+
+Gallery thumbnail demand is owned by the desktop presenter. Replacing a
+listing clears the previous demand before publishing the model reset, so
+synchronous delegate requests belong to the new listing and remain queued.
+Completed thumbnail states may survive a listing replacement; `presenting`
+belongs to cancelled display work and returns to pending when there is no
+replacement preview. Visible grid cells forward fresh pending/unloaded demand
+on state and visibility changes. Decode and display work remain on their
+existing owner-managed executors with cancellation and generation checks.
 
 ## Core conclusion
 

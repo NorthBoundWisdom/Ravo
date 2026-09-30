@@ -4,6 +4,10 @@ Companion JPEG preflight and JPEG file-size limits are recorded in [ARCHITECTURE
 its validation contract in [TESTING.md](TESTING.md), and user-facing behavior
 in [Ravo/README.md](../Ravo/README.md).
 
+Gallery thumbnail listing and demand lifecycle is recorded in
+[ARCHITECTURE.md](ARCHITECTURE.md); reset-order regression coverage is recorded
+in [TESTING.md](TESTING.md).
+
 `DevDocs/` is the repository-owned source for architecture, product planning,
 validation, dependency, packaging, compliance, and historical migration
 records. Component `README.md` files remain beside the code they describe, and
@@ -15,6 +19,11 @@ culling, retouching, and colour work that remains reviewable, reversible,
 private by default, and reproducible enough to audit.
 
 ## Document authority
+
+Burst Compare availability and stack/selection lifetimes are specified in
+[ARCHITECTURE.md](ARCHITECTURE.md), with regression coverage in
+[TESTING.md](TESTING.md) and the service contract in
+[ADR-0155](adr/0155-cull-burst-stack-compare-pair.md).
 
 Full-source crop rotation and its output-frame mapping are specified in
 [ADR-0161](adr/0161-full-source-crop-workspace.md).

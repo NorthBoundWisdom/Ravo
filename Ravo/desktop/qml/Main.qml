@@ -654,6 +654,19 @@ ApplicationWindow {
                         required property int index
                         width: grid.cellWidth
                         height: grid.cellHeight
+                        readonly property bool inViewport: grid.visible && y + height > grid.contentY && y < grid.contentY + grid.height
+
+                        function requestVisibleThumbnail() {
+                            if (!inViewport)
+                                return;
+                            if (assetId.length === 0)
+                                studio.ensureLibraryRow(index);
+                            else if (thumbnailState === "pending")
+                                studio.ensureThumbnail(assetId);
+                        }
+
+                        onInViewportChanged: requestVisibleThumbnail()
+                        onThumbnailStateChanged: requestVisibleThumbnail()
 
                         Component.onCompleted: {
                             if (tile.assetId.length === 0)

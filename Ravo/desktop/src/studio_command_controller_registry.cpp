@@ -148,9 +148,11 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     connect(&presenter_, &StudioPresenter::libraryWorkChanged, this, changed);
     connect(&presenter_, &StudioPresenter::importPageChanged, this, changed);
     connect(&presenter_, &StudioPresenter::importContextChanged, this, changed);
-    connect(presenter_.importCandidates(), &ImportCandidateListModel::candidatesChanged, this, changed);
+    connect(presenter_.importCandidates(), &ImportCandidateListModel::candidatesChanged, this,
+            changed);
     connect(&presenter_, &StudioPresenter::selectionChanged, this, changed);
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
+    connect(&presenter_, &StudioPresenter::surveyChanged, this, changed);
     connect(&presenter_, &StudioPresenter::zoomChanged, this, changed);
     connect(&presenter_, &StudioPresenter::editChanged, this, changed);
     connect(&presenter_, &StudioPresenter::copiedParametersChanged, this, changed);

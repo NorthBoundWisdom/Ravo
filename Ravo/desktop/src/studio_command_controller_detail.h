@@ -28,6 +28,8 @@ enum class Condition
     kReadySelection,
     kNonGrid,
     kSurveySelection,
+    kStackSelection,
+    kBurstCompareActive,
     kDevelop,
     kDevelopSelection,
     kModifiedParameters,

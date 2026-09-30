@@ -162,6 +162,24 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
         return presenter.selectedCount() >= 2 ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Select two or four photos first."))};
+    case Condition::kStackSelection:
+    case Condition::kBurstCompareActive:
+    {
+        const auto available =
+            resolve_state(presenter, Condition::kReadySelection, settings_open, command_id);
+        if (!available.enabled)
+            return available;
+        if (presenter.burstComparePending())
+            return {false, tr_command(QStringLiteral("Wait for library work to finish."))};
+        if (!presenter.canOpenBurstCompare())
+            return {false,
+                    tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                        "StudioCommands", "Select a photo in a stack with at least two photos.")))};
+        if (condition == Condition::kBurstCompareActive && !presenter.burstCompareActive())
+            return {false, tr_command(QString::fromUtf8(
+                               QT_TRANSLATE_NOOP("StudioCommands", "Open Burst Compare first.")))};
+        return {};
+    }
     case Condition::kDevelop:
         return presenter.browseMode() == QLatin1String("develop") ?
                    State{} :

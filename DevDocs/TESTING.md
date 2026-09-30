@@ -1,5 +1,11 @@
 # Ravo Testing Strategy
 
+`StudioPresenterTest.VersionsStacksAndSurveyUseSerialBrowsePreviews` covers
+unstacked Burst Compare rejection without changing selection/error state,
+shortcut availability, collapsed-stack stepping, ordinary Survey, leaving
+compare mode, and stack dissolution. Service burst tests retain structured
+failures for missing/singleton/dissolved stacks.
+
 `CatalogServiceTest.ExportJpegPngOriginalCopyConflictAndCancel` also verifies
 companion JPEG exact-byte export, missing companions, output conflicts,
 cancellation and unchanged RAW/JPEG source hashes.
@@ -9,6 +15,11 @@ unreachable limits, cancellation and conflicts. `OriginalCopyCliTest` covers
 `--jpeg-max-bytes` JSON success/failure and companion preflight type errors.
 `ExportWorkflow` checks desktop companion preflight signal routing; Studio's
 QML smoke checks the size-limit form and missing-companion confirmation wiring.
+
+`StudioPresenterTest.ColdCatalogBuildsOnlyDemandedThumbnails` admits requests
+synchronously from `modelReset` and requires every demanded cold thumbnail to
+finish without another viewport event. The sparse-page model contract checks
+that cancelled `presenting` states return to pending while ready states survive.
 
 ## Current evidence baseline
 
