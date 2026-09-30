@@ -3079,12 +3079,20 @@ Diff: %6</source>
             <translation>長邊</translation>
         </message>
         <message>
-            <source>Maximum long edge</source>
-            <translation>最大長邊</translation>
+            <source>Limit JPEG file size</source>
+            <translation>限制 JPEG 檔案大小</translation>
         </message>
         <message>
-            <source>Maximum long edge (0 keeps the rendered size)</source>
-            <translation>最大長邊（0保持渲染尺寸）</translation>
+            <source>Maximum size (MB)</source>
+            <translation>最大檔案大小（MB）</translation>
+        </message>
+        <message>
+            <source>1 MB = 1,000,000 bytes. JPEG quality may be reduced; pixel dimensions stay as configured.</source>
+            <translation>1 MB = 1,000,000 位元組。必要時會降低 JPEG 品質；像素尺寸仍依設定匯出。</translation>
+        </message>
+        <message>
+            <source>Maximum long edge</source>
+            <translation>最大長邊</translation>
         </message>
         <message>
             <source>Max width</source>
@@ -3095,20 +3103,12 @@ Diff: %6</source>
             <translation>最大出口寬度</translation>
         </message>
         <message>
-            <source>Maximum width (0 unconstrained)</source>
-            <translation>最大寬度（0 無約束）</translation>
-        </message>
-        <message>
             <source>Max height</source>
             <translation>最大高度</translation>
         </message>
         <message>
             <source>Maximum export height</source>
             <translation>最大出口高度</translation>
-        </message>
-        <message>
-            <source>Maximum height (0 unconstrained)</source>
-            <translation>最大高度（0 無約束）</translation>
         </message>
         <message>
             <source>Output sharpen</source>
@@ -3231,6 +3231,18 @@ Diff: %6</source>
             <translation>品質</translation>
         </message>
         <message>
+            <source>Original size</source>
+            <translation>原始尺寸</translation>
+        </message>
+        <message>
+            <source>Width and height</source>
+            <translation>寬度與高度</translation>
+        </message>
+        <message>
+            <source>File settings</source>
+            <translation>檔案設定</translation>
+        </message>
+        <message>
             <source>JPEG quality</source>
             <translation>JPEG 品質</translation>
         </message>
@@ -3289,6 +3301,18 @@ Diff: %6</source>
         <message>
             <source>TIFF resolution</source>
             <translation>TIFF 解析度</translation>
+        </message>
+        <message>
+            <source>Image sizing</source>
+            <translation>影像尺寸</translation>
+        </message>
+        <message>
+            <source>Size</source>
+            <translation>大小</translation>
+        </message>
+        <message>
+            <source>Advanced options</source>
+            <translation>進階選項</translation>
         </message>
         <message>
             <source>Original copy writes the exact source bytes. Rendered format options are not used.</source>
@@ -3554,6 +3578,10 @@ Diff: %6</source>
             <translation>攝取傳輸僅限複製；移動和相機刪除仍被拒絕。</translation>
         </message>
         <message>
+            <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
+            <translation>方向鍵導覽 · Shift 選取範圍 · Ctrl/⌘ 保留選取 · 空白鍵勾選</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>來源</translation>
         </message>
@@ -3608,6 +3636,14 @@ Diff: %6</source>
         <message>
             <source>Choose a source folder</source>
             <translation>選擇來源資料夾</translation>
+        </message>
+        <message>
+            <source>Import candidates</source>
+            <translation>待匯入相片</translation>
+        </message>
+        <message>
+            <source>Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.</source>
+            <translation>使用方向鍵導覽，Shift 選取範圍，Control 或 Command 保留選取，空白鍵勾選或取消勾選。</translation>
         </message>
         <message>
             <source>Duplicate photo</source>
@@ -4225,6 +4261,18 @@ Diff: %6</source>
         <message>
             <source>Cancel</source>
             <translation>取消</translation>
+        </message>
+        <message>
+            <source>Companion JPEG unavailable</source>
+            <translation>附屬 JPEG 無法使用</translation>
+        </message>
+        <message>
+            <source>A companion JPEG is missing. Export the selected photos from RAW instead?</source>
+            <translation>缺少附屬 JPEG。是否改為從 RAW 匯出所選照片？</translation>
+        </message>
+        <message>
+            <source>Export from RAW</source>
+            <translation>從 RAW 匯出</translation>
         </message>
         <message>
             <source>Remove</source>
@@ -5029,6 +5077,10 @@ Diff: %6</source>
             <translation>匯出所選項…</translation>
         </message>
         <message>
+            <source>Export Companion JPEG...</source>
+            <translation>匯出附屬 JPEG…</translation>
+        </message>
+        <message>
             <source>Recovery Status</source>
             <translation>復原狀態</translation>
         </message>
@@ -5451,6 +5503,14 @@ Diff: %6</source>
         <message>
             <source>A proposal id is required.</source>
             <translation>需要提案 ID。</translation>
+        </message>
+        <message>
+            <source>Select a photo in a stack with at least two photos.</source>
+            <translation>請選擇至少包含兩張照片的堆疊中的照片。</translation>
+        </message>
+        <message>
+            <source>Open Burst Compare first.</source>
+            <translation>請先開啟連拍比較。</translation>
         </message>
     </context>
     <context>
@@ -6063,6 +6123,10 @@ Diff: %6</source>
         <message>
             <source>Burst compare (Survey pair).</source>
             <translation>突發比較（調查對）。</translation>
+        </message>
+        <message>
+            <source>Burst compare worker is unavailable.</source>
+            <translation>連拍比較背景工作無法使用。</translation>
         </message>
         <message>
             <source>Deleted original file and catalog record.</source>

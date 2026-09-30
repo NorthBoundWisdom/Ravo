@@ -3079,12 +3079,20 @@ Diferencia: %6</translation>
             <translation>borde largo</translation>
         </message>
         <message>
-            <source>Maximum long edge</source>
-            <translation>Borde largo máximo</translation>
+            <source>Limit JPEG file size</source>
+            <translation>Limitar el tamaño del archivo JPEG</translation>
         </message>
         <message>
-            <source>Maximum long edge (0 keeps the rendered size)</source>
-            <translation>Borde largo máximo (0 mantiene el tamaño renderizado)</translation>
+            <source>Maximum size (MB)</source>
+            <translation>Tamaño máximo (MB)</translation>
+        </message>
+        <message>
+            <source>1 MB = 1,000,000 bytes. JPEG quality may be reduced; pixel dimensions stay as configured.</source>
+            <translation>1 MB = 1.000.000 bytes. La calidad JPEG puede reducirse; las dimensiones en píxeles se mantienen según la configuración.</translation>
+        </message>
+        <message>
+            <source>Maximum long edge</source>
+            <translation>Borde largo máximo</translation>
         </message>
         <message>
             <source>Max width</source>
@@ -3095,20 +3103,12 @@ Diferencia: %6</translation>
             <translation>Ancho máximo de exportación</translation>
         </message>
         <message>
-            <source>Maximum width (0 unconstrained)</source>
-            <translation>Ancho máximo (0 sin restricciones)</translation>
-        </message>
-        <message>
             <source>Max height</source>
             <translation>altura máxima</translation>
         </message>
         <message>
             <source>Maximum export height</source>
             <translation>Altura máxima de exportación</translation>
-        </message>
-        <message>
-            <source>Maximum height (0 unconstrained)</source>
-            <translation>Altura máxima (0 sin restricciones)</translation>
         </message>
         <message>
             <source>Output sharpen</source>
@@ -3231,6 +3231,18 @@ Diferencia: %6</translation>
             <translation>Calidad</translation>
         </message>
         <message>
+            <source>Original size</source>
+            <translation>Tamaño original</translation>
+        </message>
+        <message>
+            <source>Width and height</source>
+            <translation>Anchura y altura</translation>
+        </message>
+        <message>
+            <source>File settings</source>
+            <translation>Ajustes de archivo</translation>
+        </message>
+        <message>
             <source>JPEG quality</source>
             <translation>Calidad JPEG</translation>
         </message>
@@ -3289,6 +3301,18 @@ Diferencia: %6</translation>
         <message>
             <source>TIFF resolution</source>
             <translation>Resolución TIFF</translation>
+        </message>
+        <message>
+            <source>Image sizing</source>
+            <translation>Tamaño de imagen</translation>
+        </message>
+        <message>
+            <source>Size</source>
+            <translation>Tamaño</translation>
+        </message>
+        <message>
+            <source>Advanced options</source>
+            <translation>Opciones avanzadas</translation>
         </message>
         <message>
             <source>Original copy writes the exact source bytes. Rendered format options are not used.</source>
@@ -3554,6 +3578,10 @@ Diferencia: %6</translation>
             <translation>Los transportes de ingesta son de sólo copia; Mover y eliminar cámara permanecen rechazados.</translation>
         </message>
         <message>
+            <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
+            <translation>Flechas para navegar · Shift selecciona un rango · Ctrl/⌘ conserva la selección · Espacio marca</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>Fuente</translation>
         </message>
@@ -3608,6 +3636,14 @@ Diferencia: %6</translation>
         <message>
             <source>Choose a source folder</source>
             <translation>Elige una carpeta de origen</translation>
+        </message>
+        <message>
+            <source>Import candidates</source>
+            <translation>Fotos para importar</translation>
+        </message>
+        <message>
+            <source>Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.</source>
+            <translation>Usa las flechas para navegar, Shift para seleccionar un rango, Control o Command para conservar la selección y Espacio para marcar o desmarcar.</translation>
         </message>
         <message>
             <source>Duplicate photo</source>
@@ -4225,6 +4261,18 @@ Diferencia: %6</translation>
         <message>
             <source>Cancel</source>
             <translation>Cancelar</translation>
+        </message>
+        <message>
+            <source>Companion JPEG unavailable</source>
+            <translation>JPEG asociado no disponible</translation>
+        </message>
+        <message>
+            <source>A companion JPEG is missing. Export the selected photos from RAW instead?</source>
+            <translation>Falta un JPEG asociado. ¿Exportar las fotos seleccionadas desde RAW?</translation>
+        </message>
+        <message>
+            <source>Export from RAW</source>
+            <translation>Exportar desde RAW</translation>
         </message>
         <message>
             <source>Remove</source>
@@ -5029,6 +5077,10 @@ Diferencia: %6</translation>
             <translation>Exportar seleccionado...</translation>
         </message>
         <message>
+            <source>Export Companion JPEG...</source>
+            <translation>Exportar JPEG asociado...</translation>
+        </message>
+        <message>
             <source>Recovery Status</source>
             <translation>Estado de recuperación</translation>
         </message>
@@ -5451,6 +5503,14 @@ Diferencia: %6</translation>
         <message>
             <source>A proposal id is required.</source>
             <translation>Se requiere una identificación de propuesta.</translation>
+        </message>
+        <message>
+            <source>Select a photo in a stack with at least two photos.</source>
+            <translation>Selecciona una foto de una pila con al menos dos fotos.</translation>
+        </message>
+        <message>
+            <source>Open Burst Compare first.</source>
+            <translation>Abre primero la comparación de ráfaga.</translation>
         </message>
     </context>
     <context>
@@ -6063,6 +6123,10 @@ Diferencia: %6</translation>
         <message>
             <source>Burst compare (Survey pair).</source>
             <translation>Comparación de ráfagas (par de encuestas).</translation>
+        </message>
+        <message>
+            <source>Burst compare worker is unavailable.</source>
+            <translation>El proceso de comparación de ráfaga no está disponible.</translation>
         </message>
         <message>
             <source>Deleted original file and catalog record.</source>

@@ -1,5 +1,26 @@
 # Ravo Architecture
 
+Companion JPEG export is a distinct `companion-jpeg` export format in the
+shared domain/service contract. CatalogService resolves a RAW's adjacent JPEG
+with the import companion resolver and publishes its original bytes through
+the cancellable, no-replace atomic copy owner. The shared read-only companion
+preflight is exposed by `catalog companion-check` as `ravo.companion_jpeg_check`
+v1. Studio dispatches it on the existing executor and checks catalog generation
+and selection before opening destination selection or a missing-companion prompt.
+Only explicit confirmation opens ordinary RAW/JPEG export settings. Selection
+or catalog changes dismiss the prompt. Batch planning checks all companions
+before publishing any copy; file races still fail explicitly at export time.
+
+`ExportOptions::jpeg_max_bytes` limits the complete JPEG representation. Zero
+disables the cap; the optional v1 preset/job field defaults to zero when absent.
+CatalogService renders once and brackets encoder quality between 5 and the
+requested ceiling, retaining only a measured fitting result. The search is
+bounded (at most nine encodes); it does not claim that size is strictly monotonic
+with encoder quality or that the chosen quality is globally optimal. ICC,
+metadata and delivery effects are included before measuring. Pixel dimensions
+are unchanged by this constraint. An unreachable limit, cancellation, or output
+conflict publishes no file; no silent resize or metadata removal is added.
+
 ## Core conclusion
 
 Ravo is one local photo-management and non-destructive editing product: create
@@ -115,6 +136,12 @@ to menus, shortcuts, context menus, controls, and the command palette. Every
 entry rechecks context at execution, disabled state has a visible reason, and
 the controller issues dialog presentation requests that QML displays and returns.
 Commands that depend on current control values are not in the command palette.
+The export dialog's C++ presenter supplies suggested sizing values separately
+from active export options. Its transient size selector projects either original
+size (all limits zero), a long-edge limit, or width/height limits; inactive draft
+values do not enter the request. Services retain the existing validation,
+publication, cancellation and output-conflict policy. Advanced delivery settings
+only collapse visually, and do not lose their values when hidden.
 QML retains only transient focus/popup state and thin action binding, not a
 second table of IDs, titles, shortcuts, or enablement.
 Photo review shortcuts use the existing C++ cull-review transaction: ordinary

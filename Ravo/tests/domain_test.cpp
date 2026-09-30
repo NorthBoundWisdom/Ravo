@@ -1282,6 +1282,7 @@ TEST(DomainExportPresetTest, RoundTripAndFailClosed)
     preset.options.output_sharpen.radius = 0.8;
     preset.options.output_sharpen.threshold = 2.0;
     preset.options.jpeg_options.quality = 90;
+    preset.options.jpeg_max_bytes = 2'000'000U;
     auto serialized = serialize_export_preset(preset);
     ASSERT_TRUE(serialized) << serialized.error().message;
     auto parsed = parse_export_preset_json(serialized.value());

@@ -168,7 +168,15 @@ TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Metadata privacy\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Long edge\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exportMaxEdge\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("\"maxEdge\": maxEdgeSpin.realValue")));
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "\"maxEdge\": root.sizingMode === \"long_edge\" ? maxEdgeSpin.realValue : 0")));
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "\"maxWidth\": root.sizingMode === \"dimensions\" ? maxWidthSpin.realValue : 0")));
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "\"maxHeight\": root.sizingMode === \"dimensions\" ? maxHeightSpin.realValue : 0")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exportSizingMode\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Original size\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exportAdvancedOptions\"")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("qsTr(\"Original copy writes the exact source bytes")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Cancel\")")));
@@ -388,16 +396,22 @@ TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)
     ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
         << main.errorString().toStdString();
     const auto source = QString::fromUtf8(main.readAll());
+    QFile coordinator(QStringLiteral(RAVO_REPOSITORY_ROOT
+                                     "/Ravo/desktop/qml/chrome/StudioDialogCoordinator.qml"));
+    ASSERT_TRUE(coordinator.open(QIODevice::ReadOnly | QIODevice::Text));
+    const auto orchestration = QString::fromUtf8(coordinator.readAll());
     EXPECT_TRUE(source.contains(QStringLiteral("ExportOptionsDialog")));
     EXPECT_TRUE(source.contains(QStringLiteral("pendingExportFormat")));
     EXPECT_TRUE(source.contains(QStringLiteral("pendingExportOptions")));
     EXPECT_TRUE(source.contains(QStringLiteral("pendingExportFilenameTemplate")));
-    EXPECT_TRUE(source.contains(QStringLiteral("libraryExportBatchWrite")));
+    EXPECT_TRUE(orchestration.contains(QStringLiteral("libraryExportBatchWrite")));
     EXPECT_TRUE(source.contains(QStringLiteral("Select Batch Export Folder")));
-    EXPECT_TRUE(source.contains(QStringLiteral("\"directory\": folderPath")));
-    EXPECT_TRUE(source.contains(QStringLiteral("\"filenameTemplate\": filenameTemplate")));
-    EXPECT_TRUE(source.contains(QStringLiteral("\"format\": format")));
-    EXPECT_TRUE(source.contains(QStringLiteral("\"options\": options")));
+    EXPECT_TRUE(source.contains(QStringLiteral("dialogCoordinator.finishExportBatch(folderPath)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("dialogCoordinator.finishExportFile(filePath)")));
+    EXPECT_TRUE(orchestration.contains(QStringLiteral("\"directory\": directory")));
+    EXPECT_TRUE(orchestration.contains(QStringLiteral("\"filenameTemplate\": filenameTemplate")));
+    EXPECT_TRUE(orchestration.contains(QStringLiteral("\"format\": format")));
+    EXPECT_TRUE(orchestration.contains(QStringLiteral("\"options\": options")));
     EXPECT_TRUE(source.contains(QStringLiteral("onFileRejected: window.clearPendingExport()")));
     EXPECT_TRUE(source.contains(QStringLiteral("exportOptionsDialog.visible")));
     EXPECT_FALSE(source.contains(QStringLiteral("\"filter\": selectedFilter")));

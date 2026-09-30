@@ -97,6 +97,7 @@ struct CatalogCliArguments
     std::string_view metadata_mode;
     std::string_view quality;
     std::string_view jpeg_subsampling;
+    std::string_view jpeg_max_bytes;
     std::string_view tiff_sample_type;
     std::string_view tiff_compression;
     std::string_view tiff_compression_level;

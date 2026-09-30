@@ -85,12 +85,60 @@ QVariantList StudioPresenter::exportRenderingIntentChoices() const
 
 QVariantMap StudioPresenter::exportDefaultOptions() const
 {
-    return studio_export_default_options();
+    auto defaults = studio_export_default_options();
+    // Suggested form values are not active export constraints. Original size
+    // remains the default until the user explicitly chooses a resize mode.
+    defaults.insert(QStringLiteral("sizing"),
+                    QVariantMap{{QStringLiteral("mode"), QStringLiteral("original")},
+                                {QStringLiteral("longEdge"), 2560},
+                                {QStringLiteral("width"), 2560},
+                                {QStringLiteral("height"), 1440}});
+    return defaults;
 }
 
 QVariantMap StudioPresenter::exportOptionBounds() const
 {
     return studio_export_option_bounds();
+}
+
+void StudioPresenter::checkSelectedCompanionJpegs()
+{
+    const auto ids = selected_asset_ids();
+    if (busy_ || catalog_path_.isEmpty() || ids.empty())
+        return;
+    const auto catalog = catalog_path_;
+    const auto generation = library_query_generation_;
+    setBusy(true);
+    setError({});
+    const bool queued = executor_.post(
+        [this, ids, catalog, generation]
+        {
+            Result<void> checked = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_)
+                checked = service_->check_companion_jpegs(ids, shutdown_.token());
+            QMetaObject::invokeMethod(
+                this,
+                [this, ids, catalog, generation, checked = std::move(checked)]
+                {
+                    setBusy(false);
+                    if (catalog != catalog_path_ || generation != library_query_generation_ ||
+                        ids != selected_asset_ids())
+                        return;
+                    if (checked)
+                        emit companionExportReady();
+                    else if (checked.error().context.contains("reason") &&
+                             checked.error().context.at("reason") == "companion_jpeg_missing")
+                        emit companionExportMissing();
+                    else
+                        setError(qstring_from_utf8(checked.error().message));
+                },
+                Qt::QueuedConnection);
+        });
+    if (!queued)
+    {
+        setBusy(false);
+        setError(QStringLiteral("Export worker is unavailable."));
+    }
 }
 
 void StudioPresenter::exportSelectedToPath(const QString &path, const QString &format,
@@ -122,11 +170,19 @@ void StudioPresenter::exportSelectedToPath(const QString &path, const QString &f
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, exported = std::move(exported)]() mutable
+                [this, snapshot, exported = std::move(exported)]() mutable
                 {
                     setBusy(false);
                     if (!exported)
                     {
+                        if (snapshot.format == ExportFormat::kCompanionJpeg &&
+                            exported.error().context.contains("reason") &&
+                            exported.error().context.at("reason") == "companion_jpeg_missing" &&
+                            utf8_from_qstring(selected_asset_id_) == snapshot.asset_id)
+                        {
+                            emit companionExportMissing();
+                            return;
+                        }
                         setError(qstring_from_utf8(exported.error().message));
                         setStatus(QCoreApplication::translate("StudioPresenter", "Export failed."));
                         return;
@@ -175,11 +231,22 @@ void StudioPresenter::exportSelectedToDirectory(const QString &directory,
             const auto total = request.asset_ids.size();
             QMetaObject::invokeMethod(
                 this,
-                [this, exported = std::move(exported), destination, total]() mutable
+                [this, exported = std::move(exported), destination, total, ids = request.asset_ids,
+                 format = request.options.format]() mutable
                 {
                     setBusy(false);
                     if (!exported)
                     {
+                        if (format == ExportFormat::kCompanionJpeg &&
+                            exported.error().context.contains("reason") &&
+                            exported.error().context.at("reason") == "companion_jpeg_missing" &&
+                            (!exported.error().context.contains("completed_count") ||
+                             exported.error().context.at("completed_count") == "0") &&
+                            ids == selected_asset_ids())
+                        {
+                            emit companionExportMissing();
+                            return;
+                        }
                         setError(qstring_from_utf8(exported.error().message));
                         const auto completed = exported.error().context.find("completed_count");
                         if (completed != exported.error().context.end())

@@ -1,5 +1,25 @@
 # Ravo
 
+The photo context menu offers **Export Companion JPEG...** for selected RAW
+assets. This copies the same-directory, same-stem JPEG unchanged, including its
+metadata, without applying Develop parameters. Studio checks the whole selection
+before choosing a destination. Missing companions offer **Export from RAW**,
+which opens JPEG export settings only after confirmation; Cancel closes the
+prompt. Ambiguous companions and existing outputs remain explicit failures.
+The shared CLI export
+contract accepts `--format companion-jpeg`; resize and delivery effects are
+not applicable to this exact copy.
+
+JPEG export can limit the complete file size in decimal MB (1 MB = 1,000,000
+bytes), up to 512 MB. The service renders once and reduces encoder quality
+within the selected quality ceiling, measuring ICC and metadata too. It keeps
+the configured pixel dimensions and fails without publishing when even minimum
+quality exceeds the limit. CLI uses `--jpeg-max-bytes N` (zero disables the
+limit); v1 export presets/jobs store optional `jpeg_max_bytes`.
+`ravo catalog companion-check --catalog <path> --asset-id <id> ... --json`
+provides the same read-only preflight with a versioned result.
+Assistant remains accessible from its menu; it has no default keyboard shortcut.
+
 Develop uses a mask-scoped editing workspace (ADR-0158). **New mask** creates a
 brush, gradient, radial, path or range selection; the shared Light, Curves,
 Color, Effects and Detail panels then edit that mask's independent parameters.
@@ -203,6 +223,11 @@ Current implementation status:
   a visible reason. The photo context menu copies versioned English identity
   and current canonical-parameter blocks without assembling recipe text in QML,
   and reveals the selected original in Finder, Explorer, or the file manager.
+- Studio's export form groups file settings and image sizing, with optional
+  delivery controls under Advanced options. JPEG quality starts at 95 and
+  Original size remains the default. Long-edge resizing is prefilled with
+  2560 px; width/height limits start at 2560 × 1440 px. Inactive size fields
+  never constrain the export. Expanded forms scroll within the window.
 - Gallery reuses monitor-corrected thumbnails across Studio restarts. A shared
   512 MiB disk cache avoids decoding, colour conversion and PNG encoding on a
   warm hit; changed preview files, display contracts or monitor profiles select

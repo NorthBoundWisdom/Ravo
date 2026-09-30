@@ -115,6 +115,23 @@ namespace ravo
                            std::optional<std::string>{path_utf8(found.front())};
 }
 
+Result<std::string> required_companion_jpeg(const AssetRecord &asset)
+{
+    if (!is_raw_media_type(asset.media_type))
+        return make_error(ErrorCode::kUnsupported, "Companion JPEG export requires a RAW asset",
+                          {{"asset_id", asset.id}, {"reason", "companion_jpeg_requires_raw"}});
+    auto location = normalize_local_input(asset.normalized_uri);
+    if (!location)
+        return location.error();
+    auto companion = adjacent_jpeg(location.value().path);
+    if (!companion)
+        return companion.error();
+    if (!companion.value())
+        return make_error(ErrorCode::kNotFound, "No companion JPEG exists for this RAW asset",
+                          {{"asset_id", asset.id}, {"reason", "companion_jpeg_missing"}});
+    return *companion.value();
+}
+
 void drop_raw_companion_jpegs(std::vector<std::string> &files)
 {
     struct Stem
@@ -340,7 +357,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 {
     // RAW import colour calibration: opposed highlight reconstruction, as-shot
     // WB (default temperature), the file's camera matrix via input profile
-    // `source`, and Sigmoid. RAW also enables the accepted Lab USM at
+    // `source`, and the current RapidRAW display/control baseline. RAW also enables the accepted Lab USM at
     // SharpenParams defaults (amount 0.5, radius 2, threshold 0.5). Later
     // Develop edits stack on this baseline.
     // Adobe DCP is not used. JPEG/PNG/TIFF stay identity.

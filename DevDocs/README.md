@@ -1,5 +1,9 @@
 # Ravo developer documentation
 
+Companion JPEG preflight and JPEG file-size limits are recorded in [ARCHITECTURE.md](ARCHITECTURE.md),
+its validation contract in [TESTING.md](TESTING.md), and user-facing behavior
+in [Ravo/README.md](../Ravo/README.md).
+
 `DevDocs/` is the repository-owned source for architecture, product planning,
 validation, dependency, packaging, compliance, and historical migration
 records. Component `README.md` files remain beside the code they describe, and
@@ -33,6 +37,8 @@ The Global/Mask Develop workspace and Recipe v4 local groups are specified in
 | [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history | Mutable implementation status |
 
 Product execution belongs only in [TODO.md](TODO.md).
+Export form defaults and size-selection ownership are documented in
+[Ravo/README.md](../Ravo/README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 Gallery's bounded persistent display-thumbnail cache and worker lifecycle are
 specified in [ARCHITECTURE.md](ARCHITECTURE.md).
 Studio's supported photo shortcuts are listed in [Ravo/README.md](../Ravo/README.md);

@@ -3,15 +3,70 @@
 #include <string_view>
 
 #include <QVariant>
+#include <QFile>
+#include <QImage>
+#include <QTemporaryDir>
 #include <gtest/gtest.h>
 
 #include "ravo/desktop/export_option_conversion.h"
+#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_command_controller.h"
 #include "ravo/domain/types.h"
+#include "ravo/foundation/log.h"
+#include "studio_test_support.h"
 
 namespace ravo
 {
 namespace
 {
+
+TEST(ExportWorkflow, CompanionCheckRoutesMissingAndAvailableWithoutWriting)
+{
+    studio_test_support::ensure_qt_core();
+    init_logging("ravo-export-workflow-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto raw = directory.filePath(QStringLiteral("source.cr2"));
+    ASSERT_TRUE(QFile::copy(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/tests/fixtures/frozen/images/mire1.cr2"), raw));
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(studio_test_support::wait_until(
+        [&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.importFilePaths({raw});
+    ASSERT_TRUE(studio_test_support::wait_until(
+        [&]
+        {
+            return !presenter.selectedAssetId().isEmpty() && !presenter.busy() &&
+                   !presenter.importWorkActive();
+        }));
+    int missing = 0;
+    int ready = 0;
+    QObject::connect(&presenter, &StudioPresenter::companionExportMissing, &presenter,
+                     [&] { ++missing; });
+    QObject::connect(&presenter, &StudioPresenter::companionExportReady, &presenter,
+                     [&] { ++ready; });
+    auto request = [&]
+    {
+        EXPECT_TRUE(controller
+                        .executeAction(QStringLiteral("studio.library.export_companion_jpeg"),
+                                       QStringLiteral("keyboard"))
+                        .value(QStringLiteral("accepted"))
+                        .toBool());
+    };
+    request();
+    ASSERT_TRUE(studio_test_support::wait_until([&] { return missing == 1 && !presenter.busy(); }));
+    EXPECT_EQ(ready, 0);
+    EXPECT_TRUE(presenter.errorText().isEmpty());
+    QImage jpeg(32, 24, QImage::Format_RGB888);
+    jpeg.fill(Qt::red);
+    ASSERT_TRUE(jpeg.save(directory.filePath(QStringLiteral("source.jpg")), "JPEG"));
+    request();
+    ASSERT_TRUE(studio_test_support::wait_until([&] { return ready == 1 && !presenter.busy(); }));
+    EXPECT_EQ(missing, 1);
+    EXPECT_TRUE(presenter.errorText().isEmpty());
+}
 
 [[nodiscard]] QVariantMap jpeg_options(const int quality, const QString &subsampling,
                                        const QString &metadata = QStringLiteral("full"),
@@ -161,6 +216,20 @@ TEST(ExportOptionConversion, DefaultsMatchDomainDefaults)
     auto original = studio_export_options_from_presentation(QStringLiteral("original"), {});
     ASSERT_TRUE(original) << original.error().message;
     EXPECT_EQ(original.value().format, ExportFormat::kOriginalCopy);
+    auto companion = studio_export_options_from_presentation(QStringLiteral("companion-jpeg"), {});
+    ASSERT_TRUE(companion) << companion.error().message;
+    EXPECT_EQ(companion.value().format, ExportFormat::kCompanionJpeg);
+    auto companion_path =
+        normalize_studio_export_path(QStringLiteral("/tmp/photo"), ExportFormat::kCompanionJpeg);
+    ASSERT_TRUE(companion_path);
+    EXPECT_EQ(companion_path.value(), QStringLiteral("/tmp/photo.jpg"));
+    auto limited_options = jpeg_options(95, QStringLiteral("auto"), QStringLiteral("full"));
+    limited_options.insert(QStringLiteral("jpegMaxMegabytes"), 2.0);
+    auto limited = make_studio_export_options(QStringLiteral("jpeg"), limited_options);
+    ASSERT_TRUE(limited) << limited.error().message;
+    EXPECT_EQ(limited.value().jpeg_max_bytes, 2'000'000U);
+    limited_options.insert(QStringLiteral("jpegMaxMegabytes"), -1);
+    EXPECT_FALSE(make_studio_export_options(QStringLiteral("jpeg"), limited_options));
 }
 
 TEST(ExportOptionConversion, MetadataPrivacyModesMapAndRejectUnknownValues)

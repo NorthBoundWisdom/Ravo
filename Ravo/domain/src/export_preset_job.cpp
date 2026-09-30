@@ -443,6 +443,16 @@ namespace
         return preset_error("Export options must be an object", "invalid_export_options_object",
                             "options");
     ExportOptions options;
+    if (object->contains("jpeg_max_bytes"))
+    {
+        auto limit = require_int64(value, "jpeg_max_bytes");
+        if (!limit)
+            return limit.error();
+        if (limit.value() < 0 || limit.value() > 512'000'000)
+            return preset_error("JPEG file size limit is out of range", "invalid_jpeg_max_bytes",
+                                "jpeg_max_bytes");
+        options.jpeg_max_bytes = static_cast<std::uint32_t>(limit.value());
+    }
     auto format_name = require_string(value, "format");
     if (!format_name)
         return format_name.error();
@@ -560,8 +570,9 @@ namespace
 
     // Reject unknown keys fail-closed.
     static constexpr std::string_view kAllowed[] = {
-        "format",       "metadata_mode", "max_edge",  "max_width", "max_height", "output_sharpen",
-        "output_color", "frame",         "watermark", "jpeg",      "png",        "tiff"};
+        "format",        "metadata_mode", "max_edge",  "max_width", "max_height", "output_sharpen",
+        "output_color",  "frame",         "watermark", "jpeg",      "png",        "tiff",
+        "jpeg_max_bytes"};
     for (const auto &[key, _] : *object)
     {
         bool allowed = false;
@@ -619,6 +630,7 @@ namespace
     object.emplace("max_edge", number_u32(options.max_edge));
     object.emplace("max_width", number_u32(options.max_width));
     object.emplace("max_height", number_u32(options.max_height));
+    object.emplace("jpeg_max_bytes", number_u32(options.jpeg_max_bytes));
     object.emplace("output_sharpen", std::move(sharpen).value());
     object.emplace("output_color", std::move(output_color).value());
     object.emplace("frame", std::move(frame).value());
@@ -935,6 +947,12 @@ Result<void> validate_export_frame_options(const ExportFrameOptions &options)
 
 Result<void> validate_export_options(const ExportOptions &options)
 {
+    if (options.jpeg_max_bytes > 512'000'000U ||
+        (options.jpeg_max_bytes != 0U && options.format != ExportFormat::kJpeg))
+        return make_error(ErrorCode::kValidation,
+                          "File size limits require JPEG export and at most 512 MB",
+                          {{"reason", "invalid_jpeg_max_bytes"},
+                           {"format", std::string(export_format_name(options.format))}});
     if (options.max_edge > kExportMaxEdgeMax)
     {
         return make_error(ErrorCode::kValidation, "Export long edge is out of range",
@@ -973,11 +991,13 @@ Result<void> validate_export_options(const ExportOptions &options)
         format_valid = validate_tiff_export_options(options.tiff_options);
         break;
     case ExportFormat::kOriginalCopy:
+    case ExportFormat::kCompanionJpeg:
         if (options.metadata_mode != ExportMetadataMode::kFull)
         {
             return make_error(ErrorCode::kValidation,
                               "Metadata privacy mode does not apply to original copy",
-                              {{"format", "original"}, {"reason", "metadata_mode_not_applicable"}});
+                              {{"format", std::string(export_format_name(options.format))},
+                               {"reason", "metadata_mode_not_applicable"}});
         }
         if (export_options_request_resize(options) ||
             export_options_request_output_sharpen(options) ||
@@ -987,7 +1007,8 @@ Result<void> validate_export_options(const ExportOptions &options)
             return make_error(
                 ErrorCode::kValidation,
                 "Original copy rejects resize, colour, frame, sharpen, and watermark fields",
-                {{"format", "original"}, {"reason", "original_copy_resize_not_applicable"}});
+                {{"format", std::string(export_format_name(options.format))},
+                 {"reason", "original_copy_resize_not_applicable"}});
         }
         return {};
     }

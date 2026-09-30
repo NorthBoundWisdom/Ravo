@@ -1225,6 +1225,11 @@ TEST(StudioPresenterTest, ExportPresentationCatalogExposesCanonicalDefaults)
     const auto defaults = presenter.exportDefaultOptions();
     EXPECT_EQ(defaults.value(QStringLiteral("format")).toString(), QStringLiteral("jpeg"));
     EXPECT_EQ(defaults.value(QStringLiteral("quality")).toInt(), 95);
+    const auto sizing = defaults.value(QStringLiteral("sizing")).toMap();
+    EXPECT_EQ(sizing.value(QStringLiteral("mode")).toString(), QStringLiteral("original"));
+    EXPECT_EQ(sizing.value(QStringLiteral("longEdge")).toInt(), 2560);
+    EXPECT_EQ(sizing.value(QStringLiteral("width")).toInt(), 2560);
+    EXPECT_EQ(sizing.value(QStringLiteral("height")).toInt(), 1440);
     EXPECT_EQ(defaults.value(QStringLiteral("jpegSubsampling")).toString(), QStringLiteral("auto"));
     EXPECT_EQ(defaults.value(QStringLiteral("pngBitDepth")).toString(), QStringLiteral("8"));
     EXPECT_EQ(defaults.value(QStringLiteral("pngCompression")).toInt(), 5);

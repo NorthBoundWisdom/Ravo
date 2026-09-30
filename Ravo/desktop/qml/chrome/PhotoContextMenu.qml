@@ -120,6 +120,9 @@ StudioContextMenu {
     StudioContextMenuItem {
         action: root.commands.exportPhoto
     }
+    StudioContextMenuItem {
+        action: root.commands.exportCompanionJpeg
+    }
     StudioContextMenuSeparator {}
     StudioContextMenuItem {
         action: root.commands.removePhoto

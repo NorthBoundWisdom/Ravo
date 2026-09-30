@@ -3079,12 +3079,20 @@ Diff: %6</source>
             <translation>긴 가장자리</translation>
         </message>
         <message>
-            <source>Maximum long edge</source>
-            <translation>최대 긴 가장자리</translation>
+            <source>Limit JPEG file size</source>
+            <translation>JPEG 파일 크기 제한</translation>
         </message>
         <message>
-            <source>Maximum long edge (0 keeps the rendered size)</source>
-            <translation>최대 긴 가장자리(0은 렌더링된 크기를 유지함)</translation>
+            <source>Maximum size (MB)</source>
+            <translation>최대 크기(MB)</translation>
+        </message>
+        <message>
+            <source>1 MB = 1,000,000 bytes. JPEG quality may be reduced; pixel dimensions stay as configured.</source>
+            <translation>1 MB = 1,000,000바이트입니다. JPEG 품질이 낮아질 수 있으며 픽셀 크기는 설정대로 유지됩니다.</translation>
+        </message>
+        <message>
+            <source>Maximum long edge</source>
+            <translation>최대 긴 가장자리</translation>
         </message>
         <message>
             <source>Max width</source>
@@ -3095,20 +3103,12 @@ Diff: %6</source>
             <translation>최대 내보내기 너비</translation>
         </message>
         <message>
-            <source>Maximum width (0 unconstrained)</source>
-            <translation>최대 너비(0, 무제한)</translation>
-        </message>
-        <message>
             <source>Max height</source>
             <translation>최대 높이</translation>
         </message>
         <message>
             <source>Maximum export height</source>
             <translation>최대 내보내기 높이</translation>
-        </message>
-        <message>
-            <source>Maximum height (0 unconstrained)</source>
-            <translation>최대 높이(제약 없음 0)</translation>
         </message>
         <message>
             <source>Output sharpen</source>
@@ -3231,6 +3231,18 @@ Diff: %6</source>
             <translation>품질</translation>
         </message>
         <message>
+            <source>Original size</source>
+            <translation>원본 크기</translation>
+        </message>
+        <message>
+            <source>Width and height</source>
+            <translation>너비 및 높이</translation>
+        </message>
+        <message>
+            <source>File settings</source>
+            <translation>파일 설정</translation>
+        </message>
+        <message>
             <source>JPEG quality</source>
             <translation>JPEG 품질</translation>
         </message>
@@ -3289,6 +3301,18 @@ Diff: %6</source>
         <message>
             <source>TIFF resolution</source>
             <translation>TIFF 해상도</translation>
+        </message>
+        <message>
+            <source>Image sizing</source>
+            <translation>이미지 크기</translation>
+        </message>
+        <message>
+            <source>Size</source>
+            <translation>크기</translation>
+        </message>
+        <message>
+            <source>Advanced options</source>
+            <translation>고급 옵션</translation>
         </message>
         <message>
             <source>Original copy writes the exact source bytes. Rendered format options are not used.</source>
@@ -3554,6 +3578,10 @@ Diff: %6</source>
             <translation>수집 전송은 복사 전용입니다. 이동 및 카메라 삭제는 계속 거부됩니다.</translation>
         </message>
         <message>
+            <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
+            <translation>화살표로 이동 · Shift로 범위 선택 · Ctrl/⌘로 선택 유지 · 스페이스로 체크</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>소스</translation>
         </message>
@@ -3608,6 +3636,14 @@ Diff: %6</source>
         <message>
             <source>Choose a source folder</source>
             <translation>원본 폴더를 선택하세요</translation>
+        </message>
+        <message>
+            <source>Import candidates</source>
+            <translation>가져올 사진</translation>
+        </message>
+        <message>
+            <source>Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.</source>
+            <translation>화살표 키로 이동하고, Shift로 범위를 선택하고, Control 또는 Command로 선택을 유지하며, 스페이스로 체크하거나 해제합니다.</translation>
         </message>
         <message>
             <source>Duplicate photo</source>
@@ -4225,6 +4261,18 @@ Diff: %6</source>
         <message>
             <source>Cancel</source>
             <translation>취소</translation>
+        </message>
+        <message>
+            <source>Companion JPEG unavailable</source>
+            <translation>연결된 JPEG를 사용할 수 없음</translation>
+        </message>
+        <message>
+            <source>A companion JPEG is missing. Export the selected photos from RAW instead?</source>
+            <translation>연결된 JPEG가 없습니다. 선택한 사진을 RAW에서 내보낼까요?</translation>
+        </message>
+        <message>
+            <source>Export from RAW</source>
+            <translation>RAW에서 내보내기</translation>
         </message>
         <message>
             <source>Remove</source>
@@ -5029,6 +5077,10 @@ Diff: %6</source>
             <translation>선택한 사진 내보내기...</translation>
         </message>
         <message>
+            <source>Export Companion JPEG...</source>
+            <translation>연결된 JPEG 내보내기...</translation>
+        </message>
+        <message>
             <source>Recovery Status</source>
             <translation>복구 상태</translation>
         </message>
@@ -5451,6 +5503,14 @@ Diff: %6</source>
         <message>
             <source>A proposal id is required.</source>
             <translation>제안서 ID가 필요합니다.</translation>
+        </message>
+        <message>
+            <source>Select a photo in a stack with at least two photos.</source>
+            <translation>사진이 두 장 이상인 스택에서 사진을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Open Burst Compare first.</source>
+            <translation>먼저 연사 비교를 여세요.</translation>
         </message>
     </context>
     <context>
@@ -6063,6 +6123,10 @@ Diff: %6</source>
         <message>
             <source>Burst compare (Survey pair).</source>
             <translation>버스트 비교(설문조사 쌍).</translation>
+        </message>
+        <message>
+            <source>Burst compare worker is unavailable.</source>
+            <translation>연사 비교 백그라운드 작업을 사용할 수 없습니다.</translation>
         </message>
         <message>
             <source>Deleted original file and catalog record.</source>

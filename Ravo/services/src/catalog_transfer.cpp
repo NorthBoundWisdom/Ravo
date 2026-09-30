@@ -23,6 +23,29 @@
 namespace ravo
 {
 using namespace catalog_service_internal;
+Result<void> CatalogService::check_companion_jpegs(const std::vector<std::string> &asset_ids,
+                                                   const CancellationToken &cancellation)
+{
+    if (!repository_)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    if (asset_ids.empty() || asset_ids.size() > kExportBatchMaxAssets)
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Companion check requires a bounded asset set");
+    for (const auto &id : asset_ids)
+    {
+        if (auto active = cancellation.check(); !active)
+            return active.error();
+        auto asset = repository_->find_asset_by_id(id);
+        if (!asset)
+            return asset.error();
+        if (!asset.value())
+            return make_error(ErrorCode::kNotFound, "Asset does not exist", {{"asset_id", id}});
+        auto companion = required_companion_jpeg(*asset.value());
+        if (!companion)
+            return companion.error();
+    }
+    return {};
+}
 Result<ImportItemResult>
 CatalogService::import_one(const std::string_view path, const CancellationToken &cancellation,
                            const ImportPreviewPolicy preview_policy, const bool defer_preview,
@@ -573,6 +596,13 @@ Result<std::vector<ExportResult>> CatalogService::export_assets(
                 {{"asset_id", asset_id}, {"batch_index", std::to_string(index + 1U)}});
         }
         auto source = normalize_local_input(asset.value()->normalized_uri);
+        if (request.options.format == ExportFormat::kCompanionJpeg)
+        {
+            auto companion = required_companion_jpeg(*asset.value());
+            if (!companion)
+                return annotate_batch_export_error(companion.error(), 0, request.asset_ids.size(),
+                                                   index, asset_id, {});
+        }
         if (!source)
             return source.error();
         const auto source_path = utf8_path(source.value().path);
@@ -716,7 +746,8 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
                           {{"asset_id", request.asset_id}});
     }
     ExportMetadataSnapshot export_metadata;
-    if (request.format != ExportFormat::kOriginalCopy)
+    if (request.format != ExportFormat::kOriginalCopy &&
+        request.format != ExportFormat::kCompanionJpeg)
     {
         if (request.metadata_mode == ExportMetadataMode::kNone)
         {
@@ -794,6 +825,23 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     result.asset_id = request.asset_id;
     result.output_path = output.value().path;
     result.format = request.format;
+    if (request.format == ExportFormat::kCompanionJpeg)
+    {
+        auto companion = required_companion_jpeg(*asset.value());
+        if (!companion)
+            return companion.error();
+        auto metadata = raster_->probe(companion.value());
+        if (!metadata)
+            return metadata.error();
+        auto copied =
+            copy_file_atomically(companion.value(), output.value().path, request.cancellation);
+        if (!copied)
+            return copied.error();
+        result.bytes_written = copied.value();
+        result.width = metadata.value().width;
+        result.height = metadata.value().height;
+        return result;
+    }
     if (request.format == ExportFormat::kOriginalCopy)
     {
         auto copied =
@@ -937,6 +985,44 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     if (!encoded)
     {
         return encoded.error();
+    }
+    if (request.jpeg_max_bytes != 0U && encoded.value().size() > request.jpeg_max_bytes)
+    {
+        // Render once. Search a bounded quality bracket over complete encoded
+        // files, including metadata/ICC. Only a verified fitting buffer is published.
+        auto options = request.jpeg_options;
+        options.quality = kJpegQualityMin;
+        auto best = raster_->encode(pixels, request.format, options, request.cancellation,
+                                    request.png_options, request.tiff_options, export_metadata);
+        if (!best)
+            return best.error();
+        if (best.value().size() > request.jpeg_max_bytes)
+            return make_error(ErrorCode::kValidation,
+                              "JPEG cannot fit the requested file size limit",
+                              {{"reason", "jpeg_size_limit_unreachable"},
+                               {"max_bytes", std::to_string(request.jpeg_max_bytes)},
+                               {"minimum_quality_bytes", std::to_string(best.value().size())}});
+        int low = kJpegQualityMin + 1;
+        int high = request.jpeg_options.quality - 1;
+        while (low <= high)
+        {
+            if (auto active = request.cancellation.check(); !active)
+                return active.error();
+            options.quality = low + (high - low) / 2;
+            auto candidate =
+                raster_->encode(pixels, request.format, options, request.cancellation,
+                                request.png_options, request.tiff_options, export_metadata);
+            if (!candidate)
+                return candidate.error();
+            if (candidate.value().size() <= request.jpeg_max_bytes)
+            {
+                best = std::move(candidate);
+                low = options.quality + 1;
+            }
+            else
+                high = options.quality - 1;
+        }
+        encoded = std::move(best);
     }
     auto written =
         write_bytes_atomically(output.value().path, encoded.value(), request.cancellation);

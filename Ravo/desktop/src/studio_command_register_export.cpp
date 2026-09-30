@@ -14,6 +14,8 @@ void StudioCommandController::registerExportCommands(const command_registration:
 {
     const auto &add = helpers.add;
     const auto &present = helpers.present;
+    add(command::kLibraryExportCompanion, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.checkSelectedCompanionJpegs(); });
 
     add(command::kLibraryExport, Condition::kReadySelection, no_argument,
         [present](const QVariant &argument, const QString &)
@@ -38,7 +40,8 @@ void StudioCommandController::registerExportCommands(const command_registration:
                         .arg(it.key());
             }
             static const QSet<QString> formats{QStringLiteral("jpeg"), QStringLiteral("png"),
-                                               QStringLiteral("tiff"), QStringLiteral("original")};
+                                               QStringLiteral("tiff"), QStringLiteral("original"),
+                                               QStringLiteral("companion-jpeg")};
             const auto format_error =
                 one_of(values.value(QStringLiteral("format")), formats, QStringLiteral("format"));
             if (!format_error.isEmpty())
@@ -84,7 +87,8 @@ void StudioCommandController::registerExportCommands(const command_registration:
                         .arg(it.key());
             }
             static const QSet<QString> formats{QStringLiteral("jpeg"), QStringLiteral("png"),
-                                               QStringLiteral("tiff"), QStringLiteral("original")};
+                                               QStringLiteral("tiff"), QStringLiteral("original"),
+                                               QStringLiteral("companion-jpeg")};
             const auto format_error =
                 one_of(values.value(QStringLiteral("format")), formats, QStringLiteral("format"));
             if (!format_error.isEmpty())

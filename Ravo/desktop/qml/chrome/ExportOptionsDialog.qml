@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
@@ -6,8 +7,26 @@ DialogShell {
     id: root
     objectName: "ExportOptionsDialog"
     titleText: batchMode ? qsTr("Export Selected Photos") : qsTr("Export Photo")
-    width: Fonts.messageDialogWidth
+    width: root.parent && root.parent.width > 0 ? Math.min(Fonts.scaledUiSize(520), root.parent.width - Fonts.size24) : Fonts.scaledUiSize(520)
     bodyFillHeight: false
+    bodyPreferredHeight: Math.min(body.implicitHeight, root.parent ? Math.max(Fonts.size24 * 8, root.parent.height - root.headerHeight - Fonts.size24 * 6) : body.implicitHeight)
+    readonly property int labelWidth: Fonts.scaledUiSize(140)
+    property bool advancedOptions: false
+    property string sizingMode: "original"
+    readonly property var sizingChoices: [
+        {
+            "id": "original",
+            "label": qsTr("Original size")
+        },
+        {
+            "id": "long_edge",
+            "label": qsTr("Long edge")
+        },
+        {
+            "id": "dimensions",
+            "label": qsTr("Width and height")
+        }
+    ]
     showCloseButton: true
 
     required property var presenter
@@ -20,6 +39,8 @@ DialogShell {
     property string tiffCompressionId: ""
     property string metadataModeId: ""
     property double jpegQuality: 0
+    property bool jpegSizeLimitEnabled: false
+    property double jpegSizeLimitMb: 2
     property double pngCompression: 0
     property double tiffCompressionLevel: 0
     property bool tiffGrayscaleIfNeutral: false
@@ -83,6 +104,8 @@ DialogShell {
         renderingIntentChoices = presenter.exportRenderingIntentChoices();
         formatId = defaults.format;
         jpegQuality = defaults.quality;
+        jpegSizeLimitEnabled = false;
+        jpegSizeLimitMb = 2;
         jpegSubsamplingId = defaults.jpegSubsampling;
         pngBitDepthId = defaults.pngBitDepth;
         pngCompression = defaults.pngCompression;
@@ -92,9 +115,11 @@ DialogShell {
         tiffGrayscaleIfNeutral = defaults.tiffGrayscaleIfNeutral;
         tiffResolutionDpi = defaults.tiffResolutionDpi;
         metadataModeId = defaults.metadataMode;
-        maxEdge = defaults.maxEdge !== undefined ? defaults.maxEdge : 0;
-        maxWidth = defaults.maxWidth !== undefined ? defaults.maxWidth : 0;
-        maxHeight = defaults.maxHeight !== undefined ? defaults.maxHeight : 0;
+        sizingMode = defaults.sizing.mode;
+        maxEdge = defaults.sizing.longEdge;
+        maxWidth = defaults.sizing.width;
+        maxHeight = defaults.sizing.height;
+        advancedOptions = false;
         outputSharpenEnabled = defaults.outputSharpenEnabled === true;
         outputSharpenAmount = defaults.outputSharpenAmount !== undefined ? defaults.outputSharpenAmount : 0.5;
         outputSharpenRadius = defaults.outputSharpenRadius !== undefined ? defaults.outputSharpenRadius : 0.5;
@@ -116,11 +141,12 @@ DialogShell {
         if (formatId === "jpeg")
             return {
                 "quality": jpegQualitySpin.realValue,
+                "jpegMaxMegabytes": jpegSizeLimitEnabled ? jpegSizeLimitSpin.realValue : 0,
                 "jpegSubsampling": jpegSubsamplingId,
                 "metadataMode": metadataModeId,
-                "maxEdge": maxEdgeSpin.realValue,
-                "maxWidth": maxWidthSpin.realValue,
-                "maxHeight": maxHeightSpin.realValue,
+                "maxEdge": root.sizingMode === "long_edge" ? maxEdgeSpin.realValue : 0,
+                "maxWidth": root.sizingMode === "dimensions" ? maxWidthSpin.realValue : 0,
+                "maxHeight": root.sizingMode === "dimensions" ? maxHeightSpin.realValue : 0,
                 "outputSharpenEnabled": outputSharpenEnabled,
                 "outputSharpenAmount": outputSharpenAmountSpin.realValue,
                 "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
@@ -141,9 +167,9 @@ DialogShell {
                 "pngBitDepth": pngBitDepthId,
                 "pngCompression": pngCompressionSpin.realValue,
                 "metadataMode": metadataModeId,
-                "maxEdge": maxEdgeSpin.realValue,
-                "maxWidth": maxWidthSpin.realValue,
-                "maxHeight": maxHeightSpin.realValue,
+                "maxEdge": root.sizingMode === "long_edge" ? maxEdgeSpin.realValue : 0,
+                "maxWidth": root.sizingMode === "dimensions" ? maxWidthSpin.realValue : 0,
+                "maxHeight": root.sizingMode === "dimensions" ? maxHeightSpin.realValue : 0,
                 "outputSharpenEnabled": outputSharpenEnabled,
                 "outputSharpenAmount": outputSharpenAmountSpin.realValue,
                 "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
@@ -167,9 +193,9 @@ DialogShell {
                 "tiffGrayscaleIfNeutral": tiffGrayscaleIfNeutral,
                 "tiffResolutionDpi": tiffResolutionSpin.realValue,
                 "metadataMode": metadataModeId,
-                "maxEdge": maxEdgeSpin.realValue,
-                "maxWidth": maxWidthSpin.realValue,
-                "maxHeight": maxHeightSpin.realValue,
+                "maxEdge": root.sizingMode === "long_edge" ? maxEdgeSpin.realValue : 0,
+                "maxWidth": root.sizingMode === "dimensions" ? maxWidthSpin.realValue : 0,
+                "maxHeight": root.sizingMode === "dimensions" ? maxHeightSpin.realValue : 0,
                 "outputSharpenEnabled": outputSharpenEnabled,
                 "outputSharpenAmount": outputSharpenAmountSpin.realValue,
                 "outputSharpenRadius": outputSharpenRadiusSpin.realValue,
@@ -210,644 +236,805 @@ DialogShell {
         root.exportCanceled();
     }
 
-    bodyItem: ColumnLayout {
-        id: body
-        spacing: Fonts.size10
-        width: parent ? parent.width : Fonts.messageDialogWidth
-
-        Keys.onEscapePressed: root.cancelExport()
-        Keys.onReturnPressed: root.acceptExport()
-        Keys.onEnterPressed: root.acceptExport()
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.batchMode
-
-            CustomLabel {
-                text: qsTr("Filename template")
-                Accessible.name: qsTr("Batch export filename template")
-            }
-            CustomTextField {
-                id: filenameTemplateField
-                objectName: "exportFilenameTemplate"
-                Layout.fillWidth: true
-                Layout.preferredHeight: Fonts.inputFieldHeight
-                showEmptyIndicator: true
-                showClipIndicator: false
-                alignRightWhenFocused: false
-                text: root.filenameTemplate
-                placeholderText: qsTr("{stem}-{sequence}{ext}")
-                Accessible.name: qsTr("Batch export filename template")
-                onTextChanged: if (root.filenameTemplate !== text)
-                    root.filenameTemplate = text
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-
-            CustomLabel {
-                text: qsTr("Format")
-                Accessible.name: qsTr("Format")
-            }
-            CustomComboBox {
-                id: formatCombo
-                objectName: "exportFormat"
-                Layout.fillWidth: true
-                textRole: "label"
-                model: root.formatChoices
-                currentIndex: root.choiceIndex(root.formatChoices, root.formatId)
-                Accessible.name: qsTr("Format")
-                onActivated: function (index) {
-                    root.formatId = model[index].id;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original"
-
-            CustomLabel {
-                text: qsTr("Metadata")
-                Accessible.name: qsTr("Metadata privacy")
-            }
-            CustomComboBox {
-                id: metadataModeCombo
-                objectName: "metadataMode"
-                Layout.fillWidth: true
-                textRole: "label"
-                model: root.metadataModeChoices
-                currentIndex: root.choiceIndex(root.metadataModeChoices, root.metadataModeId)
-                Accessible.name: qsTr("Metadata privacy")
-                onActivated: function (index) {
-                    root.metadataModeId = model[index].id;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original"
-
-            CustomLabel {
-                text: qsTr("Long edge")
-                Accessible.name: qsTr("Maximum long edge")
-            }
-            CustomSpinBox {
-                id: maxEdgeSpin
-                objectName: "exportMaxEdge"
-                Layout.fillWidth: true
-                decimals: 0
-                realFrom: root.optionBounds.maxEdgeMin
-                realTo: root.optionBounds.maxEdgeMax
-                realValue: root.maxEdge
-                Accessible.name: qsTr("Maximum long edge (0 keeps the rendered size)")
-                onEditingCommitted: function (value) {
-                    root.maxEdge = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original"
-
-            CustomLabel {
-                text: qsTr("Max width")
-                Accessible.name: qsTr("Maximum export width")
-            }
-            CustomSpinBox {
-                id: maxWidthSpin
-                objectName: "exportMaxWidth"
-                Layout.fillWidth: true
-                decimals: 0
-                realFrom: root.optionBounds.maxWidthMin
-                realTo: root.optionBounds.maxWidthMax
-                realValue: root.maxWidth
-                Accessible.name: qsTr("Maximum width (0 unconstrained)")
-                onEditingCommitted: function (value) {
-                    root.maxWidth = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original"
-
-            CustomLabel {
-                text: qsTr("Max height")
-                Accessible.name: qsTr("Maximum export height")
-            }
-            CustomSpinBox {
-                id: maxHeightSpin
-                objectName: "exportMaxHeight"
-                Layout.fillWidth: true
-                decimals: 0
-                realFrom: root.optionBounds.maxHeightMin
-                realTo: root.optionBounds.maxHeightMax
-                realValue: root.maxHeight
-                Accessible.name: qsTr("Maximum height (0 unconstrained)")
-                onEditingCommitted: function (value) {
-                    root.maxHeight = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original"
-
-            CustomLabel {
-                text: qsTr("Output sharpen")
-                Accessible.name: qsTr("Enable export output sharpen")
-            }
-            CustomCheckBox {
-                id: outputSharpenCheck
-                objectName: "exportOutputSharpenEnabled"
-                checked: root.outputSharpenEnabled
-                text: qsTr("After resize")
-                Accessible.name: qsTr("Enable output sharpen after resize")
-                onToggled: root.outputSharpenEnabled = checked
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.outputSharpenEnabled
-
-            CustomLabel {
-                text: qsTr("Sharpen amount")
-            }
-            CustomSpinBox {
-                id: outputSharpenAmountSpin
-                objectName: "exportOutputSharpenAmount"
-                Layout.fillWidth: true
-                decimals: 2
-                realFrom: root.optionBounds.outputSharpenAmountMin
-                realTo: root.optionBounds.outputSharpenAmountMax
-                realValue: root.outputSharpenAmount
-                onEditingCommitted: function (value) {
-                    root.outputSharpenAmount = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.outputSharpenEnabled
-
-            CustomLabel {
-                text: qsTr("Sharpen radius")
-            }
-            CustomSpinBox {
-                id: outputSharpenRadiusSpin
-                objectName: "exportOutputSharpenRadius"
-                Layout.fillWidth: true
-                decimals: 2
-                realFrom: root.optionBounds.outputSharpenRadiusMin
-                realTo: root.optionBounds.outputSharpenRadiusMax
-                realValue: root.outputSharpenRadius
-                onEditingCommitted: function (value) {
-                    root.outputSharpenRadius = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.outputSharpenEnabled
-
-            CustomLabel {
-                text: qsTr("Sharpen threshold")
-            }
-            CustomSpinBox {
-                id: outputSharpenThresholdSpin
-                objectName: "exportOutputSharpenThreshold"
-                Layout.fillWidth: true
-                decimals: 2
-                realFrom: root.optionBounds.outputSharpenThresholdMin
-                realTo: root.optionBounds.outputSharpenThresholdMax
-                realValue: root.outputSharpenThreshold
-                onEditingCommitted: function (value) {
-                    root.outputSharpenThreshold = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original"
-
-            CustomLabel {
-                text: qsTr("Delivery colour")
-                Accessible.name: qsTr("Enable export delivery colour override")
-            }
-            CustomCheckBox {
-                id: outputColorEnabledCheck
-                objectName: "exportOutputColorEnabled"
-                checked: root.outputColorEnabled
-                text: qsTr("Override output profile")
-                Accessible.name: qsTr("Enable delivery colour override for this export")
-                onToggled: root.outputColorEnabled = checked
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.outputColorEnabled
-
-            CustomLabel {
-                text: qsTr("Output profile")
-            }
-            CustomComboBox {
-                id: outputProfileCombo
-                objectName: "exportOutputProfile"
-                Layout.fillWidth: true
-                model: root.outputProfileChoices
-                textRole: "label"
-                currentIndex: root.choiceIndex(root.outputProfileChoices, root.outputProfileId)
-                Accessible.name: qsTr("Delivery output colour profile")
-                onActivated: function (index) {
-                    root.outputProfileId = root.outputProfileChoices[index].id;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.outputColorEnabled
-
-            CustomLabel {
-                text: qsTr("Rendering intent")
-            }
-            CustomComboBox {
-                id: renderingIntentCombo
-                objectName: "exportRenderingIntent"
-                Layout.fillWidth: true
-                model: root.renderingIntentChoices
-                textRole: "label"
-                currentIndex: root.choiceIndex(root.renderingIntentChoices, root.renderingIntentId)
-                Accessible.name: qsTr("Delivery colour rendering intent")
-                onActivated: function (index) {
-                    root.renderingIntentId = root.renderingIntentChoices[index].id;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original"
-
-            CustomLabel {
-                text: qsTr("Delivery frame")
-                Accessible.name: qsTr("Enable export delivery frame")
-            }
-            CustomCheckBox {
-                id: frameEnabledCheck
-                objectName: "exportFrameEnabled"
-                checked: root.frameEnabled
-                text: qsTr("After sharpen")
-                Accessible.name: qsTr("Enable delivery frame after sharpen before watermark")
-                onToggled: root.frameEnabled = checked
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.frameEnabled
-
-            CustomLabel {
-                text: qsTr("Frame size")
-            }
-            CustomSpinBox {
-                id: frameSizeSpin
-                objectName: "exportFrameSize"
-                Layout.fillWidth: true
-                decimals: 3
-                realFrom: root.optionBounds.frameSizeMin
-                realTo: root.optionBounds.frameSizeMax
-                realValue: root.frameSize
-                onEditingCommitted: function (value) {
-                    root.frameSize = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original"
-
-            CustomLabel {
-                text: qsTr("Delivery watermark")
-                Accessible.name: qsTr("Enable export delivery watermark")
-            }
-            CustomCheckBox {
-                id: watermarkEnabledCheck
-                objectName: "exportWatermarkEnabled"
-                checked: root.watermarkEnabled
-                text: qsTr("After sharpen")
-                Accessible.name: qsTr("Enable delivery watermark after sharpen")
-                onToggled: root.watermarkEnabled = checked
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.watermarkEnabled
-
-            CustomLabel {
-                text: qsTr("Watermark text")
-            }
-            CustomTextField {
-                id: watermarkTextField
-                objectName: "exportWatermarkText"
-                Layout.fillWidth: true
-                text: root.watermarkText
-                Accessible.name: qsTr("Delivery watermark text")
-                onEditingFinished: root.watermarkText = text
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.watermarkEnabled
-
-            CustomLabel {
-                text: qsTr("Watermark opacity")
-            }
-            CustomSpinBox {
-                id: watermarkOpacitySpin
-                objectName: "exportWatermarkOpacity"
-                Layout.fillWidth: true
-                decimals: 2
-                realFrom: root.optionBounds.watermarkOpacityMin
-                realTo: root.optionBounds.watermarkOpacityMax
-                realValue: root.watermarkOpacity
-                onEditingCommitted: function (value) {
-                    root.watermarkOpacity = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.watermarkEnabled
-
-            CustomLabel {
-                text: qsTr("Watermark scale")
-            }
-            CustomSpinBox {
-                id: watermarkScaleSpin
-                objectName: "exportWatermarkScale"
-                Layout.fillWidth: true
-                decimals: 1
-                realFrom: root.optionBounds.watermarkScaleMin
-                realTo: root.optionBounds.watermarkScaleMax
-                realValue: root.watermarkScale
-                onEditingCommitted: function (value) {
-                    root.watermarkScale = value;
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.standardMargin
-            visible: root.formatId !== "original" && root.watermarkEnabled
-
-            CustomLabel {
-                text: qsTr("Watermark alignment")
-            }
-            CustomComboBox {
-                id: watermarkAlignmentCombo
-                objectName: "exportWatermarkAlignment"
-                Layout.fillWidth: true
-                textRole: "label"
-                valueRole: "id"
-                model: root.watermarkAlignmentChoices
-                currentIndex: root.choiceIndex(root.watermarkAlignmentChoices, root.watermarkAlignmentId)
-                Accessible.name: qsTr("Delivery watermark alignment")
-                onActivated: function (index) {
-                    root.watermarkAlignmentId = root.watermarkAlignmentChoices[index].id;
-                }
-            }
+    bodyItem: Flickable {
+        id: exportScroll
+        implicitHeight: body.implicitHeight
+        contentWidth: width
+        contentHeight: body.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        ScrollBar.vertical: ScrollBar {
+            id: exportScrollBar
         }
 
         ColumnLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.size8
-            visible: root.formatId === "jpeg"
+            id: body
+            spacing: Fonts.size10
+            width: exportScroll.width - exportScrollBar.width - Fonts.size4
+
+            Keys.onEscapePressed: root.cancelExport()
+            Keys.onReturnPressed: root.acceptExport()
+            Keys.onEnterPressed: root.acceptExport()
+
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("File settings")
+                font: Fonts.makeBoldFont(Fonts.standardFont)
+            }
 
             RowLayout {
                 Layout.fillWidth: true
+                spacing: Fonts.standardMargin
+                visible: root.batchMode
+
                 CustomLabel {
-                    text: qsTr("Quality")
-                    Accessible.name: qsTr("JPEG quality")
+                    Layout.preferredWidth: root.labelWidth
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Filename template")
+                    Accessible.name: qsTr("Batch export filename template")
+                }
+                CustomTextField {
+                    id: filenameTemplateField
+                    objectName: "exportFilenameTemplate"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Fonts.inputFieldHeight
+                    showEmptyIndicator: true
+                    showClipIndicator: false
+                    alignRightWhenFocused: false
+                    text: root.filenameTemplate
+                    placeholderText: qsTr("{stem}-{sequence}{ext}")
+                    Accessible.name: qsTr("Batch export filename template")
+                    onTextChanged: if (root.filenameTemplate !== text)
+                        root.filenameTemplate = text
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Fonts.standardMargin
+
+                CustomLabel {
+                    Layout.preferredWidth: root.labelWidth
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Format")
+                    Accessible.name: qsTr("Format")
+                }
+                CustomComboBox {
+                    id: formatCombo
+                    objectName: "exportFormat"
+                    Layout.fillWidth: true
+                    textRole: "label"
+                    model: root.formatChoices
+                    currentIndex: root.choiceIndex(root.formatChoices, root.formatId)
+                    Accessible.name: qsTr("Format")
+                    onActivated: function (index) {
+                        root.formatId = model[index].id;
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Fonts.size8
+                visible: root.formatId === "jpeg"
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Quality")
+                        Accessible.name: qsTr("JPEG quality")
+                    }
+                    CustomSpinBox {
+                        id: jpegQualitySpin
+                        objectName: "jpegQuality"
+                        Layout.fillWidth: true
+                        decimals: 0
+                        realFrom: root.optionBounds.jpegQualityMin
+                        realTo: root.optionBounds.jpegQualityMax
+                        realValue: root.jpegQuality
+                        Accessible.name: qsTr("JPEG quality")
+                        onEditingCommitted: function (value) {
+                            root.jpegQuality = value;
+                        }
+                    }
+                }
+                CustomCheckBox {
+                    text: qsTr("Limit JPEG file size")
+                    checked: root.jpegSizeLimitEnabled
+                    onToggled: root.jpegSizeLimitEnabled = checked
+                }
+                RowLayout {
+                    visible: root.jpegSizeLimitEnabled
+                    Layout.fillWidth: true
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        text: qsTr("Maximum size (MB)")
+                    }
+                    CustomSpinBox {
+                        id: jpegSizeLimitSpin
+                        objectName: "jpegSizeLimitMb"
+                        Layout.fillWidth: true
+                        decimals: 2
+                        realFrom: 0.01
+                        realTo: 512
+                        realValue: root.jpegSizeLimitMb
+                        onEditingCommitted: function (value) { root.jpegSizeLimitMb = value; }
+                    }
+                }
+                CustomLabel {
+                    visible: root.jpegSizeLimitEnabled
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: qsTr("1 MB = 1,000,000 bytes. JPEG quality may be reduced; pixel dimensions stay as configured.")
+                }
+                RowLayout {
+                    visible: root.advancedOptions
+                    Layout.fillWidth: true
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Subsampling")
+                        Accessible.name: qsTr("JPEG subsampling")
+                    }
+                    CustomComboBox {
+                        id: jpegSubsamplingCombo
+                        objectName: "jpegSubsampling"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        model: root.jpegSubsamplingChoices
+                        currentIndex: root.choiceIndex(root.jpegSubsamplingChoices, root.jpegSubsamplingId)
+                        Accessible.name: qsTr("JPEG subsampling")
+                        onActivated: function (index) {
+                            root.jpegSubsamplingId = model[index].id;
+                        }
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Fonts.size8
+                visible: root.formatId === "png"
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Bit depth")
+                        Accessible.name: qsTr("PNG bit depth")
+                    }
+                    CustomComboBox {
+                        id: pngBitDepthCombo
+                        objectName: "pngBitDepth"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        model: root.pngBitDepthChoices
+                        currentIndex: root.choiceIndex(root.pngBitDepthChoices, root.pngBitDepthId)
+                        Accessible.name: qsTr("PNG bit depth")
+                        onActivated: function (index) {
+                            root.pngBitDepthId = model[index].id;
+                        }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Compression")
+                        Accessible.name: qsTr("PNG compression")
+                    }
+                    CustomSpinBox {
+                        id: pngCompressionSpin
+                        objectName: "pngCompression"
+                        Layout.fillWidth: true
+                        decimals: 0
+                        realFrom: root.optionBounds.pngCompressionMin
+                        realTo: root.optionBounds.pngCompressionMax
+                        realValue: root.pngCompression
+                        Accessible.name: qsTr("PNG compression")
+                        onEditingCommitted: function (value) {
+                            root.pngCompression = value;
+                        }
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Fonts.size8
+                visible: root.formatId === "tiff"
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Sample type")
+                        Accessible.name: qsTr("TIFF sample type")
+                    }
+                    CustomComboBox {
+                        id: tiffSampleTypeCombo
+                        objectName: "tiffSampleType"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        model: root.tiffSampleTypeChoices
+                        currentIndex: root.choiceIndex(root.tiffSampleTypeChoices, root.tiffSampleTypeId)
+                        Accessible.name: qsTr("TIFF sample type")
+                        onActivated: function (index) {
+                            root.tiffSampleTypeId = model[index].id;
+                        }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Compression")
+                        Accessible.name: qsTr("TIFF compression")
+                    }
+                    CustomComboBox {
+                        id: tiffCompressionCombo
+                        objectName: "tiffCompression"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        model: root.tiffCompressionChoices
+                        currentIndex: root.choiceIndex(root.tiffCompressionChoices, root.tiffCompressionId)
+                        Accessible.name: qsTr("TIFF compression")
+                        onActivated: function (index) {
+                            root.tiffCompressionId = model[index].id;
+                        }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Compression level")
+                        enabled: root.tiffLevelEnabled
+                        Accessible.name: qsTr("TIFF compression level")
+                    }
+                    CustomSpinBox {
+                        id: tiffCompressionLevelSpin
+                        objectName: "tiffCompressionLevel"
+                        Layout.fillWidth: true
+                        enabled: root.tiffLevelEnabled
+                        decimals: 0
+                        realFrom: root.optionBounds.tiffCompressionLevelMin
+                        realTo: root.optionBounds.tiffCompressionLevelMax
+                        realValue: root.tiffCompressionLevel
+                        Accessible.name: qsTr("TIFF compression level")
+                        onEditingCommitted: function (value) {
+                            root.tiffCompressionLevel = value;
+                        }
+                    }
+                }
+                CustomCheckBox {
+                    id: tiffGrayscaleCheck
+                    objectName: "tiffGrayscaleIfNeutral"
+                    text: qsTr("Write grayscale when the image is neutral")
+                    checked: root.tiffGrayscaleIfNeutral
+                    Accessible.name: qsTr("Write grayscale when the image is neutral")
+                    onCheckedChanged: root.tiffGrayscaleIfNeutral = checked
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Resolution (dpi)")
+                        Accessible.name: qsTr("TIFF resolution")
+                    }
+                    CustomSpinBox {
+                        id: tiffResolutionSpin
+                        objectName: "tiffResolutionDpi"
+                        Layout.fillWidth: true
+                        decimals: 0
+                        realFrom: root.optionBounds.tiffResolutionDpiMin
+                        realTo: root.optionBounds.tiffResolutionDpiMax
+                        realValue: root.tiffResolutionDpi
+                        Accessible.name: qsTr("TIFF resolution")
+                        onEditingCommitted: function (value) {
+                            root.tiffResolutionDpi = value;
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Fonts.standardMargin
+                visible: root.formatId !== "original"
+
+                CustomLabel {
+                    Layout.preferredWidth: root.labelWidth
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Metadata")
+                    Accessible.name: qsTr("Metadata privacy")
+                }
+                CustomComboBox {
+                    id: metadataModeCombo
+                    objectName: "metadataMode"
+                    Layout.fillWidth: true
+                    textRole: "label"
+                    model: root.metadataModeChoices
+                    currentIndex: root.choiceIndex(root.metadataModeChoices, root.metadataModeId)
+                    Accessible.name: qsTr("Metadata privacy")
+                    onActivated: function (index) {
+                        root.metadataModeId = model[index].id;
+                    }
+                }
+            }
+
+            CustomLabel {
+                Layout.fillWidth: true
+                visible: root.formatId !== "original"
+                text: qsTr("Image sizing")
+                font: Fonts.makeBoldFont(Fonts.standardFont)
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Fonts.standardMargin
+                visible: root.formatId !== "original"
+                CustomLabel {
+                    Layout.preferredWidth: root.labelWidth
+                    text: qsTr("Size")
+                }
+                CustomComboBox {
+                    objectName: "exportSizingMode"
+                    Layout.fillWidth: true
+                    textRole: "label"
+                    model: root.sizingChoices
+                    currentIndex: root.choiceIndex(root.sizingChoices, root.sizingMode)
+                    Accessible.name: qsTr("Image sizing")
+                    onActivated: function (index) {
+                        root.sizingMode = root.sizingChoices[index].id;
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Fonts.standardMargin
+                visible: root.formatId !== "original" && root.sizingMode === "long_edge"
+
+                CustomLabel {
+                    Layout.preferredWidth: root.labelWidth
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Long edge")
+                    Accessible.name: qsTr("Maximum long edge")
                 }
                 CustomSpinBox {
-                    id: jpegQualitySpin
-                    objectName: "jpegQuality"
+                    id: maxEdgeSpin
+                    objectName: "exportMaxEdge"
                     Layout.fillWidth: true
                     decimals: 0
-                    realFrom: root.optionBounds.jpegQualityMin
-                    realTo: root.optionBounds.jpegQualityMax
-                    realValue: root.jpegQuality
-                    Accessible.name: qsTr("JPEG quality")
+                    realFrom: Math.max(1, root.optionBounds.maxEdgeMin)
+                    realTo: root.optionBounds.maxEdgeMax
+                    realValue: root.maxEdge
+                    Accessible.name: qsTr("Maximum long edge")
                     onEditingCommitted: function (value) {
-                        root.jpegQuality = value;
+                        root.maxEdge = value;
                     }
                 }
-            }
-            RowLayout {
-                Layout.fillWidth: true
                 CustomLabel {
-                    text: qsTr("Subsampling")
-                    Accessible.name: qsTr("JPEG subsampling")
-                }
-                CustomComboBox {
-                    id: jpegSubsamplingCombo
-                    objectName: "jpegSubsampling"
-                    Layout.fillWidth: true
-                    textRole: "label"
-                    model: root.jpegSubsamplingChoices
-                    currentIndex: root.choiceIndex(root.jpegSubsamplingChoices, root.jpegSubsamplingId)
-                    Accessible.name: qsTr("JPEG subsampling")
-                    onActivated: function (index) {
-                        root.jpegSubsamplingId = model[index].id;
-                    }
+                    text: "px"
                 }
             }
-        }
-
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.size8
-            visible: root.formatId === "png"
 
             RowLayout {
                 Layout.fillWidth: true
+                spacing: Fonts.standardMargin
+                visible: root.formatId !== "original" && root.sizingMode === "dimensions"
+
                 CustomLabel {
-                    text: qsTr("Bit depth")
-                    Accessible.name: qsTr("PNG bit depth")
-                }
-                CustomComboBox {
-                    id: pngBitDepthCombo
-                    objectName: "pngBitDepth"
-                    Layout.fillWidth: true
-                    textRole: "label"
-                    model: root.pngBitDepthChoices
-                    currentIndex: root.choiceIndex(root.pngBitDepthChoices, root.pngBitDepthId)
-                    Accessible.name: qsTr("PNG bit depth")
-                    onActivated: function (index) {
-                        root.pngBitDepthId = model[index].id;
-                    }
-                }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                CustomLabel {
-                    text: qsTr("Compression")
-                    Accessible.name: qsTr("PNG compression")
+                    Layout.preferredWidth: root.labelWidth
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Max width")
+                    Accessible.name: qsTr("Maximum export width")
                 }
                 CustomSpinBox {
-                    id: pngCompressionSpin
-                    objectName: "pngCompression"
+                    id: maxWidthSpin
+                    objectName: "exportMaxWidth"
                     Layout.fillWidth: true
                     decimals: 0
-                    realFrom: root.optionBounds.pngCompressionMin
-                    realTo: root.optionBounds.pngCompressionMax
-                    realValue: root.pngCompression
-                    Accessible.name: qsTr("PNG compression")
+                    realFrom: Math.max(1, root.optionBounds.maxWidthMin)
+                    realTo: root.optionBounds.maxWidthMax
+                    realValue: root.maxWidth
+                    Accessible.name: qsTr("Maximum export width")
                     onEditingCommitted: function (value) {
-                        root.pngCompression = value;
+                        root.maxWidth = value;
                     }
                 }
+                CustomLabel {
+                    text: "px"
+                }
             }
-        }
-
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.size8
-            visible: root.formatId === "tiff"
 
             RowLayout {
                 Layout.fillWidth: true
+                spacing: Fonts.standardMargin
+                visible: root.formatId !== "original" && root.sizingMode === "dimensions"
+
                 CustomLabel {
-                    text: qsTr("Sample type")
-                    Accessible.name: qsTr("TIFF sample type")
-                }
-                CustomComboBox {
-                    id: tiffSampleTypeCombo
-                    objectName: "tiffSampleType"
-                    Layout.fillWidth: true
-                    textRole: "label"
-                    model: root.tiffSampleTypeChoices
-                    currentIndex: root.choiceIndex(root.tiffSampleTypeChoices, root.tiffSampleTypeId)
-                    Accessible.name: qsTr("TIFF sample type")
-                    onActivated: function (index) {
-                        root.tiffSampleTypeId = model[index].id;
-                    }
-                }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                CustomLabel {
-                    text: qsTr("Compression")
-                    Accessible.name: qsTr("TIFF compression")
-                }
-                CustomComboBox {
-                    id: tiffCompressionCombo
-                    objectName: "tiffCompression"
-                    Layout.fillWidth: true
-                    textRole: "label"
-                    model: root.tiffCompressionChoices
-                    currentIndex: root.choiceIndex(root.tiffCompressionChoices, root.tiffCompressionId)
-                    Accessible.name: qsTr("TIFF compression")
-                    onActivated: function (index) {
-                        root.tiffCompressionId = model[index].id;
-                    }
-                }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                CustomLabel {
-                    text: qsTr("Compression level")
-                    enabled: root.tiffLevelEnabled
-                    Accessible.name: qsTr("TIFF compression level")
+                    Layout.preferredWidth: root.labelWidth
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Max height")
+                    Accessible.name: qsTr("Maximum export height")
                 }
                 CustomSpinBox {
-                    id: tiffCompressionLevelSpin
-                    objectName: "tiffCompressionLevel"
+                    id: maxHeightSpin
+                    objectName: "exportMaxHeight"
                     Layout.fillWidth: true
-                    enabled: root.tiffLevelEnabled
                     decimals: 0
-                    realFrom: root.optionBounds.tiffCompressionLevelMin
-                    realTo: root.optionBounds.tiffCompressionLevelMax
-                    realValue: root.tiffCompressionLevel
-                    Accessible.name: qsTr("TIFF compression level")
+                    realFrom: Math.max(1, root.optionBounds.maxHeightMin)
+                    realTo: root.optionBounds.maxHeightMax
+                    realValue: root.maxHeight
+                    Accessible.name: qsTr("Maximum export height")
                     onEditingCommitted: function (value) {
-                        root.tiffCompressionLevel = value;
+                        root.maxHeight = value;
                     }
                 }
+                CustomLabel {
+                    text: "px"
+                }
             }
+
             CustomCheckBox {
-                id: tiffGrayscaleCheck
-                objectName: "tiffGrayscaleIfNeutral"
-                text: qsTr("Write grayscale when the image is neutral")
-                checked: root.tiffGrayscaleIfNeutral
-                Accessible.name: qsTr("Write grayscale when the image is neutral")
-                onCheckedChanged: root.tiffGrayscaleIfNeutral = checked
+                objectName: "exportAdvancedOptions"
+                visible: root.formatId !== "original"
+                text: qsTr("Advanced options")
+                checked: root.advancedOptions
+                onToggled: root.advancedOptions = checked
             }
-            RowLayout {
+
+            ColumnLayout {
                 Layout.fillWidth: true
-                CustomLabel {
-                    text: qsTr("Resolution (dpi)")
-                    Accessible.name: qsTr("TIFF resolution")
-                }
-                CustomSpinBox {
-                    id: tiffResolutionSpin
-                    objectName: "tiffResolutionDpi"
+                spacing: Fonts.size10
+                visible: root.advancedOptions && root.formatId !== "original"
+                RowLayout {
                     Layout.fillWidth: true
-                    decimals: 0
-                    realFrom: root.optionBounds.tiffResolutionDpiMin
-                    realTo: root.optionBounds.tiffResolutionDpiMax
-                    realValue: root.tiffResolutionDpi
-                    Accessible.name: qsTr("TIFF resolution")
-                    onEditingCommitted: function (value) {
-                        root.tiffResolutionDpi = value;
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original"
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Output sharpen")
+                        Accessible.name: qsTr("Enable export output sharpen")
+                    }
+                    CustomCheckBox {
+                        id: outputSharpenCheck
+                        objectName: "exportOutputSharpenEnabled"
+                        checked: root.outputSharpenEnabled
+                        text: qsTr("After resize")
+                        Accessible.name: qsTr("Enable output sharpen after resize")
+                        onToggled: root.outputSharpenEnabled = checked
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.outputSharpenEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Sharpen amount")
+                    }
+                    CustomSpinBox {
+                        id: outputSharpenAmountSpin
+                        objectName: "exportOutputSharpenAmount"
+                        Layout.fillWidth: true
+                        decimals: 2
+                        realFrom: root.optionBounds.outputSharpenAmountMin
+                        realTo: root.optionBounds.outputSharpenAmountMax
+                        realValue: root.outputSharpenAmount
+                        onEditingCommitted: function (value) {
+                            root.outputSharpenAmount = value;
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.outputSharpenEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Sharpen radius")
+                    }
+                    CustomSpinBox {
+                        id: outputSharpenRadiusSpin
+                        objectName: "exportOutputSharpenRadius"
+                        Layout.fillWidth: true
+                        decimals: 2
+                        realFrom: root.optionBounds.outputSharpenRadiusMin
+                        realTo: root.optionBounds.outputSharpenRadiusMax
+                        realValue: root.outputSharpenRadius
+                        onEditingCommitted: function (value) {
+                            root.outputSharpenRadius = value;
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.outputSharpenEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Sharpen threshold")
+                    }
+                    CustomSpinBox {
+                        id: outputSharpenThresholdSpin
+                        objectName: "exportOutputSharpenThreshold"
+                        Layout.fillWidth: true
+                        decimals: 2
+                        realFrom: root.optionBounds.outputSharpenThresholdMin
+                        realTo: root.optionBounds.outputSharpenThresholdMax
+                        realValue: root.outputSharpenThreshold
+                        onEditingCommitted: function (value) {
+                            root.outputSharpenThreshold = value;
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original"
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Delivery colour")
+                        Accessible.name: qsTr("Enable export delivery colour override")
+                    }
+                    CustomCheckBox {
+                        id: outputColorEnabledCheck
+                        objectName: "exportOutputColorEnabled"
+                        checked: root.outputColorEnabled
+                        text: qsTr("Override output profile")
+                        Accessible.name: qsTr("Enable delivery colour override for this export")
+                        onToggled: root.outputColorEnabled = checked
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.outputColorEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Output profile")
+                    }
+                    CustomComboBox {
+                        id: outputProfileCombo
+                        objectName: "exportOutputProfile"
+                        Layout.fillWidth: true
+                        model: root.outputProfileChoices
+                        textRole: "label"
+                        currentIndex: root.choiceIndex(root.outputProfileChoices, root.outputProfileId)
+                        Accessible.name: qsTr("Delivery output colour profile")
+                        onActivated: function (index) {
+                            root.outputProfileId = root.outputProfileChoices[index].id;
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.outputColorEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Rendering intent")
+                    }
+                    CustomComboBox {
+                        id: renderingIntentCombo
+                        objectName: "exportRenderingIntent"
+                        Layout.fillWidth: true
+                        model: root.renderingIntentChoices
+                        textRole: "label"
+                        currentIndex: root.choiceIndex(root.renderingIntentChoices, root.renderingIntentId)
+                        Accessible.name: qsTr("Delivery colour rendering intent")
+                        onActivated: function (index) {
+                            root.renderingIntentId = root.renderingIntentChoices[index].id;
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original"
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Delivery frame")
+                        Accessible.name: qsTr("Enable export delivery frame")
+                    }
+                    CustomCheckBox {
+                        id: frameEnabledCheck
+                        objectName: "exportFrameEnabled"
+                        checked: root.frameEnabled
+                        text: qsTr("After sharpen")
+                        Accessible.name: qsTr("Enable delivery frame after sharpen before watermark")
+                        onToggled: root.frameEnabled = checked
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.frameEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Frame size")
+                    }
+                    CustomSpinBox {
+                        id: frameSizeSpin
+                        objectName: "exportFrameSize"
+                        Layout.fillWidth: true
+                        decimals: 3
+                        realFrom: root.optionBounds.frameSizeMin
+                        realTo: root.optionBounds.frameSizeMax
+                        realValue: root.frameSize
+                        onEditingCommitted: function (value) {
+                            root.frameSize = value;
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original"
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Delivery watermark")
+                        Accessible.name: qsTr("Enable export delivery watermark")
+                    }
+                    CustomCheckBox {
+                        id: watermarkEnabledCheck
+                        objectName: "exportWatermarkEnabled"
+                        checked: root.watermarkEnabled
+                        text: qsTr("After sharpen")
+                        Accessible.name: qsTr("Enable delivery watermark after sharpen")
+                        onToggled: root.watermarkEnabled = checked
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.watermarkEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Watermark text")
+                    }
+                    CustomTextField {
+                        id: watermarkTextField
+                        objectName: "exportWatermarkText"
+                        Layout.fillWidth: true
+                        text: root.watermarkText
+                        Accessible.name: qsTr("Delivery watermark text")
+                        onEditingFinished: root.watermarkText = text
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.watermarkEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Watermark opacity")
+                    }
+                    CustomSpinBox {
+                        id: watermarkOpacitySpin
+                        objectName: "exportWatermarkOpacity"
+                        Layout.fillWidth: true
+                        decimals: 2
+                        realFrom: root.optionBounds.watermarkOpacityMin
+                        realTo: root.optionBounds.watermarkOpacityMax
+                        realValue: root.watermarkOpacity
+                        onEditingCommitted: function (value) {
+                            root.watermarkOpacity = value;
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.watermarkEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Watermark scale")
+                    }
+                    CustomSpinBox {
+                        id: watermarkScaleSpin
+                        objectName: "exportWatermarkScale"
+                        Layout.fillWidth: true
+                        decimals: 1
+                        realFrom: root.optionBounds.watermarkScaleMin
+                        realTo: root.optionBounds.watermarkScaleMax
+                        realValue: root.watermarkScale
+                        onEditingCommitted: function (value) {
+                            root.watermarkScale = value;
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.standardMargin
+                    visible: root.formatId !== "original" && root.watermarkEnabled
+
+                    CustomLabel {
+                        Layout.preferredWidth: root.labelWidth
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Watermark alignment")
+                    }
+                    CustomComboBox {
+                        id: watermarkAlignmentCombo
+                        objectName: "exportWatermarkAlignment"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        valueRole: "id"
+                        model: root.watermarkAlignmentChoices
+                        currentIndex: root.choiceIndex(root.watermarkAlignmentChoices, root.watermarkAlignmentId)
+                        Accessible.name: qsTr("Delivery watermark alignment")
+                        onActivated: function (index) {
+                            root.watermarkAlignmentId = root.watermarkAlignmentChoices[index].id;
+                        }
                     }
                 }
             }
-        }
 
-        CustomLabel {
-            Layout.fillWidth: true
-            visible: root.formatId === "original"
-            wrapMode: Text.WordWrap
-            color: Theme.placeholderTextColor
-            text: qsTr("Original copy writes the exact source bytes. Rendered format options are not used.")
-            Accessible.name: qsTr("Original copy writes the exact source bytes. Rendered format options are not used.")
+            CustomLabel {
+                Layout.fillWidth: true
+                visible: root.formatId === "original"
+                wrapMode: Text.WordWrap
+                color: Theme.placeholderTextColor
+                text: qsTr("Original copy writes the exact source bytes. Rendered format options are not used.")
+                Accessible.name: qsTr("Original copy writes the exact source bytes. Rendered format options are not used.")
+            }
         }
     }
 

@@ -506,6 +506,8 @@ std::string_view export_format_name(const ExportFormat format) noexcept
         return "tiff";
     case ExportFormat::kOriginalCopy:
         return "original";
+    case ExportFormat::kCompanionJpeg:
+        return "companion-jpeg";
     }
     return "png";
 }
@@ -517,6 +519,7 @@ std::string_view export_format_extension(const ExportFormat format) noexcept
     case ExportFormat::kPng:
         return ".png";
     case ExportFormat::kJpeg:
+    case ExportFormat::kCompanionJpeg:
         return ".jpg";
     case ExportFormat::kTiff:
         return ".tif";
@@ -528,6 +531,8 @@ std::string_view export_format_extension(const ExportFormat format) noexcept
 
 Result<ExportFormat> parse_export_format(const std::string_view name)
 {
+    if (name == "companion-jpeg")
+        return ExportFormat::kCompanionJpeg;
     if (name == "png")
     {
         return ExportFormat::kPng;

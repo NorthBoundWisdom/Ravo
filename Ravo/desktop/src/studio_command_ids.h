@@ -13,6 +13,7 @@ inline constexpr auto kLibraryImportPaths = "studio.library.import_paths";
 inline constexpr auto kLibraryImportFolder = "studio.library.import_folder";
 inline constexpr auto kLibraryImportFolderPath = "studio.library.import_folder_path";
 inline constexpr auto kLibraryExport = "studio.library.export";
+inline constexpr auto kLibraryExportCompanion = "studio.library.export_companion_jpeg";
 inline constexpr auto kLibraryExportWrite = "studio.library.export_write";
 inline constexpr auto kLibraryExportBatchWrite = "studio.library.export_batch_write";
 inline constexpr auto kLibraryRecoveryStatus = "studio.library.recovery_status";

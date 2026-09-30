@@ -181,7 +181,8 @@ namespace
 
 [[nodiscard]] Result<void> require_keys(const QVariantMap &options,
                                         const std::set<std::string_view> &allowed,
-                                        const std::string_view format)
+                                        const std::string_view format,
+                                        const std::set<std::string_view> &optional = {})
 {
     std::set<std::string> seen;
     for (auto it = options.constBegin(); it != options.constEnd(); ++it)
@@ -200,7 +201,7 @@ namespace
     }
     for (const auto key : allowed)
     {
-        if (seen.find(std::string(key)) == seen.end())
+        if (!optional.contains(key) && seen.find(std::string(key)) == seen.end())
         {
             return conversion_error(
                 QT_TRANSLATE_NOOP("StudioExport",
@@ -503,6 +504,10 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     {
         format = ExportFormat::kTiff;
     }
+    else if (format_text == "companion-jpeg")
+    {
+        format = ExportFormat::kCompanionJpeg;
+    }
     else if (format_text == "original")
     {
         format = ExportFormat::kOriginalCopy;
@@ -522,6 +527,7 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     {
         auto keys = require_keys(input,
                                  {kStudioExportOptionQuality,
+                                  kStudioExportOptionJpegMaxMegabytes,
                                   kStudioExportOptionJpegSubsampling,
                                   kStudioExportOptionMetadataMode,
                                   kStudioExportOptionMaxEdge,
@@ -541,7 +547,7 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
                                   kStudioExportOptionRenderingIntent,
                                   kStudioExportOptionFrameEnabled,
                                   kStudioExportOptionFrameSize},
-                                 "jpeg");
+                                 "jpeg", {kStudioExportOptionJpegMaxMegabytes});
         if (!keys)
         {
             return keys.error();
@@ -554,6 +560,20 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
             return quality.error();
         }
         selection.jpeg_options.quality = quality.value();
+        if (input.contains(QStringLiteral("jpegMaxMegabytes")))
+        {
+            auto limit = exact_double(input.value(QStringLiteral("jpegMaxMegabytes")),
+                                      kStudioExportOptionJpegMaxMegabytes, "jpeg",
+                                      "studio_export_invalid_option_type");
+            if (!limit)
+                return limit.error();
+            if (limit.value() < 0 || limit.value() > 512 ||
+                (limit.value() > 0 && limit.value() < 0.000001))
+                return conversion_error("JPEG file size limit is out of range",
+                                        {{"reason", "invalid_jpeg_max_bytes"}});
+            selection.jpeg_max_bytes =
+                static_cast<std::uint32_t>(std::llround(limit.value() * 1'000'000.0));
+        }
         auto subsampling = exact_string(input.value(QStringLiteral("jpegSubsampling")),
                                         kStudioExportOptionJpegSubsampling, "jpeg");
         if (!subsampling)
@@ -714,8 +734,9 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
         break;
     }
     case ExportFormat::kOriginalCopy:
+    case ExportFormat::kCompanionJpeg:
     {
-        auto keys = require_keys(input, {}, "original");
+        auto keys = require_keys(input, {}, export_format_name(selection.format));
         if (!keys)
         {
             return keys.error();
@@ -723,7 +744,8 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
         break;
     }
     }
-    if (selection.format != ExportFormat::kOriginalCopy)
+    if (selection.format != ExportFormat::kOriginalCopy &&
+        selection.format != ExportFormat::kCompanionJpeg)
     {
         auto mode =
             exact_string(input.value(QStringLiteral("metadataMode")),
@@ -939,6 +961,7 @@ Result<QString> normalize_studio_export_path(const QString &path, const ExportFo
     switch (format)
     {
     case ExportFormat::kJpeg:
+    case ExportFormat::kCompanionJpeg:
         if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg"))
         {
             return output;
@@ -990,6 +1013,7 @@ Result<ExportOptions> make_studio_export_options(const QString &format_name,
     ExportOptions result;
     result.format = selection.value().format;
     result.jpeg_options = selection.value().jpeg_options;
+    result.jpeg_max_bytes = selection.value().jpeg_max_bytes;
     result.png_options = selection.value().png_options;
     result.tiff_options = selection.value().tiff_options;
     result.metadata_mode = selection.value().metadata_mode;

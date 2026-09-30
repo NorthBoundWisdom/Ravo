@@ -3079,12 +3079,20 @@ Diff: %6</source>
             <translation>長辺</translation>
         </message>
         <message>
-            <source>Maximum long edge</source>
-            <translation>最大長辺</translation>
+            <source>Limit JPEG file size</source>
+            <translation>JPEG ファイルサイズを制限</translation>
         </message>
         <message>
-            <source>Maximum long edge (0 keeps the rendered size)</source>
-            <translation>最大長辺 (0 はレンダリングされたサイズを維持します)</translation>
+            <source>Maximum size (MB)</source>
+            <translation>最大サイズ（MB）</translation>
+        </message>
+        <message>
+            <source>1 MB = 1,000,000 bytes. JPEG quality may be reduced; pixel dimensions stay as configured.</source>
+            <translation>1 MB = 1,000,000 バイト。必要に応じて JPEG 品質を下げます。ピクセル寸法は設定どおりです。</translation>
+        </message>
+        <message>
+            <source>Maximum long edge</source>
+            <translation>最大長辺</translation>
         </message>
         <message>
             <source>Max width</source>
@@ -3095,20 +3103,12 @@ Diff: %6</source>
             <translation>最大エクスポート幅</translation>
         </message>
         <message>
-            <source>Maximum width (0 unconstrained)</source>
-            <translation>最大幅 (0 拘束なし)</translation>
-        </message>
-        <message>
             <source>Max height</source>
             <translation>最大高さ</translation>
         </message>
         <message>
             <source>Maximum export height</source>
             <translation>最大エクスポート高さ</translation>
-        </message>
-        <message>
-            <source>Maximum height (0 unconstrained)</source>
-            <translation>最大高さ (0 拘束なし)</translation>
         </message>
         <message>
             <source>Output sharpen</source>
@@ -3231,6 +3231,18 @@ Diff: %6</source>
             <translation>品質</translation>
         </message>
         <message>
+            <source>Original size</source>
+            <translation>元のサイズ</translation>
+        </message>
+        <message>
+            <source>Width and height</source>
+            <translation>幅と高さ</translation>
+        </message>
+        <message>
+            <source>File settings</source>
+            <translation>ファイル設定</translation>
+        </message>
+        <message>
             <source>JPEG quality</source>
             <translation>JPEG 品質</translation>
         </message>
@@ -3289,6 +3301,18 @@ Diff: %6</source>
         <message>
             <source>TIFF resolution</source>
             <translation>TIFF 解像度</translation>
+        </message>
+        <message>
+            <source>Image sizing</source>
+            <translation>画像サイズ</translation>
+        </message>
+        <message>
+            <source>Size</source>
+            <translation>サイズ</translation>
+        </message>
+        <message>
+            <source>Advanced options</source>
+            <translation>詳細オプション</translation>
         </message>
         <message>
             <source>Original copy writes the exact source bytes. Rendered format options are not used.</source>
@@ -3554,6 +3578,10 @@ Diff: %6</source>
             <translation>取り込みトランスポートはコピーのみです。移動とカメラの削除は拒否されたままになります。</translation>
         </message>
         <message>
+            <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
+            <translation>矢印キーで移動 · Shiftで範囲選択 · Ctrl/⌘で選択を保持 · スペースでチェック</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>ソース</translation>
         </message>
@@ -3608,6 +3636,14 @@ Diff: %6</source>
         <message>
             <source>Choose a source folder</source>
             <translation>読み込み元フォルダーを選択</translation>
+        </message>
+        <message>
+            <source>Import candidates</source>
+            <translation>読み込み候補</translation>
+        </message>
+        <message>
+            <source>Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.</source>
+            <translation>矢印キーで移動、Shiftで範囲選択、ControlまたはCommandで選択を保持、スペースでチェックのオン・オフを切り替えます。</translation>
         </message>
         <message>
             <source>Duplicate photo</source>
@@ -4225,6 +4261,18 @@ Diff: %6</source>
         <message>
             <source>Cancel</source>
             <translation>メイン::キャンセル</translation>
+        </message>
+        <message>
+            <source>Companion JPEG unavailable</source>
+            <translation>付属 JPEG がありません</translation>
+        </message>
+        <message>
+            <source>A companion JPEG is missing. Export the selected photos from RAW instead?</source>
+            <translation>付属 JPEG が見つかりません。選択した写真を RAW から書き出しますか？</translation>
+        </message>
+        <message>
+            <source>Export from RAW</source>
+            <translation>RAW から書き出す</translation>
         </message>
         <message>
             <source>Remove</source>
@@ -5029,6 +5077,10 @@ Diff: %6</source>
             <translation>選択内容をエクスポート...</translation>
         </message>
         <message>
+            <source>Export Companion JPEG...</source>
+            <translation>付属 JPEG を書き出す...</translation>
+        </message>
+        <message>
             <source>Recovery Status</source>
             <translation>復旧状態</translation>
         </message>
@@ -5451,6 +5503,14 @@ Diff: %6</source>
         <message>
             <source>A proposal id is required.</source>
             <translation>プロポーザルIDが必要です。</translation>
+        </message>
+        <message>
+            <source>Select a photo in a stack with at least two photos.</source>
+            <translation>写真が2枚以上あるスタック内の写真を選択してください。</translation>
+        </message>
+        <message>
+            <source>Open Burst Compare first.</source>
+            <translation>先に連写比較を開いてください。</translation>
         </message>
     </context>
     <context>
@@ -6063,6 +6123,10 @@ Diff: %6</source>
         <message>
             <source>Burst compare (Survey pair).</source>
             <translation>バースト比較 (調査ペア)。</translation>
+        </message>
+        <message>
+            <source>Burst compare worker is unavailable.</source>
+            <translation>連写比較のバックグラウンド処理を利用できません。</translation>
         </message>
         <message>
             <source>Deleted original file and catalog record.</source>

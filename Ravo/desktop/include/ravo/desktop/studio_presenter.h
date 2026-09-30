@@ -1029,10 +1029,13 @@ public:
     Q_INVOKABLE void addSelectionToLibrarySet(const QString &set_id);
     Q_INVOKABLE void removeSelectionFromLibrarySet(const QString &set_id);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
+    void checkSelectedCompanionJpegs();
     Q_INVOKABLE void ensureLibraryRow(int row);
     Q_INVOKABLE void loadNextLibraryPage();
     void pollCatalogRevision();
 signals:
+    void companionExportReady();
+    void companionExportMissing();
     void importContextChanged();
     void editingScopeChanged();
     void catalogChanged();

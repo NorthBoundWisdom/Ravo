@@ -173,6 +173,35 @@ TEST_F(OriginalCopyCliTest, AllThreeAliasesReturnCanonicalSuccessJsonAndExactByt
     }
 }
 
+TEST_F(OriginalCopyCliTest, JpegSizeLimitIsMachineVisibleAndFailsWithoutPublishing)
+{
+    const std::string limited = (root_ / "limited.jpg").string();
+    int code = -1;
+    auto response =
+        run_json({"catalog", "export", "--catalog", catalog_, "--asset-id", asset_id_, "--output",
+                  limited, "--format", "jpeg", "--jpeg-max-bytes", "1000000", "--json"},
+                 code);
+    ASSERT_EQ(code, 0) << stdout_stream_.str();
+    ASSERT_TRUE(response);
+    EXPECT_LE(std::filesystem::file_size(limited), 1'000'000U);
+    const std::string impossible = (root_ / "impossible.jpg").string();
+    response =
+        run_json({"catalog", "export", "--catalog", catalog_, "--asset-id", asset_id_, "--output",
+                  impossible, "--format", "jpeg", "--jpeg-max-bytes", "1", "--json"},
+                 code);
+    EXPECT_NE(code, 0);
+    ASSERT_TRUE(response);
+    EXPECT_NE(stdout_stream_.str().find("jpeg_size_limit_unreachable"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(impossible));
+    response = run_json(
+        {"catalog", "companion-check", "--catalog", catalog_, "--asset-id", asset_id_, "--json"},
+        code);
+    EXPECT_NE(code, 0);
+    ASSERT_TRUE(response);
+    EXPECT_NE(stdout_stream_.str().find("companion_jpeg_requires_raw"), std::string::npos);
+    EXPECT_EQ(read_file(source_), source_bytes_);
+}
+
 TEST_F(OriginalCopyCliTest, ConflictPreservesWinnerAndCompleteStructuredContext)
 {
     const auto output = root_ / "conflict.png";

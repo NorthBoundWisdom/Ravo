@@ -3079,12 +3079,20 @@ Diff: %6</translation>
             <translation>Long edge</translation>
         </message>
         <message>
-            <source>Maximum long edge</source>
-            <translation>Maximum long edge</translation>
+            <source>Limit JPEG file size</source>
+            <translation>Limit JPEG file size</translation>
         </message>
         <message>
-            <source>Maximum long edge (0 keeps the rendered size)</source>
-            <translation>Maximum long edge (0 keeps the rendered size)</translation>
+            <source>Maximum size (MB)</source>
+            <translation>Maximum size (MB)</translation>
+        </message>
+        <message>
+            <source>1 MB = 1,000,000 bytes. JPEG quality may be reduced; pixel dimensions stay as configured.</source>
+            <translation>1 MB = 1,000,000 bytes. JPEG quality may be reduced; pixel dimensions stay as configured.</translation>
+        </message>
+        <message>
+            <source>Maximum long edge</source>
+            <translation>Maximum long edge</translation>
         </message>
         <message>
             <source>Max width</source>
@@ -3095,20 +3103,12 @@ Diff: %6</translation>
             <translation>Maximum export width</translation>
         </message>
         <message>
-            <source>Maximum width (0 unconstrained)</source>
-            <translation>Maximum width (0 unconstrained)</translation>
-        </message>
-        <message>
             <source>Max height</source>
             <translation>Max height</translation>
         </message>
         <message>
             <source>Maximum export height</source>
             <translation>Maximum export height</translation>
-        </message>
-        <message>
-            <source>Maximum height (0 unconstrained)</source>
-            <translation>Maximum height (0 unconstrained)</translation>
         </message>
         <message>
             <source>Output sharpen</source>
@@ -3231,6 +3231,18 @@ Diff: %6</translation>
             <translation>Quality</translation>
         </message>
         <message>
+            <source>Original size</source>
+            <translation>Original size</translation>
+        </message>
+        <message>
+            <source>Width and height</source>
+            <translation>Width and height</translation>
+        </message>
+        <message>
+            <source>File settings</source>
+            <translation>File settings</translation>
+        </message>
+        <message>
             <source>JPEG quality</source>
             <translation>JPEG quality</translation>
         </message>
@@ -3289,6 +3301,18 @@ Diff: %6</translation>
         <message>
             <source>TIFF resolution</source>
             <translation>TIFF resolution</translation>
+        </message>
+        <message>
+            <source>Image sizing</source>
+            <translation>Image sizing</translation>
+        </message>
+        <message>
+            <source>Size</source>
+            <translation>Size</translation>
+        </message>
+        <message>
+            <source>Advanced options</source>
+            <translation>Advanced options</translation>
         </message>
         <message>
             <source>Original copy writes the exact source bytes. Rendered format options are not used.</source>
@@ -3554,6 +3578,10 @@ Diff: %6</translation>
             <translation>Ingest transports are Copy-only; Move and camera delete stay rejected.</translation>
         </message>
         <message>
+            <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
+            <translation>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</translation>
+        </message>
+        <message>
             <source>Source</source>
             <translation>Source</translation>
         </message>
@@ -3608,6 +3636,14 @@ Diff: %6</translation>
         <message>
             <source>Choose a source folder</source>
             <translation>Choose a source folder</translation>
+        </message>
+        <message>
+            <source>Import candidates</source>
+            <translation>Import candidates</translation>
+        </message>
+        <message>
+            <source>Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.</source>
+            <translation>Use arrow keys to navigate, Shift to select a range, Control or Command to preserve the selection, and Space to check or uncheck.</translation>
         </message>
         <message>
             <source>Duplicate photo</source>
@@ -4233,6 +4269,18 @@ Diff: %6</translation>
         <message>
             <source>Delete</source>
             <translation>Delete</translation>
+        </message>
+        <message>
+            <source>Companion JPEG unavailable</source>
+            <translation>Companion JPEG unavailable</translation>
+        </message>
+        <message>
+            <source>A companion JPEG is missing. Export the selected photos from RAW instead?</source>
+            <translation>A companion JPEG is missing. Export the selected photos from RAW instead?</translation>
+        </message>
+        <message>
+            <source>Export from RAW</source>
+            <translation>Export from RAW</translation>
         </message>
         <message>
             <source>Delete Preset</source>
@@ -5009,6 +5057,10 @@ Diff: %6</translation>
             <translation>Export Selected...</translation>
         </message>
         <message>
+            <source>Export Companion JPEG...</source>
+            <translation>Export Companion JPEG...</translation>
+        </message>
+        <message>
             <source>Recovery Status</source>
             <translation>Recovery Status</translation>
         </message>
@@ -5452,6 +5504,14 @@ Diff: %6</translation>
             <source>Export options must be an object.</source>
             <translation>Export options must be an object.</translation>
         </message>
+        <message>
+            <source>Select a photo in a stack with at least two photos.</source>
+            <translation>Select a photo in a stack with at least two photos.</translation>
+        </message>
+        <message>
+            <source>Open Burst Compare first.</source>
+            <translation>Open Burst Compare first.</translation>
+        </message>
     </context>
     <context>
         <name>StudioExport</name>
@@ -5879,6 +5939,10 @@ Diff: %6</translation>
         <message>
             <source>Burst compare (Survey pair).</source>
             <translation>Burst compare (Survey pair).</translation>
+        </message>
+        <message>
+            <source>Burst compare worker is unavailable.</source>
+            <translation>Burst compare worker is unavailable.</translation>
         </message>
         <message>
             <source>Deleted original file and catalog record.</source>

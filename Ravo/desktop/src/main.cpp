@@ -16,6 +16,7 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QJSValue>
 #include <QPalette>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -34,6 +35,7 @@
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_live_session_controller.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/export_option_conversion.h"
 #include "ravo/desktop/studio_window_geometry.h"
 #include "ravo/desktop/studio_display_presentation.h"
 #include "ravo/foundation/log.h"
@@ -89,6 +91,72 @@ bool smoke_startup_splash(QQmlApplicationEngine &engine)
     if (!independent)
         LOG_ERROR(ravo::logger(), "Showing startup splash must leave the main window hidden");
     return independent;
+}
+
+bool smoke_export_options(QQmlApplicationEngine &engine)
+{
+    auto *dialog =
+        engine.rootObjects().front()->findChild<QObject *>(QStringLiteral("ExportOptionsDialog"));
+    if (!dialog || !QMetaObject::invokeMethod(dialog, "resetFromPresenter"))
+        return false;
+    const auto reset =
+        qScopeGuard([dialog] { QMetaObject::invokeMethod(dialog, "resetFromPresenter"); });
+    if (dialog->property("sizingMode").toString() != QLatin1String("original") ||
+        dialog->property("maxEdge").toInt() != 2560 ||
+        dialog->property("maxWidth").toInt() != 2560 ||
+        dialog->property("maxHeight").toInt() != 1440)
+        return false;
+    for (const auto &format :
+         {QStringLiteral("jpeg"), QStringLiteral("png"), QStringLiteral("tiff")})
+    {
+        dialog->setProperty("formatId", format);
+        for (const auto &mode : {QStringLiteral("original"), QStringLiteral("long_edge"),
+                                 QStringLiteral("dimensions")})
+        {
+            dialog->setProperty("sizingMode", mode);
+            QVariant returned;
+            if (!QMetaObject::invokeMethod(dialog, "selectedOptions",
+                                           Q_RETURN_ARG(QVariant, returned)))
+                return false;
+            const auto options = returned.metaType().id() == qMetaTypeId<QJSValue>() ?
+                                     returned.value<QJSValue>().toVariant().toMap() :
+                                     returned.toMap();
+            auto parsed = ravo::studio_export_options_from_presentation(format, options);
+            if (!parsed || options.value("maxEdge").toInt() != (mode == "long_edge" ? 2560 : 0) ||
+                options.value("maxWidth").toInt() != (mode == "dimensions" ? 2560 : 0) ||
+                options.value("maxHeight").toInt() != (mode == "dimensions" ? 1440 : 0))
+            {
+                LOG_ERROR(ravo::logger(), "Export sizing smoke failed: format={} mode={}",
+                          format.toStdString(), mode.toStdString());
+                return false;
+            }
+        }
+    }
+    dialog->setProperty("formatId", QStringLiteral("jpeg"));
+    dialog->setProperty("jpegSizeLimitEnabled", true);
+    QVariant limited_result;
+    if (!QMetaObject::invokeMethod(dialog, "selectedOptions",
+                                   Q_RETURN_ARG(QVariant, limited_result)))
+        return false;
+    const auto limited_options = limited_result.value<QJSValue>().toVariant().toMap();
+    auto limited = ravo::make_studio_export_options(QStringLiteral("jpeg"), limited_options);
+    if (!limited || limited.value().jpeg_max_bytes != 2'000'000U)
+        return false;
+    auto *missing = engine.rootObjects().front()->findChild<QObject *>(
+        QStringLiteral("CompanionMissingDialog"));
+    if (!missing)
+        return false;
+    QMetaObject::invokeMethod(missing, "finished",
+                              Q_ARG(QString, QCoreApplication::translate("Main", "Cancel")));
+    if (dialog->property("visible").toBool())
+        return false;
+    QMetaObject::invokeMethod(
+        missing, "finished",
+        Q_ARG(QString, QCoreApplication::translate("Main", "Export from RAW")));
+    if (dialog->property("formatId").toString() != QLatin1String("jpeg"))
+        return false;
+    QMetaObject::invokeMethod(dialog, "close");
+    return true;
 }
 
 bool generic_font_family(const QString &family)
@@ -406,10 +474,9 @@ int main(int argc, char *argv[])
     {
         // QObject destruction follows the presenter's worker cancellation/join.
         // Exercise logging at that boundary, not just while main() is running.
-        QObject::connect(&presenter, &QObject::destroyed, []
-        {
-            LOG_INFO(ravo::logger(), "Ravo Studio smoke presenter teardown complete");
-        });
+        QObject::connect(
+            &presenter, &QObject::destroyed,
+            [] { LOG_INFO(ravo::logger(), "Ravo Studio smoke presenter teardown complete"); });
     }
     ravo::StudioStartupController startup_controller(presenter,
                                                      presenter.defaultCatalogFile().toLocalFile());
@@ -522,7 +589,8 @@ int main(int argc, char *argv[])
     engine.loadFromModule("Ravo.Studio", "Main");
     if (smoke)
     {
-        const bool loaded = smoke_startup_splash(engine) && ravo::smoke_import_layout(engine);
+        const bool loaded = smoke_startup_splash(engine) && smoke_export_options(engine) &&
+                            ravo::smoke_import_layout(engine);
         if (!loaded)
             LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
         else

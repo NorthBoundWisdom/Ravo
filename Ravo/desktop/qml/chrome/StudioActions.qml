@@ -268,6 +268,7 @@ Item {
     property alias openLibrary: openLibraryAction
     property alias importPhotos: importPhotosAction
     property alias exportPhoto: exportPhotoAction
+    property alias exportCompanionJpeg: exportCompanionJpegAction
     property alias closeWindow: closeWindowAction
     property alias preferences: preferencesAction
     property alias assistant: assistantAction
@@ -333,6 +334,10 @@ Item {
     RegisteredAction {
         id: exportPhotoAction
         actionId: root.ids.libraryExport || ""
+    }
+    RegisteredAction {
+        id: exportCompanionJpegAction
+        actionId: root.ids.libraryExportCompanion || ""
     }
     RegisteredAction {
         id: closeWindowAction

@@ -374,6 +374,9 @@ public:
         const std::function<void(std::size_t, std::size_t, const PreviewRebuildItemResult *)>
             &progress = {});
     [[nodiscard]] Result<ExportResult> export_asset(const ExportRequest &request);
+    // Read-only preflight; borrowed IDs live for this synchronous call only.
+    [[nodiscard]] Result<void> check_companion_jpegs(const std::vector<std::string> &asset_ids,
+                                                     const CancellationToken &cancellation);
     [[nodiscard]] Result<std::vector<ExportResult>> export_assets(
         const ExportBatchRequest &request,
         const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress = {});

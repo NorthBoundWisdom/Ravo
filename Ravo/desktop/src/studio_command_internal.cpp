@@ -128,6 +128,7 @@ QStringList command_ids()
             QLatin1String(command::kLibraryImportFolder),
             QLatin1String(command::kLibraryImportFolderPath),
             QLatin1String(command::kLibraryExport),
+            QLatin1String(command::kLibraryExportCompanion),
             QLatin1String(command::kLibraryExportWrite),
             QLatin1String(command::kLibraryExportBatchWrite),
             QLatin1String(command::kLibraryRecoveryStatus),
@@ -329,6 +330,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Export Selected...")), file,
         {QStringLiteral("save"), QStringLiteral("render")}, QStringLiteral("file.transfer"), 30,
         true, {key(primary_key(QStringLiteral("E"), true))});
+    add(command::kLibraryExportCompanion, command::kLibraryExportCompanion,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Export Companion JPEG...")), file,
+        {QStringLiteral("jpeg"), QStringLiteral("companion")}, QStringLiteral("file.transfer"), 40,
+        true);
     add(command::kLibraryRecoveryStatus, command::kLibraryRecoveryStatus,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Recovery Status")), file,
         {QStringLiteral("sidecar"), QStringLiteral("durability")}, QStringLiteral("file.recovery"),
@@ -493,7 +498,7 @@ QVector<ActionSpec> builtin_actions()
     add(command::kWindowAssistant, command::kWindowAssistant,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Assistant")), view,
         {QStringLiteral("chat"), QStringLiteral("ai"), QStringLiteral("model")},
-        QStringLiteral("view.commands"), 20, true, {key(primary_key(QStringLiteral("A"), true))});
+        QStringLiteral("view.commands"), 20, true);
 
     add(command::kPhotoPrevious, command::kPhotoPrevious,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Previous Photo")), photo,

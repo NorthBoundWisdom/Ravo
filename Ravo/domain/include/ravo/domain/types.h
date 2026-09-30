@@ -299,6 +299,7 @@ enum class ExportFormat
     kJpeg,
     kTiff,
     kOriginalCopy,
+    kCompanionJpeg,
 };
 
 enum class ExportMetadataMode : std::uint8_t
@@ -1245,6 +1246,8 @@ struct ExportOptions
 {
     ExportFormat format = ExportFormat::kPng;
     JpegExportOptions jpeg_options;
+    // Complete encoded file (including ICC/metadata); zero disables the cap.
+    std::uint32_t jpeg_max_bytes = 0;
     std::uint32_t max_edge = 0;
     std::uint32_t max_width = 0;
     std::uint32_t max_height = 0;

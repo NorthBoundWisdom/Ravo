@@ -95,7 +95,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             ErrorCode::kInvalidArgument,
             "Usage: ravo catalog <create|import|import-scan|import-plan|list|facets|preview|probe|recipe|develop|develop-apply|"
             "fields|rate|"
-            "export|export-batch|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
+            "export|export-batch|companion-check|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
             "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|editor-working-copy-status|editor-working-copy-list|editor-abandon-working-copy|editor-reopen-working-copy|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-burst-compare|cull-near-duplicates|cull-review|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|offline-proxy-delete|offline-proxy-pin|offline-proxy-evict|"
@@ -1274,6 +1274,22 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return refreshed.error();
         }
         return asset_to_json(refreshed.value());
+    }
+    if (subcommand == "companion-check")
+    {
+        std::vector<std::string> ids;
+        for (const auto id : flags.value().asset_ids)
+            ids.emplace_back(id);
+        if (ids.empty() && !flags.value().asset_id.empty())
+            ids.emplace_back(flags.value().asset_id);
+        auto checked = service.check_companion_jpegs(ids, CancellationToken{});
+        if (!checked)
+            return checked.error();
+        return JsonValue{
+            JsonValue::Object{{"schema", "ravo.companion_jpeg_check"},
+                              {"schema_version", JsonValue::number("1")},
+                              {"asset_count", JsonValue::number(std::to_string(ids.size()))},
+                              {"available", true}}};
     }
     if (subcommand == "export-preset-save" || subcommand == "export-job-create" ||
         subcommand == "export-job-resume" || subcommand == "export-batch" || subcommand == "export")

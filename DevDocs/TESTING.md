@@ -1,5 +1,15 @@
 # Ravo Testing Strategy
 
+`CatalogServiceTest.ExportJpegPngOriginalCopyConflictAndCancel` also verifies
+companion JPEG exact-byte export, missing companions, output conflicts,
+cancellation and unchanged RAW/JPEG source hashes.
+
+The same service case checks bounded JPEG file size, unchanged pixel dimensions,
+unreachable limits, cancellation and conflicts. `OriginalCopyCliTest` covers
+`--jpeg-max-bytes` JSON success/failure and companion preflight type errors.
+`ExportWorkflow` checks desktop companion preflight signal routing; Studio's
+QML smoke checks the size-limit form and missing-companion confirmation wiring.
+
 ## Current evidence baseline
 
 Frozen 0.9 assets are used only for static evidence:
@@ -1242,6 +1252,11 @@ full Ravo suite for changes to these worker or repository boundaries
   and model, every non-finite sample, row cancellation, source immutability,
   owned output, and exact sRGB/Display P3/file-ICC state through CLI and Catalog
   publication without a second transfer curve.
+- Studio's startup QML smoke invokes the production export form for JPEG, PNG
+  and TIFF in original-size, long-edge and width/height modes. It parses each
+  emitted options map with the C++ converter, proving that prefilled inactive
+  dimensions remain zero in requests. Presenter and QML contracts pin suggested
+  sizes, canonical codec defaults, advanced controls and accessible mode labels.
 - JPEG export freezes one typed options value from `ExportRequest` through
   CatalogService and the raster port to the pinned private encoder. Domain tests
   cover default quality 95, the 5–100 range, stable enum values and canonical

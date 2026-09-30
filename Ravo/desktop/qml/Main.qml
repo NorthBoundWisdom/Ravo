@@ -50,6 +50,12 @@ ApplicationWindow {
     property int pendingBackupRetentionCount: 7
     StudioDialogCoordinator {
         id: dialogCoordinator
+        windowHost: window
+        presenter: studio
+        optionsDialog: exportOptionsDialog
+        actions: studioActions
+        fileDialog: exportDialog
+        batchDialog: exportBatchDialog
     }
     InspectZoomController {
         id: inspectZoom
@@ -213,7 +219,7 @@ ApplicationWindow {
     }
 
     function exportNameFilter(format) {
-        if (format === "jpeg")
+        if (format === "jpeg" || format === "companion-jpeg")
             return qsTr("JPEG (*.jpg *.jpeg)");
         if (format === "png")
             return qsTr("PNG (*.png)");
@@ -226,13 +232,6 @@ ApplicationWindow {
         window.pendingExportFormat = "";
         window.pendingExportOptions = ({});
         window.pendingExportFilenameTemplate = "";
-    }
-
-    function openExportDialog() {
-        if (!studio.selectedAssetId.length)
-            return;
-        window.clearPendingExport();
-        exportOptionsDialog.openForExport();
     }
 
     function openStyleSaveDialog() {
@@ -355,7 +354,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible
+        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible
     }
 
     StudioCommandShortcuts {
@@ -381,7 +380,9 @@ ApplicationWindow {
             else if (id === ids.libraryImportFolder)
                 openImportFolderDialog();
             else if (id === ids.libraryExport)
-                openExportDialog();
+                dialogCoordinator.openExportDialog();
+            else if (id === ids.libraryExportCompanion)
+                dialogCoordinator.openCompanionExportDialog();
             else if (id === ids.photoEditIn)
                 openSelectedAssetDialog(editInDialog);
             else if (id === ids.photoOfflineEdit)
@@ -1568,18 +1569,7 @@ ApplicationWindow {
         parentItem: window.contentItem
         presenter: studio
         onExportAccepted: function (format, options, filenameTemplate) {
-            window.pendingExportFormat = format;
-            window.pendingExportOptions = options;
-            window.pendingExportFilenameTemplate = filenameTemplate;
-            if (studio.selectedCount > 1) {
-                exportBatchDialog.currentFolder = studio.defaultCatalogFolder;
-                exportBatchDialog.openDialog();
-            } else {
-                exportDialog.nameFilters = [window.exportNameFilter(format)];
-                exportDialog.currentFolder = studio.defaultCatalogFolder;
-                exportDialog.initialSelectedFile = studio.selectedDisplayName;
-                exportDialog.openDialog();
-            }
+            dialogCoordinator.startExport(format, options, filenameTemplate);
         }
         onExportCanceled: window.clearPendingExport()
     }
@@ -1590,14 +1580,7 @@ ApplicationWindow {
         dialogMode: "save"
         nameFilters: [qsTr("PNG (*.png)")]
         onFileAccepted: function (filePath) {
-            const format = window.pendingExportFormat;
-            const options = window.pendingExportOptions;
-            window.clearPendingExport();
-            studioActions.run(studioActions.ids.libraryExportWrite, {
-                "path": filePath,
-                "format": format,
-                "options": options
-            });
+            dialogCoordinator.finishExportFile(filePath);
         }
         onFileRejected: window.clearPendingExport()
     }
@@ -1606,16 +1589,7 @@ ApplicationWindow {
         id: exportBatchDialog
         dialogTitle: qsTr("Select Batch Export Folder")
         onFolderAccepted: function (folderPath) {
-            const format = window.pendingExportFormat;
-            const options = window.pendingExportOptions;
-            const filenameTemplate = window.pendingExportFilenameTemplate;
-            window.clearPendingExport();
-            studioActions.run(studioActions.ids.libraryExportBatchWrite, {
-                "directory": folderPath,
-                "filenameTemplate": filenameTemplate,
-                "format": format,
-                "options": options
-            });
+            dialogCoordinator.finishExportBatch(folderPath);
         }
         onFolderRejected: window.clearPendingExport()
     }

@@ -42,6 +42,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("libraryImportFolderPath"),
          QLatin1String(command::kLibraryImportFolderPath)},
         {QStringLiteral("libraryExport"), QLatin1String(command::kLibraryExport)},
+        {QStringLiteral("libraryExportCompanion"), QLatin1String(command::kLibraryExportCompanion)},
         {QStringLiteral("libraryExportWrite"), QLatin1String(command::kLibraryExportWrite)},
         {QStringLiteral("libraryExportBatchWrite"),
          QLatin1String(command::kLibraryExportBatchWrite)},

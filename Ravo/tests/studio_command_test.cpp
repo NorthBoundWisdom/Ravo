@@ -83,6 +83,9 @@ TEST(StudioCommands, LightroomCommonShortcutsRouteAndRespectFocus)
     ASSERT_TRUE(image.save(second_photo, "PNG"));
     StudioPresenter presenter;
     StudioCommandController controller(presenter);
+    for (const auto &value : controller.shortcutEntries())
+        EXPECT_NE(value.toMap().value(QStringLiteral("actionId")).toString(),
+                  QStringLiteral("studio.window.assistant"));
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
     presenter.importFilePaths({photo, second_photo});

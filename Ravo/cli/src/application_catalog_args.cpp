@@ -114,10 +114,11 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     const auto subcommand = positional.size() > 1U ? positional[1] : std::string_view{};
     const bool export_directory_command =
         subcommand == "export-batch" || subcommand == "export-job-create";
-    const bool multi_asset = export_directory_command || subcommand == "preview-rebuild" ||
-                             subcommand == "set-create" || subcommand == "set-add" ||
-                             subcommand == "set-remove" || subcommand == "stack" ||
-                             subcommand == "develop-apply" || subcommand == "cull-burst-accept";
+    const bool multi_asset = export_directory_command || subcommand == "companion-check" ||
+                             subcommand == "preview-rebuild" || subcommand == "set-create" ||
+                             subcommand == "set-add" || subcommand == "set-remove" ||
+                             subcommand == "stack" || subcommand == "develop-apply" ||
+                             subcommand == "cull-burst-accept";
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -774,6 +775,10 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         {
             result.jpeg_subsampling = value;
         }
+        else if (option == "--jpeg-max-bytes")
+        {
+            result.jpeg_max_bytes = value;
+        }
         else if (option == "--tiff-sample-type")
         {
             result.tiff_sample_type = value;
@@ -829,7 +834,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
 
 [[nodiscard]] bool has_explicit_jpeg_options(const CatalogCliArguments &flags) noexcept
 {
-    return !flags.quality.empty() || !flags.jpeg_subsampling.empty();
+    return !flags.quality.empty() || !flags.jpeg_subsampling.empty() ||
+           !flags.jpeg_max_bytes.empty();
 }
 
 [[nodiscard]] Result<void> validate_cli_export_options(const ExportRequest &request,
@@ -848,6 +854,7 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         valid = validate_tiff_export_options(request.tiff_options);
         break;
     case ExportFormat::kOriginalCopy:
+    case ExportFormat::kCompanionJpeg:
         return {};
     }
     if (valid)
@@ -903,6 +910,18 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     if (!format)
         return format.error();
     request.format = format.value();
+    if (!flags.jpeg_max_bytes.empty())
+    {
+        auto limit = parse_export_int_flag(flags.jpeg_max_bytes, "--jpeg-max-bytes", "jpeg",
+                                           "invalid_jpeg_max_bytes");
+        if (!limit)
+            return limit.error();
+        if (limit.value() < 0 || limit.value() > 512'000'000)
+            return make_error(
+                ErrorCode::kValidation, "JPEG file size limit is out of range",
+                {{"reason", "invalid_jpeg_max_bytes"}, {"option", "--jpeg-max-bytes"}});
+        request.jpeg_max_bytes = static_cast<std::uint32_t>(limit.value());
+    }
     if (!flags.metadata_mode.empty())
     {
         auto metadata_mode = parse_export_metadata_mode(flags.metadata_mode);
@@ -1122,6 +1141,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             return applied.error();
         // Explicit CLI flags override preset snapshot fields that were set.
         ExportOptions merged = std::move(applied).value();
+        if (!flags.jpeg_max_bytes.empty())
+            merged.jpeg_max_bytes = request.jpeg_max_bytes;
         if (!flags.format.empty())
             merged.format = request.format;
         if (!flags.metadata_mode.empty())

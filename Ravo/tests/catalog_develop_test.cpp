@@ -1048,7 +1048,59 @@ TEST_F(CatalogServiceTest, InvalidStoredRecipeFailsStructuredWithoutTouchingRevi
 
 TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
 {
-    auto created = open_service(true);
+    {
+        ASSERT_TRUE(open_service(true));
+        const auto raw = root / "companion.raw";
+        std::filesystem::copy_file(raw_fixture_path(), raw);
+        auto imported = service->import_one(raw.string(), CancellationToken{});
+        ASSERT_TRUE(imported) << imported.error().message;
+        ASSERT_TRUE(imported.value().asset);
+        ExportRequest request;
+        request.asset_id = imported.value().asset->id;
+        request.format = ExportFormat::kCompanionJpeg;
+        request.output_path = (root / "export.jpg").string();
+        auto missing = service->export_asset(request);
+        ASSERT_FALSE(missing);
+        EXPECT_EQ(missing.error().context.at("reason"), "companion_jpeg_missing");
+        EXPECT_FALSE(service->check_companion_jpegs({request.asset_id}, CancellationToken{}));
+        const auto jpeg = root / "companion.JPG";
+        QImage image(32, 24, QImage::Format_RGB888);
+        image.fill(QColor(40, 120, 200));
+        ASSERT_TRUE(image.save(QString::fromStdString(jpeg.string()), "JPEG", 90));
+        EXPECT_TRUE(service->check_companion_jpegs({request.asset_id}, CancellationToken{}));
+        const auto raw_hash = file_sha256(raw.string());
+        const auto jpeg_hash = file_sha256(jpeg.string());
+        ASSERT_TRUE(service->export_asset(request));
+        EXPECT_EQ(file_sha256(request.output_path), jpeg_hash);
+        auto conflict = service->export_asset(request);
+        ASSERT_FALSE(conflict);
+        EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
+        ExportBatchRequest batch;
+        batch.asset_ids = {request.asset_id};
+        batch.output_directory = root.string();
+        batch.filename_template = "{stem}-batch";
+        batch.options.format = ExportFormat::kCompanionJpeg;
+        auto exported_batch = service->export_assets(batch);
+        ASSERT_TRUE(exported_batch) << exported_batch.error().message;
+        EXPECT_EQ(file_sha256(exported_batch.value().front().output_path), jpeg_hash);
+        const auto second = root / "companion.jpeg";
+        std::filesystem::copy_file(jpeg, second);
+        request.output_path = (root / "ambiguous.jpg").string();
+        auto ambiguous = service->export_asset(request);
+        ASSERT_FALSE(ambiguous);
+        EXPECT_EQ(ambiguous.error().context.at("reason"), "import_jpeg_companion_ambiguous");
+        EXPECT_FALSE(std::filesystem::exists(request.output_path));
+        std::filesystem::remove(second);
+        request.output_path = (root / "cancel.jpg").string();
+        CancellationSource cancellation;
+        ASSERT_TRUE(cancellation.cancel("test"));
+        request.cancellation = cancellation.token();
+        ASSERT_FALSE(service->export_asset(request));
+        EXPECT_FALSE(std::filesystem::exists(request.output_path));
+        EXPECT_EQ(file_sha256(raw.string()), raw_hash);
+        EXPECT_EQ(file_sha256(jpeg.string()), jpeg_hash);
+    }
+    auto created = open_service(false);
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = (root / "source.jpg").string();
     QImage image(32, 24, QImage::Format_RGB888);
@@ -1110,6 +1162,50 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     EXPECT_FALSE(read_jpeg.isNull());
     EXPECT_TRUE(read_jpeg.colorSpace().isValid());
     EXPECT_EQ(read_jpeg.colorSpace(), QColorSpace(QColorSpace::DisplayP3));
+
+    {
+        const auto noisy_path = (root / "size-limit.png").string();
+        QImage noisy(128, 96, QImage::Format_RGB888);
+        noisy.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        for (int y = 0; y < noisy.height(); ++y)
+            for (int x = 0; x < noisy.width(); ++x)
+                noisy.setPixelColor(x, y,
+                                    QColor((x * 37 + y * 61) % 256, (x * 89 + y * 23) % 256,
+                                           (x * 17 + y * 97) % 256));
+        ASSERT_TRUE(noisy.save(QString::fromStdString(noisy_path), "PNG"));
+        auto source = service->import_one(noisy_path, CancellationToken{});
+        ASSERT_TRUE(source);
+        ASSERT_TRUE(source.value().asset);
+        ExportRequest limited;
+        limited.asset_id = source.value().asset->id;
+        limited.format = ExportFormat::kJpeg;
+        limited.jpeg_options.quality = 100;
+        limited.output_path = (root / "size-unlimited.jpg").string();
+        auto full = service->export_asset(limited);
+        ASSERT_TRUE(full) << full.error().message;
+        limited.jpeg_max_bytes = static_cast<std::uint32_t>(full.value().bytes_written / 2U);
+        limited.output_path = (root / "size-limited.jpg").string();
+        auto fitted = service->export_asset(limited);
+        ASSERT_TRUE(fitted) << fitted.error().message;
+        EXPECT_LE(fitted.value().bytes_written, limited.jpeg_max_bytes);
+        EXPECT_EQ(std::filesystem::file_size(limited.output_path), fitted.value().bytes_written);
+        EXPECT_EQ(fitted.value().width, full.value().width);
+        EXPECT_EQ(fitted.value().height, full.value().height);
+        EXPECT_FALSE(QImage(QString::fromStdString(limited.output_path)).isNull());
+        EXPECT_FALSE(service->export_asset(limited));
+        limited.jpeg_max_bytes = 1;
+        limited.output_path = (root / "size-impossible.jpg").string();
+        auto impossible = service->export_asset(limited);
+        ASSERT_FALSE(impossible);
+        EXPECT_EQ(impossible.error().context.at("reason"), "jpeg_size_limit_unreachable");
+        EXPECT_FALSE(std::filesystem::exists(limited.output_path));
+        CancellationSource cancellation;
+        ASSERT_TRUE(cancellation.cancel("size-test"));
+        limited.cancellation = cancellation.token();
+        limited.output_path = (root / "size-cancelled.jpg").string();
+        EXPECT_FALSE(service->export_asset(limited));
+        EXPECT_FALSE(std::filesystem::exists(limited.output_path));
+    }
 
     const auto tiff_out = (root / "out.tif").string();
     ExportRequest tiff;

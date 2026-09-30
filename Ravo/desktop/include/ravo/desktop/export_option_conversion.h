@@ -14,6 +14,7 @@ namespace ravo
 {
 
 inline constexpr std::string_view kStudioExportOptionQuality = "quality";
+inline constexpr std::string_view kStudioExportOptionJpegMaxMegabytes = "jpegMaxMegabytes";
 inline constexpr std::string_view kStudioExportOptionJpegSubsampling = "jpegSubsampling";
 inline constexpr std::string_view kStudioExportOptionPngBitDepth = "pngBitDepth";
 inline constexpr std::string_view kStudioExportOptionPngCompression = "pngCompression";
@@ -45,6 +46,7 @@ inline constexpr std::string_view kStudioExportOptionFrameSize = "frameSize";
 
 struct StudioExportSelection
 {
+    std::uint32_t jpeg_max_bytes = 0;
     ExportFormat format = ExportFormat::kPng;
     JpegExportOptions jpeg_options;
     PngExportOptions png_options;
