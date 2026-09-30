@@ -1,5 +1,10 @@
 # Ravo developer documentation
 
+[ADR-0162](adr/0162-versioned-raw-rendering-profiles.md) defines the future RAW
+calibration/default-rendering boundary; [profile execution gates](TODO_RAW_RENDERING_PROFILES.md)
+track its pending implementation. Current runtime behavior remains in the
+architecture and product README.
+
 Companion JPEG preflight and JPEG file-size limits are recorded in [ARCHITECTURE.md](ARCHITECTURE.md),
 its validation contract in [TESTING.md](TESTING.md), and user-facing behavior
 in [Ravo/README.md](../Ravo/README.md).

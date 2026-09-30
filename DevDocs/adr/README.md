@@ -169,3 +169,4 @@ supersession relationship when direction changes.
 | [0159](0159-owned-heic-macos-decode.md) | Accepted | Bounded owned macOS 14+ ImageIO HEIC/HEIF primary SDR decode, explicit other-host unavailability, original preservation |
 | [0160](0160-foreground-preview-and-import-isolation.md) | Accepted | Independent foreground/import owners; photo-scoped recipe and preview publication guards |
 | [0161](0161-full-source-crop-workspace.md) | Accepted | Complete transformed crop backdrop, fixed source scale, canonical output-frame mapping |
+| [0162](0162-versioned-raw-rendering-profiles.md) | Accepted design; implementation pending | Separate camera calibration, versioned default rendering and user edits; reproducible Standard and Camera Matching profiles |

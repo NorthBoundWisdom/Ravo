@@ -77,6 +77,12 @@ colour-frame export, PRO-EXPORT implementation after ADR-0117,
 explicit XMP/catalog conversion, and derived-asset
 external-editor round trips.
 
+RAW starting appearance requires separate calibration and rendering profiles,
+with a reproducible Standard profile and separately validated Camera Matching
+families. [ADR-0162](adr/0162-versioned-raw-rendering-profiles.md) owns the design;
+[execution gates](TODO_RAW_RENDERING_PROFILES.md) remain pending. RapidRAW AgX is
+a Standard candidate, not an implemented replacement for the current default.
+
 **Exit gate:** preview, export, reopen, history, undo, and batch application use
 one canonical result; package and colour behavior are verified on supported
 hosts; every external round trip preserves the original and has a conflict

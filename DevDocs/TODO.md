@@ -20,7 +20,7 @@
 > recoverability contracted (`Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`).
 > REL-02 has a macOS Release DMG package-smoke tranche on
 > `e1a68eeb` (report `20260905_023651`); Windows ZIP / Linux AppImage+DEB, upgrade-failure
-> host matrix, and full REL matrices remain open. The next free ADR number is **0157**, but new product
+> host matrix, and full REL matrices remain open. The next free ADR number is **0163**, but new product
 > ADRs are frozen by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
@@ -41,6 +41,12 @@ or OpenCL path. GPU work remains an Engine QRhi adapter with CPU as the
 correctness reference.
 
 ## Queue discipline
+
+The user-requested RAW starting-appearance design is recorded in
+[ADR-0162](adr/0162-versioned-raw-rendering-profiles.md). Its pending calibration,
+baseline-binding, Standard/Camera Matching and validation gates are tracked in
+[TODO_RAW_RENDERING_PROFILES.md](TODO_RAW_RENDERING_PROFILES.md). This design does
+not claim a new runtime default or reopen leftover IOP ports.
 
 ### Maturity labels
 
