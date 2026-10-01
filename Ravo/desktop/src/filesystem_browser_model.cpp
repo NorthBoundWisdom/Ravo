@@ -8,6 +8,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QStorageInfo>
 
 #include "studio_qt.h"
 
@@ -48,6 +49,35 @@ bool import_source_recursion(const QString &source, const QString &user_director
     const auto canonical_home = QFileInfo(user_directory).canonicalFilePath();
     return canonical_source.isEmpty() || canonical_home.isEmpty() ||
            canonical_source != canonical_home;
+}
+
+std::vector<FilesystemFolderEntry> list_mounted_filesystem_roots()
+{
+    std::vector<FilesystemFolderEntry> roots;
+    for (const auto &storage : QStorageInfo::mountedVolumes())
+    {
+        if (!storage.isValid() || !storage.isReady())
+            continue;
+        const auto path = generic_path(storage.rootPath());
+#ifdef Q_OS_MACOS
+        // APFS support mounts are not photo sources. Finder-visible disks,
+        // including memory cards, are mounted under /Volumes.
+        if (path != QLatin1String("/") && !path.startsWith(QLatin1String("/Volumes/")))
+            continue;
+#endif
+        const QFileInfo folder(path);
+        if (!folder.isDir() || !folder.isReadable())
+            continue;
+        if (std::any_of(roots.begin(), roots.end(),
+                        [&](const auto &root) { return root.path == path; }))
+            continue;
+        const auto name = storage.displayName();
+        roots.push_back(
+            {path, name.isEmpty() || name == path ? path : name + " (" + path + ")", true});
+    }
+    std::sort(roots.begin(), roots.end(),
+              [](const auto &left, const auto &right) { return left.path < right.path; });
+    return roots;
 }
 
 Result<std::vector<FilesystemFolderEntry>> list_filesystem_folders(const QString &path)
@@ -152,6 +182,7 @@ void FilesystemBrowserModel::resetWithRoots(std::vector<FilesystemFolderEntry> r
 {
     beginResetModel();
     all_nodes_.clear();
+    mounted_roots_.clear();
     reveal_path_.clear();
     all_nodes_.reserve(roots.size());
     for (auto &root : roots)
@@ -175,6 +206,51 @@ void FilesystemBrowserModel::loadUserDirectory()
     const auto path = generic_path(QDir::homePath());
     resetWithRoots({{path, path, true}});
     toggleCollapsed(path);
+}
+
+void FilesystemBrowserModel::updateMountedRoots(std::vector<FilesystemFolderEntry> roots)
+{
+    const auto previous_mounted = mounted_roots_;
+    bool changed = false;
+    QStringList paths;
+    for (auto &root : roots)
+        paths.push_back(generic_path(root.path));
+    for (std::size_t index = 0; index < all_nodes_.size();)
+    {
+        const auto &node = all_nodes_[index];
+        if (node.depth != 0 || !mounted_roots_.contains(node.path) || paths.contains(node.path))
+        {
+            ++index;
+            continue;
+        }
+        auto end = index + 1;
+        while (end < all_nodes_.size() && all_nodes_[end].depth > 0)
+            ++end;
+        all_nodes_.erase(all_nodes_.begin() + static_cast<std::ptrdiff_t>(index),
+                         all_nodes_.begin() + static_cast<std::ptrdiff_t>(end));
+        changed = true;
+    }
+    mounted_roots_.clear();
+    for (auto &root : roots)
+    {
+        const auto path = generic_path(root.path);
+        if (index_of_path(path) >= 0)
+        {
+            // Home or a picker root remains owned by its original entry.
+            if (previous_mounted.contains(path))
+                mounted_roots_.push_back(path);
+            continue;
+        }
+        Node node;
+        node.path = path;
+        node.display_name = root.display_name;
+        node.has_children = root.has_children;
+        all_nodes_.push_back(std::move(node));
+        changed = true;
+        mounted_roots_.push_back(path);
+    }
+    if (changed)
+        rebuild_visible();
 }
 
 void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 generation,
@@ -210,6 +286,12 @@ void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 ge
                 all_nodes_.begin() + static_cast<std::ptrdiff_t>(remove_from));
     for (auto &child : children.value())
     {
+        const auto child_index = index_of_path(generic_path(child.path));
+        // Home and mounted/picker roots can overlap. Each path has one node
+        // identity; do not recreate another root inside an expanded subtree.
+        if (child_index >= 0 && (static_cast<std::size_t>(child_index) < remove_from ||
+                                 static_cast<std::size_t>(child_index) >= remove_to))
+            continue;
         Node node;
         node.path = generic_path(child.path);
         node.display_name = child.display_name;
@@ -219,6 +301,7 @@ void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 ge
         node.loaded = false;
         next.push_back(std::move(node));
     }
+    next[static_cast<std::size_t>(parent_index)].has_children = next.size() > remove_from;
     next.insert(next.end(), all_nodes_.begin() + static_cast<std::ptrdiff_t>(remove_to),
                 all_nodes_.end());
     all_nodes_ = std::move(next);

@@ -134,9 +134,12 @@ Current implementation status:
   background queue after Last Imported Photos opens (ADR-0102/0104).
 - The last selected import source is remembered immediately, even without
   importing. Reopening the page or restarting Studio restores it, expands its
-  ancestors, selects and scrolls to the folder, and scans it again. Both directory
-  trees start at the user directory rather than the system disk; external paths
-  selected through the picker remain reachable as additional folder roots.
+  ancestors, selects and scrolls to the folder, and scans it again. Unavailable
+  saved sources are removed with a prompt to choose another source. Both directory
+  trees show Home and ready mounted volumes, including storage cards. Opening
+  Import or using **Check again** refreshes volumes without losing expanded
+  folders; the refresh button is available before choosing a source. External
+  picker paths remain reachable as additional folder roots.
   Folder expansion is independent of image decoding. The destination preview
   shows the exact planned folder hierarchy, photo counts including descendants,
   and folders that will be created, including a configured second copy. It

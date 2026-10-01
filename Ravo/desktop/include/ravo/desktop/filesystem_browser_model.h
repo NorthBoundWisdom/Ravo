@@ -6,6 +6,7 @@
 #include <QAbstractListModel>
 #include <QHash>
 #include <QString>
+#include <QStringList>
 #include <QVariant>
 
 #include "ravo/foundation/error.h"
@@ -22,6 +23,8 @@ struct FilesystemFolderEntry
 
 [[nodiscard]] Result<std::vector<FilesystemFolderEntry>>
 list_filesystem_folders(const QString &path);
+// Call on the filesystem worker: querying mounted storage can block.
+[[nodiscard]] std::vector<FilesystemFolderEntry> list_mounted_filesystem_roots();
 // Import's Home-root guard also recognizes normalized and symlinked paths.
 [[nodiscard]] bool import_source_recursion(const QString &source, const QString &user_directory,
                                            bool requested);
@@ -52,6 +55,7 @@ public:
     [[nodiscard]] QString selectedPath() const;
     void resetWithRoots(std::vector<FilesystemFolderEntry> roots);
     void loadUserDirectory();
+    void updateMountedRoots(std::vector<FilesystemFolderEntry> roots);
     void applyChildren(const QString &path, quint64 generation,
                        Result<std::vector<FilesystemFolderEntry>> children);
     Q_INVOKABLE void toggleCollapsed(const QString &path);
@@ -83,6 +87,7 @@ private:
 
     std::vector<Node> all_nodes_;
     std::vector<Node> visible_;
+    QStringList mounted_roots_;
     QString selected_path_;
     QString reveal_path_;
     quint64 next_listing_generation_ = 0;

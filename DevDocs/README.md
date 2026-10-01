@@ -66,7 +66,8 @@ That document also owns Linux ICU runtime bundling and the package-local
 SONAME verification gate; build-host libraries cannot substitute for payload files.
 
 The import workspace, exact-content classification with visible disabled duplicate
-photos, remembered source/destination paths in Home-rooted folder trees, and the
+photos, remembered source/destination paths in Home and mounted-volume folder
+trees, and the
 Home non-recursive scan safeguard, read-only destination folder/count previews,
 independent folder loading, enumeration-first placeholders and ordered,
 catalog-independent thumbnail scheduling are defined by

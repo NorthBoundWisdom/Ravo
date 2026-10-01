@@ -31,7 +31,8 @@ class StudioImportTestControl
 public:
     static void pendingClassification(StudioPresenter &presenter)
     {
-        const auto snapshot = presenter.executor_.submit([&] { return presenter.service_->snapshot(); });
+        const auto snapshot =
+            presenter.executor_.submit([&] { return presenter.service_->snapshot(); });
         ASSERT_TRUE(snapshot);
         static_cast<void>(presenter.import_workspace_->scan->begin("test_classification_pending"));
         presenter.import_workspace_->scan->setCatalogRevision(snapshot.value().revision);
@@ -314,16 +315,22 @@ TEST(StudioImportWorkspace, BothTreesStartAtHomeAndRepeatedDestinationSelectionK
     presenter.closeImportPage();
 }
 
-TEST(StudioImportWorkspace, SourcePreferenceValidatesPathsAndKeepsUnavailableFolders)
+TEST(StudioImportWorkspace, SourcePreferenceValidatesPathsAndRemovesUnavailableFolders)
 {
     ensure_qt_core();
     QTemporaryDir directory;
     const auto source = directory.filePath("unavailable");
+    ASSERT_TRUE(QDir().mkpath(source));
     StudioImportPreferences preferences;
     ASSERT_TRUE(preferences.rememberSource(source));
     EXPECT_EQ(StudioImportPreferences{}.loadLastSource().value(), source);
     EXPECT_FALSE(preferences.rememberSource(QStringLiteral("relative/path")));
     EXPECT_EQ(preferences.loadLastSource().value(), source);
+    ASSERT_TRUE(QDir().rmdir(source));
+    const auto unavailable = preferences.loadLastSource();
+    ASSERT_FALSE(unavailable);
+    EXPECT_EQ(unavailable.error().context.at("reason"), "unavailable_import_source_preference");
+    EXPECT_TRUE(preferences.loadLastSource().value().isEmpty());
     QSettings settings;
     settings.setValue(QStringLiteral("desktop/import/lastSource"), 42);
     settings.sync();
@@ -387,9 +394,13 @@ TEST(StudioImportWorkspace, SourceSelectionPersistsWithoutImportAndRevealsAfterR
     ASSERT_TRUE(QDir().rmdir(source));
     restarted.openImportPage();
     ASSERT_TRUE(wait_until([&] { return !restarted.importScanActive(); }));
-    EXPECT_EQ(restarted.importSourceRoot(), source);
+    EXPECT_TRUE(restarted.importSourceRoot().isEmpty());
     EXPECT_FALSE(restarted.errorText().isEmpty());
     EXPECT_FALSE(restarted.importReady());
+    restarted.closeImportPage();
+    restarted.openImportPage();
+    EXPECT_TRUE(restarted.importSourceRoot().isEmpty());
+    EXPECT_TRUE(restarted.errorText().isEmpty());
     restarted.closeImportPage();
 }
 
@@ -781,7 +792,8 @@ TEST(StudioImportWorkspace, ImportStartsWithPendingClassificationAndNoThumbnails
     presenter.setImportSourceRoot(source);
     ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
     WorkerGate thumbnails;
-    ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(presenter, thumbnails.promise.get_future().share()));
+    ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
+        presenter, thumbnails.promise.get_future().share()));
     ImportCandidate candidate;
     candidate.source_path = (source + "/a.png").toStdString();
     candidate.display_name = "a.png";
@@ -793,7 +805,8 @@ TEST(StudioImportWorkspace, ImportStartsWithPendingClassificationAndNoThumbnails
     const auto destination = directory.filePath("destination");
     ASSERT_TRUE(QDir().mkpath(destination));
     WorkerGate catalog;
-    ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(presenter, catalog.promise.get_future().share()));
+    ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(
+        presenter, catalog.promise.get_future().share()));
     presenter.setImportMode("copy");
     presenter.setImportDestination(destination);
     ASSERT_TRUE(wait_until([&] { return presenter.importReady(); }));
@@ -804,7 +817,9 @@ TEST(StudioImportWorkspace, ImportStartsWithPendingClassificationAndNoThumbnails
     EXPECT_TRUE(presenter.importPreflightActive());
     EXPECT_TRUE(presenter.importWorkActive());
     catalog.release();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 30000));
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+        30000));
     EXPECT_EQ(presenter.lastImportCount(), 1);
     EXPECT_TRUE(presenter.importCandidates()->thumbnail(0).isNull());
     thumbnails.release();
@@ -828,9 +843,11 @@ TEST(StudioImportWorkspace, GalleryPreflightCancelAndFailureReleaseImportState)
         presenter.openImportPage();
         presenter.setImportSourceRoot(source);
         presenter.setImportDestination(destination);
-        ASSERT_TRUE(wait_until([&] { return presenter.importReady() && !presenter.importScanActive(); }));
+        ASSERT_TRUE(
+            wait_until([&] { return presenter.importReady() && !presenter.importScanActive(); }));
         WorkerGate catalog;
-        ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(presenter, catalog.promise.get_future().share()));
+        ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(
+            presenter, catalog.promise.get_future().share()));
         presenter.startPlannedImport();
         EXPECT_FALSE(presenter.importPageOpen());
         EXPECT_TRUE(presenter.importPreflightActive());
@@ -840,7 +857,9 @@ TEST(StudioImportWorkspace, GalleryPreflightCancelAndFailureReleaseImportState)
         else
             ASSERT_TRUE(QFile::remove(source + "/a.png"));
         catalog.release();
-        ASSERT_TRUE(wait_until([&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 30000));
+        ASSERT_TRUE(wait_until(
+            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            30000));
         EXPECT_FALSE(presenter.importPageOpen());
         EXPECT_EQ(presenter.libraryTotal(), 0);
         EXPECT_TRUE(QDir(destination).entryList(QDir::Files).isEmpty());

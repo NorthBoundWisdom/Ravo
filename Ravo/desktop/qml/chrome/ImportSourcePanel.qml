@@ -38,9 +38,13 @@ Rectangle {
         }
         CustomButton {
             Layout.fillWidth: true
-            visible: root.presenter.importSourceRoot.length > 0
             text: qsTr("Check again")
-            onClicked: root.presenter.setImportSourceRoot(root.presenter.importSourceRoot)
+            onClicked: {
+                if (root.presenter.importSourceRoot.length > 0)
+                    root.presenter.setImportSourceRoot(root.presenter.importSourceRoot)
+                else
+                    root.presenter.refreshImportSources()
+            }
         }
         Rectangle {
             objectName: "importSourceTreeSurface"

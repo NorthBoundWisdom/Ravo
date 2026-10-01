@@ -2,6 +2,7 @@
 
 #include <string>
 #include <QDir>
+#include <QFileInfo>
 #include <QMetaType>
 #include <QSettings>
 #include "studio_qt.h"
@@ -36,6 +37,16 @@ Result<QString> load_path(const char *key, const std::string &kind)
             return settings_error();
         return make_error(ErrorCode::kValidation, "Invalid saved import " + kind + " was removed",
                           {{"reason", "invalid_import_" + kind + "_preference"}});
+    }
+    if (kind == "source" && (!QFileInfo(path).isDir() || !QFileInfo(path).isReadable()))
+    {
+        settings.remove(QLatin1String(key));
+        settings.sync();
+        if (settings.status() != QSettings::NoError)
+            return settings_error();
+        return make_error(ErrorCode::kValidation,
+                          "Saved import source is unavailable; choose a source folder.",
+                          {{"reason", "unavailable_import_source_preference"}});
     }
     return QDir::cleanPath(path);
 }

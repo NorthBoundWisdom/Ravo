@@ -780,6 +780,7 @@ public:
     Q_INVOKABLE void importFilePaths(const QStringList &paths);
     Q_INVOKABLE void importFolderFromPath(const QString &path);
     Q_INVOKABLE void openImportPage();
+    Q_INVOKABLE void refreshImportSources();
     Q_INVOKABLE void closeImportPage();
     Q_INVOKABLE void setImportSourceRoot(const QString &path);
     Q_INVOKABLE void setImportDestination(const QString &path);
@@ -1241,6 +1242,7 @@ private:
     SerialExecutor executor_;
     std::unique_ptr<StudioImportWorker> import_worker_;
     SerialExecutor filesystem_executor_;
+    std::uint64_t import_roots_generation_ = 0;
     SerialExecutor preview_analysis_executor_;
     SerialExecutor thumbnail_presentation_executor_;
     CancellationSource thumbnail_presentation_cancel_;

@@ -108,16 +108,23 @@ Desktop tests isolate QSettings and cover Copy defaults, streaming check intent,
 visible disabled duplicates, single/range/all selection exclusion, duplicate
 thumbnail completion without rescan loops, and source-byte preservation,
 source persistence before import, source ancestor selection/reveal after page
-reopen and cross-catalog restart, unavailable source errors, invalid source
+reopen and cross-catalog restart, unavailable saved-source removal and explicit
+errors without automatic scanning of another folder, invalid source
 preferences and failed-write preservation, successful destination persistence,
 restart/cross-catalog restore, unavailable
 destinations, settings-write failures that preserve committed photos and the
 prior destination, conflict-before-import with Gallery error feedback, asynchronous ancestor reveal,
 superseded reveal cancellation, and visible directory-listing errors. Folder
-contracts cover Home roots in both panels, activation/expansion, pending-list
+contracts cover Home and mounted-volume roots in both panels, volume refresh
+without losing expanded children or selection, removal/reinsertion with late
+listing rejection, unique paths across overlapping roots, accessible absolute
+storage discovery, activation/expansion, pending-list
 deduplication, external picker paths, and repeated destination selection without
 losing loaded children; QML contracts check independent disclosure/selection areas. The
-import contracts also cover the checkbox's explicit click intent, non-recursive
+mounted-root discovery test accepts `RAVO_TEST_EXPECT_MOUNTED_ROOT` for an
+independently identified mounted card path; it verifies discovery without scanning
+or importing the card's photos.
+The import contracts also cover the checkbox's explicit click intent, non-recursive
 selection across folder changes/page reentry, late recursive-result rejection,
 and the Home recursion guard for normalized and symlink paths. The
 destination-preview tests check single/date/month/hierarchy and second-copy

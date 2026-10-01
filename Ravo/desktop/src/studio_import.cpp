@@ -316,6 +316,7 @@ void StudioPresenter::openImportPage()
         return;
     cancelImportPreviews();
     import_page_open_ = true;
+    setError({});
     import_workspace_->draft.mode = QStringLiteral("copy");
     const auto source = StudioImportPreferences{}.loadLastSource();
     if (source)
@@ -337,6 +338,7 @@ void StudioPresenter::openImportPage()
     refreshImportNativeSupport();
     import_source_folders_.loadUserDirectory();
     import_destination_folders_.loadUserDirectory();
+    refreshImportSources();
     if (!import_workspace_->draft.source_root.isEmpty())
         import_source_folders_.revealFolder(import_workspace_->draft.source_root);
     if (!import_workspace_->draft.destination.isEmpty())
@@ -359,12 +361,37 @@ void StudioPresenter::closeImportPage()
         setImportWork(0, 0, false);
     import_preflight_active_ = false;
     import_page_open_ = false;
+    ++import_roots_generation_;
     import_context_row_ = -1;
     import_context_path_.clear();
     if (import_workspace_->thumbnails)
         import_workspace_->thumbnails->resetSourceSession();
     import_candidates_.setCandidates({});
     emit importPageChanged();
+}
+
+void StudioPresenter::refreshImportSources()
+{
+    if (!import_page_open_ || import_work_active_ || import_preflight_active_)
+        return;
+    const auto generation = ++import_roots_generation_;
+    const bool queued = filesystem_executor_.post(
+        [this, generation]
+        {
+            auto roots = list_mounted_filesystem_roots();
+            QMetaObject::invokeMethod(
+                this,
+                [this, generation, roots = std::move(roots)]() mutable
+                {
+                    if (!import_page_open_ || generation != import_roots_generation_)
+                        return;
+                    import_source_folders_.updateMountedRoots(roots);
+                    import_destination_folders_.updateMountedRoots(std::move(roots));
+                },
+                Qt::QueuedConnection);
+        });
+    if (!queued)
+        setError(QStringLiteral("Unable to queue import storage discovery"));
 }
 
 QString StudioPresenter::importContextPath() const
@@ -398,6 +425,7 @@ void StudioPresenter::setImportSourceRoot(const QString &path)
             return;
     }
     import_workspace_->draft.source_root = next;
+    refreshImportSources();
     import_source_folders_.revealFolder(next);
     emit importPageChanged();
     rescanImportSource();

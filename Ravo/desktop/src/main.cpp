@@ -28,6 +28,8 @@
 #include <QString>
 #include <QStyleHints>
 #include <QSurfaceFormat>
+#include <QSettings>
+#include <QTemporaryDir>
 #include <QUrl>
 #include <QtLogging>
 
@@ -380,6 +382,19 @@ int main(int argc, char *argv[])
     QGuiApplication application(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("Ravo Studio"));
     QGuiApplication::setOrganizationName(QStringLiteral("Ravo"));
+    // Every smoke entry point (including POST_BUILD and direct --smoke) must
+    // isolate all desktop preferences before constructing any settings owner.
+    // The directory outlives the presenter and its joined workers.
+    std::optional<QTemporaryDir> smoke_settings;
+    if (requested_smoke)
+    {
+        smoke_settings.emplace();
+        if (!smoke_settings->isValid())
+            return EXIT_FAILURE;
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, smoke_settings->path());
+        QSettings::setPath(QSettings::IniFormat, QSettings::SystemScope, smoke_settings->path());
+    }
 #if defined(Q_OS_LINUX)
     QPalette linux_palette;
     linux_palette.setColor(QPalette::Window, QColor(0x1c, 0x1c, 0x1c));

@@ -211,9 +211,19 @@ Source selection is persisted immediately, even when the import draft is closed
 without importing. Both paths are global desktop preferences, independent of
 catalog identity; reopening restores the source scan and asynchronously expands,
 selects, and scrolls its ancestor chain through the C++ folder model. Listing
-trees start at Home; explicit picker paths outside Home are additional folder
-roots rather than mounted-disk trees. Row activation selects and expands in
-C++; QML has non-overlapping full-height disclosure and selection hit areas.
+trees start at Home and add ready, readable mounted volumes, including storage
+cards. Storage discovery runs on the filesystem worker on page entry and source
+recheck; close/reopen rejects old discovery results. Refresh preserves existing
+expansion and selection, removes disappeared volume subtrees and rejects their
+late listings. On macOS, volumes outside `/Volumes` other than the system root
+are excluded to avoid exposing APFS support mounts. Explicit picker paths remain
+reachable as additional roots; overlapping roots retain one node per path.
+Unavailable saved source preferences are removed
+with an explicit error instead of restoring a dead path or scanning another
+folder. Studio `--smoke` uses a temporary, isolated QSettings namespace for its
+entire owner lifetime, including direct and post-build invocation.
+Row activation selects and expands in C++; QML has non-overlapping full-height
+disclosure and selection hit areas.
 Selection forwarding runs in the persistent tree object's QML context because
 activation can synchronously replace the clicked delegate during model reset.
 Repeated destination selection does not reset a healthy tree. Listing
