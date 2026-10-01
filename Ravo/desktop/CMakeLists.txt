@@ -42,6 +42,7 @@ target_sources(ravo_desktop
     src/studio_presenter_library.cpp
     src/studio_presenter_export.cpp
     src/studio_presenter_external_editor.cpp
+    src/studio_presenter_photo_merge.cpp
     src/studio_presenter_offline_edit.cpp
     src/studio_presenter_ai_proposal.cpp
     src/studio_presenter_selection.cpp
@@ -140,6 +141,7 @@ endif()
 
 add_executable(ravo_studio ${RAVO_STUDIO_SOURCES})
 target_sources(ravo_studio PRIVATE src/studio_import_layout_smoke.cpp)
+target_sources(ravo_studio PRIVATE src/studio_photo_merge_layout_smoke.cpp)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 find_package(Qt6 6.11 REQUIRED COMPONENTS GuiPrivate)
 target_link_libraries(ravo_studio
@@ -251,6 +253,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/FolderDialogPage.qml
     qml/chrome/BackupScheduleDialog.qml
     qml/chrome/EditInDialog.qml
+    qml/chrome/PhotoMergeDialog.qml
     qml/chrome/OfflineEditDialog.qml
     qml/chrome/AiProposalDialog.qml
     qml/chrome/ExportOptionsDialog.qml

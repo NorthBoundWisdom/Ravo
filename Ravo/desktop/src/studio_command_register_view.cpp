@@ -17,6 +17,17 @@ void StudioCommandController::registerViewCommands(const command_registration::H
     const auto &request_confirmation = helpers.request_confirmation;
     const auto &confirmation_validator = helpers.confirmation_validator;
     const auto &clear_confirmation = helpers.clear_confirmation;
+    add(command::kPhotoMergeHdr, Condition::kMergeSelection, no_argument,
+        [this](const QVariant &, const QString &)
+        { presenter_.preparePhotoMerge(QStringLiteral("hdr")); });
+    add(command::kPhotoPanorama, Condition::kMergeSelection, no_argument,
+        [this](const QVariant &, const QString &)
+        { presenter_.preparePhotoMerge(QStringLiteral("panorama")); });
+    add(
+        command::kPhotoMergeApply, Condition::kMergeSelection, [](const QVariant &argument)
+        { return required_fields(argument, {QStringLiteral("token")}); },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.applyPhotoMerge(argument.toMap()); });
 
     add(
         command::kEditSetText, Condition::kDevelopSelection,

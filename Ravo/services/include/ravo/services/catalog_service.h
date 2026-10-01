@@ -31,6 +31,7 @@
 #include "ravo/services/offline_edit_proxy.h"
 #include "ravo/services/cull_assistance.h"
 #include "ravo/services/ingest_transport.h"
+#include "ravo/services/photo_merge.h"
 
 namespace ravo
 {
@@ -374,6 +375,7 @@ public:
         const std::function<void(std::size_t, std::size_t, const PreviewRebuildItemResult *)>
             &progress = {});
     [[nodiscard]] Result<ExportResult> export_asset(const ExportRequest &request);
+    [[nodiscard]] Result<PhotoMergeResult> merge_selected_photos(const PhotoMergeRequest &request);
     // Read-only preflight; borrowed IDs live for this synchronous call only.
     [[nodiscard]] Result<void> check_companion_jpegs(const std::vector<std::string> &asset_ids,
                                                      const CancellationToken &cancellation);
@@ -646,6 +648,7 @@ private:
     std::optional<CachedRawFrame> browse_decoded_raw_;
     std::optional<CachedLinearWorking> browse_linear_working_;
     std::function<void()> testing_before_import_publication_;
+    std::function<Result<void>(std::string_view)> testing_merge_checkpoint_;
     std::function<void()> testing_before_preview_cache_publication_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_import_checkpoint_;
     std::function<Result<void>(std::string_view, std::string_view)> testing_backup_checkpoint_;

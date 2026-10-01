@@ -96,10 +96,10 @@ public:
     find_asset_by_uri(std::string_view normalized_uri) const = 0;
     // One transaction: asset row, optional capture row, revision bump.
     // Failure leaves no newly visible asset.
-    [[nodiscard]] virtual Result<void>
-    commit_imported_asset(const AssetRecord &asset,
-                          const std::optional<std::string> &sha256 = std::nullopt,
-                          bool reject_duplicate_content = false) = 0;
+    [[nodiscard]] virtual Result<void> commit_imported_asset(
+        const AssetRecord &asset, const std::optional<std::string> &sha256 = std::nullopt,
+        bool reject_duplicate_content = false, std::optional<std::int64_t> expected_revision = {},
+        const CancellationToken &cancellation = {}) = 0;
     [[nodiscard]] virtual Result<std::vector<ImportContentSource>>
     import_content_sources(std::uint64_t size_bytes, std::string_view after_asset_id) const = 0;
     [[nodiscard]] virtual Result<void> cache_import_content(const ImportContentSource &source,

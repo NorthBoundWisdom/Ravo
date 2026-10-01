@@ -4481,6 +4481,14 @@ Diff: %6</source>
             <translation>편집 위치:</translation>
         </message>
         <message>
+            <source>Merge Exposure Bracket…</source>
+            <translation>노출 브래킷 병합…</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama…</source>
+            <translation>파노라마 합성…</translation>
+        </message>
+        <message>
             <source>Offline-edit proxies…</source>
             <translation>오프라인 편집 프록시…</translation>
         </message>
@@ -4590,6 +4598,61 @@ Diff: %6</source>
         <message>
             <source>Copyright</source>
             <translation>저작권</translation>
+        </message>
+    </context>
+    <context>
+        <name>PhotoMergeDialog</name>
+        <message>
+            <source>Merge Exposure Bracket</source>
+            <translation>노출 브래킷 병합</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama</source>
+            <translation>파노라마 합성</translation>
+        </message>
+        <message>
+            <source>Merge %1 original photos into a new 16-bit TIFF in this library. Existing edits are not baked in; originals are preserved.</source>
+            <translation>원본 사진 %1장을 이 라이브러리의 새 16비트 TIFF로 병합합니다. 기존 편집은 적용하지 않으며 원본은 보존됩니다.</translation>
+        </message>
+        <message>
+            <source>HDR uses exposure metadata and maps the result for normal display. The output is not a RAW DNG.</source>
+            <translation>HDR은 노출 메타데이터를 사용하여 결과를 일반 화면에 맞게 변환합니다. 출력은 RAW DNG가 아닙니다.</translation>
+        </message>
+        <message>
+            <source>Planar panorama: use overlapping photos taken from the same viewpoint. 360° spherical panoramas are not supported.</source>
+            <translation>평면 파노라마: 같은 위치에서 촬영한 겹치는 사진을 사용하세요. 360° 구면 파노라마는 지원하지 않습니다.</translation>
+        </message>
+        <message>
+            <source>Automatically align photos</source>
+            <translation>사진 자동 정렬</translation>
+        </message>
+        <message>
+            <source>Crop to remove uncovered edges</source>
+            <translation>겹치지 않는 가장자리를 제거하도록 자르기</translation>
+        </message>
+        <message>
+            <source>Exposure stops in selection order (optional)</source>
+            <translation>선택 순서대로 노출 스톱 입력 (선택 사항)</translation>
+        </message>
+        <message>
+            <source>For example: -2, 0, 2. Leave empty to use metadata.</source>
+            <translation>예: -2, 0, 2. 비워 두면 메타데이터를 사용합니다.</translation>
+        </message>
+        <message>
+            <source>Deghost threshold (0 disables; 0.2 default)</source>
+            <translation>고스트 제거 임계값 (0은 비활성화, 기본값 0.2)</translation>
+        </message>
+        <message>
+            <source>Maximum input edge in pixels (0 uses full resolution)</source>
+            <translation>입력의 최대 긴 변 픽셀 수 (0은 전체 해상도 사용)</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>취소</translation>
+        </message>
+        <message>
+            <source>Merge HDR</source>
+            <translation>HDR 병합</translation>
         </message>
     </context>
     <context>
@@ -5339,6 +5402,14 @@ Diff: %6</source>
         <message>
             <source>Paste Parameters</source>
             <translation>매개변수 붙여넣기</translation>
+        </message>
+        <message>
+            <source>Merge Exposure Bracket...</source>
+            <translation>노출 브래킷 병합...</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama...</source>
+            <translation>파노라마 합성...</translation>
         </message>
         <message>
             <source>Edit in...</source>
@@ -6511,6 +6582,38 @@ Diff: %6</source>
         <message>
             <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
             <translation>%1 가져옴, 중복 %2, 건너뛰었습니다 %3, 지원되지 않음 %4, 실패 %5</translation>
+        </message>
+        <message>
+            <source>Select 2 to 16 photos in the library to merge.</source>
+            <translation>라이브러리에서 병합할 사진을 2~16장 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Photo selection or library changed; reopen the merge dialog.</source>
+            <translation>사진 선택이나 라이브러리가 변경되었습니다. 병합 대화상자를 다시 여세요.</translation>
+        </message>
+        <message>
+            <source>Maximum edge must be 0 to 16000 pixels.</source>
+            <translation>최대 긴 변은 0~16000픽셀이어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Deghost threshold must be 0 to 1.</source>
+            <translation>고스트 제거 임계값은 0~1이어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Exposure stops must be comma-separated numbers.</source>
+            <translation>노출 스톱은 쉼표로 구분된 숫자여야 합니다.</translation>
+        </message>
+        <message>
+            <source>Merging photos…</source>
+            <translation>사진 병합 중…</translation>
+        </message>
+        <message>
+            <source>Created merged TIFF: %1</source>
+            <translation>병합 TIFF 생성 완료: %1</translation>
+        </message>
+        <message>
+            <source>Photo merge executor is unavailable.</source>
+            <translation>사진 병합 실행기를 사용할 수 없습니다.</translation>
         </message>
     </context>
     <context>

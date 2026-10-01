@@ -296,6 +296,8 @@ Item {
     property alias copyPhotoParameters: copyPhotoParametersAction
     property alias revealInFileManager: revealInFileManagerAction
     property alias editIn: editInAction
+    property alias mergeHdr: mergeHdrAction
+    property alias panorama: panoramaAction
     property alias offlineEdit: offlineEditAction
     property alias aiProposal: aiProposalAction
     property alias cropTool: cropToolAction
@@ -447,6 +449,8 @@ Item {
         id: editInAction
         actionId: root.ids.photoEditIn || ""
     }
+    RegisteredAction { id: mergeHdrAction; actionId: root.ids.photoMergeHdr || "" }
+    RegisteredAction { id: panoramaAction; actionId: root.ids.photoPanorama || "" }
     RegisteredAction {
         id: offlineEditAction
         actionId: root.ids.photoOfflineEdit || ""

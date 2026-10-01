@@ -51,6 +51,8 @@ ravo_copy_windows_runtime_dlls(ravo_preview_cache_tests)
 gtest_discover_tests(ravo_preview_cache_tests PROPERTIES LABELS "ravo-unit")
 
 add_executable(ravo_contract_tests
+  photo_merge_test.cpp
+  cli_photo_merge_test.cpp
   local_adjustment_engine_test.cpp
   cli_test_support.cpp
   engine_color_test_support.cpp
@@ -132,6 +134,7 @@ gtest_discover_tests(ravo_contract_tests
   PROPERTIES LABELS "ravo-contract")
 
 add_executable(ravo_catalog_tests
+  catalog_photo_merge_test.cpp
   catalog_test_support.cpp
   catalog_test.cpp
   catalog_recovery_test.cpp
@@ -427,6 +430,7 @@ gtest_discover_tests(ravo_original_copy_cli_tests
   PROPERTIES LABELS "ravo-original-copy-cli")
 
 add_executable(ravo_desktop_command_tests
+  studio_photo_merge_test.cpp
   studio_qml_test_support.cpp
   studio_test_support.cpp
   studio_command_test.cpp

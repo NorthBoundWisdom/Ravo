@@ -1,5 +1,12 @@
 # Ravo Migration Policy
 
+ADR-0163 (2026-10-01) admits user-requested exposure-bracket HDR and planar
+panorama as independent Ravo workflows, superseding only ADR-0153's unselected
+HDR/Panorama status. Engine owns RGB registration/merge; services own derived
+TIFF/provenance publication and catalog registration. Tethering stays deferred;
+the removed GTK/IOP/OpenCL application remains closed. Float DNG and spherical
+panorama are not admitted by this decision.
+
 ## Goal
 
 Ravo owns the product. Catalog/import/viewer and Basic

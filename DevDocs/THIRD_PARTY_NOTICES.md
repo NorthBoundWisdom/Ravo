@@ -1,5 +1,22 @@
 # Third-Party Notices
 
+## Multi-photo merge references
+
+The HDR exposure envelope in `Ravo/engine/src/photo_merge_hdr.cpp` is adapted
+from darktable `src/control/jobs/control_jobs.c`, Copyright (C) darktable
+developers, GPL-3.0-or-later. The user-supplied source snapshot has SHA-256
+`5a69481c4382f7987909f659f404f542d85262100f7b8aa38d27e276b1cb6680`.
+Project source: <https://github.com/darktable-org/darktable>.
+
+RapidRAW commit `772c76b752062427698b210046560b38871862d0`,
+`src-tauri/src/panorama_stitching.rs`, `panorama_utils/processing.rs`,
+`panorama_utils/stitching.rs` and `hdr_deghosting.rs` supplied registration and
+seam algorithm references. Copyright (c) Timon Käch and RapidRAW contributors,
+AGPL-3.0; <https://github.com/CyberTimon/RapidRAW>. Ravo's deterministic C++
+FAST/BRIEF/RANSAC, RGB warp, seam, cancellation, publication and state owners
+are independent of the Rust/Tauri application. No Rust or OpenCV dependency is
+added. The combined product retains Ravo's AGPL-3.0 distribution terms.
+
 ## macOS HEIC/HEIF system provider
 
 Ravo's HEIC/HEIF input adapter uses Apple's ImageIO, CoreGraphics and

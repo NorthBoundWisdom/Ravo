@@ -198,6 +198,9 @@ QStringList command_ids()
             QLatin1String(command::kPhotoCopyParameters),
             QLatin1String(command::kPhotoRevealInFileManager),
             QLatin1String(command::kPhotoEditIn),
+            QLatin1String(command::kPhotoMergeHdr),
+            QLatin1String(command::kPhotoPanorama),
+            QLatin1String(command::kPhotoMergeApply),
             QLatin1String(command::kPhotoEditInPrepare),
             QLatin1String(command::kPhotoEditInCheckReturned),
             QLatin1String(command::kPhotoEditInClearSession),
@@ -632,6 +635,14 @@ QVector<ActionSpec> builtin_actions()
         {QStringLiteral("finder"), QStringLiteral("explorer"), QStringLiteral("folder"),
          QStringLiteral("reveal"), QStringLiteral("show")},
         QStringLiteral("photo.review"), 35, true, {key(primary_key(QStringLiteral("R")))});
+    add(command::kPhotoMergeHdr, command::kPhotoMergeHdr,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Merge Exposure Bracket...")), photo,
+        {QStringLiteral("hdr"), QStringLiteral("merge"), QStringLiteral("exposure")},
+        QStringLiteral("photo.review"), 38, true, {});
+    add(command::kPhotoPanorama, command::kPhotoPanorama,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Stitch Panorama...")), photo,
+        {QStringLiteral("panorama"), QStringLiteral("stitch"), QStringLiteral("merge")},
+        QStringLiteral("photo.review"), 39, true, {});
     add(command::kPhotoEditIn, command::kPhotoEditIn,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Edit in...")), photo,
         {QStringLiteral("external"), QStringLiteral("photoshop"), QStringLiteral("tiff"),

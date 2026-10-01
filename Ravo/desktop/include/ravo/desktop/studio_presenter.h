@@ -832,6 +832,8 @@ public:
     Q_INVOKABLE QVariantMap exportDefaultOptions() const;
     Q_INVOKABLE QVariantMap exportOptionBounds() const;
     Q_INVOKABLE QVariantMap externalEditorSession() const;
+    Q_INVOKABLE void preparePhotoMerge(const QString &kind);
+    Q_INVOKABLE void applyPhotoMerge(const QVariantMap &options);
     Q_INVOKABLE QVariantMap externalEditorDefaultOptions() const;
     Q_INVOKABLE QVariantList externalEditorTiffSampleTypeChoices() const;
     Q_INVOKABLE void prepareExternalEditorWorkingCopy(const QVariantMap &options);
@@ -1064,6 +1066,7 @@ signals:
     void presetsChanged();
     void libraryWorkChanged();
     void externalEditorSessionChanged();
+    void photoMergeDialogRequested(const QVariantMap &context);
     void offlineEditMediaStatusChanged();
     void offlineEditProxyListChanged();
     void selectedAiProposalChanged();
@@ -1391,6 +1394,11 @@ private:
     double last_non_actual_zoom_factor_ = 1.0;
     int thumbnail_size_ = 180;
     QVariantMap external_editor_session_;
+    std::uint64_t photo_merge_token_ = 0;
+    std::vector<std::string> photo_merge_assets_;
+    QString photo_merge_catalog_;
+    QString photo_merge_kind_;
+    std::int64_t photo_merge_revision_ = -1;
     QVariantMap offline_edit_media_status_;
     QVariantList offline_edit_proxy_list_;
     QVariantMap selected_ai_proposal_;

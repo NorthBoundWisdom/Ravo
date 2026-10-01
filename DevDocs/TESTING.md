@@ -1,5 +1,30 @@
 # Ravo Testing Strategy
 
+## Multi-photo merge contracts
+
+ADR-0163 uses `PhotoMerge.*` for numerical HDR clipped-highlight/chromaticity
+truth, exposure and mild-projective registration, moving-pixel rejection,
+panorama exposure/seam/crop coordinates, unordered connected inputs, and
+malformed/featureless/cancel/memory failures. `CatalogServiceTest.PhotoMerge*`
+covers immutable TIFF/provenance, input hashes, output conflicts, missing EVs,
+cancel after file publication, import-transaction failure, concurrent revision,
+reopen/preview/re-export and backup verification. CLI and Studio merge tests
+cover versioned artifact JSON, revision requirement, stale dialog selection,
+option validation, availability and owned-window destruction.
+Production `ravo_studio --smoke` also opens the 16-photo dialog at 960×640 and
+1280×800, checks bounded scroll/body/footer geometry and modal command isolation,
+then closes it without issuing a merge mutation.
+
+```text
+ctest --preset mac_clang_debug -R 'PhotoMerge' --output-on-failure
+cmake --build --preset mac_clang_debug --target RavoCodeQuality
+```
+
+Run the full Ravo unit/contract suite for the extended public import transaction.
+Synthetic fixtures do not establish real bracket/panorama corpus quality,
+native-resolution performance or installed Windows/Linux/macOS release gates.
+Tests use generated artifacts and original hashes, never Studio screenshots.
+
 `StudioPresenterTest.VersionsStacksAndSurveyUseSerialBrowsePreviews` covers
 unstacked Burst Compare rejection without changing selection/error state,
 shortcut availability, collapsed-stack stepping, ordinary Survey, leaving

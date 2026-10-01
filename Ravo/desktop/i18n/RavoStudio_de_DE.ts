@@ -4481,6 +4481,14 @@ Differenz: %6</translation>
             <translation>Bearbeiten in…</translation>
         </message>
         <message>
+            <source>Merge Exposure Bracket…</source>
+            <translation>Belichtungsreihe zusammenführen…</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama…</source>
+            <translation>Panorama zusammensetzen…</translation>
+        </message>
+        <message>
             <source>Offline-edit proxies…</source>
             <translation>Proxys offline bearbeiten…</translation>
         </message>
@@ -4590,6 +4598,61 @@ Differenz: %6</translation>
         <message>
             <source>Copyright</source>
             <translation>Copyright</translation>
+        </message>
+    </context>
+    <context>
+        <name>PhotoMergeDialog</name>
+        <message>
+            <source>Merge Exposure Bracket</source>
+            <translation>Belichtungsreihe zusammenführen</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama</source>
+            <translation>Panorama zusammensetzen</translation>
+        </message>
+        <message>
+            <source>Merge %1 original photos into a new 16-bit TIFF in this library. Existing edits are not baked in; originals are preserved.</source>
+            <translation>%1 Originalfotos zu einer neuen 16-Bit-TIFF-Datei in dieser Bibliothek zusammenführen. Vorhandene Bearbeitungen werden nicht eingerechnet; Originale bleiben erhalten.</translation>
+        </message>
+        <message>
+            <source>HDR uses exposure metadata and maps the result for normal display. The output is not a RAW DNG.</source>
+            <translation>HDR verwendet Belichtungsmetadaten und passt das Ergebnis für normale Anzeigen an. Die Ausgabe ist keine RAW-DNG-Datei.</translation>
+        </message>
+        <message>
+            <source>Planar panorama: use overlapping photos taken from the same viewpoint. 360° spherical panoramas are not supported.</source>
+            <translation>Planares Panorama: überlappende Fotos vom selben Standort verwenden. Sphärische 360°-Panoramen werden nicht unterstützt.</translation>
+        </message>
+        <message>
+            <source>Automatically align photos</source>
+            <translation>Fotos automatisch ausrichten</translation>
+        </message>
+        <message>
+            <source>Crop to remove uncovered edges</source>
+            <translation>Nicht abgedeckte Ränder abschneiden</translation>
+        </message>
+        <message>
+            <source>Exposure stops in selection order (optional)</source>
+            <translation>Belichtungsstufen in Auswahlreihenfolge (optional)</translation>
+        </message>
+        <message>
+            <source>For example: -2, 0, 2. Leave empty to use metadata.</source>
+            <translation>Zum Beispiel: -2, 0, 2. Leer lassen, um Metadaten zu verwenden.</translation>
+        </message>
+        <message>
+            <source>Deghost threshold (0 disables; 0.2 default)</source>
+            <translation>Geisterbildschwelle (0 deaktiviert; Standard 0.2)</translation>
+        </message>
+        <message>
+            <source>Maximum input edge in pixels (0 uses full resolution)</source>
+            <translation>Maximale Eingabekantenlänge in Pixeln (0 verwendet volle Auflösung)</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Abbrechen</translation>
+        </message>
+        <message>
+            <source>Merge HDR</source>
+            <translation>HDR zusammenführen</translation>
         </message>
     </context>
     <context>
@@ -5339,6 +5402,14 @@ Differenz: %6</translation>
         <message>
             <source>Paste Parameters</source>
             <translation>Parameter einfügen</translation>
+        </message>
+        <message>
+            <source>Merge Exposure Bracket...</source>
+            <translation>Belichtungsreihe zusammenführen...</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama...</source>
+            <translation>Panorama zusammensetzen...</translation>
         </message>
         <message>
             <source>Edit in...</source>
@@ -6511,6 +6582,38 @@ Differenz: %6</translation>
         <message>
             <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
             <translation>%1 importiert, %2 dupliziert, %3 übersprungen, %4 nicht unterstützt, %5 fehlgeschlagen</translation>
+        </message>
+        <message>
+            <source>Select 2 to 16 photos in the library to merge.</source>
+            <translation>2 bis 16 Fotos in der Bibliothek zum Zusammenführen auswählen.</translation>
+        </message>
+        <message>
+            <source>Photo selection or library changed; reopen the merge dialog.</source>
+            <translation>Fotoauswahl oder Bibliothek geändert; den Dialog erneut öffnen.</translation>
+        </message>
+        <message>
+            <source>Maximum edge must be 0 to 16000 pixels.</source>
+            <translation>Die maximale Kantenlänge muss 0 bis 16000 Pixel betragen.</translation>
+        </message>
+        <message>
+            <source>Deghost threshold must be 0 to 1.</source>
+            <translation>Die Geisterbildschwelle muss zwischen 0 und 1 liegen.</translation>
+        </message>
+        <message>
+            <source>Exposure stops must be comma-separated numbers.</source>
+            <translation>Belichtungsstufen müssen durch Kommas getrennte Zahlen sein.</translation>
+        </message>
+        <message>
+            <source>Merging photos…</source>
+            <translation>Fotos werden zusammengeführt…</translation>
+        </message>
+        <message>
+            <source>Created merged TIFF: %1</source>
+            <translation>Zusammengeführte TIFF-Datei erstellt: %1</translation>
+        </message>
+        <message>
+            <source>Photo merge executor is unavailable.</source>
+            <translation>Der Fotozusammenführungs-Executor ist nicht verfügbar.</translation>
         </message>
     </context>
     <context>

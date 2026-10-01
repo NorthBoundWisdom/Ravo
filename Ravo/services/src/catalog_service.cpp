@@ -27,6 +27,11 @@
 namespace ravo
 {
 using namespace catalog_service_internal;
+void testing::CatalogServiceTestControl::set_merge_checkpoint(
+    CatalogService &service, std::function<Result<void>(std::string_view)> callback)
+{
+    service.testing_merge_checkpoint_ = std::move(callback);
+}
 
 bool testing::CatalogServiceTestControl::has_decoded_raw(const CatalogService &service)
 {

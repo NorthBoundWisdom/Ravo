@@ -618,10 +618,10 @@ Result<void> SqliteCatalogRepository::upsert_capture_metadata(const std::string_
     return {};
 }
 
-Result<void>
-SqliteCatalogRepository::commit_imported_asset(const AssetRecord &asset,
-                                               const std::optional<std::string> &sha256,
-                                               const bool reject_duplicate_content)
+Result<void> SqliteCatalogRepository::commit_imported_asset(
+    const AssetRecord &asset, const std::optional<std::string> &sha256,
+    const bool reject_duplicate_content, const std::optional<std::int64_t> expected_revision,
+    const CancellationToken &cancellation)
 {
     if (impl_ == nullptr)
     {
@@ -645,6 +645,12 @@ SqliteCatalogRepository::commit_imported_asset(const AssetRecord &asset,
     {
         return map_sql_error(begin, "begin_import_publication_transaction");
     }
+    auto current =
+        require_writable_revision(impl_->database, expected_revision, "check_import_revision");
+    if (!current)
+        return impl_->abort_transaction(current.error());
+    if (auto active = cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     if (impl_->consume_import_failure(testing::SqliteImportFailure::kAssetBind))
     {
         return impl_->abort_transaction(make_error(ErrorCode::kIo,
@@ -735,6 +741,8 @@ SqliteCatalogRepository::commit_imported_asset(const AssetRecord &asset,
             make_error(ErrorCode::kIo, "Injected catalog import failure",
                        {{"reason", "injected_import_before_rollback"}}));
     }
+    if (auto active = cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     if (!impl_->database.commit())
     {
         return impl_->abort_transaction(

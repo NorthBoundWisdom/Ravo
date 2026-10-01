@@ -1,5 +1,10 @@
 # Ravo product roadmap
 
+Exposure-bracket HDR and planar panorama are admitted independently by
+[ADR-0163](adr/0163-hdr-panorama-derived-assets.md). They produce explicit
+derived TIFF assets with source provenance; real-corpus and installed-package
+release gates remain in [TODO.md](TODO.md). Tethering remains deferred.
+
 This roadmap orders product outcomes. It does not authorize implementation,
 replace a dated ADR, or duplicate the task-level queue in [TODO.md](TODO.md).
 Current behavior belongs in `Ravo/README.md`, [ARCHITECTURE.md](ARCHITECTURE.md),

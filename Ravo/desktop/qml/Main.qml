@@ -354,7 +354,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible
+        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible || dialogCoordinator.photoMergeDialogVisible
     }
 
     StudioCommandShortcuts {

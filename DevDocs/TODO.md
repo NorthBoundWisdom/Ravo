@@ -20,7 +20,7 @@
 > recoverability contracted (`Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`).
 > REL-02 has a macOS Release DMG package-smoke tranche on
 > `e1a68eeb` (report `20260905_023651`); Windows ZIP / Linux AppImage+DEB, upgrade-failure
-> host matrix, and full REL matrices remain open. The next free ADR number is **0163**, but new product
+> host matrix, and full REL matrices remain open. The next free ADR number is **0164**, but new product
 > ADRs are frozen by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
@@ -41,6 +41,14 @@ or OpenCL path. GPU work remains an Engine QRhi adapter with CPU as the
 correctness reference.
 
 ## Queue discipline
+
+The explicit user-requested HDR/Panorama work is admitted by
+[ADR-0163](adr/0163-hdr-panorama-derived-assets.md) as a narrow exception to the
+specialization freeze. Remaining release gates are real exposure-bracket and
+overlapping-photo corpus quality (motion, clipping, rotation, parallax), native
+resolution memory/latency measurement and installed macOS/Windows/Linux package
+smoke. Float DNG, spherical projection and multiband blending need separate
+contracts. This exception does not admit tethering or reopen leftover IOPs.
 
 The user-requested RAW starting-appearance design is recorded in
 [ADR-0162](adr/0162-versioned-raw-rendering-profiles.md). Its pending calibration,
@@ -732,7 +740,8 @@ Do not implement these while the WIP freeze is active.
   need separate delivery ownership and must not mutate Develop.
 - **SPECIALIZE-01:** ADR-0153's tethered probe is a deferred unsupported state,
   not a selected product direction. Do not expand it without an external cohort,
-  hardware/corpus access, and a dated choice between tethering and HDR/Panorama.
+  hardware/corpus access and a new tethering decision. ADR-0163 admits only the
+  separately requested HDR/Panorama derived-asset workflows.
 
 # P2 — Real AI admission
 

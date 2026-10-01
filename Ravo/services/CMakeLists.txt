@@ -2,6 +2,7 @@ add_library(ravo_services STATIC)
 
 target_sources(ravo_services
   PRIVATE
+    src/catalog_photo_merge.cpp
     src/atomic_publication_internal.cpp
     src/artifact_publication.cpp
     src/image_artifact_verification.cpp

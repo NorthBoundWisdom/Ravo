@@ -773,6 +773,50 @@ Linux, and macOS Release package closeout is recorded in
 direction are recorded in dated ADRs, beginning with
 [ADR-0007](../DevDocs/adr/0007-first-usable-catalog-viewer.md).
 
+## Exposure-bracket merge and panorama
+
+Select 2–16 photos in Gallery, then use **Photo → Merge Exposure Bracket...**
+or **Photo → Stitch Panorama...** (also in the context menu and command palette).
+Both create a new 16-bit sRGB TIFF in the catalog's derived tree and preserve
+originals. Inputs use baseline original pixels; existing grading/crop/local
+edits are not baked in. The dialog lists input order. Maximum edge 0 uses native
+resolution; a smaller edge explicitly reduces inputs. Cancel uses the existing
+catalog-operation control.
+On success Studio shows All Photos with newest imports first and selects the
+derived result, so a source-folder or Last Import filter cannot hide it.
+
+HDR aligns exposures, combines exposure-normalized linear RGB, rejects moving
+contributions and applies a deterministic display shoulder. Capture shutter,
+ISO and aperture metadata supply relative exposures. When absent, enter one
+comma-separated exposure stop per listed photo. Disable alignment only for an
+already aligned tripod sequence; deghost threshold 0 disables motion rejection.
+Output is tone-mapped TIFF, not float DNG or a merged CFA RAW.
+
+Panorama requires connected textured overlap and a common viewpoint. It uses
+planar projective alignment, exposure compensation, a dynamic seam and feathering.
+Auto-crop removes uncovered edges; disabling it retains black uncovered pixels.
+Spherical/360° output, severe parallax and large rotation are outside this version.
+Unreliable matches fail explicitly.
+
+CLI examples (replace IDs/revision with `catalog list --json` values):
+
+```text
+ravo catalog list --catalog library.sqlite --json
+ravo catalog hdr-merge --catalog library.sqlite --revision 12 --asset-id A --asset-id B --asset-id C --exposure-stop -2 --exposure-stop 0 --exposure-stop 2 --output merged.tiff --json
+ravo catalog panorama --catalog library.sqlite --revision 13 --asset-id A --asset-id B --max-edge 6000 --output panorama.tiff --json
+```
+
+Omit `--output` for a unique catalog-owned derived file. Writes reject existing
+destinations. `ravo.photo_merge` v1 JSON describes the registered asset, crop
+origin, transforms, provenance path and verified immutable image artifact
+(MIME, dimensions, colour identity, size, SHA-256, lifecycle). Adjacent
+`*.ravo-merge.json` records ordered source hashes/options. Default derived files
+and provenance participate in backup/restore. Source changes, stale revision,
+missing metadata, disconnected overlap, cancellation, excessive canvas and
+memory limits return structured errors. No silent unaligned retry or overwrite
+is added. [ADR-0163](../DevDocs/adr/0163-hdr-panorama-derived-assets.md) defines
+ownership and bounds; real-corpus/installed-package release evidence is pending.
+
 ## First-version loop
 
 The first version must complete the following:

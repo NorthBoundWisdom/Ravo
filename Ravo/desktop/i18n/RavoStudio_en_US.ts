@@ -4481,6 +4481,14 @@ Diff: %6</translation>
             <translation>Edit in…</translation>
         </message>
         <message>
+            <source>Merge Exposure Bracket…</source>
+            <translation>Merge Exposure Bracket…</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama…</source>
+            <translation>Stitch Panorama…</translation>
+        </message>
+        <message>
             <source>Offline-edit proxies…</source>
             <translation>Offline-edit proxies…</translation>
         </message>
@@ -4590,6 +4598,61 @@ Diff: %6</translation>
         <message>
             <source>Copyright</source>
             <translation>Copyright</translation>
+        </message>
+    </context>
+    <context>
+        <name>PhotoMergeDialog</name>
+        <message>
+            <source>Merge Exposure Bracket</source>
+            <translation>Merge Exposure Bracket</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama</source>
+            <translation>Stitch Panorama</translation>
+        </message>
+        <message>
+            <source>Merge %1 original photos into a new 16-bit TIFF in this library. Existing edits are not baked in; originals are preserved.</source>
+            <translation>Merge %1 original photos into a new 16-bit TIFF in this library. Existing edits are not baked in; originals are preserved.</translation>
+        </message>
+        <message>
+            <source>HDR uses exposure metadata and maps the result for normal display. The output is not a RAW DNG.</source>
+            <translation>HDR uses exposure metadata and maps the result for normal display. The output is not a RAW DNG.</translation>
+        </message>
+        <message>
+            <source>Planar panorama: use overlapping photos taken from the same viewpoint. 360° spherical panoramas are not supported.</source>
+            <translation>Planar panorama: use overlapping photos taken from the same viewpoint. 360° spherical panoramas are not supported.</translation>
+        </message>
+        <message>
+            <source>Automatically align photos</source>
+            <translation>Automatically align photos</translation>
+        </message>
+        <message>
+            <source>Crop to remove uncovered edges</source>
+            <translation>Crop to remove uncovered edges</translation>
+        </message>
+        <message>
+            <source>Exposure stops in selection order (optional)</source>
+            <translation>Exposure stops in selection order (optional)</translation>
+        </message>
+        <message>
+            <source>For example: -2, 0, 2. Leave empty to use metadata.</source>
+            <translation>For example: -2, 0, 2. Leave empty to use metadata.</translation>
+        </message>
+        <message>
+            <source>Deghost threshold (0 disables; 0.2 default)</source>
+            <translation>Deghost threshold (0 disables; 0.2 default)</translation>
+        </message>
+        <message>
+            <source>Maximum input edge in pixels (0 uses full resolution)</source>
+            <translation>Maximum input edge in pixels (0 uses full resolution)</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Merge HDR</source>
+            <translation>Merge HDR</translation>
         </message>
     </context>
     <context>
@@ -5363,6 +5426,14 @@ Diff: %6</translation>
         <message>
             <source>Unflag</source>
             <translation>Unflag</translation>
+        </message>
+        <message>
+            <source>Merge Exposure Bracket...</source>
+            <translation>Merge Exposure Bracket...</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama...</source>
+            <translation>Stitch Panorama...</translation>
         </message>
         <message>
             <source>Edit in...</source>
@@ -6511,6 +6582,38 @@ Diff: %6</translation>
         <message>
             <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
             <translation>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</translation>
+        </message>
+        <message>
+            <source>Select 2 to 16 photos in the library to merge.</source>
+            <translation>Select 2 to 16 photos in the library to merge.</translation>
+        </message>
+        <message>
+            <source>Photo selection or library changed; reopen the merge dialog.</source>
+            <translation>Photo selection or library changed; reopen the merge dialog.</translation>
+        </message>
+        <message>
+            <source>Maximum edge must be 0 to 16000 pixels.</source>
+            <translation>Maximum edge must be 0 to 16000 pixels.</translation>
+        </message>
+        <message>
+            <source>Deghost threshold must be 0 to 1.</source>
+            <translation>Deghost threshold must be 0 to 1.</translation>
+        </message>
+        <message>
+            <source>Exposure stops must be comma-separated numbers.</source>
+            <translation>Exposure stops must be comma-separated numbers.</translation>
+        </message>
+        <message>
+            <source>Merging photos…</source>
+            <translation>Merging photos…</translation>
+        </message>
+        <message>
+            <source>Created merged TIFF: %1</source>
+            <translation>Created merged TIFF: %1</translation>
+        </message>
+        <message>
+            <source>Photo merge executor is unavailable.</source>
+            <translation>Photo merge executor is unavailable.</translation>
         </message>
     </context>
     <context>

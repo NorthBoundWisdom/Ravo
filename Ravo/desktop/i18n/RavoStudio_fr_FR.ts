@@ -4481,6 +4481,14 @@ Différence : %6</translation>
             <translation>Modifier dans…</translation>
         </message>
         <message>
+            <source>Merge Exposure Bracket…</source>
+            <translation>Fusionner les expositions…</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama…</source>
+            <translation>Assembler un panorama…</translation>
+        </message>
+        <message>
             <source>Offline-edit proxies…</source>
             <translation>Proxies d'édition hors ligne…</translation>
         </message>
@@ -4590,6 +4598,61 @@ Différence : %6</translation>
         <message>
             <source>Copyright</source>
             <translation>Copierright</translation>
+        </message>
+    </context>
+    <context>
+        <name>PhotoMergeDialog</name>
+        <message>
+            <source>Merge Exposure Bracket</source>
+            <translation>Fusionner les expositions</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama</source>
+            <translation>Assembler un panorama</translation>
+        </message>
+        <message>
+            <source>Merge %1 original photos into a new 16-bit TIFF in this library. Existing edits are not baked in; originals are preserved.</source>
+            <translation>Fusionner %1 photos originales en un nouveau TIFF 16 bits dans cette bibliothèque. Les retouches existantes ne sont pas appliquées ; les originaux sont conservés.</translation>
+        </message>
+        <message>
+            <source>HDR uses exposure metadata and maps the result for normal display. The output is not a RAW DNG.</source>
+            <translation>Le HDR utilise les métadonnées d’exposition et adapte le résultat à un affichage normal. La sortie n’est pas un DNG RAW.</translation>
+        </message>
+        <message>
+            <source>Planar panorama: use overlapping photos taken from the same viewpoint. 360° spherical panoramas are not supported.</source>
+            <translation>Panorama plan : utilisez des photos qui se chevauchent, prises depuis le même point de vue. Les panoramas sphériques à 360° ne sont pas pris en charge.</translation>
+        </message>
+        <message>
+            <source>Automatically align photos</source>
+            <translation>Aligner automatiquement les photos</translation>
+        </message>
+        <message>
+            <source>Crop to remove uncovered edges</source>
+            <translation>Recadrer pour supprimer les bords non couverts</translation>
+        </message>
+        <message>
+            <source>Exposure stops in selection order (optional)</source>
+            <translation>Valeurs d’exposition dans l’ordre de sélection (facultatif)</translation>
+        </message>
+        <message>
+            <source>For example: -2, 0, 2. Leave empty to use metadata.</source>
+            <translation>Par exemple : -2, 0, 2. Laisser vide pour utiliser les métadonnées.</translation>
+        </message>
+        <message>
+            <source>Deghost threshold (0 disables; 0.2 default)</source>
+            <translation>Seuil de suppression des fantômes (0 désactive ; 0.2 par défaut)</translation>
+        </message>
+        <message>
+            <source>Maximum input edge in pixels (0 uses full resolution)</source>
+            <translation>Côté maximal d’entrée en pixels (0 utilise la pleine résolution)</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Annuler</translation>
+        </message>
+        <message>
+            <source>Merge HDR</source>
+            <translation>Fusionner HDR</translation>
         </message>
     </context>
     <context>
@@ -5339,6 +5402,14 @@ Différence : %6</translation>
         <message>
             <source>Paste Parameters</source>
             <translation>Coller les paramètres</translation>
+        </message>
+        <message>
+            <source>Merge Exposure Bracket...</source>
+            <translation>Fusionner les expositions...</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama...</source>
+            <translation>Assembler un panorama...</translation>
         </message>
         <message>
             <source>Edit in...</source>
@@ -6511,6 +6582,38 @@ Différence : %6</translation>
         <message>
             <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
             <translation>Importé %1, dupliqué %2, ignoré %3, non pris en charge %4, échec %5</translation>
+        </message>
+        <message>
+            <source>Select 2 to 16 photos in the library to merge.</source>
+            <translation>Sélectionnez 2 à 16 photos dans la bibliothèque pour les fusionner.</translation>
+        </message>
+        <message>
+            <source>Photo selection or library changed; reopen the merge dialog.</source>
+            <translation>La sélection ou la bibliothèque a changé ; rouvrez la boîte de dialogue.</translation>
+        </message>
+        <message>
+            <source>Maximum edge must be 0 to 16000 pixels.</source>
+            <translation>Le côté maximal doit être compris entre 0 et 16000 pixels.</translation>
+        </message>
+        <message>
+            <source>Deghost threshold must be 0 to 1.</source>
+            <translation>Le seuil de suppression des fantômes doit être compris entre 0 et 1.</translation>
+        </message>
+        <message>
+            <source>Exposure stops must be comma-separated numbers.</source>
+            <translation>Les valeurs d’exposition doivent être des nombres séparés par des virgules.</translation>
+        </message>
+        <message>
+            <source>Merging photos…</source>
+            <translation>Fusion des photos…</translation>
+        </message>
+        <message>
+            <source>Created merged TIFF: %1</source>
+            <translation>TIFF fusionné créé : %1</translation>
+        </message>
+        <message>
+            <source>Photo merge executor is unavailable.</source>
+            <translation>L’exécuteur de fusion des photos est indisponible.</translation>
         </message>
     </context>
     <context>

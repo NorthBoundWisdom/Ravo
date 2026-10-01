@@ -18,7 +18,9 @@ surface or imply packaged tethered capture.
 1. **Selected track (deferred):** tethered-studio is recorded as the **P2
    preferred specialization candidate** only as a product-planning label. It
    remains **deferred** until cohort evidence is attached in a later dated ADR.
-2. **HDR/Panorama** stays unselected; do not start both.
+2. **HDR/Panorama** was unselected by this decision; the explicit 2026-10-01
+   user request and [ADR-0163](0163-hdr-panorama-derived-assets.md) supersede this
+   restriction for the two derived-asset workflows. Tethering remains deferred.
 3. **First Ready stub:** CatalogService exposes a fail-closed tethered-session
    probe (`ravo.specialize.tethered/v1`) that always returns
    `tethered_deferred` / `unsupported` until a future ADR admits a real

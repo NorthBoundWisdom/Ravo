@@ -16,6 +16,8 @@ public:
     [[nodiscard]] static bool has_decoded_raw(const CatalogService &service);
     static void set_before_import_publication(CatalogService &service,
                                               std::function<void()> callback);
+    static void set_merge_checkpoint(CatalogService &service,
+                                     std::function<Result<void>(std::string_view)> callback);
     static void set_before_preview_cache_publication(CatalogService &service,
                                                      std::function<void()> callback);
     static void set_import_checkpoint(

@@ -114,13 +114,25 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     const auto subcommand = positional.size() > 1U ? positional[1] : std::string_view{};
     const bool export_directory_command =
         subcommand == "export-batch" || subcommand == "export-job-create";
-    const bool multi_asset = export_directory_command || subcommand == "companion-check" ||
-                             subcommand == "preview-rebuild" || subcommand == "set-create" ||
-                             subcommand == "set-add" || subcommand == "set-remove" ||
-                             subcommand == "stack" || subcommand == "develop-apply" ||
-                             subcommand == "cull-burst-accept";
+    const bool multi_asset =
+        export_directory_command || subcommand == "companion-check" ||
+        subcommand == "preview-rebuild" || subcommand == "set-create" || subcommand == "set-add" ||
+        subcommand == "set-remove" || subcommand == "stack" || subcommand == "develop-apply" ||
+        subcommand == "cull-burst-accept" || subcommand == "hdr-merge" || subcommand == "panorama";
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
+        if (positional[index] == "--no-align" || positional[index] == "--no-crop")
+        {
+            auto &flag =
+                positional[index] == "--no-align" ? result.merge_no_align : result.merge_no_crop;
+            if (flag)
+                return make_error(ErrorCode::kInvalidArgument, "Merge switch specified twice");
+            if (subcommand != "hdr-merge" && subcommand != "panorama")
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Merge switches require a merge command");
+            flag = true;
+            continue;
+        }
         const auto option = positional[index];
         if (option == "--baseline")
         {
@@ -335,6 +347,24 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "Import second-copy destination was specified twice");
             result.import_second_copy = value;
+        }
+        else if (option == "--exposure-stop" || option == "--deghost")
+        {
+            if (subcommand != "hdr-merge")
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Exposure stops and deghosting require hdr-merge");
+            auto parsed = parse_double_flag(value, option);
+            if (!parsed)
+                return parsed.error();
+            if (option == "--exposure-stop")
+                result.merge_exposure_stops.push_back(parsed.value());
+            else
+            {
+                if (result.merge_deghost)
+                    return make_error(ErrorCode::kInvalidArgument,
+                                      "Deghost threshold specified twice");
+                result.merge_deghost = parsed.value();
+            }
         }
         else if (option == "--asset-id")
         {

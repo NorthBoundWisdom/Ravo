@@ -37,6 +37,10 @@ struct CatalogCliArguments
     bool import_skip_existing = false;
     std::string_view asset_id;
     std::vector<std::string_view> asset_ids;
+    std::vector<double> merge_exposure_stops;
+    std::optional<double> merge_deghost;
+    bool merge_no_align = false;
+    bool merge_no_crop = false;
     std::optional<int> rating;
     std::optional<double> exposure_ev;
     std::optional<double> saturation;
@@ -257,6 +261,9 @@ run_perspective_analysis(const EngineFacade &engine, std::span<const std::string
                                                    std::span<const std::string_view> positional);
 
 [[nodiscard]] bool catalog_output_flag_is_allowed(std::string_view subcommand) noexcept;
+[[nodiscard]] Result<JsonValue> run_catalog_merge_command(CatalogService &service,
+                                                          std::string_view subcommand,
+                                                          const CatalogCliArguments &flags);
 [[nodiscard]] Result<void> validate_catalog_probe_flags(const CatalogCliArguments &flags);
 [[nodiscard]] Result<void> validate_catalog_export_family_flags(std::string_view subcommand,
                                                                 const CatalogCliArguments &flags);

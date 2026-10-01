@@ -4481,6 +4481,14 @@ Diff: %6</source>
             <translation>編集対象…</translation>
         </message>
         <message>
+            <source>Merge Exposure Bracket…</source>
+            <translation>露出ブラケットを合成…</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama…</source>
+            <translation>パノラマを合成…</translation>
+        </message>
+        <message>
             <source>Offline-edit proxies…</source>
             <translation>オフライン編集プロキシ…</translation>
         </message>
@@ -4590,6 +4598,61 @@ Diff: %6</source>
         <message>
             <source>Copyright</source>
             <translation>著作権</translation>
+        </message>
+    </context>
+    <context>
+        <name>PhotoMergeDialog</name>
+        <message>
+            <source>Merge Exposure Bracket</source>
+            <translation>露出ブラケットを合成</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama</source>
+            <translation>パノラマを合成</translation>
+        </message>
+        <message>
+            <source>Merge %1 original photos into a new 16-bit TIFF in this library. Existing edits are not baked in; originals are preserved.</source>
+            <translation>%1 枚の元写真を、このライブラリ内の新しい16ビットTIFFに合成します。既存の編集は適用せず、元写真は保持します。</translation>
+        </message>
+        <message>
+            <source>HDR uses exposure metadata and maps the result for normal display. The output is not a RAW DNG.</source>
+            <translation>HDRは露出メタデータを使用し、通常の表示に合わせて結果を変換します。出力はRAW DNGではありません。</translation>
+        </message>
+        <message>
+            <source>Planar panorama: use overlapping photos taken from the same viewpoint. 360° spherical panoramas are not supported.</source>
+            <translation>平面パノラマ：同じ撮影位置から撮影した重なりのある写真を使用してください。360°の球面パノラマには対応していません。</translation>
+        </message>
+        <message>
+            <source>Automatically align photos</source>
+            <translation>写真を自動で位置合わせ</translation>
+        </message>
+        <message>
+            <source>Crop to remove uncovered edges</source>
+            <translation>未撮影の端を除くように切り抜く</translation>
+        </message>
+        <message>
+            <source>Exposure stops in selection order (optional)</source>
+            <translation>選択順の露出段数（任意）</translation>
+        </message>
+        <message>
+            <source>For example: -2, 0, 2. Leave empty to use metadata.</source>
+            <translation>例：-2, 0, 2。空欄の場合はメタデータを使用します。</translation>
+        </message>
+        <message>
+            <source>Deghost threshold (0 disables; 0.2 default)</source>
+            <translation>ゴースト除去のしきい値（0で無効、既定値0.2）</translation>
+        </message>
+        <message>
+            <source>Maximum input edge in pixels (0 uses full resolution)</source>
+            <translation>入力の長辺の最大ピクセル数（0で元の解像度）</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>キャンセル</translation>
+        </message>
+        <message>
+            <source>Merge HDR</source>
+            <translation>HDRを合成</translation>
         </message>
     </context>
     <context>
@@ -5339,6 +5402,14 @@ Diff: %6</source>
         <message>
             <source>Paste Parameters</source>
             <translation>パラメーターを貼り付け</translation>
+        </message>
+        <message>
+            <source>Merge Exposure Bracket...</source>
+            <translation>露出ブラケットを合成...</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama...</source>
+            <translation>パノラマを合成...</translation>
         </message>
         <message>
             <source>Edit in...</source>
@@ -6511,6 +6582,38 @@ Diff: %6</source>
         <message>
             <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
             <translation>%1 インポート、%2 重複、%3 スキップ、%4 サポートなし、%5 失敗</translation>
+        </message>
+        <message>
+            <source>Select 2 to 16 photos in the library to merge.</source>
+            <translation>ライブラリから合成する写真を2〜16枚選択してください。</translation>
+        </message>
+        <message>
+            <source>Photo selection or library changed; reopen the merge dialog.</source>
+            <translation>写真の選択またはライブラリが変更されました。合成ダイアログを開き直してください。</translation>
+        </message>
+        <message>
+            <source>Maximum edge must be 0 to 16000 pixels.</source>
+            <translation>長辺は0〜16000ピクセルにしてください。</translation>
+        </message>
+        <message>
+            <source>Deghost threshold must be 0 to 1.</source>
+            <translation>ゴースト除去のしきい値は0〜1にしてください。</translation>
+        </message>
+        <message>
+            <source>Exposure stops must be comma-separated numbers.</source>
+            <translation>露出段数はコンマ区切りの数値で入力してください。</translation>
+        </message>
+        <message>
+            <source>Merging photos…</source>
+            <translation>写真を合成中…</translation>
+        </message>
+        <message>
+            <source>Created merged TIFF: %1</source>
+            <translation>合成TIFFを作成しました：%1</translation>
+        </message>
+        <message>
+            <source>Photo merge executor is unavailable.</source>
+            <translation>写真合成の実行器を使用できません。</translation>
         </message>
     </context>
     <context>

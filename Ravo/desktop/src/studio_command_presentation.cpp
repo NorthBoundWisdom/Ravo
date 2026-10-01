@@ -32,6 +32,9 @@ using namespace command_internal;
 QVariantMap StudioCommandController::ids() const
 {
     return {
+        {QStringLiteral("photoMergeHdr"), QLatin1String(command::kPhotoMergeHdr)},
+        {QStringLiteral("photoPanorama"), QLatin1String(command::kPhotoPanorama)},
+        {QStringLiteral("photoMergeApply"), QLatin1String(command::kPhotoMergeApply)},
         {QStringLiteral("libraryCreate"), QLatin1String(command::kLibraryCreate)},
         {QStringLiteral("libraryCreatePath"), QLatin1String(command::kLibraryCreatePath)},
         {QStringLiteral("libraryOpen"), QLatin1String(command::kLibraryOpen)},

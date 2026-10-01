@@ -1,5 +1,16 @@
 # Ravo Architecture
 
+Multi-photo merge is owned by Engine registration/HDR/panorama mathematics and
+CatalogService decode, revision checks, verified 16-bit TIFF publication and
+registration (ADR-0163). Inputs use original baseline linear pixels. Sources
+are hashed before/after; image and provenance use no-replace publication before
+an expected-revision/cancellable import transaction. Pre-commit failure cleans
+owned files; post-commit recovery errors retain artifacts and report committed
+state. Default derived output is covered by backup/restore. Studio binds an
+options dialog to selected IDs and revision, runs the shared service on its
+catalog executor and cancels on user request/window destruction. CLI returns
+versioned merge and immutable image-artifact descriptions.
+
 Burst Compare command availability is owned by the C++ command controller:
 opening requires a ready selection in a stack with at least two members;
 previous/next additionally require an active Survey burst pair. A service-resolved

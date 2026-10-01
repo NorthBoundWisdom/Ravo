@@ -1,5 +1,9 @@
 # Ravo developer documentation
 
+[ADR-0163](adr/0163-hdr-panorama-derived-assets.md) admits exposure-bracket merge
+and planar panorama. Ownership is in [ARCHITECTURE.md](ARCHITECTURE.md), usage in
+[Ravo/README.md](../Ravo/README.md), and validation in [TESTING.md](TESTING.md).
+
 [ADR-0162](adr/0162-versioned-raw-rendering-profiles.md) defines the future RAW
 calibration/default-rendering boundary; [profile execution gates](TODO_RAW_RENDERING_PROFILES.md)
 track its pending implementation. Current runtime behavior remains in the

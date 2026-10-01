@@ -147,6 +147,16 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
                                tr_command(QStringLiteral("Wait for library work to finish."))};
         return selection ? State{} :
                            State{false, tr_command(QStringLiteral("Select a photo first."))};
+    case Condition::kMergeSelection:
+    {
+        const auto state =
+            resolve_state(presenter, Condition::kReadySelection, settings_open, command_id);
+        if (!state.enabled)
+            return state;
+        return presenter.selectedCount() >= 2 && presenter.selectedCount() <= 16 ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Select 2 to 16 photos to merge."))};
+    }
     case Condition::kNonGrid:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};

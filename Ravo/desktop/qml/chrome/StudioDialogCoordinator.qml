@@ -12,6 +12,12 @@ QtObject {
     required property var batchDialog
     required property var actions
     readonly property bool companionConfirmationVisible: companionDialog.visible
+    readonly property bool photoMergeDialogVisible: photoMergeDialog.visible
+    property PhotoMergeDialog photoMergeDialog: PhotoMergeDialog {
+        parentItem: root.windowHost.contentItem
+        presenter: root.presenter
+        actions: root.actions
+    }
 
     function openExportDialog() {
         if (!presenter.selectedAssetId.length)
@@ -75,6 +81,7 @@ QtObject {
 
     property Connections presenterSignals: Connections {
         target: root.presenter
+        function onPhotoMergeDialogRequested(context) { root.photoMergeDialog.openForContext(context); }
         function onCompanionExportReady() { root.openCompanionExportDialog(); }
         function onCompanionExportMissing() {
             root.windowHost.clearPendingExport();

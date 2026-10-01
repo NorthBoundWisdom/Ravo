@@ -106,6 +106,8 @@ StudioContextMenu {
         action: root.commands.editIn
         displayText: qsTr("Edit in…")
     }
+    StudioContextMenuItem { action: root.commands.mergeHdr; displayText: qsTr("Merge Exposure Bracket…") }
+    StudioContextMenuItem { action: root.commands.panorama; displayText: qsTr("Stitch Panorama…") }
     StudioContextMenuItem {
         objectName: "offlineEditMenuItem"
         action: root.commands.offlineEdit

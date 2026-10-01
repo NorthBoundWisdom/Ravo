@@ -48,7 +48,8 @@ bool catalog_output_flag_is_allowed(const std::string_view subcommand) noexcept
 {
     // Actual --output consumers today. Keep this list equal to runtime readers of flags.output.
     return subcommand == "export" || subcommand == "export-preset-save" || subcommand == "probe" ||
-           subcommand == "preview" || subcommand == "backup-restore" || subcommand == "dng-convert";
+           subcommand == "preview" || subcommand == "backup-restore" ||
+           subcommand == "dng-convert" || subcommand == "hdr-merge" || subcommand == "panorama";
 }
 
 [[nodiscard]] Result<std::vector<std::string>>
@@ -256,7 +257,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "editor-prepare-working-copy, or editor-reopen-working-copy");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
         !develop_apply_command && !keyword_command && !ai_command && !editor_command &&
-        !cull_command && subcommand != "import-plan")
+        !cull_command && subcommand != "import-plan" && subcommand != "hdr-merge" &&
+        subcommand != "panorama")
         return make_error(ErrorCode::kInvalidArgument,
                           "--revision is only valid for catalog set, version, stack, "
                           "keyword, tag, develop-apply, ai proposal/suggestion, or editor "
@@ -524,6 +526,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return session.error();
     }
     auto &service = *session.value();
+    if (subcommand == "hdr-merge" || subcommand == "panorama")
+        return run_catalog_merge_command(service, subcommand, flags.value());
 
     if (subcommand == "sidecar-status")
     {
@@ -992,6 +996,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return JsonValue{JsonValue::Object{
             {"assets", std::move(assets)},
             {"catalog_id", snapshot.value().catalog_id},
+            {"revision", JsonValue::number(std::to_string(snapshot.value().revision))},
             {"schema_version", JsonValue::number(std::to_string(snapshot.value().schema_version))},
         }};
     }

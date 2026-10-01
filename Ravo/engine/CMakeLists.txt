@@ -2,6 +2,11 @@ add_library(ravo_engine STATIC)
 
 target_sources(ravo_engine
   PRIVATE
+    src/photo_merge.cpp
+    src/photo_registration.cpp
+    src/photo_merge_hdr.cpp
+    src/photo_merge_panorama.cpp
+    src/photo_merge_crop.cpp
     src/bayer_demosaic.cpp
     src/bayer_demosaic.h
     src/capability_ops.cpp

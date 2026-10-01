@@ -26,6 +26,7 @@ enum class Condition
     kLoadedPhotos,
     kSelection,
     kReadySelection,
+    kMergeSelection,
     kNonGrid,
     kSurveySelection,
     kStackSelection,

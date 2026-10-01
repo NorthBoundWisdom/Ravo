@@ -4481,6 +4481,14 @@ Diff: %6</source>
             <translation>编辑于...</translation>
         </message>
         <message>
+            <source>Merge Exposure Bracket…</source>
+            <translation>合并包围曝光…</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama…</source>
+            <translation>拼接全景…</translation>
+        </message>
+        <message>
             <source>Offline-edit proxies…</source>
             <translation>离线编辑代理...</translation>
         </message>
@@ -4590,6 +4598,61 @@ Diff: %6</source>
         <message>
             <source>Copyright</source>
             <translation>版权</translation>
+        </message>
+    </context>
+    <context>
+        <name>PhotoMergeDialog</name>
+        <message>
+            <source>Merge Exposure Bracket</source>
+            <translation>合并包围曝光</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama</source>
+            <translation>拼接全景</translation>
+        </message>
+        <message>
+            <source>Merge %1 original photos into a new 16-bit TIFF in this library. Existing edits are not baked in; originals are preserved.</source>
+            <translation>将 %1 张原图合并为当前图库中的新 16 位 TIFF。不会套用已有编辑，原图会保留。</translation>
+        </message>
+        <message>
+            <source>HDR uses exposure metadata and maps the result for normal display. The output is not a RAW DNG.</source>
+            <translation>HDR 使用曝光元数据，并将结果映射到常规显示亮度。输出不是 RAW DNG。</translation>
+        </message>
+        <message>
+            <source>Planar panorama: use overlapping photos taken from the same viewpoint. 360° spherical panoramas are not supported.</source>
+            <translation>平面全景：请使用在同一机位拍摄的重叠照片。不支持 360° 球面全景。</translation>
+        </message>
+        <message>
+            <source>Automatically align photos</source>
+            <translation>自动对齐照片</translation>
+        </message>
+        <message>
+            <source>Crop to remove uncovered edges</source>
+            <translation>裁切以去除未覆盖的边缘</translation>
+        </message>
+        <message>
+            <source>Exposure stops in selection order (optional)</source>
+            <translation>按所列照片顺序填写曝光档数（可选）</translation>
+        </message>
+        <message>
+            <source>For example: -2, 0, 2. Leave empty to use metadata.</source>
+            <translation>例如：-2, 0, 2。留空则使用元数据。</translation>
+        </message>
+        <message>
+            <source>Deghost threshold (0 disables; 0.2 default)</source>
+            <translation>去鬼影阈值（0 为关闭；默认 0.2）</translation>
+        </message>
+        <message>
+            <source>Maximum input edge in pixels (0 uses full resolution)</source>
+            <translation>输入照片最长边像素数（0 为全分辨率）</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+        <message>
+            <source>Merge HDR</source>
+            <translation>合并 HDR</translation>
         </message>
     </context>
     <context>
@@ -5363,6 +5426,14 @@ Diff: %6</source>
         <message>
             <source>Unflag</source>
             <translation>取消标记</translation>
+        </message>
+        <message>
+            <source>Merge Exposure Bracket...</source>
+            <translation>合并包围曝光...</translation>
+        </message>
+        <message>
+            <source>Stitch Panorama...</source>
+            <translation>拼接全景...</translation>
         </message>
         <message>
             <source>Edit in...</source>
@@ -6511,6 +6582,38 @@ Diff: %6</source>
         <message>
             <source>Imported %1, duplicate %2, skipped %3, unsupported %4, failed %5</source>
             <translation>已导入 %1，重复 %2，跳过 %3，不受支持 %4，失败 %5</translation>
+        </message>
+        <message>
+            <source>Select 2 to 16 photos in the library to merge.</source>
+            <translation>请在图库中选择 2 至 16 张照片进行合并。</translation>
+        </message>
+        <message>
+            <source>Photo selection or library changed; reopen the merge dialog.</source>
+            <translation>照片选择或图库已更改，请重新打开合并对话框。</translation>
+        </message>
+        <message>
+            <source>Maximum edge must be 0 to 16000 pixels.</source>
+            <translation>最长边必须为 0 至 16000 像素。</translation>
+        </message>
+        <message>
+            <source>Deghost threshold must be 0 to 1.</source>
+            <translation>去鬼影阈值必须为 0 至 1。</translation>
+        </message>
+        <message>
+            <source>Exposure stops must be comma-separated numbers.</source>
+            <translation>曝光档数必须是以逗号分隔的数字。</translation>
+        </message>
+        <message>
+            <source>Merging photos…</source>
+            <translation>正在合并照片…</translation>
+        </message>
+        <message>
+            <source>Created merged TIFF: %1</source>
+            <translation>已创建合成 TIFF：%1</translation>
+        </message>
+        <message>
+            <source>Photo merge executor is unavailable.</source>
+            <translation>照片合并执行器不可用。</translation>
         </message>
     </context>
     <context>

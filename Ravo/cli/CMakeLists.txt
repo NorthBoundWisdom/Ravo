@@ -2,6 +2,7 @@ add_library(ravo_cli STATIC)
 
 target_sources(ravo_cli
   PRIVATE
+    src/application_catalog_merge.cpp
     src/application.cpp
     src/application_catalog.cpp
     src/application_catalog_mask.cpp
