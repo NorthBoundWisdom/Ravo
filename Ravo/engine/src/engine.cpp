@@ -13,6 +13,8 @@
 #include <utility>
 #include <variant>
 
+#include <QUuid>
+
 #include "capability_ops.h"
 #include "canvas_frame.h"
 #include "dehaze.h"
@@ -49,6 +51,10 @@ struct InteractivePreviewRenderCache::Impl
 
     std::optional<PrefixState> prefix;
     std::unique_ptr<detail::ParallelRowSession> parallel_rows;
+    // A replaced CFA window can have the same asset, recipe and dimensions.
+    // Cache moves preserve this identity; destruction/recreation never reuses it.
+    const std::string source_identity =
+        QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     std::uint64_t generation = 0U;
 };
 
@@ -1274,10 +1280,16 @@ render_interactive_prefix(const LinearWorkingBuffer &working, const Recipe &reci
 }
 
 [[nodiscard]] std::string gpu_retained_key(const Recipe &recipe, const std::string_view fingerprint,
-                                           const std::uint32_t width, const std::uint32_t height)
+                                           const std::uint32_t width, const std::uint32_t height,
+                                           const std::string_view source_identity,
+                                           const std::uint64_t generation)
 {
     std::string key;
-    key.reserve(recipe.asset.id.size() + fingerprint.size() + 24U);
+    key.reserve(recipe.asset.id.size() + fingerprint.size() + source_identity.size() + 48U);
+    key.append(source_identity);
+    key.push_back(':');
+    key.append(std::to_string(generation));
+    key.push_back('|');
     key.append(recipe.asset.id);
     key.push_back('|');
     key.append(fingerprint);
@@ -1450,7 +1462,8 @@ try
         {
             return {};
         }
-        const auto key = gpu_retained_key(recipe, fingerprint, buffer.width, buffer.height);
+        const auto key = gpu_retained_key(recipe, fingerprint, buffer.width, buffer.height,
+                                          cache.impl_->source_identity, cache.impl_->generation);
         if (g_gpu_adapter->has_retained_source(buffer.width, buffer.height) &&
             g_gpu_adapter->retained_source_key() == key)
         {

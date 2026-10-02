@@ -268,6 +268,11 @@ mode clears both URL and image. QML contracts require the hidden CPU ROI item to
 clear its source when the GPU display item owns presentation.
 The CFA-window linear working is reused across RGB-only edits and rebuilt on
 pan or preprocess change.
+`InteractiveGpuSourceTracksSameSizeCacheReplacement` checks same-size source
+replacement, alternating caches, cache recreation and moves against CPU gold
+with and without a cached prefix. `SameSizeInspectPansMatchTheirCpuExportRegions`
+compares successive real RAW viewport pixels to their full CPU export regions,
+returns to the initial viewport, and preserves source hash/catalog/recipe state.
 Catalog tests cover Bayer viewport-ROI 1:1 windows, full-frame ROI rejection,
 and geometry rejection (ADR-0132).
 Engine GPU adapter tests require `create_phase1` to succeed whether or not a

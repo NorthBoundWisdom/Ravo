@@ -1,5 +1,9 @@
 # Ravo developer documentation
 
+Same-size inspect-pan GPU source ownership is specified in
+[ARCHITECTURE.md](ARCHITECTURE.md), with CPU-gold pan/cache regression contracts
+in [TESTING.md](TESTING.md).
+
 [ADR-0163](adr/0163-hdr-panorama-derived-assets.md) admits exposure-bracket merge
 and planar panorama. Ownership is in [ARCHITECTURE.md](ARCHITECTURE.md), usage in
 [Ravo/README.md](../Ravo/README.md), and validation in [TESTING.md](TESTING.md).

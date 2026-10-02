@@ -464,8 +464,12 @@ demosaics once.
 Actual Size 1:1 is a Bayer CFA window of the visible crop (ADR-0132) demosaiced
 on GPU RCD when a compute backend exists. Live Develop parameter changes
 re-request that window; they do not wait for a pan. The CFA-window linear
-working is retained across RGB-only edits so sliders do not remosaic. Lens,
-perspective, and full-frame ROIs reject and keep the 1600 preview. GPU is an
+working is retained across RGB-only edits so sliders do not remosaic. GPU-resident
+RGB identity includes the owning Engine cache's opaque instance identity and
+prefix generation: identical asset/recipe/dimensions alone cannot authorize
+reuse after a same-size pan. Cache moves preserve identity; source replacement
+creates a fresh identity. RGB-only edits of the same source still reuse upload.
+Lens, perspective, and full-frame ROIs reject and keep the 1600 preview. GPU is an
 Engine-owned QRhi adapter (ADR-0133/0134): one process-wide device. Unmasked
 Exposure, light controls, Lab USM Sharpen, Sigmoid, RapidRAW global tone controls,
 and RapidRAW Basic tone run on the GPU during

@@ -750,6 +750,65 @@ TEST(EngineFacadeTest, GpuRetainedSourceMatchesUploadedPassesWhenAvailable)
     }
 }
 
+TEST(EngineFacadeTest, InteractiveGpuSourceTracksSameSizeCacheReplacement)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto first = make_preview_working(32, 24);
+    auto second = first;
+    for (std::size_t i = 0; i < first.rgb.size(); ++i)
+    {
+        first.rgb[i] = .02F + static_cast<float>(i % 3) * .01F;
+        second.rgb[i] = .18F + static_cast<float>(i % 3) * .03F;
+    }
+    for (const bool prefix : {false, true})
+    {
+        SCOPED_TRACE(prefix ? "cached prefix" : "no prefix");
+        Recipe recipe;
+        recipe.asset = {"same-photo-panned", "memory:same-photo-panned", std::nullopt};
+        if (prefix)
+            recipe.operations.push_back({"ravo.color.input", 1, "input", false,
+                                         input_color_to_parameters(InputColorParams{}),
+                                         std::nullopt});
+        ExposureParams exposure;
+        exposure.exposure_ev = .25;
+        recipe.operations.push_back({std::string(kExposureOperationId),
+                                     kExposureOperationSchemaVersion, "exposure", true,
+                                     exposure_to_parameters(exposure), std::nullopt});
+        recipe.operations.push_back({"ravo.color.output", 1, "output", true,
+                                     output_color_to_parameters(OutputColorParams{}),
+                                     std::nullopt});
+        const auto first_gold = engine.value().render_linear_working(first, recipe, {});
+        const auto second_gold = engine.value().render_linear_working(second, recipe, {});
+        ASSERT_TRUE(first_gold);
+        ASSERT_TRUE(second_gold);
+        ASSERT_NE(first_gold.value().rgb, second_gold.value().rgb);
+        const auto check = [&](const LinearWorkingBuffer &input, const RenderedImage &gold,
+                               InteractivePreviewRenderCache &cache)
+        {
+            auto image = engine.value().render_interactive_linear_working(
+                input, recipe, cache, {}, {}, true, EngineFacade::GpuDisplayKind::kRoi);
+            ASSERT_TRUE(image) << image.error().message;
+            ASSERT_EQ(image.value().rgb.size(), gold.rgb.size());
+            if (gpu_available(engine.value()))
+                EXPECT_FALSE(image.value().gpu_backend.empty());
+            int max_delta = 0;
+            for (std::size_t i = 0; i < gold.rgb.size(); ++i)
+                max_delta =
+                    std::max(max_delta, std::abs(int(image.value().rgb[i]) - int(gold.rgb[i])));
+            EXPECT_LE(max_delta, 1);
+        };
+        InteractivePreviewRenderCache first_cache, second_cache;
+        check(first, first_gold.value(), first_cache);
+        check(second, second_gold.value(), second_cache);
+        check(first, first_gold.value(), first_cache);
+        second_cache = InteractivePreviewRenderCache{};
+        check(second, second_gold.value(), second_cache);
+        auto moved_cache = std::move(first_cache);
+        check(first, first_gold.value(), moved_cache);
+    }
+}
+
 TEST(EngineFacadeTest, GpuGrowOnlySmallerUploadDoesNotOverreadWhenAvailable)
 {
     auto gpu = GpuAdapter::try_create();
