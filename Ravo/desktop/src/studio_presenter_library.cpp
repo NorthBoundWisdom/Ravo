@@ -15,6 +15,58 @@
 namespace ravo
 {
 
+void StudioPresenter::selectLibraryRow(const int row, const QString &mode, const bool open_loupe)
+{
+    if (catalog_path_.isEmpty() || busy_ || importPageOpen())
+        return;
+    if (row < 0 || row >= assets_.rowCount() ||
+        (mode != QLatin1String("single") && mode != QLatin1String("toggle") &&
+         mode != QLatin1String("range")))
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Select a photo first."));
+        return;
+    }
+    pending_library_selection_ = PendingLibrarySelection{
+        row, library_query_generation_, selected_asset_id_, selected_ids_, mode, open_loupe};
+    if (assets_.rowLoaded(row))
+        completePendingLibrarySelection();
+    else
+        ensureLibraryRow(row);
+}
+
+void StudioPresenter::completePendingLibrarySelection()
+{
+    if (!pending_library_selection_)
+        return;
+    const auto &pending = *pending_library_selection_;
+    if (pending.generation != library_query_generation_ || pending.primary != selected_asset_id_ ||
+        pending.selection != selected_ids_)
+    {
+        pending_library_selection_.reset();
+        return;
+    }
+    if (!assets_.rowLoaded(pending.row))
+        return;
+    const auto id = assets_.assetIdAt(pending.row);
+    const auto mode = pending.mode;
+    const bool open_loupe = pending.open_loupe;
+    pending_library_selection_.reset();
+    if (id.isEmpty())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Select a photo first."));
+        return;
+    }
+    setError({});
+    if (mode == QLatin1String("range"))
+        selectAssetRange(id);
+    else if (mode == QLatin1String("toggle"))
+        toggleAssetSelected(id);
+    else
+        selectAsset(id);
+    if (open_loupe)
+        setBrowseMode(QStringLiteral("loupe"));
+}
+
 namespace
 {
 
@@ -586,8 +638,9 @@ void StudioPresenter::revealSelectedPhotoInFileManager()
         setError(QCoreApplication::translate("StudioPresenter", "Select a photo first."));
         return;
     }
-    const auto path = local_file_path_from_asset_uri(importPageOpen() ?
-        QUrl::fromLocalFile(import_path).toString() : qstring_from_utf8(asset->normalized_uri));
+    const auto path = local_file_path_from_asset_uri(
+        importPageOpen() ? QUrl::fromLocalFile(import_path).toString() :
+                           qstring_from_utf8(asset->normalized_uri));
     if (!path)
     {
         setError(QCoreApplication::translate("StudioPresenter",

@@ -1098,6 +1098,7 @@ void StudioPresenter::removeSelectionFromLibrarySet(const QString &set_id)
 
 void StudioPresenter::reloadVisibleAssets()
 {
+    pending_library_selection_.reset();
     if (catalog_path_.isEmpty())
     {
         return;
@@ -1239,6 +1240,7 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
                     emit libraryWorkChanged();
                     if (!page)
                     {
+                        pending_library_selection_.reset();
                         setError(qstring_from_utf8(page.error().message));
                         return;
                     }
@@ -1253,6 +1255,7 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
                     }
                     emit thumbnailsChanged();
                     emit filterChanged();
+                    completePendingLibrarySelection();
                     if (pending_library_page_offset_)
                     {
                         const auto pending = *pending_library_page_offset_;

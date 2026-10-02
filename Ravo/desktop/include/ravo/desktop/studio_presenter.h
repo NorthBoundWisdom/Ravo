@@ -868,6 +868,8 @@ public:
     Q_INVOKABLE void rejectSelectedAiProposal();
     Q_INVOKABLE void cancelSelectedAiProposal();
     Q_INVOKABLE void selectAsset(const QString &asset_id);
+    Q_INVOKABLE void selectLibraryRow(int row, const QString &mode = QStringLiteral("single"),
+                                      bool open_loupe = false);
     Q_INVOKABLE void selectAssetRange(const QString &asset_id);
     Q_INVOKABLE void toggleAssetSelected(const QString &asset_id);
     Q_INVOKABLE void selectAllVisible();
@@ -1330,6 +1332,17 @@ private:
     std::uint64_t library_query_generation_ = 0U;
     std::size_t library_next_offset_ = 0U;
     std::optional<std::size_t> pending_library_page_offset_;
+    struct PendingLibrarySelection
+    {
+        int row = -1;
+        std::uint64_t generation = 0;
+        QString primary;
+        std::unordered_set<std::string> selection;
+        QString mode;
+        bool open_loupe = false;
+    };
+    std::optional<PendingLibrarySelection> pending_library_selection_;
+    void completePendingLibrarySelection();
     std::optional<CatalogBackupPolicy> backup_policy_;
     bool thumbnail_request_in_flight_ = false;
     std::deque<std::string> pending_thumbnail_ids_;

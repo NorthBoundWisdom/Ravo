@@ -1,5 +1,13 @@
 # Ravo Architecture
 
+Filmstrip delegates demand metadata for visible sparse rows before thumbnails.
+Selection of an unloaded row is owned by desktop C++: one latest pending intent
+binds row, listing generation and originating selection, resolves the ID after
+page publication, then uses ordinary single/toggle/range selection. Keyboard
+next/previous advances that pending row across page boundaries. Selection or
+query replacement invalidates it; page errors retain the prior selection and
+surface the error. Placeholder rows never dispatch empty asset IDs.
+
 Multi-photo merge is owned by Engine registration/HDR/panorama mathematics and
 CatalogService decode, revision checks, verified 16-bit TIFF publication and
 registration (ADR-0163). Inputs use original baseline linear pixels. Sources

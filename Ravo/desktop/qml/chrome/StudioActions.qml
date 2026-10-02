@@ -39,6 +39,20 @@ Item {
         if (right && root.windowHost)
             root.windowHost.showPhotoMenu();
     }
+    function handlePhotoRowClick(row, assetId, button, modifiers) {
+        if (button === Qt.RightButton && assetId.length > 0) {
+            handlePhotoClick(assetId, button, modifiers);
+            return;
+        }
+        if (button === Qt.RightButton) {
+            root.presenter.ensureLibraryRow(row);
+            return;
+        }
+        root.run(root.ids.photoSelect, {"row": Number(row), "modifiers": Number(modifiers)});
+    }
+    function handlePhotoRowDoubleClick(row, assetId) {
+        root.run(root.ids.photoSelect, {"row": Number(row), "openLoupe": true});
+    }
     function handlePhotoDoubleClick(assetId) {
         root.run(root.ids.photoSelect, assetId);
         root.trigger(root.ids.viewLoupe);

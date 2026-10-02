@@ -96,6 +96,7 @@ std::vector<std::string> StudioPresenter::selected_asset_ids() const
 
 void StudioPresenter::selectAsset(const QString &asset_id)
 {
+    pending_library_selection_.reset();
     if (selected_asset_id_ == asset_id && selected_ids_.size() == 1U && !preview_url_.isEmpty())
     {
         return;
@@ -111,6 +112,7 @@ void StudioPresenter::selectAsset(const QString &asset_id)
 
 void StudioPresenter::selectAssetRange(const QString &asset_id)
 {
+    pending_library_selection_.reset();
     if (asset_id.isEmpty())
     {
         return;
@@ -142,6 +144,7 @@ void StudioPresenter::selectAssetRange(const QString &asset_id)
 
 void StudioPresenter::toggleAssetSelected(const QString &asset_id)
 {
+    pending_library_selection_.reset();
     if (asset_id.isEmpty())
     {
         return;
@@ -168,6 +171,7 @@ void StudioPresenter::toggleAssetSelected(const QString &asset_id)
 
 void StudioPresenter::selectAllVisible()
 {
+    pending_library_selection_.reset();
     std::unordered_set<std::string> ids;
     QString first_id;
     for (int row = 0; row < assets_.rowCount(); ++row)
@@ -195,22 +199,24 @@ void StudioPresenter::selectAllVisible()
 
 void StudioPresenter::selectNext()
 {
-    const auto row = assets_.indexOf(selected_asset_id_);
+    const auto row = pending_library_selection_ ? pending_library_selection_->row :
+                                                  assets_.indexOf(selected_asset_id_);
     if (row < 0 || row + 1 >= assets_.rowCount())
     {
         return;
     }
-    selectAsset(assets_.assetIdAt(row + 1));
+    selectLibraryRow(row + 1);
 }
 
 void StudioPresenter::selectPrevious()
 {
-    const auto row = assets_.indexOf(selected_asset_id_);
+    const auto row = pending_library_selection_ ? pending_library_selection_->row :
+                                                  assets_.indexOf(selected_asset_id_);
     if (row <= 0)
     {
         return;
     }
-    selectAsset(assets_.assetIdAt(row - 1));
+    selectLibraryRow(row - 1);
 }
 
 void StudioPresenter::setBrowseMode(const QString &mode)

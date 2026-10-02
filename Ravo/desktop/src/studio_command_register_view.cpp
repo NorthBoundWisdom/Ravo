@@ -5,6 +5,9 @@
 #include "studio_command_controller_detail.h"
 #include "ravo/desktop/studio_presenter.h"
 
+#include <climits>
+#include <cmath>
+
 namespace ravo
 {
 using namespace command_controller_detail;
@@ -60,6 +63,20 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                 return argument.toString().trimmed().isEmpty() ?
                            QStringLiteral("An asset ID is required.") :
                            QString{};
+            const auto fields = argument.toMap();
+            if (fields.contains(QStringLiteral("row")))
+            {
+                const auto value = fields.value(QStringLiteral("row"));
+                if (fields.contains(QStringLiteral("id")) || !numeric_argument(value))
+                    return QStringLiteral("A numeric library row is required.");
+                const double row = value.toDouble();
+                if (!std::isfinite(row) || row < 0 || row > INT_MAX || std::floor(row) != row)
+                    return QStringLiteral("Library row is out of range.");
+                if (fields.contains(QStringLiteral("openLoupe")) &&
+                    fields.value(QStringLiteral("openLoupe")).metaType().id() != QMetaType::Bool)
+                    return QStringLiteral("openLoupe must be boolean.");
+                return QString{};
+            }
             const auto error = required_fields(argument, {QStringLiteral("id")});
             return !error.isEmpty() || argument.toMap()
                                            .value(QStringLiteral("id"))
@@ -91,7 +108,11 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                     mode =
                         fields.value(QStringLiteral("mode"), QStringLiteral("single")).toString();
             }
-            if (mode == QLatin1String("range"))
+            if (fields.contains(QStringLiteral("row")))
+                presenter_.selectLibraryRow(
+                    fields.value(QStringLiteral("row")).toInt(), mode,
+                    fields.value(QStringLiteral("openLoupe"), false).toBool());
+            else if (mode == QLatin1String("range"))
                 presenter_.selectAssetRange(asset_id);
             else if (mode == QLatin1String("toggle"))
                 presenter_.toggleAssetSelected(asset_id);

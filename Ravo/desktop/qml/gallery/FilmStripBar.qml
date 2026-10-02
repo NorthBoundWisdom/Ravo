@@ -59,8 +59,17 @@ Rectangle {
             required property int index
             width: Math.max(72, height)
             height: strip.height
-            Component.onCompleted: if (root.presenter && stripDelegate.thumbnailState !== "ready")
-                root.presenter.ensureThumbnail(stripDelegate.assetId)
+            Component.onCompleted: {
+                if (root.presenter) {
+                    root.presenter.ensureLibraryRow(stripDelegate.index);
+                    if (stripDelegate.assetId.length > 0 && stripDelegate.thumbnailState !== "ready")
+                        root.presenter.ensureThumbnail(stripDelegate.assetId);
+                }
+            }
+            onAssetIdChanged: {
+                if (root.presenter && stripDelegate.assetId.length > 0 && stripDelegate.thumbnailState !== "ready")
+                    root.presenter.ensureThumbnail(stripDelegate.assetId);
+            }
 
             ThumbnailCell {
                 anchors.fill: parent
@@ -85,10 +94,10 @@ Rectangle {
                 swatchColor: root.swatchColor
                 onClicked: function (button, modifiers) {
                     if (root.commands)
-                        root.commands.handlePhotoClick(stripDelegate.assetId, button, modifiers);
+                        root.commands.handlePhotoRowClick(stripDelegate.index, stripDelegate.assetId, button, modifiers);
                 }
                 onDoubleClicked: if (root.commands)
-                    root.commands.handlePhotoDoubleClick(stripDelegate.assetId)
+                    root.commands.handlePhotoRowDoubleClick(stripDelegate.index, stripDelegate.assetId)
             }
         }
     }

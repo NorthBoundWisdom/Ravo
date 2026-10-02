@@ -2,7 +2,8 @@
 
 Same-size inspect-pan GPU source ownership is specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with CPU-gold pan/cache regression contracts
-in [TESTING.md](TESTING.md).
+in [TESTING.md](TESTING.md). Sparse filmstrip metadata demand and deferred
+row selection share those ownership and validation authorities.
 
 [ADR-0163](adr/0163-hdr-panorama-derived-assets.md) admits exposure-bracket merge
 and planar panorama. Ownership is in [ARCHITECTURE.md](ARCHITECTURE.md), usage in

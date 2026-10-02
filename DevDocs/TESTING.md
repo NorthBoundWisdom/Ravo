@@ -1,5 +1,10 @@
 # Ravo Testing Strategy
 
+`StudioLibraryPaging.*` contracts cover the 199→200 sparse-page boundary,
+repeated navigation, placeholder row selection through the command controller,
+and rejection of queued selection after a new selection or query. Filmstrip
+uses the shared metadata-page owner before requesting thumbnail pixels.
+
 ## Multi-photo merge contracts
 
 ADR-0163 uses `PhotoMerge.*` for numerical HDR clipped-highlight/chromaticity
