@@ -1462,6 +1462,14 @@ Diferencia: %6</translation>
             <translation>Recortar y rotar</translation>
         </message>
         <message>
+            <source>Aspect ratio</source>
+            <translation>Relación de aspecto</translation>
+        </message>
+        <message>
+            <source>Auto Level</source>
+            <translation>Nivelar automáticamente</translation>
+        </message>
+        <message>
             <source>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</source>
             <translation>Arrastre el marco para recortar. Arrastre fuera del marco, o con Option/Alt, para enderezar.</translation>
         </message>

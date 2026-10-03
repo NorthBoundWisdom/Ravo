@@ -1462,6 +1462,14 @@ Diff: %6</source>
             <translation>자르기 &amp; 회전</translation>
         </message>
         <message>
+            <source>Aspect ratio</source>
+            <translation>종횡비</translation>
+        </message>
+        <message>
+            <source>Auto Level</source>
+            <translation>자동 수평 맞춤</translation>
+        </message>
+        <message>
             <source>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</source>
             <translation>프레임을 드래그하여 자르세요. 프레임 밖을 드래그하거나 Option/Alt-드래그하여 수평을 맞춥니다.</translation>
         </message>

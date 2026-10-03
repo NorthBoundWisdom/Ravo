@@ -871,8 +871,10 @@ ApplicationWindow {
                                 }
                                 readonly property real containScale: Math.min(width / sourceW, height / sourceH)
                                 readonly property bool cropWorkspace: studio.cropToolActive && studio.cropPreviewLayout.widthScale !== undefined
-                                readonly property real baseW: cropWorkspace ? Math.min(width, height) * studio.cropPreviewLayout.widthScale : sourceW * containScale
-                                readonly property real baseH: cropWorkspace ? Math.min(width, height) * studio.cropPreviewLayout.heightScale : sourceH * containScale
+                                // Halve the diagonal-fit surround toward the contained photo.
+                                readonly property real cropFitExtent: cropWorkspace ? (Math.min(width, height) + Math.min(width / studio.cropPreviewLayout.widthScale, height / studio.cropPreviewLayout.heightScale)) / 2 : 0
+                                readonly property real baseW: cropWorkspace ? cropFitExtent * studio.cropPreviewLayout.widthScale : sourceW * containScale
+                                readonly property real baseH: cropWorkspace ? cropFitExtent * studio.cropPreviewLayout.heightScale : sourceH * containScale
                                 readonly property real rotateScale: 1
 
                                 Item {

@@ -1462,6 +1462,14 @@ Differenz: %6</translation>
             <translation>Zuschneiden und drehen</translation>
         </message>
         <message>
+            <source>Aspect ratio</source>
+            <translation>Seitenverhältnis</translation>
+        </message>
+        <message>
+            <source>Auto Level</source>
+            <translation>Automatisch ausrichten</translation>
+        </message>
+        <message>
             <source>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</source>
             <translation>Ziehen Sie den Rahmen zum Zuschneiden. Ziehen Sie außerhalb des Rahmens oder mit Option/Alt zum Ausrichten.</translation>
         </message>

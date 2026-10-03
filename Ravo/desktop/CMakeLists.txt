@@ -237,6 +237,7 @@ qt_add_qml_module(ravo_studio
     qml/inspect/DevelopAdvancedColorOps.qml
     qml/inspect/DevelopPrimariesSection.qml
     qml/inspect/DevelopGeometrySection.qml
+    qml/inspect/DevelopCropControls.qml
     qml/inspect/DevelopToneEqualizerSection.qml
     qml/inspect/DevelopGraduatedSection.qml
     qml/inspect/DevelopEffectsSection.qml

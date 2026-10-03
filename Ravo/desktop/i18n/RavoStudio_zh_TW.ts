@@ -1462,6 +1462,14 @@ Diff: %6</source>
             <translation>裁剪和旋轉</translation>
         </message>
         <message>
+            <source>Aspect ratio</source>
+            <translation>裁切比例</translation>
+        </message>
+        <message>
+            <source>Auto Level</source>
+            <translation>自動水平</translation>
+        </message>
+        <message>
             <source>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</source>
             <translation>拖動邊框進行裁剪。拖動框外区域，或按住 Option/Alt 拖動，以校正旋轉。</translation>
         </message>

@@ -262,6 +262,14 @@ Diff: %6</translation>
             <translation>Crop &amp; Rotate</translation>
         </message>
         <message>
+            <source>Aspect ratio</source>
+            <translation>Aspect ratio</translation>
+        </message>
+        <message>
+            <source>Auto Level</source>
+            <translation>Auto Level</translation>
+        </message>
+        <message>
             <source>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</source>
             <translation>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</translation>
         </message>

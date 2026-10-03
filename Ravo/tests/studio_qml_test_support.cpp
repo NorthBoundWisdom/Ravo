@@ -13,7 +13,7 @@ QString combined_develop_qml_source()
 {
     const QFileInfo panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
     const QDir directory = panel.dir();
-    static constexpr std::array<const char *, 34> files{
+    static constexpr std::array<const char *, 35> files{
         "DevelopPanel.qml",
         "DevelopAdjustmentStack.qml",
         "LocalAdjustmentWorkspace.qml",
@@ -29,6 +29,7 @@ QString combined_develop_qml_source()
         "DevelopAdvancedColorOps.qml",
         "DevelopPrimariesSection.qml",
         "DevelopGeometrySection.qml",
+        "DevelopCropControls.qml",
         "DevelopToneEqualizerSection.qml",
         "DevelopGraduatedSection.qml",
         "DevelopEffectsSection.qml",

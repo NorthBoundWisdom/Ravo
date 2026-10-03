@@ -388,7 +388,8 @@ struct HoughPeak
 
 [[nodiscard]] Result<std::vector<PerspectiveGuideLine>>
 detect_perspective_lines(const RasterBuffer &raster, std::uint32_t &analysis_width,
-                         std::uint32_t &analysis_height, const CancellationToken &cancellation)
+                         std::uint32_t &analysis_height, const CancellationToken &cancellation,
+                         const bool level_only)
 try
 {
     if (raster.width < 16U || raster.height < 16U)
@@ -518,11 +519,15 @@ try
     const std::size_t rho_bins = static_cast<std::size_t>(rho_limit) * 2U + 1U;
     std::vector<double> accumulator(kPerspectiveThetaBins * rho_bins, 0.0);
     constexpr std::array<double, 5> angular_weights{0.35, 0.7, 1.0, 0.7, 0.35};
+    // Hard staircase edges quantize Sobel normals even on a shallow tilted
+    // horizon. Level fitting admits an eight-degree voting neighborhood so
+    // full-line support can recover that tilt; perspective modes retain theirs.
+    const std::int32_t angular_radius = level_only ? 8 : 2;
     for (const auto &edge : edges)
     {
         const auto center = static_cast<std::int32_t>(std::lround(
             edge.normal_angle / std::numbers::pi * static_cast<double>(kPerspectiveThetaBins)));
-        for (std::int32_t delta = -2; delta <= 2; ++delta)
+        for (std::int32_t delta = -angular_radius; delta <= angular_radius; ++delta)
         {
             const auto wrapped =
                 (center + delta + static_cast<std::int32_t>(kPerspectiveThetaBins)) %
@@ -533,14 +538,20 @@ try
                 std::lround(edge.x * std::cos(theta) + edge.y * std::sin(theta)));
             if (rho < -rho_limit || rho > rho_limit)
                 continue;
+            const double angular_weight = level_only ?
+                                              1.0 - std::abs(delta) / 10.0 :
+                                              angular_weights[static_cast<std::size_t>(delta + 2)];
             accumulator[static_cast<std::size_t>(wrapped) * rho_bins +
                         static_cast<std::size_t>(rho + rho_limit)] +=
-                edge.magnitude * angular_weights[static_cast<std::size_t>(delta + 2)];
+                edge.magnitude * angular_weight;
         }
     }
     const double maximum_vote = *std::max_element(accumulator.begin(), accumulator.end());
+    // Level uses dominant lines: a wide normal neighborhood must not admit
+    // weak chords connecting fragments of separate parallel edges.
     const double vote_cutoff =
-        std::max(maximum_vote * 0.10, threshold * std::min(analysis_width, analysis_height) * 0.08);
+        std::max(maximum_vote * (level_only ? 0.50 : 0.10),
+                 threshold * std::min(analysis_width, analysis_height) * 0.08);
     std::vector<HoughPeak> candidates;
     for (std::size_t theta = 0U; theta < kPerspectiveThetaBins; ++theta)
     {
@@ -586,8 +597,40 @@ try
         static_cast<double>(raster.height - 1U) / static_cast<double>(analysis_height - 1U);
     for (const auto &peak : peaks)
     {
-        const double theta = static_cast<double>(peak.theta) * std::numbers::pi /
-                             static_cast<double>(kPerspectiveThetaBins);
+        double theta = static_cast<double>(peak.theta) * std::numbers::pi /
+                       static_cast<double>(kPerspectiveThetaBins);
+        double rho = peak.rho;
+        if (level_only)
+        {
+            const double normal_x = std::cos(theta);
+            const double normal_y = std::sin(theta);
+            double count = 0, sum_x = 0, sum_y = 0, sum_xx = 0, sum_xy = 0, sum_yy = 0;
+            for (const auto &edge : edges)
+            {
+                if (std::abs(edge.x * normal_x + edge.y * normal_y - rho) > 1.75 ||
+                    circular_angle_distance(edge.normal_angle, theta) >
+                        8.0 * std::numbers::pi / 180.0)
+                    continue;
+                ++count;
+                sum_x += edge.x;
+                sum_y += edge.y;
+                sum_xx += edge.x * edge.x;
+                sum_xy += edge.x * edge.y;
+                sum_yy += edge.y * edge.y;
+            }
+            if (count < 2)
+                continue;
+            const double mean_x = sum_x / count;
+            const double mean_y = sum_y / count;
+            const double xx = sum_xx / count - mean_x * mean_x;
+            const double xy = sum_xy / count - mean_x * mean_y;
+            const double yy = sum_yy / count - mean_y * mean_y;
+            // Principal direction of the supporting pixels removes the one-degree
+            // accumulator quantization from the final leveling angle.
+            theta = .5 * std::atan2(2 * xy, xx - yy) + std::numbers::pi / 2;
+            theta = std::fmod(theta + std::numbers::pi, std::numbers::pi);
+            rho = mean_x * std::cos(theta) + mean_y * std::sin(theta);
+        }
         const double cosine = std::cos(theta);
         const double sine = std::sin(theta);
         const double tangent_x = -sine;
@@ -596,7 +639,7 @@ try
         double maximum_projection = std::numeric_limits<double>::lowest();
         for (const auto &edge : edges)
         {
-            if (std::abs(edge.x * cosine + edge.y * sine - peak.rho) > 1.75 ||
+            if (std::abs(edge.x * cosine + edge.y * sine - rho) > 1.75 ||
                 circular_angle_distance(edge.normal_angle, theta) > 8.0 * std::numbers::pi / 180.0)
                 continue;
             const double projection = edge.x * tangent_x + edge.y * tangent_y;
@@ -606,10 +649,10 @@ try
         const double length = maximum_projection - minimum_projection;
         if (!std::isfinite(length) || length < minimum_length)
             continue;
-        const double x1 = peak.rho * cosine + minimum_projection * tangent_x;
-        const double y1 = peak.rho * sine + minimum_projection * tangent_y;
-        const double x2 = peak.rho * cosine + maximum_projection * tangent_x;
-        const double y2 = peak.rho * sine + maximum_projection * tangent_y;
+        const double x1 = rho * cosine + minimum_projection * tangent_x;
+        const double y1 = rho * sine + minimum_projection * tangent_y;
+        const double x2 = rho * cosine + maximum_projection * tangent_x;
+        const double y2 = rho * sine + maximum_projection * tangent_y;
         const double midpoint_x = (x1 + x2) * 0.5;
         const double midpoint_y = (y1 + y2) * 0.5;
         const bool vertical = std::abs(tangent_y) >= std::cos(30.0 * std::numbers::pi / 180.0);
@@ -640,7 +683,8 @@ catch (const std::bad_alloc &)
 [[nodiscard]] bool analysis_mode_supported(const PerspectiveAnalysisMode mode) noexcept
 {
     return mode == PerspectiveAnalysisMode::kVertical ||
-           mode == PerspectiveAnalysisMode::kHorizontal || mode == PerspectiveAnalysisMode::kFull;
+           mode == PerspectiveAnalysisMode::kHorizontal || mode == PerspectiveAnalysisMode::kFull ||
+           mode == PerspectiveAnalysisMode::kLevel;
 }
 
 [[nodiscard]] double line_fit_objective(const std::uint32_t width, const std::uint32_t height,
@@ -656,7 +700,8 @@ catch (const std::bad_alloc &)
         const bool selected = mode == PerspectiveAnalysisMode::kFull ||
                               (mode == PerspectiveAnalysisMode::kVertical &&
                                line.orientation == PerspectiveGuideOrientation::kVertical) ||
-                              (mode == PerspectiveAnalysisMode::kHorizontal &&
+                              ((mode == PerspectiveAnalysisMode::kHorizontal ||
+                                mode == PerspectiveAnalysisMode::kLevel) &&
                                line.orientation == PerspectiveGuideOrientation::kHorizontal);
         if (!selected)
             continue;
@@ -951,15 +996,19 @@ try
                               {{"reason", "invalid_perspective_guides"}});
         }
     }
-    const bool needs_vertical = mode != PerspectiveAnalysisMode::kHorizontal;
+    const bool needs_vertical =
+        mode != PerspectiveAnalysisMode::kHorizontal && mode != PerspectiveAnalysisMode::kLevel;
     const bool needs_horizontal = mode != PerspectiveAnalysisMode::kVertical;
-    if ((needs_vertical && vertical_count < 2U) || (needs_horizontal && horizontal_count < 2U))
+    const auto minimum_horizontal = mode == PerspectiveAnalysisMode::kLevel ? 1U : 2U;
+    if ((needs_vertical && vertical_count < 2U) ||
+        (needs_horizontal && horizontal_count < minimum_horizontal))
         return make_error(ErrorCode::kNotFound, "Perspective analysis has too few guide lines",
                           {{"reason", "insufficient_perspective_lines"},
                            {"vertical_count", std::to_string(vertical_count)},
                            {"horizontal_count", std::to_string(horizontal_count)}});
     if ((needs_vertical && maximum_vertical_x - minimum_vertical_x < width * 0.05) ||
-        (needs_horizontal && maximum_horizontal_y - minimum_horizontal_y < height * 0.05))
+        (needs_horizontal && mode != PerspectiveAnalysisMode::kLevel &&
+         maximum_horizontal_y - minimum_horizontal_y < height * 0.05))
         return make_error(ErrorCode::kValidation, "Perspective guide lines are degenerate",
                           {{"reason", "degenerate_perspective_guides"}});
 
@@ -974,7 +1023,7 @@ try
     std::vector<int> variables{0};
     if (needs_vertical)
         variables.push_back(1);
-    if (needs_horizontal)
+    if (needs_horizontal && mode != PerspectiveAnalysisMode::kLevel)
         variables.push_back(2);
     if (mode == PerspectiveAnalysisMode::kFull)
         variables.push_back(3);
@@ -1066,7 +1115,8 @@ try
 {
     std::uint32_t analysis_width = 0U;
     std::uint32_t analysis_height = 0U;
-    auto lines = detect_perspective_lines(raster, analysis_width, analysis_height, cancellation);
+    auto lines = detect_perspective_lines(raster, analysis_width, analysis_height, cancellation,
+                                          mode == PerspectiveAnalysisMode::kLevel);
     if (!lines)
         return lines.error();
     auto fitted =

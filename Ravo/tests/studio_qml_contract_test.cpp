@@ -432,7 +432,7 @@ TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
     const auto geometry = source.mid(geometry_begin, geometry_end - geometry_begin);
     EXPECT_TRUE(geometry.contains(QStringLiteral("Layout.fillWidth: true")));
     EXPECT_TRUE(geometry.contains(QStringLiteral("qsTr(\"Angle\")")));
-    EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"straighten\"")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("previewDevelopNumber(\"straighten\", value)")));
     EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveVertical\"")));
     EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveHorizontal\"")));
     EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveShear\"")));

@@ -13,6 +13,7 @@ ColumnLayout {
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
     readonly property bool localEditing: hasPresenter && presenter.localEditing === true
+    readonly property bool cropPinned: hasPresenter && presenter.cropToolActive
     property bool showAdvancedInstances: false
     spacing: Fonts.smallSpacing
 

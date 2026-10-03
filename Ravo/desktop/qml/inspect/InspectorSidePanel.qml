@@ -20,6 +20,7 @@ Rectangle {
         spacing: 0
 
         ScopePanel {
+            objectName: "cropScopePanel"
             Layout.fillWidth: true
             Layout.preferredHeight: Fonts.scaledUiSize(128)
             Layout.minimumHeight: Fonts.scaledUiSize(96)
@@ -28,6 +29,27 @@ Rectangle {
         }
 
         Flickable {
+            objectName: "pinnedCropPanel"
+            visible: root.developOpen && developPanel.cropPinned
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(cropControls.implicitHeight + 2 * Fonts.standardMargin, root.height * 0.55)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.VerticalFlick
+            contentWidth: width
+            contentHeight: cropControls.implicitHeight + 2 * Fonts.standardMargin
+            DevelopCropControls {
+                id: cropControls
+                x: Fonts.standardMargin
+                y: Fonts.standardMargin
+                width: parent.width - 2 * Fonts.standardMargin
+                panel: developPanel
+                pinned: true
+            }
+        }
+
+        Flickable {
+            objectName: "developPanelScroller"
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -49,6 +71,7 @@ Rectangle {
                 }
 
                 DevelopPanel {
+                    id: developPanel
                     visible: root.developOpen
                     Layout.fillWidth: true
                     presenter: root.presenter

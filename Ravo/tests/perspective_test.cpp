@@ -287,6 +287,33 @@ TEST(PerspectiveAutoTest, DetectorFindsBothAxisFamiliesAndReportsNoSolution)
     EXPECT_EQ(missing.error().context.at("reason"), "no_perspective_lines");
 }
 
+TEST(PerspectiveAutoTest, AutoLevelFitsRotationWithoutPerspectiveAndHonorsCancellation)
+{
+    std::vector<PerspectiveGuideLine> lines;
+    for (const double y : {40.0, 150.0, 260.0})
+        lines.push_back({10.0, y, 630.0, y + 620.0 * std::tan(5.0 * 3.141592653589793 / 180.0),
+                         100.0, PerspectiveGuideOrientation::kHorizontal});
+    auto result = fit_perspective_guides(640, 480, lines, PerspectiveAnalysisMode::kLevel, {});
+    ASSERT_TRUE(result) << result.error().message;
+    EXPECT_NEAR(result.value().params.rotation_degrees, 5.0, .02);
+    EXPECT_DOUBLE_EQ(result.value().params.horizontal_shift, 0.0);
+    EXPECT_DOUBLE_EQ(result.value().params.vertical_shift, 0.0);
+    EXPECT_DOUBLE_EQ(result.value().params.shear, 0.0);
+    lines.resize(1);
+    auto single = fit_perspective_guides(640, 480, lines, PerspectiveAnalysisMode::kLevel, {});
+    ASSERT_TRUE(single);
+    EXPECT_NEAR(single.value().params.rotation_degrees, 5.0, .02);
+    CancellationSource cancellation;
+    static_cast<void>(cancellation.cancel("test"));
+    auto cancelled = fit_perspective_guides(640, 480, lines, PerspectiveAnalysisMode::kLevel,
+                                            cancellation.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    auto missing = fit_perspective_guides(640, 480, {}, PerspectiveAnalysisMode::kLevel, {});
+    ASSERT_FALSE(missing);
+    EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
+}
+
 TEST(PerspectiveTest, CropWorkspacePreservesSourceScaleAndCanonicalCropCoordinates)
 {
     DevelopParams params;
@@ -377,6 +404,57 @@ TEST(PerspectiveTest, CropSurroundIsGrayWithoutReplacingBlackPhotoPixels)
     image.width += 1;
     EXPECT_FALSE(fill_crop_preview_exterior(image, plan.value(), {}));
     EXPECT_EQ(image.rgb, before);
+}
+
+TEST(PerspectiveTest, DisplayDensityPlansNativeBoundedCropAndConstrainedGeometry)
+{
+    DevelopParams params;
+    params.crop_x = .5250235305620476;
+    params.crop_y = .42665565776019676;
+    params.crop_width = .41501223537688947;
+    params.crop_height = .4008470266086776;
+    params.straighten_degrees = -.02578125;
+    auto recipe = recipe_from_develop({"photo", "photo.png", {}}, params);
+    ASSERT_TRUE(recipe);
+    auto size = plan_preview_source_size(recipe.value(), 6000, 4000, 1600);
+    ASSERT_TRUE(size) << size.error().message;
+    EXPECT_GT(size.value().width, 3800U);
+    EXPECT_LT(size.value().width, 3900U);
+    EXPECT_EQ(size.value().output_width, 1600U);
+    EXPECT_GT(size.value().output_height, 1000U);
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine);
+    auto rendered = engine.value().render_linear_working(
+        grid_image(size.value().width, size.value().height), recipe.value(), {});
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    EXPECT_EQ(rendered.value().width, size.value().output_width);
+    EXPECT_EQ(rendered.value().height, size.value().output_height);
+    params.crop_width = .01;
+    params.crop_height = .01;
+    params.crop_x = .99;
+    params.crop_y = .99;
+    recipe = recipe_from_develop({"photo", "photo.png", {}}, params);
+    ASSERT_TRUE(recipe);
+    size = plan_preview_source_size(recipe.value(), 6000, 4000, 1600);
+    ASSERT_TRUE(size);
+    EXPECT_EQ(size.value().width, 6000U);
+    EXPECT_EQ(size.value().height, 4000U);
+    EXPECT_LE(size.value().output_width, 60U);
+    EXPECT_LE(size.value().output_height, 40U);
+    CancellationSource cancel;
+    static_cast<void>(cancel.cancel("test"));
+    auto cancelled = plan_preview_source_size(recipe.value(), 6000, 4000, 1600, cancel.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    strip_crop_operations(recipe.value());
+    for (auto &operation : recipe.value().operations)
+        if (operation.id == kPerspectiveOperationId)
+            operation.bypass = true;
+    size = plan_preview_source_size(recipe.value(), 6000, 4000, 1600);
+    ASSERT_TRUE(size);
+    EXPECT_EQ(size.value().width, 1600U);
+    EXPECT_EQ(size.value().height, 1066U);
+    EXPECT_EQ(size.value().output_width, 1600U);
 }
 
 } // namespace

@@ -427,8 +427,11 @@ void StudioPresenter::pickWhiteBalance(const double preview_x, const double prev
 void StudioPresenter::autoPerspective(const QString &mode_name)
 {
     PerspectiveAnalysisMode mode = PerspectiveAnalysisMode::kFull;
+    const bool level_only = mode_name == QLatin1String("level");
     if (mode_name == QLatin1String("vertical"))
         mode = PerspectiveAnalysisMode::kVertical;
+    else if (level_only)
+        mode = PerspectiveAnalysisMode::kLevel;
     else if (mode_name == QLatin1String("horizontal"))
         mode = PerspectiveAnalysisMode::kHorizontal;
     else if (mode_name != QLatin1String("full"))
@@ -444,7 +447,7 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
     const auto revision = perspective_analysis_owner_.supersede("perspective_analysis_superseded");
     const auto cancellation = perspective_analysis_owner_.begin();
     executor_.post(
-        [this, asset_id, revision, analysis_develop, mode, cancellation]() mutable
+        [this, asset_id, revision, analysis_develop, mode, level_only, cancellation]() mutable
         {
             Result<PerspectiveAnalysis> analysis =
                 make_error(ErrorCode::kIo, "Engine session is closed");
@@ -488,7 +491,7 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, asset_id, revision, analysis = std::move(analysis)]() mutable
+                [this, asset_id, revision, level_only, analysis = std::move(analysis)]() mutable
                 {
                     if (!perspective_analysis_owner_.accepts(revision, asset_id,
                                                              utf8_from_qstring(selected_asset_id_)))
@@ -501,10 +504,13 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
                     }
                     DevelopParams next = develop_;
                     next.straighten_degrees = analysis.value().params.rotation_degrees;
-                    next.perspective_vertical = analysis.value().params.vertical_shift;
-                    next.perspective_horizontal = analysis.value().params.horizontal_shift;
-                    next.perspective_shear = analysis.value().params.shear;
-                    next.perspective_constrain_crop = true;
+                    if (!level_only)
+                    {
+                        next.perspective_vertical = analysis.value().params.vertical_shift;
+                        next.perspective_horizontal = analysis.value().params.horizontal_shift;
+                        next.perspective_shear = analysis.value().params.shear;
+                        next.perspective_constrain_crop = true;
+                    }
                     if (mutate_develop(std::move(next), DevelopEdit::Commit))
                         setStatus(QCoreApplication::translate("StudioPresenter",
                                                               "Perspective corrected."));

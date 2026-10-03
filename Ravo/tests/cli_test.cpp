@@ -316,6 +316,17 @@ TEST_F(CliTest, PerspectiveAnalysisIsStructuredReadOnlyAndRejectsUnknownMode)
     }
     EXPECT_EQ(source_file_snapshot(input.string()), before);
 
+    std::ostringstream level_stdout;
+    std::ostringstream level_stderr;
+    const CliApplication level_application(engine, level_stdout, level_stderr);
+    const std::vector<std::string_view> level_arguments{"perspective", "analyze", input_string,
+                                                        "--mode",      "level",   "--json"};
+    ASSERT_EQ(level_application.run(std::span{level_arguments}), 0) << level_stderr.str();
+    const auto level_response = parse_json(level_stdout.str());
+    ASSERT_TRUE(level_response);
+    EXPECT_EQ(*level_response.value().find("data")->find("mode")->string_if(), "level");
+    EXPECT_EQ(source_file_snapshot(input.string()), before);
+
     std::ostringstream bad_stdout;
     std::ostringstream bad_stderr;
     const CliApplication bad_application(engine, bad_stdout, bad_stderr);

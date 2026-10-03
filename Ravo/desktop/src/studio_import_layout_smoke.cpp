@@ -343,21 +343,23 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             QCoreApplication::processEvents();
             auto *context_cell = qobject_cast<QQuickItem *>(
                 keyboard_grid->property("currentItem").value<QObject *>());
-            auto *source_menu = workspace->findChild<QObject *>(QStringLiteral("importPhotoContextMenu"));
+            auto *source_menu =
+                workspace->findChild<QObject *>(QStringLiteral("importPhotoContextMenu"));
             if (!context_cell || !source_menu)
                 return false;
             const QPointF point = context_cell->mapToScene(
                 QPointF(context_cell->width() / 2, context_cell->height() / 2));
             const QPointF global = window->mapToGlobal(point.toPoint());
-            QMouseEvent context_press(QEvent::MouseButtonPress, point, global,
-                                      Qt::RightButton, Qt::RightButton, Qt::NoModifier);
-            QMouseEvent context_release(QEvent::MouseButtonRelease, point, global,
-                                        Qt::RightButton, Qt::NoButton, Qt::NoModifier);
+            QMouseEvent context_press(QEvent::MouseButtonPress, point, global, Qt::RightButton,
+                                      Qt::RightButton, Qt::NoModifier);
+            QMouseEvent context_release(QEvent::MouseButtonRelease, point, global, Qt::RightButton,
+                                        Qt::NoButton, Qt::NoModifier);
             QCoreApplication::sendEvent(window, &context_press);
             QCoreApplication::sendEvent(window, &context_release);
             QCoreApplication::processEvents();
             if (!source_menu->property("visible").toBool() ||
-                presenter->importContextPath() != presenter->importCandidates()->sourcePath(duplicate_row))
+                presenter->importContextPath() !=
+                    presenter->importCandidates()->sourcePath(duplicate_row))
             {
                 LOG_ERROR(logger(), "Import right click must open source commands for a duplicate");
                 return false;
@@ -1051,32 +1053,42 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         return true;
     };
     presenter->createCatalogFromPath(inspect_catalog);
-    if (!wait_ready([&] { return presenter->catalogPath() == inspect_catalog && !presenter->busy(); }))
+    if (!wait_ready([&]
+                    { return presenter->catalogPath() == inspect_catalog && !presenter->busy(); }))
         return false;
     presenter->importFilePaths({inspect_photo});
-    if (!wait_ready([&] { return !presenter->busy() && !presenter->importWorkActive() &&
-                               presenter->visibleCount() == 1 &&
-                               presenter->selectedUri().endsWith(QStringLiteral("inspect-click.png")); }))
+    if (!wait_ready(
+            [&]
+            {
+                return !presenter->busy() && !presenter->importWorkActive() &&
+                       presenter->visibleCount() == 1 &&
+                       presenter->selectedUri().endsWith(QStringLiteral("inspect-click.png"));
+            }))
         return false;
     window->resize(1440, 900);
     presenter->setBrowseMode(QStringLiteral("loupe"));
     presenter->setZoomMode(QStringLiteral("fit"));
     auto *zoom = window->findChild<QObject *>(QStringLiteral("photoInspectZoomController"));
     auto *scroller = window->findChild<QQuickItem *>(QStringLiteral("photoInspectScroller"));
-    if (!zoom || !scroller || !wait_ready([&] { return zoom->property("photoInspectEnabled").toBool(); }))
+    if (!zoom || !scroller ||
+        !wait_ready([&] { return zoom->property("photoInspectEnabled").toBool(); }))
     {
-        LOG_ERROR(logger(), "Photo click zoom did not become ready: mode={} preview={} error={} bound={}",
-                  presenter->browseMode().toStdString(), presenter->previewUrl().toString().toStdString(),
-                  presenter->errorText().toStdString(),
-                  zoom && zoom->property("studio").value<QObject *>() == presenter);
+        LOG_ERROR(
+            logger(), "Photo click zoom did not become ready: mode={} preview={} error={} bound={}",
+            presenter->browseMode().toStdString(), presenter->previewUrl().toString().toStdString(),
+            presenter->errorText().toStdString(),
+            zoom && zoom->property("studio").value<QObject *>() == presenter);
         return false;
     }
     const auto click_photo = [&]
     {
-        const auto point = scroller->mapToScene(QPointF(scroller->width() / 2, scroller->height() / 2));
+        const auto point =
+            scroller->mapToScene(QPointF(scroller->width() / 2, scroller->height() / 2));
         const QPointF global = window->mapToGlobal(point.toPoint());
-        QMouseEvent press(QEvent::MouseButtonPress, point, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-        QMouseEvent release(QEvent::MouseButtonRelease, point, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QMouseEvent press(QEvent::MouseButtonPress, point, global, Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QMouseEvent release(QEvent::MouseButtonRelease, point, global, Qt::LeftButton, Qt::NoButton,
+                            Qt::NoModifier);
         QCoreApplication::sendEvent(window, &press);
         QCoreApplication::sendEvent(window, &release);
     };
@@ -1087,11 +1099,56 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         return false;
     }
     click_photo();
-    if (presenter->zoomMode() != QStringLiteral("fit") || presenter->browseMode() != QStringLiteral("loupe"))
+    if (presenter->zoomMode() != QStringLiteral("fit") ||
+        presenter->browseMode() != QStringLiteral("loupe"))
     {
         LOG_ERROR(logger(), "Second photo click must restore Fit without leaving Loupe");
         return false;
     }
+    presenter->setBrowseMode(QStringLiteral("develop"));
+    presenter->setCropToolActive(true);
+    auto *pinned = window->findChild<QQuickItem *>(QStringLiteral("pinnedCropPanel"));
+    auto *develop_scroll = window->findChild<QQuickItem *>(QStringLiteral("developPanelScroller"));
+    auto *plane = window->findChild<QQuickItem *>(QStringLiteral("photoInspectPlane"));
+    if (!pinned || !develop_scroll || !plane ||
+        !wait_ready(
+            [&]
+            {
+                return !presenter->previewLoading() && !presenter->cropPreviewLayout().isEmpty() &&
+                       pinned->isVisible();
+            }))
+        return false;
+    for (const auto *name : {"cropAspectRatio", "cropAutoLevel", "cropFineRotation"})
+    {
+        auto *control = pinned->findChild<QQuickItem *>(QString::fromLatin1(name));
+        if (!control || !control->isVisible())
+        {
+            LOG_ERROR(logger(), "Pinned crop control is missing: {}", name);
+            return false;
+        }
+    }
+    const auto *stage = plane->parentItem();
+    const auto geometry = presenter->cropPreviewLayout();
+    const double old_width =
+        std::min(stage->width(), stage->height()) * geometry.value("widthScale").toDouble();
+    const double old_height =
+        std::min(stage->width(), stage->height()) * geometry.value("heightScale").toDouble();
+    const double contain_scale = std::min(stage->width() / old_width, stage->height() / old_height);
+    if (std::abs(plane->width() - (old_width + old_width * contain_scale) / 2) > 1.0 ||
+        std::abs(plane->height() - (old_height + old_height * contain_scale) / 2) > 1.0 ||
+        develop_scroll->y() < pinned->y() + pinned->height() - 1.0)
+    {
+        LOG_ERROR(logger(),
+                  "Crop workspace did not halve its surround or pin controls above scrolling");
+        return false;
+    }
+    const auto pinned_y = pinned->y();
+    develop_scroll->setProperty("contentY", 200.0);
+    if (std::abs(pinned->y() - pinned_y) > .1)
+        return false;
+    presenter->setCropToolActive(false);
+    if (pinned->isVisible() || !wait_ready([&] { return !presenter->previewLoading(); }))
+        return false;
     return true;
 }
 } // namespace ravo

@@ -5,6 +5,8 @@ amendment to [ADR-0087](adr/0087-progressive-develop-preview.md), with current
 ownership in [ARCHITECTURE.md](ARCHITECTURE.md) and validation in [TESTING.md](TESTING.md).
 Crop-aware prepared source density and exact final cache dimensions are also
 specified in those authorities; previews are bounded by native source pixels.
+Pinned crop controls, Auto Level, and the reduced crop surround are specified
+by the presentation amendment to [ADR-0161](adr/0161-full-source-crop-workspace.md).
 
 Same-size inspect-pan GPU source ownership is specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with CPU-gold pan/cache regression contracts

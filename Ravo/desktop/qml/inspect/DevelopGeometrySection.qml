@@ -13,78 +13,10 @@ DevelopSection {
         Layout.fillWidth: true
         width: parent.width
         spacing: Fonts.smallSpacing
-        RowLayout {
+        DevelopCropControls {
+            panel: sectionRoot.panel
+            visible: !panel.cropPinned
             Layout.fillWidth: true
-            spacing: Fonts.size6
-            CustomButton {
-                display: AbstractButton.IconOnly
-                icon.source: "qrc:/GeoControls/icons/RotateCcw.svg"
-                tooltipText: qsTr("Rotate Left")
-                enabled: panel.hasSelection
-                implicitWidth: Fonts.iconButtonSize
-                implicitHeight: Fonts.iconButtonSize
-                Layout.preferredWidth: implicitWidth
-                Layout.preferredHeight: implicitHeight
-                Layout.fillWidth: true
-                defaultPadding: 0
-                onClicked: if (panel.commands)
-                    panel.commands.rotateLeft.trigger()
-            }
-            CustomButton {
-                display: AbstractButton.IconOnly
-                icon.source: "qrc:/GeoControls/icons/RotateCw.svg"
-                tooltipText: qsTr("Rotate Right")
-                enabled: panel.hasSelection
-                implicitWidth: Fonts.iconButtonSize
-                implicitHeight: Fonts.iconButtonSize
-                Layout.preferredWidth: implicitWidth
-                Layout.preferredHeight: implicitHeight
-                Layout.fillWidth: true
-                defaultPadding: 0
-                onClicked: if (panel.commands)
-                    panel.commands.rotateRight.trigger()
-            }
-            CustomButton {
-                display: AbstractButton.IconOnly
-                icon.source: "qrc:/GeoControls/icons/FlipHorizontal.svg"
-                tooltipText: qsTr("Flip Horizontal")
-                enabled: panel.hasSelection
-                implicitWidth: Fonts.iconButtonSize
-                implicitHeight: Fonts.iconButtonSize
-                Layout.preferredWidth: implicitWidth
-                Layout.preferredHeight: implicitHeight
-                Layout.fillWidth: true
-                defaultPadding: 0
-                onClicked: if (panel.commands)
-                    panel.commands.flipHorizontal.trigger()
-            }
-            CustomButton {
-                display: AbstractButton.IconOnly
-                icon.source: "qrc:/GeoControls/icons/FlipVertical.svg"
-                tooltipText: qsTr("Flip Vertical")
-                enabled: panel.hasSelection
-                implicitWidth: Fonts.iconButtonSize
-                implicitHeight: Fonts.iconButtonSize
-                Layout.preferredWidth: implicitWidth
-                Layout.preferredHeight: implicitHeight
-                Layout.fillWidth: true
-                defaultPadding: 0
-                onClicked: if (panel.commands)
-                    panel.commands.flipVertical.trigger()
-            }
-        }
-        CustomButton {
-            Layout.fillWidth: true
-            text: panel.hasPresenter && panel.presenter.cropToolActive ? qsTr("Done") : qsTr("Crop & Rotate")
-            enabled: panel.hasSelection
-            onClicked: if (panel.commands)
-                panel.commands.toggleCropTool()
-        }
-        CustomLabel {
-            text: qsTr("Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.")
-            wrapMode: Text.WordWrap
-            Layout.fillWidth: true
-            opacity: 0.75
         }
         RowLayout {
             Layout.fillWidth: true
@@ -117,15 +49,6 @@ DevelopSection {
         }
         Repeater {
             model: [
-                {
-                    "title": qsTr("Angle"),
-                    "key": "angle",
-                    "field": "straighten",
-                    "minimum": -45,
-                    "maximum": 45,
-                    "step": 0.1,
-                    "decimals": 1
-                },
                 {
                     "title": qsTr("Vertical"),
                     "key": "vertical",
@@ -209,38 +132,6 @@ DevelopSection {
             onActivated: function (index) {
                 if (panel.commands)
                     panel.commands.setDevelopNumber("perspectiveInterpolationIndex", index);
-            }
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Fonts.size6
-            CustomComboBox {
-                Layout.fillWidth: true
-                model: ["free", "1:1", "3:2", "4:3", "5:4", "16:9"]
-                enabled: panel.hasSelection
-                displayText: panel.hasPresenter && panel.presenter.cropAspect === "locked" ? qsTr("Custom") : currentText
-                currentIndex: {
-                    const aspects = ["free", "1:1", "3:2", "4:3", "5:4", "16:9"];
-                    const current = panel.hasPresenter ? panel.presenter.cropAspect : "free";
-                    return aspects.indexOf(current);
-                }
-                onActivated: if (panel.commands)
-                    panel.commands.setCropAspect(currentText)
-            }
-            CustomButton {
-                display: AbstractButton.IconOnly
-                checkable: true
-                checked: panel.hasPresenter && panel.presenter.cropAspect !== "free"
-                icon.source: checked ? "qrc:/GeoControls/icons/Lock.svg" : "qrc:/GeoControls/icons/Unlock.svg"
-                tooltipText: checked ? qsTr("Unlock aspect ratio") : qsTr("Lock aspect ratio")
-                enabled: panel.hasSelection
-                implicitWidth: Fonts.iconButtonSize
-                implicitHeight: Fonts.iconButtonSize
-                Layout.preferredWidth: implicitWidth
-                Layout.preferredHeight: implicitHeight
-                defaultPadding: 0
-                onToggled: if (panel.commands)
-                    panel.commands.setCropAspect(checked ? "locked" : "free")
             }
         }
         CustomCheckBox {

@@ -1462,6 +1462,14 @@ Différence : %6</translation>
             <translation>Recadrer et pivoter</translation>
         </message>
         <message>
+            <source>Aspect ratio</source>
+            <translation>Rapport d’aspect</translation>
+        </message>
+        <message>
+            <source>Auto Level</source>
+            <translation>Redressement automatique</translation>
+        </message>
+        <message>
             <source>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</source>
             <translation>Faites glisser le cadre pour recadrer. Faites glisser hors du cadre, ou avec Option/Alt, pour redresser.</translation>
         </message>

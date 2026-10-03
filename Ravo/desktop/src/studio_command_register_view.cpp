@@ -955,9 +955,10 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         {
             const QString mode = argument.toString();
             return mode == QLatin1String("vertical") || mode == QLatin1String("horizontal") ||
-                           mode == QLatin1String("full") ?
+                           mode == QLatin1String("full") || mode == QLatin1String("level") ?
                        QString{} :
-                       QStringLiteral("Perspective mode must be vertical, horizontal, or full.");
+                       QStringLiteral(
+                           "Perspective mode must be vertical, horizontal, full, or level.");
         },
         [this](const QVariant &argument, const QString &)
         { presenter_.autoPerspective(argument.toString()); });

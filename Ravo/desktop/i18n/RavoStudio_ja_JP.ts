@@ -1462,6 +1462,14 @@ Diff: %6</source>
             <translation>DevelopPanel::トリミングと回転</translation>
         </message>
         <message>
+            <source>Aspect ratio</source>
+            <translation>縦横比</translation>
+        </message>
+        <message>
+            <source>Auto Level</source>
+            <translation>自動水平補正</translation>
+        </message>
+        <message>
             <source>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</source>
             <translation>フレームをドラッグして切り抜きます。外側をドラッグするか、Option/Alt キーを押しながらドラッグして傾きを補正します。</translation>
         </message>

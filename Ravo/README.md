@@ -324,6 +324,10 @@ Current implementation status:
   chooser as preset saving; paste preserves every unselected destination edit.
   **Paste Parameters to Selection** applies that same clipboard through
   CatalogService to every ID in an explicit multi-selection (ADR-0078/0098/0107).
+  Crop mode pins aspect/lock, Auto Level, 0.01-degree rotation, rotate/flip and
+  Done controls below scopes, with half the extra rotation surround. Auto Level
+  preserves authored perspective/crop parameters. The remaining Develop stack
+  scrolls independently.
   Studio live and settled preview target the same 1600px display resolution,
   preparing enough scene-linear source pixels to preserve that density after
   crop and constrained perspective, up to native dimensions. RGB-only edits

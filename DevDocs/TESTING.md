@@ -312,6 +312,13 @@ state. Explicit low-edge requests remain separately bounded.
 density against CPU rendering, RGB-only source reuse, exact cache dimensions
 after reopening, and unchanged source/recipe bytes. Perspective contracts
 check the same integer geometry sizing, native limits, bypass, and cancellation.
+`StudioCropTest.AutoLevelChangesOnlyRotationAndRejectsInvalidModes` uses tilted
+line pixels to verify rotation and preserved perspective/source bytes. The
+production QML smoke enters crop, checks the expanded controls above the Develop
+scroller, half-surround layout, independent scrolling, and hiding on exit.
+Engine guide-fit contracts verify rotation-only level fitting, cancellation and
+missing guides; CLI structured analysis accepts `--mode level` without writing
+the source. Desktop exposes the same mode through the shared command owner.
 A saved-edit reopen
 case enters Develop before the asynchronous Recipe callback and requires the
 first live frame to match the loaded Recipe, preventing an identity warm-up

@@ -67,8 +67,8 @@ public:
 
     [[nodiscard]] bool valid() const noexcept
     {
-        return std::isfinite(value_) && value_ > 0.0F &&
-               std::isfinite(reference_short_edge_) && reference_short_edge_ > 0.0F;
+        return std::isfinite(value_) && value_ > 0.0F && std::isfinite(reference_short_edge_) &&
+               reference_short_edge_ > 0.0F;
     }
 
     [[nodiscard]] float value() const noexcept
@@ -86,7 +86,8 @@ public:
 private:
     explicit constexpr CanonicalRoiScale(const float value,
                                          const float reference_short_edge) noexcept
-        : value_(value), reference_short_edge_(reference_short_edge)
+        : value_(value)
+        , reference_short_edge_(reference_short_edge)
     {
     }
 
@@ -238,6 +239,8 @@ enum class PerspectiveAnalysisMode : std::uint8_t
     kVertical = 0,
     kHorizontal = 1,
     kFull = 2,
+    // Horizontal guides, fitting rotation alone; authored perspective is preserved.
+    kLevel = 3,
 };
 
 enum class PerspectiveGuideOrientation : std::uint8_t

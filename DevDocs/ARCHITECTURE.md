@@ -565,8 +565,16 @@ separate view toggle.
 Develop crop is interactive: its nonpersistent preview removes manual and
 automatic Perspective cropping to show the complete transformed source.
 Engine `plan_crop_preview` supplies the constrained output rectangle within that
-backdrop. Fit uses the pre-Perspective source diagonal, so rotating does not zoom
-the photo. The screen-axis-aligned crop frame maps to the original recipe's
+backdrop. Crop Fit halves the extra diagonal-safe surround toward the contained
+transformed source, preserving aspect ratio. Its displayed extent can adjust
+with rotation. Common crop controls stay expanded beneath scopes, outside the
+Develop scroller, and use the same command owner as Geometry. Auto Level runs
+Engine `kLevel` horizontal-line analysis with rotation as its only fit variable,
+preserving perspective and
+crop; selection/supersession rejects late results and no solution remains an error.
+`ravo perspective analyze <input> --mode level --json` exposes the same read-only
+Engine fit through the existing versioned analysis result.
+The screen-axis-aligned crop frame maps to the original recipe's
 constrained coordinates; saved recipes and export retain their geometry
 ([ADR-0161](adr/0161-full-source-crop-workspace.md)). Selection and crop-handle dragging
 change in-memory parameters only; release writes the recipe through the same

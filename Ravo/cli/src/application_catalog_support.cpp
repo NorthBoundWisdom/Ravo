@@ -729,6 +729,8 @@ perspective_analysis_mode(const std::string_view value)
         return PerspectiveAnalysisMode::kHorizontal;
     if (value == "full")
         return PerspectiveAnalysisMode::kFull;
+    if (value == "level")
+        return PerspectiveAnalysisMode::kLevel;
     return make_error(ErrorCode::kInvalidArgument, "Perspective analysis mode is unsupported",
                       {{"mode", std::string(value)}});
 }
@@ -740,7 +742,7 @@ run_perspective_analysis(const EngineFacade &engine,
     if (positional.size() != 3U && positional.size() != 5U)
         return make_error(
             ErrorCode::kInvalidArgument,
-            "Usage: ravo perspective analyze <input> [--mode vertical|horizontal|full]");
+            "Usage: ravo perspective analyze <input> [--mode vertical|horizontal|full|level]");
     if (positional[0] != "perspective" || positional[1] != "analyze")
         return make_error(ErrorCode::kInvalidArgument, "Unknown Perspective command");
     std::string_view mode_name = "full";

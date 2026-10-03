@@ -1462,6 +1462,14 @@ Diferença: %6</translation>
             <translation>DevelopPanel::Cortar &amp; Girar</translation>
         </message>
         <message>
+            <source>Aspect ratio</source>
+            <translation>Proporção</translation>
+        </message>
+        <message>
+            <source>Auto Level</source>
+            <translation>Nivelar automaticamente</translation>
+        </message>
+        <message>
             <source>Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.</source>
             <translation>Arraste o quadro para cortar. Arraste para fora dele, ou use Option/Alt ao arrastar, para endireitar.</translation>
         </message>
