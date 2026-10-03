@@ -39,18 +39,8 @@ namespace ravo
 {
 namespace
 {
+using studio_test_support::ensure_qt_core;
 using studio_test_support::wait_until;
-
-void ensure_qt_core()
-{
-    if (QCoreApplication::instance() != nullptr)
-        return;
-    static int argc = 1;
-    static char executable[] = "ravo-desktop-display-presentation-tests";
-    static char *argv[] = {executable, nullptr};
-    static auto *application = new QCoreApplication(argc, argv);
-    static_cast<void>(application);
-}
 
 TEST(StudioQmlContract, InspectZoomAdmitsGpuSurfaceWithoutHiddenImageReadiness)
 {

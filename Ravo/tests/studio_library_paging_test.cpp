@@ -59,7 +59,8 @@ TEST(StudioLibraryPaging, NextAcrossUnloadedPagePreservesSelectionUntilResolved)
         [&]
         {
             return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205;
-        }));
+        }))
+        << presenter.errorText().toStdString();
     ASSERT_FALSE(presenter.assets()->rowLoaded(200));
     presenter.selectAsset(presenter.assets()->assetIdAt(199));
     const auto previous = presenter.selectedAssetId();
@@ -86,7 +87,8 @@ TEST(StudioLibraryPaging, PlaceholderClickAndRepeatedNextUseLatestBoundRow)
         [&]
         {
             return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205;
-        }));
+        }))
+        << presenter.errorText().toStdString();
     presenter.selectAsset(presenter.assets()->assetIdAt(199));
     presenter.selectNext();
     presenter.selectNext();
@@ -117,7 +119,8 @@ TEST(StudioLibraryPaging, PlaceholderCommandWaitsForMetadataBeforeSelecting)
         [&]
         {
             return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205;
-        }));
+        }))
+        << presenter.errorText().toStdString();
     ASSERT_FALSE(presenter.assets()->rowLoaded(204));
     const auto previous = presenter.selectedAssetId();
     const auto result = commands.executeCommand("studio.photo.select",
@@ -143,7 +146,8 @@ TEST(StudioLibraryPaging, NewSelectionAndQueryInvalidateQueuedRowSelection)
         [&]
         {
             return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205;
-        }));
+        }))
+        << presenter.errorText().toStdString();
     presenter.selectLibraryRow(204);
     presenter.selectAsset(presenter.assets()->assetIdAt(0));
     ASSERT_TRUE(wait_until([&] { return presenter.assets()->rowLoaded(204); }));

@@ -333,6 +333,12 @@ tested sort/filter combinations with bounded materialization and reject mixed
 cursor/anchor requests. A real `catalog locate` subprocess verifies the versioned
 row/page result, missing identity, and unchanged catalog revision. Existing startup
 error and owner-destruction contracts still apply. Tests isolate QSettings.
+Desktop tests use the shared Qt bootstrap to set an organization and isolate
+both user and system settings scopes before constructing settings owners. Display
+tests use that bootstrap as well; an unset organization is a real QSettings error
+on Linux/Windows. Preflight cancellation/source-loss tests gate the import worker
+which owns preflight, keeping source mutation/cancellation ahead of its execution;
+gating the foreground catalog executor does not establish that ordering.
 Inspect-click scale/pan animation is QML-only and is loaded by smoke rather
 than a C++ timing contract. Develop toolbar comparison tests require that its
 baseline is non-persistent and immutable while the edited pane refreshes,

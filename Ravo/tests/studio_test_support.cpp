@@ -18,8 +18,11 @@ void ensure_qt_core()
     static QTemporaryDir settings_root;
     static const bool isolated = []
     {
+        if (!settings_root.isValid())
+            qFatal("Cannot create isolated desktop test settings directory");
         QSettings::setDefaultFormat(QSettings::IniFormat);
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings_root.path());
+        QSettings::setPath(QSettings::IniFormat, QSettings::SystemScope, settings_root.path());
         return true;
     }();
     static_cast<void>(isolated);

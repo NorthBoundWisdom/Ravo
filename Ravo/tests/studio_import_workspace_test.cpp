@@ -17,6 +17,7 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "studio_import_thumbnail_controller.h"
 #include "studio_import_workspace.h"
+#include "studio_import_worker.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "studio_test_support.h"
 #include "ravo/foundation/log.h"
@@ -46,6 +47,10 @@ public:
     static bool blockCatalog(StudioPresenter &presenter, std::shared_future<void> release)
     {
         return presenter.executor_.post([release] { release.wait(); });
+    }
+    static bool blockImportWorker(StudioPresenter &presenter, std::shared_future<void> release)
+    {
+        return presenter.import_worker_->executor().post([release] { release.wait(); });
     }
 };
 } // namespace testing
@@ -846,7 +851,7 @@ TEST(StudioImportWorkspace, GalleryPreflightCancelAndFailureReleaseImportState)
         ASSERT_TRUE(
             wait_until([&] { return presenter.importReady() && !presenter.importScanActive(); }));
         WorkerGate catalog;
-        ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(
+        ASSERT_TRUE(testing::StudioImportTestControl::blockImportWorker(
             presenter, catalog.promise.get_future().share()));
         presenter.startPlannedImport();
         EXPECT_FALSE(presenter.importPageOpen());
