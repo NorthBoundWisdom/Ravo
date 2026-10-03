@@ -45,6 +45,7 @@
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/color_reconstruction.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/engine/crop_preview.h"
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/dehaze.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -965,7 +966,14 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     export_request.asset_id = asset_id;
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
-    export_request.max_edge = preview.max_edge;
+    // Preview density now targets the post-geometry photo; export's explicit
+    // edge still sizes its source. Compare exact pixels at the same source density.
+    auto dimensions = engine.inspect(raw_fixture_path(), {});
+    ASSERT_TRUE(dimensions);
+    auto source_size = plan_preview_source_size(restored_recipe.value(), dimensions.value().width,
+                                                dimensions.value().height, preview.max_edge);
+    ASSERT_TRUE(source_size);
+    export_request.max_edge = std::max(source_size.value().width, source_size.value().height);
     auto exported = service->export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage preview_image(QString::fromStdString(settled_preview.value().cache_path));

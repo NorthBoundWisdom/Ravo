@@ -303,10 +303,16 @@ preview pipelines, return `gpu_unavailable` or `gpu_pipeline_failed`. Bayer
 window RCD is RMSE-gated against the CPU gold when the adapter is present; PPG
 and hosts without a working compute backend stay on CPU. Export stays on the
 CPU path.
-Progressive-preview coverage uses a source larger than both preview classes and
-requires the 960px interactive image to retain the preceding 1600px viewport
-extent until settlement; QML must use that accepted presenter extent instead of
-the image loader's transient implicit dimensions. A separate saved-edit reopen
+Progressive-preview coverage uses a source larger than the display preview and
+requires live drag pixels and viewport to retain the settled 1600px resolution.
+`DisplaySizeLiveEditKeepsResolutionAndPreparedRawSource` verifies source reuse,
+native GPU display dimensions, CPU-gold pixels and unchanged catalog/recipe
+state. Explicit low-edge requests remain separately bounded.
+`CroppedPreviewUsesFinalPhotoDensityAndReopensExactCache` verifies crop
+density against CPU rendering, RGB-only source reuse, exact cache dimensions
+after reopening, and unchanged source/recipe bytes. Perspective contracts
+check the same integer geometry sizing, native limits, bypass, and cancellation.
+A saved-edit reopen
 case enters Develop before the asynchronous Recipe callback and requires the
 first live frame to match the loaded Recipe, preventing an identity warm-up
 generation from charging a complete rebuild to the first slider intent.

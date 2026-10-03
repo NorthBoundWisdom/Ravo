@@ -324,11 +324,13 @@ Current implementation status:
   chooser as preset saving; paste preserves every unselected destination edit.
   **Paste Parameters to Selection** applies that same clipboard through
   CatalogService to every ID in an explicit multi-selection (ADR-0078/0098/0107).
-  RAW preview retains bounded 960px interactive and 1600px settled
-  scene-linear working images. The interactive buffer is a box-filtered copy of
-  the settled linear working so Develop demosaics once. An ordinary committed
-  edit publishes the 960px in-memory result first, then replaces it with the
-  exact persisted 1600px result. Returning to a cached photo checks the exact
+  Studio live and settled preview target the same 1600px display resolution,
+  preparing enough scene-linear source pixels to preserve that density after
+  crop and constrained perspective, up to native dimensions. RGB-only edits
+  reuse that source, so dragging controls does not reduce display resolution. Native
+  live display uses existing cached GPU passes; settlement, comparison and
+  export keep their CPU-gold path. Explicit lower-resolution preview requests
+  remain available. Returning to a cached photo checks the exact
   recipe cache before RAW unpack and retains recent decoded previews within a
   64 MiB pixel budget. Entering Develop can immediately reuse settled pixels and
   defer rebuilding scene-linear working data until an edit needs it. Actual Size

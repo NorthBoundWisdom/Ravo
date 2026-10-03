@@ -817,6 +817,28 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         return preview;
     }
     const bool interactive = !request.persist_preview_record || request.overlay_mask_id.has_value();
+    PreviewSourceSize preview_size;
+    std::uint32_t working_max_edge = request.max_edge;
+    const auto plan_source = [&]() -> Result<void>
+    {
+        if (request.crop_workspace)
+        {
+            fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
+            preview_size = {width, height, width, height};
+            return {};
+        }
+        auto planned = plan_preview_source_size(edit_recipe, source_width, source_height,
+                                                request.max_edge, request.cancellation);
+        if (!planned)
+            return planned.error();
+        preview_size = planned.value();
+        width = preview_size.width;
+        height = preview_size.height;
+        working_max_edge = std::max(request.max_edge, std::max(width, height));
+        return {};
+    };
+    if (auto planned = plan_source(); !planned)
+        return planned.error();
     std::string cache_digest = interactive ? "interactive" : edit_digest;
     if (using_offline_proxy)
     {
@@ -839,12 +861,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     if (interactive && request.prefer_cached_settled_preview && !request.overlay_mask_id &&
         original_exists && !using_offline_proxy)
     {
-        std::uint32_t settled_width = 0;
-        std::uint32_t settled_height = 0;
-        fit_within_max_edge(source_width, source_height, kDefaultPreviewMaxEdge, settled_width,
-                            settled_height);
-        const auto settled_key = make_preview_cache_key(asset.id, settled_width, settled_height,
-                                                        fingerprint, edit_digest);
+        auto settled_size = plan_preview_source_size(edit_recipe, source_width, source_height,
+                                                     kDefaultPreviewMaxEdge, request.cancellation);
+        if (!settled_size)
+            return settled_size.error();
+        const auto settled_key =
+            make_preview_cache_key(asset.id, settled_size.value().width,
+                                   settled_size.value().height, fingerprint, edit_digest);
         auto existing = cache_->existing_png(settled_key);
         if (!existing)
             return existing.error();
@@ -854,8 +877,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                 return active.error();
             result.cache_key = settled_key;
             result.cache_path = *existing.value();
-            result.width = settled_width;
-            result.height = settled_height;
+            result.width = settled_size.value().output_width;
+            result.height = settled_size.value().output_height;
             if (auto current = require_preview_generation(asset.id, expected_generation); !current)
                 return current.error();
             return result;
@@ -872,13 +895,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         if (existing.value())
         {
             result.cache_path = *existing.value();
-            result.width = width;
-            result.height = height;
+            result.width = preview_size.output_width;
+            result.height = preview_size.output_height;
             PreviewRecord record;
             record.asset_id = asset.id;
             record.cache_key = cache_key;
-            record.width = width;
-            record.height = height;
+            record.width = result.width;
+            record.height = result.height;
             record.state = std::string(kPreviewStateReady);
             record.cache_relpath = cache_->relative_png_path(cache_key);
             record.last_success_unix_ms = now_unix_ms();
@@ -899,6 +922,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     auto resolved = resolve_raw_dimensions();
     if (!resolved)
         return resolved.error();
+    if (auto planned = plan_source(); !planned)
+        return planned.error();
     // A first decode may correct imported sensor/crop dimensions. Publish only
     // under the corrected identity, so subsequent visits find the exact pixels.
     cache_key = make_preview_cache_key(asset.id, width, height, fingerprint, cache_digest);
@@ -930,7 +955,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     if (is_raw_media_type(working.media_type))
     {
         auto linear = cached_linear_working(working, render_path, edit_recipe, width, height,
-                                            request.max_edge, request.cancellation, lane);
+                                            working_max_edge, request.cancellation, lane);
         if (!linear)
         {
             return linear.error();
@@ -941,7 +966,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             return prepared.error();
         auto applied =
             interactive && lane == PreviewLane::kForegroundDevelop &&
-                    request.max_edge <= kInteractivePreviewMaxEdge ?
+                    (request.max_edge <= kInteractivePreviewMaxEdge ||
+                     (!request.need_cpu_pixels && request.max_edge <= kDefaultPreviewMaxEdge)) ?
                 engine_->render_interactive_linear_working(
                     linear.value()->buffer, rgb_recipe, linear.value()->interactive_render_cache,
                     request.cancellation, request.overlay_mask_id,
@@ -957,7 +983,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     else
     {
         auto linear = cached_linear_working(working, render_path, edit_recipe, width, height,
-                                            request.max_edge, request.cancellation, lane);
+                                            working_max_edge, request.cancellation, lane);
         if (!linear)
         {
             return linear.error();
@@ -966,7 +992,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             return prepared.error();
         auto applied =
             interactive && lane == PreviewLane::kForegroundDevelop &&
-                    request.max_edge <= kInteractivePreviewMaxEdge ?
+                    (request.max_edge <= kInteractivePreviewMaxEdge ||
+                     (!request.need_cpu_pixels && request.max_edge <= kDefaultPreviewMaxEdge)) ?
                 engine_->render_interactive_linear_working(
                     linear.value()->buffer, edit_recipe, linear.value()->interactive_render_cache,
                     request.cancellation, request.overlay_mask_id,

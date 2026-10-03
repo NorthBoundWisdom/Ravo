@@ -134,6 +134,7 @@ gtest_discover_tests(ravo_contract_tests
   PROPERTIES LABELS "ravo-contract")
 
 add_executable(ravo_catalog_tests
+  catalog_display_quality_test.cpp
   catalog_inspect_pan_test.cpp
   catalog_photo_merge_test.cpp
   catalog_test_support.cpp

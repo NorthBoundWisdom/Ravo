@@ -417,8 +417,7 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
     ASSERT_TRUE(wait_until([&] { return saw_uncommitted_live && !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
     EXPECT_NEAR(presenter.editExposure(), 0.25, 1e-9);
-    EXPECT_EQ(std::max(uncommitted_live_image_size.width(), uncommitted_live_image_size.height()),
-              960);
+    EXPECT_EQ(uncommitted_live_image_size, settled_viewport);
     EXPECT_EQ(uncommitted_live_viewport, settled_viewport);
 
     bool saw_live = false;
@@ -698,14 +697,14 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
         << presenter.errorText().toStdString();
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }, 30000))
+        [&] { return !presenter.previewLoading() && !presenter.previewImage().isNull(); }, 30000))
         << presenter.errorText().toStdString();
 
     const double baseline = presenter.editExposure();
     const double sweep_center = std::clamp(baseline, -2.9, 3.9);
     std::vector<std::int64_t> elapsed_us;
     elapsed_us.reserve(runs);
-    for (std::size_t run = 0U; run < runs; ++run)
+    for (std::size_t run = 0U; run < runs + 2U; ++run)
     {
         const double offset = static_cast<double>(static_cast<int>(run % 7U) - 3) * 0.01;
         const QUrl previous = presenter.previewUrl();
@@ -737,7 +736,8 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
         }
         QObject::disconnect(connection);
         ASSERT_TRUE(published_us.has_value()) << presenter.errorText().toStdString();
-        elapsed_us.push_back(*published_us);
+        if (run >= 2U)
+            elapsed_us.push_back(*published_us);
     }
     std::sort(elapsed_us.begin(), elapsed_us.end());
     const std::size_t p90_index = (elapsed_us.size() * 9U - 1U) / 10U;
@@ -755,7 +755,7 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
         meta.unit = "us";
         meta.cache_state = "warm";
         meta.source_kind = "raw";
-        meta.warmups = 0;
+        meta.warmups = 2;
         meta.recorded_samples = runs;
         meta.asset_id = asset_id;
         meta.catalog_path = catalog_path;

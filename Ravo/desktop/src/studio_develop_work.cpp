@@ -551,8 +551,9 @@ void StudioPresenter::kick_develop_work()
                 {
                     PreviewRequest request;
                     request.asset_id = job.asset_id;
-                    request.max_edge =
-                        job.interactive ? kInteractivePreviewMaxEdge : kDefaultPreviewMaxEdge;
+                    // Live and settled frames share the prepared display-size
+                    // working image; a slider must not replace it with a smaller frame.
+                    request.max_edge = kDefaultPreviewMaxEdge;
                     request.request_revision = revision;
                     request.ignore_edits = job.ignore_edits;
                     request.ignore_crop = job.ignore_crop;

@@ -5,6 +5,22 @@
 
 namespace ravo
 {
+// Compensate geometry's loss of display pixels toward max_edge of the final
+// photo. The prepared source never exceeds native dimensions; small native
+// crops are never upsampled. Expanding canvas/frame geometry retains its size.
+struct PreviewSourceSize
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t output_width = 0;
+    std::uint32_t output_height = 0;
+};
+
+[[nodiscard]] Result<PreviewSourceSize>
+plan_preview_source_size(const Recipe &recipe, std::uint32_t source_width,
+                         std::uint32_t source_height, std::uint32_t max_edge,
+                         const CancellationToken &cancellation = {});
+
 // Preview-only projection. Recipe crop coordinates remain relative to the
 // canonical constrained frame; the backdrop contains the full source quad.
 struct CropPreviewPlan

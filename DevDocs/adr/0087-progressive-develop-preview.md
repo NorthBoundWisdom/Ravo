@@ -18,9 +18,21 @@ the already prepared settled working image.
 
 ## Decision
 
+**2026-10-02 amendment:** Studio now renders both live interaction and settlement
+at `kDefaultPreviewMaxEdge` (1600px), using the same prepared working generation.
+Dragging must not downgrade the displayed image to 960px. The native-display
+request admits existing cached GPU operations at 1600px, while standard-size
+CPU-pixel probes/comparison/persistence/export keep CPU-gold ownership. Smaller
+explicit preview requests remain supported. The one-in-flight/latest-pending
+bounds, cancellation, source identity and exact recipe authority are unchanged.
+The 1600px target refers to the displayed cropped photo: Engine geometry sizing
+raises prepared source density before crop/constrained perspective, capped at
+native dimensions. RGB-only edits retain that source generation. Cache identity
+uses prepared dimensions and cached metadata describes the final rendered photo.
+
 - An ordinary committed Develop change saves through the existing atomic
   recipe/history/revision transaction, then renders the same parameters at
-  `kInteractivePreviewMaxEdge` (960px). Studio publishes those owned RGB pixels
+  `kDefaultPreviewMaxEdge` (1600px). Studio publishes those owned RGB pixels
   directly and queues the same request revision at `kDefaultPreviewMaxEdge`
   for persisted settlement. There is no approximate recipe or reduced
   operation set.
@@ -40,10 +52,11 @@ the already prepared settled working image.
   revisions still match. Live control reports identity loading during that
   bounded interval. New frames cancel analysis between bounded image rows and
   diagnostic stages; window destruction cancels and waits for both workers.
-- CatalogService owns two linear-working slots: one for the interactive size
-  class and one for the settled size class. Both remain keyed by asset, source
+- CatalogService retains two bounded linear-working slots for explicit smaller
+  and standard-size requests. Studio live and settled display share the latter.
+  Both remain keyed by asset, source
   fingerprint, target size, and RAW/input-colour preprocess state. New RAW
-  ownership and close clear both slots. A foreground interactive-class request
+  ownership and close clear both slots. An explicitly requested smaller frame
   materializes the settled-size linear working first when that slot is empty,
   then box-filters it to the interactive size. Interactive 960 pixels therefore
   match a downsampled settled linear image rather than a second CFA demosaic.
@@ -52,7 +65,7 @@ the already prepared settled working image.
 - Gallery thumbnail decode/working state is a separate bounded background lane.
   A Develop request cancels active thumbnail work and takes foreground queue
   priority, so browse work cannot evict or queue ahead of the selected photo.
-  Entering Develop renders the interactive stage before the settled stage to
+  Entering Develop renders the display-size interactive stage before settlement to
   prepare the first slider interaction.
 - Rebuildable preview-cache PNG uses libpng's latency-first mode and one write
   into the documented maximum output bound. Normal engine/output export PNG
@@ -72,8 +85,9 @@ the already prepared settled working image.
 ## Consequences
 
 Studio can show the changed look before full preview settlement, while the
-persisted result, cache identity, and export path remain exact. The additional
-960px working slot is a box-filtered view of the settled linear image, so
+persisted result, cache identity, and export path remain exact. Studio keeps
+one standard-size working generation for both dragging and settlement. The
+optional smaller slot serves explicitly requested low-edge previews only.
 Develop pays one demosaic and then reuses that generation for sliders. Fast cache PNG may consume more
 of the existing 512 MiB LRU budget, but it is disposable and pixel/profile
 equivalent when decoded. Progressive drag frames may briefly trail the newest

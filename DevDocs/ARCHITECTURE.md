@@ -465,10 +465,20 @@ current recipe. The latest request starts immediately afterwards. Save,
 selection, catalog-close, comparison, and non-interactive supersession still
 cancel the active token and reject late results by revision and asset. During a
 drag, the presenter only forwards in-memory parameters. Services apply the
-complete effect stack to a cached 960px scene-linear working image, return
-an in-memory frame, and do not write PNG/cache. That 960px buffer is a
-box-filtered copy of the 1600px settled linear working, so entering Develop
-demosaics once.
+complete effect stack at the same 1600px display resolution as settlement,
+return an in-memory frame, and do not write PNG/cache. Live and settled requests
+reuse the prepared linear working generation instead of downscaling each drag
+to 960px. Studio's native-display requests use the cached GPU path at 1600px;
+standard-size requests requiring CPU pixels retain their exact CPU-gold path.
+Explicit smaller preview requests still use their requested resolution.
+Engine `plan_preview_source_size` accounts for integer crop, constrained
+perspective, rotation, canvas, and frame layouts before services choose the
+prepared source density. A cropped photo targets the requested display edge
+after geometry, rather than cropping an already reduced whole-photo preview.
+Source density is capped at native dimensions; a smaller native crop is not
+upsampled. Expanding canvas/frame geometry retains its existing dimensions.
+The prepared source dimensions identify the disk cache; cached results report
+the final rendered dimensions. RGB-only edits reuse that prepared generation.
 Actual Size 1:1 is a Bayer CFA window of the visible crop (ADR-0132) demosaiced
 on GPU RCD when a compute backend exists. Live Develop parameter changes
 re-request that window; they do not wait for a pan. The CFA-window linear
