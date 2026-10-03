@@ -64,6 +64,8 @@ class StudioImportThumbnailController;
 class StudioImportDestinationPreviewController;
 class StudioImportScanController;
 struct StudioImportWorkspace;
+struct StudioLibraryResume;
+class StudioStartupController;
 
 class StudioPresenter final : public QObject
 {
@@ -1089,7 +1091,14 @@ private:
     void applyAssets(std::vector<AssetRecord> assets, bool restore_selection,
                      std::unordered_map<std::string, QUrl> thumbnail_urls = {},
                      std::unordered_map<std::string, QString> thumbnail_states = {},
-                     std::size_t total = 0U, bool has_more = false);
+                     std::size_t total = 0U, bool has_more = false, std::size_t offset = 0U);
+    friend class StudioStartupController;
+    void initializeLibraryResume();
+    void persistLibraryPosition();
+    [[nodiscard]] Result<LibraryQuery> beginLibraryResume(const QString &path, LibraryQuery query);
+    [[nodiscard]] std::optional<std::string> resumeAssetId() const;
+    [[nodiscard]] bool resumeCollapseStacks() const;
+    void finishLibraryResume(bool success);
     void applyFolders(std::vector<FolderRecord> folders);
     void applyLibrarySets(std::vector<LibrarySetRecord> sets);
     void applyFacets(LibraryCaptureFacets capture, LibraryLocationFacets location);
@@ -1285,6 +1294,7 @@ private:
     QString catalog_path_;
     QVariantList develop_presets_;
     QString startup_catalog_path_;
+    std::unique_ptr<StudioLibraryResume> library_resume_;
     bool import_work_active_ = false;
     int import_work_completed_ = 0;
     int import_work_total_ = 0;

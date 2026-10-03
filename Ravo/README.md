@@ -324,6 +324,12 @@ Current implementation status:
   chooser as preset saving; paste preserves every unselected destination edit.
   **Paste Parameters to Selection** applies that same clipboard through
   CatalogService to every ID in an explicit multi-selection (ADR-0078/0098/0107).
+  Startup reopens the last library and restores its grid/loupe/develop view,
+  selected photo, folder/filter, sort and stack-collapse state. Each library
+  keeps its own position; stable IDs preserve the selection after list reordering.
+  A removed/filtered-out photo selects the current first row; an empty library
+  returns to grid. Explicit startup catalog paths take precedence. View memory
+  is per-user desktop settings and does not enter photo recipes.
   Crop mode pins aspect/lock, Auto Level, 0.01-degree rotation, rotate/flip and
   Done controls below scopes, with half the extra rotation surround. Auto Level
   preserves authored perspective/crop parameters. The remaining Develop stack

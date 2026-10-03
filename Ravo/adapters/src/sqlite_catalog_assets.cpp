@@ -81,6 +81,14 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
     auto valid = validate_library_page_request(request);
     if (!valid)
         return valid.error();
+    std::optional<std::int64_t> anchor_revision;
+    if (request.around_asset_id)
+    {
+        auto state = snapshot();
+        if (!state)
+            return state.error();
+        anchor_revision = state.value().revision;
+    }
     const auto started = std::chrono::steady_clock::now();
     QStringList predicates;
     QVariantList bindings;
@@ -148,6 +156,31 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
         break;
     }
     order.push_back(QStringLiteral("a.id") + direction);
+
+    auto offset = request.offset;
+    if (request.around_asset_id)
+    {
+        QSqlQuery anchor(impl_->database);
+        anchor.prepare(
+            QStringLiteral("WITH ordered AS (SELECT a.id, ROW_NUMBER() OVER (ORDER BY ") +
+            order.join(QStringLiteral(", ")) +
+            QStringLiteral(") - 1 AS position FROM asset a LEFT JOIN asset_metadata m "
+                           "ON m.asset_id = a.id") +
+            filter_where + QStringLiteral(") SELECT position FROM ordered WHERE id = ?"));
+        for (const auto &binding : filter_bindings)
+            anchor.addBindValue(binding);
+        anchor.addBindValue(qstring_from_utf8(*request.around_asset_id));
+        if (!anchor.exec())
+            return map_sql_error(anchor, "list_assets_page_anchor");
+        if (!anchor.next())
+            return make_error(
+                ErrorCode::kNotFound, "Photo is absent from the library query",
+                {{"asset_id", *request.around_asset_id}, {"reason", "library_anchor_missing"}});
+        const auto position = anchor.value(0).toLongLong();
+        if (position < 0)
+            return make_error(ErrorCode::kValidation, "Library anchor position is invalid");
+        offset = static_cast<std::size_t>(position) / request.limit * request.limit;
+    }
 
     if (request.after_asset_id)
     {
@@ -219,7 +252,7 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
         page_query.addBindValue(binding);
     page_query.addBindValue(static_cast<qlonglong>(request.limit));
     if (!request.after_asset_id)
-        page_query.addBindValue(static_cast<qlonglong>(request.offset));
+        page_query.addBindValue(static_cast<qlonglong>(offset));
     if (!page_query.exec())
         return map_sql_error(page_query, "list_assets_page");
     std::vector<AssetRecord> assets;
@@ -230,9 +263,22 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
     if (!attached)
         return attached.error();
 
+    if (request.around_asset_id)
+    {
+        auto state = snapshot();
+        if (!state)
+            return state.error();
+        const auto anchor = std::find_if(assets.begin(), assets.end(), [&](const auto &asset)
+                                         { return asset.id == *request.around_asset_id; });
+        if (state.value().revision != *anchor_revision || anchor == assets.end() ||
+            offset + static_cast<std::size_t>(anchor - assets.begin()) >= total)
+            return make_error(ErrorCode::kConflict, "Library changed during photo location",
+                              {{"reason", "library_anchor_changed"}});
+    }
+
     LibraryPage page;
     page.assets = std::move(assets);
-    page.offset = request.offset;
+    page.offset = offset;
     page.total = total;
     page.has_more = !page.assets.empty() && page.offset < page.total &&
                     page.assets.size() < page.total - page.offset;

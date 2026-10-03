@@ -459,6 +459,7 @@ ApplicationWindow {
             studioDisplayPresentation.bindWindow(window);
             window.visible = true;
             startupSplash.hide();
+            Qt.callLater(galleryStage.revealGridSelection);
             if (createLibrary)
                 studioActions.trigger(studioActions.ids.libraryCreate);
         }

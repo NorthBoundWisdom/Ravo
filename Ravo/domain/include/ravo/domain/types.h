@@ -492,6 +492,9 @@ struct LibraryPageRequest
     std::size_t limit = kLibraryPageDefaultSize;
     std::optional<std::string> after_asset_id;
     std::optional<std::size_t> known_total;
+    // Locate a stable identity in the filtered/sorted listing and return its
+    // containing page. Mutually exclusive with offset/cursor/known_total.
+    std::optional<std::string> around_asset_id;
 };
 
 enum class LibrarySetKind : std::uint8_t

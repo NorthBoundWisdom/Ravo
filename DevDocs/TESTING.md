@@ -323,6 +323,16 @@ A saved-edit reopen
 case enters Develop before the asynchronous Recipe callback and requires the
 first live frame to match the loaded Recipe, preventing an identity warm-up
 generation from charging a complete rebuild to the first slider intent.
+Library-resume contracts cover primary identity after insertion changes its row
+beyond the first page, restored query/sort/loupe before startup handoff,
+independent per-library grid/selection, explicit-path precedence, deleted
+bookmarks and empty libraries. Corrupt bookmarks fail without replacing their
+bytes or opening a default library. Last Import scope restores its selector and
+count, and All Photographs clears its saved time window. Paging contracts locate every anchor under
+tested sort/filter combinations with bounded materialization and reject mixed
+cursor/anchor requests. A real `catalog locate` subprocess verifies the versioned
+row/page result, missing identity, and unchanged catalog revision. Existing startup
+error and owner-destruction contracts still apply. Tests isolate QSettings.
 Inspect-click scale/pan animation is QML-only and is loaded by smoke rather
 than a C++ timing contract. Develop toolbar comparison tests require that its
 baseline is non-persistent and immutable while the edited pane refreshes,

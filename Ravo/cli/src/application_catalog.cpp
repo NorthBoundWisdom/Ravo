@@ -94,7 +94,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(
             ErrorCode::kInvalidArgument,
-            "Usage: ravo catalog <create|import|import-scan|import-plan|list|facets|preview|probe|recipe|develop|develop-apply|"
+            "Usage: ravo catalog <create|import|import-scan|import-plan|list|locate|facets|preview|probe|recipe|develop|develop-apply|"
             "fields|rate|"
             "export|export-batch|companion-check|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
@@ -179,10 +179,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool has_set_options = !flags.value().set_id.empty() || !flags.value().set_name.empty() ||
                                  !flags.value().set_kind.empty() ||
                                  !flags.value().query_json.empty();
-    const bool set_command = subcommand == "sets" || subcommand == "set-create" ||
-                             subcommand == "set-rename" || subcommand == "set-delete" ||
-                             subcommand == "set-add" || subcommand == "set-remove" ||
-                             subcommand == "list" || subcommand == "facets";
+    const bool set_command =
+        subcommand == "sets" || subcommand == "set-create" || subcommand == "set-rename" ||
+        subcommand == "set-delete" || subcommand == "set-add" || subcommand == "set-remove" ||
+        subcommand == "list" || subcommand == "facets" || subcommand == "locate";
     const bool keyword_command = subcommand == "keywords" || subcommand == "keyword-create" ||
                                  subcommand == "keyword-rename" || subcommand == "keyword-move" ||
                                  subcommand == "keyword-delete" || subcommand == "tag";
@@ -190,9 +190,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(ErrorCode::kInvalidArgument,
                           "Library set options are only valid for catalog set commands or list");
     if (!flags.value().query_json.empty() && subcommand != "set-create" && subcommand != "facets" &&
-        subcommand != "cull-review")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--query is only valid for catalog set-create, facets, or cull-review");
+        subcommand != "cull-review" && subcommand != "locate")
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "--query is only valid for catalog set-create, facets, cull-review, or locate");
     const bool version_command = subcommand == "version-create";
     const bool stack_command =
         subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
@@ -367,9 +368,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand != "cull-burst-accept")
         return make_error(ErrorCode::kInvalidArgument,
                           "--pick-id is only valid for catalog stack or cull-burst-accept");
-    if (flags.value().stack_expanded && subcommand != "list")
+    if (flags.value().stack_expanded && subcommand != "list" && subcommand != "locate")
         return make_error(ErrorCode::kInvalidArgument,
-                          "--stack-expanded is only valid for catalog list");
+                          "--stack-expanded is only valid for catalog list or locate");
     const bool has_facet_list_options =
         !flags.value().camera.empty() || !flags.value().camera_make.empty() ||
         !flags.value().camera_model.empty() || !flags.value().lens_make.empty() ||
@@ -377,16 +378,19 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         !flags.value().captured_local_date.empty() ||
         !flags.value().captured_after_unix_s.empty() ||
         !flags.value().captured_before_unix_s.empty();
-    if (has_facet_list_options && subcommand != "list" && subcommand != "facets")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Capture facet filters are only valid for catalog list or facets");
+    if (has_facet_list_options && subcommand != "list" && subcommand != "facets" &&
+        subcommand != "locate")
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "Capture facet filters are only valid for catalog list, locate, or facets");
     const bool has_location_list_options =
         !flags.value().country.empty() || !flags.value().province_state.empty() ||
         !flags.value().city.empty() || !flags.value().sublocation.empty();
     if (has_location_list_options && subcommand != "list" && subcommand != "metadata" &&
-        subcommand != "facets")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Location fields are only valid for catalog list, metadata, or facets");
+        subcommand != "facets" && subcommand != "locate")
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "Location fields are only valid for catalog list, locate, metadata, or facets");
     const bool has_extension_metadata_options =
         !flags.value().headline.empty() || !flags.value().credit.empty() ||
         !flags.value().source.empty() || !flags.value().instructions.empty() ||
@@ -970,6 +974,49 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (subcommand == "facets")
     {
         return run_catalog_facets_command(service, flags.value());
+    }
+    if (subcommand == "locate")
+    {
+        if (flags.value().asset_id.empty())
+            return make_error(ErrorCode::kInvalidArgument, "catalog locate requires --asset-id");
+        auto query = build_library_query(flags.value());
+        if (!query)
+            return query.error();
+        if (!flags.value().query_json.empty())
+        {
+            if (query.value() != LibraryQuery{})
+                return make_error(
+                    ErrorCode::kInvalidArgument,
+                    "catalog locate cannot combine --query with scalar query filters");
+            query = parse_library_query_document(flags.value().query_json);
+            if (!query)
+                return query.error();
+        }
+        LibraryPageRequest request;
+        request.query = std::move(query).value();
+        request.collapse_stacks = !flags.value().stack_expanded;
+        request.around_asset_id = std::string(flags.value().asset_id);
+        auto page = service.library().list_assets_page(request);
+        if (!page)
+            return page.error();
+        JsonValue::Array rows;
+        std::size_t index = page.value().offset;
+        for (std::size_t i = 0; i < page.value().assets.size(); ++i)
+        {
+            const auto &asset = page.value().assets[i];
+            if (asset.id == flags.value().asset_id)
+                index = page.value().offset + i;
+            rows.push_back(asset_to_json(asset));
+        }
+        return JsonValue{
+            JsonValue::Object{{"schema", "ravo.library.location/v1"},
+                              {"asset_id", std::string(flags.value().asset_id)},
+                              {"index", JsonValue::number(std::to_string(index))},
+                              {"offset", JsonValue::number(std::to_string(page.value().offset))},
+                              {"total", JsonValue::number(std::to_string(page.value().total))},
+                              {"materialized_rows",
+                               JsonValue::number(std::to_string(page.value().materialized_rows))},
+                              {"assets", std::move(rows)}}};
     }
     if (subcommand == "list")
     {

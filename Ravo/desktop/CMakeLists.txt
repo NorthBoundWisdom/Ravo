@@ -36,6 +36,8 @@ target_sources(ravo_desktop
     src/studio_window_geometry.cpp
     src/studio_startup_controller.cpp
     src/studio_startup_controller.h
+    src/studio_library_resume.cpp
+    src/studio_library_resume.h
     src/studio_display_presentation.cpp
     src/studio_live_session_controller.cpp
     src/studio_presenter.cpp

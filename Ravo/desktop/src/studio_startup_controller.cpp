@@ -1,9 +1,12 @@
 #include "studio_startup_controller.h"
 
 #include <QFileInfo>
+#include <QCoreApplication>
 #include <utility>
 
 #include "ravo/desktop/studio_presenter.h"
+#include "studio_library_resume.h"
+#include "studio_qt.h"
 
 namespace ravo
 {
@@ -38,8 +41,18 @@ void StudioStartupController::start()
         return;
     }
     const QString explicit_path = presenter_.startupCatalogPath();
+    const auto previous =
+        explicit_path.isEmpty() ? last_studio_catalog() : Result<QString>{QString{}};
+    if (!previous)
+    {
+        presenter_.setError(qstring_from_utf8(previous.error().message));
+        finish();
+        return;
+    }
     if (!explicit_path.isEmpty())
         presenter_.openCatalogFromPath(explicit_path);
+    else if (!previous.value().isEmpty())
+        presenter_.openCatalogFromPath(previous.value());
     else if (QFileInfo(default_catalog_path_).isFile())
         presenter_.openCatalogFromPath(default_catalog_path_);
     else

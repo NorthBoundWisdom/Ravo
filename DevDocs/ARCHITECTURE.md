@@ -211,6 +211,38 @@ catalog retry. Closing the splash quits through the normal application
 lifecycle; presenter-owned workers are joined during destruction, and deleting
 the startup owner discards queued handoff callbacks.
 
+Library resume state is owned by desktop C++ `StudioLibraryResume`, separate
+from catalog/recipe persistence. Per-user QSettings stores a bounded single
+`ravo.studio.library-resume/v1` JSON record per canonical catalog path (hashed
+key), plus the last successfully used library. The record contains primary
+asset ID, grid/loupe/develop mode, the exact serialized `LibraryQuery`, and stack
+collapse state, plus the selected Last Import scope/count when active.
+Selection/mode/filter changes debounce writes for 200 ms;
+catalog switches and presenter destruction flush the accepted state. Survey,
+crop, comparison, zoom/pan and multi-selection remain transient. Restoration
+suspends writes so intermediate empty/first-page state cannot replace a bookmark.
+Explicit startup paths override the last library; otherwise startup reopens it
+and publishes its restored mode/selection before main-window handoff. Missing
+libraries and malformed/settings-I/O failures are reported, without opening a
+different catalog. A fresh library starts with its own default query/view.
+
+`LibraryPageRequest::around_asset_id` resolves the identity within the same
+filtered, sorted, stack-aware service query. The SQLite adapter uses row-number
+ordering identical to ordinary pages and materializes only the containing page.
+It excludes offset/cursor/known-total hints. `catalog locate --asset-id <id>
+--query <library-query-json> --json` exposes the same bounded result as
+`ravo.library.location/v1`, including row index, page offset, total and materialized
+rows. Missing/excluded anchors return `library_anchor_missing`; only that explicit
+stale-bookmark outcome resumes at page zero. Location rejects revision drift or
+an anchor that leaves its fetched page with `library_anchor_changed`, preserving
+the bookmark rather than selecting a different photo.
+Empty libraries resume grid with no
+selection. Other query/SQL failures remain real errors. Restored pages populate
+sparse model rows at their actual offset; existing grid/filmstrip presentation
+reveals the primary selection. Work uses the existing foreground owner, busy
+gate, queued publication, revision guards and joined shutdown; preferences stay
+on the UI thread and contain no pixel or task ownership.
+
 Desktop localization is likewise presentation-only. One versioned locale
 manifest owns supported locale codes, native display names, aliases, catalogs,
 and translation memories. The desktop-owned language manager parses that
@@ -264,11 +296,11 @@ writes preserve the previous durable path and report an error. The import destin
 to Studio, owned by `StudioImportPreferences`, and restored in the destination
 panel, asynchronously revealed folder tree, and folder picker. An unavailable
 directory stays selected and blocks Copy; failed preference writes are visible
-without undoing committed photos. Corrupt stored
+without undoing committed photos. Corrupt stored window-geometry
 values are removed synchronously; a settings-write failure is reported and
 leaves prior durable state unchanged except that a live resized window stays
-where the user put it. View controls such as zoom, pan, browse mode, and
-library filters remain session state, and catalog, service, recipe, export,
+where the user put it. Zoom and pan remain transient; browse mode and library
+filters belong to desktop resume preferences. Catalog, service, recipe, export,
 task, and engine values stay in typed owning contracts. No old configuration
 key is read (ADR-0066/0081/0115).
 

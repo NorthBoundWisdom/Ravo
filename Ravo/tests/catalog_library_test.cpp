@@ -700,6 +700,19 @@ TEST_F(CatalogServiceTest, PagedLibraryQueryMatchesDomainAndBoundsMaterializatio
             EXPECT_EQ(paged[index].metadata.title, expected[index].metadata.title);
             EXPECT_EQ(paged[index].capture.camera_model, expected[index].capture.camera_model);
         }
+        for (std::size_t index = 0; index < expected.size(); ++index)
+        {
+            LibraryPageRequest anchored;
+            anchored.query = query;
+            anchored.limit = 7U;
+            anchored.around_asset_id = expected[index].id;
+            auto page = repository.value()->list_assets_page(anchored);
+            ASSERT_TRUE(page) << page.error().message;
+            EXPECT_EQ(page.value().offset, index / 7U * 7U);
+            EXPECT_EQ(page.value().total, expected.size());
+            EXPECT_LE(page.value().materialized_rows, 7U);
+            EXPECT_EQ(page.value().assets[index - page.value().offset].id, expected[index].id);
+        }
     }
 
     LibraryPageRequest invalid;
@@ -707,6 +720,14 @@ TEST_F(CatalogServiceTest, PagedLibraryQueryMatchesDomainAndBoundsMaterializatio
     auto rejected = repository.value()->list_assets_page(invalid);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("reason"), "invalid_library_page");
+    invalid = {};
+    invalid.around_asset_id = "absent";
+    auto absent = repository.value()->list_assets_page(invalid);
+    ASSERT_FALSE(absent);
+    EXPECT_EQ(absent.error().code, ErrorCode::kNotFound);
+    EXPECT_EQ(absent.error().context.at("reason"), "library_anchor_missing");
+    invalid.offset = 1U;
+    EXPECT_FALSE(repository.value()->list_assets_page(invalid));
     ASSERT_TRUE(repository.value()->close());
 }
 

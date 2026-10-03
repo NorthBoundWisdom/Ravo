@@ -1,5 +1,9 @@
 # Ravo developer documentation
 
+Library view/selection resume and stable-identity page location are owned by
+[ARCHITECTURE.md](ARCHITECTURE.md), with startup/service/CLI contracts in
+[TESTING.md](TESTING.md) and current behavior in [Ravo/README.md](../Ravo/README.md).
+
 Display-resolution Develop interaction is specified by the 2026-10-02
 amendment to [ADR-0087](adr/0087-progressive-develop-preview.md), with current
 ownership in [ARCHITECTURE.md](ARCHITECTURE.md) and validation in [TESTING.md](TESTING.md).

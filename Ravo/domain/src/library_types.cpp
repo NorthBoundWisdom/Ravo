@@ -293,6 +293,9 @@ Result<void> validate_library_page_request(const LibraryPageRequest &request)
             return extra.error();
     }
     if (request.limit == 0U || request.limit > kLibraryPageMaximumSize ||
+        (request.around_asset_id &&
+         (request.around_asset_id->empty() || request.around_asset_id->size() > 180U ||
+          request.offset != 0U || request.after_asset_id || request.known_total)) ||
         request.offset > static_cast<std::size_t>(std::numeric_limits<std::int64_t>::max()) ||
         (request.after_asset_id &&
          (request.after_asset_id->empty() || request.after_asset_id->size() > 180U ||
