@@ -1,5 +1,13 @@
 # Ravo Testing Strategy
 
+`StudioDisplayPresentationTest` covers thumbnail cache loss before catalog open
+and deterministic eviction between listing and display dispatch. Recovery must
+publish monitor-corrected pixels without a transient error, preserve original
+bytes, classify an unavailable original as photo-level missing state, and stop
+after one repair if its output is evicted again. Existing presentation contracts
+also cover listing replacement, owner destruction, cache corruption, and output
+publication conflicts.
+
 `StudioLibraryPaging.*` contracts cover the 199→200 sparse-page boundary,
 repeated navigation, placeholder row selection through the command controller,
 and rejection of queued selection after a new selection or query. Filmstrip

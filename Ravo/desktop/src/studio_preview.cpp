@@ -292,9 +292,14 @@ Result<QUrl> prepare_gallery_thumbnail(const QString &base_path,
 {
     if (auto active = cancellation.check(); !active)
         return active.error();
+    const auto missing_source = []
+    {
+        return make_error(ErrorCode::kNotFound, "Gallery thumbnail source is missing",
+                          {{"reason", "gallery_thumbnail_cache_missing"}});
+    };
     const QFileInfo file(base_path);
     if (!file.isFile())
-        return make_error(ErrorCode::kNotFound, "Gallery thumbnail source is missing");
+        return missing_source();
     // The immutable preview PNG owns its embedded source profile. Runtime profile
     // objects are absent on catalog reopen and must not change the cache identity.
     QByteArray identity = QByteArray::number(kThumbnailMaxEdge) + '\n' +
@@ -320,14 +325,22 @@ Result<QUrl> prepare_gallery_thumbnail(const QString &base_path,
     QImageReader reader(base_path);
     const auto size = reader.size();
     if (!size.isValid())
+    {
+        if (!QFileInfo(base_path).isFile())
+            return missing_source();
         return make_error(ErrorCode::kIo, "Gallery thumbnail has invalid dimensions");
+    }
     if (size.width() > static_cast<int>(kThumbnailMaxEdge) ||
         size.height() > static_cast<int>(kThumbnailMaxEdge))
         reader.setScaledSize(
             size.scaled(kThumbnailMaxEdge, kThumbnailMaxEdge, Qt::KeepAspectRatio));
     QImage base = reader.read().convertToFormat(QImage::Format_RGB888);
     if (base.isNull())
+    {
+        if (!QFileInfo(base_path).isFile())
+            return missing_source();
         return make_error(ErrorCode::kIo, "Unable to decode gallery thumbnail");
+    }
     ColorProfileState source_profile;
     const QByteArray source_icc = base.colorSpace().iccProfile();
     if (!source_icc.isEmpty())
@@ -584,6 +597,7 @@ void StudioPresenter::clear_thumbnail_presentation_cache()
     thumbnail_presentation_cancel_ = CancellationSource{};
     pending_thumbnail_presentations_.clear();
     thumbnail_presentation_revisions_.clear();
+    thumbnail_repair_attempts_.clear();
     thumbnail_base_paths_.clear();
     thumbnail_base_profiles_.clear();
     thumbnail_presented_root_.clear();
@@ -619,6 +633,7 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
     thumbnail_presentation_revisions_[asset_id] = revision;
     if (display_presentation_ == nullptr || !display_presentation_->valid())
     {
+        thumbnail_repair_attempts_.erase(asset_id);
         pending_thumbnail_presentations_.erase(asset_id);
         assets_.setThumbnail(asset_id, QUrl::fromLocalFile(base_path), thumb_state);
         return;
@@ -674,6 +689,7 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
                 {
                     if (result)
                     {
+                        thumbnail_repair_attempts_.erase(asset_id);
                         assets_.setThumbnail(asset_id, result.value(), thumb_state);
                         if (selected_asset_id_ == qstring_from_utf8(asset_id) &&
                             browse_mode_ == QLatin1String("grid"))
@@ -681,8 +697,25 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
                     }
                     else if (result.error().code != ErrorCode::kCancelled)
                     {
-                        assets_.setThumbnail(asset_id, {}, QStringLiteral("failed"));
-                        setError(qstring_from_utf8(result.error().message));
+                        const auto reason = result.error().context.find("reason");
+                        if (result.error().code == ErrorCode::kNotFound &&
+                            reason != result.error().context.end() &&
+                            reason->second == "gallery_thumbnail_cache_missing" &&
+                            thumbnail_repair_attempts_.insert(asset_id).second)
+                        {
+                            // The service cache can evict a PNG after listing or
+                            // generation. Re-enter its bounded browse-demand owner;
+                            // only the service decides whether the original is missing.
+                            thumbnail_base_paths_.erase(asset_id);
+                            thumbnail_base_profiles_.erase(asset_id);
+                            assets_.setThumbnail(asset_id, {}, QStringLiteral("pending"));
+                            ensureThumbnail(qstring_from_utf8(asset_id));
+                        }
+                        else
+                        {
+                            assets_.setThumbnail(asset_id, {}, QStringLiteral("failed"));
+                            setError(qstring_from_utf8(result.error().message));
+                        }
                     }
                     emit thumbnailsChanged();
                 }

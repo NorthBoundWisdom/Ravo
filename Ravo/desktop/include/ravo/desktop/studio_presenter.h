@@ -1266,6 +1266,8 @@ private:
     std::shared_ptr<const DisplayPresentationState> thumbnail_display_state_;
     std::uint64_t thumbnail_presentation_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_presentation_revisions_;
+    // One cache-miss repair per presentation chain; cleared on success or listing replacement.
+    std::unordered_set<std::string> thumbnail_repair_attempts_;
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
     CancellationSource shutdown_;

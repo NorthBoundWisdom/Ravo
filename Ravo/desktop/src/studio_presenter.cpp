@@ -662,6 +662,7 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
     thumbnail_presentation_cancel_ = CancellationSource{};
     pending_thumbnail_presentations_.clear();
     thumbnail_presentation_revisions_.clear();
+    thumbnail_repair_attempts_.clear();
     ++library_query_generation_;
     const QString previous = selected_asset_id_;
     const auto incoming_thumbs = thumbnail_urls;

@@ -6,6 +6,7 @@
 #include <QColor>
 #include <QColorSpace>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QImage>
 #include <QQmlEngine>
 #include <QQmlComponent>
@@ -41,6 +42,183 @@ namespace
 {
 using studio_test_support::ensure_qt_core;
 using studio_test_support::wait_until;
+
+enum class ThumbnailCacheLoss
+{
+    BeforeOpen,
+    DuringPresentation,
+    OriginalAlsoMissing,
+    RepeatedEviction,
+    ListingReplaced
+};
+
+void check_thumbnail_cache_recovery(const ThumbnailCacheLoss loss)
+{
+    ensure_qt_core();
+    init_logging("ravo-thumbnail-cache-recovery-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString catalog = directory.filePath("library.sqlite");
+    const QString photo = directory.filePath("photo.png");
+    const QString cache = catalog + ".preview";
+    const QString seeded_preview = cache + "/seed.png";
+    ASSERT_TRUE(QDir().mkpath(cache));
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(200, 40, 40));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    ASSERT_TRUE(image.save(seeded_preview, "PNG"));
+    QFile original(photo);
+    ASSERT_TRUE(original.open(QIODevice::ReadOnly));
+    const auto original_bytes = original.readAll();
+    const auto original_hash = QCryptographicHash::hash(original_bytes, QCryptographicHash::Sha256);
+    original.close();
+    auto location = normalize_local_input(photo.toStdString());
+    ASSERT_TRUE(location);
+    auto identity = read_file_identity(location.value().path);
+    ASSERT_TRUE(identity);
+    auto repository = SqliteCatalogRepository::create(catalog.toStdString());
+    ASSERT_TRUE(repository);
+    AssetRecord asset;
+    asset.id = "ast_cache_recovery";
+    asset.normalized_uri = location.value().uri;
+    asset.media_type = std::string(kMediaTypePng);
+    asset.size_bytes = identity.value().size_bytes;
+    asset.mtime_unix_ms = identity.value().mtime_unix_ms;
+    asset.content_fingerprint = make_content_fingerprint(identity.value());
+    asset.width = 48U;
+    asset.height = 32U;
+    asset.created_unix_ms = 1000;
+    ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+    PreviewRecord record;
+    record.asset_id = asset.id;
+    record.cache_key = "seed";
+    record.cache_relpath = "seed.png";
+    record.width = 48U;
+    record.height = 32U;
+    record.state = std::string(kPreviewStateReady);
+    ASSERT_TRUE(repository.value()->upsert_preview(record));
+    ASSERT_TRUE(repository.value()->close());
+    repository.value().reset();
+    if (loss == ThumbnailCacheLoss::BeforeOpen)
+        ASSERT_TRUE(QFile::remove(seeded_preview));
+
+    StudioDisplayPresentation display;
+    ASSERT_TRUE(display.injectSyntheticMatrixForTesting());
+    StudioPresenter presenter;
+    presenter.bindDisplayPresentation(&display);
+    int evictions = 0;
+    bool saw_error = false;
+    QObject::connect(&presenter, &StudioPresenter::errorChanged, &presenter,
+                     [&] { saw_error |= !presenter.errorText().isEmpty(); });
+    QObject::connect(presenter.assets(), &QAbstractItemModel::dataChanged, &presenter,
+                     [&]
+                     {
+                         if (loss == ThumbnailCacheLoss::ListingReplaced && evictions > 0 &&
+                             presenter.assets()->thumbnailState(asset.id) == "pending")
+                         {
+                             presenter.selectFolder(
+                                 QStringLiteral("file:///ravo-cache-recovery-empty"));
+                             return;
+                         }
+                         if (loss == ThumbnailCacheLoss::BeforeOpen ||
+                             presenter.assets()->thumbnailState(asset.id) != "presenting" ||
+                             (evictions > 0 && loss != ThumbnailCacheLoss::RepeatedEviction))
+                             return;
+                         // setThumbnail emits synchronously before the display task is posted.
+                         // Remove its input here to deterministically reproduce cache eviction.
+                         const auto entries = QDir(cache).entryList({"*.png"}, QDir::Files);
+                         if (entries.isEmpty())
+                             return;
+                         for (const auto &entry : entries)
+                             EXPECT_TRUE(QFile::remove(QDir(cache).filePath(entry)));
+                         ++evictions;
+                         if (loss == ThumbnailCacheLoss::OriginalAlsoMissing)
+                             EXPECT_TRUE(QFile::remove(photo));
+                     });
+    presenter.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    if (loss == ThumbnailCacheLoss::BeforeOpen)
+        presenter.ensureThumbnail(presenter.selectedAssetId());
+    if (loss == ThumbnailCacheLoss::ListingReplaced)
+    {
+        ASSERT_TRUE(wait_until(
+            [&] { return presenter.visibleCount() == 0 && !presenter.previewWorkActive(); }));
+        EXPECT_EQ(evictions, 1);
+        EXPECT_FALSE(saw_error) << presenter.errorText().toStdString();
+        EXPECT_TRUE(presenter.selectedThumbnailUrl().isEmpty());
+        ASSERT_TRUE(original.open(QIODevice::ReadOnly));
+        EXPECT_EQ(QCryptographicHash::hash(original.readAll(), QCryptographicHash::Sha256),
+                  original_hash);
+        return;
+    }
+    const QString expected_state = loss == ThumbnailCacheLoss::OriginalAlsoMissing ? "missing" :
+                                   loss == ThumbnailCacheLoss::RepeatedEviction    ? "failed" :
+                                                                                     "ready";
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.assets()->thumbnailState(asset.id) == expected_state &&
+                   !presenter.previewWorkActive();
+        }))
+        << presenter.errorText().toStdString();
+    if (loss == ThumbnailCacheLoss::RepeatedEviction)
+    {
+        EXPECT_EQ(evictions, 2);
+        EXPECT_TRUE(saw_error);
+        EXPECT_TRUE(presenter.errorText().contains("Gallery thumbnail source is missing"));
+    }
+    else
+    {
+        EXPECT_FALSE(saw_error) << presenter.errorText().toStdString();
+        EXPECT_TRUE(presenter.errorText().isEmpty());
+    }
+    if (loss == ThumbnailCacheLoss::OriginalAlsoMissing)
+    {
+        EXPECT_TRUE(presenter.selectedThumbnailUrl().isEmpty());
+        EXPECT_EQ(presenter.selectedImportState(),
+                  QString::fromUtf8(kImportStateMissing.data(), kImportStateMissing.size()));
+    }
+    else
+    {
+        ASSERT_TRUE(original.open(QIODevice::ReadOnly));
+        EXPECT_EQ(QCryptographicHash::hash(original.readAll(), QCryptographicHash::Sha256),
+                  original_hash);
+        if (loss != ThumbnailCacheLoss::RepeatedEviction)
+        {
+            QImage presented(presenter.selectedThumbnailUrl().toLocalFile());
+            ASSERT_FALSE(presented.isNull());
+            EXPECT_EQ(presented.size(), image.size());
+            EXPECT_NE(qRed(presented.pixel(24, 16)), 200);
+        }
+    }
+}
+
+TEST(StudioDisplayPresentationTest, MissingThumbnailCacheBeforeOpenRebuildsOnDemand)
+{
+    check_thumbnail_cache_recovery(ThumbnailCacheLoss::BeforeOpen);
+}
+
+TEST(StudioDisplayPresentationTest, EvictedThumbnailDuringOpenRebuildsWithoutError)
+{
+    check_thumbnail_cache_recovery(ThumbnailCacheLoss::DuringPresentation);
+}
+
+TEST(StudioDisplayPresentationTest, EvictedThumbnailAndMissingOriginalBecomeAssetState)
+{
+    check_thumbnail_cache_recovery(ThumbnailCacheLoss::OriginalAlsoMissing);
+}
+
+TEST(StudioDisplayPresentationTest, RepeatedThumbnailEvictionStopsAfterOneRepair)
+{
+    check_thumbnail_cache_recovery(ThumbnailCacheLoss::RepeatedEviction);
+}
+
+TEST(StudioDisplayPresentationTest, ThumbnailRepairDiscardsReplacedListing)
+{
+    check_thumbnail_cache_recovery(ThumbnailCacheLoss::ListingReplaced);
+}
 
 TEST(StudioQmlContract, InspectZoomAdmitsGpuSurfaceWithoutHiddenImageReadiness)
 {

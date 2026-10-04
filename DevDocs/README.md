@@ -74,7 +74,8 @@ The Global/Mask Develop workspace and Recipe v4 local groups are specified in
 Product execution belongs only in [TODO.md](TODO.md).
 Export form defaults and size-selection ownership are documented in
 [Ravo/README.md](../Ravo/README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
-Gallery's bounded persistent display-thumbnail cache and worker lifecycle are
+Gallery's bounded persistent display-thumbnail cache, automatic eviction recovery,
+and worker lifecycle are
 specified in [ARCHITECTURE.md](ARCHITECTURE.md).
 Studio's supported photo shortcuts are listed in [Ravo/README.md](../Ravo/README.md);
 command ownership and transactional keyboard review belong to

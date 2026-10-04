@@ -61,6 +61,13 @@ belongs to cancelled display work and returns to pending when there is no
 replacement preview. Visible grid cells forward fresh pending/unloaded demand
 on state and visibility changes. Decode and display work remain on their
 existing owner-managed executors with cancellation and generation checks.
+If the service cache evicts a source PNG between listing/generation and display
+preparation, the presenter clears that stale base and requests one browse rebuild
+through the same demand owner without a global error. Recovery is scoped to the
+current listing and presentation revision; success resets the attempt, while a
+second eviction in that chain fails explicitly. Only CatalogService determines
+original-file availability, so an unavailable original becomes the existing
+photo-level missing state rather than a display-cache error.
 
 ## Core conclusion
 
