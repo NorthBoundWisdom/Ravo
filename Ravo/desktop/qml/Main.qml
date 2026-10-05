@@ -600,6 +600,7 @@ ApplicationWindow {
 
                 GridView {
                     id: grid
+                    objectName: "galleryPhotoGrid"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -681,6 +682,7 @@ ApplicationWindow {
                         }
 
                         ThumbnailCell {
+                            objectName: "galleryThumbnailCell"
                             anchors.fill: parent
                             thumbnailUrl: tile.thumbnailUrl
                             thumbnailState: tile.thumbnailState

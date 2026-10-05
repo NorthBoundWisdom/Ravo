@@ -1269,9 +1269,16 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
                         setError(qstring_from_utf8(page.error().message));
                         return;
                     }
+                    const auto incoming_thumbs = listing.thumbnail_urls;
                     assets_.setPage(page.value().offset, std::move(listing.assets).value(),
                                     std::move(listing.thumbnail_urls),
                                     std::move(listing.thumbnail_states), page.value().total);
+                    for (const auto &[id, url] : incoming_thumbs)
+                    {
+                        if (url.isLocalFile() && assets_.assetById(qstring_from_utf8(id)))
+                            remember_thumbnail_base(id, url.toLocalFile(), ColorProfileState{},
+                                                    QStringLiteral("ready"));
+                    }
                     library_total_ = page.value().total;
                     if (sequential)
                     {

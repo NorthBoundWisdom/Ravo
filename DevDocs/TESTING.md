@@ -7,6 +7,11 @@ bytes, classify an unavailable original as photo-level missing state, and stop
 after one repair if its output is evicted again. Existing presentation contracts
 also cover listing replacement, owner destruction, cache corruption, and output
 publication conflicts.
+`PagedThumbnailUsesPresentationAndEvictionRecovery` loads a cached thumbnail
+past the initial 200-row page, evicts its input at display dispatch, and requires
+recovered monitor-corrected pixels with unchanged originals. The production QML
+smoke imports a synthetic photo and requires the Gallery cell's filename, image
+URL, and `Image.Ready` state, rather than treating root creation as image readiness.
 
 `StudioLibraryPaging.*` contracts cover the 199→200 sparse-page boundary,
 repeated navigation, placeholder row selection through the command controller,

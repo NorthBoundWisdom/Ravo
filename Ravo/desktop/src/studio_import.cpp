@@ -642,9 +642,8 @@ void StudioPresenter::publishImportItem(const ImportItemResult &item, const int 
         const std::string asset_id = item.asset->id;
         assets_.replaceAssetAt(row, *item.asset);
         if (item.preview_cache_path)
-            assets_.setThumbnail(asset_id,
-                                 QUrl::fromLocalFile(qstring_from_utf8(*item.preview_cache_path)),
-                                 QStringLiteral("ready"));
+            remember_thumbnail_base(asset_id, qstring_from_utf8(*item.preview_cache_path),
+                                    ColorProfileState{}, QStringLiteral("ready"));
         if (item.preview_pending)
             pending_import_preview_ids_.push_back(asset_id);
         if (selected_asset_id_.isEmpty())

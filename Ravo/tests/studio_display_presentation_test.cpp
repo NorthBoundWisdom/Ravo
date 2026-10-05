@@ -49,7 +49,8 @@ enum class ThumbnailCacheLoss
     DuringPresentation,
     OriginalAlsoMissing,
     RepeatedEviction,
-    ListingReplaced
+    ListingReplaced,
+    PagedPresentation
 };
 
 void check_thumbnail_cache_recovery(const ThumbnailCacheLoss loss)
@@ -90,6 +91,26 @@ void check_thumbnail_cache_recovery(const ThumbnailCacheLoss loss)
     asset.height = 32U;
     asset.created_unix_ms = 1000;
     ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+    if (loss == ThumbnailCacheLoss::PagedPresentation)
+    {
+        for (int row = 0; row < 200; ++row)
+        {
+            const auto filler_path = directory.filePath(QString("filler-%1.png").arg(row));
+            ASSERT_TRUE(image.save(filler_path, "PNG"));
+            auto filler_location = normalize_local_input(filler_path.toStdString());
+            ASSERT_TRUE(filler_location);
+            auto filler_identity = read_file_identity(filler_location.value().path);
+            ASSERT_TRUE(filler_identity);
+            AssetRecord filler = asset;
+            filler.id = "ast_filler_" + std::to_string(row);
+            filler.normalized_uri = filler_location.value().uri;
+            filler.size_bytes = filler_identity.value().size_bytes;
+            filler.mtime_unix_ms = filler_identity.value().mtime_unix_ms;
+            filler.content_fingerprint = make_content_fingerprint(filler_identity.value());
+            filler.created_unix_ms = 2000 + row;
+            ASSERT_TRUE(repository.value()->commit_imported_asset(filler));
+        }
+    }
     PreviewRecord record;
     record.asset_id = asset.id;
     record.cache_key = "seed";
@@ -139,6 +160,14 @@ void check_thumbnail_cache_recovery(const ThumbnailCacheLoss loss)
     presenter.openCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
+    if (loss == ThumbnailCacheLoss::PagedPresentation)
+    {
+        ASSERT_FALSE(presenter.assets()->rowLoaded(200));
+        presenter.selectLibraryRow(200);
+        ASSERT_TRUE(wait_until([&] { return presenter.selectedAssetId() == asset.id.c_str(); }));
+        ASSERT_TRUE(wait_until([&] { return evictions == 1; }))
+            << "Sparse page bypassed thumbnail presentation and cache recovery";
+    }
     if (loss == ThumbnailCacheLoss::BeforeOpen)
         presenter.ensureThumbnail(presenter.selectedAssetId());
     if (loss == ThumbnailCacheLoss::ListingReplaced)
@@ -218,6 +247,11 @@ TEST(StudioDisplayPresentationTest, RepeatedThumbnailEvictionStopsAfterOneRepair
 TEST(StudioDisplayPresentationTest, ThumbnailRepairDiscardsReplacedListing)
 {
     check_thumbnail_cache_recovery(ThumbnailCacheLoss::ListingReplaced);
+}
+
+TEST(StudioDisplayPresentationTest, PagedThumbnailUsesPresentationAndEvictionRecovery)
+{
+    check_thumbnail_cache_recovery(ThumbnailCacheLoss::PagedPresentation);
 }
 
 TEST(StudioQmlContract, InspectZoomAdmitsGpuSurfaceWithoutHiddenImageReadiness)

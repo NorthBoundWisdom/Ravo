@@ -95,6 +95,7 @@ Item {
 
         Image {
             id: photo
+            objectName: "thumbnailPhoto"
             anchors.fill: parent
             anchors.margins: 4
             fillMode: Image.PreserveAspectFit
@@ -124,9 +125,9 @@ Item {
 
         CustomLabel {
             anchors.centerIn: parent
-            visible: root.thumbnailUrl.toString().length === 0
+            visible: photo.status !== Image.Ready
             text: {
-                if (root.thumbnailState === "failed")
+                if (photo.status === Image.Error || root.thumbnailState === "failed")
                     return qsTr("Failed");
                 if (root.missing)
                     return qsTr("Missing");
@@ -142,7 +143,7 @@ Item {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: root.compact ? 18 : 26
-            visible: root.displayName.length > 0 && !photo.visible && !root.showInformationOverlay
+            visible: root.displayName.length > 0 && photo.status !== Image.Ready && !root.showInformationOverlay
             color: "#aa000000"
             CustomLabel {
                 anchors.centerIn: parent

@@ -68,6 +68,10 @@ current listing and presentation revision; success resets the attempt, while a
 second eviction in that chain fails explicitly. Only CatalogService determines
 original-file availability, so an unavailable original becomes the existing
 photo-level missing state rather than a display-cache error.
+Sparse page publication and incremental import results feed their cached paths
+through this same display-preparation owner, including cache-loss recovery;
+they do not leave raw cache URLs marked ready. QML reports image-load errors
+and retains the photo name while pixels are unavailable.
 
 ## Core conclusion
 

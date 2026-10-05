@@ -215,6 +215,52 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                     QTimer::singleShot(20, &wait_import, &QEventLoop::quit);
                     wait_import.exec();
                 }
+                auto *gallery_grid =
+                    window->findChild<QQuickItem *>(QStringLiteral("galleryPhotoGrid"));
+                QElapsedTimer thumbnail_timer;
+                thumbnail_timer.start();
+                QQuickItem *gallery_cell = nullptr;
+                QQuickItem *gallery_photo = nullptr;
+                while (thumbnail_timer.elapsed() < 10000)
+                {
+                    QList<QQuickItem *> items{gallery_grid};
+                    while (!items.isEmpty())
+                    {
+                        auto *item = items.takeLast();
+                        if (!item)
+                            continue;
+                        if (item->objectName() == QLatin1String("galleryThumbnailCell"))
+                        {
+                            gallery_cell = item;
+                            gallery_photo =
+                                item->findChild<QQuickItem *>(QStringLiteral("thumbnailPhoto"));
+                        }
+                        items.append(item->childItems());
+                    }
+                    if (gallery_photo && gallery_photo->property("status").toInt() == 1)
+                        break;
+                    QEventLoop wait_thumbnail;
+                    QTimer::singleShot(20, &wait_thumbnail, &QEventLoop::quit);
+                    wait_thumbnail.exec();
+                }
+                if (!gallery_cell || !gallery_photo ||
+                    gallery_cell->property("displayName").toString() != QLatin1String("seed.png") ||
+                    gallery_photo->property("source").toUrl().isEmpty() ||
+                    gallery_photo->property("status").toInt() != 1)
+                {
+                    LOG_ERROR(
+                        logger(),
+                        "Gallery thumbnail binding failed: cell={} name={} source={} status={}",
+                        gallery_cell != nullptr,
+                        gallery_cell ?
+                            gallery_cell->property("displayName").toString().toStdString() :
+                            "",
+                        gallery_photo ?
+                            gallery_photo->property("source").toUrl().toString().toStdString() :
+                            "",
+                        gallery_photo ? gallery_photo->property("status").toInt() : -1);
+                    return false;
+                }
                 QImage image(8, 8, QImage::Format_RGB888);
                 image.fill(Qt::darkCyan);
                 if (!image.save(source + QStringLiteral("/dup.png"), "PNG"))

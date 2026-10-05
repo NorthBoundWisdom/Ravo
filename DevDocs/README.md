@@ -31,8 +31,8 @@ its validation contract in [TESTING.md](TESTING.md), and user-facing behavior
 in [Ravo/README.md](../Ravo/README.md).
 
 Gallery thumbnail listing and demand lifecycle is recorded in
-[ARCHITECTURE.md](ARCHITECTURE.md); reset-order regression coverage is recorded
-in [TESTING.md](TESTING.md).
+[ARCHITECTURE.md](ARCHITECTURE.md); reset-order, sparse-page cache recovery and
+production Gallery image-readiness coverage are recorded in [TESTING.md](TESTING.md).
 
 `DevDocs/` is the repository-owned source for architecture, product planning,
 validation, dependency, packaging, compliance, and historical migration
