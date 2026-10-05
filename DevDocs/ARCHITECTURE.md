@@ -403,6 +403,14 @@ height. Import check indicators are at least 24 logical pixels with a 32-pixel
 hit area, scaled through the existing theme API. These are QML layout choices,
 not new import policy or dependency changes.
 
+Ordinary thumbnail-demand progress is presentation-only in the Library header.
+`DeferredPreviewProgress` waits for at least eight pending photos sustained for
+500 ms, then stays visible until that batch finishes. Its fixed header slot
+does not resize the navigator or folder tree when the indicator changes.
+Import, deferred import previews and catalog operations retain their explicit
+progress/cancellation meters. Task counts, execution, cancellation and failures
+remain owned by the C++ presenter/services; the QML timer controls only visibility.
+
 Gallery and import-workspace grid cells fit available width in the 120–320
 range and have a vertical scroll bar. Gallery list publication never decodes or
 encodes monitor-presented thumbnails on the UI thread. A presenter-owned serial

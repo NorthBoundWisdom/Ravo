@@ -209,6 +209,7 @@ qt_add_qml_module(ravo_studio
     qml/theme/DarkThemePalette.qml
     qml/gallery/LibraryFilterBar.qml
     qml/gallery/LibrarySidePanel.qml
+    qml/gallery/DeferredPreviewProgress.qml
     qml/gallery/FilmStripBar.qml
     qml/gallery/GalleryReviewBar.qml
     qml/gallery/PhotoInformationOverlay.qml

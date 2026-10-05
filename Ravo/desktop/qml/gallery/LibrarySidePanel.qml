@@ -5,6 +5,7 @@ import GeoControls 1.0
 
 Rectangle {
     id: root
+    objectName: "librarySidePanel"
     property var presenter
     property var commands
     property real viewRectX: 0
@@ -120,14 +121,53 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        CustomLabel {
+        Item {
+            id: libraryHeader
+            objectName: "libraryHeader"
             Layout.fillWidth: true
             Layout.leftMargin: Fonts.standardMargin
-            Layout.topMargin: Fonts.size12
-            Layout.bottomMargin: Fonts.size8
+            Layout.rightMargin: Fonts.standardMargin
+            implicitHeight: libraryTitle.implicitHeight + Fonts.size12 + Fonts.size8
             visible: !root.developOpen
-            text: qsTr("Library")
-            font.bold: true
+            RowLayout {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.topMargin: Fonts.size12
+                CustomLabel {
+                    id: libraryTitle
+                    Layout.fillWidth: true
+                    text: qsTr("Library")
+                    font.bold: true
+                }
+                CustomLabel {
+                    visible: previewProgress.visible
+                    text: previewProgress.completed + " / " + previewProgress.total
+                    color: Theme.placeholderTextColor
+                    ToolTip.visible: progressHover.hovered
+                    ToolTip.text: qsTr("Previews")
+                    HoverHandler {
+                        id: progressHover
+                    }
+                }
+            }
+            DeferredPreviewProgress {
+                id: previewProgress
+                objectName: "libraryPreviewProgress"
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Fonts.size2
+                height: Fonts.size4
+                workActive: !root.developOpen && root.presenter ? root.presenter.previewWorkActive : false
+                completed: !root.developOpen && root.presenter ? root.presenter.previewWorkCompleted : 0
+                total: !root.developOpen && root.presenter ? root.presenter.previewWorkTotal : 0
+                trackColor: Theme.midlightColor
+                progressColor: Theme.highlightColor
+                Accessible.role: Accessible.ProgressBar
+                Accessible.name: qsTr("Previews")
+                Accessible.description: completed + " / " + total
+            }
         }
 
         ColumnLayout {
@@ -137,7 +177,7 @@ Rectangle {
             Layout.rightMargin: Fonts.standardMargin
             Layout.bottomMargin: Fonts.size8
             spacing: Fonts.size6
-            visible: !root.developOpen && root.presenter && (root.presenter.importWorkActive || root.presenter.importPreviewWorkActive || root.presenter.previewWorkActive || root.presenter.catalogOperationActive || (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal) || (root.presenter.previewWorkTotal > 0 && root.presenter.previewWorkCompleted < root.presenter.previewWorkTotal))
+            visible: !root.developOpen && root.presenter && (root.presenter.importWorkActive || root.presenter.importPreviewWorkActive || root.presenter.catalogOperationActive || (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal))
 
             function meterVisible(active, completed, total) {
                 return active || (total > 0 && completed < total);
@@ -151,14 +191,6 @@ Rectangle {
                 cancellable: root.presenter.importWorkActive
                 onCancelRequested: if (root.commands)
                     root.commands.run(root.commands.ids.libraryCancelOperation)
-            }
-
-            WorkMeter {
-                visible: libraryWork.meterVisible(root.presenter.previewWorkActive, root.presenter.previewWorkCompleted, root.presenter.previewWorkTotal)
-                title: qsTr("Previews")
-                countText: root.presenter.previewWorkCompleted + " / " + root.presenter.previewWorkTotal
-                fraction: root.presenter.previewWorkTotal > 0 ? Math.min(1, root.presenter.previewWorkCompleted / root.presenter.previewWorkTotal) : 0
-                barColor: Theme.highlightColor
             }
 
             WorkMeter {
@@ -184,6 +216,7 @@ Rectangle {
 
         ColumnLayout {
             id: backupStatus
+            objectName: "libraryBackupStatus"
             readonly property var value: root.presenter ? root.presenter.backupScheduleStatus : ({})
             Layout.fillWidth: true
             Layout.leftMargin: Fonts.standardMargin

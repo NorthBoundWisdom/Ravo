@@ -462,6 +462,7 @@ add_executable(ravo_desktop_command_tests
   studio_import_thumbnail_scheduler_test.cpp
   studio_display_presentation_test.cpp
   studio_gpu_portrait_preview_test.cpp
+  studio_library_progress_test.cpp
   export_option_conversion_test.cpp
   filesystem_browser_storage_test.cpp
   filesystem_browser_preview_test.cpp

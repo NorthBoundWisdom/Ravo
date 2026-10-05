@@ -838,6 +838,32 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             QEventLoop restore_layout;
             QTimer::singleShot(40, &restore_layout, &QEventLoop::quit);
             restore_layout.exec();
+            auto *header = window->findChild<QQuickItem *>(QStringLiteral("libraryHeader"));
+            auto *progress =
+                window->findChild<QQuickItem *>(QStringLiteral("libraryPreviewProgress"));
+            auto *backup = window->findChild<QQuickItem *>(QStringLiteral("libraryBackupStatus"));
+            if (!header || !progress || !backup)
+                return false;
+            const auto header_height = header->height();
+            const auto backup_y = backup->y();
+            const auto check_progress = [&](int total, int completed, bool active, bool expected)
+            {
+                QQmlProperty::write(progress, "total", total);
+                QQmlProperty::write(progress, "completed", completed);
+                QQmlProperty::write(progress, "workActive", active);
+                QEventLoop progress_layout;
+                QTimer::singleShot(650, &progress_layout, &QEventLoop::quit);
+                progress_layout.exec();
+                return progress->property("revealed").toBool() == expected &&
+                       header->height() == header_height && backup->y() == backup_y;
+            };
+            if (!check_progress(1, 0, true, false) || !check_progress(8, 0, true, true) ||
+                !check_progress(8, 8, false, false))
+            {
+                LOG_ERROR(logger(),
+                          "Library preview progress must debounce without moving the rail");
+                return false;
+            }
         }
         if (size.width() == 1440)
         {

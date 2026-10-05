@@ -187,6 +187,10 @@ path, it also compares native portrait publication with CPU gold, verifies the
 source hash, and exercises the real asynchronous Loupe presenter in a temporary
 catalog. `RAVO_TEST_GPU_OUTPUT_DIRECTORY` optionally receives new CPU/GPU/Loupe
 PNG artifacts for inspection.
+`StudioLibraryProgress` covers small batches, batches completed before the reveal
+delay, sustained work, the low-count tail and rapid replacements. Production QML
+smoke also measures the Library header height and backup section position across
+hidden, visible and completed thumbnail-progress states.
 The ordinary Studio QML smoke logs after presenter destruction has cancelled
 and joined its workers, so an early logging shutdown fails the real executable
 smoke. It checks a temporary directory's real disclosure handler,

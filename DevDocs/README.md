@@ -48,6 +48,8 @@ Import destination-tree preview ownership is in [ARCHITECTURE.md](ARCHITECTURE.m
 with overlay lifecycle and QML presentation coverage in [TESTING.md](TESTING.md).
 The asynchronous GPU preview handoff and its owned-pixel lifetime are specified
 in those same architecture and testing authorities.
+Library thumbnail-progress visibility and stable rail geometry are also recorded
+in those authorities.
 
 ## Document authority
 

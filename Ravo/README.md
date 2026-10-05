@@ -108,6 +108,9 @@ Current implementation status:
   automatically cropped image.
   Interactive GPU previews capture owned display pixels on the rendering worker
   before UI delivery, so another preview cannot overwrite a queued frame.
+  Ordinary thumbnail progress appears in a fixed Library header slot only after
+  at least eight pending photos persist for 500 ms. Quick filmstrip navigation
+  does not flash a progress meter or shift the navigator and folder tree.
   Copy is selected on every entry. Catalog URI and exact SHA-256 content matches
   remain in the grid as dimmed, disabled photos with thumbnails; they cannot be
   selected or checked for import. Same-content files within a scan make only the
