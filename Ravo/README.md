@@ -106,6 +106,8 @@ Current implementation status:
   Crop rotation shows the full transformed source at a fixed scale; the crop
   frame maps to the saved output coordinates, without repeatedly zooming the
   automatically cropped image.
+  Interactive GPU previews capture owned display pixels on the rendering worker
+  before UI delivery, so another preview cannot overwrite a queued frame.
   Copy is selected on every entry. Catalog URI and exact SHA-256 content matches
   remain in the grid as dimmed, disabled photos with thumbnails; they cannot be
   selected or checked for import. Same-content files within a scan make only the

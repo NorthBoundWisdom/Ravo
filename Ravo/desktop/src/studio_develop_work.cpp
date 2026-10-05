@@ -34,6 +34,7 @@
 #include "ravo/adapters/text_file.h"
 #include "studio_debug_info.h"
 #include "studio_qt.h"
+#include "studio_preview_handoff.h"
 
 namespace ravo
 {
@@ -564,8 +565,8 @@ void StudioPresenter::kick_develop_work()
                     request.cancellation = cancellation;
                     request.prefer_cached_settled_preview = job.prefer_cached_settled_preview;
                     // Pure interactive frames publish the Engine-owned native
-                    // display surface. Desktop snapshots its display RGB8 for
-                    // identity/scopes without forcing a float-buffer readback.
+                    // display surface. Snapshot its display RGB8 on this executor
+                    // before another render, then queue owned bytes for UI/scopes.
                     request.need_cpu_pixels = !job.interactive || job.comparison_before ||
                                               job.overlay_mask_id.has_value();
                     if (job.overlay_mask_id)
@@ -577,6 +578,12 @@ void StudioPresenter::kick_develop_work()
                         request, job.interactive && !job.comparison_before ?
                                      std::optional<DevelopParams>{job.params} :
                                      std::optional<DevelopParams>{});
+                    if (preview)
+                    {
+                        auto owned = own_preview_pixels_for_handoff(preview.value(), cancellation);
+                        if (!owned)
+                            preview = owned.error();
+                    }
                 }
             }
             const bool recovery_due = job.save && save_ok;

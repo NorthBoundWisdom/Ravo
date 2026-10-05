@@ -62,6 +62,7 @@ target_sources(ravo_desktop
     src/studio_import_preferences.cpp
     src/studio_recovery.cpp
     src/studio_preview.cpp
+    src/studio_preview_handoff.cpp
     src/studio_develop.cpp
     src/studio_develop_color_properties.cpp
     src/studio_develop_commands.cpp

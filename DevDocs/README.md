@@ -46,6 +46,8 @@ private by default, and reproducible enough to audit.
 
 Import destination-tree preview ownership is in [ARCHITECTURE.md](ARCHITECTURE.md),
 with overlay lifecycle and QML presentation coverage in [TESTING.md](TESTING.md).
+The asynchronous GPU preview handoff and its owned-pixel lifetime are specified
+in those same architecture and testing authorities.
 
 ## Document authority
 

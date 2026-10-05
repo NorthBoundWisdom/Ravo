@@ -35,6 +35,7 @@
 #include "studio_iosurface_snapshot.h"
 #endif
 #include "studio_qt.h"
+#include "studio_preview_handoff.h"
 
 namespace ravo
 {
@@ -1068,42 +1069,13 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
     gpu_preview_native_surface_ = preview.gpu_display_native_surface;
     gpu_preview_width_ = static_cast<int>(preview.gpu_display_width);
     gpu_preview_height_ = static_cast<int>(preview.gpu_display_height);
-    QImage owned;
-    bool native_snapshot = false;
-    if (preview.gpu_display_generation != 0U && preview.rgb.empty())
+    auto prepared = preview_result_image(preview, decoded_preview_images_);
+    if (!prepared)
     {
-        if (preview.gpu_display_native_surface == 0U || preview.gpu_display_width == 0U ||
-            preview.gpu_display_height == 0U)
-        {
-            setError(QStringLiteral("GPU preview display is missing"));
-            return;
-        }
-#if defined(Q_OS_MACOS)
-        auto snapshot = studio_metal::snapshot_iosurface_rgb8(preview.gpu_display_native_surface,
-                                                              preview.gpu_display_width,
-                                                              preview.gpu_display_height);
-        if (!snapshot)
-        {
-            setError(qstring_from_utf8(snapshot.error().message));
-            return;
-        }
-        owned = std::move(snapshot).value();
-        native_snapshot = true;
-#else
-        setError(QStringLiteral("GPU preview display cannot be captured on this platform"));
+        setError(qstring_from_utf8(prepared.error().message));
         return;
-#endif
     }
-    else
-    {
-        auto prepared = preview_result_image(preview, decoded_preview_images_);
-        if (!prepared)
-        {
-            setError(qstring_from_utf8(prepared.error().message));
-            return;
-        }
-        owned = std::move(prepared).value();
-    }
+    QImage owned = std::move(prepared).value();
     preview_mask_alpha_ = preview.mask_alpha;
     QImage displayed = owned;
     if (mask_overlay_visible_ && !preview.mask_alpha.empty() && engine_.has_value())
@@ -1192,9 +1164,7 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
     live_preview_revision_ = revision;
     live_preview_width_ = static_cast<std::uint32_t>(std::max(0, presented.width()));
     live_preview_height_ = static_cast<std::uint32_t>(std::max(0, presented.height()));
-    live_preview_color_profile_id_ = native_snapshot ?
-                                         QStringLiteral("srgb") :
-                                         qstring_from_utf8(preview.color_profile.identifier);
+    live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
     if (live_preview_color_profile_id_.isEmpty() && displayed.colorSpace().isValid())
     {
         live_preview_color_profile_id_ = displayed.colorSpace().description();
@@ -1202,7 +1172,7 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
             live_preview_color_profile_id_ = QStringLiteral("embedded-icc");
     }
     live_preview_pixel_sha256_.clear();
-    preview_url_ = !preview.rgb.empty() || native_snapshot || preserve_viewport_extent ?
+    preview_url_ = !preview.rgb.empty() || preserve_viewport_extent ?
                        QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision)) :
                        QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
     schedule_preview_analysis(displayed, owned, revision, preview.asset_id,
@@ -1728,6 +1698,12 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
             if (service_ != nullptr)
             {
                 preview = service_->request_preview(request, params);
+                if (preview)
+                {
+                    auto owned = own_preview_pixels_for_handoff(preview.value(), cancellation);
+                    if (!owned)
+                        preview = owned.error();
+                }
             }
             QMetaObject::invokeMethod(
                 this,
@@ -1761,41 +1737,13 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
                     gpu_roi_native_surface_ = 0;
                     gpu_roi_width_ = static_cast<int>(preview.value().gpu_display_width);
                     gpu_roi_height_ = static_cast<int>(preview.value().gpu_display_height);
-                    QImage roi_base;
-                    if (preview.value().gpu_display_generation != 0U && preview.value().rgb.empty())
+                    auto prepared = preview_result_image(preview.value(), decoded_preview_images_);
+                    if (!prepared)
                     {
-                        if (preview.value().gpu_display_native_surface == 0U)
-                        {
-                            setError(QStringLiteral("GPU inspect display is missing"));
-                            return;
-                        }
-#if defined(Q_OS_MACOS)
-                        auto snapshot = studio_metal::snapshot_iosurface_rgb8(
-                            preview.value().gpu_display_native_surface,
-                            preview.value().gpu_display_width, preview.value().gpu_display_height);
-                        if (!snapshot)
-                        {
-                            setError(qstring_from_utf8(snapshot.error().message));
-                            return;
-                        }
-                        roi_base = std::move(snapshot).value();
-#else
-                        setError(QStringLiteral(
-                            "GPU inspect display cannot be captured on this platform"));
+                        setError(qstring_from_utf8(prepared.error().message));
                         return;
-#endif
                     }
-                    else
-                    {
-                        auto prepared =
-                            preview_result_image(preview.value(), decoded_preview_images_);
-                        if (!prepared)
-                        {
-                            setError(qstring_from_utf8(prepared.error().message));
-                            return;
-                        }
-                        roi_base = std::move(prepared).value();
-                    }
+                    QImage roi_base = std::move(prepared).value();
                     if (gpu_roi_generation_ != 0U)
                     {
                         QImage presented_roi = apply_display_presentation_image(

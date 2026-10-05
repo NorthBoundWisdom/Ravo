@@ -550,8 +550,12 @@ Qt Quick samples. IOSurface `bytesPerRow` is 16-byte aligned so odd preview
 widths are valid Metal textures. Catalog copies only the generation and
 native-surface token; it does not hold device objects. A pure Studio interactive
 Develop request skips the synchronous float-buffer readback. Desktop immediately
-copies a bounded owned RGB8 snapshot from the same completed IOSurface before
-publishing the frame, so live identity and scopes describe the displayed pixels
+copies a bounded owned RGB8 snapshot on the rendering executor before queuing
+the result to UI, while the same completed IOSurface is still valid. Engine
+double-buffer tokens never cross that asynchronous handoff; resize, another
+render and delayed UI delivery cannot change the captured pixels. UI applies
+monitor presentation and publishes its own surface, so live identity and scopes
+describe the displayed pixels
 without delaying the canvas for CPU output conversion. The inspect ROI provider
 also owns that snapshot before its revision URL is published, including the
 GPU-only display path. Hidden CPU ROI items clear their source while the GPU
@@ -1994,8 +1998,9 @@ CLI and Studio project that contract without expanding paths themselves. See
   Interactive Studio may sample an Engine-published IOSurface instead of a
   CPU `QImage`; missing display transport downloads pixels rather than
   changing the algorithm. IOSurface rows are 16-byte aligned. Desktop copies
-  the completed display-sRGB surface into bounded owned RGB8 for live identity
-  and scopes; comparison and non-native paths consume ordinary CPU RGB. Do not
+  the completed display-sRGB surface into bounded owned RGB8 on the rendering
+  executor before UI delivery, for live identity and scopes; comparison and
+  non-native paths consume ordinary CPU RGB. Do not
   reuse 0.9 OpenCL or add a silent CPU fallback.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
   query language without consumers.

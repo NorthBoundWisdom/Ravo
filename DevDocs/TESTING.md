@@ -180,6 +180,13 @@ second-copy exclusion and explicit listing errors without retry loops. Presenter
 coverage checks that the month plan appears in the destination tree and disappears
 on page close while the directory remains absent on disk. Production QML smoke
 checks the gray, italic month label alongside the normally styled existing year.
+`StudioGpuPreviewTest` verifies that delayed delivery retains the original pixels
+after surface reuse at 639×960 and 1066×1600, and checks cancellation, invalid
+surface and dimension failures. With `RAVO_TEST_GPU_RAW` set to an explicit RAW
+path, it also compares native portrait publication with CPU gold, verifies the
+source hash, and exercises the real asynchronous Loupe presenter in a temporary
+catalog. `RAVO_TEST_GPU_OUTPUT_DIRECTORY` optionally receives new CPU/GPU/Loupe
+PNG artifacts for inspection.
 The ordinary Studio QML smoke logs after presenter destruction has cancelled
 and joined its workers, so an early logging shutdown fails the real executable
 smoke. It checks a temporary directory's real disclosure handler,
