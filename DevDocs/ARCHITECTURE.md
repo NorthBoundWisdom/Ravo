@@ -297,7 +297,15 @@ preflight planner, with a separate cancellation source, debounce timer and
 generation. `ravo-import-destination-preview/v1` exposes primary/second-copy
 folder paths, create flags and descendant-inclusive photo counts through Studio
 and `catalog import-plan`. Preview creates no folders or media and never replaces
-the final import preflight; stale results clear on draft replacement or close. Listing
+the final import preflight; stale results clear on draft replacement or close.
+The desktop filesystem model overlays primary planned folders into its disposable
+visible tree, merging by normalized path with real directory listings. Planned
+branches expand initially and remain collapsible; new directories expose a
+`willCreate` role for gray, italic presentation and cannot become a destination
+selection. Existing folders retain normal styling. The overlay never enters the
+filesystem listing owner or issues listings for nonexistent folders. Second-copy
+plans remain in the separate destination preview. Cancellation, replacement and
+page close clear the overlay with the planner's published state. Listing
 and ingest recursion are constrained separately from the checkbox preference:
 the home directory (including aliases) is always scanned non-recursively, while
 ordinary folders honor the presenter-owned choice across folder changes. Listing

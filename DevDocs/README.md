@@ -44,6 +44,9 @@ non-destructive editor for working photographers, with optional AI-assisted
 culling, retouching, and colour work that remains reviewable, reversible,
 private by default, and reproducible enough to audit.
 
+Import destination-tree preview ownership is in [ARCHITECTURE.md](ARCHITECTURE.md),
+with overlay lifecycle and QML presentation coverage in [TESTING.md](TESTING.md).
+
 ## Document authority
 
 Burst Compare availability and stack/selection lifetimes are specified in

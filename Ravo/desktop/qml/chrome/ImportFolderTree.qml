@@ -36,6 +36,7 @@ ListView {
         required property bool collapsed
         required property bool listingPending
         required property bool selected
+        required property bool willCreate
         required property string errorText
         required property int index
 
@@ -68,6 +69,7 @@ ListView {
                         text: parent.text
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
+                        color: folderRow.willCreate ? Theme.placeholderTextColor : Theme.textColor
                     }
                     background: Rectangle {
                         color: parent.hovered ? Theme.buttonHoveredColor : "transparent"
@@ -83,17 +85,20 @@ ListView {
                 Layout.fillHeight: true
                 Layout.minimumWidth: 0
                 CustomLabel {
+                    objectName: "importFolderName"
                     anchors.fill: parent
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
                     text: folderRow.displayName
-                    color: folderRow.errorText.length > 0 ? Theme.errorColor : Theme.textColor
+                    color: folderRow.errorText.length > 0 ? Theme.errorColor : folderRow.willCreate ? Theme.placeholderTextColor : Theme.textColor
+                    font.italic: folderRow.willCreate
                 }
                 MouseArea {
                     id: folderMouse
                     objectName: "importFolderChoose"
                     anchors.fill: parent
                     hoverEnabled: true
+                    enabled: !folderRow.willCreate
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.chooseFolder(folderRow.path)
                 }

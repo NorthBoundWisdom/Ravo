@@ -174,6 +174,12 @@ destination-preview tests check single/date/month/hierarchy and second-copy
 counts against actual import, no early directory/media/catalog publication,
 selection/organization replacement, close cancellation, and stale/corrupt/conflict
 errors. CLI subprocess tests verify the versioned `catalog import-plan` JSON.
+Filesystem model tests cover ordered month overlays, existing-year/month deduplication,
+collapse/expand, virtual-folder selection rejection, late listings, plan replacement,
+second-copy exclusion and explicit listing errors without retry loops. Presenter
+coverage checks that the month plan appears in the destination tree and disappears
+on page close while the directory remains absent on disk. Production QML smoke
+checks the gray, italic month label alongside the normally styled existing year.
 The ordinary Studio QML smoke logs after presenter destruction has cancelled
 and joined its workers, so an early logging shutdown fails the real executable
 smoke. It checks a temporary directory's real disclosure handler,

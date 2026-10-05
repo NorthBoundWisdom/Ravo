@@ -160,6 +160,8 @@ QVariant FilesystemBrowserModel::data(const QModelIndex &index, const int role) 
         return row.error;
     case ListingPendingRole:
         return row.listing_pending;
+    case WillCreateRole:
+        return row.will_create;
     default:
         return {};
     }
@@ -167,10 +169,15 @@ QVariant FilesystemBrowserModel::data(const QModelIndex &index, const int role) 
 
 QHash<int, QByteArray> FilesystemBrowserModel::roleNames() const
 {
-    return {{PathRole, "path"},           {DisplayNameRole, "displayName"},
-            {DepthRole, "depth"},         {HasChildrenRole, "hasChildren"},
-            {CollapsedRole, "collapsed"}, {SelectedRole, "selected"},
-            {ErrorRole, "errorText"},     {ListingPendingRole, "listingPending"}};
+    return {{PathRole, "path"},
+            {DisplayNameRole, "displayName"},
+            {DepthRole, "depth"},
+            {HasChildrenRole, "hasChildren"},
+            {CollapsedRole, "collapsed"},
+            {SelectedRole, "selected"},
+            {ErrorRole, "errorText"},
+            {ListingPendingRole, "listingPending"},
+            {WillCreateRole, "willCreate"}};
 }
 
 QString FilesystemBrowserModel::selectedPath() const
@@ -184,6 +191,9 @@ void FilesystemBrowserModel::resetWithRoots(std::vector<FilesystemFolderEntry> r
     all_nodes_.clear();
     mounted_roots_.clear();
     reveal_path_.clear();
+    preview_folders_.clear();
+    preview_branches_.clear();
+    collapsed_preview_branches_.clear();
     all_nodes_.reserve(roots.size());
     for (auto &root : roots)
     {
@@ -308,11 +318,56 @@ void FilesystemBrowserModel::applyChildren(const QString &path, const quint64 ge
     rebuild_visible();
     if (!reveal_path_.isEmpty())
         revealFolder(reveal_path_);
+    request_preview_listings();
+}
+
+void FilesystemBrowserModel::setPreviewFolders(std::vector<ImportDestinationFolder> folders,
+                                               const QString &destination)
+{
+    if (folders.empty() && preview_folders_.empty())
+        return;
+    // The service canonicalizes filesystem aliases. Keep the plan anchored to
+    // the explicit destination spelling used by the browser, without disk I/O.
+    if (!destination.isEmpty())
+    {
+        const auto root =
+            std::find_if(folders.begin(), folders.end(), [](const ImportDestinationFolder &folder)
+                         { return folder.depth == 0 && !folder.second_copy; });
+        if (root != folders.end())
+        {
+            const auto canonical = generic_path(qstring_from_utf8(root->path));
+            const auto prefix = canonical.endsWith('/') ? canonical : canonical + '/';
+            const auto chosen = generic_path(destination);
+            for (auto &folder : folders)
+            {
+                const auto path = generic_path(qstring_from_utf8(folder.path));
+                if (!folder.second_copy && (path == canonical || path.startsWith(prefix)))
+                    folder.path = utf8_from_qstring(
+                        path == canonical ?
+                            chosen :
+                            generic_path(QDir(chosen).filePath(path.mid(prefix.size()))));
+            }
+        }
+    }
+    preview_folders_ = std::move(folders);
+    if (preview_folders_.empty())
+        collapsed_preview_branches_.clear();
+    rebuild_visible();
+    request_preview_listings();
 }
 
 void FilesystemBrowserModel::toggleCollapsed(const QString &path)
 {
-    const auto node_index = index_of_path(generic_path(path));
+    const auto normalized = generic_path(path);
+    if (preview_branches_.contains(normalized))
+    {
+        if (!collapsed_preview_branches_.remove(normalized))
+            collapsed_preview_branches_.insert(normalized);
+        rebuild_visible();
+        request_preview_listings();
+        return;
+    }
+    const auto node_index = index_of_path(normalized);
     if (node_index < 0)
         return;
     auto &node = all_nodes_[static_cast<std::size_t>(node_index)];
@@ -341,7 +396,20 @@ void FilesystemBrowserModel::toggleCollapsed(const QString &path)
 
 void FilesystemBrowserModel::activateFolder(const QString &path)
 {
+    // A planned folder is not a destination until the import creates it.
+    const auto normalized = generic_path(path);
+    for (const auto &folder : preview_folders_)
+        if (!folder.second_copy && folder.will_create &&
+            generic_path(qstring_from_utf8(folder.path)) == normalized &&
+            index_of_path(normalized) < 0)
+            return;
     selectFolder(path);
+    if (preview_branches_.contains(generic_path(path)))
+    {
+        if (collapsed_preview_branches_.contains(generic_path(path)))
+            toggleCollapsed(path);
+        return;
+    }
     const auto node_index = index_of_path(generic_path(path));
     if (node_index >= 0 && all_nodes_[static_cast<std::size_t>(node_index)].collapsed)
         toggleCollapsed(path);
@@ -350,6 +418,10 @@ void FilesystemBrowserModel::activateFolder(const QString &path)
 void FilesystemBrowserModel::selectFolder(const QString &path)
 {
     const auto next = generic_path(path);
+    for (const auto &folder : preview_folders_)
+        if (!folder.second_copy && folder.will_create &&
+            generic_path(qstring_from_utf8(folder.path)) == next && index_of_path(next) < 0)
+            return;
     if (next != reveal_path_)
         reveal_path_.clear();
     if (next.isEmpty() || selected_path_ == next)
@@ -421,11 +493,53 @@ void FilesystemBrowserModel::revealFolder(const QString &path)
 
 void FilesystemBrowserModel::rebuild_visible()
 {
+    // Compose disposable rows rather than inserting virtual directories into
+    // all_nodes_: late listings can never erase or materialize the service plan.
+    auto merged = all_nodes_;
+    preview_branches_.clear();
+    for (const auto &folder : preview_folders_)
+    {
+        if (folder.second_copy || folder.depth == 0)
+            continue;
+        const auto path = generic_path(qstring_from_utf8(folder.path));
+        const auto parent_path = generic_path(QDir(path).filePath(QStringLiteral("..")));
+        const auto parent = std::find_if(merged.begin(), merged.end(), [&](const Node &node)
+                                         { return node.path == parent_path; });
+        if (parent == merged.end())
+            continue; // The selected root's asynchronous reveal may still be pending.
+        const int depth = parent->depth + 1;
+        parent->has_children = true;
+        preview_branches_.insert(parent_path);
+        if (std::any_of(merged.begin(), merged.end(),
+                        [&](const Node &node) { return node.path == path; }))
+            continue;
+        Node node;
+        node.path = path;
+        node.display_name = qstring_from_utf8(folder.name);
+        node.depth = depth;
+        node.has_children = false;
+        node.collapsed = false;
+        node.loaded = true;
+        node.will_create = folder.will_create;
+        auto position = parent + 1;
+        while (position != merged.end() && position->depth >= depth)
+        {
+            if (position->depth == depth &&
+                QString::localeAwareCompare(node.display_name, position->display_name) < 0)
+                break;
+            ++position;
+        }
+        merged.insert(position, std::move(node));
+    }
+    for (auto &node : merged)
+        if (preview_branches_.contains(node.path) && node.error.isEmpty())
+            node.collapsed = collapsed_preview_branches_.contains(node.path);
+
     beginResetModel();
     visible_.clear();
-    visible_.reserve(all_nodes_.size());
+    visible_.reserve(merged.size());
     int collapsed_depth = -1;
-    for (const auto &node : all_nodes_)
+    for (const auto &node : merged)
     {
         if (collapsed_depth >= 0 && node.depth > collapsed_depth)
             continue;
@@ -433,6 +547,25 @@ void FilesystemBrowserModel::rebuild_visible()
         collapsed_depth = node.collapsed ? node.depth : -1;
     }
     endResetModel();
+}
+
+void FilesystemBrowserModel::request_preview_listings()
+{
+    std::vector<std::pair<QString, quint64>> requests;
+    for (auto &node : all_nodes_)
+    {
+        if (!preview_branches_.contains(node.path) ||
+            collapsed_preview_branches_.contains(node.path) || node.loaded ||
+            node.listing_pending || !node.error.isEmpty())
+            continue;
+        node.listing_pending = true;
+        node.listing_generation = ++next_listing_generation_;
+        requests.emplace_back(node.path, node.listing_generation);
+    }
+    if (!requests.empty())
+        rebuild_visible();
+    for (const auto &[path, generation] : requests)
+        emit directoryListingRequested(path, generation);
 }
 
 int FilesystemBrowserModel::index_of_path(const QString &path) const

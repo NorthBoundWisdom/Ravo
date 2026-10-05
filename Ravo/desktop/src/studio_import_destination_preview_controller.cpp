@@ -49,6 +49,7 @@ void StudioImportDestinationPreviewController::clearPublished()
     ++generation_;
     key_.clear();
     folders_.clear();
+    tree_folders_.clear();
     error_.clear();
     active_ = false;
     emit changed();
@@ -69,6 +70,7 @@ void StudioImportDestinationPreviewController::refresh()
     ++generation_;
     timer_.stop();
     folders_.clear();
+    tree_folders_.clear();
     error_.clear();
     active_ = !key_.isEmpty();
     if (active_)
@@ -87,7 +89,9 @@ void StudioImportDestinationPreviewController::publishResult(
     if (!preview)
         error_ = qstring_from_utf8(preview.error().message);
     else
-        for (const auto &folder : preview.value().folders)
+    {
+        tree_folders_ = std::move(preview.value().folders);
+        for (const auto &folder : tree_folders_)
             folders_.push_back(QVariantMap{
                 {QStringLiteral("path"), qstring_from_utf8(folder.path)},
                 {QStringLiteral("name"), qstring_from_utf8(folder.name)},
@@ -95,6 +99,7 @@ void StudioImportDestinationPreviewController::publishResult(
                 {QStringLiteral("photoCount"), static_cast<qulonglong>(folder.photo_count)},
                 {QStringLiteral("willCreate"), folder.will_create},
                 {QStringLiteral("secondCopy"), folder.second_copy}});
+    }
     emit changed();
 }
 

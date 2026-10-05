@@ -59,10 +59,26 @@ TEST(StudioImportWorkspace, DestinationPreviewTracksSelectionAndOrganizationWith
     ASSERT_EQ(folders.size(), 3);
     EXPECT_EQ(folders.back().toMap().value("depth").toInt(), 2);
     EXPECT_EQ(folders.back().toMap().value("photoCount").toUInt(), 2U);
+    auto *tree = presenter.importDestinationFolders();
+    const auto month_path = destination + "/" + folders[1].toMap().value("name").toString() + "/" +
+                            folders.back().toMap().value("name").toString();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            for (int row = 0; row < tree->rowCount(); ++row)
+                if (tree->data(tree->index(row, 0), FilesystemBrowserModel::PathRole) == month_path)
+                    return tree->data(tree->index(row, 0), FilesystemBrowserModel::WillCreateRole)
+                        .toBool();
+            return false;
+        }));
+    EXPECT_FALSE(QDir(month_path).exists());
     presenter.setImportOrganization(QStringLiteral("hierarchy"));
     presenter.closeImportPage();
     EXPECT_FALSE(presenter.importDestinationPreviewActive());
     EXPECT_TRUE(presenter.importDestinationPreview().empty());
+    for (int row = 0; row < tree->rowCount(); ++row)
+        EXPECT_FALSE(
+            tree->data(tree->index(row, 0), FilesystemBrowserModel::WillCreateRole).toBool());
     EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).empty());
     presenter.openImportPage();
     presenter.setImportDestination(destination);

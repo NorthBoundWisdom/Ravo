@@ -144,6 +144,9 @@ Current implementation status:
   shows the exact planned folder hierarchy, photo counts including descendants,
   and folders that will be created, including a configured second copy. It
   updates with photo selection and organization settings without creating files.
+  The destination folder tree also shows planned primary folders in place:
+  missing year/month directories are gray and italic, existing directories keep
+  their normal appearance, and preview folders cannot be chosen as destinations.
   `catalog import-plan --catalog <path> --input <path> --mode copy --destination <folder>`
   exposes the same versioned JSON preview; formal import rechecks all conflicts.
   Clicking a collapsed folder selects and expands it; the separate arrow toggles

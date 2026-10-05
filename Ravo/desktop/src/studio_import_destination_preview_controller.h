@@ -46,6 +46,10 @@ public:
     {
         return folders_;
     }
+    [[nodiscard]] const std::vector<ImportDestinationFolder> &treeFolders() const noexcept
+    {
+        return tree_folders_;
+    }
     [[nodiscard]] const QString &error() const noexcept
     {
         return error_;
@@ -78,6 +82,7 @@ private:
     QTimer timer_;
     CancellationSource operation_;
     QVariantList folders_;
+    std::vector<ImportDestinationFolder> tree_folders_;
     QString error_;
     QByteArray key_;
     std::uint64_t generation_ = 0;

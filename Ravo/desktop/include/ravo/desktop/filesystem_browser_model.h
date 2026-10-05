@@ -5,11 +5,13 @@
 
 #include <QAbstractListModel>
 #include <QHash>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariant>
 
 #include "ravo/foundation/error.h"
+#include "ravo/domain/types.h"
 
 namespace ravo
 {
@@ -45,6 +47,7 @@ public:
         SelectedRole,
         ErrorRole,
         ListingPendingRole,
+        WillCreateRole,
     };
 
     explicit FilesystemBrowserModel(QObject *parent = nullptr);
@@ -58,6 +61,9 @@ public:
     void updateMountedRoots(std::vector<FilesystemFolderEntry> roots);
     void applyChildren(const QString &path, quint64 generation,
                        Result<std::vector<FilesystemFolderEntry>> children);
+    // Read-only service plan overlay; filesystem listings retain their own identities.
+    void setPreviewFolders(std::vector<ImportDestinationFolder> folders,
+                           const QString &destination = {});
     Q_INVOKABLE void toggleCollapsed(const QString &path);
     Q_INVOKABLE void selectFolder(const QString &path);
     Q_INVOKABLE void activateFolder(const QString &path);
@@ -80,13 +86,18 @@ private:
         quint64 listing_generation = 0;
         bool listing_pending = false;
         QString error;
+        bool will_create = false;
     };
 
     void rebuild_visible();
+    void request_preview_listings();
     [[nodiscard]] int index_of_path(const QString &path) const;
 
     std::vector<Node> all_nodes_;
     std::vector<Node> visible_;
+    std::vector<ImportDestinationFolder> preview_folders_;
+    QSet<QString> preview_branches_;
+    QSet<QString> collapsed_preview_branches_;
     QStringList mounted_roots_;
     QString selected_path_;
     QString reveal_path_;

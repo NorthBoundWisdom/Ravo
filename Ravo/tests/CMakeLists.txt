@@ -463,6 +463,7 @@ add_executable(ravo_desktop_command_tests
   studio_display_presentation_test.cpp
   export_option_conversion_test.cpp
   filesystem_browser_storage_test.cpp
+  filesystem_browser_preview_test.cpp
   filesystem_browser_model_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)

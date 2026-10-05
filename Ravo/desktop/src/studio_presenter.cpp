@@ -289,7 +289,12 @@ StudioPresenter::StudioPresenter(QObject *parent)
             this);
     connect(import_workspace_->destination_preview.get(),
             &StudioImportDestinationPreviewController::changed, this,
-            &StudioPresenter::importDestinationPreviewChanged);
+            [this]
+            {
+                import_destination_folders_.setPreviewFolders(
+                    import_workspace_->destination_preview->treeFolders(), importDestination());
+                emit importDestinationPreviewChanged();
+            });
     catalog_revision_timer_ = new QTimer(this);
     catalog_revision_timer_->setInterval(kCatalogRevisionPollMs);
     catalog_revision_timer_->setTimerType(Qt::CoarseTimer);

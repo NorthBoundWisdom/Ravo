@@ -862,6 +862,43 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             }
             if (size.height() == 1100)
             {
+                auto *model = presenter->importDestinationFolders();
+                model->setPreviewFolders(
+                    {{directory.filePath("2026").toStdString(), "2026", 1, 1, false, false},
+                     {directory.filePath("2026/10").toStdString(), "10", 2, 1, true, false}});
+                QEventLoop preview_layout;
+                QTimer::singleShot(80, &preview_layout, &QEventLoop::quit);
+                preview_layout.exec();
+                QQuickItem *year_label = nullptr;
+                QQuickItem *month_label = nullptr;
+                const auto find_labels = [&](auto &&visit, QQuickItem *item) -> void
+                {
+                    if (item->objectName() == QLatin1String("importFolderName"))
+                    {
+                        if (item->property("text").toString() == QLatin1String("2026"))
+                            year_label = item;
+                        if (item->property("text").toString() == QLatin1String("10"))
+                            month_label = item;
+                    }
+                    for (auto *child : item->childItems())
+                        visit(visit, child);
+                };
+                find_labels(find_labels, tree);
+                if (!year_label || !month_label ||
+                    year_label->property("color") == month_label->property("color") ||
+                    QQmlProperty::read(year_label, "font.italic").toBool() ||
+                    !QQmlProperty::read(month_label, "font.italic").toBool() ||
+                    QDir(directory.filePath("2026/10")).exists())
+                {
+                    LOG_ERROR(
+                        logger(),
+                        "Destination tree preview style failed: rows={} year={} month={} yearItalic={} monthItalic={}",
+                        model->rowCount(), year_label != nullptr, month_label != nullptr,
+                        year_label && QQmlProperty::read(year_label, "font.italic").toBool(),
+                        month_label && QQmlProperty::read(month_label, "font.italic").toBool());
+                    return false;
+                }
+                model->setPreviewFolders({});
                 auto *section =
                     workspace->findChild<QQuickItem *>(QStringLiteral("importDestinationSection"));
                 if (!section || !section->parentItem())
