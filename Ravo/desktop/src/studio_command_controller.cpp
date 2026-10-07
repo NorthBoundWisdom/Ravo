@@ -43,7 +43,7 @@ namespace command_controller_detail
 {
 CommandWorkspace active_command_workspace(const StudioPresenter &presenter)
 {
-    if (presenter.importPageOpen())
+    if (presenter.imports()->importPageOpen())
         return CommandWorkspace::kImport;
     if (presenter.browseMode() == QLatin1String("develop"))
         return CommandWorkspace::kDevelop;
@@ -107,12 +107,13 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     if (workspace == CommandWorkspace::kImport &&
         (command_id == QLatin1String(command::kPhotoCopyInfo) ||
          command_id == QLatin1String(command::kPhotoRevealInFileManager)))
-        return !presenter.importContextPath().isEmpty() ?
+        return !presenter.imports()->importContextPath().isEmpty() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Select a photo first."))};
     const bool catalog_open = presenter.catalogOpen();
     const bool selection = !presenter.selectedAssetId().isEmpty();
-    const bool ready = catalog_open && !presenter.busy() && !presenter.importWorkActive();
+    const bool ready =
+        catalog_open && !presenter.busy() && !presenter.imports()->importWorkActive();
     switch (condition)
     {
     case Condition::kAlways:
@@ -128,11 +129,12 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     case Condition::kLoadedPhotos:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
-        if (presenter.importPageOpen() &&
-            (presenter.importPreflightActive() || presenter.importWorkActive()))
+        if (presenter.imports()->importPageOpen() &&
+            (presenter.imports()->importPreflightActive() ||
+             presenter.imports()->importWorkActive()))
             return {false, tr_command(QStringLiteral("Wait for library work to finish."))};
-        return (presenter.importPageOpen() ? presenter.importScanTotal() :
-                                             presenter.visibleCount()) > 0 ?
+        return (presenter.imports()->importPageOpen() ? presenter.imports()->importScanTotal() :
+                                                        presenter.visibleCount()) > 0 ?
                    State{} :
                    State{false, tr_command(QStringLiteral("No photos to select."))};
     case Condition::kSelection:
@@ -242,7 +244,7 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
                    State{false,
                          tr_command(QStringLiteral("The selected originals cannot be deleted."))};
     case Condition::kCatalogOperation:
-        return presenter.catalogOperationActive() || presenter.importWorkActive() ?
+        return presenter.catalogOperationActive() || presenter.imports()->importWorkActive() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("No catalog operation is running."))};
     }
@@ -299,11 +301,11 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     {
         checkable = true;
         checked = (found->id == QLatin1String(command::kViewFit) &&
-                   presenter_.zoomMode() == QLatin1String("fit")) ||
+                   presenter_.inspect()->zoomMode() == QLatin1String("fit")) ||
                   (found->id == QLatin1String(command::kViewFill) &&
-                   presenter_.zoomMode() == QLatin1String("fill")) ||
+                   presenter_.inspect()->zoomMode() == QLatin1String("fill")) ||
                   (found->id == QLatin1String(command::kViewActual) &&
-                   presenter_.zoomMode() == QLatin1String("actual"));
+                   presenter_.inspect()->zoomMode() == QLatin1String("actual"));
     }
     else if (found->command_id == QLatin1String(command::kPhotoSetRating))
     {
@@ -495,7 +497,7 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
                           {{"reason", "command_unavailable"}});
     }
     const bool enter_develop = presenter_.browseMode() != QLatin1String("develop");
-    if (presenter_.importPageOpen())
+    if (presenter_.imports()->importPageOpen())
     {
         return make_error(ErrorCode::kConflict,
                           "Studio command is unavailable while Import is open",
@@ -555,7 +557,7 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
 Result<bool> StudioCommandController::applyLocalAdjustment(const QString &action,
                                                            const QVariantMap &arguments)
 {
-    if (presenter_.importPageOpen())
+    if (presenter_.imports()->importPageOpen())
         return make_error(ErrorCode::kConflict, "Local adjustment command is unavailable",
                           {{"reason", "command_unavailable"}});
     const auto state =

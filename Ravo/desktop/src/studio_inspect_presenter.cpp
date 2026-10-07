@@ -173,9 +173,15 @@ prepare_preview_analysis(const QImage &identity_image, const QImage &scope_sourc
 
 } // namespace
 
-StudioInspectPresenter::StudioInspectPresenter(QObject *parent)
+StudioInspectPresenter::StudioInspectPresenter(Context context, Host host, QObject *parent)
     : QObject(parent)
+    , context_(context)
+    , host_(std::move(host))
 {
+    connect(this, &StudioInspectPresenter::zoomChanged, this,
+            &StudioInspectPresenter::inspectContextChanged);
+    connect(this, &StudioInspectPresenter::previewChanged, this,
+            &StudioInspectPresenter::frameChanged);
 }
 
 StudioInspectPresenter::~StudioInspectPresenter()
@@ -188,6 +194,9 @@ void StudioInspectPresenter::shutdown()
     if (stopped_)
         return;
     stopped_ = true;
+    clear_inspect_roi();
+    releasePresentationResources();
+    decoded_preview_images_.clear();
     cancel_preview_analysis("window_closed");
     preview_analysis_executor_.request_stop();
     preview_analysis_executor_.wait();

@@ -6,7 +6,8 @@
 #include <QString>
 #include <QUrlQuery>
 
-#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_inspect_presenter.h"
+#include "ravo/desktop/import_candidate_list_model.h"
 
 namespace ravo
 {
@@ -14,7 +15,7 @@ namespace ravo
 class StudioPreviewImageProvider final : public QQuickImageProvider
 {
 public:
-    explicit StudioPreviewImageProvider(StudioPresenter &studio)
+    explicit StudioPreviewImageProvider(StudioInspectPresenter &studio)
         : QQuickImageProvider(QQuickImageProvider::Image)
         , studio_(&studio)
     {
@@ -34,13 +35,13 @@ public:
     }
 
 private:
-    StudioPresenter *studio_ = nullptr;
+    StudioInspectPresenter *studio_ = nullptr;
 };
 
 class StudioScopeImageProvider final : public QQuickImageProvider
 {
 public:
-    explicit StudioScopeImageProvider(StudioPresenter &studio)
+    explicit StudioScopeImageProvider(StudioInspectPresenter &studio)
         : QQuickImageProvider(QQuickImageProvider::Image)
         , studio_(&studio)
     {
@@ -49,11 +50,10 @@ public:
     QImage requestImage(const QString &id, QSize *size, const QSize &) override
     {
         const QImage image =
-            id.startsWith(QLatin1String("waveform")) ? studio_->inspect()->scopeWaveformImage() :
-            id.startsWith(QLatin1String("vectorscope")) ?
-                                                       studio_->inspect()->scopeVectorscopeImage() :
-            id.startsWith(QLatin1String("split")) ? studio_->inspect()->scopeSplitImage() :
-                                                    studio_->inspect()->scopeParadeImage();
+            id.startsWith(QLatin1String("waveform"))    ? studio_->scopeWaveformImage() :
+            id.startsWith(QLatin1String("vectorscope")) ? studio_->scopeVectorscopeImage() :
+            id.startsWith(QLatin1String("split"))       ? studio_->scopeSplitImage() :
+                                                          studio_->scopeParadeImage();
         if (size != nullptr)
         {
             *size = image.size();
@@ -62,7 +62,7 @@ public:
     }
 
 private:
-    StudioPresenter *studio_ = nullptr;
+    StudioInspectPresenter *studio_ = nullptr;
 };
 
 class ImportCandidateImageProvider final : public QQuickImageProvider

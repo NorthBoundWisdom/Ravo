@@ -1197,7 +1197,8 @@ void StudioDevelopPresenter::toggleComparison()
     state_.comparison_before_requested_ = true;
     if (state_.before_after_)
     {
-        if (host_.adopt_preview_as_comparison())
+        if (!inspect_.previewLoading() && !inspect_.displayedDevelop().has_value() &&
+            host_.adopt_preview_as_comparison())
             state_.comparison_before_requested_ = false;
         state_.before_after_ = false;
         emit editChanged();
@@ -1250,16 +1251,16 @@ double StudioDevelopPresenter::selected_working_aspect() const
 {
     if (state_.crop_tool_active_)
     {
-        const QMutexLocker lock(&preview_image_mutex_);
-        if (!preview_image_.isNull() && preview_image_.height() > 0)
+        const QImage preview_image = inspect_.previewImage();
+        if (!preview_image.isNull() && preview_image.height() > 0)
         {
             if (!inspect_.cropPreviewLayout().isEmpty())
-                return (preview_image_.width() *
+                return (preview_image.width() *
                         inspect_.cropPreviewLayout().value("width").toDouble()) /
-                       std::max(1.0, preview_image_.height() *
+                       std::max(1.0, preview_image.height() *
                                          inspect_.cropPreviewLayout().value("height").toDouble());
-            return static_cast<double>(preview_image_.width()) /
-                   static_cast<double>(preview_image_.height());
+            return static_cast<double>(preview_image.width()) /
+                   static_cast<double>(preview_image.height());
         }
     }
     const auto asset = assets_.assetById(selected_asset_id_);
@@ -1267,11 +1268,11 @@ double StudioDevelopPresenter::selected_working_aspect() const
     {
         return working_image_aspect(state_.develop_.rotate_quarters, selected_source_aspect());
     }
-    const QMutexLocker lock(&preview_image_mutex_);
-    if (!preview_image_.isNull() && preview_image_.height() > 0)
+    const QImage preview_image = inspect_.previewImage();
+    if (!preview_image.isNull() && preview_image.height() > 0)
     {
-        return static_cast<double>(preview_image_.width()) /
-               static_cast<double>(preview_image_.height());
+        return static_cast<double>(preview_image.width()) /
+               static_cast<double>(preview_image.height());
     }
     return working_image_aspect(state_.develop_.rotate_quarters, selected_source_aspect());
 }

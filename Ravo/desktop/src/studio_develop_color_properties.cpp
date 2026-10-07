@@ -311,7 +311,7 @@ void StudioDevelopPresenter::setMaskOverlay(const QString &target, const bool vi
     emit previewChanged();
     if (!visible)
     {
-        if (!preview_base_image_.isNull())
+        if (!inspect_.previewBaseImage().isNull())
         {
             host_.restore_preview_base();
         }
@@ -526,8 +526,7 @@ void StudioDevelopPresenter::assistParametricMask(const double preview_x, const 
 
     QImage preview;
     {
-        const QMutexLocker lock(&preview_image_mutex_);
-        preview = preview_base_image_;
+        preview = inspect_.previewBaseImage();
     }
     if (preview.isNull() || preview.width() <= 0 || preview.height() <= 0)
     {

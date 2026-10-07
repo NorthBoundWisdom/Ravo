@@ -12,7 +12,7 @@ Rectangle {
     property var commands
     property alias selectionAnchor: candidateGrid.selectionAnchor
     property real preferredCell: 180
-    property string sourceIdentity: presenter.importSourceRoot
+    property string sourceIdentity: presenter.imports.importSourceRoot
     onSourceIdentityChanged: candidateGrid.selectionAnchor = -1
 
     Layout.fillWidth: true
@@ -38,24 +38,24 @@ Rectangle {
         }
         StudioContextMenuItem {
             text: qsTr("Check All")
-            onTriggered: root.presenter.importCandidates.setAllSelected(true)
+            onTriggered: root.presenter.imports.importCandidates.setAllSelected(true)
         }
         StudioContextMenuItem {
             text: qsTr("Uncheck All")
-            onTriggered: root.presenter.importCandidates.setAllSelected(false)
+            onTriggered: root.presenter.imports.importCandidates.setAllSelected(false)
         }
     }
 
     BusyIndicator {
         anchors.centerIn: parent
-        running: root.presenter.importScanActive && candidateGrid.count === 0
+        running: root.presenter.imports.importScanActive && candidateGrid.count === 0
         visible: running
     }
 
     CustomLabel {
         anchors.centerIn: parent
-        visible: !root.presenter.importScanActive && candidateGrid.count === 0
-        text: root.presenter.importSourceRoot.length ? qsTr("No supported photos found") : qsTr("Choose a source folder")
+        visible: !root.presenter.imports.importScanActive && candidateGrid.count === 0
+        text: root.presenter.imports.importSourceRoot.length ? qsTr("No supported photos found") : qsTr("Choose a source folder")
         color: Theme.placeholderTextColor
     }
 
@@ -63,8 +63,8 @@ Rectangle {
         id: candidateGrid
         anchors.fill: parent
         anchors.margins: Fonts.size8
-        candidates: root.presenter.importCandidates
-        interactionLocked: root.presenter.importWorkActive
+        candidates: root.presenter.imports.importCandidates
+        interactionLocked: root.presenter.imports.importWorkActive
         preferredCell: root.preferredCell
         showVerticalScrollBar: true
         thumbnailDemandPublisher: root.presenter
@@ -90,15 +90,15 @@ Rectangle {
             readonly property bool inViewport: y + height >= candidateGrid.contentY && y <= candidateGrid.contentY + candidateGrid.height
             readonly property bool keyboardCurrent: index === candidateGrid.currentIndex && candidateGrid.grid.activeFocus
             onInViewportChanged: if (inViewport)
-                root.presenter.ensureImportThumbnail(index)
-            onSourcePathChanged: root.presenter.ensureImportThumbnail(index)
+                root.presenter.imports.ensureImportThumbnail(index)
+            onSourcePathChanged: root.presenter.imports.ensureImportThumbnail(index)
             onThumbnailUrlChanged: if (inViewport && thumbnailUrl.toString().length === 0)
-                root.presenter.ensureImportThumbnail(index)
+                root.presenter.imports.ensureImportThumbnail(index)
             opacity: duplicate ? 0.45 : 1
             width: candidateGrid.cellWidth
             height: candidateGrid.cellHeight
-            Component.onCompleted: root.presenter.ensureImportThumbnail(index)
-            onIndexChanged: root.presenter.ensureImportThumbnail(index)
+            Component.onCompleted: root.presenter.imports.ensureImportThumbnail(index)
+            onIndexChanged: root.presenter.imports.ensureImportThumbnail(index)
 
             Rectangle {
                 anchors.fill: parent
@@ -178,7 +178,7 @@ Rectangle {
                     onCanceled: preventStealing = false
                     onClicked: function (mouse) {
                         if (mouse.button === Qt.RightButton) {
-                            if (root.presenter.setImportContextRow(index))
+                            if (root.presenter.imports.setImportContextRow(index))
                                 importMenu.popup();
                         } else if (eligible) {
                             candidateGrid.applyMouseSelection(index, mouse.modifiers);

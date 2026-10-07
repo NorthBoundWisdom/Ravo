@@ -32,7 +32,7 @@ TEST(LocalAdjustmentWorkspaceTest, DrawAdjustDoneAndReopenKeepGlobalAndLocalSepa
         StudioPresenter presenter;
         presenter.createCatalogFromPath(catalog);
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-        presenter.importFilePaths({photo});
+        presenter.imports()->importFilePaths({photo});
         ASSERT_TRUE(wait_until(
             [&]
             {
@@ -41,10 +41,14 @@ TEST(LocalAdjustmentWorkspaceTest, DrawAdjustDoneAndReopenKeepGlobalAndLocalSepa
             }));
         presenter.setBrowseMode(QStringLiteral("develop"));
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }));
+            [&]
+            {
+                return !presenter.inspect()->previewLoading() &&
+                       !presenter.inspect()->previewUrl().isEmpty();
+            }));
         asset_id = presenter.selectedAssetId();
         presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 0.8);
-        ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
+        ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }));
         StudioCommandController commands(presenter);
         ASSERT_TRUE(
             commands.applyLocalAdjustment(QStringLiteral("create"), {{QStringLiteral("kind"), 4}}));
@@ -64,14 +68,18 @@ TEST(LocalAdjustmentWorkspaceTest, DrawAdjustDoneAndReopenKeepGlobalAndLocalSepa
         arguments.insert(QStringLiteral("x"), 0.7);
         arguments.insert(QStringLiteral("y"), 0.75);
         ASSERT_TRUE(commands.applyLocalAdjustment(QStringLiteral("gesture_end"), arguments));
-        ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
+        ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }));
         presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), -0.65);
-        ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
+        ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }));
         EXPECT_DOUBLE_EQ(presenter.develop()->editExposure(), -0.65)
             << presenter.errorText().toStdString();
         ASSERT_TRUE(commands.applyLocalAdjustment(QStringLiteral("done"), {}));
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.develop()->localEditing() && !presenter.previewLoading(); }));
+            [&]
+            {
+                return !presenter.develop()->localEditing() &&
+                       !presenter.inspect()->previewLoading();
+            }));
         EXPECT_DOUBLE_EQ(presenter.develop()->editExposure(), 0.8);
         EXPECT_EQ(presenter.develop()->localAdjustments().size(), 1);
         auto live = StudioLiveSessionController::create(presenter, commands);
@@ -126,10 +134,14 @@ TEST(LocalAdjustmentWorkspaceTest, DrawAdjustDoneAndReopenKeepGlobalAndLocalSepa
         EXPECT_EQ(presenter.develop()->localAdjustments().size(), 1);
         ASSERT_TRUE(commands.applyLocalAdjustment(QStringLiteral("done"), {}));
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.develop()->localEditing() && !presenter.previewLoading(); }))
+            [&]
+            {
+                return !presenter.develop()->localEditing() &&
+                       !presenter.inspect()->previewLoading();
+            }))
             << "local=" << presenter.develop()->localEditing()
             << " pending=" << presenter.develop()->localDonePending()
-            << " preview=" << presenter.previewLoading()
+            << " preview=" << presenter.inspect()->previewLoading()
             << " error=" << presenter.errorText().toStdString();
     }
     const auto listed = run_cli_process({QStringLiteral("--json"), QStringLiteral("catalog"),
@@ -171,12 +183,16 @@ TEST(LocalAdjustmentWorkspaceTest, UnfinishedCreationAndInvalidGestureLeaveNoSav
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(
         wait_until([&] { return !presenter.selectedAssetId().isEmpty() && !presenter.busy(); }));
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }));
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewUrl().isEmpty();
+        }));
     StudioCommandController commands(presenter);
     ASSERT_TRUE(
         commands.applyLocalAdjustment(QStringLiteral("create"), {{QStringLiteral("kind"), 8}}));

@@ -14,12 +14,6 @@ StudioDevelopPresenter::StudioDevelopPresenter(Context context, Host host, QObje
     , catalog_operation_active_(context.catalog_operation_active_)
     , import_work_active_(context.import_work_active_)
     , observed_catalog_revision_(context.observed_catalog_revision_)
-    , live_preview_revision_(context.live_preview_revision_)
-    , preview_loading_(context.preview_loading_)
-    , preview_image_(context.preview_image_)
-    , preview_base_image_(context.preview_base_image_)
-    , preview_image_mutex_(context.preview_image_mutex_)
-    , comparison_before_url_(context.comparison_before_url_)
     , assets_(context.assets_)
     , inspect_(context.inspect_)
     , engine_(context.engine_)
@@ -118,7 +112,7 @@ bool StudioDevelopPresenter::liveBatchBusy() const noexcept
 bool StudioDevelopPresenter::clear_comparison()
 {
     const bool changed = state_.comparison_active_ || state_.comparison_before_requested_ ||
-                         !comparison_before_url_.isEmpty();
+                         !inspect_.comparisonBeforeUrl().isEmpty();
     state_.comparison_active_ = false;
     state_.comparison_before_requested_ = false;
     if (state_.pending_preview_.has_value() && state_.pending_preview_->comparison_before)

@@ -262,14 +262,20 @@ TEST(StudioQmlContract, InspectZoomAdmitsGpuSurfaceWithoutHiddenImageReadiness)
     state.setData(R"(import QtQuick
 QtObject {
     property string browseMode: "loupe"
-    property bool cropToolActive: false
-    property int gpuPreviewGeneration: 0
-    property url previewUrl: "image://preview/photo"
+    property QtObject develop: QtObject { property bool cropToolActive: false }
+    property QtObject inspect: QtObject {
+        property int gpuPreviewGeneration: 0
+        property url previewUrl: "image://preview/photo"
+    }
     property int status: 0
 })",
                   QUrl{});
     std::unique_ptr<QObject> studio(state.create());
     ASSERT_NE(studio, nullptr) << state.errorString().toStdString();
+    auto *inspect = studio->property("inspect").value<QObject *>();
+    auto *develop = studio->property("develop").value<QObject *>();
+    ASSERT_NE(inspect, nullptr);
+    ASSERT_NE(develop, nullptr);
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(
                      RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/inspect/InspectZoomController.qml")));
@@ -278,7 +284,7 @@ QtObject {
     zoom->setProperty("studio", QVariant::fromValue(studio.get()));
     zoom->setProperty("previewImage", QVariant::fromValue(studio.get()));
     EXPECT_FALSE(zoom->property("photoInspectEnabled").toBool());
-    studio->setProperty("gpuPreviewGeneration", 1);
+    inspect->setProperty("gpuPreviewGeneration", 1);
     EXPECT_TRUE(zoom->property("photoInspectEnabled").toBool());
     zoom->setProperty("comparisonReady", true);
     EXPECT_FALSE(zoom->property("photoInspectEnabled").toBool());
@@ -287,7 +293,7 @@ QtObject {
     studio->setProperty("browseMode", "grid");
     EXPECT_FALSE(zoom->property("photoInspectEnabled").toBool());
     studio->setProperty("browseMode", "develop");
-    studio->setProperty("cropToolActive", true);
+    develop->setProperty("cropToolActive", true);
     EXPECT_FALSE(zoom->property("photoInspectEnabled").toBool());
 }
 

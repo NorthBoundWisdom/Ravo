@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-29
 - Updated: 2026-09-27
+- Updated: 2026-10-07 — navigation and frame state move to Inspect
 - Extends: [ADR-0060](0060-studio-navigation-lifecycle.md)
 
 ## Context
@@ -18,7 +19,7 @@ was already using.
 - Hovering the decoded photo (not the surrounding letterbox) shows a
   magnifying-glass pointer. Plus means the next click goes to Actual; minus
   means the next click restores the last non-Actual mode.
-- A click on that photo is a zoom intent. `StudioPresenter::toggleActualSize`
+- A click on that photo is a zoom intent. `StudioInspectPresenter::toggleActualSize`
   remains the zoom-state owner: leaving Actual restores the last Fit, Fill, or
   custom factor; the 1:1 control still sets Actual absolutely.
 - QML owns only the pointer geometry and a short GPU scale/pan animation for

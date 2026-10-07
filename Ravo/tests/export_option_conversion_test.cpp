@@ -34,12 +34,12 @@ TEST(ExportWorkflow, CompanionCheckRoutesMissingAndAvailableWithoutWriting)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(studio_test_support::wait_until(
         [&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({raw});
+    presenter.imports()->importFilePaths({raw});
     ASSERT_TRUE(studio_test_support::wait_until(
         [&]
         {
             return !presenter.selectedAssetId().isEmpty() && !presenter.busy() &&
-                   !presenter.importWorkActive();
+                   !presenter.imports()->importWorkActive();
         }));
     int missing = 0;
     int ready = 0;

@@ -180,28 +180,33 @@ TEST(StudioGpuPreviewTest, PortraitRawLoupePublishesOwnedPixels)
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({input});
+    presenter.imports()->importFilePaths({input});
     ASSERT_TRUE(
         wait_until([&] { return presenter.visibleCount() == 1 && !presenter.busy(); }, 30000));
     presenter.setBrowseMode("loupe");
     presenter.selectAsset(presenter.assets()->assetIdAt(0));
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && !presenter.previewImage().isNull(); }, 30000))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewImage().isNull();
+        },
+        30000))
         << presenter.errorText().toStdString();
     const auto output = qEnvironmentVariable("RAVO_TEST_GPU_OUTPUT_DIRECTORY");
     if (!output.isEmpty())
-        ASSERT_TRUE(presenter.previewImage().save(QDir(output).filePath("loupe.png")));
+        ASSERT_TRUE(presenter.inspect()->previewImage().save(QDir(output).filePath("loupe.png")));
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
 #if defined(Q_OS_MACOS)
-    if (presenter.gpuPreviewGeneration() > 0)
+    if (presenter.inspect()->gpuPreviewGeneration() > 0)
     {
         auto snapshot = studio_metal::snapshot_iosurface_rgb8(
-            presenter.gpuPreviewNativeSurface(),
-            static_cast<std::uint32_t>(presenter.gpuPreviewWidth()),
-            static_cast<std::uint32_t>(presenter.gpuPreviewHeight()));
+            presenter.inspect()->gpuPreviewNativeSurface(),
+            static_cast<std::uint32_t>(presenter.inspect()->gpuPreviewWidth()),
+            static_cast<std::uint32_t>(presenter.inspect()->gpuPreviewHeight()));
         ASSERT_TRUE(snapshot) << snapshot.error().message;
         EXPECT_EQ(snapshot.value(),
-                  presenter.previewImage().convertToFormat(QImage::Format_RGB888));
+                  presenter.inspect()->previewImage().convertToFormat(QImage::Format_RGB888));
     }
 #endif
 }

@@ -22,7 +22,7 @@ StudioContextMenu {
 
     StudioContextMenuItem {
         displayText: root.isAllPhotographs ? qsTr("Import Photos...") : qsTr("Import Photos from This Folder...")
-        enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.importWorkActive && (root.isAllPhotographs || (!root.missing && root.localPath.length > 0))
+        enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.imports.importWorkActive && (root.isAllPhotographs || (!root.missing && root.localPath.length > 0))
         onTriggered: {
             if (root.isAllPhotographs)
                 root.commands.importPhotos.trigger();
@@ -49,7 +49,7 @@ StudioContextMenu {
     StudioContextMenuSeparator {}
     StudioContextMenuItem {
         displayText: qsTr("Remove from Catalog...")
-        enabled: !root.isAllPhotographs && root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.importWorkActive && root.folderUri.length > 0
+        enabled: !root.isAllPhotographs && root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.imports.importWorkActive && root.folderUri.length > 0
         onTriggered: root.commands.run(root.commands.ids.libraryRemoveFolder, root.folderUri)
     }
 }

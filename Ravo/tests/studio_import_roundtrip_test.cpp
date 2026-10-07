@@ -59,24 +59,33 @@ TEST(StudioImportRoundtrip, CopyPreservesSourceHashAndGalleryMembership)
         presenter.createCatalogFromPath(catalog);
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
 
-        presenter.openImportPage();
-        presenter.importSourceFolders()->resetWithRoots(
+        presenter.imports()->openImportPage();
+        presenter.imports()->importSourceFolders()->resetWithRoots(
             {{directory.path(), QStringLiteral("fixture"), true}});
-        presenter.importDestinationFolders()->resetWithRoots(
+        presenter.imports()->importDestinationFolders()->resetWithRoots(
             {{directory.path(), QStringLiteral("fixture"), true}});
-        presenter.setImportSourceRoot(source);
-        presenter.setImportDestination(destination);
-        ASSERT_TRUE(
-            wait_until([&] { return !presenter.importScanActive() && presenter.importReady(); }));
-        ASSERT_EQ(presenter.importCandidates()->rowCount(), 2);
-        ASSERT_EQ(presenter.importCandidates()->selectedCount(), 2);
+        presenter.imports()->setImportSourceRoot(source);
+        presenter.imports()->setImportDestination(destination);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return !presenter.imports()->importScanActive() &&
+                       presenter.imports()->importReady();
+            }));
+        ASSERT_EQ(presenter.imports()->importCandidates()->rowCount(), 2);
+        ASSERT_EQ(presenter.imports()->importCandidates()->selectedCount(), 2);
 
         // Destination preview may be empty while debounce runs; wait for inactive.
-        ASSERT_TRUE(wait_until([&] { return !presenter.importDestinationPreviewActive(); }, 5000));
-
-        presenter.startPlannedImport();
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            [&] { return !presenter.imports()->importDestinationPreviewActive(); }, 5000));
+
+        presenter.imports()->startPlannedImport();
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return !presenter.imports()->importPreflightActive() &&
+                       !presenter.imports()->importWorkActive();
+            },
             30000));
         ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
         EXPECT_EQ(presenter.lastImportCount(), 2);
@@ -88,14 +97,14 @@ TEST(StudioImportRoundtrip, CopyPreservesSourceHashAndGalleryMembership)
         EXPECT_EQ(file_sha256(destination + "/keep.png"), keep_hash);
         EXPECT_EQ(file_sha256(destination + "/also.png"), also_hash);
 
-        presenter.closeImportPage();
-        presenter.openImportPage();
-        presenter.setImportSourceRoot(source);
-        ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-        EXPECT_EQ(presenter.importDuplicateCount(), 2);
-        EXPECT_FALSE(presenter.importReady());
+        presenter.imports()->closeImportPage();
+        presenter.imports()->openImportPage();
+        presenter.imports()->setImportSourceRoot(source);
+        ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+        EXPECT_EQ(presenter.imports()->importDuplicateCount(), 2);
+        EXPECT_FALSE(presenter.imports()->importReady());
         EXPECT_GE(presenter.libraryTotal(), 2);
-        presenter.closeImportPage();
+        presenter.imports()->closeImportPage();
         // Same-catalog second Presenter reopen is covered by existing workspace reopen
         // fixtures; this tranche asserts membership on the live session after copy.
     }
@@ -117,19 +126,26 @@ TEST(StudioImportRoundtrip, CancelViaPageCloseLeavesSourcesUntouched)
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.importSourceFolders()->resetWithRoots(
+    presenter.imports()->openImportPage();
+    presenter.imports()->importSourceFolders()->resetWithRoots(
         {{directory.path(), QStringLiteral("fixture"), true}});
-    presenter.importDestinationFolders()->resetWithRoots(
+    presenter.imports()->importDestinationFolders()->resetWithRoots(
         {{directory.path(), QStringLiteral("fixture"), true}});
-    presenter.setImportSourceRoot(source);
-    presenter.setImportDestination(destination);
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.importScanActive() && presenter.importReady(); }));
-    presenter.startPlannedImport();
-    presenter.closeImportPage();
+    presenter.imports()->setImportSourceRoot(source);
+    presenter.imports()->setImportDestination(destination);
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }));
+        [&]
+        {
+            return !presenter.imports()->importScanActive() && presenter.imports()->importReady();
+        }));
+    presenter.imports()->startPlannedImport();
+    presenter.imports()->closeImportPage();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        }));
     EXPECT_EQ(file_sha256(source + "/solo.png"), original);
     EXPECT_TRUE(QDir(destination).entryList(QDir::Files).isEmpty());
 }
@@ -157,18 +173,22 @@ TEST(StudioImportRoundtrip, DestroyAndReopenSameCatalogPreservesMembership)
         StudioPresenter presenter;
         presenter.createCatalogFromPath(catalog);
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-        presenter.openImportPage();
-        presenter.importSourceFolders()->resetWithRoots(
+        presenter.imports()->openImportPage();
+        presenter.imports()->importSourceFolders()->resetWithRoots(
             {{directory.path(), QStringLiteral("fixture"), true}});
-        presenter.importDestinationFolders()->resetWithRoots(
+        presenter.imports()->importDestinationFolders()->resetWithRoots(
             {{directory.path(), QStringLiteral("fixture"), true}});
-        presenter.setImportSourceRoot(source);
-        presenter.setImportDestination(destination);
-        ASSERT_TRUE(
-            wait_until([&] { return !presenter.importScanActive() && presenter.importReady(); }));
-        ASSERT_EQ(presenter.importCandidates()->rowCount(), 2);
+        presenter.imports()->setImportSourceRoot(source);
+        presenter.imports()->setImportDestination(destination);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return !presenter.imports()->importScanActive() &&
+                       presenter.imports()->importReady();
+            }));
+        ASSERT_EQ(presenter.imports()->importCandidates()->rowCount(), 2);
         // Explicit subset: uncheck skip.png (row 1 after sort may vary — match by name).
-        auto *model = presenter.importCandidates();
+        auto *model = presenter.imports()->importCandidates();
         for (int row = 0; row < model->rowCount(); ++row)
         {
             const auto name =
@@ -179,10 +199,15 @@ TEST(StudioImportRoundtrip, DestroyAndReopenSameCatalogPreservesMembership)
                 model->applyCheck(row);
         }
         ASSERT_EQ(model->selectedCount(), 1);
-        ASSERT_TRUE(wait_until([&] { return !presenter.importDestinationPreviewActive(); }, 5000));
-        presenter.startPlannedImport();
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            [&] { return !presenter.imports()->importDestinationPreviewActive(); }, 5000));
+        presenter.imports()->startPlannedImport();
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return !presenter.imports()->importPreflightActive() &&
+                       !presenter.imports()->importWorkActive();
+            },
             30000));
         ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
         EXPECT_EQ(presenter.lastImportCount(), 1);
@@ -195,7 +220,7 @@ TEST(StudioImportRoundtrip, DestroyAndReopenSameCatalogPreservesMembership)
                 imported_ids.push_back(id);
         }
         EXPECT_EQ(imported_ids.size(), 1);
-        presenter.closeImportPage();
+        presenter.imports()->closeImportPage();
     }
 
     // Destroy owner completely; reopen the same durable catalog path.
@@ -233,19 +258,26 @@ TEST(StudioImportRoundtrip, CancelledPreflightDoesNotLateImportAfterDrain)
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.importSourceFolders()->resetWithRoots(
+    presenter.imports()->openImportPage();
+    presenter.imports()->importSourceFolders()->resetWithRoots(
         {{directory.path(), QStringLiteral("fixture"), true}});
-    presenter.importDestinationFolders()->resetWithRoots(
+    presenter.imports()->importDestinationFolders()->resetWithRoots(
         {{directory.path(), QStringLiteral("fixture"), true}});
-    presenter.setImportSourceRoot(source);
-    presenter.setImportDestination(destination);
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.importScanActive() && presenter.importReady(); }));
-    presenter.startPlannedImport();
-    presenter.closeImportPage(); // cancel / abandon while preflight may still be queued
+    presenter.imports()->setImportSourceRoot(source);
+    presenter.imports()->setImportDestination(destination);
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }));
+        [&]
+        {
+            return !presenter.imports()->importScanActive() && presenter.imports()->importReady();
+        }));
+    presenter.imports()->startPlannedImport();
+    presenter.imports()->closeImportPage(); // cancel / abandon while preflight may still be queued
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        }));
     for (int i = 0; i < 50; ++i)
         QCoreApplication::processEvents();
     EXPECT_EQ(file_sha256(source + "/solo.png"), original);
@@ -273,50 +305,64 @@ TEST(StudioImportRoundtrip, RepeatedIntentsRemainQuiescentWithBoundedDiagnostics
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportMode(QStringLiteral("add"));
-    presenter.setImportSourceRoot(source_a);
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportMode(QStringLiteral("add"));
+    presenter.imports()->setImportSourceRoot(source_a);
     ASSERT_TRUE(wait_until(
         [&]
-        { return presenter.importCandidates()->rowCount() >= 2 && !presenter.importScanActive(); },
+        {
+            return presenter.imports()->importCandidates()->rowCount() >= 2 &&
+                   !presenter.imports()->importScanActive();
+        },
         30000));
-    auto *model = presenter.importCandidates();
+    auto *model = presenter.imports()->importCandidates();
     model->resetSelectionRowTouchCount();
     model->applyCheck(0);
     EXPECT_LE(model->selectionRowTouchCount(), 8U);
 
     // Source change must stop old generation work and admit the new scan.
-    presenter.setImportSourceRoot(source_b);
+    presenter.imports()->setImportSourceRoot(source_b);
     ASSERT_TRUE(wait_until(
         [&]
-        { return presenter.importCandidates()->rowCount() >= 2 && !presenter.importScanActive(); },
+        {
+            return presenter.imports()->importCandidates()->rowCount() >= 2 &&
+                   !presenter.imports()->importScanActive();
+        },
         30000));
-    EXPECT_FALSE(presenter.importWorkActive());
-    EXPECT_FALSE(presenter.importPreflightActive());
+    EXPECT_FALSE(presenter.imports()->importWorkActive());
+    EXPECT_FALSE(presenter.imports()->importPreflightActive());
 
     // Close/reopen same catalog — reuse DestroyAndReopen coverage for membership;
     // here assert the page returns to a quiescent owner.
-    presenter.closeImportPage();
-    EXPECT_FALSE(presenter.importPageOpen());
-    presenter.openImportPage();
-    presenter.setImportSourceRoot(source_a);
+    presenter.imports()->closeImportPage();
+    EXPECT_FALSE(presenter.imports()->importPageOpen());
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source_a);
     ASSERT_TRUE(wait_until(
         [&]
-        { return presenter.importCandidates()->rowCount() >= 2 && !presenter.importScanActive(); },
+        {
+            return presenter.imports()->importCandidates()->rowCount() >= 2 &&
+                   !presenter.imports()->importScanActive();
+        },
         30000));
     EXPECT_FALSE(presenter.busy());
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
 
     // Preflight cancel path: start then close before commit.
-    presenter.setImportDestination(destination);
-    presenter.setImportMode(QStringLiteral("copy"));
-    ASSERT_TRUE(wait_until([&] { return !presenter.importDestinationPreviewActive(); }, 5000));
-    presenter.startPlannedImport();
-    presenter.closeImportPage();
+    presenter.imports()->setImportDestination(destination);
+    presenter.imports()->setImportMode(QStringLiteral("copy"));
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.imports()->importDestinationPreviewActive(); }, 5000));
+    presenter.imports()->startPlannedImport();
+    presenter.imports()->closeImportPage();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        },
         30000));
-    EXPECT_FALSE(presenter.importPageOpen());
+    EXPECT_FALSE(presenter.imports()->importPageOpen());
 }
 
 TEST(StudioImportRoundtrip, ImportRecoveryWorkflowCoversSourceSwitchEvictionAndReopen)
@@ -347,20 +393,25 @@ TEST(StudioImportRoundtrip, ImportRecoveryWorkflowCoversSourceSwitchEvictionAndR
         StudioPresenter presenter;
         presenter.createCatalogFromPath(catalog);
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-        presenter.openImportPage();
-        presenter.importSourceFolders()->resetWithRoots(
+        presenter.imports()->openImportPage();
+        presenter.imports()->importSourceFolders()->resetWithRoots(
             {{directory.path(), QStringLiteral("fixture"), true}});
-        presenter.importDestinationFolders()->resetWithRoots(
+        presenter.imports()->importDestinationFolders()->resetWithRoots(
             {{directory.path(), QStringLiteral("fixture"), true}});
-        presenter.setImportMode(QStringLiteral("copy"));
-        presenter.setImportSourceRoot(source_a);
-        presenter.setImportDestination(destination);
+        presenter.imports()->setImportMode(QStringLiteral("copy"));
+        presenter.imports()->setImportSourceRoot(source_a);
+        presenter.imports()->setImportDestination(destination);
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importScanActive() && presenter.importReady(); }, 30000));
-        auto *model = presenter.importCandidates();
+            [&]
+            {
+                return !presenter.imports()->importScanActive() &&
+                       presenter.imports()->importReady();
+            },
+            30000));
+        auto *model = presenter.imports()->importCandidates();
         ASSERT_EQ(model->rowCount(), 4);
         for (int row = 0; row < model->rowCount(); ++row)
-            presenter.ensureImportThumbnail(row);
+            presenter.imports()->ensureImportThumbnail(row);
         ASSERT_TRUE(wait_until(
             [&]
             {
@@ -371,31 +422,12 @@ TEST(StudioImportRoundtrip, ImportRecoveryWorkflowCoversSourceSwitchEvictionAndR
             },
             30000));
 
-        presenter.setImportSourceRoot(source_b);
+        presenter.imports()->setImportSourceRoot(source_b);
         ASSERT_TRUE(wait_until(
-            [&] { return model->rowCount() == 4 && !presenter.importScanActive(); }, 30000));
-        for (int row = 0; row < model->rowCount(); ++row)
-            presenter.ensureImportThumbnail(row);
-        ASSERT_TRUE(wait_until(
-            [&]
-            {
-                for (int row = 0; row < model->rowCount(); ++row)
-                    if (!model->inspected(row) || model->thumbnail(row).isNull())
-                        return false;
-                return true;
-            },
-            30000));
-
-        presenter.setImportSourceRoot(source_a);
-        ASSERT_TRUE(wait_until(
-            [&]
-            {
-                return model->rowCount() == 4 && !presenter.importScanActive() &&
-                       presenter.importReady();
-            },
+            [&] { return model->rowCount() == 4 && !presenter.imports()->importScanActive(); },
             30000));
         for (int row = 0; row < model->rowCount(); ++row)
-            presenter.ensureImportThumbnail(row);
+            presenter.imports()->ensureImportThumbnail(row);
         ASSERT_TRUE(wait_until(
             [&]
             {
@@ -406,21 +438,54 @@ TEST(StudioImportRoundtrip, ImportRecoveryWorkflowCoversSourceSwitchEvictionAndR
             },
             30000));
 
-        presenter.startPlannedImport();
-        presenter.closeImportPage();
+        presenter.imports()->setImportSourceRoot(source_a);
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            [&]
+            {
+                return model->rowCount() == 4 && !presenter.imports()->importScanActive() &&
+                       presenter.imports()->importReady();
+            },
+            30000));
+        for (int row = 0; row < model->rowCount(); ++row)
+            presenter.imports()->ensureImportThumbnail(row);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                for (int row = 0; row < model->rowCount(); ++row)
+                    if (!model->inspected(row) || model->thumbnail(row).isNull())
+                        return false;
+                return true;
+            },
+            30000));
+
+        presenter.imports()->startPlannedImport();
+        presenter.imports()->closeImportPage();
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return !presenter.imports()->importPreflightActive() &&
+                       !presenter.imports()->importWorkActive();
+            },
             30000));
         EXPECT_EQ(file_sha256(source_a + "/a0.png"), hash_a0);
 
-        presenter.openImportPage();
-        presenter.setImportSourceRoot(source_a);
-        presenter.setImportDestination(destination);
+        presenter.imports()->openImportPage();
+        presenter.imports()->setImportSourceRoot(source_a);
+        presenter.imports()->setImportDestination(destination);
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importScanActive() && presenter.importReady(); }, 30000));
-        presenter.startPlannedImport();
+            [&]
+            {
+                return !presenter.imports()->importScanActive() &&
+                       presenter.imports()->importReady();
+            },
+            30000));
+        presenter.imports()->startPlannedImport();
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            [&]
+            {
+                return !presenter.imports()->importPreflightActive() &&
+                       !presenter.imports()->importWorkActive();
+            },
             30000));
         ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
         EXPECT_GE(presenter.lastImportCount(), 1);
@@ -428,7 +493,7 @@ TEST(StudioImportRoundtrip, ImportRecoveryWorkflowCoversSourceSwitchEvictionAndR
 
         library_total = presenter.libraryTotal();
         EXPECT_GE(library_total, 1);
-        presenter.closeImportPage();
+        presenter.imports()->closeImportPage();
     }
     StudioPresenter reopened;
     reopened.openCatalogFromPath(catalog);

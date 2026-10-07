@@ -43,12 +43,12 @@ using interactive_perf_report::warmups_from_env;
 
 [[nodiscard]] bool preview_settled(StudioPresenter &presenter)
 {
-    if (presenter.previewLoading() || presenter.busy())
+    if (presenter.inspect()->previewLoading() || presenter.busy())
         return false;
-    if (presenter.previewUrl().isLocalFile())
+    if (presenter.inspect()->previewUrl().isLocalFile())
         return true;
-    return presenter.previewUrl().scheme() == QLatin1String("image") &&
-           !presenter.previewImage().isNull();
+    return presenter.inspect()->previewUrl().scheme() == QLatin1String("image") &&
+           !presenter.inspect()->previewImage().isNull();
 }
 
 [[nodiscard]] std::optional<std::int64_t> measure_until(StudioPresenter &presenter,
@@ -70,8 +70,8 @@ using interactive_perf_report::warmups_from_env;
         }
     };
     QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
-    const auto c1 =
-        QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter, maybe_finish);
+    const auto c1 = QObject::connect(presenter.inspect(), &StudioInspectPresenter::previewChanged,
+                                     &presenter, maybe_finish);
     const auto c2 =
         QObject::connect(&presenter, &StudioPresenter::browseModeChanged, &presenter, maybe_finish);
     const auto c3 =
@@ -134,13 +134,16 @@ TEST(StudioPresenterTest, CachedDevelopRevisitAndRapidSwitchPublishSelectedPixel
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths(photos);
+    presenter.imports()->importFilePaths(photos);
     ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 2 && !presenter.busy(); }));
     const auto first = presenter.assets()->assetIdAt(0);
     const auto second = presenter.assets()->assetIdAt(1);
     presenter.setBrowseMode(QStringLiteral("develop"));
     const auto ready = [&]
-    { return !presenter.previewLoading() && !presenter.previewImage().isNull(); };
+    {
+        return !presenter.inspect()->previewLoading() &&
+               !presenter.inspect()->previewImage().isNull();
+    };
     for (const auto &id : {first, second})
     {
         presenter.selectAsset(id);
@@ -155,7 +158,7 @@ TEST(StudioPresenterTest, CachedDevelopRevisitAndRapidSwitchPublishSelectedPixel
     ASSERT_TRUE(asset);
     const QColor expected =
         asset->normalized_uri.ends_with("a.png") ? QColor(180, 20, 40) : QColor(20, 40, 180);
-    EXPECT_EQ(presenter.previewImage().pixelColor(0, 0), expected);
+    EXPECT_EQ(presenter.inspect()->previewImage().pixelColor(0, 0), expected);
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
 }
 
@@ -178,7 +181,7 @@ TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
         setup.createCatalogFromPath(catalog);
         ASSERT_TRUE(wait_until([&] { return setup.catalogOpen() && !setup.busy(); }))
             << setup.errorText().toStdString();
-        setup.importFilePaths({photo});
+        setup.imports()->importFilePaths({photo});
         ASSERT_TRUE(wait_until(
             [&]
             {
@@ -188,14 +191,19 @@ TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
             << setup.errorText().toStdString();
         asset_id = setup.selectedAssetId();
         setup.openDevelop();
-        ASSERT_TRUE(
-            wait_until([&] { return !setup.previewLoading() && !setup.previewImage().isNull(); }))
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return !setup.inspect()->previewLoading() &&
+                       !setup.inspect()->previewImage().isNull();
+            }))
             << setup.errorText().toStdString();
         setup.develop()->setDevelopNumber(QStringLiteral("exposure"), 1.0);
         ASSERT_TRUE(wait_until(
             [&]
             {
-                return !setup.previewLoading() && setup.previewUrl().isLocalFile() &&
+                return !setup.inspect()->previewLoading() &&
+                       setup.inspect()->previewUrl().isLocalFile() &&
                        std::abs(setup.develop()->editExposure() - 1.0) < 1.0e-9;
             }))
             << setup.errorText().toStdString();
@@ -215,11 +223,11 @@ TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
         << presenter.errorText().toStdString();
 
     std::optional<QColor> first_live_center;
-    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+    QObject::connect(presenter.inspect(), &StudioInspectPresenter::previewChanged, &presenter,
                      [&]
                      {
-                         const QUrl url = presenter.previewUrl();
-                         const QImage frame = presenter.previewImage();
+                         const QUrl url = presenter.inspect()->previewUrl();
+                         const QImage frame = presenter.inspect()->previewImage();
                          if (!first_live_center && url.scheme() == QLatin1String("image") &&
                              url.path() == QLatin1String("/live") && !frame.isNull())
                          {
@@ -231,13 +239,17 @@ TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
     ASSERT_TRUE(wait_until([&] { return first_live_center.has_value(); }))
         << presenter.errorText().toStdString();
 #if defined(Q_OS_MACOS)
-    EXPECT_GT(presenter.gpuPreviewGeneration(), 0U);
+    EXPECT_GT(presenter.inspect()->gpuPreviewGeneration(), 0U);
 #endif
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   presenter.inspect()->previewUrl().isLocalFile();
+        }))
         << presenter.errorText().toStdString();
     ASSERT_NEAR(presenter.develop()->editExposure(), 1.0, 1.0e-9);
-    const QImage settled = presenter.previewImage();
+    const QImage settled = presenter.inspect()->previewImage();
     ASSERT_FALSE(settled.isNull());
     const QColor settled_center = settled.pixelColor(settled.width() / 2, settled.height() / 2);
     EXPECT_NEAR(first_live_center->red(), settled_center.red(), 1);
@@ -429,17 +441,17 @@ TEST(StudioGalleryViewerDevelopPerformanceProbe, MeasuresGallerySelectLoupeDevel
             // Require a *new* owned live interactive publication after the mode
             // switch. A leftover image://live URL from a prior Develop sample
             // must not satisfy the gate immediately.
-            const QUrl previous = presenter.previewUrl();
+            const QUrl previous = presenter.inspect()->previewUrl();
             return measure_until(
                 presenter, [&] { presenter.setBrowseMode(QStringLiteral("develop")); },
                 [&]
                 {
                     if (presenter.browseMode() != QLatin1String("develop"))
                         return false;
-                    const QUrl current = presenter.previewUrl();
+                    const QUrl current = presenter.inspect()->previewUrl();
                     return current != previous && current.scheme() == QLatin1String("image") &&
                            current.path() == QLatin1String("/live") &&
-                           !presenter.previewImage().isNull();
+                           !presenter.inspect()->previewImage().isNull();
                 });
         },
         "warm");
@@ -490,16 +502,16 @@ TEST(StudioRapidRawTonePerformanceProbe, MeasuresAllToneControls)
         const double direction = cycle % 2U == 0U ? -1.0 : 1.0;
         const double magnitude = static_cast<double>(cycle / 2U + 1U);
         const double delta = direction * magnitude * (index < 2U ? 0.01 : 1.0);
-        const QUrl previous = presenter.previewUrl();
+        const QUrl previous = presenter.inspect()->previewUrl();
         auto elapsed = measure_until(
             presenter, [&]
             { presenter.develop()->previewDevelopNumber(fields[index], baselines[index] + delta); },
             [&]
             {
-                const QUrl current = presenter.previewUrl();
+                const QUrl current = presenter.inspect()->previewUrl();
                 return current != previous && current.scheme() == QLatin1String("image") &&
                        current.path() == QLatin1String("/live") &&
-                       !presenter.previewImage().isNull();
+                       !presenter.inspect()->previewImage().isNull();
             },
             5000);
         ASSERT_TRUE(elapsed.has_value()) << presenter.errorText().toStdString();

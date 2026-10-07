@@ -277,10 +277,11 @@ Result<void> StudioLiveSessionController::start()
     connect(&presenter_, &StudioPresenter::catalogChanged, this, changed);
     connect(&presenter_, &StudioPresenter::busyChanged, this, changed);
     connect(&presenter_, &StudioPresenter::libraryWorkChanged, this, changed);
+    connect(presenter_.imports(), &StudioImportWorkspace::libraryWorkChanged, this, changed);
     connect(&presenter_, &StudioPresenter::selectionChanged, this, changed);
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
     connect(presenter_.develop(), &StudioDevelopPresenter::editChanged, this, changed);
-    connect(&presenter_, &StudioPresenter::previewChanged, this, changed);
+    connect(presenter_.inspect(), &StudioInspectPresenter::previewChanged, this, changed);
     connect(presenter_.inspect(), &StudioInspectPresenter::identityChanged, this, changed);
     connect(&commands_, &StudioCommandController::commandsChanged, this, changed);
     refresh();
@@ -375,10 +376,11 @@ void StudioLiveSessionController::refresh()
     baseline_recipe_json_ = std::move(baseline);
     recipe_error_ = std::move(failure);
 
-    const std::string preview = std::to_string(presenter_.live_preview_revision_) + "\n" +
-                                utf8_from_qstring(presenter_.inspect_.pixelSha256()) + "\n" +
-                                std::to_string(presenter_.preview_loading_ ? 1 : 0) + "\n" +
-                                std::to_string(presenter_.inspect_.identityPending() ? 1 : 0);
+    const std::string preview = std::to_string(presenter_.inspect()->frameRevision()) + "\n" +
+                                utf8_from_qstring(presenter_.inspect()->pixelSha256()) + "\n" +
+                                std::to_string(presenter_.inspect()->previewLoading() ? 1 : 0) +
+                                "\n" +
+                                std::to_string(presenter_.inspect()->identityPending() ? 1 : 0);
     if (preview != preview_identity_)
     {
         preview_identity_ = preview;
@@ -451,36 +453,39 @@ JsonValue StudioLiveSessionController::snapshot() const
     if (!recipe_error_.empty())
         recipe.emplace("error", recipe_error_);
 
-    const bool preview_ready = !presenter_.inspect_.pixelSha256().isEmpty() &&
-                               presenter_.live_preview_width_ > 0U &&
-                               presenter_.live_preview_height_ > 0U;
+    const bool preview_ready = !presenter_.inspect()->pixelSha256().isEmpty() &&
+                               presenter_.inspect()->frameWidth() > 0U &&
+                               presenter_.inspect()->frameHeight() > 0U;
     JsonValue::Object preview{
-        {"color_profile", utf8_from_qstring(presenter_.live_preview_color_profile_id_)},
-        {"height", JsonValue::number(std::to_string(presenter_.live_preview_height_))},
+        {"color_profile", utf8_from_qstring(presenter_.inspect()->frameColorProfile())},
+        {"height", JsonValue::number(std::to_string(presenter_.inspect()->frameHeight()))},
         {"matches_current_recipe",
-         available && presenter_.inspect_.displayedDevelop().has_value() &&
-             *presenter_.inspect_.displayedDevelop() == presenter_.develop()->state().develop_ &&
+         available && presenter_.inspect()->displayedDevelop().has_value() &&
+             *presenter_.inspect()->displayedDevelop() == presenter_.develop()->state().develop_ &&
              !presenter_.develop()->state().before_after_ &&
              !presenter_.develop()->state().crop_tool_active_ &&
              !presenter_.develop()->state().mask_overlay_visible_},
         {"pixel_format", "rgb8"},
-        {"pixel_sha256", utf8_from_qstring(presenter_.inspect_.pixelSha256())},
-        {"resource_id", preview_ready ?
-                            descriptor_.session_id +
-                                ":preview:" + std::to_string(presenter_.live_preview_revision_) +
-                                ":" + utf8_from_qstring(presenter_.inspect_.pixelSha256()) :
-                            std::string{}},
+        {"pixel_sha256", utf8_from_qstring(presenter_.inspect()->pixelSha256())},
+        {"resource_id",
+         preview_ready ? descriptor_.session_id +
+                             ":preview:" + std::to_string(presenter_.inspect()->frameRevision()) +
+                             ":" + utf8_from_qstring(presenter_.inspect()->pixelSha256()) :
+                         std::string{}},
         {"revision", JsonValue::number(std::to_string(preview_state_revision_))},
-        {"source_revision", JsonValue::number(std::to_string(presenter_.live_preview_revision_))},
-        {"state", presenter_.preview_loading_ || presenter_.inspect_.identityPending() ? "loading" :
-                  preview_ready                                                        ? "ready" :
-                                                                                         "none"},
-        {"width", JsonValue::number(std::to_string(presenter_.live_preview_width_))},
+        {"source_revision",
+         JsonValue::number(std::to_string(presenter_.inspect()->frameRevision()))},
+        {"state",
+         presenter_.inspect()->previewLoading() || presenter_.inspect()->identityPending() ?
+             "loading" :
+         preview_ready ? "ready" :
+                         "none"},
+        {"width", JsonValue::number(std::to_string(presenter_.inspect()->frameWidth()))},
     };
 
     return JsonValue::Object{
         {"browse_mode", utf8_from_qstring(presenter_.browse_mode_)},
-        {"busy", presenter_.busy_ || presenter_.import_work_active_ ||
+        {"busy", presenter_.busy_ || presenter_.import_workspace_->importWorkActive() ||
                      presenter_.develop()->state().develop_job_in_flight_ ||
                      presenter_.develop()->state().pending_save_.has_value() ||
                      presenter_.develop()->state().pending_preview_.has_value()},
@@ -622,7 +627,7 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
                            {"expected", asset_id.value()},
                            {"actual", utf8_from_qstring(presenter_.selected_asset_id_)}});
     }
-    if (presenter_.busy_ || presenter_.import_work_active_ ||
+    if (presenter_.busy_ || presenter_.import_workspace_->importWorkActive() ||
         presenter_.develop()->state().develop_job_in_flight_ ||
         presenter_.develop()->state().pending_save_ ||
         presenter_.develop()->state().pending_preview_ ||

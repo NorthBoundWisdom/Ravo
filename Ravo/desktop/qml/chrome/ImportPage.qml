@@ -10,11 +10,11 @@ Rectangle {
     property var commands
     signal closeRequested
     readonly property bool compact: width < 1000
-    readonly property bool locked: presenter.importWorkActive || presenter.importPreflightActive
+    readonly property bool locked: presenter.imports.importWorkActive || presenter.imports.importPreflightActive
     readonly property string candidateKeyboardHelp: qsTr("Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks")
     color: Theme.windowColor
     focus: visible
-    Keys.onEscapePressed: if (!presenter.importWorkActive)
+    Keys.onEscapePressed: if (!presenter.imports.importWorkActive)
         root.closeRequested()
 
     ImportDialogs {
@@ -42,7 +42,7 @@ Rectangle {
 
                 CustomButton {
                     text: qsTr("Back")
-                    enabled: !root.presenter.importWorkActive
+                    enabled: !root.presenter.imports.importWorkActive
                     onClicked: root.closeRequested()
                 }
 
@@ -60,7 +60,7 @@ Rectangle {
                     Layout.leftMargin: Fonts.size12
                     color: Theme.placeholderTextColor
                     elide: Text.ElideMiddle
-                    text: root.presenter.importSourceRoot.length ? root.presenter.importSourceRoot + (root.presenter.importMode !== "add" && root.presenter.importDestination.length > 0 ? "  →  " + root.presenter.importDestination : "") : ""
+                    text: root.presenter.imports.importSourceRoot.length ? root.presenter.imports.importSourceRoot + (root.presenter.imports.importMode !== "add" && root.presenter.imports.importDestination.length > 0 ? "  →  " + root.presenter.imports.importDestination : "") : ""
                     ToolTip.visible: routeHover.hovered && text.length > 0
                     ToolTip.text: text
 
@@ -120,13 +120,13 @@ Rectangle {
                     CustomButton {
                         text: qsTr("Check All")
                         enabled: !root.locked
-                        onClicked: root.presenter.importCandidates.setAllSelected(true)
+                        onClicked: root.presenter.imports.importCandidates.setAllSelected(true)
                     }
 
                     CustomButton {
                         text: qsTr("Uncheck All")
                         enabled: !root.locked
-                        onClicked: root.presenter.importCandidates.setAllSelected(false)
+                        onClicked: root.presenter.imports.importCandidates.setAllSelected(false)
                     }
 
                     Slider {
@@ -153,13 +153,13 @@ Rectangle {
                     Layout.margins: Fonts.size8
                     elide: Text.ElideRight
                     text: {
-                        if (root.presenter.importScanActive)
-                            return qsTr("Checking %1 of %2…").arg(root.presenter.importScanCompleted).arg(root.presenter.importScanTotal);
-                        const duplicates = qsTr("Duplicate photos: %1").arg(root.presenter.importDuplicateCount);
+                        if (root.presenter.imports.importScanActive)
+                            return qsTr("Checking %1 of %2…").arg(root.presenter.imports.importScanCompleted).arg(root.presenter.imports.importScanTotal);
+                        const duplicates = qsTr("Duplicate photos: %1").arg(root.presenter.imports.importDuplicateCount);
                         return selectionArea.width >= 720 ? duplicates + " · " + root.candidateKeyboardHelp : duplicates;
                     }
                     color: Theme.placeholderTextColor
-                    ToolTip.visible: candidateHelpHover.hovered && !root.presenter.importScanActive
+                    ToolTip.visible: candidateHelpHover.hovered && !root.presenter.imports.importScanActive
                     ToolTip.text: root.candidateKeyboardHelp
 
                     HoverHandler {
@@ -196,7 +196,7 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         elide: Text.ElideRight
-                        text: qsTr("Selected: %1 photos · %2 MB").arg(root.presenter.importCandidates.selectedCount).arg((root.presenter.importCandidates.selectedBytes / 1048576).toFixed(1))
+                        text: qsTr("Selected: %1 photos · %2 MB").arg(root.presenter.imports.importCandidates.selectedCount).arg((root.presenter.imports.importCandidates.selectedBytes / 1048576).toFixed(1))
                     }
 
                     CustomLabel {
@@ -210,15 +210,15 @@ Rectangle {
 
                 CustomButton {
                     text: qsTr("Cancel")
-                    enabled: !root.presenter.importWorkActive
+                    enabled: !root.presenter.imports.importWorkActive
                     onClicked: root.closeRequested()
                 }
 
                 CustomButton {
                     objectName: "importConfirmButton"
-                    text: root.presenter.importPreflightActive ? qsTr("Checking destination…") : qsTr("Import %1 photos").arg(root.presenter.importCandidates.selectedCount)
-                    enabled: root.presenter.importReady
-                    onClicked: root.presenter.startPlannedImport()
+                    text: root.presenter.imports.importPreflightActive ? qsTr("Checking destination…") : qsTr("Import %1 photos").arg(root.presenter.imports.importCandidates.selectedCount)
+                    enabled: root.presenter.imports.importReady
+                    onClicked: root.presenter.imports.startPlannedImport()
                 }
             }
         }

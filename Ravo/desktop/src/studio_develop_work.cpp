@@ -697,7 +697,7 @@ void StudioDevelopPresenter::kick_develop_work()
                             revision, job.asset_id, utf8_from_qstring(selected_asset_id_)))
                     {
                         if (job.comparison_before && state_.comparison_active_ &&
-                            comparison_before_url_.isEmpty())
+                            inspect_.comparisonBeforeUrl().isEmpty())
                         {
                             state_.comparison_before_requested_ = true;
                         }
@@ -723,7 +723,7 @@ void StudioDevelopPresenter::kick_develop_work()
                         if (preview.error().code == ErrorCode::kCancelled)
                         {
                             if (job.comparison_before && state_.comparison_active_ &&
-                                comparison_before_url_.isEmpty())
+                                inspect_.comparisonBeforeUrl().isEmpty())
                             {
                                 state_.comparison_before_requested_ = true;
                             }
@@ -761,7 +761,7 @@ void StudioDevelopPresenter::kick_develop_work()
                         if (state_.comparison_active_)
                         {
                             host_.publish_before(preview.value(), revision);
-                            if (comparison_before_url_.isEmpty() && clear_comparison())
+                            if (inspect_.comparisonBeforeUrl().isEmpty() && clear_comparison())
                             {
                                 emit editChanged();
                             }
@@ -770,7 +770,13 @@ void StudioDevelopPresenter::kick_develop_work()
                         kick_develop_work();
                         return;
                     }
-                    host_.publish_preview(preview.value(), revision, job.interactive);
+                    if (!host_.publish_preview(preview.value(), revision, job.interactive))
+                    {
+                        host_.preview_loading(false);
+                        emit previewChanged();
+                        kick_develop_work();
+                        return;
+                    }
                     inspect_.observeDisplayedDevelop(job.ignore_edits ?
                                                          std::optional<DevelopParams>{} :
                                                          std::optional<DevelopParams>{job.params});
@@ -811,7 +817,7 @@ void StudioDevelopPresenter::kick_develop_work()
                             .expected_source = {},
                         };
                     }
-                    if (state_.comparison_active_ && comparison_before_url_.isEmpty())
+                    if (state_.comparison_active_ && inspect_.comparisonBeforeUrl().isEmpty())
                     {
                         state_.comparison_before_requested_ = true;
                     }

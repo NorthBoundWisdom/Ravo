@@ -53,8 +53,9 @@ in those authorities.
 
 ## Document authority
 
-Service capability/resource ownership, bounded Preview buffers, Library/Develop/
-Inspect/Export presenters and shared cancellation generations are specified in
+Service capability/resource ownership, bounded Preview buffers, Import workspace,
+Library/Develop/Inspect/Export presenters, comparison frame identity and shared
+cancellation generations are specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with lifecycle and regression coverage in
 [TESTING.md](TESTING.md). Historical migration records do not form a current
 implementation checklist; current product execution stays in [TODO.md](TODO.md).

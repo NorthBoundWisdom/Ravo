@@ -825,7 +825,7 @@ Executable evidence for this hardening round (not “commit title = done”):
 | 05 | `ImportCandidateGrid` no passive `forceActiveFocus`; deepen host | `LateModelUpdateDoesNotStealTextFocusContract`; `FirstCandidatesDoNotStealFilenameTemplateFocus` | desktop command tests | full page GeoControls load not claimed here |
 | 06–07 | membership revision; lightweight preview keys | destination-preview + model tests | desktop command tests | none for those contracts |
 | 08–10 | thumbnail checkpoints, replenish, pixel+wakeup coalesce | `StudioImportThumbnailScheduler.*` | desktop command tests | decoder RSS ≠ model pixel budget |
-| 11 | stopped/post-reject/QPointer owners | scheduler destroy/generation discard tests | desktop command tests | ASan/TSan not run this tranche |
+| 11 | stopped/post-reject/QPointer owners | scheduler destroy/generation discard tests | desktop command tests | desktop TSan admission remains in [architecture qualification](TODO_ARCHITECTURE_REFACTOR.md) |
 | 12–15 | `check_packaged_runtime.py` identity + catalog create/import/probe/list + isolation | `Ravo/tools/test_check_packaged_runtime.py` | unittest (no Qt); real `ravo` catalog stages PASS on mac debug CLI at `d809cb66` | **UNTESTED:** AppImage FUSE; native display; dpkg install; host package rehearsal digests |
 | 16 | scan orchestration in `StudioImportScanController` | workspace/roundtrip suites still green | mac_clang_debug | ImportDraft string enums not further constrained this round |
 | 17 | destroy/reopen + cancel-late | `StudioImportRoundtrip.DestroyAndReopen…`; `CancelledPreflight…` | desktop command tests | private corpus / C3 not claimed |

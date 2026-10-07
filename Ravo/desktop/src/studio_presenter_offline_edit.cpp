@@ -165,7 +165,7 @@ void StudioPresenter::createOfflineEditProxy(const unsigned int max_edge)
 {
     if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
         return;
-    if (busy_ || catalog_operation_active_ || import_work_active_)
+    if (busy_ || catalog_operation_active_ || import_workspace_->importWorkActive())
         return;
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     setError({});
@@ -206,7 +206,7 @@ void StudioPresenter::reconnectOfflineEditProxy(const bool clear_proxy)
 {
     if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
         return;
-    if (busy_ || catalog_operation_active_ || import_work_active_)
+    if (busy_ || catalog_operation_active_ || import_workspace_->importWorkActive())
         return;
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     setError({});
@@ -255,7 +255,7 @@ void StudioPresenter::deleteOfflineEditProxy(const bool force)
 {
     if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
         return;
-    if (busy_ || catalog_operation_active_ || import_work_active_)
+    if (busy_ || catalog_operation_active_ || import_workspace_->importWorkActive())
         return;
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     setError({});
@@ -295,7 +295,7 @@ void StudioPresenter::pinOfflineEditProxy(const bool pinned)
 {
     if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
         return;
-    if (busy_ || catalog_operation_active_ || import_work_active_)
+    if (busy_ || catalog_operation_active_ || import_workspace_->importWorkActive())
         return;
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     setError({});
@@ -337,7 +337,7 @@ void StudioPresenter::evictOfflineEditProxies(const qulonglong max_total_bytes)
 {
     if (catalog_path_.isEmpty())
         return;
-    if (busy_ || catalog_operation_active_ || import_work_active_)
+    if (busy_ || catalog_operation_active_ || import_workspace_->importWorkActive())
         return;
     setError({});
     setStatus(QCoreApplication::translate("StudioPresenter", "Evicting unpinned offline proxies…"));

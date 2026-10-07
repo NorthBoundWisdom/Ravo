@@ -199,11 +199,11 @@ TEST_F(StudioLibraryResumeTest, LastImportScopeRestoresAndCanReturnToAllPhotos)
     {
         StudioPresenter presenter;
         open(presenter, catalog);
-        presenter.importFilePaths({photo});
+        presenter.imports()->importFilePaths({photo});
         ASSERT_TRUE(wait_until(
             [&]
             {
-                return !presenter.busy() && !presenter.importWorkActive() &&
+                return !presenter.busy() && !presenter.imports()->importWorkActive() &&
                        presenter.lastImportCount() == 1;
             }));
         presenter.selectLastImport();

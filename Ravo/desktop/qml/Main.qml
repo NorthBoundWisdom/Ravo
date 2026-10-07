@@ -31,14 +31,13 @@ ApplicationWindow {
     palette.highlightedText: Theme.highlightedTextColor
     palette.placeholderText: Theme.placeholderTextColor
     palette.accent: Theme.accentColor
-
     property bool settingsOpen: false
     property string removeConfirmationToken: ""
     property string deleteConfirmationToken: ""
     property string presetDeleteConfirmationToken: ""
     property string presetDeletePath: ""
     property string presetDeleteName: ""
-    readonly property bool studioInteractive: !settingsOpen && !studio.importPageOpen && !studioCommands.paletteOpen
+    readonly property bool studioInteractive: !settingsOpen && !studio.imports.importPageOpen && !studioCommands.paletteOpen
     readonly property bool textInputActive: activeFocusItem && (activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit)
     property string lastGalleryMode: "grid"
     readonly property var photoPresenter: studio
@@ -64,12 +63,11 @@ ApplicationWindow {
         comparisonReady: window.comparisonReady
         // scroller/photoPlane/previewImage bound after they exist via Binding/onCompleted below
     }
-
     property alias pendingRelinkFolderId: dialogCoordinator.pendingRelinkFolderId
     property alias removeFolderConfirmationToken: dialogCoordinator.removeFolderConfirmationToken
     property alias removeFolderPath: dialogCoordinator.removeFolderPath
-    readonly property bool comparisonReady: studio.develop.comparisonActive && studio.comparisonBeforeUrl.toString().length > 0 && studio.previewUrl.toString().length > 0
-    readonly property bool previewPlaceholderReady: studio.browseMode !== "grid" && studio.browseMode !== "survey" && studio.previewLoading && studio.previewUrl.toString().length === 0 && studio.selectedThumbnailUrl.toString().length > 0 && studio.selectedImportState !== "missing"
+    readonly property bool comparisonReady: studio.develop.comparisonActive && studio.inspect.comparisonBeforeUrl.toString().length > 0 && studio.inspect.previewUrl.toString().length > 0
+    readonly property bool previewPlaceholderReady: studio.browseMode !== "grid" && studio.browseMode !== "survey" && studio.inspect.previewLoading && studio.inspect.previewUrl.toString().length === 0 && studio.selectedThumbnailUrl.toString().length > 0 && studio.selectedImportState !== "missing"
     readonly property alias navigatorVisible: inspectZoom.navigatorVisible
 
     onComparisonReadyChanged: {
@@ -129,6 +127,17 @@ ApplicationWindow {
     }
 
     Connections {
+        target: studio.inspect
+        function onZoomChanged() {
+            if (inspectZoom.inspectZoomPending) {
+                window.beginInspectZoomAnimation();
+                return;
+            }
+            inspectZoom.abortInspectZoomAnimation(inspectZoomAnim);
+            inspectZoom.applyPhotoViewportAfterZoom();
+        }
+    }
+    Connections {
         target: studio
         function onSelectionChanged() {
             if (inspectZoom.viewportAssetId !== studio.selectedAssetId) {
@@ -138,14 +147,6 @@ ApplicationWindow {
                 inspectZoom.inspectViewportRestore = null;
                 inspectZoom.centerPhotoViewport();
             }
-        }
-        function onZoomChanged() {
-            if (inspectZoom.inspectZoomPending) {
-                window.beginInspectZoomAnimation();
-                return;
-            }
-            inspectZoom.abortInspectZoomAnimation(inspectZoomAnim);
-            inspectZoom.applyPhotoViewportAfterZoom();
         }
         function onBrowseModeChanged() {
             inspectZoom.abortInspectZoomAnimation(inspectZoomAnim);
@@ -178,11 +179,11 @@ ApplicationWindow {
     }
 
     function openImportDialog() {
-        studio.openImportPage();
+        studio.imports.openImportPage();
     }
 
     function openImportFolderDialog() {
-        studio.openImportPage();
+        studio.imports.openImportPage();
     }
 
     function openBackupCreateDialog() {
@@ -267,7 +268,7 @@ ApplicationWindow {
     }
 
     function showPhotoMenu() {
-        if (!studio.importPageOpen)
+        if (!studio.imports.importPageOpen)
             photoMenu.popup();
     }
 
@@ -800,7 +801,7 @@ ApplicationWindow {
                             onHeightChanged: inspectRoiDebounce.restart()
 
                             function requestVisibleInspectRoi() {
-                                if (studio.zoomMode !== "actual")
+                                if (studio.inspect.zoomMode !== "actual")
                                     return;
                                 const stageW = Math.max(1, previewStage.width);
                                 const stageH = Math.max(1, previewStage.height);
@@ -808,7 +809,7 @@ ApplicationWindow {
                                 const ny = Math.max(0, Math.min(1, scroller.contentY / stageH));
                                 const nw = Math.max(0.02, Math.min(1 - nx, scroller.width / stageW));
                                 const nh = Math.max(0.02, Math.min(1 - ny, scroller.height / stageH));
-                                studio.requestInspectRoi(nx, ny, nw, nh);
+                                studio.inspect.requestInspectRoi(nx, ny, nw, nh);
                             }
 
                             Timer {
@@ -819,7 +820,7 @@ ApplicationWindow {
                             }
 
                             Connections {
-                                target: studio
+                                target: studio.inspect
                                 function onInspectContextChanged() {
                                     inspectRoiDebounce.restart();
                                 }
@@ -831,24 +832,24 @@ ApplicationWindow {
                                 width: {
                                     if (inspectZoom.inspectStageLockW >= 0)
                                         return inspectZoom.inspectStageLockW;
-                                    if (studio.zoomMode === "fit")
+                                    if (studio.inspect.zoomMode === "fit")
                                         return scroller.width;
-                                    if (studio.zoomMode === "fill")
+                                    if (studio.inspect.zoomMode === "fill")
                                         return Math.max(scroller.width, previewStage.sourceW * (scroller.height / previewStage.sourceH));
-                                    if (studio.zoomMode === "actual")
+                                    if (studio.inspect.zoomMode === "actual")
                                         return previewStage.sourceW;
-                                    return Math.max(1, previewStage.sourceW * studio.zoomFactor);
+                                    return Math.max(1, previewStage.sourceW * studio.inspect.zoomFactor);
                                 }
                                 height: {
                                     if (inspectZoom.inspectStageLockH >= 0)
                                         return inspectZoom.inspectStageLockH;
-                                    if (studio.zoomMode === "fit")
+                                    if (studio.inspect.zoomMode === "fit")
                                         return scroller.height;
-                                    if (studio.zoomMode === "fill")
+                                    if (studio.inspect.zoomMode === "fill")
                                         return Math.max(scroller.height, previewStage.sourceH * (scroller.width / previewStage.sourceW));
-                                    if (studio.zoomMode === "actual")
+                                    if (studio.inspect.zoomMode === "actual")
                                         return previewStage.sourceH;
-                                    return Math.max(1, previewStage.sourceH * studio.zoomFactor);
+                                    return Math.max(1, previewStage.sourceH * studio.inspect.zoomFactor);
                                 }
                                 transform: Scale {
                                     origin.x: inspectZoom.inspectAnimOriginX
@@ -857,17 +858,16 @@ ApplicationWindow {
                                     yScale: inspectZoom.inspectAnimScale
                                 }
 
-                                // Inline studio Q_PROPERTY reads so Fit/Fill track previewChanged.
                                 readonly property real sourceW: {
-                                    if (studio.zoomMode === "actual" && studio.develop.selectedWorkingWidth > 0)
+                                    if (studio.inspect.zoomMode === "actual" && studio.develop.selectedWorkingWidth > 0)
                                         return Math.max(1, Math.round(studio.develop.selectedWorkingWidth / Screen.devicePixelRatio));
-                                    const width = Math.max(studio.previewViewportWidth > 0 ? studio.previewViewportWidth : studio.develop.selectedWorkingWidth, 1);
+                                    const width = Math.max(studio.inspect.previewViewportWidth > 0 ? studio.inspect.previewViewportWidth : studio.develop.selectedWorkingWidth, 1);
                                     return window.comparisonReady ? width * 2 : width;
                                 }
                                 readonly property real sourceH: {
-                                    if (studio.zoomMode === "actual" && studio.develop.selectedWorkingHeight > 0)
+                                    if (studio.inspect.zoomMode === "actual" && studio.develop.selectedWorkingHeight > 0)
                                         return Math.max(1, Math.round(studio.develop.selectedWorkingHeight / Screen.devicePixelRatio));
-                                    return Math.max(studio.previewViewportHeight > 0 ? studio.previewViewportHeight : studio.develop.selectedWorkingHeight, 1);
+                                    return Math.max(studio.inspect.previewViewportHeight > 0 ? studio.inspect.previewViewportHeight : studio.develop.selectedWorkingHeight, 1);
                                 }
                                 readonly property real containScale: Math.min(width / sourceW, height / sourceH)
                                 readonly property bool cropWorkspace: studio.develop.cropToolActive && studio.inspect.cropPreviewLayout.widthScale !== undefined
@@ -908,10 +908,10 @@ ApplicationWindow {
                                         x: window.comparisonReady ? parent.width / 2 : 0
                                         width: window.comparisonReady ? parent.width / 2 : parent.width
                                         height: parent.height
-                                        visible: studio.gpuPreviewGeneration === 0 || window.comparisonReady
+                                        visible: studio.inspect.gpuPreviewGeneration === 0 || window.comparisonReady
                                         asynchronous: false
                                         cache: false
-                                        source: visible ? studio.previewUrl : ""
+                                        source: visible ? studio.inspect.previewUrl : ""
                                         fillMode: Image.Stretch
                                         smooth: true
                                         antialiasing: true
@@ -921,24 +921,24 @@ ApplicationWindow {
                                         x: previewImage.x
                                         width: previewImage.width
                                         height: previewImage.height
-                                        visible: studio.gpuPreviewGeneration > 0 && !window.comparisonReady
-                                        generation: studio.gpuPreviewGeneration
-                                        nativeSurface: studio.gpuPreviewNativeSurface
-                                        sourceWidth: studio.gpuPreviewWidth
-                                        sourceHeight: studio.gpuPreviewHeight
+                                        visible: studio.inspect.gpuPreviewGeneration > 0 && !window.comparisonReady
+                                        generation: studio.inspect.gpuPreviewGeneration
+                                        nativeSurface: studio.inspect.gpuPreviewNativeSurface
+                                        sourceWidth: studio.inspect.gpuPreviewWidth
+                                        sourceHeight: studio.inspect.gpuPreviewHeight
                                         smooth: true
                                     }
 
                                     Image {
                                         id: inspectRoiImage
-                                        x: studio.inspectRoiX * parent.width
-                                        y: studio.inspectRoiY * parent.height
-                                        width: Math.max(1, studio.inspectRoiWidth * parent.width)
-                                        height: Math.max(1, studio.inspectRoiHeight * parent.height)
-                                        visible: studio.zoomMode === "actual" && studio.inspectRoiUrl.toString().length > 0 && !window.comparisonReady && studio.gpuRoiGeneration === 0
+                                        x: studio.inspect.inspectRoiX * parent.width
+                                        y: studio.inspect.inspectRoiY * parent.height
+                                        width: Math.max(1, studio.inspect.inspectRoiWidth * parent.width)
+                                        height: Math.max(1, studio.inspect.inspectRoiHeight * parent.height)
+                                        visible: studio.inspect.zoomMode === "actual" && studio.inspect.inspectRoiUrl.toString().length > 0 && !window.comparisonReady && studio.inspect.gpuRoiGeneration === 0
                                         asynchronous: false
                                         cache: false
-                                        source: visible ? studio.inspectRoiUrl : ""
+                                        source: visible ? studio.inspect.inspectRoiUrl : ""
                                         fillMode: Image.Stretch
                                         smooth: false
                                         antialiasing: false
@@ -949,11 +949,11 @@ ApplicationWindow {
                                         y: inspectRoiImage.y
                                         width: inspectRoiImage.width
                                         height: inspectRoiImage.height
-                                        visible: studio.zoomMode === "actual" && studio.gpuRoiGeneration > 0 && !window.comparisonReady
-                                        generation: studio.gpuRoiGeneration
-                                        nativeSurface: studio.gpuRoiNativeSurface
-                                        sourceWidth: studio.gpuRoiWidth
-                                        sourceHeight: studio.gpuRoiHeight
+                                        visible: studio.inspect.zoomMode === "actual" && studio.inspect.gpuRoiGeneration > 0 && !window.comparisonReady
+                                        generation: studio.inspect.gpuRoiGeneration
+                                        nativeSurface: studio.inspect.gpuRoiNativeSurface
+                                        sourceWidth: studio.inspect.gpuRoiWidth
+                                        sourceHeight: studio.inspect.gpuRoiHeight
                                         smooth: false
                                     }
 
@@ -984,7 +984,7 @@ ApplicationWindow {
                                         visible: window.comparisonReady
                                         asynchronous: false
                                         cache: false
-                                        source: studio.comparisonBeforeUrl
+                                        source: studio.inspect.comparisonBeforeUrl
                                         fillMode: Image.Stretch
                                         smooth: true
                                         antialiasing: true
@@ -1097,7 +1097,7 @@ ApplicationWindow {
 
                                 CropOverlay {
                                     anchors.fill: parent
-                                    visible: studio.browseMode === "develop" && studio.develop.cropToolActive && !studio.develop.comparisonActive && studio.previewUrl.toString().length > 0 && photoPlane.width > 1
+                                    visible: studio.browseMode === "develop" && studio.develop.cropToolActive && !studio.develop.comparisonActive && studio.inspect.previewUrl.toString().length > 0 && photoPlane.width > 1
                                     imageX: photoPlane.x + (previewStage.cropWorkspace ? studio.inspect.cropPreviewLayout.x * photoPlane.width : 0)
                                     imageY: photoPlane.y + (previewStage.cropWorkspace ? studio.inspect.cropPreviewLayout.y * photoPlane.height : 0)
                                     imageWidth: photoPlane.width * (previewStage.cropWorkspace ? studio.inspect.cropPreviewLayout.width : 1)
@@ -1147,7 +1147,7 @@ ApplicationWindow {
                             z: 20
                             antialiasing: true
                             visible: photoInspectHover.hovered && inspectZoom.photoInspectEnabled && !studio.develop.whiteBalancePickActive && !studio.develop.maskPlaceActive && !studio.develop.maskParametricAssistActive
-                            property bool zoomOut: studio.zoomMode === "actual"
+                            property bool zoomOut: studio.inspect.zoomMode === "actual"
                             x: {
                                 if (!visible)
                                     return 0;
@@ -1195,13 +1195,13 @@ ApplicationWindow {
 
                         TapHandler {
                             acceptedButtons: Qt.RightButton
-                            enabled: !studio.importPageOpen
+                            enabled: !studio.imports.importPageOpen
                             onTapped: window.showPhotoMenu()
                         }
 
                         CustomLabel {
                             anchors.centerIn: parent
-                            visible: studio.gpuPreviewGeneration === 0 && !studio.previewLoading && previewImage.source.toString().length === 0 && (studio.selectedAssetId.length === 0 || studio.selectedImportState === "missing")
+                            visible: studio.inspect.gpuPreviewGeneration === 0 && !studio.inspect.previewLoading && previewImage.source.toString().length === 0 && (studio.selectedAssetId.length === 0 || studio.selectedImportState === "missing")
                             text: studio.selectedImportState === "missing" ? qsTr("Original file is missing.") : qsTr("Select a photo to inspect.")
                             color: Theme.placeholderTextColor
                         }
@@ -1281,7 +1281,7 @@ ApplicationWindow {
         MainStatusBar {
             Layout.fillWidth: true
             statusText: studio.statusText
-            viewerText: studio.previewLoading ? qsTr("Loading preview…") : (studio.selectedAssetId.length > 0 ? qsTr("%1 photos").arg(studio.visibleCount) : "")
+            viewerText: studio.inspect.previewLoading ? qsTr("Loading preview…") : (studio.selectedAssetId.length > 0 ? qsTr("%1 photos").arg(studio.visibleCount) : "")
         }
     }
 
@@ -1302,11 +1302,11 @@ ApplicationWindow {
 
     ImportPage {
         anchors.fill: parent
-        visible: studio.importPageOpen
+        visible: studio.imports.importPageOpen
         z: 25
         presenter: studio
         commands: studioActions
-        onCloseRequested: studio.closeImportPage()
+        onCloseRequested: studio.imports.closeImportPage()
     }
 
     AssistantPanel {

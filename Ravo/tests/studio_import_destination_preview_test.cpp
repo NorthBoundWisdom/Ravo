@@ -32,34 +32,37 @@ TEST(StudioImportWorkspace, DestinationPreviewTracksSelectionAndOrganizationWith
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportSourceRoot(source);
-    presenter.setImportDestination(destination);
-    presenter.setImportOrganization(QStringLiteral("hierarchy"));
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source);
+    presenter.imports()->setImportDestination(destination);
+    presenter.imports()->setImportOrganization(QStringLiteral("hierarchy"));
     const auto ready = [&]
     {
-        return !presenter.importScanActive() && !presenter.importDestinationPreviewActive() &&
-               !presenter.importDestinationPreview().empty();
+        return !presenter.imports()->importScanActive() &&
+               !presenter.imports()->importDestinationPreviewActive() &&
+               !presenter.imports()->importDestinationPreview().empty();
     };
-    ASSERT_TRUE(wait_until(ready)) << presenter.importDestinationPreviewError().toStdString();
-    ASSERT_TRUE(presenter.importDestinationPreviewError().isEmpty());
-    auto folders = presenter.importDestinationPreview();
+    ASSERT_TRUE(wait_until(ready))
+        << presenter.imports()->importDestinationPreviewError().toStdString();
+    ASSERT_TRUE(presenter.imports()->importDestinationPreviewError().isEmpty());
+    auto folders = presenter.imports()->importDestinationPreview();
     ASSERT_EQ(folders.size(), 3);
     EXPECT_EQ(folders.front().toMap().value("photoCount").toUInt(), 2U);
     EXPECT_EQ(folders.back().toMap().value("photoCount").toUInt(), 1U);
     EXPECT_TRUE(folders.back().toMap().value("willCreate").toBool());
     EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).empty());
-    presenter.importCandidates()->setAllSelected(false);
-    EXPECT_TRUE(presenter.importDestinationPreview().empty());
-    presenter.importCandidates()->setAllSelected(true);
-    presenter.setImportOrganization(QStringLiteral("date"));
-    presenter.setImportOrganization(QStringLiteral("month"));
-    ASSERT_TRUE(wait_until(ready)) << presenter.importDestinationPreviewError().toStdString();
-    folders = presenter.importDestinationPreview();
+    presenter.imports()->importCandidates()->setAllSelected(false);
+    EXPECT_TRUE(presenter.imports()->importDestinationPreview().empty());
+    presenter.imports()->importCandidates()->setAllSelected(true);
+    presenter.imports()->setImportOrganization(QStringLiteral("date"));
+    presenter.imports()->setImportOrganization(QStringLiteral("month"));
+    ASSERT_TRUE(wait_until(ready))
+        << presenter.imports()->importDestinationPreviewError().toStdString();
+    folders = presenter.imports()->importDestinationPreview();
     ASSERT_EQ(folders.size(), 3);
     EXPECT_EQ(folders.back().toMap().value("depth").toInt(), 2);
     EXPECT_EQ(folders.back().toMap().value("photoCount").toUInt(), 2U);
-    auto *tree = presenter.importDestinationFolders();
+    auto *tree = presenter.imports()->importDestinationFolders();
     const auto month_path = destination + "/" + folders[1].toMap().value("name").toString() + "/" +
                             folders.back().toMap().value("name").toString();
     ASSERT_TRUE(wait_until(
@@ -72,20 +75,25 @@ TEST(StudioImportWorkspace, DestinationPreviewTracksSelectionAndOrganizationWith
             return false;
         }));
     EXPECT_FALSE(QDir(month_path).exists());
-    presenter.setImportOrganization(QStringLiteral("hierarchy"));
-    presenter.closeImportPage();
-    EXPECT_FALSE(presenter.importDestinationPreviewActive());
-    EXPECT_TRUE(presenter.importDestinationPreview().empty());
+    presenter.imports()->setImportOrganization(QStringLiteral("hierarchy"));
+    presenter.imports()->closeImportPage();
+    EXPECT_FALSE(presenter.imports()->importDestinationPreviewActive());
+    EXPECT_TRUE(presenter.imports()->importDestinationPreview().empty());
     for (int row = 0; row < tree->rowCount(); ++row)
         EXPECT_FALSE(
             tree->data(tree->index(row, 0), FilesystemBrowserModel::WillCreateRole).toBool());
     EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).empty());
-    presenter.openImportPage();
-    presenter.setImportDestination(destination);
-    ASSERT_TRUE(wait_until(ready)) << presenter.importDestinationPreviewError().toStdString();
-    presenter.startPlannedImport();
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportDestination(destination);
+    ASSERT_TRUE(wait_until(ready))
+        << presenter.imports()->importDestinationPreviewError().toStdString();
+    presenter.imports()->startPlannedImport();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        },
         30000));
     EXPECT_EQ(presenter.lastImportCount(), 2U);
     EXPECT_TRUE(QFile::exists(destination + "/source/a.png"));
@@ -102,13 +110,16 @@ TEST(StudioImportWorkspace, DestinationPreviewKeyUsesRevisionsNotPathSnapshots)
     // than a single-line "destination_preview = std::make_unique" spell so
     // clang-format line breaks cannot false-fail the check.
     QFile presenter_file(QString::fromUtf8(RAVO_REPOSITORY_ROOT) +
-                         QStringLiteral("/Ravo/desktop/src/studio_presenter.cpp"));
+                         QStringLiteral("/Ravo/desktop/src/studio_import_destination_preview.cpp"));
     ASSERT_TRUE(presenter_file.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto source = QString::fromUtf8(presenter_file.readAll());
     const auto key_begin =
         source.indexOf(QStringLiteral("make_unique<StudioImportDestinationPreviewController>"));
     ASSERT_GE(key_begin, 0);
-    const auto key_region = source.mid(key_begin, 5000);
+    const auto request_builder =
+        source.indexOf(QStringLiteral("return plannedImportRequest();"), key_begin);
+    ASSERT_GT(request_builder, key_begin);
+    const auto key_region = source.mid(key_begin, request_builder - key_begin + 30);
     EXPECT_TRUE(key_region.contains(QStringLiteral("selectionRevision")));
     EXPECT_TRUE(key_region.contains(QStringLiteral("generation")));
     EXPECT_FALSE(key_region.contains(QStringLiteral("selectedPaths()")));

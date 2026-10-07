@@ -775,24 +775,43 @@ original is ever written (ADR-0101).
 
 ### Import desktop ownership
 
-`StudioPresenter` remains the QML façade. Import configuration is an `ImportDraft`
-value inside `StudioImportWorkspace`, which also owns:
-- `StudioImportScanController` — generation/busy/progress/revision + scan cancel **and**
-  source-scan orchestration (request/batch/placeholder/progress) via Host; Presenter only
-  forwards `rescanImportSource`
-- `StudioImportThumbnailController` — decode executor, viewport/current/prefetch demand,
-  coalesce wakeups, observation checkpoints, stopped/post-reject discard
-- `StudioImportDestinationPreviewController` — debounce timer, key, published folders
+`StudioImportWorkspace` is the GUI-thread QObject exposed as `imports`. It owns
+the page/context lifecycle, `ImportDraft`, recursion/transport preferences, scan,
+destination validation/planning, batch/preflight cancellation and generations,
+progress/results, remembered-destination outcome and deferred-preview queue.
+QML and commands address that owner directly; the root has no Import page/progress
+property, command forwarder or writable Import state. Draft values remain distinct from
+the immutable service request captured when import starts.
 
-`ImportCandidateListModel` stays the selection/highlight/thumbnail-pixel owner on
-the Presenter (Q_PROPERTY). `StudioImportWorker` owns a separate serial executor,
-Engine, CatalogService and SQLite connection for scan, destination planning,
-preflight, transfer and deferred previews. Controllers borrow through Host callbacks.
-The foreground executor owns selection, recipe loading and rendering. Both services
-share one synchronized preview cache and recovery-publication mutex. Shutdown cancels
-destination preview, thumbnails and scans, drains import work, then releases the
-foreground service. Catalog and operation generations reject late UI results
-([ADR-0160](adr/0160-foreground-preview-and-import-isolation.md)).
+The workspace owns `ImportCandidateListModel` as the sole candidate check,
+highlight and thumbnail-pixel authority, its two folder models and their joined
+filesystem executor, and the existing scan, thumbnail and destination-preview
+controllers. Destination invalidation uses candidate/selection revisions and
+captures selected paths only after debounce. Thumbnail demand, text-focus rules,
+resource bounds and late-result rejection retain their existing controllers.
+`StudioImportWorker` owns the separate serial executor, Engine, CatalogService
+and SQLite connection for scan, destination planning, preflight, transfer and
+deferred previews. Both catalog services share the synchronized preview cache
+and recovery-publication mutex (ADR-0160).
+
+The workspace borrows catalog identity and busy state for its lifetime, with no
+root back-pointer. Specific callbacks publish placeholders/items or an immutable
+batch completion into the Library owner. Library query replacement, sparse
+model/paging, Last Import scope and Gallery selection remain with the root's
+single listing/selection authority: pending row selection and page eviction
+share its listing generation, and Import candidates are a different identity
+set. Import never writes those slots or acquires another selection owner.
+Final listing acceptance returns to the workspace before deferred previews start.
+Committed-item errors and failed preference writes retain their original outcome
+and notification order. Rejected filesystem submissions report the closed owner;
+folder listing rejection clears the model's pending state through its existing
+result boundary instead of leaving a loading row behind.
+
+Shutdown cancels Import tokens, joins filesystem work and stops destination,
+thumbnail and scan controllers. The foreground composition barrier completes
+any import-session open before the import worker is stopped; foreground
+services release afterwards. Workspace destruction follows its dependent
+Develop owner, so borrowed progress state remains valid throughout shutdown.
 
 `ImportRequest` carries catalog ID, file/directory input, recursion/format
 policy, resource budget, cancellation token, and correlation ID.
@@ -1879,14 +1898,42 @@ capabilities and explicit presentation/progress callbacks. Work uses the existin
 foreground executor and original commit, supersession, progress and recovery
 order. Command/control consumers read a const edit-state view on the GUI thread.
 
-`StudioInspectPresenter` owns scopes, frame pixel hash and pending identity,
-observed displayed Recipe and crop-frame layout, and the original bounded
-latest-pending analysis queue/executor. It consumes owned QImage/Recipe snapshots
-and has no Recipe mutation API. Analysis checks request, selection and frame
-identities. Image-provider reads and GUI publication synchronize short owned-value
-snapshots; signals emit after unlock. Shutdown cancels and joins this owner before
-catalog/Engine release. `inspectContextChanged` composes zoom/edit notifications
-for ROI debounce without duplicating edit state or growing Main.qml.
+`StudioInspectPresenter` owns accepted frame/base/comparison pixels, viewport
+extent, zoom/restore state, decoded-preview cache, ROI request/cancellation and
+resources, Studio-owned GPU presentation surfaces, scopes and frame identity.
+Image providers and command/control consumers read that child directly. The root
+has no pixel, viewport, zoom, ROI or GPU slots, properties or signal forwarders.
+Develop reads synchronized image snapshots rather than borrowing image fields
+or locks. Observed displayed Recipe remains separate from current/saved edits;
+Inspect has no Recipe mutation API.
+
+Adopting a completed Before frame into Comparison transfers its displayed pixels,
+output-referred base and profile together. Display refresh therefore transforms
+each side from its own source. A pending Before request is not a displayed-frame
+identity: Comparison keeps its Before request until that frame is accepted.
+Closed Inspect owners reject comparison adoption as they reject frame publication.
+Restoring the cached base also retains the display transform and refreshes its
+owned native surface before exposing new pixels; conversion/publication failure
+keeps the previously accepted frame.
+
+Inspect borrows GUI selection/catalog identity and specific foreground Preview
+and Engine capabilities. Decode/render and owned GPU-pixel handoff remain on the
+original foreground executor. Preview and ROI retain separate request/native
+identities; one native allocation/write helper does not merge their resource
+lifetimes. Accepted pixels precede URL/identity publication. Preparation, monitor
+conversion, mask-overlay and native publication errors retain the prior frame
+and report the failure. Develop marks a Recipe displayed only after acceptance.
+ROI dispatch rejection is explicit. The unused retained mask-alpha copy is gone;
+overlay composition consumes the render result without changing its mathematics.
+
+The original bounded latest-pending analysis executor checks request, selection
+and frame identities. Image-provider reads and GUI publication synchronize short
+owned-value snapshots; signals emit after unlock. `inspectContextChanged` composes
+zoom/edit notifications for ROI debounce without duplicating edit state or growing
+Main.qml. Inspect cancels ROI and analysis before the foreground executor drains,
+rejects publication after shutdown, and releases one owned native handle per lane
+before catalog/Engine release. Leaving Actual through wheel/custom zoom clears ROI
+just as an explicit mode change does.
 
 `StudioExportPresenter` snapshots selected IDs and validated options before
 dispatch on the existing executor, and owns companion preflight and export

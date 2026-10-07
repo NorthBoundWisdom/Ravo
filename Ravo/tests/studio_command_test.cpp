@@ -88,12 +88,13 @@ TEST(StudioCommands, LightroomCommonShortcutsRouteAndRespectFocus)
                   QStringLiteral("studio.window.assistant"));
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({photo, second_photo});
+    presenter.imports()->importFilePaths({photo, second_photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.selectedAssetId().isEmpty() && !presenter.busy() &&
-                   !presenter.importWorkActive() && !presenter.previewLoading();
+                   !presenter.imports()->importWorkActive() &&
+                   !presenter.inspect()->previewLoading();
         }));
     const auto entry_for = [&](const QString &sequence)
     {
@@ -125,17 +126,18 @@ TEST(StudioCommands, LightroomCommonShortcutsRouteAndRespectFocus)
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("grid"));
     press(QStringLiteral("E"));
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("loupe"));
-    presenter.setZoomMode(QStringLiteral("fit"));
+    presenter.inspect()->setZoomMode(QStringLiteral("fit"));
     press(QStringLiteral("Z"));
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("actual"));
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("actual"));
     press(QStringLiteral("Z"));
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fit"));
     press(QStringLiteral("G"));
     press(QStringLiteral("Space"));
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("loupe"));
     press(QStringLiteral("D"));
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("develop"));
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && !presenter.busy(); }));
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.inspect()->previewLoading() && !presenter.busy(); }));
     press(QStringLiteral("R"));
     EXPECT_TRUE(presenter.develop()->cropToolActive());
     press(QStringLiteral("E"));
@@ -547,17 +549,17 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
     presenter.createCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
             return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
-                   !presenter.busy() && !presenter.importWorkActive() &&
-                   !presenter.previewLoading();
+                   !presenter.busy() && !presenter.imports()->importWorkActive() &&
+                   !presenter.inspect()->previewLoading();
         }))
         << presenter.errorText().toStdString();
     presenter.openDevelop();
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
 
     const auto state_result = run_cli_process({QStringLiteral("studio"), QStringLiteral("state"),
@@ -587,7 +589,7 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
     EXPECT_FALSE(presenter.selectedHasEdits());
 
     presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"), 0.25);
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
     const auto pending_state_result =
         run_cli_process({QStringLiteral("studio"), QStringLiteral("state"),
@@ -985,37 +987,37 @@ TEST(StudioPresenterTest, ZoomModesAndFactorBoundsHaveOneDeterministicOwner)
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
-    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 1.0);
-    presenter.setZoomMode(QStringLiteral("fill"));
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fill"));
-    presenter.setZoomMode(QStringLiteral("100"));
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("actual"));
-    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 1.0);
-    presenter.setZoomFactor(0.0);
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("custom"));
-    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 0.1);
-    presenter.adjustZoom(120);
-    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 0.11);
-    presenter.setZoomFactor(100.0);
-    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 8.0);
-    presenter.setZoomMode(QStringLiteral("future"));
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
-    presenter.setZoomMode(QStringLiteral("fill"));
-    presenter.toggleActualSize();
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("actual"));
-    presenter.toggleActualSize();
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fill"));
-    presenter.setZoomFactor(2.0);
-    presenter.toggleActualSize();
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("actual"));
-    presenter.toggleActualSize();
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("custom"));
-    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 2.0);
-    presenter.setZoomMode(QStringLiteral("fit"));
-    presenter.setZoomMode(QStringLiteral("actual"));
-    presenter.toggleActualSize();
-    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fit"));
+    EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 1.0);
+    presenter.inspect()->setZoomMode(QStringLiteral("fill"));
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fill"));
+    presenter.inspect()->setZoomMode(QStringLiteral("100"));
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("actual"));
+    EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 1.0);
+    presenter.inspect()->setZoomFactor(0.0);
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("custom"));
+    EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 0.1);
+    presenter.inspect()->adjustZoom(120);
+    EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 0.11);
+    presenter.inspect()->setZoomFactor(100.0);
+    EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 8.0);
+    presenter.inspect()->setZoomMode(QStringLiteral("future"));
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fit"));
+    presenter.inspect()->setZoomMode(QStringLiteral("fill"));
+    presenter.inspect()->toggleActualSize();
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("actual"));
+    presenter.inspect()->toggleActualSize();
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fill"));
+    presenter.inspect()->setZoomFactor(2.0);
+    presenter.inspect()->toggleActualSize();
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("actual"));
+    presenter.inspect()->toggleActualSize();
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("custom"));
+    EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 2.0);
+    presenter.inspect()->setZoomMode(QStringLiteral("fit"));
+    presenter.inspect()->setZoomMode(QStringLiteral("actual"));
+    presenter.inspect()->toggleActualSize();
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fit"));
 }
 
 TEST(StudioPresenterTest, CopiedParameterClipboardStartsEmptyAndIgnoresEmptySelection)
@@ -1115,7 +1117,7 @@ TEST(StudioPresenterTest, PhotoDebugInfoIdentifiesImportedAsset)
     presenter.createCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -1139,7 +1141,11 @@ TEST(StudioPresenterTest, PhotoDebugInfoIdentifiesImportedAsset)
 
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewUrl().isEmpty();
+        }))
         << presenter.errorText().toStdString();
     const auto baseline_parameters = presenter.selectedPhotoParametersDebugInfo();
     EXPECT_TRUE(baseline_parameters.startsWith(QStringLiteral("ravo.debug.parameters 1\n")));
@@ -1286,8 +1292,8 @@ TEST(StudioPresenterTest, ColdCatalogBuildsOnlyDemandedThumbnails)
     EXPECT_EQ(maximum_preview_total, 0);
     EXPECT_FALSE(presenter.previewWorkActive());
     EXPECT_TRUE(presenter.selectedThumbnailUrl().isEmpty());
-    EXPECT_EQ(presenter.previewViewportWidth(), 32);
-    EXPECT_EQ(presenter.previewViewportHeight(), 24);
+    EXPECT_EQ(presenter.inspect()->previewViewportWidth(), 32);
+    EXPECT_EQ(presenter.inspect()->previewViewportHeight(), 24);
 
     presenter.ensureThumbnail(presenter.selectedAssetId());
     ASSERT_TRUE(wait_until(
@@ -1303,19 +1309,23 @@ TEST(StudioPresenterTest, ColdCatalogBuildsOnlyDemandedThumbnails)
     EXPECT_FALSE(presenter.selectedThumbnailUrl().isEmpty());
 
     bool saw_loading_thumbnail = false;
-    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+    QObject::connect(presenter.inspect(), &StudioInspectPresenter::previewChanged, &presenter,
                      [&]
                      {
-                         saw_loading_thumbnail =
-                             saw_loading_thumbnail ||
-                             (presenter.previewLoading() && presenter.previewUrl().isEmpty() &&
-                              !presenter.selectedThumbnailUrl().isEmpty());
+                         saw_loading_thumbnail = saw_loading_thumbnail ||
+                                                 (presenter.inspect()->previewLoading() &&
+                                                  presenter.inspect()->previewUrl().isEmpty() &&
+                                                  !presenter.selectedThumbnailUrl().isEmpty());
                      });
     for (int row = 0; row < presenter.assets()->rowCount(); ++row)
         presenter.ensureThumbnail(presenter.assets()->assetIdAt(row));
     presenter.openDevelop();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewUrl().isEmpty();
+        }))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(saw_loading_thumbnail);
     presenter.returnToGrid();
@@ -1384,7 +1394,7 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     presenter.createCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -1396,7 +1406,8 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && !presenter.previewUrl().isEmpty() &&
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewUrl().isEmpty() &&
                    presenter.selectedPhotoParametersDebugInfo().contains(
                        QStringLiteral("recipe_state=saved\n"));
         }))
@@ -1408,7 +1419,8 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(black_value() - 0.01) < 1e-9 &&
+            return !presenter.inspect()->previewLoading() &&
+                   std::abs(black_value() - 0.01) < 1e-9 &&
                    presenter.develop()->recipeHistory().size() == 1;
         }))
         << presenter.errorText().toStdString();
@@ -1425,7 +1437,8 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(black_value() - 0.02) < 1e-9 &&
+            return !presenter.inspect()->previewLoading() &&
+                   std::abs(black_value() - 0.02) < 1e-9 &&
                    presenter.develop()->recipeHistory().size() == 1 &&
                    presenter.develop()->recipeHistory().front().toMap().value(
                        QStringLiteral("id")) == history_id;
@@ -1435,7 +1448,8 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(black_value() - 0.03) < 1e-9 &&
+            return !presenter.inspect()->previewLoading() &&
+                   std::abs(black_value() - 0.03) < 1e-9 &&
                    presenter.develop()->recipeHistory().size() == 1 &&
                    presenter.develop()->recipeHistory().front().toMap().value(
                        QStringLiteral("id")) == history_id &&
@@ -1450,8 +1464,8 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     EXPECT_TRUE(presenter.develop()->canUndo());
 
     presenter.develop()->undoEdit();
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.previewLoading() && std::abs(black_value()) < 1e-9; }))
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.inspect()->previewLoading() && std::abs(black_value()) < 1e-9; }))
         << presenter.errorText().toStdString() << " black=" << black_value()
         << " canUndo=" << presenter.develop()->canUndo()
         << " canRedo=" << presenter.develop()->canRedo();
@@ -1460,13 +1474,16 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
 
     presenter.develop()->redoEdit();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && std::abs(black_value() - 0.03) < 1e-9; }))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() && std::abs(black_value() - 0.03) < 1e-9;
+        }))
         << presenter.errorText().toStdString();
     presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 0.25);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() - 0.25) < 1e-9 &&
                    presenter.develop()->recipeHistory().size() == 2;
         }))
@@ -1475,7 +1492,8 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(black_value() - 0.04) < 1e-9 &&
+            return !presenter.inspect()->previewLoading() &&
+                   std::abs(black_value() - 0.04) < 1e-9 &&
                    presenter.develop()->recipeHistory().size() == 3;
         }))
         << presenter.errorText().toStdString();
@@ -1486,7 +1504,7 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editSaturation() - 0.3) < 1e-9 &&
                    presenter.develop()->recipeHistory().size() == 4;
         }))
@@ -1700,7 +1718,7 @@ TEST(StudioPresenterTest, RevealInFileManagerRequiresSelectionAndExistingOrigina
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {

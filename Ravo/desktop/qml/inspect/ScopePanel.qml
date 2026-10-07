@@ -238,7 +238,7 @@ Rectangle {
     }
 
     Connections {
-        target: root.presenter
+        target: root.presenter ? root.presenter.inspect : null
         function onScopesChanged() {
             histogramCanvas.requestPaint();
         }

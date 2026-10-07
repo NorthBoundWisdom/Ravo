@@ -112,7 +112,7 @@ DevelopSection {
                 delayedCommit: true
                 visible: panel.hasPresenter && panel.presenter.develop.editRapidRawBasicToneEnabled
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter[modelData.property] : 0
+                value: panel.hasPresenter ? panel.presenter.develop[modelData.property] : 0
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);

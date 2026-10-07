@@ -27,7 +27,7 @@ Rectangle {
         property bool cancellable: false
         property color barColor: Theme.accentColor
 
-        signal cancelRequested()
+        signal cancelRequested
 
         Layout.fillWidth: true
         spacing: Fonts.size4
@@ -177,30 +177,30 @@ Rectangle {
             Layout.rightMargin: Fonts.standardMargin
             Layout.bottomMargin: Fonts.size8
             spacing: Fonts.size6
-            visible: !root.developOpen && root.presenter && (root.presenter.importWorkActive || root.presenter.importPreviewWorkActive || root.presenter.catalogOperationActive || (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal))
+            visible: !root.developOpen && root.presenter && (root.presenter.imports.importWorkActive || root.presenter.imports.importPreviewWorkActive || root.presenter.catalogOperationActive || (root.presenter.imports.importWorkTotal > 0 && root.presenter.imports.importWorkCompleted < root.presenter.imports.importWorkTotal))
 
             function meterVisible(active, completed, total) {
                 return active || (total > 0 && completed < total);
             }
 
             WorkMeter {
-                visible: libraryWork.meterVisible(root.presenter.importWorkActive, root.presenter.importWorkCompleted, root.presenter.importWorkTotal)
+                visible: libraryWork.meterVisible(root.presenter.imports.importWorkActive, root.presenter.imports.importWorkCompleted, root.presenter.imports.importWorkTotal)
                 title: qsTr("Import")
-                countText: root.presenter.importWorkTotal > 0 ? (root.presenter.importWorkCompleted + " / " + root.presenter.importWorkTotal) : qsTr("Scanning…")
-                fraction: root.presenter.importWorkTotal > 0 ? Math.min(1, root.presenter.importWorkCompleted / root.presenter.importWorkTotal) : 0.35
-                cancellable: root.presenter.importWorkActive
+                countText: root.presenter.imports.importWorkTotal > 0 ? (root.presenter.imports.importWorkCompleted + " / " + root.presenter.imports.importWorkTotal) : qsTr("Scanning…")
+                fraction: root.presenter.imports.importWorkTotal > 0 ? Math.min(1, root.presenter.imports.importWorkCompleted / root.presenter.imports.importWorkTotal) : 0.35
+                cancellable: root.presenter.imports.importWorkActive
                 onCancelRequested: if (root.commands)
                     root.commands.run(root.commands.ids.libraryCancelOperation)
             }
 
             WorkMeter {
-                visible: root.presenter.importPreviewWorkActive
+                visible: root.presenter.imports.importPreviewWorkActive
                 title: qsTr("Import previews")
-                countText: root.presenter.importPreviewWorkCompleted + " / " + root.presenter.importPreviewWorkTotal
-                fraction: root.presenter.importPreviewWorkTotal > 0 ? Math.min(1, root.presenter.importPreviewWorkCompleted / root.presenter.importPreviewWorkTotal) : 0
+                countText: root.presenter.imports.importPreviewWorkCompleted + " / " + root.presenter.imports.importPreviewWorkTotal
+                fraction: root.presenter.imports.importPreviewWorkTotal > 0 ? Math.min(1, root.presenter.imports.importPreviewWorkCompleted / root.presenter.imports.importPreviewWorkTotal) : 0
                 cancellable: true
                 barColor: Theme.highlightColor
-                onCancelRequested: root.presenter.cancelImportPreviews()
+                onCancelRequested: root.presenter.imports.cancelImportPreviews()
             }
 
             WorkMeter {
@@ -278,18 +278,16 @@ Rectangle {
             clip: true
 
             readonly property bool hasSelectedPhoto: root.presenter && root.presenter.selectedAssetId.length > 0
-            readonly property bool gpuLive: root.presenter && root.presenter.gpuPreviewGeneration > 0
+            readonly property bool gpuLive: root.presenter && root.presenter.inspect.gpuPreviewGeneration > 0
             readonly property url liveSource: {
                 if (!root.presenter || navigator.gpuLive)
                     return "";
-                if (root.presenter.previewUrl.toString().length)
-                    return root.presenter.previewUrl;
+                if (root.presenter.inspect.previewUrl.toString().length)
+                    return root.presenter.inspect.previewUrl;
                 return root.presenter.selectedThumbnailUrl;
             }
             property url heldSource: ""
-            readonly property Item shownImage: navigator.gpuLive ?
-                                                   navGpu :
-                                                   (navImage.status === Image.Ready ? navImage : navHeldImage)
+            readonly property Item shownImage: navigator.gpuLive ? navGpu : (navImage.status === Image.Ready ? navImage : navHeldImage)
             function contentX(item) {
                 if (!item)
                     return 0;
@@ -361,17 +359,17 @@ Rectangle {
             StudioGpuPreviewItem {
                 id: navGpu
                 visible: navigator.gpuLive
-                readonly property real srcW: Math.max(1, root.presenter ? root.presenter.gpuPreviewWidth : 1)
-                readonly property real srcH: Math.max(1, root.presenter ? root.presenter.gpuPreviewHeight : 1)
+                readonly property real srcW: Math.max(1, root.presenter ? root.presenter.inspect.gpuPreviewWidth : 1)
+                readonly property real srcH: Math.max(1, root.presenter ? root.presenter.inspect.gpuPreviewHeight : 1)
                 readonly property real fit: Math.min((parent.width - 2) / srcW, (parent.height - 2) / srcH)
                 width: srcW * fit
                 height: srcH * fit
                 x: (parent.width - width) / 2
                 y: (parent.height - height) / 2
-                generation: root.presenter ? root.presenter.gpuPreviewGeneration : 0
-                nativeSurface: root.presenter ? root.presenter.gpuPreviewNativeSurface : 0
-                sourceWidth: root.presenter ? root.presenter.gpuPreviewWidth : 0
-                sourceHeight: root.presenter ? root.presenter.gpuPreviewHeight : 0
+                generation: root.presenter ? root.presenter.inspect.gpuPreviewGeneration : 0
+                nativeSurface: root.presenter ? root.presenter.inspect.gpuPreviewNativeSurface : 0
+                sourceWidth: root.presenter ? root.presenter.inspect.gpuPreviewWidth : 0
+                sourceHeight: root.presenter ? root.presenter.inspect.gpuPreviewHeight : 0
                 smooth: true
             }
 
@@ -439,8 +437,8 @@ Rectangle {
                 color: Theme.baseColor
                 border.color: Theme.midColor
                 border.width: ControlState.borderThin
-                enabled: root.presenter && root.presenter.browseMode !== "grid" && root.presenter.previewUrl.toString().length > 0
-                readonly property int currentIndex: root.presenter && root.presenter.zoomMode === "fill" ? 1 : (root.presenter && root.presenter.zoomMode === "actual" ? 2 : 0)
+                enabled: root.presenter && root.presenter.browseMode !== "grid" && root.presenter.inspect.previewUrl.toString().length > 0
+                readonly property int currentIndex: root.presenter && root.presenter.inspect.zoomMode === "fill" ? 1 : (root.presenter && root.presenter.inspect.zoomMode === "actual" ? 2 : 0)
                 function activate(index) {
                     if (!root.presenter || !root.commands)
                         return;
@@ -502,7 +500,7 @@ Rectangle {
             }
             CustomLabel {
                 Layout.alignment: Qt.AlignVCenter
-                visible: root.presenter && root.presenter.browseMode !== "grid" && root.presenter.previewLoading
+                visible: root.presenter && root.presenter.browseMode !== "grid" && root.presenter.inspect.previewLoading
                 text: qsTr("Loading…")
                 color: Theme.placeholderTextColor
             }
@@ -939,14 +937,14 @@ Rectangle {
             CustomButton {
                 Layout.fillWidth: true
                 text: qsTr("Import…")
-                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.importWorkActive
+                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.imports.importWorkActive
                 onClicked: if (root.commands)
                     root.commands.importPhotos.trigger()
             }
             CustomButton {
                 Layout.fillWidth: true
                 text: qsTr("Export…")
-                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.importWorkActive && root.presenter.selectedAssetId.length > 0
+                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.imports.importWorkActive && root.presenter.selectedAssetId.length > 0
                 onClicked: if (root.commands)
                     root.commands.exportPhoto.trigger()
             }

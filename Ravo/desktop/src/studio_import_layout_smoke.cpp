@@ -42,7 +42,8 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     QTemporaryDir directory;
     if (!directory.isValid() || !QDir().mkpath(directory.filePath(QStringLiteral("2026"))))
         return false;
-    for (auto *model : {presenter->importSourceFolders(), presenter->importDestinationFolders()})
+    for (auto *model : {presenter->imports()->importSourceFolders(),
+                        presenter->imports()->importDestinationFolders()})
         model->resetWithRoots({{directory.path(), "Pictures", true}});
     ImportCandidate candidate;
     candidate.source_path = directory.filePath(QStringLiteral("photo.png")).toStdString();
@@ -94,7 +95,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         QTimer::singleShot(80, &settle, &QEventLoop::quit);
         settle.exec();
         // Seed after startup's queued catalog-close intent has drained.
-        presenter->importCandidates()->setCandidates({candidate});
+        presenter->imports()->importCandidates()->setCandidates({candidate});
         QEventLoop candidate_layout;
         QTimer::singleShot(30, &candidate_layout, &QEventLoop::quit);
         candidate_layout.exec();
@@ -149,14 +150,14 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             QTimer::singleShot(20, &key_loop, &QEventLoop::quit);
             key_loop.exec();
             if (keyboard_grid->property("currentIndex").toInt() == before &&
-                presenter->importCandidates()->rowCount() > 1)
+                presenter->imports()->importCandidates()->rowCount() > 1)
             {
                 LOG_ERROR(logger(), "Import production window did not route Right key");
                 return false;
             }
 
             // Select All through production StudioCommandShortcuts / StudioActions wiring.
-            // openImportPage() requires an open catalog; workspace.visible alone is insufficient.
+            // import_workspace_->openImportPage() requires an open catalog; workspace.visible alone is insufficient.
             // Keep Select All artifacts out of the layout destination fixture directory.
             QTemporaryDir select_all_dir;
             if (!select_all_dir.isValid())
@@ -199,9 +200,9 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                     return false;
                 }
                 // Seed the catalog first so the later source scan has an ineligible duplicate.
-                if (presenter->importPageOpen())
-                    presenter->closeImportPage();
-                presenter->importFilePaths({seed_path});
+                if (presenter->imports()->importPageOpen())
+                    presenter->imports()->closeImportPage();
+                presenter->imports()->importFilePaths({seed_path});
                 QElapsedTimer import_timer;
                 import_timer.start();
                 while (presenter->visibleCount() < 1 || presenter->busy())
@@ -281,11 +282,11 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                     return false;
                 }
             }
-            presenter->openImportPage();
+            presenter->imports()->openImportPage();
             QEventLoop open_page;
             QTimer::singleShot(30, &open_page, &QEventLoop::quit);
             open_page.exec();
-            if (!presenter->importPageOpen())
+            if (!presenter->imports()->importPageOpen())
             {
                 LOG_ERROR(logger(), "Import page must be open for production Select All");
                 return false;
@@ -303,9 +304,10 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             }
             // Filename template lives in copy/move mode and starts collapsed.
             // Use the presenter API so the field text is a non-empty production template.
-            presenter->setImportMode(QStringLiteral("copy"));
-            presenter->setImportDestination(select_all_dir.path());
-            presenter->setImportFilenameTemplate(QStringLiteral("RavoSelectAll_{date}_{seq}"));
+            presenter->imports()->setImportMode(QStringLiteral("copy"));
+            presenter->imports()->setImportDestination(select_all_dir.path());
+            presenter->imports()->setImportFilenameTemplate(
+                QStringLiteral("RavoSelectAll_{date}_{seq}"));
             for (QObject *parent = field->parent(); parent; parent = parent->parent())
             {
                 if (parent->property("expanded").isValid())
@@ -317,17 +319,19 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             QEventLoop expand_loop;
             QTimer::singleShot(30, &expand_loop, &QEventLoop::quit);
             expand_loop.exec();
-            presenter->setImportSourceRoot(source);
+            presenter->imports()->setImportSourceRoot(source);
             QElapsedTimer scan_timer;
             scan_timer.start();
-            while (presenter->importScanActive() || presenter->importCandidates()->rowCount() < 3 ||
-                   presenter->importScanTotal() < 3)
+            while (presenter->imports()->importScanActive() ||
+                   presenter->imports()->importCandidates()->rowCount() < 3 ||
+                   presenter->imports()->importScanTotal() < 3)
             {
                 if (scan_timer.elapsed() > 30000)
                 {
-                    LOG_ERROR(
-                        logger(), "Import scan for Select All smoke timed out rows={} total={}",
-                        presenter->importCandidates()->rowCount(), presenter->importScanTotal());
+                    LOG_ERROR(logger(),
+                              "Import scan for Select All smoke timed out rows={} total={}",
+                              presenter->imports()->importCandidates()->rowCount(),
+                              presenter->imports()->importScanTotal());
                     return false;
                 }
                 QEventLoop wait_scan;
@@ -346,14 +350,14 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                     "Import workspace must not set modalOpen; production shortcuts stay gated");
                 return false;
             }
-            presenter->importCandidates()->highlightExclusive(0);
+            presenter->imports()->importCandidates()->highlightExclusive(0);
             QEventLoop candidate_ready;
             QTimer::singleShot(30, &candidate_ready, &QEventLoop::quit);
             candidate_ready.exec();
             const int eligible = [&]()
             {
                 int count = 0;
-                auto *model = presenter->importCandidates();
+                auto *model = presenter->imports()->importCandidates();
                 for (int row = 0; row < model->rowCount(); ++row)
                     count +=
                         model->data(model->index(row, 0), ImportCandidateListModel::EligibleRole)
@@ -369,10 +373,11 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             }
             int duplicate_rows = 0;
             int duplicate_row = -1;
-            for (int row = 0; row < presenter->importCandidates()->rowCount(); ++row)
+            for (int row = 0; row < presenter->imports()->importCandidates()->rowCount(); ++row)
             {
-                if (presenter->importCandidates()
-                        ->data(presenter->importCandidates()->index(row, 0),
+                if (presenter->imports()
+                        ->importCandidates()
+                        ->data(presenter->imports()->importCandidates()->index(row, 0),
                                ImportCandidateListModel::DuplicateRole)
                         .toBool())
                 {
@@ -404,8 +409,8 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             QCoreApplication::sendEvent(window, &context_release);
             QCoreApplication::processEvents();
             if (!source_menu->property("visible").toBool() ||
-                presenter->importContextPath() !=
-                    presenter->importCandidates()->sourcePath(duplicate_row))
+                presenter->imports()->importContextPath() !=
+                    presenter->imports()->importCandidates()->sourcePath(duplicate_row))
             {
                 LOG_ERROR(logger(), "Import right click must open source commands for a duplicate");
                 return false;
@@ -455,7 +460,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 QElapsedTimer idle_timer;
                 idle_timer.start();
                 while (presenter->busy() || presenter->catalogOperationActive() ||
-                       presenter->importWorkActive())
+                       presenter->imports()->importWorkActive())
                 {
                     if (idle_timer.elapsed() > 30000)
                         return false;
@@ -609,14 +614,14 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             const auto highlighted_count = [&]()
             {
                 int count = 0;
-                auto *model = presenter->importCandidates();
+                auto *model = presenter->imports()->importCandidates();
                 for (int row = 0; row < model->rowCount(); ++row)
                     count += model->highlighted(row) ? 1 : 0;
                 return count;
             };
             const auto exact_eligible_highlighted = [&]()
             {
-                auto *model = presenter->importCandidates();
+                auto *model = presenter->imports()->importCandidates();
                 for (int row = 0; row < model->rowCount(); ++row)
                 {
                     const bool is_eligible =
@@ -703,18 +708,18 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 }
             }
             const int gallery_selected = presenter->selectedCount();
-            presenter->importCandidates()->highlightExclusive(0);
+            presenter->imports()->importCandidates()->highlightExclusive(0);
             int highlight_batches = 0;
-            QMetaObject::Connection highlight_watch =
-                QObject::connect(presenter->importCandidates(), &QAbstractItemModel::dataChanged,
-                                 presenter->importCandidates(),
-                                 [&highlight_batches](const QModelIndex &, const QModelIndex &,
-                                                      const QList<int> &roles)
-                                 {
-                                     if (roles.isEmpty() ||
-                                         roles.contains(ImportCandidateListModel::HighlightedRole))
-                                         ++highlight_batches;
-                                 });
+            QMetaObject::Connection highlight_watch = QObject::connect(
+                presenter->imports()->importCandidates(), &QAbstractItemModel::dataChanged,
+                presenter->imports()->importCandidates(),
+                [&highlight_batches](const QModelIndex &, const QModelIndex &,
+                                     const QList<int> &roles)
+                {
+                    if (roles.isEmpty() ||
+                        roles.contains(ImportCandidateListModel::HighlightedRole))
+                        ++highlight_batches;
+                });
             send_select_all();
             QObject::disconnect(highlight_watch);
             if (highlight_batches < 1)
@@ -751,7 +756,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 LOG_ERROR(logger(), "Import source folder tree missing for Select All context");
                 return false;
             }
-            presenter->importCandidates()->highlightExclusive(0);
+            presenter->imports()->importCandidates()->highlightExclusive(0);
             source_tree->forceActiveFocus();
             QEventLoop focus_tree;
             QTimer::singleShot(20, &focus_tree, &QEventLoop::quit);
@@ -779,7 +784,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             }
 
             // Real dialog modal (neg): production aboutDialog must block the shortcut path.
-            presenter->importCandidates()->highlightExclusive(0);
+            presenter->imports()->importCandidates()->highlightExclusive(0);
             if (!QMetaObject::invokeMethod(window, "openAboutDialog", Qt::DirectConnection))
             {
                 LOG_ERROR(logger(), "Unable to open production About dialog for modal gating");
@@ -830,11 +835,11 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             }
 
             // Restore layout fixtures after catalog/source/destination mutations above.
-            for (auto *model :
-                 {presenter->importSourceFolders(), presenter->importDestinationFolders()})
+            for (auto *model : {presenter->imports()->importSourceFolders(),
+                                presenter->imports()->importDestinationFolders()})
                 model->resetWithRoots({{directory.path(), "Pictures", true}});
-            presenter->setImportDestination(directory.path());
-            presenter->importCandidates()->setCandidates({candidate});
+            presenter->imports()->setImportDestination(directory.path());
+            presenter->imports()->importCandidates()->setCandidates({candidate});
             QEventLoop restore_layout;
             QTimer::singleShot(40, &restore_layout, &QEventLoop::quit);
             restore_layout.exec();
@@ -888,7 +893,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             }
             if (size.height() == 1100)
             {
-                auto *model = presenter->importDestinationFolders();
+                auto *model = presenter->imports()->importDestinationFolders();
                 model->setPreviewFolders(
                     {{directory.filePath("2026").toStdString(), "2026", 1, 1, false, false},
                      {directory.filePath("2026/10").toStdString(), "10", 2, 1, true, false}});
@@ -940,11 +945,11 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 const bool collapsed_fits = qAbs(section->parentItem()->height() -
                                                  section->parentItem()->implicitHeight()) < 1;
                 QQmlProperty::write(section, QStringLiteral("expanded"), true);
-                presenter->setImportMode(QStringLiteral("add"));
+                presenter->imports()->setImportMode(QStringLiteral("add"));
                 settle_layout();
                 const bool add_fits = qAbs(section->parentItem()->height() -
                                            section->parentItem()->implicitHeight()) < 1;
-                presenter->setImportMode(QStringLiteral("copy"));
+                presenter->imports()->setImportMode(QStringLiteral("copy"));
                 settle_layout();
                 if (!collapsed_fits || !add_fits)
                 {
@@ -1059,7 +1064,8 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         if (checkboxes == 0)
         {
             LOG_ERROR(logger(), "Import checkbox fixture was not instantiated at {}x{}; rows={}",
-                      size.width(), size.height(), presenter->importCandidates()->rowCount());
+                      size.width(), size.height(),
+                      presenter->imports()->importCandidates()->rowCount());
             return false;
         }
         if (size.width() >= 1000 && disclosures < 2)
@@ -1105,7 +1111,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 }
                 return false;
             };
-            auto *model = presenter->importDestinationFolders();
+            auto *model = presenter->imports()->importDestinationFolders();
             const auto previous_selection = model->selectedPath();
             if (!activate_control(QStringLiteral("importFolderExpand")))
                 return false;
@@ -1127,7 +1133,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             // Activating a loaded, collapsed row resets its model synchronously. Its
             // folderChosen intent must still reach the presenter after the delegate dies.
             if (!activate_control(QStringLiteral("importFolderChoose")) || model->rowCount() != 2 ||
-                presenter->importDestination() != directory.path())
+                presenter->imports()->importDestination() != directory.path())
             {
                 LOG_ERROR(logger(), "Folder choice was lost during delegate replacement");
                 return false;
@@ -1139,7 +1145,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     }
     // Exercise the production photo surface, including the first click and a
     // quick second click. Static QML checks cannot detect a self-bound presenter.
-    presenter->closeImportPage();
+    presenter->imports()->closeImportPage();
     const auto inspect_catalog = directory.filePath(QStringLiteral("inspect-click.sqlite"));
     const auto inspect_photo = directory.filePath(QStringLiteral("inspect-click.png"));
     QImage inspect_image(1600, 1000, QImage::Format_RGB888);
@@ -1165,28 +1171,29 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     if (!wait_ready([&]
                     { return presenter->catalogPath() == inspect_catalog && !presenter->busy(); }))
         return false;
-    presenter->importFilePaths({inspect_photo});
+    presenter->imports()->importFilePaths({inspect_photo});
     if (!wait_ready(
             [&]
             {
-                return !presenter->busy() && !presenter->importWorkActive() &&
+                return !presenter->busy() && !presenter->imports()->importWorkActive() &&
                        presenter->visibleCount() == 1 &&
                        presenter->selectedUri().endsWith(QStringLiteral("inspect-click.png"));
             }))
         return false;
     window->resize(1440, 900);
     presenter->setBrowseMode(QStringLiteral("loupe"));
-    presenter->setZoomMode(QStringLiteral("fit"));
+    presenter->inspect()->setZoomMode(QStringLiteral("fit"));
     auto *zoom = window->findChild<QObject *>(QStringLiteral("photoInspectZoomController"));
     auto *scroller = window->findChild<QQuickItem *>(QStringLiteral("photoInspectScroller"));
     if (!zoom || !scroller ||
         !wait_ready([&] { return zoom->property("photoInspectEnabled").toBool(); }))
     {
-        LOG_ERROR(
-            logger(), "Photo click zoom did not become ready: mode={} preview={} error={} bound={}",
-            presenter->browseMode().toStdString(), presenter->previewUrl().toString().toStdString(),
-            presenter->errorText().toStdString(),
-            zoom && zoom->property("studio").value<QObject *>() == presenter);
+        LOG_ERROR(logger(),
+                  "Photo click zoom did not become ready: mode={} preview={} error={} bound={}",
+                  presenter->browseMode().toStdString(),
+                  presenter->inspect()->previewUrl().toString().toStdString(),
+                  presenter->errorText().toStdString(),
+                  zoom && zoom->property("studio").value<QObject *>() == presenter);
         return false;
     }
     const auto click_photo = [&]
@@ -1202,13 +1209,13 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         QCoreApplication::sendEvent(window, &release);
     };
     click_photo();
-    if (presenter->zoomMode() != QStringLiteral("actual"))
+    if (presenter->inspect()->zoomMode() != QStringLiteral("actual"))
     {
         LOG_ERROR(logger(), "Single photo click must immediately select 1:1");
         return false;
     }
     click_photo();
-    if (presenter->zoomMode() != QStringLiteral("fit") ||
+    if (presenter->inspect()->zoomMode() != QStringLiteral("fit") ||
         presenter->browseMode() != QStringLiteral("loupe"))
     {
         LOG_ERROR(logger(), "Second photo click must restore Fit without leaving Loupe");
@@ -1223,7 +1230,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         !wait_ready(
             [&]
             {
-                return !presenter->previewLoading() &&
+                return !presenter->inspect()->previewLoading() &&
                        !presenter->inspect()->cropPreviewLayout().isEmpty() && pinned->isVisible();
             }))
         return false;
@@ -1256,7 +1263,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     if (std::abs(pinned->y() - pinned_y) > .1)
         return false;
     presenter->develop()->setCropToolActive(false);
-    if (pinned->isVisible() || !wait_ready([&] { return !presenter->previewLoading(); }))
+    if (pinned->isVisible() || !wait_ready([&] { return !presenter->inspect()->previewLoading(); }))
         return false;
     return true;
 }

@@ -52,26 +52,25 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
 {
     const bool same = selected_asset_id_ == asset_id;
     selected_asset_id_ = asset_id;
-    if (!reload_preview && same && !preview_url_.isEmpty())
+    if (!reload_preview && same && !inspect_.previewUrl().isEmpty())
     {
         publish_selection();
         return;
     }
-    clear_displayed_preview();
-    clear_inspect_roi();
+    inspect_.clear_displayed_preview();
+    inspect_.clear_inspect_roi();
     if (const auto asset = assets_.assetById(asset_id); asset && asset->width && asset->height)
     {
         std::uint32_t width = 0;
         std::uint32_t height = 0;
         fit_within_max_edge(*asset->width, *asset->height, kDefaultPreviewMaxEdge, width, height);
-        preview_viewport_width_ = static_cast<int>(width);
-        preview_viewport_height_ = static_cast<int>(height);
+        inspect_.seedViewport(static_cast<int>(width), static_cast<int>(height));
     }
-    preview_loading_ = !asset_id.isEmpty();
+    inspect_.setPreviewLoading(!asset_id.isEmpty());
     develop_presenter_->selectionInvalidated();
     develop_presenter_->load_develop_for_selection();
     publish_selection();
-    emit previewChanged();
+    inspect_.notifyPreviewChanged();
     emit thumbnailsChanged();
     develop_presenter_->refreshContextProjection();
     requestPreviewForSelection();
@@ -93,7 +92,8 @@ std::vector<std::string> StudioPresenter::selected_asset_ids() const
 void StudioPresenter::selectAsset(const QString &asset_id)
 {
     pending_library_selection_.reset();
-    if (selected_asset_id_ == asset_id && selected_ids_.size() == 1U && !preview_url_.isEmpty())
+    if (selected_asset_id_ == asset_id && selected_ids_.size() == 1U &&
+        !inspect_.previewUrl().isEmpty())
     {
         return;
     }
@@ -252,7 +252,7 @@ void StudioPresenter::setBrowseMode(const QString &mode)
     if (comparison_changed)
     {
         develop_presenter_->refreshContextProjection();
-        emit previewChanged();
+        inspect_.notifyPreviewChanged();
     }
     if (normalized == QLatin1String("survey"))
     {
@@ -467,74 +467,6 @@ void StudioPresenter::setCollapseStacks(const bool collapse)
     collapse_stacks_ = collapse;
     emit filterChanged();
     reloadVisibleAssets();
-}
-
-void StudioPresenter::setZoomMode(const QString &mode)
-{
-    QString normalized = QStringLiteral("fit");
-    double factor = zoom_factor_;
-    if (mode == QStringLiteral("fill"))
-    {
-        normalized = QStringLiteral("fill");
-    }
-    else if (mode == QStringLiteral("actual") || mode == QStringLiteral("100"))
-    {
-        normalized = QStringLiteral("actual");
-        factor = 1.0;
-    }
-    else if (mode == QStringLiteral("custom"))
-    {
-        normalized = QStringLiteral("custom");
-    }
-    if (zoom_mode_ == normalized && zoom_factor_ == factor)
-    {
-        return;
-    }
-    zoom_mode_ = normalized;
-    zoom_factor_ = factor;
-    if (zoom_mode_ != QStringLiteral("actual"))
-    {
-        last_non_actual_zoom_mode_ = zoom_mode_;
-        last_non_actual_zoom_factor_ = zoom_factor_;
-        clear_inspect_roi();
-    }
-    emit zoomChanged();
-}
-
-void StudioPresenter::setZoomFactor(const double factor)
-{
-    const double clamped = std::clamp(factor, 0.1, 8.0);
-    if (zoom_mode_ == QStringLiteral("custom") && zoom_factor_ == clamped)
-    {
-        return;
-    }
-    zoom_mode_ = QStringLiteral("custom");
-    zoom_factor_ = clamped;
-    last_non_actual_zoom_mode_ = zoom_mode_;
-    last_non_actual_zoom_factor_ = zoom_factor_;
-    emit zoomChanged();
-}
-
-void StudioPresenter::adjustZoom(const int wheel_delta)
-{
-    const double step = wheel_delta > 0 ? 1.1 : 1.0 / 1.1;
-    const double current = zoom_mode_ == QStringLiteral("actual") ? 1.0 : zoom_factor_;
-    setZoomFactor(current * step);
-}
-
-void StudioPresenter::toggleActualSize()
-{
-    if (zoom_mode_ == QStringLiteral("actual"))
-    {
-        if (last_non_actual_zoom_mode_ == QStringLiteral("custom"))
-        {
-            setZoomFactor(last_non_actual_zoom_factor_);
-            return;
-        }
-        setZoomMode(last_non_actual_zoom_mode_);
-        return;
-    }
-    setZoomMode(QStringLiteral("actual"));
 }
 
 void StudioPresenter::setThumbnailSize(const int size)
@@ -1233,10 +1165,10 @@ void StudioPresenter::removeFolderFromCatalog(const QString &folder_uri)
                         selection_anchor_id_.clear();
                         selected_ids_.clear();
                         assets_.setSelectedIds({});
-                        clear_displayed_preview();
-                        preview_loading_ = false;
+                        inspect_.clear_displayed_preview();
+                        inspect_.setPreviewLoading(false);
                         emit selectionChanged();
-                        emit previewChanged();
+                        inspect_.notifyPreviewChanged();
                     }
                     else if (selected_asset_id_.isEmpty() ||
                              assets_.indexOf(selected_asset_id_) < 0)
@@ -1323,10 +1255,10 @@ void StudioPresenter::remove_selected_from_catalog()
                         selection_anchor_id_.clear();
                         selected_ids_.clear();
                         assets_.setSelectedIds({});
-                        clear_displayed_preview();
-                        preview_loading_ = false;
+                        inspect_.clear_displayed_preview();
+                        inspect_.setPreviewLoading(false);
                         emit selectionChanged();
-                        emit previewChanged();
+                        inspect_.notifyPreviewChanged();
                     }
                     else
                     {
@@ -1417,10 +1349,10 @@ void StudioPresenter::remove_selected_from_disk()
                         selection_anchor_id_.clear();
                         selected_ids_.clear();
                         assets_.setSelectedIds({});
-                        clear_displayed_preview();
-                        preview_loading_ = false;
+                        inspect_.clear_displayed_preview();
+                        inspect_.setPreviewLoading(false);
                         emit selectionChanged();
-                        emit previewChanged();
+                        inspect_.notifyPreviewChanged();
                     }
                     else
                     {

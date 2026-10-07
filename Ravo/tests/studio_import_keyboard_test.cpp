@@ -41,48 +41,48 @@ TEST(StudioImportKeyboard, ContextCommandsUseCandidateIdentityAndRejectStaleTarg
     gallery_image.fill(Qt::cyan);
     const auto gallery_path = directory.filePath("gallery.png");
     ASSERT_TRUE(gallery_image.save(gallery_path, "PNG"));
-    presenter.importFilePaths({gallery_path});
-    ASSERT_TRUE(wait_until([&]
-    {
-        return !presenter.busy() && !presenter.selectedAssetId().isEmpty();
-    }));
+    presenter.imports()->importFilePaths({gallery_path});
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.busy() && !presenter.selectedAssetId().isEmpty(); }));
     const auto source = directory.filePath("source");
     ASSERT_TRUE(QDir().mkpath(source));
-    presenter.openImportPage();
-    presenter.setImportSourceRoot(source);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
     ImportCandidate candidate;
     candidate.source_path = directory.filePath("candidate.png").toStdString();
     candidate.display_name = "candidate.png";
     candidate.duplicate = true;
     candidate.supported = true;
-    presenter.importCandidates()->setCandidates({candidate});
+    presenter.imports()->importCandidates()->setCandidates({candidate});
     const auto gallery_selection = presenter.selectedAssetId();
-    ASSERT_TRUE(presenter.setImportContextRow(0));
-    EXPECT_EQ(presenter.importContextPath(), QString::fromStdString(candidate.source_path));
+    ASSERT_TRUE(presenter.imports()->setImportContextRow(0));
+    EXPECT_EQ(presenter.imports()->importContextPath(),
+              QString::fromStdString(candidate.source_path));
     EXPECT_TRUE(controller.action("studio.photo.copy_info").value("enabled").toBool());
     EXPECT_TRUE(controller.action("studio.photo.reveal_in_file_manager").value("enabled").toBool());
-    EXPECT_TRUE(presenter.selectedPhotoDebugInfo().contains("path=" + QString::fromStdString(candidate.source_path)));
+    EXPECT_TRUE(presenter.selectedPhotoDebugInfo().contains(
+        "path=" + QString::fromStdString(candidate.source_path)));
     EXPECT_TRUE(presenter.selectedPhotoDebugInfo().contains("duplicate=true"));
     EXPECT_FALSE(presenter.selectedPhotoDebugInfo().contains(gallery_path));
     EXPECT_EQ(presenter.selectedAssetId(), gallery_selection);
     // Missing source reports an error without opening a file manager or using Gallery.
     presenter.revealSelectedPhotoInFileManager();
     EXPECT_FALSE(presenter.errorText().isEmpty());
-    presenter.importCandidates()->setCandidates({candidate});
-    EXPECT_TRUE(presenter.importContextPath().isEmpty());
+    presenter.imports()->importCandidates()->setCandidates({candidate});
+    EXPECT_TRUE(presenter.imports()->importContextPath().isEmpty());
     EXPECT_TRUE(presenter.selectedPhotoDebugInfo().isEmpty());
-    EXPECT_FALSE(controller.executeCommand("studio.photo.copy_info", {}, "test")
-                     .value("accepted").toBool());
-    EXPECT_FALSE(presenter.setImportContextRow(-1));
-    ASSERT_TRUE(presenter.setImportContextRow(0));
-    presenter.setImportSourceRoot(source);
-    EXPECT_TRUE(presenter.importContextPath().isEmpty());
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    presenter.importCandidates()->setCandidates({candidate});
-    ASSERT_TRUE(presenter.setImportContextRow(0));
-    presenter.closeImportPage();
-    EXPECT_TRUE(presenter.importContextPath().isEmpty());
+    EXPECT_FALSE(
+        controller.executeCommand("studio.photo.copy_info", {}, "test").value("accepted").toBool());
+    EXPECT_FALSE(presenter.imports()->setImportContextRow(-1));
+    ASSERT_TRUE(presenter.imports()->setImportContextRow(0));
+    presenter.imports()->setImportSourceRoot(source);
+    EXPECT_TRUE(presenter.imports()->importContextPath().isEmpty());
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    presenter.imports()->importCandidates()->setCandidates({candidate});
+    ASSERT_TRUE(presenter.imports()->setImportContextRow(0));
+    presenter.imports()->closeImportPage();
+    EXPECT_TRUE(presenter.imports()->importContextPath().isEmpty());
     EXPECT_EQ(presenter.selectedAssetId(), gallery_selection);
 }
 using studio_import_keyboard_harness::make_candidates;
@@ -402,7 +402,7 @@ TEST(StudioImportKeyboard, SelectAllCommandOwnsImportGalleryAndTextContexts)
     ASSERT_TRUE(image.save(one, "PNG"));
     image.fill(Qt::magenta);
     ASSERT_TRUE(image.save(two, "PNG"));
-    presenter.importFilePaths({one, two});
+    presenter.imports()->importFilePaths({one, two});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -435,27 +435,29 @@ TEST(StudioImportKeyboard, SelectAllCommandOwnsImportGalleryAndTextContexts)
     ASSERT_TRUE(fresh.save(source + QStringLiteral("/b.png"), "PNG"));
     ASSERT_TRUE(
         QFile::copy(source + QStringLiteral("/a.png"), source + QStringLiteral("/duplicate.png")));
-    presenter.openImportPage();
-    ASSERT_TRUE(presenter.importPageOpen());
-    presenter.setImportMode(QStringLiteral("add"));
-    presenter.setImportSourceRoot(source);
+    presenter.imports()->openImportPage();
+    ASSERT_TRUE(presenter.imports()->importPageOpen());
+    presenter.imports()->setImportMode(QStringLiteral("add"));
+    presenter.imports()->setImportSourceRoot(source);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return presenter.importCandidates()->rowCount() > 0 &&
-                   presenter.importScanTotal() > 0 && !presenter.importScanActive();
+            return presenter.imports()->importCandidates()->rowCount() > 0 &&
+                   presenter.imports()->importScanTotal() > 0 &&
+                   !presenter.imports()->importScanActive();
         },
         30000))
-        << presenter.errorText().toStdString() << " scanTotal=" << presenter.importScanTotal()
-        << " rows=" << presenter.importCandidates()->rowCount()
-        << " ready=" << presenter.importReady();
-    auto *import_model = presenter.importCandidates();
+        << presenter.errorText().toStdString()
+        << " scanTotal=" << presenter.imports()->importScanTotal()
+        << " rows=" << presenter.imports()->importCandidates()->rowCount()
+        << " ready=" << presenter.imports()->importReady();
+    auto *import_model = presenter.imports()->importCandidates();
     ASSERT_GE(import_model->rowCount(), 2);
     const int gallery_selected = presenter.selectedCount();
     const auto import_select = controller.executeAction(action, QStringLiteral("keyboard"));
     EXPECT_TRUE(import_select.value(QStringLiteral("accepted")).toBool())
         << import_select.value(QStringLiteral("message")).toString().toStdString()
-        << " scanTotal=" << presenter.importScanTotal();
+        << " scanTotal=" << presenter.imports()->importScanTotal();
     int highlighted = 0;
     for (int row = 0; row < import_model->rowCount(); ++row)
         if (import_model->highlighted(row))
@@ -583,7 +585,7 @@ TEST(StudioImportKeyboard, LateModelUpdateDoesNotStealTextFocusContract)
     const auto page_source = QString::fromUtf8(page.readAll());
     EXPECT_TRUE(page_source.contains(QStringLiteral("readonly property bool locked")));
     EXPECT_TRUE(page_source.contains(
-        QStringLiteral("importWorkActive || presenter.importPreflightActive")));
+        QStringLiteral("importWorkActive || presenter.imports.importPreflightActive")));
     EXPECT_TRUE(page_source.contains(QStringLiteral("enabled: !root.locked")));
 
     QFile grid(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML));
@@ -666,14 +668,17 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
     ASSERT_TRUE(fresh.save(source + QStringLiteral("/a.png"), "PNG"));
     fresh.fill(QColor(200, 30, 10));
     ASSERT_TRUE(fresh.save(source + QStringLiteral("/b.png"), "PNG"));
-    presenter.openImportPage();
-    presenter.setImportMode(QStringLiteral("add"));
-    presenter.setImportSourceRoot(source);
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportMode(QStringLiteral("add"));
+    presenter.imports()->setImportSourceRoot(source);
     ASSERT_TRUE(wait_until(
         [&]
-        { return presenter.importCandidates()->rowCount() > 0 && !presenter.importScanActive(); },
+        {
+            return presenter.imports()->importCandidates()->rowCount() > 0 &&
+                   !presenter.imports()->importScanActive();
+        },
         30000));
-    auto *import_model = presenter.importCandidates();
+    auto *import_model = presenter.imports()->importCandidates();
     import_model->highlightExclusive(0);
     const int checked = import_model->selectedCount();
     const int highlighted = [&]
@@ -858,7 +863,7 @@ TEST(StudioImportKeyboard, SelectAllThroughProductionStudioActions)
     const auto modal_pos = main_source.indexOf(QStringLiteral("property: \"modalOpen\""));
     ASSERT_GE(modal_pos, 0);
     const auto modal_slice = main_source.mid(modal_pos, 500);
-    EXPECT_FALSE(modal_slice.contains(QStringLiteral("studio.importPageOpen")))
+    EXPECT_FALSE(modal_slice.contains(QStringLiteral("studio.imports.importPageOpen")))
         << "Re-introducing importPageOpen into modalOpen must fail this contract";
     EXPECT_TRUE(modal_slice.contains(QStringLiteral("aboutDialog.visible")));
     EXPECT_TRUE(modal_slice.contains(QStringLiteral("removeDialog.visible")));
@@ -895,7 +900,7 @@ TEST(StudioImportKeyboard, ImportWorkspaceBlocksGallerySelectionCommands)
     ASSERT_TRUE(image.save(one, "PNG"));
     image.fill(Qt::magenta);
     ASSERT_TRUE(image.save(two, "PNG"));
-    presenter.importFilePaths({one, two});
+    presenter.imports()->importFilePaths({one, two});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -924,17 +929,18 @@ TEST(StudioImportKeyboard, ImportWorkspaceBlocksGallerySelectionCommands)
     ASSERT_TRUE(fresh.save(source + QStringLiteral("/a.png"), "PNG"));
     fresh.fill(QColor(200, 30, 10));
     ASSERT_TRUE(fresh.save(source + QStringLiteral("/b.png"), "PNG"));
-    presenter.openImportPage();
-    ASSERT_TRUE(presenter.importPageOpen());
+    presenter.imports()->openImportPage();
+    ASSERT_TRUE(presenter.imports()->importPageOpen());
     // Gallery selection must remain for restore after Import closes.
     EXPECT_EQ(presenter.selectedAssetId(), asset_a);
-    presenter.setImportMode(QStringLiteral("add"));
-    presenter.setImportSourceRoot(source);
+    presenter.imports()->setImportMode(QStringLiteral("add"));
+    presenter.imports()->setImportSourceRoot(source);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return presenter.importCandidates()->rowCount() > 0 &&
-                   presenter.importScanTotal() > 0 && !presenter.importScanActive();
+            return presenter.imports()->importCandidates()->rowCount() > 0 &&
+                   presenter.imports()->importScanTotal() > 0 &&
+                   !presenter.imports()->importScanActive();
         },
         30000))
         << presenter.errorText().toStdString();
@@ -1012,7 +1018,7 @@ TEST(StudioImportKeyboard, ImportWorkspaceBlocksGallerySelectionCommands)
             .executeAction(QStringLiteral("studio.window.dismiss"), QStringLiteral("keyboard"))
             .value(QStringLiteral("accepted"))
             .toBool());
-    EXPECT_FALSE(presenter.importPageOpen());
+    EXPECT_FALSE(presenter.imports()->importPageOpen());
     EXPECT_EQ(presenter.selectedAssetId(), asset_a);
     EXPECT_EQ(presenter.selectedRating(), 0);
 

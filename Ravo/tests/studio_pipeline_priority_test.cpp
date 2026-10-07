@@ -1,4 +1,4 @@
-#include "studio_import_workspace.h"
+#include "ravo/desktop/studio_import_workspace.h"
 #include <future>
 #include <memory>
 
@@ -25,7 +25,7 @@ public:
     static bool blockImport(StudioPresenter &presenter, std::shared_ptr<std::promise<void>> entered,
                             std::shared_future<void> release)
     {
-        return presenter.import_workspace_->worker->executor().post(
+        return presenter.imports()->importWorker().executor().post(
             [entered, release]
             {
                 entered->set_value();
@@ -39,11 +39,10 @@ public:
     }
     static Result<ImportItemResult> importPhoto(StudioPresenter &presenter, const std::string &path)
     {
-        return presenter.import_workspace_->worker->executor().submit(
+        return presenter.imports()->importWorker().executor().submit(
             [&]
             {
-                return presenter.import_workspace_->worker->service()->import().import_one(path,
-                                                                                           {});
+                return presenter.imports()->importWorker().service()->import().import_one(path, {});
             });
     }
 };
@@ -85,7 +84,7 @@ bool write_photo(const QString &path, const int offset)
 
 bool ready(StudioPresenter &presenter)
 {
-    return !presenter.previewLoading() && !presenter.previewImage().isNull();
+    return !presenter.inspect()->previewLoading() && !presenter.inspect()->previewImage().isNull();
 }
 } // namespace
 
@@ -104,16 +103,19 @@ TEST(StudioPipelinePriority, ColdPreviewAndRotationProceedWhileImportPreflightIs
     StudioCommandController commands(presenter);
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({existing});
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.importWorkActive() && presenter.visibleCount() == 1; }));
+    presenter.imports()->importFilePaths({existing});
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.imports()->importWorkActive() && presenter.visibleCount() == 1; }));
     const auto selected = presenter.selectedAssetId();
     ASSERT_FALSE(selected.isEmpty());
-    presenter.openImportPage();
-    presenter.setImportSourceRoot(source);
-    presenter.setImportMode("add");
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.importScanActive() && presenter.importReady(); }));
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source);
+    presenter.imports()->setImportMode("add");
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importScanActive() && presenter.imports()->importReady();
+        }));
 
     // Declared after the presenter so an assertion failure releases the worker
     // before presenter shutdown joins it.
@@ -125,14 +127,14 @@ TEST(StudioPipelinePriority, ColdPreviewAndRotationProceedWhileImportPreflightIs
         {
             return gate.started.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
         }));
-    presenter.startPlannedImport();
-    ASSERT_TRUE(presenter.importPreflightActive());
+    presenter.imports()->startPlannedImport();
+    ASSERT_TRUE(presenter.imports()->importPreflightActive());
     presenter.setBrowseMode("loupe");
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }, 5000))
         << presenter.errorText().toStdString();
-    EXPECT_EQ(presenter.previewImage().width(), 640);
+    EXPECT_EQ(presenter.inspect()->previewImage().width(), 640);
     EXPECT_EQ(presenter.selectedAssetId(), selected);
-    EXPECT_TRUE(presenter.importPreflightActive());
+    EXPECT_TRUE(presenter.imports()->importPreflightActive());
 
     // The live CLI uses this same command entry point to enter Develop and
     // apply fields while background import remains active.
@@ -144,8 +146,8 @@ TEST(StudioPipelinePriority, ColdPreviewAndRotationProceedWhileImportPreflightIs
     presenter.develop()->setCropToolActive(true);
     ASSERT_TRUE(
         wait_until([&] { return presenter.develop()->cropGuideReady() && ready(presenter); }));
-    const auto before = presenter.previewImage();
-    const auto before_url = presenter.previewUrl();
+    const auto before = presenter.inspect()->previewImage();
+    const auto before_url = presenter.inspect()->previewUrl();
     const auto rotate = [&](double value, bool live)
     {
         return commands.executeCommand(
@@ -153,27 +155,27 @@ TEST(StudioPipelinePriority, ColdPreviewAndRotationProceedWhileImportPreflightIs
             QVariantMap{{"name", "straighten"}, {"value", value}, {"live", live}});
     };
     EXPECT_TRUE(rotate(12.0, true).value("accepted").toBool());
-    ASSERT_TRUE(
-        wait_until([&] { return presenter.previewUrl() != before_url && ready(presenter); }, 5000));
-    EXPECT_NE(presenter.previewImage(), before);
-    const auto first_rotation = presenter.previewImage();
-    const auto first_url = presenter.previewUrl();
+    ASSERT_TRUE(wait_until(
+        [&] { return presenter.inspect()->previewUrl() != before_url && ready(presenter); }, 5000));
+    EXPECT_NE(presenter.inspect()->previewImage(), before);
+    const auto first_rotation = presenter.inspect()->previewImage();
+    const auto first_url = presenter.inspect()->previewUrl();
     EXPECT_TRUE(rotate(22.0, true).value("accepted").toBool());
-    ASSERT_TRUE(
-        wait_until([&] { return presenter.previewUrl() != first_url && ready(presenter); }, 5000));
-    EXPECT_NE(presenter.previewImage(), first_rotation);
+    ASSERT_TRUE(wait_until(
+        [&] { return presenter.inspect()->previewUrl() != first_url && ready(presenter); }, 5000));
+    EXPECT_NE(presenter.inspect()->previewImage(), first_rotation);
     auto stored = testing::StudioPipelineTestControl::recipe(presenter, selected.toStdString());
     ASSERT_TRUE(stored);
     auto params = develop_from_recipe(stored.value());
     ASSERT_TRUE(params);
     EXPECT_DOUBLE_EQ(params.value().straighten_degrees, 0.0);
-    EXPECT_TRUE(presenter.importPreflightActive());
+    EXPECT_TRUE(presenter.imports()->importPreflightActive());
     EXPECT_TRUE(rotate(22.0, false).value("accepted").toBool());
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }, 5000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
     gate.open();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 15000))
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importWorkActive(); }, 15000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
     stored = testing::StudioPipelineTestControl::recipe(presenter, selected.toStdString());
@@ -196,9 +198,9 @@ TEST(StudioPipelinePriority, CancelQueuedImportThenReplaceCatalog)
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("first.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({existing});
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.importWorkActive() && presenter.visibleCount() == 1; }));
+    presenter.imports()->importFilePaths({existing});
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.imports()->importWorkActive() && presenter.visibleCount() == 1; }));
     ImportGate gate;
     ASSERT_TRUE(
         testing::StudioPipelineTestControl::blockImport(presenter, gate.entered, gate.released));
@@ -207,13 +209,13 @@ TEST(StudioPipelinePriority, CancelQueuedImportThenReplaceCatalog)
         {
             return gate.started.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
         }));
-    presenter.importFilePaths({pending});
-    ASSERT_TRUE(presenter.importWorkActive());
+    presenter.imports()->importFilePaths({pending});
+    ASSERT_TRUE(presenter.imports()->importWorkActive());
     presenter.setBrowseMode("loupe");
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }, 5000));
     presenter.cancelCatalogOperation();
     gate.open();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }));
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importWorkActive(); }));
     EXPECT_EQ(presenter.visibleCount(), 1);
     presenter.createCatalogFromPath(directory.filePath("replacement.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
@@ -251,34 +253,39 @@ TEST(StudioPipelinePriority, CropFrameChangesKeepCompletePhotoAndViewport)
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({photo});
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.importWorkActive() && presenter.visibleCount() == 1; }));
+    presenter.imports()->importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.imports()->importWorkActive() && presenter.visibleCount() == 1; }));
     presenter.setBrowseMode("develop");
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
     presenter.develop()->setCropToolActive(true);
     ASSERT_TRUE(
         wait_until([&] { return presenter.develop()->cropGuideReady() && ready(presenter); }));
-    const auto original = presenter.previewImage();
-    const QSize viewport(presenter.previewViewportWidth(), presenter.previewViewportHeight());
+    const auto original = presenter.inspect()->previewImage();
+    const QSize viewport(presenter.inspect()->previewViewportWidth(),
+                         presenter.inspect()->previewViewportHeight());
     presenter.develop()->previewCropRect(0.15, 0.2, 0.65, 0.6);
-    EXPECT_EQ(presenter.previewImage(), original);
+    EXPECT_EQ(presenter.inspect()->previewImage(), original);
     presenter.develop()->setCropRect(0.15, 0.2, 0.65, 0.6);
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
-    EXPECT_EQ(presenter.previewImage(), original);
-    EXPECT_EQ(QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight()), viewport);
+    EXPECT_EQ(presenter.inspect()->previewImage(), original);
+    EXPECT_EQ(QSize(presenter.inspect()->previewViewportWidth(),
+                    presenter.inspect()->previewViewportHeight()),
+              viewport);
     presenter.develop()->setCropRect(0.2, 0.15, 0.6, 0.7);
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
-    EXPECT_EQ(presenter.previewImage(), original);
-    EXPECT_EQ(QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight()), viewport);
+    EXPECT_EQ(presenter.inspect()->previewImage(), original);
+    EXPECT_EQ(QSize(presenter.inspect()->previewViewportWidth(),
+                    presenter.inspect()->previewViewportHeight()),
+              viewport);
     const auto layout = presenter.inspect()->cropPreviewLayout();
     const double source_scale = layout.value("widthScale").toDouble() / original.width();
     ASSERT_GT(source_scale, 0.0);
-    const auto unrotated_url = presenter.previewUrl();
+    const auto unrotated_url = presenter.inspect()->previewUrl();
     presenter.develop()->previewDevelopNumber("straighten", 22.0);
-    ASSERT_TRUE(
-        wait_until([&] { return ready(presenter) && presenter.previewUrl() != unrotated_url; }));
-    const auto rotated = presenter.previewImage();
+    ASSERT_TRUE(wait_until(
+        [&] { return ready(presenter) && presenter.inspect()->previewUrl() != unrotated_url; }));
+    const auto rotated = presenter.inspect()->previewImage();
     const auto rotated_layout = presenter.inspect()->cropPreviewLayout();
     // The full rotated source expands instead of being auto-cropped and enlarged.
     EXPECT_GT(rotated.width(), original.width());
@@ -291,11 +298,11 @@ TEST(StudioPipelinePriority, CropFrameChangesKeepCompletePhotoAndViewport)
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
     presenter.develop()->setCropToolActive(false);
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
-    EXPECT_NE(presenter.previewImage().size(), original.size());
+    EXPECT_NE(presenter.inspect()->previewImage().size(), original.size());
     presenter.develop()->setCropToolActive(true);
     ASSERT_TRUE(
         wait_until([&] { return presenter.develop()->cropGuideReady() && ready(presenter); }));
-    EXPECT_EQ(presenter.previewImage(), rotated);
+    EXPECT_EQ(presenter.inspect()->previewImage(), rotated);
     EXPECT_EQ(presenter.inspect()->cropPreviewLayout(), rotated_layout);
 }
 
@@ -312,9 +319,9 @@ TEST(StudioPipelinePriority, UnrelatedImportDoesNotRejectPhotoEdit)
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({existing});
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.importWorkActive() && presenter.visibleCount() == 1; }));
+    presenter.imports()->importFilePaths({existing});
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.imports()->importWorkActive() && presenter.visibleCount() == 1; }));
     presenter.setBrowseMode("develop");
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
     const auto selected = presenter.selectedAssetId().toStdString();

@@ -87,7 +87,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -96,7 +96,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
         }))
         << presenter.errorText().toStdString();
     presenter.setBrowseMode(QStringLiteral("develop"));
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.develop()->modifiedParameterChoices().isEmpty());
 
@@ -105,7 +105,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9 &&
                    std::abs(presenter.develop()->editSaturation() - 0.4) < 1e-9;
         }))
@@ -143,7 +143,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() + 0.25) < 1e-9 &&
                    std::abs(presenter.develop()->editSaturation() + 0.3) < 1e-9;
         }))
@@ -152,7 +152,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
@@ -164,7 +164,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() + 0.25) < 1e-9;
         }))
         << presenter.errorText().toStdString();
@@ -172,7 +172,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
@@ -198,7 +198,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() + 0.1) < 1e-9;
         }))
         << presenter.errorText().toStdString();
@@ -206,7 +206,7 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
@@ -235,7 +235,7 @@ TEST(StudioPresenterTest, SelectAllVisibleSelectsLoadedPhotosAndKeepsPrimary)
     presenter.selectAllVisible();
     EXPECT_EQ(presenter.selectedCount(), 0);
 
-    presenter.importFilePaths({first_photo, second_photo});
+    presenter.imports()->importFilePaths({first_photo, second_photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -280,7 +280,7 @@ TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSe
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({first_photo, second_photo});
+    presenter.imports()->importFilePaths({first_photo, second_photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -294,14 +294,14 @@ TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSe
     ASSERT_FALSE(second_id.isEmpty());
     presenter.selectAsset(first_id);
     presenter.setBrowseMode(QStringLiteral("develop"));
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
     presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 0.75);
     presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), 0.4);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9 &&
                    std::abs(presenter.develop()->editSaturation() - 0.4) < 1e-9;
         }))
@@ -311,13 +311,13 @@ TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSe
 
     presenter.selectAsset(second_id);
     presenter.setBrowseMode(QStringLiteral("develop"));
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
     presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), -0.3);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editSaturation() + 0.3) < 1e-9;
         }))
         << presenter.errorText().toStdString();
@@ -327,7 +327,7 @@ TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSe
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.catalogOperationActive() && !presenter.previewLoading() &&
+            return !presenter.catalogOperationActive() && !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
@@ -342,7 +342,7 @@ TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSe
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
@@ -381,7 +381,7 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -390,42 +390,47 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
         }))
         << presenter.errorText().toStdString();
     bool saw_initial_live = false;
-    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+    QObject::connect(presenter.inspect(), &StudioInspectPresenter::previewChanged, &presenter,
                      [&]
                      {
-                         const auto url = presenter.previewUrl();
+                         const auto url = presenter.inspect()->previewUrl();
                          saw_initial_live =
                              saw_initial_live || (url.scheme() == QLatin1String("image") &&
                                                   url.path() == QLatin1String("/live"));
                      });
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   presenter.inspect()->previewUrl().isLocalFile();
+        }))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(saw_initial_live);
-    const QSize settled_viewport(presenter.previewViewportWidth(),
-                                 presenter.previewViewportHeight());
-    EXPECT_EQ(settled_viewport, presenter.previewImage().size());
+    const QSize settled_viewport(presenter.inspect()->previewViewportWidth(),
+                                 presenter.inspect()->previewViewportHeight());
+    EXPECT_EQ(settled_viewport, presenter.inspect()->previewImage().size());
     EXPECT_EQ(std::max(settled_viewport.width(), settled_viewport.height()), 1600);
 
     bool saw_uncommitted_live = false;
     QSize uncommitted_live_image_size;
     QSize uncommitted_live_viewport;
     QObject::connect(
-        &presenter, &StudioPresenter::previewChanged, &presenter,
+        presenter.inspect(), &StudioInspectPresenter::previewChanged, &presenter,
         [&]
         {
-            const auto url = presenter.previewUrl();
+            const auto url = presenter.inspect()->previewUrl();
             if (url.scheme() == QLatin1String("image") && url.path() == QLatin1String("/live"))
             {
                 saw_uncommitted_live = true;
-                uncommitted_live_image_size = presenter.previewImage().size();
-                uncommitted_live_viewport =
-                    QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight());
+                uncommitted_live_image_size = presenter.inspect()->previewImage().size();
+                uncommitted_live_viewport = QSize(presenter.inspect()->previewViewportWidth(),
+                                                  presenter.inspect()->previewViewportHeight());
             }
         });
     presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"), 0.25);
-    ASSERT_TRUE(wait_until([&] { return saw_uncommitted_live && !presenter.previewLoading(); }))
+    ASSERT_TRUE(
+        wait_until([&] { return saw_uncommitted_live && !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
     EXPECT_NEAR(presenter.develop()->editExposure(), 0.25, 1e-9);
     EXPECT_EQ(uncommitted_live_image_size, settled_viewport);
@@ -434,28 +439,29 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
     bool saw_live = false;
     bool saw_settled = false;
     bool live_viewport_stayed_settled = false;
-    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
-                     [&]
-                     {
-                         const auto url = presenter.previewUrl();
-                         if (url.scheme() == QLatin1String("image") &&
-                             url.path() == QLatin1String("/live"))
-                         {
-                             saw_live = true;
-                             live_viewport_stayed_settled =
-                                 QSize(presenter.previewViewportWidth(),
-                                       presenter.previewViewportHeight()) == settled_viewport;
-                         }
-                         saw_settled = saw_live && url.isLocalFile();
-                     });
+    QObject::connect(
+        presenter.inspect(), &StudioInspectPresenter::previewChanged, &presenter,
+        [&]
+        {
+            const auto url = presenter.inspect()->previewUrl();
+            if (url.scheme() == QLatin1String("image") && url.path() == QLatin1String("/live"))
+            {
+                saw_live = true;
+                live_viewport_stayed_settled =
+                    QSize(presenter.inspect()->previewViewportWidth(),
+                          presenter.inspect()->previewViewportHeight()) == settled_viewport;
+            }
+            saw_settled = saw_live && url.isLocalFile();
+        });
     presenter.develop()->applyStyleFromPath(style_path);
     ASSERT_TRUE(wait_until([&] { return saw_live && saw_settled; }))
         << presenter.errorText().toStdString()
-        << " url=" << presenter.previewUrl().toString().toStdString();
-    EXPECT_FALSE(presenter.previewLoading());
+        << " url=" << presenter.inspect()->previewUrl().toString().toStdString();
+    EXPECT_FALSE(presenter.inspect()->previewLoading());
     EXPECT_NEAR(presenter.develop()->editExposure(), 1.0, 1e-9);
     EXPECT_TRUE(live_viewport_stayed_settled);
-    EXPECT_EQ(QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight()),
+    EXPECT_EQ(QSize(presenter.inspect()->previewViewportWidth(),
+                    presenter.inspect()->previewViewportHeight()),
               settled_viewport);
 }
 
@@ -476,7 +482,7 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -488,8 +494,9 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && !presenter.previewImage().isNull() &&
-                   !presenter.previewUrl().isEmpty();
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewImage().isNull() &&
+                   !presenter.inspect()->previewUrl().isEmpty();
         }))
         << presenter.errorText().toStdString();
 
@@ -497,11 +504,12 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && presenter.previewUrl().isLocalFile() &&
+            return !presenter.inspect()->previewLoading() &&
+                   presenter.inspect()->previewUrl().isLocalFile() &&
                    std::abs(presenter.develop()->editExposure() - 0.5) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    const QImage first_after = presenter.previewImage();
+    const QImage first_after = presenter.inspect()->previewImage();
     ASSERT_FALSE(first_after.isNull());
 
     const auto comparison_action =
@@ -522,14 +530,15 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return presenter.develop()->comparisonActive() && !presenter.previewLoading() &&
-                   !presenter.comparisonBeforeUrl().isEmpty() &&
-                   !presenter.comparisonBeforeImage().isNull();
+            return presenter.develop()->comparisonActive() &&
+                   !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->comparisonBeforeUrl().isEmpty() &&
+                   !presenter.inspect()->comparisonBeforeImage().isNull();
         }))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(commands.action(comparison_action).value(QStringLiteral("checked")).toBool());
-    const QImage before = presenter.comparisonBeforeImage();
-    const QImage after = presenter.previewImage();
+    const QImage before = presenter.inspect()->comparisonBeforeImage();
+    const QImage after = presenter.inspect()->previewImage();
     ASSERT_EQ(before.size(), after.size());
     const QPoint center(before.width() / 2, before.height() / 2);
     EXPECT_NE(before.pixelColor(center), after.pixelColor(center));
@@ -539,19 +548,21 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && presenter.previewUrl().isLocalFile() &&
+            return !presenter.inspect()->previewLoading() &&
+                   presenter.inspect()->previewUrl().isLocalFile() &&
                    std::abs(presenter.develop()->editExposure() - 1.0) < 1e-9;
         }))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.develop()->comparisonActive());
-    EXPECT_EQ(before.pixelColor(center), presenter.comparisonBeforeImage().pixelColor(center));
-    EXPECT_NE(after.pixelColor(center), presenter.previewImage().pixelColor(center));
+    EXPECT_EQ(before.pixelColor(center),
+              presenter.inspect()->comparisonBeforeImage().pixelColor(center));
+    EXPECT_NE(after.pixelColor(center), presenter.inspect()->previewImage().pixelColor(center));
 
     const auto deactivated = commands.executeAction(comparison_action, QStringLiteral("control"));
     ASSERT_TRUE(deactivated.value(QStringLiteral("accepted")).toBool());
     EXPECT_FALSE(presenter.develop()->comparisonActive());
-    EXPECT_TRUE(presenter.comparisonBeforeUrl().isEmpty());
-    EXPECT_TRUE(presenter.comparisonBeforeImage().isNull());
+    EXPECT_TRUE(presenter.inspect()->comparisonBeforeUrl().isEmpty());
+    EXPECT_TRUE(presenter.inspect()->comparisonBeforeImage().isNull());
     EXPECT_FALSE(commands.action(comparison_action).value(QStringLiteral("checked")).toBool());
 
     ASSERT_TRUE(commands.executeAction(comparison_action, QStringLiteral("control"))
@@ -560,9 +571,9 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     ASSERT_TRUE(commands.executeAction(comparison_action, QStringLiteral("control"))
                     .value(QStringLiteral("accepted"))
                     .toBool());
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }));
     EXPECT_FALSE(presenter.develop()->comparisonActive());
-    EXPECT_TRUE(presenter.comparisonBeforeUrl().isEmpty());
+    EXPECT_TRUE(presenter.inspect()->comparisonBeforeUrl().isEmpty());
 }
 
 TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdentity)
@@ -586,7 +597,7 @@ TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdenti
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -596,22 +607,27 @@ TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdenti
         << presenter.errorText().toStdString();
     presenter.openDevelop();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   presenter.inspect()->previewUrl().isLocalFile();
+        }))
         << presenter.errorText().toStdString();
 
     std::vector<qulonglong> published_revisions;
     std::vector<qulonglong> timed_revisions;
-    QUrl last_url = presenter.previewUrl();
-    QObject::connect(&presenter, &StudioPresenter::interactivePreviewPublished, &presenter,
+    QUrl last_url = presenter.inspect()->previewUrl();
+    QObject::connect(presenter.develop(), &StudioDevelopPresenter::interactivePreviewPublished,
+                     &presenter,
                      [&](const qulonglong revision, const qlonglong intent_to_image_us)
                      {
                          EXPECT_GT(intent_to_image_us, 0);
                          timed_revisions.push_back(revision);
                      });
-    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+    QObject::connect(presenter.inspect(), &StudioInspectPresenter::previewChanged, &presenter,
                      [&]
                      {
-                         const QUrl current = presenter.previewUrl();
+                         const QUrl current = presenter.inspect()->previewUrl();
                          if (current == last_url || current.scheme() != QLatin1String("image") ||
                              current.path() != QLatin1String("/live"))
                          {
@@ -666,7 +682,7 @@ TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdenti
     ASSERT_NE(profile->string_if(), nullptr);
     ASSERT_NE(digest, nullptr);
     ASSERT_NE(digest->string_if(), nullptr);
-    const QImage displayed = presenter.previewImage();
+    const QImage displayed = presenter.inspect()->previewImage();
     ASSERT_EQ(displayed.format(), QImage::Format_RGB888);
     QCryptographicHash expected(QCryptographicHash::Sha256);
     for (int row = 0; row < displayed.height(); ++row)
@@ -708,7 +724,12 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
         << presenter.errorText().toStdString();
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && !presenter.previewImage().isNull(); }, 30000))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewImage().isNull();
+        },
+        30000))
         << presenter.errorText().toStdString();
 
     const double baseline = presenter.develop()->editExposure();
@@ -718,7 +739,7 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
     for (std::size_t run = 0U; run < runs + 2U; ++run)
     {
         const double offset = static_cast<double>(static_cast<int>(run % 7U) - 3) * 0.01;
-        const QUrl previous = presenter.previewUrl();
+        const QUrl previous = presenter.inspect()->previewUrl();
         QElapsedTimer timer;
         QEventLoop event_loop;
         QTimer timeout;
@@ -726,13 +747,14 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
         std::optional<std::int64_t> published_us;
         QObject::connect(&timeout, &QTimer::timeout, &event_loop, &QEventLoop::quit);
         const auto connection = QObject::connect(
-            &presenter, &StudioPresenter::previewChanged, &presenter,
+            presenter.inspect(), &StudioInspectPresenter::previewChanged, &presenter,
             [&]
             {
-                const QUrl current = presenter.previewUrl();
+                const QUrl current = presenter.inspect()->previewUrl();
                 if (!published_us.has_value() && current != previous &&
                     current.scheme() == QLatin1String("image") &&
-                    current.path() == QLatin1String("/live") && !presenter.previewImage().isNull())
+                    current.path() == QLatin1String("/live") &&
+                    !presenter.inspect()->previewImage().isNull())
                 {
                     published_us = timer.nsecsElapsed() / 1000;
                     event_loop.quit();
@@ -802,6 +824,15 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresRapidIntentBurstToLatestP
     StudioCommandController commands(presenter);
     auto live = StudioLiveSessionController::create(presenter, commands);
     ASSERT_TRUE(live) << live.error().message;
+    const auto preview_matches_current = [&]
+    {
+        const auto state = live.value()->snapshot();
+        const auto *preview = state.find("preview");
+        if (preview == nullptr || preview->object_if() == nullptr)
+            return false;
+        const auto *matches = preview->find("matches_current_recipe");
+        return matches != nullptr && matches->boolean_if() != nullptr && *matches->boolean_if();
+    };
     presenter.openCatalogFromPath(QString::fromUtf8(catalog_path));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000))
         << presenter.errorText().toStdString();
@@ -813,8 +844,15 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresRapidIntentBurstToLatestP
         }))
         << presenter.errorText().toStdString();
     presenter.setBrowseMode(QStringLiteral("develop"));
+    // Cached settled pixels may be published through the live image provider.
+    // Start the burst only after the displayed frame matches the loaded recipe.
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }, 30000))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewImage().isNull() && preview_matches_current();
+        },
+        30000))
         << presenter.errorText().toStdString();
 
     const double baseline = presenter.develop()->editExposure();
@@ -831,16 +869,7 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresRapidIntentBurstToLatestP
     std::optional<std::int64_t> last_intent_us;
     std::optional<std::int64_t> latest_published_us;
     std::vector<std::int64_t> frame_us;
-    QUrl last_url = presenter.previewUrl();
-    const auto preview_matches_current = [&]
-    {
-        const auto state = live.value()->snapshot();
-        const auto *preview = state.find("preview");
-        if (preview == nullptr || preview->object_if() == nullptr)
-            return false;
-        const auto *matches = preview->find("matches_current_recipe");
-        return matches != nullptr && matches->boolean_if() != nullptr && *matches->boolean_if();
-    };
+    QUrl last_url = presenter.inspect()->previewUrl();
     QObject::connect(&intent_timer, &QTimer::timeout, &event_loop,
                      [&]
                      {
@@ -855,10 +884,10 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresRapidIntentBurstToLatestP
                          if (sent == intents)
                              intent_timer.stop();
                      });
-    QObject::connect(&presenter, &StudioPresenter::previewChanged, &event_loop,
+    QObject::connect(presenter.inspect(), &StudioInspectPresenter::previewChanged, &event_loop,
                      [&]
                      {
-                         const QUrl current = presenter.previewUrl();
+                         const QUrl current = presenter.inspect()->previewUrl();
                          if (current == last_url || current.scheme() != QLatin1String("image") ||
                              current.path() != QLatin1String("/live"))
                          {
@@ -933,7 +962,7 @@ TEST(StudioPresenterTest, PollAppliesDevelopWrittenByAnotherCatalogClient)
     presenter.createCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -941,7 +970,7 @@ TEST(StudioPresenterTest, PollAppliesDevelopWrittenByAnotherCatalogClient)
                    !presenter.busy();
         }))
         << presenter.errorText().toStdString();
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
     {
         QElapsedTimer settle;
@@ -1697,14 +1726,17 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesNamedPlaceholdersBeforeThumbna
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.openImportPage();
-    presenter.setImportSourceRoot(source_dir);
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source_dir);
     ASSERT_TRUE(wait_until(
         [&]
-        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 3; },
+        {
+            return !presenter.imports()->importScanActive() &&
+                   presenter.imports()->importCandidates()->rowCount() == 3;
+        },
         30000))
         << presenter.errorText().toStdString();
-    auto *candidates = presenter.importCandidates();
+    auto *candidates = presenter.imports()->importCandidates();
     EXPECT_EQ(candidates->selectedCount(), 3);
     for (int row = 0; row < 3; ++row)
     {
@@ -1715,7 +1747,7 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesNamedPlaceholdersBeforeThumbna
         EXPECT_FALSE(candidates->inspected(row));
         EXPECT_TRUE(candidates->thumbnail(row).isNull());
     }
-    presenter.ensureImportThumbnail(0);
+    presenter.imports()->ensureImportThumbnail(0);
     ASSERT_TRUE(wait_until(
         [&] { return candidates->inspected(0) && !candidates->thumbnail(0).isNull(); }, 30000))
         << presenter.errorText().toStdString();
@@ -1748,17 +1780,21 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesGalleryPlaceholdersWhenImportS
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.openImportPage();
-    presenter.setImportMode(QStringLiteral("add"));
-    presenter.setImportSourceRoot(source_dir);
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportMode(QStringLiteral("add"));
+    presenter.imports()->setImportSourceRoot(source_dir);
     ASSERT_TRUE(wait_until(
         [&]
-        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 3; },
+        {
+            return !presenter.imports()->importScanActive() &&
+                   presenter.imports()->importCandidates()->rowCount() == 3;
+        },
         30000))
         << presenter.errorText().toStdString();
-    presenter.startPlannedImport();
+    presenter.imports()->startPlannedImport();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPageOpen() && presenter.visibleCount() == 3; }, 30000))
+        [&] { return !presenter.imports()->importPageOpen() && presenter.visibleCount() == 3; },
+        30000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.lastImportSelected());
     for (int row = 0; row < 3; ++row)
@@ -1769,7 +1805,12 @@ TEST(StudioPresenterTest, ImportWorkspacePublishesGalleryPlaceholdersWhenImportS
                   names.at(row));
     }
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 30000))
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        },
+        30000))
         << presenter.errorText().toStdString();
     EXPECT_EQ(presenter.lastImportCount(), 3);
     EXPECT_EQ(presenter.visibleCount(), 3);
@@ -1839,12 +1880,12 @@ TEST(StudioPresenterTest, SelectingFolderDoesNotResetFolderTree)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({QDir(pictures).filePath(QStringLiteral("a.png")),
-                               QDir(trip).filePath(QStringLiteral("b.png"))});
+    presenter.imports()->importFilePaths({QDir(pictures).filePath(QStringLiteral("a.png")),
+                                          QDir(trip).filePath(QStringLiteral("b.png"))});
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return presenter.visibleCount() == 2 && !presenter.importWorkActive() &&
+            return presenter.visibleCount() == 2 && !presenter.imports()->importWorkActive() &&
                    !presenter.busy() && presenter.folders()->rowCount() >= 3;
         },
         30000))
@@ -1912,7 +1953,7 @@ TEST(StudioPresenterTest, ActualSizeInspectRoiFollowsLiveDevelopWithoutPan)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -1923,23 +1964,35 @@ TEST(StudioPresenterTest, ActualSizeInspectRoiFollowsLiveDevelopWithoutPan)
         << presenter.errorText().toStdString();
     presenter.openDevelop();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }, 30000))
+        [&]
+        {
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewUrl().isEmpty();
+        },
+        30000))
         << presenter.errorText().toStdString();
-    presenter.setZoomMode(QStringLiteral("actual"));
-    presenter.requestInspectRoi(0.25, 0.25, 0.2, 0.15);
-    ASSERT_TRUE(wait_until([&] { return !presenter.inspectRoiUrl().isEmpty(); }, 30000))
+    presenter.inspect()->setZoomMode(QStringLiteral("actual"));
+    presenter.inspect()->requestInspectRoi(0.25, 0.25, 0.2, 0.15);
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->inspectRoiUrl().isEmpty(); }, 30000))
         << presenter.errorText().toStdString();
-    const QUrl first_roi = presenter.inspectRoiUrl();
-    ASSERT_FALSE(presenter.inspectRoiImage().isNull());
+    const QUrl first_roi = presenter.inspect()->inspectRoiUrl();
+    ASSERT_FALSE(presenter.inspect()->inspectRoiImage().isNull());
     presenter.develop()->previewDevelopNumbers(QVariantMap{{QStringLiteral("exposure"), 0.75}});
-    ASSERT_TRUE(wait_until([&] { return presenter.inspectRoiUrl() != first_roi; }, 30000))
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.inspect()->inspectRoiUrl() != first_roi; }, 30000))
         << presenter.errorText().toStdString() << " first=" << first_roi.toString().toStdString()
-        << " current=" << presenter.inspectRoiUrl().toString().toStdString();
-    EXPECT_TRUE(presenter.inspectRoiUrl().toString().contains(QStringLiteral("inspectRoi")));
-    EXPECT_FALSE(presenter.inspectRoiImage().isNull());
-    presenter.setZoomMode(QStringLiteral("fit"));
-    EXPECT_TRUE(presenter.inspectRoiUrl().isEmpty());
-    EXPECT_TRUE(presenter.inspectRoiImage().isNull());
+        << " current=" << presenter.inspect()->inspectRoiUrl().toString().toStdString();
+    EXPECT_TRUE(
+        presenter.inspect()->inspectRoiUrl().toString().contains(QStringLiteral("inspectRoi")));
+    EXPECT_FALSE(presenter.inspect()->inspectRoiImage().isNull());
+    presenter.inspect()->adjustZoom(120);
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("custom"));
+    EXPECT_TRUE(presenter.inspect()->inspectRoiUrl().isEmpty());
+    EXPECT_TRUE(presenter.inspect()->inspectRoiImage().isNull());
+    EXPECT_EQ(presenter.inspect()->gpuRoiNativeSurface(), 0U);
+    presenter.inspect()->setZoomMode(QStringLiteral("fit"));
+    EXPECT_TRUE(presenter.inspect()->inspectRoiUrl().isEmpty());
+    EXPECT_TRUE(presenter.inspect()->inspectRoiImage().isNull());
 }
 
 } // namespace

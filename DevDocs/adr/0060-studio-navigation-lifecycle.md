@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-29
+- Updated: 2026-10-07 — Inspect owns the existing desktop navigation state
 - Extends: [ADR-0007](0007-first-usable-catalog-viewer.md)
 
 ## Context
@@ -13,7 +14,7 @@ navigator, but its pan reset timing was implicit.
 
 ## Decision
 
-- `StudioPresenter` is the sole zoom-state owner. Fit, Fill, Actual, and Custom
+- `StudioInspectPresenter` is the sole zoom-state owner. Fit, Fill, Actual, and Custom
   are canonical modes; custom factor clamps to 0.1–8 and wheel steps by 1.1.
 - QML owns only presentation geometry. Its Flickable stops at bounds, and the
   navigator derives a normalized visible rectangle and clamps seek requests to

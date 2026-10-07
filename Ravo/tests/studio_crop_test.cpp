@@ -39,17 +39,19 @@ TEST(StudioCropTest, AutoLevelChangesOnlyRotationAndRejectsInvalidModes)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(studio_test_support::wait_until(
         [&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(studio_test_support::wait_until(
         [&] { return !presenter.selectedAssetId().isEmpty() && !presenter.busy(); }));
     presenter.setBrowseMode(QStringLiteral("develop"));
-    ASSERT_TRUE(studio_test_support::wait_until([&] { return !presenter.previewLoading(); }));
+    ASSERT_TRUE(
+        studio_test_support::wait_until([&] { return !presenter.inspect()->previewLoading(); }));
     presenter.develop()->setDevelopNumbers({{"straighten", .7},
                                             {"perspectiveVertical", .08},
                                             {"perspectiveHorizontal", -.05},
                                             {"perspectiveShear", .015},
                                             {"perspectiveConstrainCrop", 0.0}});
-    ASSERT_TRUE(studio_test_support::wait_until([&] { return !presenter.previewLoading(); }));
+    ASSERT_TRUE(
+        studio_test_support::wait_until([&] { return !presenter.inspect()->previewLoading(); }));
     const auto before = presenter.develop()->editPerspective();
     const auto command = QStringLiteral("studio.edit.auto_perspective");
     const auto accepted = commands.executeCommand(command, QStringLiteral("level"));

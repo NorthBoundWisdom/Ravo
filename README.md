@@ -127,8 +127,10 @@ retain their original response. Masks form a typed graph —
 gradient, circle, ellipse, parametric, path, brush, and ordered groups — with a
 live Studio overlay.
 
-The engine is **CPU-only today**. A future GPU path is an independent Engine
-adapter only (`DevDocs/MIGRATION.md`); the old OpenCL path is not ported.
+CPU remains the correctness reference. Admitted interactive preview and ROI
+stages use the Engine QRhi GPU adapter with platform and operation limits;
+persisted previews, CLI PNG output, and export stay on CPU. The admission policy
+lives in [MIGRATION.md](DevDocs/MIGRATION.md); the old OpenCL path is not ported.
 
 ## Documentation
 

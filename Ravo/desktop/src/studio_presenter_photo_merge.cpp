@@ -15,8 +15,8 @@ namespace ravo
 void StudioPresenter::preparePhotoMerge(const QString &kind)
 {
     const auto ids = selected_asset_ids();
-    if (busy_ || catalog_operation_active_ || importPageOpen() || catalog_path_.isEmpty() ||
-        ids.size() < 2 || ids.size() > 16 ||
+    if (busy_ || catalog_operation_active_ || import_workspace_->importPageOpen() ||
+        catalog_path_.isEmpty() || ids.size() < 2 || ids.size() > 16 ||
         (kind != QLatin1String("hdr") && kind != QLatin1String("panorama")))
     {
         setError(QCoreApplication::translate("StudioPresenter",
@@ -46,7 +46,7 @@ void StudioPresenter::preparePhotoMerge(const QString &kind)
 
 void StudioPresenter::applyPhotoMerge(const QVariantMap &options)
 {
-    if (busy_ || catalog_operation_active_ || importPageOpen())
+    if (busy_ || catalog_operation_active_ || import_workspace_->importPageOpen())
         return;
     if (options.value(QStringLiteral("token")).toString() != QString::number(photo_merge_token_) ||
         photo_merge_assets_.empty() || photo_merge_catalog_ != catalog_path_ ||

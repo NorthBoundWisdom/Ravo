@@ -481,7 +481,7 @@ TEST(StudioQmlContract, DevelopReviewToolbarOffersSynchronizedBeforeAfterCompari
         << main_qml.errorString().toStdString();
     const auto main_source = QString::fromUtf8(main_qml.readAll());
     EXPECT_TRUE(main_source.contains(QStringLiteral("comparisonReady")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.comparisonBeforeUrl")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.inspect.comparisonBeforeUrl")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: comparisonBeforeImage")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("InspectZoomController")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("comparisonReady: window.comparisonReady")));
@@ -793,7 +793,7 @@ TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -802,7 +802,7 @@ TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
         }))
         << presenter.errorText().toStdString();
     presenter.setBrowseMode(QStringLiteral("develop"));
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
 
     presenter.develop()->setCropToolActive(true);
@@ -844,7 +844,7 @@ TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && !presenter.busy() &&
+            return !presenter.inspect()->previewLoading() && !presenter.busy() &&
                    presenter.develop()->canUndo();
         }))
         << presenter.errorText().toStdString();
@@ -856,7 +856,7 @@ TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && !presenter.busy() &&
+            return !presenter.inspect()->previewLoading() && !presenter.busy() &&
                    std::abs(presenter.develop()->editCropWidth() - crop_width) < 1e-6;
         }))
         << presenter.errorText().toStdString();
@@ -904,7 +904,7 @@ TEST(StudioCommands, SelectAllShortcutSelectsLoadedPhotosAndYieldsToTextInput)
     ASSERT_TRUE(image.save(second_photo, "PNG"));
     image.fill(QColor(80, 120, 40));
     ASSERT_TRUE(image.save(third_photo, "PNG"));
-    presenter.importFilePaths({first_photo, second_photo, third_photo});
+    presenter.imports()->importFilePaths({first_photo, second_photo, third_photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -1317,13 +1317,13 @@ TEST(StudioPresenterTest, CatalogRecoveryCommandsBackupVerifyRestoreAndRebuild)
     presenter.createCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
             return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
-                   !presenter.busy() && !presenter.importWorkActive() &&
-                   !presenter.previewLoading();
+                   !presenter.busy() && !presenter.imports()->importWorkActive() &&
+                   !presenter.inspect()->previewLoading();
         }))
         << presenter.errorText().toStdString();
 
@@ -1452,11 +1452,11 @@ TEST(StudioPresenterTest, MissingFolderRelinkUsesStableIdentityAndCommandOwnedDi
         StudioPresenter presenter;
         presenter.createCatalogFromPath(catalog);
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-        presenter.importFilePaths({photo});
+        presenter.imports()->importFilePaths({photo});
         ASSERT_TRUE(wait_until(
             [&]
             {
-                return presenter.visibleCount() == 1 && !presenter.importWorkActive() &&
+                return presenter.visibleCount() == 1 && !presenter.imports()->importWorkActive() &&
                        !presenter.busy();
             }));
         for (int row = 0; row < presenter.folders()->rowCount(); ++row)
@@ -1538,18 +1538,19 @@ TEST(StudioPresenterTest, ImportCancellationStopsUndispatchedItemsAtItemBoundary
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
     bool cancelled = false;
-    QObject::connect(&presenter, &StudioPresenter::libraryWorkChanged, &presenter,
+    QObject::connect(presenter.imports(), &StudioImportWorkspace::libraryWorkChanged, &presenter,
                      [&]
                      {
-                         if (!cancelled && presenter.importWorkActive() &&
-                             presenter.importWorkCompleted() == 1)
+                         if (!cancelled && presenter.imports()->importWorkActive() &&
+                             presenter.imports()->importWorkCompleted() == 1)
                          {
                              cancelled = true;
                              presenter.cancelCatalogOperation();
                          }
                      });
-    presenter.importFilePaths(photos);
-    ASSERT_TRUE(wait_until([&] { return cancelled && !presenter.importWorkActive(); }, 30000))
+    presenter.imports()->importFilePaths(photos);
+    ASSERT_TRUE(
+        wait_until([&] { return cancelled && !presenter.imports()->importWorkActive(); }, 30000))
         << presenter.errorText().toStdString();
     EXPECT_EQ(presenter.visibleCount(), 1);
     EXPECT_TRUE(presenter.lastImportAvailable());
@@ -1595,8 +1596,8 @@ TEST(StudioPresenterTest, ImportKeepsGalleryStableThenPublishesOneLastImportColl
     StudioCommandController commands(presenter);
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths({baseline});
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+    presenter.imports()->importFilePaths({baseline});
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importWorkActive(); }, 30000))
         << presenter.errorText().toStdString();
     ASSERT_TRUE(presenter.lastImportSelected());
     presenter.selectFolder(QString{});
@@ -1609,28 +1610,30 @@ TEST(StudioPresenterTest, ImportKeepsGalleryStableThenPublishesOneLastImportColl
     QObject::connect(presenter.assets(), &QAbstractItemModel::modelReset, &presenter,
                      [&]
                      {
-                         if (presenter.importWorkActive())
+                         if (presenter.imports()->importWorkActive())
                              ++resets_while_importing;
                      });
     QObject::connect(presenter.assets(), &QAbstractItemModel::rowsInserted, &presenter,
                      [&]
                      {
-                         if (presenter.importWorkActive())
+                         if (presenter.imports()->importWorkActive())
                              ++inserts_while_importing;
                      });
-    QObject::connect(&presenter, &StudioPresenter::libraryWorkChanged, &presenter,
+    QObject::connect(presenter.imports(), &StudioImportWorkspace::libraryWorkChanged, &presenter,
                      [&]
                      {
-                         if (presenter.importWorkActive() && presenter.importWorkCompleted() > 0 &&
-                             presenter.importWorkCompleted() < presenter.importWorkTotal())
+                         if (presenter.imports()->importWorkActive() &&
+                             presenter.imports()->importWorkCompleted() > 0 &&
+                             presenter.imports()->importWorkCompleted() <
+                                 presenter.imports()->importWorkTotal())
                          {
                              observed_intermediate_progress = true;
                              EXPECT_EQ(presenter.assets()->rowCount(), 1);
                          }
                      });
 
-    presenter.importFilePaths(batch);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importWorkActive(); }, 30000))
+    presenter.imports()->importFilePaths(batch);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importWorkActive(); }, 30000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(observed_intermediate_progress);
     EXPECT_EQ(resets_while_importing, 0);
@@ -1950,9 +1953,9 @@ TEST(StudioQmlContract, Local01MaskPlaceUsesPhotoPlaneNotInspectRoi)
 
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: photoPlane")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: inspectRoiImage")));
-    EXPECT_TRUE(
-        main_source.contains(QStringLiteral("source: visible ? studio.inspectRoiUrl : \"\"")));
-    EXPECT_FALSE(main_source.contains(QStringLiteral("source: studio.inspectRoiUrl")));
+    EXPECT_TRUE(main_source.contains(
+        QStringLiteral("source: visible ? studio.inspect.inspectRoiUrl : \"\"")));
+    EXPECT_FALSE(main_source.contains(QStringLiteral("source: studio.inspect.inspectRoiUrl")));
     QFile workspace(
         QFileInfo(main).dir().filePath(QStringLiteral("inspect/LocalAdjustmentWorkspace.qml")));
     ASSERT_TRUE(workspace.open(QIODevice::ReadOnly | QIODevice::Text));
@@ -1960,7 +1963,7 @@ TEST(StudioQmlContract, Local01MaskPlaceUsesPhotoPlaneNotInspectRoi)
     EXPECT_TRUE(workspace_source.contains(
         QStringLiteral("onClicked: root.panel.commands.localAdjustment(\"draw\"")));
     EXPECT_FALSE(workspace_source.contains(QStringLiteral("onToggled:")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.zoomMode === \"actual\"")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.inspect.zoomMode === \"actual\"")));
 
     const auto place_idx = main_source.indexOf(QStringLiteral("studioActions.placeMask("));
     ASSERT_GE(place_idx, 0);

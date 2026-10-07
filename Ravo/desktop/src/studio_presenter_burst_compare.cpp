@@ -24,8 +24,8 @@ bool StudioPresenter::burstCompareActive() const
 
 bool StudioPresenter::canOpenBurstCompare() const
 {
-    if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty() || busy_ || import_work_active_ ||
-        burst_compare_request_in_flight_)
+    if (catalog_path_.isEmpty() || selected_asset_id_.isEmpty() || busy_ ||
+        import_workspace_->importWorkActive() || burst_compare_request_in_flight_)
         return false;
     const auto asset = assets_.assetById(selected_asset_id_);
     if (asset)
@@ -43,10 +43,10 @@ bool StudioPresenter::burstComparePending() const noexcept
 void StudioPresenter::apply_burst_compare_pair(const BurstComparePair &pair,
                                                const bool preserve_inspect_roi)
 {
-    const double roi_x = inspect_roi_x_;
-    const double roi_y = inspect_roi_y_;
-    const double roi_w = inspect_roi_width_;
-    const double roi_h = inspect_roi_height_;
+    const double roi_x = inspect_.inspectRoiX();
+    const double roi_y = inspect_.inspectRoiY();
+    const double roi_w = inspect_.inspectRoiWidth();
+    const double roi_h = inspect_.inspectRoiHeight();
     const bool keep_roi = preserve_inspect_roi && roi_w > 0.0 && roi_h > 0.0;
 
     selected_ids_.clear();
@@ -66,7 +66,7 @@ void StudioPresenter::apply_burst_compare_pair(const BurstComparePair &pair,
     }
     if (keep_roi)
     {
-        requestInspectRoi(roi_x, roi_y, roi_w, roi_h);
+        inspect_.requestInspectRoi(roi_x, roi_y, roi_w, roi_h);
     }
 }
 

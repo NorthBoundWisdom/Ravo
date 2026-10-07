@@ -16,7 +16,8 @@
 #include "ravo/desktop/studio_import_preferences.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "studio_import_thumbnail_controller.h"
-#include "studio_import_workspace.h"
+#include "studio_import_scan_controller.h"
+#include "ravo/desktop/studio_import_workspace.h"
 #include "studio_import_worker.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "studio_test_support.h"
@@ -93,6 +94,39 @@ struct BlockedSettingsDirectory
     }
 };
 } // namespace
+
+TEST(StudioImportWorkspace, RejectedDestinationDispatchReportsClosedFilesystemOwner)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    StudioPresenter presenter;
+    auto *imports = presenter.imports();
+    imports->shutdown();
+    imports->setImportDestination(directory.path());
+    EXPECT_FALSE(imports->importDestinationError().isEmpty());
+    EXPECT_EQ(presenter.errorText(), imports->importDestinationError());
+    EXPECT_FALSE(imports->importReady());
+    EXPECT_FALSE(imports->importDestinationPreviewActive());
+}
+
+TEST(StudioImportWorkspace, RejectedFolderDispatchClearsPendingAndReportsClosedOwner)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    StudioPresenter presenter;
+    auto *imports = presenter.imports();
+    auto *browser = imports->importSourceFolders();
+    browser->resetWithRoots({{directory.path(), QStringLiteral("root"), true}});
+    imports->shutdown();
+    browser->toggleCollapsed(directory.path());
+    const auto root = browser->index(0, 0);
+    EXPECT_FALSE(browser->data(root, FilesystemBrowserModel::ListingPendingRole).toBool());
+    EXPECT_FALSE(browser->data(root, FilesystemBrowserModel::ErrorRole).toString().isEmpty());
+    EXPECT_FALSE(presenter.errorText().isEmpty());
+    EXPECT_EQ(browser->rowCount(), 1);
+}
 
 TEST(FilesystemBrowserModelTest, RevealExpandsAncestorsAndRejectsOldListings)
 {
@@ -181,32 +215,32 @@ TEST(StudioImportWorkspace, RecursiveChoiceSurvivesFolderChangesAndPageReopen)
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportRecursive(false);
-    presenter.setImportSourceRoot(first);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    EXPECT_FALSE(presenter.importRecursive());
-    EXPECT_EQ(presenter.importCandidates()->rowCount(), 1);
-    presenter.setImportSourceRoot(second);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    EXPECT_FALSE(presenter.importRecursive());
-    EXPECT_EQ(presenter.importCandidates()->rowCount(), 1);
-    presenter.closeImportPage();
-    presenter.openImportPage();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    EXPECT_FALSE(presenter.importRecursive());
-    EXPECT_EQ(presenter.importCandidates()->rowCount(), 1);
-    presenter.setImportRecursive(true);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    EXPECT_EQ(presenter.importCandidates()->rowCount(), 2);
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportRecursive(false);
+    presenter.imports()->setImportSourceRoot(first);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    EXPECT_FALSE(presenter.imports()->importRecursive());
+    EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 1);
+    presenter.imports()->setImportSourceRoot(second);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    EXPECT_FALSE(presenter.imports()->importRecursive());
+    EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 1);
+    presenter.imports()->closeImportPage();
+    presenter.imports()->openImportPage();
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    EXPECT_FALSE(presenter.imports()->importRecursive());
+    EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 1);
+    presenter.imports()->setImportRecursive(true);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 2);
     // Rapidly replacing a recursive scan must not republish its nested candidates.
-    presenter.setImportSourceRoot(first);
-    presenter.setImportRecursive(false);
-    presenter.setImportSourceRoot(second);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    EXPECT_FALSE(presenter.importRecursive());
-    EXPECT_EQ(presenter.importCandidates()->rowCount(), 1);
-    presenter.closeImportPage();
+    presenter.imports()->setImportSourceRoot(first);
+    presenter.imports()->setImportRecursive(false);
+    presenter.imports()->setImportSourceRoot(second);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    EXPECT_FALSE(presenter.imports()->importRecursive());
+    EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 1);
+    presenter.imports()->closeImportPage();
 }
 
 TEST(StudioImportWorkspace, HomeRecursionGuardIncludesNormalizedAndSymlinkPaths)
@@ -286,12 +320,13 @@ TEST(StudioImportWorkspace, BothTreesStartAtHomeAndRepeatedDestinationSelectionK
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    for (auto *model : {presenter.importSourceFolders(), presenter.importDestinationFolders()})
+    presenter.imports()->openImportPage();
+    for (auto *model : {presenter.imports()->importSourceFolders(),
+                        presenter.imports()->importDestinationFolders()})
         EXPECT_EQ(model->data(model->index(0, 0), FilesystemBrowserModel::PathRole).toString(),
                   QDir::cleanPath(QDir::homePath()));
-    auto *model = presenter.importDestinationFolders();
-    presenter.setImportDestination(destination);
+    auto *model = presenter.imports()->importDestinationFolders();
+    presenter.imports()->setImportDestination(destination);
     // A picker path inside Home needs asynchronous ancestor discovery before
     // its row can be activated, just as it does in the real folder tree.
     ASSERT_TRUE(wait_until(
@@ -313,11 +348,11 @@ TEST(StudioImportWorkspace, BothTreesStartAtHomeAndRepeatedDestinationSelectionK
         return false;
     };
     ASSERT_TRUE(wait_until(child_visible));
-    ASSERT_TRUE(presenter.importDestinationError().isEmpty());
-    presenter.setImportDestination(destination);
+    ASSERT_TRUE(presenter.imports()->importDestinationError().isEmpty());
+    presenter.imports()->setImportDestination(destination);
     EXPECT_TRUE(child_visible());
     EXPECT_EQ(model->selectedPath(), destination);
-    presenter.closeImportPage();
+    presenter.imports()->closeImportPage();
 }
 
 TEST(StudioImportWorkspace, SourcePreferenceValidatesPathsAndRemovesUnavailableFolders)
@@ -355,11 +390,11 @@ TEST(StudioImportWorkspace, SourceSelectionPersistsWithoutImportAndRevealsAfterR
     ASSERT_TRUE(photo(source + "/photo.png", Qt::red));
     const auto expect_revealed = [&](StudioPresenter &presenter)
     {
-        auto *model = presenter.importSourceFolders();
+        auto *model = presenter.imports()->importSourceFolders();
         EXPECT_TRUE(wait_until(
             [&]
             {
-                if (presenter.importScanActive())
+                if (presenter.imports()->importScanActive())
                     return false;
                 for (int row = 0; row < model->rowCount(); ++row)
                     if (model->data(model->index(row, 0), FilesystemBrowserModel::SelectedRole)
@@ -368,45 +403,46 @@ TEST(StudioImportWorkspace, SourceSelectionPersistsWithoutImportAndRevealsAfterR
                                    .toString() == source;
                 return false;
             }));
-        EXPECT_EQ(presenter.importSourceRoot(), source);
-        EXPECT_EQ(presenter.importSourceFolderUrl().toLocalFile(), source);
-        EXPECT_EQ(presenter.importCandidates()->rowCount(), 1);
+        EXPECT_EQ(presenter.imports()->importSourceRoot(), source);
+        EXPECT_EQ(presenter.imports()->importSourceFolderUrl().toLocalFile(), source);
+        EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 1);
     };
     {
         StudioPresenter presenter;
         presenter.createCatalogFromPath(directory.filePath("first.sqlite"));
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-        presenter.openImportPage();
-        presenter.setImportSourceRoot(source);
+        presenter.imports()->openImportPage();
+        presenter.imports()->setImportSourceRoot(source);
         expect_revealed(presenter);
         EXPECT_EQ(StudioImportPreferences{}.loadLastSource().value(), source);
-        presenter.closeImportPage();
-        presenter.openImportPage();
+        presenter.imports()->closeImportPage();
+        presenter.imports()->openImportPage();
         expect_revealed(presenter);
-        presenter.closeImportPage();
+        presenter.imports()->closeImportPage();
     }
     StudioPresenter restarted;
     restarted.createCatalogFromPath(directory.filePath("second.sqlite"));
     ASSERT_TRUE(wait_until([&] { return restarted.catalogOpen() && !restarted.busy(); }));
     int reveal_count = 0;
-    QObject::connect(restarted.importSourceFolders(), &FilesystemBrowserModel::folderRevealed,
-                     &restarted, [&](int) { ++reveal_count; });
-    restarted.openImportPage();
+    QObject::connect(restarted.imports()->importSourceFolders(),
+                     &FilesystemBrowserModel::folderRevealed, &restarted,
+                     [&](int) { ++reveal_count; });
+    restarted.imports()->openImportPage();
     expect_revealed(restarted);
     EXPECT_GT(reveal_count, 0);
-    restarted.closeImportPage();
+    restarted.imports()->closeImportPage();
     ASSERT_TRUE(QFile::remove(source + "/photo.png"));
     ASSERT_TRUE(QDir().rmdir(source));
-    restarted.openImportPage();
-    ASSERT_TRUE(wait_until([&] { return !restarted.importScanActive(); }));
-    EXPECT_TRUE(restarted.importSourceRoot().isEmpty());
+    restarted.imports()->openImportPage();
+    ASSERT_TRUE(wait_until([&] { return !restarted.imports()->importScanActive(); }));
+    EXPECT_TRUE(restarted.imports()->importSourceRoot().isEmpty());
     EXPECT_FALSE(restarted.errorText().isEmpty());
-    EXPECT_FALSE(restarted.importReady());
-    restarted.closeImportPage();
-    restarted.openImportPage();
-    EXPECT_TRUE(restarted.importSourceRoot().isEmpty());
+    EXPECT_FALSE(restarted.imports()->importReady());
+    restarted.imports()->closeImportPage();
+    restarted.imports()->openImportPage();
+    EXPECT_TRUE(restarted.imports()->importSourceRoot().isEmpty());
     EXPECT_TRUE(restarted.errorText().isEmpty());
-    restarted.closeImportPage();
+    restarted.imports()->closeImportPage();
 }
 
 TEST(StudioImportWorkspace, SourcePreferenceWriteFailureRetainsPreviousPath)
@@ -454,13 +490,17 @@ TEST(StudioImportWorkspace, SettingsWriteFailureKeepsCommittedPhotosAndPreviousD
         StudioPresenter presenter;
         presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-        presenter.openImportPage();
-        presenter.setImportSourceRoot(source);
-        presenter.setImportDestination(destination);
-        ASSERT_TRUE(wait_until([&] { return presenter.importReady(); }));
-        presenter.startPlannedImport();
+        presenter.imports()->openImportPage();
+        presenter.imports()->setImportSourceRoot(source);
+        presenter.imports()->setImportDestination(destination);
+        ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }));
+        presenter.imports()->startPlannedImport();
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            [&]
+            {
+                return !presenter.imports()->importPreflightActive() &&
+                       !presenter.imports()->importWorkActive();
+            },
             30000));
         EXPECT_EQ(presenter.lastImportCount(), 1);
         EXPECT_TRUE(QFile::exists(destination + "/photo.png"));
@@ -561,36 +601,42 @@ TEST(StudioImportWorkspace, CopyDefaultRemembersCommittedRootAndHidesAllDuplicat
     const auto catalog = directory.filePath("library.sqlite");
     const auto open_fixture_import = [&](StudioPresenter &owner)
     {
-        owner.openImportPage();
+        owner.imports()->openImportPage();
         // Keep this behavioral test independent of the host's temporary-directory size.
-        owner.importSourceFolders()->resetWithRoots(
+        owner.imports()->importSourceFolders()->resetWithRoots(
             {{directory.path(), QStringLiteral("fixture"), true}});
-        owner.importDestinationFolders()->resetWithRoots(
+        owner.imports()->importDestinationFolders()->resetWithRoots(
             {{directory.path(), QStringLiteral("fixture"), true}});
-        if (!owner.importSourceRoot().isEmpty())
-            owner.importSourceFolders()->revealFolder(owner.importSourceRoot());
-        if (!owner.importDestination().isEmpty())
-            owner.importDestinationFolders()->revealFolder(owner.importDestination());
+        if (!owner.imports()->importSourceRoot().isEmpty())
+            owner.imports()->importSourceFolders()->revealFolder(
+                owner.imports()->importSourceRoot());
+        if (!owner.imports()->importDestination().isEmpty())
+            owner.imports()->importDestinationFolders()->revealFolder(
+                owner.imports()->importDestination());
     };
     {
         StudioPresenter presenter;
         presenter.createCatalogFromPath(catalog);
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
         open_fixture_import(presenter);
-        EXPECT_EQ(presenter.importMode(), QStringLiteral("copy"));
-        presenter.setImportSourceRoot(source);
-        presenter.setImportDestination(destination);
-        ASSERT_TRUE(
-            wait_until([&] { return !presenter.importScanActive() && presenter.importReady(); }));
-        EXPECT_EQ(presenter.importCandidates()->rowCount(), 3);
-        EXPECT_EQ(presenter.importCandidates()->selectedCount(), 2);
-        EXPECT_EQ(presenter.importDuplicateCount(), 1);
+        EXPECT_EQ(presenter.imports()->importMode(), QStringLiteral("copy"));
+        presenter.imports()->setImportSourceRoot(source);
+        presenter.imports()->setImportDestination(destination);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return !presenter.imports()->importScanActive() &&
+                       presenter.imports()->importReady();
+            }));
+        EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 3);
+        EXPECT_EQ(presenter.imports()->importCandidates()->selectedCount(), 2);
+        EXPECT_EQ(presenter.imports()->importDuplicateCount(), 1);
         const auto complete_thumbnails = [&]
         {
-            auto *model = presenter.importCandidates();
+            auto *model = presenter.imports()->importCandidates();
             const auto generation = model->generation();
             for (int row = 0; row < model->rowCount(); ++row)
-                presenter.ensureImportThumbnail(row);
+                presenter.imports()->ensureImportThumbnail(row);
             EXPECT_TRUE(wait_until(
                 [&]
                 {
@@ -602,10 +648,14 @@ TEST(StudioImportWorkspace, CopyDefaultRemembersCommittedRootAndHidesAllDuplicat
             EXPECT_EQ(model->generation(), generation);
         };
         complete_thumbnails();
-        EXPECT_EQ(presenter.importCandidates()->selectedCount(), 2);
-        presenter.startPlannedImport();
+        EXPECT_EQ(presenter.imports()->importCandidates()->selectedCount(), 2);
+        presenter.imports()->startPlannedImport();
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            [&]
+            {
+                return !presenter.imports()->importPreflightActive() &&
+                       !presenter.imports()->importWorkActive();
+            },
             30000));
         ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
         EXPECT_EQ(presenter.lastImportCount(), 2);
@@ -613,11 +663,11 @@ TEST(StudioImportWorkspace, CopyDefaultRemembersCommittedRootAndHidesAllDuplicat
         EXPECT_TRUE(QFile::exists(source + "/a.png"));
         EXPECT_TRUE(QFile::exists(source + "/renamed.png"));
         open_fixture_import(presenter);
-        ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-        EXPECT_EQ(presenter.importCandidates()->rowCount(), 3);
-        EXPECT_EQ(presenter.importDuplicateCount(), 3);
+        ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+        EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 3);
+        EXPECT_EQ(presenter.imports()->importDuplicateCount(), 3);
         complete_thumbnails();
-        auto *candidates = presenter.importCandidates();
+        auto *candidates = presenter.imports()->importCandidates();
         candidates->setAllSelected(true);
         candidates->highlightAll();
         EXPECT_EQ(candidates->selectedCount(), 0);
@@ -628,31 +678,32 @@ TEST(StudioImportWorkspace, CopyDefaultRemembersCommittedRootAndHidesAllDuplicat
                     .toBool());
             EXPECT_FALSE(candidates->highlighted(row));
         }
-        EXPECT_FALSE(presenter.importReady());
+        EXPECT_FALSE(presenter.imports()->importReady());
         // Direct catalog-URI duplicates must also load thumbnails without rescanning forever.
-        presenter.setImportSourceRoot(destination);
-        ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+        presenter.imports()->setImportSourceRoot(destination);
+        ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
         EXPECT_EQ(candidates->rowCount(), 2);
-        EXPECT_EQ(presenter.importDuplicateCount(), 2);
+        EXPECT_EQ(presenter.imports()->importDuplicateCount(), 2);
         complete_thumbnails();
         EXPECT_EQ(candidates->selectedCount(), 0);
-        EXPECT_FALSE(presenter.importReady());
+        EXPECT_FALSE(presenter.imports()->importReady());
         EXPECT_EQ(source_hash(), original_hash);
-        presenter.setImportMode(QStringLiteral("add"));
-        presenter.closeImportPage();
+        presenter.imports()->setImportMode(QStringLiteral("add"));
+        presenter.imports()->closeImportPage();
         open_fixture_import(presenter);
-        EXPECT_EQ(presenter.importMode(), QStringLiteral("copy"));
+        EXPECT_EQ(presenter.imports()->importMode(), QStringLiteral("copy"));
     }
     StudioPresenter restarted;
     restarted.createCatalogFromPath(directory.filePath("another.sqlite"));
     ASSERT_TRUE(wait_until([&] { return restarted.catalogOpen() && !restarted.busy(); }));
     open_fixture_import(restarted);
-    EXPECT_EQ(restarted.importDestination(), destination);
-    EXPECT_EQ(restarted.importDestinationFolderUrl().toLocalFile(), destination);
-    restarted.setImportDestination(directory.filePath("unavailable"));
-    ASSERT_TRUE(wait_until([&] { return !restarted.importDestinationError().isEmpty(); }));
-    EXPECT_FALSE(restarted.importReady());
-    restarted.closeImportPage();
+    EXPECT_EQ(restarted.imports()->importDestination(), destination);
+    EXPECT_EQ(restarted.imports()->importDestinationFolderUrl().toLocalFile(), destination);
+    restarted.imports()->setImportDestination(directory.filePath("unavailable"));
+    ASSERT_TRUE(
+        wait_until([&] { return !restarted.imports()->importDestinationError().isEmpty(); }));
+    EXPECT_FALSE(restarted.imports()->importReady());
+    restarted.imports()->closeImportPage();
     EXPECT_EQ(StudioImportPreferences{}.loadLastDestination().value(), destination);
 }
 
@@ -669,19 +720,19 @@ TEST(StudioImportWorkspace, CancelPreflightAndReplaceCatalogRejectLateResults)
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("first.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportSourceRoot(source);
-    presenter.setImportDestination(destination);
-    ASSERT_TRUE(wait_until([&] { return presenter.importReady(); }));
-    presenter.startPlannedImport();
-    presenter.closeImportPage();
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source);
+    presenter.imports()->setImportDestination(destination);
+    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }));
+    presenter.imports()->startPlannedImport();
+    presenter.imports()->closeImportPage();
     presenter.createCatalogFromPath(directory.filePath("second.sqlite"));
     ASSERT_TRUE(wait_until(
         [&] { return !presenter.busy() && presenter.catalogPath().endsWith("second.sqlite"); }));
-    EXPECT_FALSE(presenter.importPageOpen());
-    EXPECT_FALSE(presenter.importPreflightActive());
-    EXPECT_FALSE(presenter.importWorkActive());
-    EXPECT_EQ(presenter.importCandidates()->rowCount(), 0);
+    EXPECT_FALSE(presenter.imports()->importPageOpen());
+    EXPECT_FALSE(presenter.imports()->importPreflightActive());
+    EXPECT_FALSE(presenter.imports()->importWorkActive());
+    EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 0);
     EXPECT_TRUE(QDir(destination).entryList(QDir::Files).isEmpty());
     EXPECT_EQ(presenter.visibleCount(), 0);
 }
@@ -703,15 +754,18 @@ TEST(StudioImportWorkspace, DestinationConflictReturnsToGalleryAndDoesNotRemembe
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportSourceRoot(source);
-    presenter.setImportDestination(destination);
-    ASSERT_TRUE(
-        wait_until([&] { return !presenter.importScanActive() && presenter.importReady(); }));
-    presenter.startPlannedImport();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importPreflightActive(); }));
-    EXPECT_FALSE(presenter.importPageOpen());
-    EXPECT_FALSE(presenter.importWorkActive());
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source);
+    presenter.imports()->setImportDestination(destination);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importScanActive() && presenter.imports()->importReady();
+        }));
+    presenter.imports()->startPlannedImport();
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importPreflightActive(); }));
+    EXPECT_FALSE(presenter.imports()->importPageOpen());
+    EXPECT_FALSE(presenter.imports()->importWorkActive());
     EXPECT_FALSE(presenter.errorText().isEmpty());
     EXPECT_EQ(presenter.visibleCount(), 0);
     EXPECT_EQ(StudioImportPreferences{}.loadLastDestination().value(), previous);
@@ -730,12 +784,12 @@ TEST(StudioImportWorkspace, PublishesCompletePlaceholdersAndDecodesInRowOrderOut
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportMode(QStringLiteral("add"));
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportMode(QStringLiteral("add"));
     WorkerGate thumbnails;
     ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
         presenter, thumbnails.promise.get_future().share()));
-    auto *model = presenter.importCandidates();
+    auto *model = presenter.imports()->importCandidates();
     bool placeholders_seen = false;
     QObject::connect(model, &QAbstractItemModel::modelReset, &presenter,
                      [&]
@@ -743,8 +797,8 @@ TEST(StudioImportWorkspace, PublishesCompletePlaceholdersAndDecodesInRowOrderOut
                          if (model->rowCount() != count)
                              return;
                          placeholders_seen = true;
-                         EXPECT_TRUE(presenter.importScanActive());
-                         EXPECT_EQ(presenter.importScanCompleted(), 0);
+                         EXPECT_TRUE(presenter.imports()->importScanActive());
+                         EXPECT_EQ(presenter.imports()->importScanCompleted(), 0);
                          for (int row = 0; row < count; ++row)
                          {
                              EXPECT_FALSE(model->sourcePath(row).isEmpty());
@@ -753,12 +807,12 @@ TEST(StudioImportWorkspace, PublishesCompletePlaceholdersAndDecodesInRowOrderOut
                          // Classification must not undo an Uncheck All made on placeholders.
                          model->setAllSelected(false);
                      });
-    presenter.setImportSourceRoot(source);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    presenter.imports()->setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
     EXPECT_TRUE(placeholders_seen);
     EXPECT_EQ(model->selectedCount(), 0);
     model->setAllSelected(true);
-    ASSERT_TRUE(presenter.importReady());
+    ASSERT_TRUE(presenter.imports()->importReady());
     WorkerGate catalog;
     ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(
         presenter, catalog.promise.get_future().share()));
@@ -772,12 +826,12 @@ TEST(StudioImportWorkspace, PublishesCompletePlaceholdersAndDecodesInRowOrderOut
                      });
     // Delegate creation order is not a priority policy.
     for (int row = count - 1; row >= 0; --row)
-        presenter.ensureImportThumbnail(row);
+        presenter.imports()->ensureImportThumbnail(row);
     thumbnails.release();
     ASSERT_TRUE(wait_until([&] { return completed.size() == count; }, 30000));
     for (int row = 0; row < count; ++row)
         EXPECT_EQ(completed[static_cast<std::size_t>(row)], row);
-    EXPECT_TRUE(presenter.importReady());
+    EXPECT_TRUE(presenter.imports()->importReady());
     catalog.release();
 }
 
@@ -792,41 +846,45 @@ TEST(StudioImportWorkspace, ImportStartsWithPendingClassificationAndNoThumbnails
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportMode("add");
-    presenter.setImportSourceRoot(source);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportMode("add");
+    presenter.imports()->setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
     WorkerGate thumbnails;
     ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
         presenter, thumbnails.promise.get_future().share()));
     ImportCandidate candidate;
     candidate.source_path = (source + "/a.png").toStdString();
     candidate.display_name = "a.png";
-    presenter.importCandidates()->setCandidates({candidate});
+    presenter.imports()->importCandidates()->setCandidates({candidate});
     testing::StudioImportTestControl::pendingClassification(presenter);
-    ASSERT_TRUE(presenter.importScanActive());
-    ASSERT_TRUE(presenter.importReady());
-    EXPECT_TRUE(presenter.importCandidates()->selectedContentHashes().empty());
+    ASSERT_TRUE(presenter.imports()->importScanActive());
+    ASSERT_TRUE(presenter.imports()->importReady());
+    EXPECT_TRUE(presenter.imports()->importCandidates()->selectedContentHashes().empty());
     const auto destination = directory.filePath("destination");
     ASSERT_TRUE(QDir().mkpath(destination));
     WorkerGate catalog;
     ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(
         presenter, catalog.promise.get_future().share()));
-    presenter.setImportMode("copy");
-    presenter.setImportDestination(destination);
-    ASSERT_TRUE(wait_until([&] { return presenter.importReady(); }));
-    EXPECT_TRUE(presenter.importScanActive());
-    presenter.startPlannedImport();
-    EXPECT_FALSE(presenter.importPageOpen());
+    presenter.imports()->setImportMode("copy");
+    presenter.imports()->setImportDestination(destination);
+    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }));
+    EXPECT_TRUE(presenter.imports()->importScanActive());
+    presenter.imports()->startPlannedImport();
+    EXPECT_FALSE(presenter.imports()->importPageOpen());
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("grid"));
-    EXPECT_TRUE(presenter.importPreflightActive());
-    EXPECT_TRUE(presenter.importWorkActive());
+    EXPECT_TRUE(presenter.imports()->importPreflightActive());
+    EXPECT_TRUE(presenter.imports()->importWorkActive());
     catalog.release();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        },
         30000));
     EXPECT_EQ(presenter.lastImportCount(), 1);
-    EXPECT_TRUE(presenter.importCandidates()->thumbnail(0).isNull());
+    EXPECT_TRUE(presenter.imports()->importCandidates()->thumbnail(0).isNull());
     thumbnails.release();
 }
 
@@ -845,32 +903,40 @@ TEST(StudioImportWorkspace, GalleryPreflightCancelAndFailureReleaseImportState)
         StudioPresenter presenter;
         presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-        presenter.openImportPage();
-        presenter.setImportSourceRoot(source);
-        presenter.setImportDestination(destination);
-        ASSERT_TRUE(
-            wait_until([&] { return presenter.importReady() && !presenter.importScanActive(); }));
+        presenter.imports()->openImportPage();
+        presenter.imports()->setImportSourceRoot(source);
+        presenter.imports()->setImportDestination(destination);
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return presenter.imports()->importReady() &&
+                       !presenter.imports()->importScanActive();
+            }));
         WorkerGate catalog;
         ASSERT_TRUE(testing::StudioImportTestControl::blockImportWorker(
             presenter, catalog.promise.get_future().share()));
-        presenter.startPlannedImport();
-        EXPECT_FALSE(presenter.importPageOpen());
-        EXPECT_TRUE(presenter.importPreflightActive());
-        EXPECT_TRUE(presenter.importWorkActive());
+        presenter.imports()->startPlannedImport();
+        EXPECT_FALSE(presenter.imports()->importPageOpen());
+        EXPECT_TRUE(presenter.imports()->importPreflightActive());
+        EXPECT_TRUE(presenter.imports()->importWorkActive());
         if (cancel)
             presenter.cancelCatalogOperation();
         else
             ASSERT_TRUE(QFile::remove(source + "/a.png"));
         catalog.release();
         ASSERT_TRUE(wait_until(
-            [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+            [&]
+            {
+                return !presenter.imports()->importPreflightActive() &&
+                       !presenter.imports()->importWorkActive();
+            },
             30000));
-        EXPECT_FALSE(presenter.importPageOpen());
+        EXPECT_FALSE(presenter.imports()->importPageOpen());
         EXPECT_EQ(presenter.libraryTotal(), 0);
         EXPECT_TRUE(QDir(destination).entryList(QDir::Files).isEmpty());
         EXPECT_EQ(presenter.errorText().isEmpty(), cancel);
-        presenter.openImportPage();
-        EXPECT_TRUE(presenter.importPageOpen());
+        presenter.imports()->openImportPage();
+        EXPECT_TRUE(presenter.imports()->importPageOpen());
     }
 }
 
@@ -888,17 +954,17 @@ TEST(StudioImportWorkspace, ImportAndSelectAllDoNotWaitForWorkspaceThumbnails)
     StudioCommandController controller(presenter);
     presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportMode(QStringLiteral("add"));
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportMode(QStringLiteral("add"));
     WorkerGate thumbnails;
     ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
         presenter, thumbnails.promise.get_future().share()));
-    presenter.setImportSourceRoot(source);
-    ASSERT_TRUE(wait_until([&] { return presenter.importReady(); }));
-    auto *model = presenter.importCandidates();
+    presenter.imports()->setImportSourceRoot(source);
+    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }));
+    auto *model = presenter.imports()->importCandidates();
     ASSERT_EQ(model->rowCount(), 3);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    presenter.ensureImportThumbnail(0);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    presenter.imports()->ensureImportThumbnail(0);
     const QString action = QStringLiteral("studio.photo.select_all");
     int select_all_shortcuts = 0;
     for (const auto &value : controller.shortcutEntries())
@@ -923,9 +989,13 @@ TEST(StudioImportWorkspace, ImportAndSelectAllDoNotWaitForWorkspaceThumbnails)
     EXPECT_EQ(model->selectedCount(), 0);
     model->applyCheck(0);
     EXPECT_EQ(model->selectedCount(), 2);
-    presenter.startPlannedImport();
+    presenter.imports()->startPlannedImport();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); },
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        },
         30000));
     EXPECT_EQ(presenter.lastImportCount(), 2U);
     EXPECT_TRUE(model->thumbnail(0).isNull());
@@ -994,19 +1064,19 @@ TEST(StudioImportWorkspace, ThumbnailResultsCannotCrossSourceReplacementOrPageCl
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
+    presenter.imports()->openImportPage();
     WorkerGate thumbnails;
     ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
         presenter, thumbnails.promise.get_future().share()));
-    presenter.setImportSourceRoot(first);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    presenter.ensureImportThumbnail(0);
+    presenter.imports()->setImportSourceRoot(first);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    presenter.imports()->ensureImportThumbnail(0);
     QCoreApplication::processEvents();
-    presenter.setImportSourceRoot(second);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    presenter.ensureImportThumbnail(0);
+    presenter.imports()->setImportSourceRoot(second);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    presenter.imports()->ensureImportThumbnail(0);
     thumbnails.release();
-    auto *model = presenter.importCandidates();
+    auto *model = presenter.imports()->importCandidates();
     ASSERT_TRUE(wait_until([&] { return model->inspected(0); }));
     ASSERT_FALSE(model->thumbnail(0).isNull());
     EXPECT_EQ(model->thumbnail(0).pixelColor(0, 0), QColor(Qt::blue));
@@ -1014,15 +1084,15 @@ TEST(StudioImportWorkspace, ThumbnailResultsCannotCrossSourceReplacementOrPageCl
     WorkerGate closing;
     ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
         presenter, closing.promise.get_future().share()));
-    presenter.setImportSourceRoot(second);
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }));
-    presenter.ensureImportThumbnail(0);
+    presenter.imports()->setImportSourceRoot(second);
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }));
+    presenter.imports()->ensureImportThumbnail(0);
     QCoreApplication::processEvents();
-    presenter.closeImportPage();
+    presenter.imports()->closeImportPage();
     closing.release();
     QCoreApplication::processEvents();
     EXPECT_EQ(model->rowCount(), 0);
-    EXPECT_FALSE(presenter.importPageOpen());
+    EXPECT_FALSE(presenter.imports()->importPageOpen());
 }
 
 TEST(StudioImportWorkspace, RealSourceProgressProbe)
@@ -1039,15 +1109,15 @@ TEST(StudioImportWorkspace, RealSourceProgressProbe)
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
     // Avoid scanning a preference restored by another test.
     ASSERT_TRUE(StudioImportPreferences{}.rememberSource(directory.path()));
-    presenter.openImportPage();
-    presenter.setImportMode(QStringLiteral("add"));
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportMode(QStringLiteral("add"));
     QElapsedTimer elapsed;
     elapsed.start();
     qint64 placeholders_ms = -1;
     qint64 first_image_ms = -1;
     qint64 scan_ms = -1;
     int requested = 0;
-    auto *model = presenter.importCandidates();
+    auto *model = presenter.imports()->importCandidates();
     QObject::connect(model, &QAbstractItemModel::modelReset, &presenter,
                      [&]
                      {
@@ -1056,7 +1126,7 @@ TEST(StudioImportWorkspace, RealSourceProgressProbe)
                          placeholders_ms = elapsed.elapsed();
                          requested = std::min(model->rowCount(), 32);
                          for (int row = requested - 1; row >= 0; --row)
-                             presenter.ensureImportThumbnail(row);
+                             presenter.imports()->ensureImportThumbnail(row);
                      });
     std::vector<int> images;
     QObject::connect(model, &QAbstractItemModel::dataChanged, &presenter,
@@ -1070,13 +1140,14 @@ TEST(StudioImportWorkspace, RealSourceProgressProbe)
                              images.push_back(first.row());
                          }
                      });
-    QObject::connect(&presenter, &StudioPresenter::importPageChanged, &presenter,
+    QObject::connect(presenter.imports(), &StudioImportWorkspace::importPageChanged, &presenter,
                      [&]
                      {
-                         if (!presenter.importScanActive() && placeholders_ms >= 0 && scan_ms < 0)
+                         if (!presenter.imports()->importScanActive() && placeholders_ms >= 0 &&
+                             scan_ms < 0)
                              scan_ms = elapsed.elapsed();
                      });
-    presenter.setImportSourceRoot(source);
+    presenter.imports()->setImportSourceRoot(source);
     const bool viewport_ready = wait_until(
         [&]
         {
@@ -1092,14 +1163,14 @@ TEST(StudioImportWorkspace, RealSourceProgressProbe)
     RecordProperty("placeholders_ms", std::to_string(placeholders_ms));
     RecordProperty("first_image_ms", std::to_string(first_image_ms));
     RecordProperty("scan_ms", std::to_string(scan_ms));
-    RecordProperty("scan_completed", presenter.importScanCompleted());
-    RecordProperty("scan_still_active", presenter.importScanActive() ? 1 : 0);
+    RecordProperty("scan_completed", presenter.imports()->importScanCompleted());
+    RecordProperty("scan_still_active", presenter.imports()->importScanActive() ? 1 : 0);
     RecordProperty("decoded_images", static_cast<int>(images.size()));
     EXPECT_TRUE(viewport_ready);
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
     EXPECT_TRUE(std::is_sorted(images.begin(), images.end()));
     EXPECT_GE(first_image_ms, 0);
     EXPECT_EQ(presenter.visibleCount(), 0); // No import is executed by this probe.
-    presenter.closeImportPage();
+    presenter.imports()->closeImportPage();
 }
 } // namespace ravo

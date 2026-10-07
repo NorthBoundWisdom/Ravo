@@ -120,10 +120,11 @@ TEST(StudioImportWorkspace, MountedVolumesAppearInBothTreesWithoutChangingSource
     StudioPresenter presenter;
     presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
+    presenter.imports()->openImportPage();
     const auto volumes_visible = [&]
     {
-        for (auto *model : {presenter.importSourceFolders(), presenter.importDestinationFolders()})
+        for (auto *model : {presenter.imports()->importSourceFolders(),
+                            presenter.imports()->importDestinationFolders()})
             for (const auto &root : roots)
             {
                 bool found = false;
@@ -137,13 +138,13 @@ TEST(StudioImportWorkspace, MountedVolumesAppearInBothTreesWithoutChangingSource
         return true;
     };
     ASSERT_TRUE(wait_until(volumes_visible));
-    EXPECT_EQ(presenter.importSourceRoot(), directory.path());
-    EXPECT_EQ(presenter.importSourceFolders()->selectedPath(), directory.path());
-    presenter.closeImportPage();
-    presenter.openImportPage();
+    EXPECT_EQ(presenter.imports()->importSourceRoot(), directory.path());
+    EXPECT_EQ(presenter.imports()->importSourceFolders()->selectedPath(), directory.path());
+    presenter.imports()->closeImportPage();
+    presenter.imports()->openImportPage();
     ASSERT_TRUE(wait_until(volumes_visible));
-    EXPECT_EQ(presenter.importSourceRoot(), directory.path());
-    presenter.closeImportPage();
+    EXPECT_EQ(presenter.imports()->importSourceRoot(), directory.path());
+    presenter.imports()->closeImportPage();
 }
 
 } // namespace

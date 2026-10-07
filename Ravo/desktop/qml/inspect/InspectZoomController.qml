@@ -35,8 +35,8 @@ QtObject {
             return false;
         if (studio.browseMode === "grid" || studio.browseMode === "survey" || (studio.browseMode === "develop" && studio.develop.cropToolActive))
             return false;
-        const gpuReady = studio.gpuPreviewGeneration > 0 && !comparisonReady;
-        return gpuReady || (!!previewImage && previewImage.status === Image.Ready && studio.previewUrl.toString().length > 0);
+        const gpuReady = studio.inspect.gpuPreviewGeneration > 0 && !comparisonReady;
+        return gpuReady || (!!previewImage && previewImage.status === Image.Ready && studio.inspect.previewUrl.toString().length > 0);
     }
 
     function centerPhotoViewportNow() {
@@ -192,7 +192,7 @@ QtObject {
             return;
         if (!scroller || !photoPlane || !previewStage)
             return;
-        const goingToActual = studio.zoomMode !== "actual";
+        const goingToActual = studio.inspect.zoomMode !== "actual";
         const w = Math.max(1, photoPlane.width);
         const h = Math.max(1, photoPlane.height);
         const fx = (stagePos.x - photoPlane.x) / w;
@@ -247,7 +247,7 @@ QtObject {
             applyPhotoViewportAfterZoom();
             return;
         }
-        const targetStage = unlockedPhotoStageSize(studio.zoomMode, studio.zoomFactor);
+        const targetStage = unlockedPhotoStageSize(studio.inspect.zoomMode, studio.inspect.zoomFactor);
         const targetPlane = photoPlaneRectForStage(targetStage.w, targetStage.h);
         const startW = Math.max(1, from.planeW);
         const sEnd = targetPlane.w / startW;

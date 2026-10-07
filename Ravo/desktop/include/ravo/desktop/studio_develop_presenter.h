@@ -642,7 +642,7 @@ private:
         std::function<void()> kick_thumbnails;
         std::function<void(std::string)> cancel_thumbnails;
         std::function<void(QString)> zoom_mode;
-        std::function<void(const PreviewResult &, std::uint64_t, bool)> publish_preview;
+        std::function<bool(const PreviewResult &, std::uint64_t, bool)> publish_preview;
         std::function<void(const PreviewResult &, std::uint64_t)> publish_before;
         std::function<std::vector<std::string>()> selected_assets;
         std::function<QString()> selected_media_type;
@@ -656,12 +656,6 @@ private:
         const bool &catalog_operation_active_;
         const bool &import_work_active_;
         const std::int64_t &observed_catalog_revision_;
-        const std::uint64_t &live_preview_revision_;
-        const bool &preview_loading_;
-        const QImage &preview_image_;
-        const QImage &preview_base_image_;
-        QMutex &preview_image_mutex_;
-        const QUrl &comparison_before_url_;
         AssetListModel &assets_;
         StudioInspectPresenter &inspect_;
         const std::optional<EngineFacade> &engine_;
@@ -679,12 +673,6 @@ private:
     const bool &catalog_operation_active_;
     const bool &import_work_active_;
     const std::int64_t &observed_catalog_revision_;
-    const std::uint64_t &live_preview_revision_;
-    const bool &preview_loading_;
-    const QImage &preview_image_;
-    const QImage &preview_base_image_;
-    QMutex &preview_image_mutex_;
-    const QUrl &comparison_before_url_;
     AssetListModel &assets_;
     StudioInspectPresenter &inspect_;
     const std::optional<EngineFacade> &engine_;

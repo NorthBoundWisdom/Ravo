@@ -95,20 +95,23 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
     presenter.createCatalogFromPath(
         QDir(directory.path()).filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.openImportPage();
-    presenter.setImportSourceRoot(source_dir);
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source_dir);
     ASSERT_TRUE(wait_until(
         [&]
-        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 1; },
+        {
+            return !presenter.imports()->importScanActive() &&
+                   presenter.imports()->importCandidates()->rowCount() == 1;
+        },
         30000));
-    EXPECT_EQ(presenter.importCandidates()->selectedCount(), 1);
-    presenter.setImportMode(QStringLiteral("copy"));
-    presenter.setImportDestination(destination);
-    presenter.setImportFilenameTemplate(QStringLiteral("shoot-{sequence}{ext}"));
-    presenter.setImportSecondCopyDestination(second_copy);
-    presenter.setImportPreviewPolicy(QStringLiteral("standard"));
-    presenter.startPlannedImport();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importPageOpen(); }, 30000))
+    EXPECT_EQ(presenter.imports()->importCandidates()->selectedCount(), 1);
+    presenter.imports()->setImportMode(QStringLiteral("copy"));
+    presenter.imports()->setImportDestination(destination);
+    presenter.imports()->setImportFilenameTemplate(QStringLiteral("shoot-{sequence}{ext}"));
+    presenter.imports()->setImportSecondCopyDestination(second_copy);
+    presenter.imports()->setImportPreviewPolicy(QStringLiteral("standard"));
+    presenter.imports()->startPlannedImport();
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importPageOpen(); }, 30000))
         << presenter.errorText().toStdString();
     // Gallery handoff precedes asynchronous preflight. Wait for placeholder
     // publication independently; closing the Import page is not a commit fence.
@@ -119,12 +122,18 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
                      .toString()
                      .isEmpty());
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 30000))
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        },
+        30000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.lastImportSelected());
     EXPECT_EQ(presenter.lastImportCount(), 1);
-    EXPECT_EQ(presenter.importFilenameTemplate(), QStringLiteral("shoot-{sequence}{ext}"));
-    EXPECT_EQ(presenter.importSecondCopyDestination(), second_copy);
+    EXPECT_EQ(presenter.imports()->importFilenameTemplate(),
+              QStringLiteral("shoot-{sequence}{ext}"));
+    EXPECT_EQ(presenter.imports()->importSecondCopyDestination(), second_copy);
     const QString copied = QDir(destination).filePath(QStringLiteral("shoot-0001.png"));
     const QString copied_second = QDir(second_copy).filePath(QStringLiteral("shoot-0001.png"));
     ASSERT_TRUE(QFileInfo::exists(copied));
@@ -223,7 +232,7 @@ TEST(StudioQmlContract, CropOverlayShowsWhenCropToolActivates)
     const auto visible_line =
         source.mid(visible, source.indexOf(QLatin1Char('\n'), visible) - visible);
     EXPECT_TRUE(visible_line.contains(QStringLiteral("cropToolActive")));
-    EXPECT_TRUE(visible_line.contains(QStringLiteral("studio.previewUrl")));
+    EXPECT_TRUE(visible_line.contains(QStringLiteral("studio.inspect.previewUrl")));
     EXPECT_TRUE(visible_line.contains(QStringLiteral("photoPlane.width")));
     EXPECT_FALSE(visible_line.contains(QStringLiteral("cropGuideReady")));
     EXPECT_TRUE(source.contains(QStringLiteral("rotation: 0")));
@@ -273,14 +282,15 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("previewPlaceholderReady")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: previewPlaceholderImage")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedThumbnailUrl")));
-    EXPECT_TRUE(source.contains(QStringLiteral("source: visible ? studio.previewUrl : \"\"")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("source: visible ? studio.inspect.previewUrl : \"\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Select a photo to inspect.\")")));
     EXPECT_TRUE(source.contains(QStringLiteral(
-        "studio.gpuPreviewGeneration === 0 && !studio.previewLoading && previewImage.source.toString().length === 0 && (studio.selectedAssetId.length === 0 || studio.selectedImportState === \"missing\")")));
+        "studio.inspect.gpuPreviewGeneration === 0 && !studio.inspect.previewLoading && previewImage.source.toString().length === 0 && (studio.selectedAssetId.length === 0 || studio.selectedImportState === \"missing\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitWidth")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitHeight")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportWidth")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportHeight")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.inspect.previewViewportWidth")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.inspect.previewViewportHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.develop.selectedWorkingWidth")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.develop.selectedWorkingHeight")));
     EXPECT_TRUE(
@@ -315,7 +325,7 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("previewStage.sourceH")));
     EXPECT_FALSE(zoom_source.contains(QStringLiteral("function inspectSourceWidth()")));
     EXPECT_FALSE(zoom_source.contains(QStringLiteral("function inspectSourceHeight()")));
-    EXPECT_FALSE(zoom_source.contains(QStringLiteral("studio.previewViewportWidth")));
+    EXPECT_FALSE(zoom_source.contains(QStringLiteral("studio.inspect.previewViewportWidth")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function centerPhotoViewport()")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function seekNavigatorViewport(nx, ny)")));
     EXPECT_TRUE(zoom_source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
@@ -554,12 +564,12 @@ TEST(StudioPresenterTest, NamedLibrarySetsSurviveReloadAndFilterListing)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
             return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
-                   !presenter.busy() && !presenter.importWorkActive();
+                   !presenter.busy() && !presenter.imports()->importWorkActive();
         }))
         << presenter.errorText().toStdString();
     commands.executeCommand(QStringLiteral("studio.library.create_manual_set"),
@@ -628,12 +638,12 @@ TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({first, second});
+    presenter.imports()->importFilePaths({first, second});
     ASSERT_TRUE(wait_until(
         [&]
         {
             return presenter.visibleCount() == 2 && !presenter.selectedAssetId().isEmpty() &&
-                   !presenter.busy() && !presenter.importWorkActive();
+                   !presenter.busy() && !presenter.imports()->importWorkActive();
         }))
         << presenter.errorText().toStdString();
     const QString primary = presenter.assets()->assetIdAt(0);
@@ -815,7 +825,7 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("required property bool highlighted")));
     EXPECT_TRUE(source.contains(QStringLiteral("visible: count > 0")));
     EXPECT_TRUE(source.contains(
-        QStringLiteral("onIndexChanged: root.presenter.ensureImportThumbnail(index)")));
+        QStringLiteral("onIndexChanged: root.presenter.imports.ensureImportThumbnail(index)")));
     EXPECT_TRUE(source.contains(QStringLiteral("required property bool inspected")));
     EXPECT_TRUE(source.contains(QStringLiteral("required property bool thumbnailLoading")));
     EXPECT_TRUE(source.contains(QStringLiteral(
@@ -829,10 +839,10 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importSourceTreeSurface\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importDestinationFolderTree\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("importSourceFolders")));
-    EXPECT_TRUE(
-        source.contains(QStringLiteral("onClicked: root.presenter.setImportRecursive(checked)")));
-    EXPECT_FALSE(
-        source.contains(QStringLiteral("onToggled: root.presenter.setImportRecursive(checked)")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("onClicked: root.presenter.imports.setImportRecursive(checked)")));
+    EXPECT_FALSE(source.contains(
+        QStringLiteral("onToggled: root.presenter.imports.setImportRecursive(checked)")));
     EXPECT_TRUE(source.contains(QStringLiteral("importDestinationFolders")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importFolderExpand\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("Layout.preferredWidth: Fonts.listItemHeight")));
@@ -857,13 +867,15 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto main_source = QString::fromUtf8(main.readAll());
     EXPECT_TRUE(main_source.contains(QStringLiteral("ImportPage")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.openImportPage()")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.imports.openImportPage()")));
     EXPECT_TRUE(source.contains(QStringLiteral("ImportDialogs")));
     QFile dialogs(QFileInfo(page).dir().filePath(QStringLiteral("ImportDialogs.qml")));
     ASSERT_TRUE(dialogs.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto dialog_source = QString::fromUtf8(dialogs.readAll());
-    EXPECT_TRUE(dialog_source.contains(QStringLiteral("presenter.setImportSecondCopyDestination")));
-    EXPECT_TRUE(dialog_source.contains(QStringLiteral("presenter.importDestinationFolderUrl")));
+    EXPECT_TRUE(
+        dialog_source.contains(QStringLiteral("presenter.imports.setImportSecondCopyDestination")));
+    EXPECT_TRUE(
+        dialog_source.contains(QStringLiteral("presenter.imports.importDestinationFolderUrl")));
     EXPECT_FALSE(main_source.contains(QStringLiteral("id: importDialog")));
     EXPECT_FALSE(main_source.contains(QStringLiteral("id: importFolderDialog")));
 }

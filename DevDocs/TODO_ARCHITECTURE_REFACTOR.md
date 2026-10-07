@@ -5,48 +5,48 @@ Current owners and invariants belong in [ARCHITECTURE.md](ARCHITECTURE.md);
 validation policy belongs in [TESTING.md](TESTING.md). No schema, rendering
 algorithm, public JSON, dependency or new product capability change is admitted.
 
-## Remaining ownership migrations
-
-- RF-04: move remaining Import page/progress/batch orchestration state
-  from the root presenter into its specific C++ owner. Preserve
-  the single selection authority, command registry, draft/options distinction,
-  debounce policy, text focus and worker shutdown order. Library paging/model
-  ownership still needs an explicit boundary review before moving it.
-- RF-05: transfer remaining viewport/frame/ROI/GPU presentation ownership to Inspect.
-  Keep current/saved edit state separate from observed displayed Recipe and scopes.
-  Complete the image-provider and command/control hard cut to that read-only
-  presenter. Preserve live-control revision guards, interactive progress under
-  dragging, GPU owned-pixel handoff and baked-proxy semantics; remove root
-  properties, fields, signals and old write entrances as each group switches.
-- RF-07/08: audit error display/retry call sites and remaining request/result
-  dependencies as those workflows move. Deduplicate only identical mappings;
-  preserve committed-state context and all existing public type/version fields.
-- RF-10: inspect remaining test-helper repetition during each migration.
-  Share construction/injection helpers only where semantics match; retain
-  business wiring, publication-failure windows and ordered test inventories.
-
 ## Qualification gaps and acceptance gates
 
-- RF-00/11: retain independent baseline/candidate Release samples and measure
-  browse/filter/paging, edit-to-visible latency, thumbnail demand, queue bounds,
-  thread ownership, RSS and close/join latency under the same workload. Use
-  baseline `7656ba368732755f94ccd7c2b529e6fa38adb16e`; do not accept pixel or
-  performance changes by regenerating expected results.
-- Full suites, performance/thermal stress and package qualification are deferred
-  by the user's current validation constraint. Prioritize ownership migrations,
-  single-job affected-target compilation, static gates and cheap focused checks.
-  Do not enlarge timing windows or weaken pixel assertions to hide host load.
+The 2026-10-08 authorization waives waiting for the external gates below during
+the current local refactor tranche. They remain **Waived / External gap /
+Untested**, never Passed: Windows/Linux toolchains and denied Windows CI logs;
+private corpus, ICC/GPU, thermal, native-display and physical hardware evidence;
+desktop TSan without instrumented Qt; and installed-package acceptance requiring
+signing authorization or a real deployment environment. Local completion does
+not close these long-term gates or authorize removal of this queue.
+
+- RF-00/11: extend the retained independent fixture/synthetic Release samples
+  to representative corpus and thermal qualification. Measure browse/filter/
+  paging, edit-to-visible latency, thumbnail demand, queue bounds, thread
+  ownership, RSS and close/join latency under the same workload. Keep baseline
+  `7656ba368732755f94ccd7c2b529e6fa38adb16e`; do not admit pixel or performance
+  changes by regenerating expected results. Offscreen publication and process
+  thread/RSS observations do not qualify native frame presentation or private
+  corpus behavior.
+- For any qualification-driven repair, run serial affected-target builds,
+  static gates and focused checks; repeat full applicable suites when the
+  shared-surface/lifecycle change requires them. Do not enlarge timing windows
+  or weaken pixel assertions to hide host load.
 - Resolve the baseline Windows Release CI failures in the four
   `StudioLibraryPaging` tests before claiming a green platform baseline.
-- Run feasible sanitizers and full Debug/Release tests on the candidate; run
-  matching Windows/Linux builds, installed-package create/import/probe/reopen
-  smoke, backup/restore/relocate and real corpus/ICC/GPU comparisons. Missing
-  toolchains, private corpus or hardware remain qualification gaps, not passes.
-- RF-11: search for old central methods, root state, signals, back-pointers,
-  transitional adapters and document paths after the remaining migrations;
-  verify one command path, one state writer and one resource owner per lane.
-- Remove this TODO only after the remaining ownership migrations and evidence
-  gates are actually satisfied; retain durable conclusions in their authorities.
+  Baseline CI run `37586731106` remains failed; job metadata is readable but
+  run and individual-job log retrieval return HTTP 403 with the current account.
+  Obtain runner diagnostics and a matching Windows toolchain before accepting
+  a proposed repair as platform evidence.
+- Desktop TSan remains unqualified: queued-handoff reports reproduce with a
+  Qt-only payload. Obtain a matching instrumented Qt SDK and rerun the
+  unsuppressed Import/Inspect/command/lifecycle gates; joined executor/service
+  checks and ASan lifetime evidence do not qualify desktop synchronization.
+  Do not suppress callbacks or skip the mandatory Studio smoke to get a build.
+- Run matching Windows/Linux builds and installed-package create/import/probe/
+  reopen/backup/restore/relocate smoke against the actual deployed runtimes.
+  Plain CMake staging does not deploy Qt frameworks and cannot satisfy this gate.
+  The macOS deployment owner signs its payload; signing, release and publication
+  require separate explicit authorization.
+- Qualify real corpus/ICC/GPU comparisons and native display/hardware behavior.
+  Missing toolchains, private corpus or hardware remain gaps, not passes.
+- Remove this TODO only after these evidence gates are actually satisfied;
+  retain durable conclusions in their existing authorities.
 
 ```text
 python3 configs/source_roots.py verify

@@ -540,7 +540,8 @@ void StudioPresenter::checkScheduledBackup()
 
 void StudioPresenter::startScheduledBackup(const bool force)
 {
-    if (busy_ || import_work_active_ || catalog_operation_active_ || catalog_path_.isEmpty())
+    if (busy_ || import_workspace_->importWorkActive() || catalog_operation_active_ ||
+        catalog_path_.isEmpty())
         return;
     catalog_operation_ = CancellationSource{};
     const auto cancellation = catalog_operation_.token();
@@ -587,12 +588,12 @@ void StudioPresenter::startScheduledBackup(const bool force)
 
 void StudioPresenter::cancelCatalogOperation()
 {
-    if (!catalog_operation_active_ && !import_work_active_)
+    if (!catalog_operation_active_ && !import_workspace_->importWorkActive())
         return;
     if (catalog_operation_active_)
         static_cast<void>(catalog_operation_.cancel("user_cancelled"));
-    if (import_work_active_)
-        static_cast<void>(import_operation_.cancel("user_cancelled"));
+    if (import_workspace_->importWorkActive())
+        import_workspace_->cancelImport("user_cancelled");
     setStatus(QCoreApplication::translate("StudioPresenter", "Cancelling catalog operation…"));
 }
 

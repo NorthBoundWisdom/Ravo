@@ -87,7 +87,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     presenter.createCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -99,7 +99,8 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && !presenter.previewUrl().isEmpty() &&
+            return !presenter.inspect()->previewLoading() &&
+                   !presenter.inspect()->previewUrl().isEmpty() &&
                    presenter.selectedPhotoParametersDebugInfo().contains(
                        QStringLiteral("recipe_state=saved\n"));
         }))
@@ -111,7 +112,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    presenter.develop()->exposureInstances().size() == 2 && history_size() == 1;
         }))
         << presenter.errorText().toStdString()
@@ -130,7 +131,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && history_size() == 2 &&
+            return !presenter.inspect()->previewLoading() && history_size() == 2 &&
                    presenter.develop()
                        ->exposureInstances()
                        .back()
@@ -144,7 +145,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    presenter.develop()->exposureInstances().size() == 3 && history_size() == 3 &&
                    presenter.develop()
                        ->exposureInstances()
@@ -165,7 +166,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && history_size() == 4 &&
+            return !presenter.inspect()->previewLoading() && history_size() == 4 &&
                    presenter.develop()
                        ->exposureInstances()
                        .front()
@@ -176,23 +177,25 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
         << presenter.errorText().toStdString() << " history=" << history_size();
 
     presenter.develop()->reorderExposureInstance(0, 2);
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && history_size() == 5; }))
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.inspect()->previewLoading() && history_size() == 5; }))
         << presenter.errorText().toStdString() << " history=" << history_size();
 
     // Undo restores instance vector + masks step by step.
     presenter.develop()->undoEdit();
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && history_size() >= 4; }))
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.inspect()->previewLoading() && history_size() >= 4; }))
         << presenter.errorText().toStdString();
     EXPECT_EQ(presenter.develop()->exposureInstances().size(), 3);
 
     presenter.develop()->undoEdit(); // bypass
-    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+    ASSERT_TRUE(wait_until([&] { return !presenter.inspect()->previewLoading(); }))
         << presenter.errorText().toStdString();
     presenter.develop()->undoEdit(); // duplicate
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    presenter.develop()->exposureInstances().size() == 2;
         }))
         << presenter.errorText().toStdString();
@@ -207,7 +210,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    presenter.develop()->exposureInstances().size() == 2 &&
                    !presenter.develop()
                         ->exposureInstances()
@@ -222,7 +225,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    presenter.develop()->exposureInstances().size() <= 1;
         }))
         << presenter.errorText().toStdString();
@@ -232,7 +235,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    presenter.develop()->exposureInstances().size() == 2;
         }))
         << presenter.errorText().toStdString();
@@ -248,7 +251,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    presenter.develop()->exposureInstances().size() == before_delete - 1;
         }))
         << presenter.errorText().toStdString();
@@ -256,7 +259,7 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() &&
+            return !presenter.inspect()->previewLoading() &&
                    presenter.develop()->exposureInstances().size() == before_delete;
         }))
         << presenter.errorText().toStdString();
@@ -356,7 +359,7 @@ TEST(StudioPresenterTest, EditIn01PrepareReturnReopenAbandonAcrossRestart)
     presenter.createCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importFilePaths({photo});
+    presenter.imports()->importFilePaths({photo});
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -532,28 +535,40 @@ TEST(StudioPresenterTest, ImportIngestTransportCopyReportsFilesystemCard)
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.openImportPage();
-    presenter.setImportIngestTransport(QStringLiteral("filesystem-card"));
-    presenter.setImportMode(QStringLiteral("copy"));
-    presenter.setImportSourceRoot(QDir(directory.path()).filePath(QStringLiteral("card")));
-    presenter.setImportDestination(dest_dir);
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportIngestTransport(QStringLiteral("filesystem-card"));
+    presenter.imports()->setImportMode(QStringLiteral("copy"));
+    presenter.imports()->setImportSourceRoot(
+        QDir(directory.path()).filePath(QStringLiteral("card")));
+    presenter.imports()->setImportDestination(dest_dir);
     ASSERT_TRUE(wait_until(
         [&]
-        { return !presenter.importScanActive() && presenter.importCandidates()->rowCount() == 2; },
+        {
+            return !presenter.imports()->importScanActive() &&
+                   presenter.imports()->importCandidates()->rowCount() == 2;
+        },
         30000))
         << presenter.errorText().toStdString();
-    EXPECT_TRUE(presenter.importIngestSourceUri().startsWith(
+    EXPECT_TRUE(presenter.imports()->importIngestSourceUri().startsWith(
         QStringLiteral("ravo-ingest:filesystem-card:")));
-    EXPECT_FALSE(presenter.importNativeSupport().value(QStringLiteral("adapterPackaged")).toBool());
-    EXPECT_EQ(presenter.importNativeSupport().value(QStringLiteral("ptpUsb")).toString(),
+    EXPECT_FALSE(presenter.imports()
+                     ->importNativeSupport()
+                     .value(QStringLiteral("adapterPackaged"))
+                     .toBool());
+    EXPECT_EQ(presenter.imports()->importNativeSupport().value(QStringLiteral("ptpUsb")).toString(),
               QStringLiteral("unsupported"));
 
-    presenter.startPlannedImport();
+    presenter.imports()->startPlannedImport();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 30000))
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        },
+        30000))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
-    const auto report = presenter.importIngestReport();
+    const auto report = presenter.imports()->importIngestReport();
     EXPECT_EQ(report.value(QStringLiteral("transport")).toString(),
               QStringLiteral("filesystem-card"));
     EXPECT_EQ(report.value(QStringLiteral("imported")).toInt(), 2);
@@ -563,20 +578,21 @@ TEST(StudioPresenterTest, ImportIngestTransportCopyReportsFilesystemCard)
     EXPECT_EQ(presenter.visibleCount(), 2);
 
     // Reopening restores the card and keeps cataloged photos visible but disabled.
-    presenter.openImportPage();
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }, 30000));
-    EXPECT_EQ(presenter.importCandidates()->rowCount(), 2);
-    EXPECT_EQ(presenter.importSourceRoot(),
+    presenter.imports()->openImportPage();
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }, 30000));
+    EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 2);
+    EXPECT_EQ(presenter.imports()->importSourceRoot(),
               QDir(directory.path()).filePath(QStringLiteral("card")));
-    presenter.importCandidates()->setAllSelected(true);
-    EXPECT_EQ(presenter.importCandidates()->selectedCount(), 0);
-    for (int row = 0; row < presenter.importCandidates()->rowCount(); ++row)
-        EXPECT_FALSE(presenter.importCandidates()
-                         ->data(presenter.importCandidates()->index(row, 0),
+    presenter.imports()->importCandidates()->setAllSelected(true);
+    EXPECT_EQ(presenter.imports()->importCandidates()->selectedCount(), 0);
+    for (int row = 0; row < presenter.imports()->importCandidates()->rowCount(); ++row)
+        EXPECT_FALSE(presenter.imports()
+                         ->importCandidates()
+                         ->data(presenter.imports()->importCandidates()->index(row, 0),
                                 ImportCandidateListModel::EligibleRole)
                          .toBool());
-    EXPECT_EQ(presenter.importDuplicateCount(), 2);
-    EXPECT_FALSE(presenter.importReady());
+    EXPECT_EQ(presenter.imports()->importDuplicateCount(), 2);
+    EXPECT_FALSE(presenter.imports()->importReady());
     EXPECT_EQ(presenter.visibleCount(), 2);
 }
 
@@ -597,20 +613,26 @@ TEST(StudioPresenterTest, ImportNativeTransportFailsClosedWithoutPackagedAdapter
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.openImportPage();
-    presenter.setImportIngestTransport(QStringLiteral("ptp-usb"));
-    presenter.setImportMode(QStringLiteral("copy"));
-    presenter.setImportSourceRoot(source_dir);
-    presenter.setImportDestination(QDir(directory.path()).filePath(QStringLiteral("dest")));
-    ASSERT_TRUE(wait_until([&] { return !presenter.importScanActive(); }, 30000));
-    presenter.importCandidates()->setAllSelected(true);
-    presenter.startPlannedImport();
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportIngestTransport(QStringLiteral("ptp-usb"));
+    presenter.imports()->setImportMode(QStringLiteral("copy"));
+    presenter.imports()->setImportSourceRoot(source_dir);
+    presenter.imports()->setImportDestination(
+        QDir(directory.path()).filePath(QStringLiteral("dest")));
+    ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importScanActive(); }, 30000));
+    presenter.imports()->importCandidates()->setAllSelected(true);
+    presenter.imports()->startPlannedImport();
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.importPreflightActive() && !presenter.importWorkActive(); }, 5000));
+        [&]
+        {
+            return !presenter.imports()->importPreflightActive() &&
+                   !presenter.imports()->importWorkActive();
+        },
+        5000));
     EXPECT_FALSE(presenter.errorText().isEmpty());
     EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("not packaged")) ||
                 presenter.errorText().contains(QStringLiteral("native")));
-    EXPECT_TRUE(presenter.importIngestReport().isEmpty());
+    EXPECT_TRUE(presenter.imports()->importIngestReport().isEmpty());
 }
 
 } // namespace ravo

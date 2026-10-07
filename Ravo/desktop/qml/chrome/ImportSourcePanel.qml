@@ -10,7 +10,7 @@ Rectangle {
     required property var presenter
     signal chooseRequested
     color: Theme.railSurfaceColor
-    enabled: !presenter.importWorkActive && !presenter.importPreflightActive
+    enabled: !presenter.imports.importWorkActive && !presenter.imports.importPreflightActive
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Fonts.standardMargin
@@ -21,7 +21,7 @@ Rectangle {
         }
         CustomLabel {
             Layout.fillWidth: true
-            text: root.presenter.importSourceRoot
+            text: root.presenter.imports.importSourceRoot
             wrapMode: Text.WrapAnywhere
             color: Theme.placeholderTextColor
         }
@@ -33,17 +33,17 @@ Rectangle {
         CustomCheckBox {
             objectName: "importIncludeSubfolders"
             text: qsTr("Include subfolders")
-            checked: root.presenter.importRecursive
-            onClicked: root.presenter.setImportRecursive(checked)
+            checked: root.presenter.imports.importRecursive
+            onClicked: root.presenter.imports.setImportRecursive(checked)
         }
         CustomButton {
             Layout.fillWidth: true
             text: qsTr("Check again")
             onClicked: {
-                if (root.presenter.importSourceRoot.length > 0)
-                    root.presenter.setImportSourceRoot(root.presenter.importSourceRoot)
+                if (root.presenter.imports.importSourceRoot.length > 0)
+                    root.presenter.imports.setImportSourceRoot(root.presenter.imports.importSourceRoot);
                 else
-                    root.presenter.refreshImportSources()
+                    root.presenter.imports.refreshImportSources();
             }
         }
         Rectangle {
@@ -58,12 +58,12 @@ Rectangle {
                 objectName: "importSourceFolderTree"
                 anchors.fill: parent
                 anchors.margins: Fonts.size4
-                folderModel: root.presenter.importSourceFolders
+                folderModel: root.presenter.imports.importSourceFolders
                 ScrollBar.vertical: ScrollBar {
                     policy: ScrollBar.AsNeeded
                 }
                 onFolderChosen: function (path) {
-                    root.presenter.setImportSourceRoot(path);
+                    root.presenter.imports.setImportSourceRoot(path);
                 }
             }
         }

@@ -627,6 +627,30 @@ checks composed objects and signal receivers. Frame hash/scopes retain the
 existing cancellation/identity contracts; recipe/history, source hashes and frozen
 render fixtures remain the behavior oracle.
 
+`StudioInspectFrame` exercises failed image preparation, corrupt monitor-profile
+conversion, rejected ROI dispatch and publication after shutdown. Prior pixels,
+viewport, URL, native resource identity, frame revision, hash and displayed Recipe
+must survive failed publication;
+restoring valid presentation permits a later frame. The monitor fault uses the
+existing display owner's publication boundary, not an alternate converter. Shared
+frame-test helpers construct only matching owner slots and immutable input data.
+Live-control and progressive-preview tests retain independent current/saved/displayed
+Recipe guards and the original rapid-intent publication timing.
+
+Comparison coverage checks the accepted source/profile pair across display changes
+with an independent channel-swap pixel oracle. The composed command test sends
+Before then Comparison without an event-loop turn between them, and requires
+unedited Before pixels alongside the edited After frame. These tests retain the
+original preview queues and deadlines; closed-owner coverage also rejects adoption.
+Base-restoration checks retain monitor-presented pixels and verify that a failed
+monitor conversion does not replace the accepted frame with output-space pixels.
+
+The burst performance probe starts only after loading finishes, pixels exist and
+live control reports that the displayed Recipe matches current edits. Cached
+settled pixels may use the live image provider, so a file URI is not a readiness
+contract. The probe retains its original 1 ms intent cadence, 5 s deadline,
+minimum published-frame count and exact latest-Recipe publication guard.
+
 First-party Ravo `.cpp` and production `.qml` files have a 2,000-line limit.
 `configs/translation_unit_size_budget.jsonc` and
 `configs/qml_file_size_budget.jsonc` have empty debt lists. The checks reject
@@ -1676,12 +1700,26 @@ be linked into Engine or used as a hidden slow fallback.
 ## Import workspace owners (5fbbeb1 follow-on)
 
 Desktop Import configuration lives in `ImportDraft` inside `StudioImportWorkspace`
-(scan / thumbnail / destination-preview controllers). Candidate selection remains
-on `ImportCandidateListModel`. Functional coverage: `StudioImportWorkspace.*`,
+(page/batch/progress owner with scan / thumbnail / destination-preview controllers).
+QML, command and live-control tests read its `imports` child directly. Candidate
+selection remains on its `ImportCandidateListModel`; Gallery selection and sparse
+listing publication retain one root owner. Functional coverage: `StudioImportWorkspace.*`,
 `StudioImportKeyboard.*`, `StudioImportRoundtrip.*`, destination-preview and
 thumbnail scheduler tests. Keyboard focus observations
 (`StudioImportKeyboardPerf.*`) measure `processEvents` input handling only — not
 frame presentation / PERF-02 / C3.
+
+Import ownership checks retain blocked-worker preflight cancellation, source loss,
+destination conflict, catalog replacement, committed-photo preference failures,
+one-item dispatch, foreground editing, destroy/reopen, text-focus isolation and
+bounded thumbnail shutdown. Source-structure checks follow the owning controller
+wiring and keep revision-based destination keys separate from debounced path
+snapshots. Test identities, pixel assertions and failure-injection windows remain
+unchanged. Library paging contracts still validate the shared listing/selection
+generation across unloaded rows and query replacement.
+Closed-filesystem tests exercise rejected destination and folder dispatch through
+the real workspace/model boundary, retaining an explicit error and clearing
+pending folder state.
 
 ### SHA table (`edc65db`..HEAD before docs commit)
 
@@ -1778,7 +1816,17 @@ digest upload for this SHA. Do not upgrade REL-02 / C3 from these unit gates alo
 - `StudioImportRoundtrip.RepeatedIntentsRemainQuiescentWithBoundedDiagnostics`
 - `Ravo/tools/test_check_packaged_runtime.py` identity + catalog + isolation suites
 
-Sanitizer (TSan/ASan) Import gate races: **UNTESTED** on this host (not configured).
+Sanitizer qualification runs the existing Import gate, cancellation, destruction
+and post-rejection cases without suppressing reports or changing their deadlines.
+Instrument both C and C++ compilation and executable/shared-library links in a
+separate build directory; record which Qt/vendor/system libraries remain
+uninstrumented. ASan lifetime evidence does not qualify thread synchronization.
+For TSan, qualify the joined executor/service cases separately from desktop Qt
+handoffs. Uninstrumented synchronization can produce false reports and hide real
+races ([sanitizer manual](https://github.com/google/sanitizers/wiki/ThreadSanitizerCppManual));
+Qt queued-callback reports require a matching instrumented Qt SDK before desktop
+thread-safety admission. A Qt-only reproducer can classify a report mechanism,
+but cannot dismiss every application report or replace the ownership contracts.
 
 Gallery folder-presentation tests populate 200 full-size cached previews and
 require list publication while thumbnail presentation is pending, 320-pixel

@@ -74,7 +74,7 @@ Item {
     }
 
     function publishViewportDemand() {
-        if (!thumbnailDemandPublisher || typeof thumbnailDemandPublisher.setImportThumbnailViewportDemand !== "function")
+        if (!thumbnailDemandPublisher || typeof thumbnailDemandPublisher.imports.setImportThumbnailViewportDemand !== "function")
             return;
         const rows = [];
         const first = Math.max(0, Math.floor(candidateGrid.contentY / Math.max(1, candidateGrid.cellHeight)) * root.keyboardColumnCount());
@@ -85,7 +85,7 @@ Item {
                 rows.push(row);
         }
         const current = candidateGrid.currentIndex;
-        thumbnailDemandPublisher.setImportThumbnailViewportDemand(rows, 2, current);
+        thumbnailDemandPublisher.imports.setImportThumbnailViewportDemand(rows, 2, current);
     }
 
     function applyMouseSelection(index, modifiers) {

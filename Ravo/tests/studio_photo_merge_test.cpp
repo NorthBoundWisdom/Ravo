@@ -30,12 +30,13 @@ void import_merge_pair(StudioPresenter &presenter, const QTemporaryDir &director
     }
     presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
-    presenter.importFilePaths(photos);
+    presenter.imports()->importFilePaths(photos);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return presenter.visibleCount() == 2 && !presenter.busy() &&
-                   !presenter.importWorkActive() && !presenter.previewLoading();
+                   !presenter.imports()->importWorkActive() &&
+                   !presenter.inspect()->previewLoading();
         }));
 }
 } // namespace

@@ -122,8 +122,8 @@ void StudioCommandController::registerViewCommands(const command_registration::H
     add(command::kPhotoSelectAll, Condition::kLoadedPhotos, no_argument,
         [this](const QVariant &, const QString &)
         {
-            if (presenter_.importPageOpen())
-                presenter_.importCandidates()->highlightAll();
+            if (presenter_.imports()->importPageOpen())
+                presenter_.imports()->importCandidates()->highlightAll();
             else
                 presenter_.selectAllVisible();
         });
@@ -618,13 +618,13 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         [this](const QVariant &, const QString &) { presenter_.stepBurstCompareNext(); });
     add(command::kViewFit, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
-        { presenter_.setZoomMode(QStringLiteral("fit")); });
+        { presenter_.inspect()->setZoomMode(QStringLiteral("fit")); });
     add(command::kViewFill, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
-        { presenter_.setZoomMode(QStringLiteral("fill")); });
+        { presenter_.inspect()->setZoomMode(QStringLiteral("fill")); });
     add(command::kViewActual, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
-        { presenter_.setZoomMode(QStringLiteral("actual")); });
+        { presenter_.inspect()->setZoomMode(QStringLiteral("actual")); });
     add(command::kViewToggleActualSize, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &)
         {
@@ -632,7 +632,7 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                 presenter_.browseMode() == QLatin1String("survey"))
                 presenter_.openLoupe();
             else
-                presenter_.toggleActualSize();
+                presenter_.inspect()->toggleActualSize();
         });
     add(
         command::kViewSetZoomMode, Condition::kNonGrid,
@@ -643,12 +643,12 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             return one_of(argument, values, QStringLiteral("zoom mode"));
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.setZoomMode(argument.toString()); });
+        { presenter_.inspect()->setZoomMode(argument.toString()); });
     add(
         command::kViewAdjustZoom, Condition::kNonGrid, [](const QVariant &argument)
         { return finite_number(argument, QStringLiteral("Zoom delta")); },
         [this](const QVariant &argument, const QString &)
-        { presenter_.adjustZoom(argument.toInt()); });
+        { presenter_.inspect()->adjustZoom(argument.toInt()); });
     add(
         command::kViewSetThumbnailSize, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -1019,8 +1019,8 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                 present(command::kWindowDismiss, argument);
             else if (assistant_open_)
                 setAssistantOpen(false);
-            else if (presenter_.importPageOpen())
-                presenter_.closeImportPage();
+            else if (presenter_.imports()->importPageOpen())
+                presenter_.imports()->closeImportPage();
             else if (presenter_.catalogOpen())
                 presenter_.returnToGrid();
         });

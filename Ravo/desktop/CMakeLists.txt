@@ -43,6 +43,8 @@ target_sources(ravo_desktop
     src/studio_presenter.cpp
     src/studio_presenter_composition.cpp
     src/studio_inspect_presenter.cpp
+    src/studio_inspect_frame.cpp
+    src/studio_inspect_roi.cpp
     src/studio_develop_presenter.cpp
     src/studio_debug_actions.cpp
     src/studio_preset_paths.cpp
@@ -64,7 +66,8 @@ target_sources(ravo_desktop
     src/studio_import_destination_preview_controller.h
     src/studio_import_scan_controller.cpp
     src/studio_import_scan_controller.h
-    src/studio_import_workspace.h
+    src/studio_import_workspace.cpp
+    include/ravo/desktop/studio_import_workspace.h
     src/studio_import_preferences.cpp
     src/studio_recovery.cpp
     src/studio_preview.cpp

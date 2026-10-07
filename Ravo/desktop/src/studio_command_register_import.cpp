@@ -20,13 +20,13 @@ void StudioCommandController::registerImportCommands(const command_registration:
         { present(command::kLibraryImportFiles, argument); });
     add(command::kLibraryImportPaths, Condition::kCatalogReady, list_argument,
         [this](const QVariant &argument, const QString &)
-        { presenter_.importFilePaths(strings_from(argument)); });
+        { presenter_.imports()->importFilePaths(strings_from(argument)); });
     add(command::kLibraryImportFolder, Condition::kCatalogReady, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kLibraryImportFolder, argument); });
     add(command::kLibraryImportFolderPath, Condition::kCatalogReady, non_empty_string,
         [this](const QVariant &argument, const QString &)
-        { presenter_.importFolderFromPath(argument.toString()); });
+        { presenter_.imports()->importFolderFromPath(argument.toString()); });
     add(command::kPresetImport, Condition::kReadySelection, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kPresetImport, argument); });

@@ -13,6 +13,10 @@ class QWindow;
 
 namespace ravo
 {
+namespace testing
+{
+class StudioDisplayPresentationTestControl;
+}
 
 // ADR-0144 DISPLAY-01: C++ owner for Studio window→screen monitor ICC refresh.
 // Presentation-only; never mutates recipe, history, catalog revision, or export.
@@ -48,6 +52,7 @@ signals:
     void stateChanged();
 
 private:
+    friend class testing::StudioDisplayPresentationTestControl;
     void attach(QWindow *window);
     void detach();
     void handleScreenChanged(QScreen *screen);

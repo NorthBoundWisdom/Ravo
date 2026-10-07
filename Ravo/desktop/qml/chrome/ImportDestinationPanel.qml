@@ -11,7 +11,7 @@ Rectangle {
     signal chooseDestinationRequested
     signal chooseSecondCopyRequested
     color: Theme.railSurfaceColor
-    enabled: !presenter.importWorkActive && !presenter.importPreflightActive
+    enabled: !presenter.imports.importWorkActive && !presenter.imports.importPreflightActive
     Rectangle {
         id: transferModes
         objectName: "importTransferModes"
@@ -39,9 +39,9 @@ Rectangle {
                     width: parent.width / 3
                     height: parent.height
                     text: modelData
-                    selected: root.presenter.importMode === mode
+                    selected: root.presenter.imports.importMode === mode
                     enabled: index < 2
-                    onClicked: root.presenter.setImportMode(mode)
+                    onClicked: root.presenter.imports.setImportMode(mode)
                     ToolTip.visible: hovered && index === 2
                     ToolTip.text: qsTr("Ingest transports are Copy-only; Move and camera delete stay rejected.")
                 }
@@ -67,13 +67,13 @@ Rectangle {
                 objectName: "importDestinationSection"
                 Layout.fillWidth: true
                 stretchContent: true
-                visible: root.presenter.importMode !== "add"
+                visible: root.presenter.imports.importMode !== "add"
                 title: qsTr("Destination")
                 CustomLabel {
                     objectName: "importDestinationPath"
                     Layout.fillWidth: true
-                    visible: root.presenter.importDestination.length > 0
-                    text: root.presenter.importDestination
+                    visible: root.presenter.imports.importDestination.length > 0
+                    text: root.presenter.imports.importDestination
                     wrapMode: Text.WrapAnywhere
                     font.bold: true
                 }
@@ -84,15 +84,15 @@ Rectangle {
                 }
                 CustomLabel {
                     Layout.fillWidth: true
-                    visible: root.presenter.importDestination.length > 0 && root.presenter.importDestinationError.length > 0
-                    text: root.presenter.importDestinationError
+                    visible: root.presenter.imports.importDestination.length > 0 && root.presenter.imports.importDestinationError.length > 0
+                    text: root.presenter.imports.importDestinationError
                     color: Theme.warningColor
                     wrapMode: Text.WordWrap
                 }
                 CustomButton {
-                    visible: root.presenter.importDestinationError.length > 0 && root.presenter.importDestination.length > 0
+                    visible: root.presenter.imports.importDestinationError.length > 0 && root.presenter.imports.importDestination.length > 0
                     text: qsTr("Check again")
-                    onClicked: root.presenter.setImportDestination(root.presenter.importDestination)
+                    onClicked: root.presenter.imports.setImportDestination(root.presenter.imports.importDestination)
                 }
                 CustomLabel {
                     text: qsTr("Organize")
@@ -100,9 +100,9 @@ Rectangle {
                 CustomComboBox {
                     Layout.fillWidth: true
                     model: [qsTr("Into one folder"), qsTr("Preserve hierarchy"), qsTr("By date (YYYY/MM/DD)"), qsTr("By month (YYYY/MM)")]
-                    currentIndex: root.presenter.importOrganization === "hierarchy" ? 1 : root.presenter.importOrganization === "date" ? 2 : root.presenter.importOrganization === "month" ? 3 : 0
+                    currentIndex: root.presenter.imports.importOrganization === "hierarchy" ? 1 : root.presenter.imports.importOrganization === "date" ? 2 : root.presenter.imports.importOrganization === "month" ? 3 : 0
                     onActivated: function (index) {
-                        root.presenter.setImportOrganization(["single", "hierarchy", "date", "month"][index]);
+                        root.presenter.imports.setImportOrganization(["single", "hierarchy", "date", "month"][index]);
                     }
                 }
                 Rectangle {
@@ -119,12 +119,12 @@ Rectangle {
                         objectName: "importDestinationFolderTree"
                         anchors.fill: parent
                         anchors.margins: Fonts.size4
-                        folderModel: root.presenter.importDestinationFolders
+                        folderModel: root.presenter.imports.importDestinationFolders
                         ScrollBar.vertical: ScrollBar {
                             policy: ScrollBar.AsNeeded
                         }
                         onFolderChosen: function (path) {
-                            root.presenter.setImportDestination(path);
+                            root.presenter.imports.setImportDestination(path);
                         }
                     }
                 }
@@ -132,7 +132,7 @@ Rectangle {
             ImportSection {
                 objectName: "importDestinationPreviewSection"
                 Layout.fillWidth: true
-                visible: root.presenter.importMode !== "add" && root.presenter.importDestination.length > 0
+                visible: root.presenter.imports.importMode !== "add" && root.presenter.imports.importDestination.length > 0
                 title: qsTr("Destination preview")
                 CustomLabel {
                     Layout.fillWidth: true
@@ -142,13 +142,13 @@ Rectangle {
                 }
                 CustomLabel {
                     Layout.fillWidth: true
-                    visible: root.presenter.importDestinationPreviewActive
+                    visible: root.presenter.imports.importDestinationPreviewActive
                     text: qsTr("Planning destination…")
                 }
                 CustomLabel {
                     Layout.fillWidth: true
-                    visible: root.presenter.importDestinationPreviewError.length > 0
-                    text: root.presenter.importDestinationPreviewError
+                    visible: root.presenter.imports.importDestinationPreviewError.length > 0
+                    text: root.presenter.imports.importDestinationPreviewError
                     wrapMode: Text.WordWrap
                     color: Theme.warningColor
                 }
@@ -157,7 +157,7 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: Math.min(contentHeight, 260)
                     clip: true
-                    model: root.presenter.importDestinationPreview
+                    model: root.presenter.imports.importDestinationPreview
                     delegate: RowLayout {
                         required property var modelData
                         width: ListView.view.width
@@ -202,15 +202,15 @@ Rectangle {
                 CustomComboBox {
                     Layout.fillWidth: true
                     model: [qsTr("Minimal (320)"), qsTr("Standard (1600)"), qsTr("1:1")]
-                    currentIndex: root.presenter.importPreviewPolicy === "minimal" ? 0 : root.presenter.importPreviewPolicy === "one-to-one" ? 2 : 1
+                    currentIndex: root.presenter.imports.importPreviewPolicy === "minimal" ? 0 : root.presenter.imports.importPreviewPolicy === "one-to-one" ? 2 : 1
                     onActivated: function (index) {
-                        root.presenter.setImportPreviewPolicy(["minimal", "standard", "one-to-one"][index]);
+                        root.presenter.imports.setImportPreviewPolicy(["minimal", "standard", "one-to-one"][index]);
                     }
                 }
             }
             ImportSection {
                 Layout.fillWidth: true
-                visible: root.presenter.importMode !== "add"
+                visible: root.presenter.imports.importMode !== "add"
                 title: qsTr("Rename template")
                 expanded: false
                 CustomTextField {
@@ -220,10 +220,10 @@ Rectangle {
                     alignRightWhenFocused: false
                     showClipIndicator: false
                     showEmptyIndicator: false
-                    text: root.presenter.importFilenameTemplate
+                    text: root.presenter.imports.importFilenameTemplate
                     placeholderText: qsTr("Keep original names")
                     Accessible.name: qsTr("Import filename template")
-                    onEditingFinished: root.presenter.setImportFilenameTemplate(text)
+                    onEditingFinished: root.presenter.imports.setImportFilenameTemplate(text)
                 }
                 CustomLabel {
                     Layout.fillWidth: true
@@ -234,7 +234,7 @@ Rectangle {
             }
             ImportSection {
                 Layout.fillWidth: true
-                visible: root.presenter.importMode !== "add"
+                visible: root.presenter.imports.importMode !== "add"
                 title: qsTr("Second copy")
                 expanded: false
                 RowLayout {
@@ -247,14 +247,14 @@ Rectangle {
                     }
                     CustomButton {
                         objectName: "importClearSecondCopy"
-                        visible: root.presenter.importSecondCopyDestination.length > 0
+                        visible: root.presenter.imports.importSecondCopyDestination.length > 0
                         text: qsTr("Clear")
-                        onClicked: root.presenter.setImportSecondCopyDestination("")
+                        onClicked: root.presenter.imports.setImportSecondCopyDestination("")
                     }
                 }
                 CustomLabel {
                     Layout.fillWidth: true
-                    text: root.presenter.importSecondCopyDestination.length ? root.presenter.importSecondCopyDestination : qsTr("No second copy selected")
+                    text: root.presenter.imports.importSecondCopyDestination.length ? root.presenter.imports.importSecondCopyDestination : qsTr("No second copy selected")
                     wrapMode: Text.WrapAnywhere
                     color: Theme.placeholderTextColor
                 }

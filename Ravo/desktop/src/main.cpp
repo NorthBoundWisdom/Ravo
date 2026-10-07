@@ -534,11 +534,12 @@ int main(int argc, char *argv[])
     language_manager.setQmlEngine(&engine);
     engine.addImportPath(QStringLiteral("qrc:/"));
     engine.addImageProvider(QStringLiteral("studioPreview"),
-                            new ravo::StudioPreviewImageProvider(presenter));
+                            new ravo::StudioPreviewImageProvider(*presenter.inspect()));
     engine.addImageProvider(QStringLiteral("studioScope"),
-                            new ravo::StudioScopeImageProvider(presenter));
-    engine.addImageProvider(QStringLiteral("importCandidate"),
-                            new ravo::ImportCandidateImageProvider(*presenter.importCandidates()));
+                            new ravo::StudioScopeImageProvider(*presenter.inspect()));
+    engine.addImageProvider(
+        QStringLiteral("importCandidate"),
+        new ravo::ImportCandidateImageProvider(*presenter.imports()->importCandidates()));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
     engine.rootContext()->setContextProperty(QStringLiteral("studioStartup"), &startup_controller);
     engine.rootContext()->setContextProperty(QStringLiteral("studioCommands"), &command_controller);
@@ -570,15 +571,17 @@ int main(int argc, char *argv[])
                 return;
             }
             auto trace = std::make_shared<PreviewPresentationTrace>();
-            QObject::connect(
-                &presenter, &ravo::StudioPresenter::interactivePreviewPublished, window,
-                [trace](const qulonglong revision, const qlonglong intent_to_image_us)
-                {
-                    trace->pending_revision = static_cast<std::uint64_t>(revision);
-                    trace->intent_to_image_us = std::max<std::int64_t>(intent_to_image_us, 0);
-                    trace->intent_started_at = std::chrono::steady_clock::now() -
-                                               std::chrono::microseconds(trace->intent_to_image_us);
-                });
+            QObject::connect(presenter.develop(),
+                             &ravo::StudioDevelopPresenter::interactivePreviewPublished, window,
+                             [trace](const qulonglong revision, const qlonglong intent_to_image_us)
+                             {
+                                 trace->pending_revision = static_cast<std::uint64_t>(revision);
+                                 trace->intent_to_image_us =
+                                     std::max<std::int64_t>(intent_to_image_us, 0);
+                                 trace->intent_started_at =
+                                     std::chrono::steady_clock::now() -
+                                     std::chrono::microseconds(trace->intent_to_image_us);
+                             });
             QObject::connect(
                 window, &QQuickWindow::frameSwapped, window,
                 [trace]

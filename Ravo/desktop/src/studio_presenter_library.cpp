@@ -17,7 +17,7 @@ namespace ravo
 
 void StudioPresenter::selectLibraryRow(const int row, const QString &mode, const bool open_loupe)
 {
-    if (catalog_path_.isEmpty() || busy_ || importPageOpen())
+    if (catalog_path_.isEmpty() || busy_ || import_workspace_->importPageOpen())
         return;
     if (row < 0 || row >= assets_.rowCount() ||
         (mode != QLatin1String("single") && mode != QLatin1String("toggle") &&
@@ -343,15 +343,15 @@ QString StudioPresenter::selectedUri() const
 void StudioPresenter::revealSelectedPhotoInFileManager()
 {
     const auto asset = assets_.assetById(selected_asset_id_);
-    const QString import_path = importContextPath();
-    if (importPageOpen() ? import_path.isEmpty() : !asset)
+    const QString import_path = import_workspace_->importContextPath();
+    if (import_workspace_->importPageOpen() ? import_path.isEmpty() : !asset)
     {
         setError(QCoreApplication::translate("StudioPresenter", "Select a photo first."));
         return;
     }
     const auto path = local_file_path_from_asset_uri(
-        importPageOpen() ? QUrl::fromLocalFile(import_path).toString() :
-                           qstring_from_utf8(asset->normalized_uri));
+        import_workspace_->importPageOpen() ? QUrl::fromLocalFile(import_path).toString() :
+                                              qstring_from_utf8(asset->normalized_uri));
     if (!path)
     {
         setError(QCoreApplication::translate("StudioPresenter",
