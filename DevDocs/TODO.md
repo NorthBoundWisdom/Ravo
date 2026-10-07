@@ -44,7 +44,8 @@ correctness reference.
 
 The user-requested architecture refactor is bounded to the existing correctness/
 performance stream. [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md)
-tracks its remaining ownership migrations and qualification gaps. It admits no
+tracks its remaining qualification gaps. Current Import and Inspect ownership
+contracts belong in [ARCHITECTURE.md](ARCHITECTURE.md). The stream admits no
 new capability, renderer, scheduler platform, persistence format or dependency.
 
 The explicit user-requested HDR/Panorama work is admitted by
