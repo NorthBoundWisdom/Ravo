@@ -1951,6 +1951,13 @@ asset/context validation, publication and shutdown policy. Invalidating cancels
 borrowed tokens and advances identity; beginning a token does not advance it.
 Cancelling alone does not imply a new revision or an undone catalog commit.
 
+Scheduling remains with each existing owner: foreground priority lanes, latest-
+pending frame analysis, viewport-bounded thumbnail demand and one-item Import
+dispatch have different ordering and completion contracts. Those policies are
+not interchangeable consumers of a shared scheduler. Reuse is limited to the
+cancellation identity above and the existing serial executor; neither owns
+business publication, retry policy or commit outcomes.
+
 Ravo Studio owns:
 
 - creating/opening catalogs and one session-owned import workspace for local

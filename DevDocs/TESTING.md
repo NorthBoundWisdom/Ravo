@@ -1697,7 +1697,7 @@ stage medians, extra peak bytes, spatial-context response and agitation
 difference. Its current result rejects product integration; the probe must not
 be linked into Engine or used as a hidden slow fallback.
 
-## Import workspace owners (5fbbeb1 follow-on)
+## Import workspace ownership contracts
 
 Desktop Import configuration lives in `ImportDraft` inside `StudioImportWorkspace`
 (page/batch/progress owner with scan / thumbnail / destination-preview controllers).
@@ -1721,40 +1721,26 @@ Closed-filesystem tests exercise rejected destination and folder dispatch throug
 the real workspace/model boundary, retaining an explicit error and clearing
 pending folder state.
 
-### SHA table (`edc65db`..HEAD before docs commit)
+Focused validation uses:
 
-```
-ba10c2c [test]: validate packaged runtime outside the build tree
-1eac861 [ci]: cover macOS and Linux Release smoke builds
-1cc0d90 [test]: verify source-preserving Import round trips after refactoring
-453d10e [refactor]: delegate Import workspace state through narrow owners
-e6bca23 [refactor]: isolate Import source scan publication
-c87f920 [refactor]: isolate Import destination preview orchestration
-d1e1103 [refactor]: model the Import workspace draft as a typed value
-42cb6e0 [test]: cover Import thumbnail cancellation and stale completions
-cb34d28 [perf]: enforce Import thumbnail byte and count budgets
-ea7ecc6 [perf]: bound Import thumbnail demand to the active viewport
-43dcb7c [refactor]: give Import thumbnail work an explicit desktop owner
-c77ae56 [test]: separate Import performance observations from functional gates
-9dfe2a8 [perf]: maintain Import check totals incrementally
-e03a408 [perf]: update only changed Import highlight rows
-922fb90 [test]: add a reference oracle for Import selection invariants
-183b87e [fix]: notify Import selection totals when candidate bytes change
-a1e0591 [test]: cover Import focus across scan and page lifecycles
-0737d79 [test]: exercise Import shortcuts through the production window
-ef8bf2b [refactor]: share the production Import grid interaction component
+```text
+cmake --preset mac_clang_debug -DBUILD_TESTING=ON
+cmake --build build/mac_clang_debug --target ravo_desktop_command_tests
+ctest --test-dir build/mac_clang_debug --output-on-failure -R 'StudioImport|ImportDraft|DestinationPreview|ImportCandidate'
 ```
 
-Validation commands used locally: `cmake --preset mac_clang_debug -DBUILD_TESTING=ON`,
-`cmake --build build/mac_clang_debug --target ravo_desktop_command_tests`,
-`ctest -R 'StudioImport|ImportDraft|DestinationPreview|ImportCandidate'`.
-CI Release smoke and packaged-runtime checks are workflow-gated (not green-claimed
-from this laptop). Packaged catalog create/import/probe/reopen stages are structured in
-`check_packaged_runtime.py`. Catalog create/import/probe/list contracts PASS against the
-in-tree CLI at `d809cb66`; host package-artifact digests remain UNTESTED until rehearsal/tag.
-surface — do not treat unittest greens as release catalog evidence. Import destroy/reopen
-membership is covered by `StudioImportRoundtrip.DestroyAndReopenSameCatalogPreservesMembership`
-(synthetic temp media only; not private corpus / C3).
+Run discovery and execution serially. Import destroy/reopen membership is covered by
+`StudioImportRoundtrip.DestroyAndReopenSameCatalogPreservesMembership` with
+synthetic temporary media; it does not qualify private corpus or C3 behavior.
+`StudioImportWorkspace.RealSourceProgressProbe` accepts an explicit read-only
+directory in `RAVO_IMPORT_SCAN_SOURCE` and checks placeholder/thumbnail progress
+without importing. The committed `Ravo/tests/fixtures/frozen/images` directory
+can exercise that path locally; representative corpus performance still needs
+its own workload and evidence.
+`check_packaged_runtime.py` owns packaged catalog create/import/probe/reopen
+checks. In-tree CLI and script unit results do not qualify deployed package
+runtimes, artifact digests or release acceptance; those gates remain in
+[Packaging.md](Packaging.md).
 
 ## Local labels and validation cadence
 
@@ -1795,19 +1781,18 @@ paths: Windows temporary directories may be inside Home. Tests wait for
 asynchronous ancestor discovery before activating the destination row.
 
 
-## Import recovery and packaged gate follow-up (post-969e3bc)
+## Import lifecycle and package contract gates
 
-Closed on this branch against `mac_clang_debug` command tests + `test_check_packaged_runtime.py`:
+Thumbnail checks distinguish session reset, residency and demand generation,
+including CopyDefault / ThumbnailCache restoration and Select All routing when
+no item is highlighted. Packaged-runtime script tests validate CLI envelopes,
+catalog membership, probe IHDR integrity and DMG top-level symlink handling.
+CI publishes `PACKAGED_EVIDENCE_DIR` before validation and retains fixed failure
+evidence paths. Real DMG/AppImage/DEB host unpack and package-rehearsal digest
+evidence require their deployed environments; unit checks do not qualify REL-02
+or C3. Desktop TSan has the separate instrumented-Qt admission gate below.
 
-- thumbnail session reset + residency/demand split restore CopyDefault / ThumbnailCache
-- demand-generation identity and unselected Select All text routing
-- packaged CLI envelope/membership, probe IHDR integrity, DMG top-level symlink skip
-- CI publishes `PACKAGED_EVIDENCE_DIR` before validation and uploads fixed evidence paths on failure
-
-Still UNTESTED here: TSan Import matrix, real DMG/AppImage/DEB host unpack, live `package_rehearsal`
-digest upload for this SHA. Do not upgrade REL-02 / C3 from these unit gates alone.
-
-## Import hardening follow-up tests (post-c94850e)
+Relevant contracts include:
 
 - `StudioImportThumbnailScheduler.OverBudgetDemandReachesFiniteTerminalWithoutThrash`
 - `StudioImportThumbnailScheduler.OverBudgetComparesDispatchCompleteAndDeferredSets`
