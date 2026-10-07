@@ -44,163 +44,6 @@ namespace
 
 inline constexpr std::size_t kMaximumPendingThumbnailRequests = kLibraryPageDefaultSize * 3U;
 
-[[nodiscard]] QImage scope_image(const RgbScopeImage &scope)
-{
-    if (scope.width == 0U || scope.height == 0U ||
-        scope.rgb.size() != static_cast<std::size_t>(scope.width) * scope.height * 3U)
-        return {};
-    const QImage view(scope.rgb.data(), static_cast<int>(scope.width),
-                      static_cast<int>(scope.height), static_cast<int>(scope.width * 3U),
-                      QImage::Format_RGB888);
-    return view.copy();
-}
-
-struct PreparedScopeAnalysis
-{
-    QString scope_mode;
-    RgbHistogram histogram;
-    QImage diagnostic;
-};
-
-struct PreparedPreviewAnalysis : PreparedScopeAnalysis
-{
-    QString pixel_sha256;
-};
-
-[[nodiscard]] Result<QString> preview_pixel_sha256(const QImage &image, const QString &profile_id,
-                                                   const CancellationToken &cancellation)
-{
-    if (image.isNull())
-        return make_error(ErrorCode::kValidation, "Preview identity image is empty");
-    const QImage rgb = image.format() == QImage::Format_RGB888 ?
-                           image :
-                           image.convertToFormat(QImage::Format_RGB888);
-    auto active = cancellation.check();
-    if (!active)
-        return active.error();
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    for (int row = 0; row < rgb.height(); ++row)
-    {
-        if ((row & 15) == 0)
-        {
-            active = cancellation.check();
-            if (!active)
-                return active.error();
-        }
-        hash.addData(QByteArrayView(reinterpret_cast<const char *>(rgb.constScanLine(row)),
-                                    static_cast<qsizetype>(rgb.width() * 3)));
-    }
-    hash.addData(profile_id.toUtf8());
-    active = cancellation.check();
-    if (!active)
-        return active.error();
-    return QString::fromLatin1(hash.result().toHex());
-}
-
-[[nodiscard]] Result<PreparedScopeAnalysis>
-prepare_scope_analysis(const QImage &scope_source, const QString &scope_mode,
-                       const CancellationToken &cancellation)
-{
-    if (scope_source.isNull())
-        return make_error(ErrorCode::kValidation, "Preview scope image is empty");
-
-    QImage rgb = scope_source;
-    if (rgb.format() != QImage::Format_RGB888)
-        rgb = rgb.convertToFormat(QImage::Format_RGB888);
-    if (rgb.width() <= 0 || rgb.height() <= 0)
-        return make_error(ErrorCode::kValidation, "Preview scope dimensions are invalid");
-
-    RasterBuffer raster;
-    raster.width = static_cast<std::uint32_t>(rgb.width());
-    raster.height = static_cast<std::uint32_t>(rgb.height());
-    raster.srgb.resize(static_cast<std::size_t>(raster.width) * raster.height * 3U);
-    for (std::uint32_t y = 0; y < raster.height; ++y)
-    {
-        if ((y & 15U) == 0U)
-        {
-            auto active = cancellation.check();
-            if (!active)
-                return active.error();
-        }
-        const auto *row = rgb.constScanLine(static_cast<int>(y));
-        std::copy_n(row, static_cast<std::size_t>(raster.width) * 3U,
-                    raster.srgb.begin() + static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) *
-                                                                      raster.width * 3U));
-    }
-
-    auto histogram = collect_rgb_histogram(raster);
-    if (!histogram)
-        return histogram.error();
-    auto active = cancellation.check();
-    if (!active)
-        return active.error();
-
-    PreparedScopeAnalysis result;
-    result.scope_mode = scope_mode;
-    result.histogram = std::move(histogram).value();
-    if (scope_mode == QLatin1String("parade"))
-    {
-        auto parade = collect_rgb_parade(raster);
-        if (!parade)
-            return parade.error();
-        const auto &value = parade.value();
-        if (value.bins == 0 || value.tones == 0 ||
-            value.rgb.size() != static_cast<std::size_t>(value.bins) * 3U * value.tones * 3U)
-        {
-            return make_error(ErrorCode::kValidation, "Preview RGB parade is invalid");
-        }
-        const QImage view(value.rgb.data(), static_cast<int>(value.bins * 3U),
-                          static_cast<int>(value.tones), static_cast<int>(value.bins * 9U),
-                          QImage::Format_RGB888);
-        result.diagnostic = view.copy();
-    }
-    else if (scope_mode == QLatin1String("waveform"))
-    {
-        auto waveform = collect_rgb_waveform(raster);
-        if (!waveform)
-            return waveform.error();
-        result.diagnostic = scope_image(waveform.value());
-    }
-    else if (scope_mode == QLatin1String("vectorscope"))
-    {
-        auto vectorscope = collect_uv_vectorscope(raster);
-        if (!vectorscope)
-            return vectorscope.error();
-        result.diagnostic = scope_image(vectorscope.value());
-    }
-    else if (scope_mode == QLatin1String("split"))
-    {
-        auto split = collect_split_scope(raster);
-        if (!split)
-            return split.error();
-        result.diagnostic = scope_image(split.value());
-    }
-    active = cancellation.check();
-    if (!active)
-        return active.error();
-    return result;
-}
-
-[[nodiscard]] Result<PreparedPreviewAnalysis>
-prepare_preview_analysis(const QImage &identity_image, const QImage &scope_source,
-                         const QString &profile_id, const QString &scope_mode,
-                         const CancellationToken &cancellation)
-{
-    auto digest = preview_pixel_sha256(identity_image, profile_id, cancellation);
-    if (!digest)
-        return digest.error();
-    auto scopes = prepare_scope_analysis(scope_source, scope_mode, cancellation);
-    if (!scopes)
-        return scopes.error();
-    auto prepared_scopes = std::move(scopes).value();
-    PreparedPreviewAnalysis result;
-    result.scope_mode = std::move(prepared_scopes.scope_mode);
-    result.histogram = std::move(prepared_scopes.histogram);
-    result.diagnostic = std::move(prepared_scopes.diagnostic);
-    result.pixel_sha256 = std::move(digest).value();
-    return result;
-}
-
 [[nodiscard]] Result<QImage> preview_result_image(const PreviewResult &preview,
                                                   QCache<QString, QImage> &decoded_images)
 {
@@ -761,11 +604,6 @@ int StudioPresenter::previewViewportWidth() const noexcept
     return preview_viewport_width_;
 }
 
-QVariantMap StudioPresenter::cropPreviewLayout() const
-{
-    return crop_preview_layout_;
-}
-
 int StudioPresenter::previewViewportHeight() const noexcept
 {
     return preview_viewport_height_;
@@ -788,277 +626,65 @@ QImage StudioPresenter::comparisonBeforeImage() const
     return comparison_before_image_;
 }
 
-bool StudioPresenter::clear_comparison()
-{
-    const bool changed =
-        comparison_active_ || comparison_before_requested_ || !comparison_before_url_.isEmpty();
-    comparison_active_ = false;
-    comparison_before_requested_ = false;
-    if (pending_preview_.has_value() && pending_preview_->comparison_before)
-    {
-        pending_preview_.reset();
-    }
-    {
-        const QMutexLocker lock(&preview_image_mutex_);
-        comparison_before_image_ = QImage();
-    }
-    comparison_before_base_image_ = QImage();
-    comparison_before_output_profile_ = {};
-    comparison_before_url_.clear();
-    return changed;
-}
-
 void StudioPresenter::clear_displayed_preview()
 {
-    cancel_preview_analysis("preview_cleared");
-    static_cast<void>(clear_comparison());
+    inspect_.cancel_preview_analysis("preview_cleared");
+    static_cast<void>(develop_presenter_->clear_comparison());
     {
         const QMutexLocker lock(&preview_image_mutex_);
         preview_image_ = QImage();
         preview_url_.clear();
     }
     preview_base_image_ = QImage();
+    inspect_.setBaseSource({});
     preview_output_profile_ = {};
     comparison_before_base_image_ = QImage();
     comparison_before_output_profile_ = {};
     preview_viewport_width_ = 0;
     preview_viewport_height_ = 0;
-    crop_preview_layout_.clear();
+    inspect_.observeFrameLayout({});
     preview_mask_alpha_.clear();
     live_preview_revision_ = 0;
     live_preview_width_ = 0;
     live_preview_height_ = 0;
     live_preview_color_profile_id_.clear();
-    live_preview_pixel_sha256_.clear();
-    displayed_develop_.reset();
+    inspect_.resetIdentity();
+    inspect_.observeDisplayedDevelop({});
     gpu_preview_generation_ = 0;
     gpu_preview_native_surface_ = 0;
     release_gpu_preview_presented_surface();
     gpu_preview_width_ = 0;
     gpu_preview_height_ = 0;
-    clear_scopes();
-}
-
-QVariantList
-StudioPresenter::histogram_channel_list(const std::array<std::uint32_t, kRgbHistogramBins> &channel)
-{
-    QVariantList list;
-    list.reserve(static_cast<qsizetype>(kRgbHistogramBins));
-    for (const auto count : channel)
-    {
-        list.push_back(QVariant::fromValue(count));
-    }
-    return list;
-}
-
-void StudioPresenter::clear_scopes()
-{
-    scope_histogram_ = {};
-    scope_parade_image_ = QImage();
-    scope_parade_url_.clear();
-    scope_waveform_image_ = QImage();
-    scope_waveform_url_.clear();
-    scope_vectorscope_image_ = QImage();
-    scope_vectorscope_url_.clear();
-    scope_split_image_ = QImage();
-    scope_split_url_.clear();
-    ++scope_revision_;
-    emit scopesChanged();
+    inspect_.clear_scopes();
 }
 
 void StudioPresenter::refresh_scopes_from_thumbnail(const QString &asset_id)
 {
     if (asset_id.isEmpty())
     {
-        clear_scopes();
+        inspect_.clear_scopes();
         return;
     }
     const auto id = utf8_from_qstring(asset_id);
     const auto base = thumbnail_base_paths_.find(id);
     if (base != thumbnail_base_paths_.end() && QFileInfo::exists(base->second))
     {
-        refresh_scopes(QImage(base->second));
+        inspect_.refresh_scopes(QImage(base->second));
         return;
     }
     const int row = assets_.indexOf(asset_id);
     if (row < 0)
     {
-        clear_scopes();
+        inspect_.clear_scopes();
         return;
     }
     const QUrl url = assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
     if (!url.isLocalFile())
     {
-        clear_scopes();
+        inspect_.clear_scopes();
         return;
     }
-    refresh_scopes(QImage(url.toLocalFile()));
-}
-
-void StudioPresenter::refresh_scopes(const QImage &image)
-{
-    auto prepared = prepare_scope_analysis(image, scope_mode_, {});
-    if (!prepared)
-    {
-        clear_scopes();
-        return;
-    }
-    auto analysis = std::move(prepared).value();
-    scope_histogram_ = std::move(analysis.histogram);
-    ++scope_revision_;
-    if (scope_mode_ == QLatin1String("parade"))
-    {
-        scope_parade_image_ = std::move(analysis.diagnostic);
-        scope_parade_url_ =
-            QUrl(QStringLiteral("image://studioScope/parade?r=%1").arg(scope_revision_));
-    }
-    else if (scope_mode_ == QLatin1String("waveform"))
-    {
-        scope_waveform_image_ = std::move(analysis.diagnostic);
-        scope_waveform_url_ =
-            QUrl(QStringLiteral("image://studioScope/waveform?r=%1").arg(scope_revision_));
-    }
-    else if (scope_mode_ == QLatin1String("vectorscope"))
-    {
-        scope_vectorscope_image_ = std::move(analysis.diagnostic);
-        scope_vectorscope_url_ =
-            QUrl(QStringLiteral("image://studioScope/vectorscope?r=%1").arg(scope_revision_));
-    }
-    else if (scope_mode_ == QLatin1String("split"))
-    {
-        scope_split_image_ = std::move(analysis.diagnostic);
-        scope_split_url_ =
-            QUrl(QStringLiteral("image://studioScope/split?r=%1").arg(scope_revision_));
-    }
-    emit scopesChanged();
-}
-
-void StudioPresenter::schedule_preview_analysis(const QImage &identity_image,
-                                                const QImage &scope_source,
-                                                const std::uint64_t preview_revision,
-                                                const std::string &asset_id,
-                                                const QString &profile_id)
-{
-    const auto analysis_revision = preview_analysis_owner_.supersede("preview_analysis_superseded");
-    const auto cancellation = preview_analysis_owner_.begin();
-    const QString requested_scope_mode = scope_mode_;
-    preview_identity_pending_ = true;
-
-    std::function<void()> task = [this, identity_image, scope_source, preview_revision, asset_id,
-                                  profile_id, requested_scope_mode, analysis_revision, cancellation]
-    {
-        auto prepared = prepare_preview_analysis(identity_image, scope_source, profile_id,
-                                                 requested_scope_mode, cancellation);
-        QMetaObject::invokeMethod(
-            this,
-            [this, preview_revision, asset_id, analysis_revision,
-             prepared = std::move(prepared)]() mutable
-            {
-                if (!preview_analysis_owner_.accepts(analysis_revision, asset_id,
-                                                     utf8_from_qstring(selected_asset_id_)) ||
-                    live_preview_revision_ != preview_revision)
-                {
-                    return;
-                }
-                preview_identity_pending_ = false;
-                if (!prepared)
-                {
-                    live_preview_pixel_sha256_.clear();
-                    if (prepared.error().code != ErrorCode::kCancelled)
-                    {
-                        clear_scopes();
-                        setError(qstring_from_utf8(prepared.error().message));
-                    }
-                    emit previewIdentityChanged();
-                    return;
-                }
-
-                auto analysis = std::move(prepared).value();
-                live_preview_pixel_sha256_ = std::move(analysis.pixel_sha256);
-                if (analysis.scope_mode == scope_mode_)
-                {
-                    scope_histogram_ = std::move(analysis.histogram);
-                    ++scope_revision_;
-                    if (scope_mode_ == QLatin1String("parade"))
-                    {
-                        scope_parade_image_ = std::move(analysis.diagnostic);
-                        scope_parade_url_ = QUrl(
-                            QStringLiteral("image://studioScope/parade?r=%1").arg(scope_revision_));
-                    }
-                    else if (scope_mode_ == QLatin1String("waveform"))
-                    {
-                        scope_waveform_image_ = std::move(analysis.diagnostic);
-                        scope_waveform_url_ =
-                            QUrl(QStringLiteral("image://studioScope/waveform?r=%1")
-                                     .arg(scope_revision_));
-                    }
-                    else if (scope_mode_ == QLatin1String("vectorscope"))
-                    {
-                        scope_vectorscope_image_ = std::move(analysis.diagnostic);
-                        scope_vectorscope_url_ =
-                            QUrl(QStringLiteral("image://studioScope/vectorscope?r=%1")
-                                     .arg(scope_revision_));
-                    }
-                    else if (scope_mode_ == QLatin1String("split"))
-                    {
-                        scope_split_image_ = std::move(analysis.diagnostic);
-                        scope_split_url_ = QUrl(
-                            QStringLiteral("image://studioScope/split?r=%1").arg(scope_revision_));
-                    }
-                    emit scopesChanged();
-                }
-                emit previewIdentityChanged();
-            },
-            Qt::QueuedConnection);
-    };
-
-    bool start_worker = false;
-    {
-        const QMutexLocker lock(&preview_analysis_queue_mutex_);
-        pending_preview_analysis_ = std::move(task);
-        if (!preview_analysis_worker_active_)
-        {
-            preview_analysis_worker_active_ = true;
-            start_worker = true;
-        }
-    }
-    if (start_worker && !preview_analysis_executor_.post([this] { drain_preview_analysis(); }))
-    {
-        {
-            const QMutexLocker lock(&preview_analysis_queue_mutex_);
-            pending_preview_analysis_.reset();
-            preview_analysis_worker_active_ = false;
-        }
-        preview_identity_pending_ = false;
-        setError(QStringLiteral("Preview analysis worker is unavailable."));
-    }
-}
-
-void StudioPresenter::drain_preview_analysis()
-{
-    for (;;)
-    {
-        std::function<void()> task;
-        {
-            const QMutexLocker lock(&preview_analysis_queue_mutex_);
-            if (!pending_preview_analysis_)
-            {
-                preview_analysis_worker_active_ = false;
-                return;
-            }
-            task = std::move(*pending_preview_analysis_);
-            pending_preview_analysis_.reset();
-        }
-        task();
-    }
-}
-
-void StudioPresenter::cancel_preview_analysis(std::string reason)
-{
-    static_cast<void>(preview_analysis_owner_.supersede(std::move(reason)));
-    const QMutexLocker lock(&preview_analysis_queue_mutex_);
-    pending_preview_analysis_.reset();
-    preview_identity_pending_ = false;
+    inspect_.refresh_scopes(QImage(url.toLocalFile()));
 }
 
 void StudioPresenter::show_preview_result(const PreviewResult &preview,
@@ -1078,7 +704,8 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
     QImage owned = std::move(prepared).value();
     preview_mask_alpha_ = preview.mask_alpha;
     QImage displayed = owned;
-    if (mask_overlay_visible_ && !preview.mask_alpha.empty() && engine_.has_value())
+    if (develop_presenter_->state().mask_overlay_visible_ && !preview.mask_alpha.empty() &&
+        engine_.has_value())
     {
         std::vector<std::uint8_t> rgb(static_cast<std::size_t>(owned.width()) *
                                       static_cast<std::size_t>(owned.height()) * 3U);
@@ -1121,6 +748,7 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         preview_output_profile_.icc_bytes.assign(begin, begin + icc.size());
     }
     preview_base_image_ = displayed;
+    inspect_.setBaseSource(preview_base_image_);
     QImage presented = apply_display_presentation_image(displayed, preview_output_profile_);
     {
         const QMutexLocker lock(&preview_image_mutex_);
@@ -1145,16 +773,16 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         gpu_preview_width_ = 0;
         gpu_preview_height_ = 0;
     }
-    crop_preview_layout_.clear();
+    inspect_.observeFrameLayout({});
     if (preview.crop_geometry)
     {
         const auto &geometry = *preview.crop_geometry;
-        crop_preview_layout_ = {{"x", geometry.region.x},
-                                {"y", geometry.region.y},
-                                {"width", geometry.region.width},
-                                {"height", geometry.region.height},
-                                {"widthScale", geometry.width_scale},
-                                {"heightScale", geometry.height_scale}};
+        inspect_.observeFrameLayout({{"x", geometry.region.x},
+                                     {"y", geometry.region.y},
+                                     {"width", geometry.region.width},
+                                     {"height", geometry.region.height},
+                                     {"widthScale", geometry.width_scale},
+                                     {"heightScale", geometry.height_scale}});
     }
     const QSize viewport_size =
         stable_preview_viewport_size(QSize(preview_viewport_width_, preview_viewport_height_),
@@ -1171,12 +799,12 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         if (live_preview_color_profile_id_.isEmpty())
             live_preview_color_profile_id_ = QStringLiteral("embedded-icc");
     }
-    live_preview_pixel_sha256_.clear();
+    inspect_.resetIdentity();
     preview_url_ = !preview.rgb.empty() || preserve_viewport_extent ?
                        QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision)) :
                        QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
-    schedule_preview_analysis(displayed, owned, revision, preview.asset_id,
-                              live_preview_color_profile_id_);
+    inspect_.schedule_preview_analysis(displayed, owned, revision, preview.asset_id,
+                                       live_preview_color_profile_id_);
 }
 
 void StudioPresenter::show_comparison_before_result(const PreviewResult &preview,
@@ -1203,96 +831,6 @@ void StudioPresenter::show_comparison_before_result(const PreviewResult &preview
 bool StudioPresenter::previewLoading() const noexcept
 {
     return preview_loading_;
-}
-
-QString StudioPresenter::scopeMode() const
-{
-    return scope_mode_;
-}
-
-void StudioPresenter::setScopeMode(const QString &mode)
-{
-    const QString next = mode == QLatin1String("waveform")    ? QStringLiteral("waveform") :
-                         mode == QLatin1String("parade")      ? QStringLiteral("parade") :
-                         mode == QLatin1String("vectorscope") ? QStringLiteral("vectorscope") :
-                         mode == QLatin1String("split")       ? QStringLiteral("split") :
-                                                                QStringLiteral("histogram");
-    if (scope_mode_ == next)
-    {
-        return;
-    }
-    scope_mode_ = next;
-    if (preview_base_image_.isNull())
-    {
-        emit scopesChanged();
-        return;
-    }
-    refresh_scopes(preview_base_image_);
-}
-
-QVariantList StudioPresenter::scopeHistogramRed() const
-{
-    return histogram_channel_list(scope_histogram_.red);
-}
-
-QVariantList StudioPresenter::scopeHistogramGreen() const
-{
-    return histogram_channel_list(scope_histogram_.green);
-}
-
-QVariantList StudioPresenter::scopeHistogramBlue() const
-{
-    return histogram_channel_list(scope_histogram_.blue);
-}
-
-QVariantList StudioPresenter::scopeHistogramLuma() const
-{
-    return histogram_channel_list(scope_histogram_.luma);
-}
-
-double StudioPresenter::scopeHistogramMax() const noexcept
-{
-    return static_cast<double>(scope_histogram_.max_count);
-}
-
-QUrl StudioPresenter::scopeParadeUrl() const
-{
-    return scope_parade_url_;
-}
-
-QImage StudioPresenter::scopeParadeImage() const
-{
-    return scope_parade_image_;
-}
-
-QUrl StudioPresenter::scopeWaveformUrl() const
-{
-    return scope_waveform_url_;
-}
-
-QImage StudioPresenter::scopeWaveformImage() const
-{
-    return scope_waveform_image_;
-}
-
-QUrl StudioPresenter::scopeVectorscopeUrl() const
-{
-    return scope_vectorscope_url_;
-}
-
-QImage StudioPresenter::scopeVectorscopeImage() const
-{
-    return scope_vectorscope_image_;
-}
-
-QUrl StudioPresenter::scopeSplitUrl() const
-{
-    return scope_split_url_;
-}
-
-QImage StudioPresenter::scopeSplitImage() const
-{
-    return scope_split_image_;
 }
 
 void StudioPresenter::ensureThumbnail(const QString &asset_id)
@@ -1353,7 +891,7 @@ void StudioPresenter::startThumbnailRequest(std::string id)
                 request.purpose = PreviewPurpose::kBrowse;
                 request.prefer_embedded_preview = true;
                 request.cancellation = cancellation;
-                preview = service_->request_preview(request);
+                preview = service_->preview().request_preview(request);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -1452,7 +990,7 @@ void StudioPresenter::requestPreviewForSelection()
         requestSurveyPreviews();
         return;
     }
-    enqueue_preview();
+    develop_presenter_->enqueue_preview();
 }
 
 void StudioPresenter::rebuild_survey_slots()
@@ -1526,7 +1064,7 @@ void StudioPresenter::startSurveyPreviewRequest(std::string id)
                 request.purpose = PreviewPurpose::kBrowse;
                 request.prefer_embedded_preview = false;
                 request.cancellation = cancellation;
-                preview = service_->request_preview(request);
+                preview = service_->preview().request_preview(request);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -1682,7 +1220,7 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
     const auto revision = inspect_roi_owner_.supersede("inspect_roi_requested");
     const auto cancellation = inspect_roi_owner_.begin();
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    const auto params = develop_;
+    const auto params = develop_presenter_->state().develop_;
     static_cast<void>(executor_.post(
         [this, roi, revision, cancellation, asset_id, params]()
         {
@@ -1697,7 +1235,7 @@ void StudioPresenter::requestInspectRoi(const double x, const double y, const do
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
-                preview = service_->request_preview(request, params);
+                preview = service_->preview().request_preview(request, params);
                 if (preview)
                 {
                     auto owned = own_preview_pixels_for_handoff(preview.value(), cancellation);

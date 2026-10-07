@@ -31,7 +31,7 @@ void StudioImportDestinationPreviewController::shutdown()
         return;
     stopped_ = true;
     timer_.stop();
-    static_cast<void>(operation_.cancel("destination_preview_shutdown"));
+    operation_.cancel("destination_preview_shutdown");
 }
 
 void StudioImportDestinationPreviewController::invalidateCacheKey()
@@ -44,9 +44,8 @@ void StudioImportDestinationPreviewController::clearPublished()
     if (stopped_)
         return;
     timer_.stop();
-    static_cast<void>(operation_.cancel("destination_preview_cleared"));
-    operation_ = CancellationSource{};
-    ++generation_;
+    static_cast<void>(operation_.invalidate("destination_preview_cleared"));
+    static_cast<void>(operation_.begin());
     key_.clear();
     folders_.clear();
     tree_folders_.clear();
@@ -65,9 +64,8 @@ void StudioImportDestinationPreviewController::refresh()
     if (next == key_)
         return;
     key_ = std::move(next);
-    static_cast<void>(operation_.cancel("destination_preview_changed"));
-    operation_ = CancellationSource{};
-    ++generation_;
+    static_cast<void>(operation_.invalidate("destination_preview_changed"));
+    static_cast<void>(operation_.begin());
     timer_.stop();
     folders_.clear();
     tree_folders_.clear();
@@ -81,7 +79,7 @@ void StudioImportDestinationPreviewController::refresh()
 void StudioImportDestinationPreviewController::publishResult(
     const std::uint64_t generation, Result<ImportDestinationPreview> preview)
 {
-    if (stopped_ || generation != generation_)
+    if (stopped_ || !operation_.accepts(generation))
         return;
     if (host_.page_open && !host_.page_open())
         return;
@@ -111,7 +109,7 @@ void StudioImportDestinationPreviewController::start()
         return;
     auto request = host_.build_request();
     request.cancellation = operation_.token();
-    const auto generation = generation_;
+    const auto generation = operation_.revision();
     const bool queued = host_.executor->post(
         [this, request = std::move(request), generation]
         {

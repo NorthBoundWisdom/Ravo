@@ -1,4 +1,11 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/merge_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/develop_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include <algorithm>
 #include <cmath>
@@ -16,6 +23,21 @@
 
 namespace ravo
 {
+
+PhotoMergeService::PhotoMergeService(
+    const std::unique_ptr<CatalogRepository> &repository,
+    const std::unique_ptr<RasterDecoder> &raster, const EngineFacade *const &engine,
+    const std::function<Result<void>(std::string_view)> &merge_checkpoint,
+    DevelopService &develop_service, RecoveryService &recovery_service) noexcept
+    : repository_(repository)
+    , raster_(raster)
+    , engine_(engine)
+    , testing_merge_checkpoint_(merge_checkpoint)
+    , develop_service_(develop_service)
+    , recovery_service_(recovery_service)
+{
+}
+
 namespace
 {
 struct MergeSource
@@ -56,7 +78,7 @@ Result<void> unchanged(const MergeSource &source, const CancellationToken &cance
 }
 } // namespace
 
-Result<PhotoMergeResult> CatalogService::merge_selected_photos(const PhotoMergeRequest &request)
+Result<PhotoMergeResult> PhotoMergeService::merge_selected_photos(const PhotoMergeRequest &request)
 {
     std::vector<std::string> owned;
     bool catalog_committed = false;
@@ -143,10 +165,10 @@ Result<PhotoMergeResult> CatalogService::merge_selected_photos(const PhotoMergeR
             const auto pixels = std::uint64_t(width) * height;
             input_pixels += pixels;
             largest_pixels = std::max(largest_pixels, pixels);
-            auto baseline = load_baseline_recipe(id);
+            auto baseline = develop_service_.load_baseline_recipe(id);
             if (!baseline)
                 return baseline.error();
-            auto saved = load_recipe(id);
+            auto saved = develop_service_.load_recipe(id);
             if (!saved)
                 return saved.error();
             auto serialized = serialize_recipe(saved.value());
@@ -423,7 +445,8 @@ Result<PhotoMergeResult> CatalogService::merge_selected_photos(const PhotoMergeR
             return fail(committed.error());
         catalog_committed = true;
         owned.clear();
-        auto recovered = synchronize_committed_change(asset_id, CancellationToken{});
+        auto recovered =
+            recovery_service_.synchronize_committed_change(asset_id, CancellationToken{});
         if (!recovered)
         {
             auto error = recovered.error();

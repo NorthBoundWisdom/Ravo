@@ -4,7 +4,7 @@
 #include <string>
 #include <string_view>
 
-#include "ravo/foundation/cancellation.h"
+#include "ravo/foundation/cancellation_generation.h"
 
 namespace ravo
 {
@@ -22,8 +22,7 @@ public:
     void cancel(std::string reason);
 
 private:
-    std::uint64_t revision_ = 0;
-    CancellationSource active_;
+    CancellationGeneration generation_;
 };
 
 } // namespace ravo

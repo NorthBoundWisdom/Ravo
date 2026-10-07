@@ -24,7 +24,7 @@ Result<JsonValue> run_catalog_merge_command(CatalogService &service,
     request.max_edge = flags.max_edge.value_or(0);
     request.output_path = std::string(flags.output);
     request.expected_catalog_revision = flags.expected_revision;
-    auto merged = service.merge_selected_photos(request);
+    auto merged = service.merge().merge_selected_photos(request);
     if (!merged)
         return merged.error();
     const auto &result = merged.value();

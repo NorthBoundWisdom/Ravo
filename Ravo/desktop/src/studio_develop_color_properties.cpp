@@ -1,4 +1,4 @@
-#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_develop_presenter.h"
 
 #include "studio_develop_internal.h"
 
@@ -119,7 +119,7 @@ constexpr int kColorHarmonizerCustomNodesDecimals = 0;
 
 } // namespace
 
-QVariantMap StudioPresenter::editColorHarmonizer() const
+QVariantMap StudioDevelopPresenter::editColorHarmonizer() const
 {
     const auto &params = edit_develop().color_harmonizer;
     const ColorHarmonizerParams defaults;
@@ -242,31 +242,31 @@ QVariantMap StudioPresenter::editColorHarmonizer() const
         {QStringLiteral("nodeSaturationControls"), node_saturation_controls}};
 }
 
-QVariantMap StudioPresenter::editColorHarmonizerMask() const
+QVariantMap StudioDevelopPresenter::editColorHarmonizerMask() const
 {
     return develop_mask_editor_map(
         develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kColorHarmonizer),
         DevelopMaskTarget::kColorHarmonizer);
 }
 
-QVariantMap StudioPresenter::editColorBalanceRgbMask() const
+QVariantMap StudioDevelopPresenter::editColorBalanceRgbMask() const
 {
     return develop_mask_editor_map(
         develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kColorBalanceRgb),
         DevelopMaskTarget::kColorBalanceRgb);
 }
 
-bool StudioPresenter::maskOverlayVisible() const noexcept
+bool StudioDevelopPresenter::maskOverlayVisible() const noexcept
 {
-    return mask_overlay_visible_;
+    return state_.mask_overlay_visible_;
 }
 
-QString StudioPresenter::maskOverlayTarget() const
+QString StudioDevelopPresenter::maskOverlayTarget() const
 {
-    return mask_overlay_target_;
+    return state_.mask_overlay_target_;
 }
 
-void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
+void StudioDevelopPresenter::setMaskOverlay(const QString &target, const bool visible)
 {
     QString normalized = QStringLiteral("color_harmonizer");
     if (target == QLatin1String("graduatednd"))
@@ -290,15 +290,16 @@ void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
     else if (target == QLatin1String("blacks"))
         normalized = QStringLiteral("blacks");
     const bool comparison_changed = visible && clear_comparison();
-    const bool changed = mask_overlay_visible_ != visible || mask_overlay_target_ != normalized;
-    mask_overlay_visible_ = visible;
-    mask_overlay_target_ = normalized;
-    const bool place_cleared = !visible && mask_place_active_;
+    const bool changed =
+        state_.mask_overlay_visible_ != visible || state_.mask_overlay_target_ != normalized;
+    state_.mask_overlay_visible_ = visible;
+    state_.mask_overlay_target_ = normalized;
+    const bool place_cleared = !visible && state_.mask_place_active_;
     if (place_cleared)
-        mask_place_active_ = false;
-    const bool assist_cleared = !visible && mask_parametric_assist_active_;
+        state_.mask_place_active_ = false;
+    const bool assist_cleared = !visible && state_.mask_parametric_assist_active_;
     if (assist_cleared)
-        mask_parametric_assist_active_ = false;
+        state_.mask_parametric_assist_active_ = false;
     if (!changed && !comparison_changed && !place_cleared && !assist_cleared)
     {
         return;
@@ -312,8 +313,7 @@ void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
     {
         if (!preview_base_image_.isNull())
         {
-            const QMutexLocker lock(&preview_image_mutex_);
-            preview_image_ = preview_base_image_;
+            host_.restore_preview_base();
         }
         emit previewChanged();
         return;
@@ -321,65 +321,68 @@ void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
     enqueue_preview();
 }
 
-bool StudioPresenter::maskPlaceActive() const noexcept
+bool StudioDevelopPresenter::maskPlaceActive() const noexcept
 {
-    return mask_place_active_;
+    return state_.mask_place_active_;
 }
 
-bool StudioPresenter::maskPlaceGeometryAllowed() const noexcept
+bool StudioDevelopPresenter::maskPlaceGeometryAllowed() const noexcept
 {
-    return mask_place_geometry_allowed(develop_);
+    return mask_place_geometry_allowed(state_.develop_);
 }
 
-void StudioPresenter::setMaskPlaceActive(const bool active)
+void StudioDevelopPresenter::setMaskPlaceActive(const bool active)
 {
-    const bool enabled = active && mask_overlay_visible_ && mask_place_geometry_allowed(develop_);
-    if (mask_place_active_ == enabled)
+    const bool enabled =
+        active && state_.mask_overlay_visible_ && mask_place_geometry_allowed(state_.develop_);
+    if (state_.mask_place_active_ == enabled)
         return;
     if (enabled)
     {
         static_cast<void>(clear_comparison());
-        if (crop_tool_active_)
+        if (state_.crop_tool_active_)
             setCropToolActive(false);
-        if (white_balance_pick_active_)
+        if (state_.white_balance_pick_active_)
             setWhiteBalancePickActive(false);
-        if (mask_parametric_assist_active_)
-            mask_parametric_assist_active_ = false;
+        if (state_.mask_parametric_assist_active_)
+            state_.mask_parametric_assist_active_ = false;
     }
-    mask_place_active_ = enabled;
+    state_.mask_place_active_ = enabled;
     emit editChanged();
     if (enabled)
         emit previewChanged();
 }
 
-void StudioPresenter::placeMask(const double preview_x, const double preview_y)
+void StudioDevelopPresenter::placeMask(const double preview_x, const double preview_y)
 {
-    if (!mask_place_active_ || !mask_overlay_visible_)
+    if (!state_.mask_place_active_ || !state_.mask_overlay_visible_)
         return;
-    const auto target = develop_mask_target_from_name(utf8_from_qstring(mask_overlay_target_));
+    const auto target =
+        develop_mask_target_from_name(utf8_from_qstring(state_.mask_overlay_target_));
     if (!target)
     {
-        setError(QCoreApplication::translate("DevelopPanel",
-                                             "Mask click placement has no overlay target"));
+        emit errorOccurred(QCoreApplication::translate(
+            "DevelopPanel", "Mask click placement has no overlay target"));
         setMaskPlaceActive(false);
         return;
     }
-    auto mapped = map_mask_place_preview(develop_, preview_x, preview_y);
+    auto mapped = map_mask_place_preview(state_.develop_, preview_x, preview_y);
     if (!mapped)
     {
         const auto reason = mapped.error().context.find("reason");
         const auto reason_text = reason == mapped.error().context.end() ?
                                      QStringLiteral("unknown") :
                                      qstring_from_utf8(reason->second);
-        setError(QCoreApplication::translate("DevelopPanel", "Mask click placement was rejected") +
-                 QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+        emit errorOccurred(
+            QCoreApplication::translate("DevelopPanel", "Mask click placement was rejected") +
+            QStringLiteral(" [") + reason_text + QStringLiteral("]"));
         setMaskPlaceActive(false);
         return;
     }
-    const auto state = develop_mask_editor_state(develop_, *target);
+    const auto state = develop_mask_editor_state(state_.develop_, *target);
     if (!state.attached || !state.editable)
     {
-        setError(QCoreApplication::translate(
+        emit errorOccurred(QCoreApplication::translate(
             "DevelopPanel", "Mask click placement requires an editable attached mask"));
         setMaskPlaceActive(false);
         return;
@@ -402,12 +405,12 @@ void StudioPresenter::placeMask(const double preview_x, const double preview_y)
     }
     else
     {
-        setError(QCoreApplication::translate(
+        emit errorOccurred(QCoreApplication::translate(
             "DevelopPanel", "Mask click placement supports circle, ellipse, or linear gradient"));
         setMaskPlaceActive(false);
         return;
     }
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     const auto mask_field = utf8_from_qstring(x_field);
     capture_instance_front_for_field(next, mask_field);
     auto applied_x =
@@ -418,8 +421,8 @@ void StudioPresenter::placeMask(const double preview_x, const double preview_y)
         const auto reason_text = reason == applied_x.error().context.end() ?
                                      QStringLiteral("unknown") :
                                      qstring_from_utf8(reason->second);
-        setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
-                 QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+        emit errorOccurred(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                           QStringLiteral(" [") + reason_text + QStringLiteral("]"));
         return;
     }
     auto applied_y =
@@ -430,80 +433,84 @@ void StudioPresenter::placeMask(const double preview_x, const double preview_y)
         const auto reason_text = reason == applied_y.error().context.end() ?
                                      QStringLiteral("unknown") :
                                      qstring_from_utf8(reason->second);
-        setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
-                 QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+        emit errorOccurred(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                           QStringLiteral(" [") + reason_text + QStringLiteral("]"));
         return;
     }
     retarget_instance_edit_after_field(next, mask_field);
     mutate_develop(std::move(next), DevelopEdit::Commit, true, utf8_from_qstring(x_field));
 }
 
-bool StudioPresenter::maskParametricAssistActive() const noexcept
+bool StudioDevelopPresenter::maskParametricAssistActive() const noexcept
 {
-    return mask_parametric_assist_active_;
+    return state_.mask_parametric_assist_active_;
 }
 
-bool StudioPresenter::maskParametricAssistAllowed() const noexcept
+bool StudioDevelopPresenter::maskParametricAssistAllowed() const noexcept
 {
-    return localEditing() || mask_place_geometry_allowed(develop_);
+    return localEditing() || mask_place_geometry_allowed(state_.develop_);
 }
 
-void StudioPresenter::setMaskParametricAssistActive(const bool active)
+void StudioDevelopPresenter::setMaskParametricAssistActive(const bool active)
 {
-    const bool enabled = active && mask_overlay_visible_ &&
-                         (localEditing() || mask_place_geometry_allowed(develop_));
-    if (mask_parametric_assist_active_ == enabled)
+    const bool enabled = active && state_.mask_overlay_visible_ &&
+                         (localEditing() || mask_place_geometry_allowed(state_.develop_));
+    if (state_.mask_parametric_assist_active_ == enabled)
         return;
     if (enabled)
     {
         static_cast<void>(clear_comparison());
-        if (crop_tool_active_)
+        if (state_.crop_tool_active_)
             setCropToolActive(false);
-        if (white_balance_pick_active_)
+        if (state_.white_balance_pick_active_)
             setWhiteBalancePickActive(false);
-        if (mask_place_active_)
-            mask_place_active_ = false;
+        if (state_.mask_place_active_)
+            state_.mask_place_active_ = false;
     }
-    mask_parametric_assist_active_ = enabled;
+    state_.mask_parametric_assist_active_ = enabled;
     emit editChanged();
     if (enabled)
         emit previewChanged();
 }
 
-void StudioPresenter::assistParametricMask(const double preview_x, const double preview_y)
+void StudioDevelopPresenter::assistParametricMask(const double preview_x, const double preview_y)
 {
-    if (!mask_parametric_assist_active_ || !mask_overlay_visible_)
+    if (!state_.mask_parametric_assist_active_ || !state_.mask_overlay_visible_)
         return;
-    const auto target = develop_mask_target_from_name(utf8_from_qstring(mask_overlay_target_));
+    const auto target =
+        develop_mask_target_from_name(utf8_from_qstring(state_.mask_overlay_target_));
     if (!target)
     {
-        setError(
+        emit errorOccurred(
             QCoreApplication::translate("DevelopPanel", "Parametric assist has no overlay target"));
         setMaskParametricAssistActive(false);
         return;
     }
     if (!develop_mask_parametric_assist_allowed(*target))
     {
-        setError(QCoreApplication::translate(
-                     "DevelopPanel", "Parametric assist is not available for this operation") +
-                 QStringLiteral(" [mask_parametric_assist_target_unsupported]"));
+        emit errorOccurred(
+            QCoreApplication::translate("DevelopPanel",
+                                        "Parametric assist is not available for this operation") +
+            QStringLiteral(" [mask_parametric_assist_target_unsupported]"));
         setMaskParametricAssistActive(false);
         return;
     }
-    if (!localEditing() && !mask_place_geometry_allowed(develop_))
+    if (!localEditing() && !mask_place_geometry_allowed(state_.develop_))
     {
-        setError(QCoreApplication::translate(
-                     "DevelopPanel", "Parametric assist is unavailable with Canvas, Perspective, "
-                                     "straighten, rotate, or flip") +
-                 QStringLiteral(" [mask_place_geometry_unavailable]"));
+        emit errorOccurred(QCoreApplication::translate(
+                               "DevelopPanel",
+                               "Parametric assist is unavailable with Canvas, Perspective, "
+                               "straighten, rotate, or flip") +
+                           QStringLiteral(" [mask_place_geometry_unavailable]"));
         setMaskParametricAssistActive(false);
         return;
     }
     if (!std::isfinite(preview_x) || !std::isfinite(preview_y) || preview_x < 0.0 ||
         preview_x > 1.0 || preview_y < 0.0 || preview_y > 1.0)
     {
-        setError(QCoreApplication::translate("DevelopPanel", "Parametric assist was rejected") +
-                 QStringLiteral(" [invalid_parametric_assist_preview]"));
+        emit errorOccurred(
+            QCoreApplication::translate("DevelopPanel", "Parametric assist was rejected") +
+            QStringLiteral(" [invalid_parametric_assist_preview]"));
         setMaskParametricAssistActive(false);
         return;
     }
@@ -511,7 +518,7 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
     if (!state.attached || !state.editable ||
         (state.kind_name != "parametric" && state.child_kind_name != "parametric"))
     {
-        setError(QCoreApplication::translate(
+        emit errorOccurred(QCoreApplication::translate(
             "DevelopPanel", "Parametric assist requires an editable attached parametric mask"));
         setMaskParametricAssistActive(false);
         return;
@@ -524,8 +531,9 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
     }
     if (preview.isNull() || preview.width() <= 0 || preview.height() <= 0)
     {
-        setError(QCoreApplication::translate("DevelopPanel", "Parametric assist needs a preview") +
-                 QStringLiteral(" [mask_parametric_assist_preview_unavailable]"));
+        emit errorOccurred(
+            QCoreApplication::translate("DevelopPanel", "Parametric assist needs a preview") +
+            QStringLiteral(" [mask_parametric_assist_preview_unavailable]"));
         setMaskParametricAssistActive(false);
         return;
     }
@@ -534,8 +542,9 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
                            preview.convertToFormat(QImage::Format_RGB888);
     if (rgb.isNull() || rgb.format() != QImage::Format_RGB888)
     {
-        setError(QCoreApplication::translate("DevelopPanel", "Parametric assist needs a preview") +
-                 QStringLiteral(" [mask_parametric_assist_preview_unavailable]"));
+        emit errorOccurred(
+            QCoreApplication::translate("DevelopPanel", "Parametric assist needs a preview") +
+            QStringLiteral(" [mask_parametric_assist_preview_unavailable]"));
         setMaskParametricAssistActive(false);
         return;
     }
@@ -552,21 +561,22 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
     const double sample = normalized_display_mask_channel(red, green, blue, state.channel_index);
 
     const std::array<std::uint32_t, 256> *bins = nullptr;
-    if (scope_histogram_.max_count > 0U)
+    const auto histogram = inspect_.histogramSnapshot();
+    if (histogram.max_count > 0U)
     {
         switch (state.channel_index)
         {
         case 1:
-            bins = &scope_histogram_.red;
+            bins = &histogram.red;
             break;
         case 2:
-            bins = &scope_histogram_.green;
+            bins = &histogram.green;
             break;
         case 3:
-            bins = &scope_histogram_.blue;
+            bins = &histogram.blue;
             break;
         default:
-            bins = &scope_histogram_.luma;
+            bins = &histogram.luma;
             break;
         }
     }
@@ -577,8 +587,9 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
         const auto reason_text = reason == thresholds.error().context.end() ?
                                      QStringLiteral("unknown") :
                                      qstring_from_utf8(reason->second);
-        setError(QCoreApplication::translate("DevelopPanel", "Parametric assist was rejected") +
-                 QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+        emit errorOccurred(
+            QCoreApplication::translate("DevelopPanel", "Parametric assist was rejected") +
+            QStringLiteral(" [") + reason_text + QStringLiteral("]"));
         setMaskParametricAssistActive(false);
         return;
     }
@@ -606,8 +617,9 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
             const auto reason_text = reason == applied.error().context.end() ?
                                          QStringLiteral("unknown") :
                                          qstring_from_utf8(reason->second);
-            setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
-                     QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+            emit errorOccurred(
+                QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                QStringLiteral(" [") + reason_text + QStringLiteral("]"));
             return;
         }
     }
@@ -617,17 +629,17 @@ void StudioPresenter::assistParametricMask(const double preview_x, const double 
                           utf8_from_qstring(fields[0].first));
 }
 
-void StudioPresenter::retranslate()
+void StudioDevelopPresenter::retranslate()
 {
     emit editChanged();
 }
 
-double StudioPresenter::editMonochrome() const noexcept
+double StudioDevelopPresenter::editMonochrome() const noexcept
 {
     return edit_develop().monochrome.mix;
 }
 
-QVariantMap StudioPresenter::editMonochromeFilter() const
+QVariantMap StudioDevelopPresenter::editMonochromeFilter() const
 {
     const auto &params = edit_develop().monochrome;
     return {{QStringLiteral("present"), edit_develop().monochrome_present},
@@ -640,27 +652,27 @@ QVariantMap StudioPresenter::editMonochromeFilter() const
             {QStringLiteral("mix"), params.mix}};
 }
 
-double StudioPresenter::editSplitShadowsHue() const noexcept
+double StudioDevelopPresenter::editSplitShadowsHue() const noexcept
 {
     return edit_develop().split_toning.shadow_hue;
 }
 
-double StudioPresenter::editSplitHighlightsHue() const noexcept
+double StudioDevelopPresenter::editSplitHighlightsHue() const noexcept
 {
     return edit_develop().split_toning.highlight_hue;
 }
 
-double StudioPresenter::editSplitBalance() const noexcept
+double StudioDevelopPresenter::editSplitBalance() const noexcept
 {
     return edit_develop().split_toning.balance;
 }
 
-double StudioPresenter::editSplitAmount() const noexcept
+double StudioDevelopPresenter::editSplitAmount() const noexcept
 {
     return edit_develop().split_toning.mix;
 }
 
-QVariantMap StudioPresenter::editSplitToning() const
+QVariantMap StudioDevelopPresenter::editSplitToning() const
 {
     const auto &params = edit_develop().split_toning;
     return {{QStringLiteral("present"), edit_develop().split_toning_present},
@@ -672,12 +684,12 @@ QVariantMap StudioPresenter::editSplitToning() const
             {QStringLiteral("mix"), params.mix}};
 }
 
-double StudioPresenter::editGamma() const noexcept
+double StudioDevelopPresenter::editGamma() const noexcept
 {
     return edit_develop().gamma;
 }
 
-QVariantMap StudioPresenter::editRgbLevels() const
+QVariantMap StudioDevelopPresenter::editRgbLevels() const
 {
     const auto &params = edit_develop().rgb_levels;
     int preserve_index = 1;
@@ -707,12 +719,12 @@ QVariantMap StudioPresenter::editRgbLevels() const
             {QStringLiteral("whiteB"), params.levels[2][2]}};
 }
 
-QVariantList StudioPresenter::editToneCurve() const
+QVariantList StudioDevelopPresenter::editToneCurve() const
 {
     return tone_curve_to_variant(edit_develop().tone_curve);
 }
 
-QVariantList StudioPresenter::editToneCurveSamples() const
+QVariantList StudioDevelopPresenter::editToneCurveSamples() const
 {
     return tone_curve_sample_list(edit_develop().tone_curve,
                                   edit_develop().tone_curve_interpolation);

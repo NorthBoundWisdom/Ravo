@@ -140,7 +140,7 @@ TEST_F(MixedCorpusReopenRecoveryTest, PhotoCorpusOfflineRestoreReopenVertical)
     ASSERT_TRUE(open_service(true));
 
     auto enumerated =
-        service->enumerate_import_inputs({private_corpus.string()}, CancellationToken{});
+        service->import().enumerate_import_inputs({private_corpus.string()}, CancellationToken{});
     ASSERT_TRUE(enumerated) << enumerated.error().message;
     if (enumerated.value().empty())
     {

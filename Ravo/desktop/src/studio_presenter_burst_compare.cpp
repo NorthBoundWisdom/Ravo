@@ -111,7 +111,7 @@ void StudioPresenter::request_burst_compare(const BurstCompareStep step,
                 BurstCompareRequest request;
                 request.asset_id = utf8_from_qstring(selected);
                 request.step = step;
-                pair = service_->resolve_burst_compare_pair(request);
+                pair = service_->cull().resolve_burst_compare_pair(request);
             }
             QMetaObject::invokeMethod(
                 this,

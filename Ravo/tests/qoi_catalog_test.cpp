@@ -98,7 +98,7 @@ TEST_F(QoiCatalogTest, PreservesStructuredUnsupportedAndPublishesNoAsset)
     ASSERT_EQ(file.write(encoded), encoded.size());
     file.close();
 
-    const auto imported = service_->import_one(path.string(), CancellationToken{});
+    const auto imported = service_->import().import_one(path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     EXPECT_EQ(imported.value().status, ImportItemStatus::kUnsupported);
     EXPECT_FALSE(imported.value().asset);
@@ -109,10 +109,10 @@ TEST_F(QoiCatalogTest, PreservesStructuredUnsupportedAndPublishesNoAsset)
     ASSERT_TRUE(imported.value().error->context.contains("reason"));
     EXPECT_EQ(imported.value().error->context.at("reason"), "unsupported_qoi_input");
 
-    const auto assets = service_->list_assets();
+    const auto assets = service_->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_TRUE(assets.value().empty());
-    const auto previews = service_->list_previews();
+    const auto previews = service_->library().list_previews();
     ASSERT_TRUE(previews) << previews.error().message;
     EXPECT_TRUE(previews.value().empty());
 }

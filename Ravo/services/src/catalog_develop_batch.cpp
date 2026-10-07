@@ -1,10 +1,11 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/develop_service.h"
 
 #include <set>
 #include <string>
 #include <utility>
 
 #include "ravo/domain/types.h"
+#include "ravo/domain/catalog_repository.h"
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/develop.h"
 
@@ -12,7 +13,7 @@ namespace ravo
 {
 
 Result<DevelopApplyResult>
-CatalogService::apply_develop_selection(const DevelopApplyRequest &request,
+DevelopService::apply_develop_selection(const DevelopApplyRequest &request,
                                         const DevelopApplyProgressCallback &progress)
 {
     if (repository_ == nullptr)
@@ -29,8 +30,7 @@ CatalogService::apply_develop_selection(const DevelopApplyRequest &request,
     }
 
     DevelopParams field_probe;
-    auto valid_fields =
-        apply_develop_selected_fields(field_probe, request.source, request.fields);
+    auto valid_fields = apply_develop_selected_fields(field_probe, request.source, request.fields);
     if (!valid_fields)
         return valid_fields.error();
 
@@ -60,7 +60,7 @@ CatalogService::apply_develop_selection(const DevelopApplyRequest &request,
         }
     }
 
-    auto current = snapshot();
+    auto current = repository_->snapshot();
     if (!current)
         return current.error();
     if (request.expected_revision && *request.expected_revision != current.value().revision)

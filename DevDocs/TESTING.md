@@ -607,6 +607,26 @@ not invent missing PNG/TIFF/X-Trans coverage.
 
 ### Source-size and split integrity
 
+Service capability refactors retain the existing integration/CLI test identities
+and target labels. `CreateReopenAndRejectNewerSchema` also retains capability
+references across close and verifies structured failures from Library, Metadata,
+Develop, Import, Preview and Recovery before destroying the composition owner.
+The ordinary recipe/history, source-hash, stale-guard, publication, cancellation,
+backup/restore and bounded preview-cache tests remain the business-level oracle.
+
+`CancellationGenerationTest` verifies borrowed-token cancellation, late-result
+identity rejection, explicit token renewal and first-cancellation reason retention.
+Preview/Import controller tests separately verify their scheduling and shutdown
+use of that mechanism. The Library facet command test reads the child object's
+scoped counts; the QML contract checks its direct bindings and canonical commands.
+
+Develop/Inspect/Export migrations retain original test identities, failure windows
+and numeric/image assertions. QML and tests address their specific child owner;
+changing a property path does not remove its assertion. Production QML smoke
+checks composed objects and signal receivers. Frame hash/scopes retain the
+existing cancellation/identity contracts; recipe/history, source hashes and frozen
+render fixtures remain the behavior oracle.
+
 First-party Ravo `.cpp` and production `.qml` files have a 2,000-line limit.
 `configs/translation_unit_size_budget.jsonc` and
 `configs/qml_file_size_budget.jsonc` have empty debt lists. The checks reject

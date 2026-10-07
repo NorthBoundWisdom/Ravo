@@ -374,7 +374,7 @@ TEST_F(CatalogServiceTest, DisplayPresentationRefreshLeavesHistoryRevisionAndExp
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(12, 34, 56));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -383,18 +383,18 @@ TEST_F(CatalogServiceTest, DisplayPresentationRefreshLeavesHistoryRevisionAndExp
     develop.output_color.output_profile = "srgb";
     develop.output_color.proof_mode = "softproof";
     develop.output_color.proof_profile = "adobe_rgb";
-    auto saved = service->save_develop_with_history(asset_id, develop);
+    auto saved = service->develop().save_develop_with_history(asset_id, develop);
     ASSERT_TRUE(saved) << saved.error().message;
     const auto revision_before = read_schema_revision(database_path);
     ASSERT_GE(revision_before, 0);
 
-    auto history_before = service->list_recipe_history(asset_id);
+    auto history_before = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history_before) << history_before.error().message;
     ASSERT_FALSE(history_before.value().empty());
     const auto history_id = history_before.value().front().id;
     const auto history_json = history_before.value().front().recipe_json;
 
-    auto recipe_before = service->load_recipe(asset_id);
+    auto recipe_before = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe_before) << recipe_before.error().message;
     auto recipe_json_before = serialize_recipe(recipe_before.value());
     ASSERT_TRUE(recipe_json_before) << recipe_json_before.error().message;
@@ -403,7 +403,7 @@ TEST_F(CatalogServiceTest, DisplayPresentationRefreshLeavesHistoryRevisionAndExp
     export_request.asset_id = asset_id;
     export_request.output_path = (root / "display-before.png").string();
     export_request.format = ExportFormat::kPng;
-    auto exported_before = service->export_asset(export_request);
+    auto exported_before = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported_before) << exported_before.error().message;
     const auto export_sha_before = file_sha256(export_request.output_path);
     ASSERT_FALSE(export_sha_before.isEmpty());
@@ -427,13 +427,13 @@ TEST_F(CatalogServiceTest, DisplayPresentationRefreshLeavesHistoryRevisionAndExp
     ASSERT_TRUE(injected) << injected.error().message;
 
     EXPECT_EQ(read_schema_revision(database_path), revision_before);
-    auto history_after = service->list_recipe_history(asset_id);
+    auto history_after = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history_after) << history_after.error().message;
     ASSERT_EQ(history_after.value().size(), history_before.value().size());
     EXPECT_EQ(history_after.value().front().id, history_id);
     EXPECT_EQ(history_after.value().front().recipe_json, history_json);
 
-    auto recipe_after = service->load_recipe(asset_id);
+    auto recipe_after = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe_after) << recipe_after.error().message;
     auto recipe_json_after = serialize_recipe(recipe_after.value());
     ASSERT_TRUE(recipe_json_after) << recipe_json_after.error().message;
@@ -443,7 +443,7 @@ TEST_F(CatalogServiceTest, DisplayPresentationRefreshLeavesHistoryRevisionAndExp
     export_again.asset_id = asset_id;
     export_again.output_path = (root / "display-after.png").string();
     export_again.format = ExportFormat::kPng;
-    auto exported_after = service->export_asset(export_again);
+    auto exported_after = service->exports().export_asset(export_again);
     ASSERT_TRUE(exported_after) << exported_after.error().message;
     const auto export_sha_after = file_sha256(export_again.output_path);
     EXPECT_EQ(export_sha_after, export_sha_before);

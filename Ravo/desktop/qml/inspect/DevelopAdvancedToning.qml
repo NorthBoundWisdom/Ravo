@@ -19,7 +19,7 @@ ColumnLayout {
         objectName: "splitToningEnabled"
         text: qsTr("Enable Split Toning")
         enabled: panel.hasSelection
-        checked: panel.hasPresenter && panel.presenter.editSplitToning.enabled
+        checked: panel.hasPresenter && panel.presenter.develop.editSplitToning.enabled
         onToggled: if (panel.liveReady && panel.commands)
             panel.commands.setDevelopNumber("splitToningEnabled", checked ? 1 : 0)
     }
@@ -33,7 +33,7 @@ ColumnLayout {
         showReset: false
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editSplitToning.mix : 1
+        value: panel.hasPresenter ? panel.presenter.develop.editSplitToning.mix : 1
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("splitMix", value);
@@ -50,7 +50,7 @@ ColumnLayout {
         resetValue: 0
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editSplitShadowsHue : 0
+        value: panel.hasPresenter ? panel.presenter.develop.editSplitShadowsHue : 0
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("splitShadowsHue", value);
@@ -72,7 +72,7 @@ ColumnLayout {
         showReset: false
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editSplitToning.shadowSaturation : 0.5
+        value: panel.hasPresenter ? panel.presenter.develop.editSplitToning.shadowSaturation : 0.5
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("splitShadowSaturation", value);
@@ -89,7 +89,7 @@ ColumnLayout {
         resetValue: 0.2
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editSplitHighlightsHue : 0.2
+        value: panel.hasPresenter ? panel.presenter.develop.editSplitHighlightsHue : 0.2
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("splitHighlightsHue", value);
@@ -111,7 +111,7 @@ ColumnLayout {
         showReset: false
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editSplitToning.highlightSaturation : 0.5
+        value: panel.hasPresenter ? panel.presenter.develop.editSplitToning.highlightSaturation : 0.5
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("splitHighlightSaturation", value);
@@ -130,7 +130,7 @@ ColumnLayout {
         resetValue: 0.5
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editSplitBalance : 0.5
+        value: panel.hasPresenter ? panel.presenter.develop.editSplitBalance : 0.5
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("splitBalance", value);
@@ -152,7 +152,7 @@ ColumnLayout {
         showReset: false
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editSplitToning.compress : 33
+        value: panel.hasPresenter ? panel.presenter.develop.editSplitToning.compress : 33
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("splitCompress", value);
@@ -166,7 +166,7 @@ ColumnLayout {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
         opacity: 0.72
-        visible: panel.hasPresenter && panel.presenter.editSplitToning.masked
+        visible: panel.hasPresenter && panel.presenter.develop.editSplitToning.masked
         text: qsTr("Loaded Split Toning mask is preserved but edited outside this panel.")
     }
     CustomButton {
@@ -185,7 +185,7 @@ ColumnLayout {
         objectName: "monochromeEnabled"
         text: qsTr("Enable Monochrome")
         enabled: panel.hasSelection
-        checked: panel.hasPresenter && panel.presenter.editMonochromeFilter.enabled
+        checked: panel.hasPresenter && panel.presenter.develop.editMonochromeFilter.enabled
         onToggled: if (panel.liveReady && panel.commands)
             panel.commands.setDevelopNumber("monochromeEnabled", checked ? 1 : 0)
     }
@@ -253,7 +253,7 @@ ColumnLayout {
             showReset: false
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editMonochromeFilter[modelData.key] : modelData.reset
+            value: panel.hasPresenter ? panel.presenter.develop.editMonochromeFilter[modelData.key] : modelData.reset
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber(modelData.field, value);
@@ -268,7 +268,7 @@ ColumnLayout {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
         opacity: 0.72
-        visible: panel.hasPresenter && panel.presenter.editMonochromeFilter.masked
+        visible: panel.hasPresenter && panel.presenter.develop.editMonochromeFilter.masked
         text: qsTr("Loaded Monochrome mask is preserved but edited outside this panel.")
     }
     CustomButton {

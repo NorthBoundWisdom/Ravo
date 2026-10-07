@@ -522,8 +522,8 @@ int main(int argc, char *argv[])
         LOG_INFO(ravo::logger(), "Ravo Studio smoke C++ owners ready");
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
                      &command_controller, &ravo::StudioCommandController::retranslate);
-    QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &presenter,
-                     &ravo::StudioPresenter::retranslate);
+    QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
+                     presenter.develop(), &ravo::StudioDevelopPresenter::retranslate);
     if (!catalog_path.isEmpty())
     {
         presenter.setStartupCatalogPath(QFileInfo(catalog_path).absoluteFilePath());

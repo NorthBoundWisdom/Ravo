@@ -385,7 +385,7 @@ TEST_F(OriginalCopyServiceTest, CopiesMultipleChunksWithoutChangingSourceOrCopyi
     CatalogService service(engine_, std::move(repository).value(),
                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
                            std::move(recovery).value());
-    const auto imported = service.import_one(source.string(), CancellationToken{});
+    const auto imported = service.import().import_one(source.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto bytes_before = read_file(source);
@@ -398,7 +398,7 @@ TEST_F(OriginalCopyServiceTest, CopiesMultipleChunksWithoutChangingSourceOrCopyi
     request.asset_id = imported.value().asset->id;
     request.output_path = output.string();
     request.format = ExportFormat::kOriginalCopy;
-    const auto copied = service.export_asset(request);
+    const auto copied = service.exports().export_asset(request);
     ASSERT_TRUE(copied) << copied.error().message;
     EXPECT_EQ(copied.value().bytes_written, size_before);
     EXPECT_EQ(read_file(output), bytes_before);
@@ -441,7 +441,7 @@ TEST_F(OriginalCopyServiceTest, CatalogServiceClassifiesOriginalSourceFailuresWi
     CatalogService service(engine_, std::move(repository).value(),
                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
                            std::move(recovery).value());
-    const auto imported = service.import_one(source.string(), CancellationToken{});
+    const auto imported = service.import().import_one(source.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto catalog_mtime = std::filesystem::last_write_time(source);
@@ -455,7 +455,7 @@ TEST_F(OriginalCopyServiceTest, CatalogServiceClassifiesOriginalSourceFailuresWi
         request.asset_id = imported.value().asset->id;
         request.output_path = output.string();
         request.format = ExportFormat::kOriginalCopy;
-        return service.export_asset(request);
+        return service.exports().export_asset(request);
     };
     const auto expected_output = [](const std::filesystem::path &output)
     {

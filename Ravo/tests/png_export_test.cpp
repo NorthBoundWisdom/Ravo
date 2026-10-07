@@ -951,7 +951,7 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
                            std::move(raster), std::move(cache).value(),
                            std::move(recovery).value());
 
-    const auto imported = service.import_one(input_path.string(), CancellationToken{});
+    const auto imported = service.import().import_one(input_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
 
@@ -959,7 +959,7 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     defaults.asset_id = imported.value().asset->id;
     defaults.output_path = (temporary.path() / "default.png").string();
     defaults.format = ExportFormat::kPng;
-    const auto default_export = service.export_asset(defaults);
+    const auto default_export = service.exports().export_asset(defaults);
     ASSERT_TRUE(default_export) << default_export.error().message;
     EXPECT_EQ(capturing->last_format, ExportFormat::kPng);
     EXPECT_EQ(capturing->last_png_options, PngExportOptions());
@@ -968,26 +968,26 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     ExportRequest explicit_options = defaults;
     explicit_options.output_path = (temporary.path() / "compression-9.png").string();
     explicit_options.png_options = {PngBitDepth::k8, 9};
-    const auto explicit_export = service.export_asset(explicit_options);
+    const auto explicit_export = service.exports().export_asset(explicit_options);
     ASSERT_TRUE(explicit_export) << explicit_export.error().message;
     EXPECT_EQ(capturing->last_png_options, explicit_options.png_options);
     EXPECT_TRUE(std::filesystem::is_regular_file(explicit_options.output_path));
 
     DevelopParams develop;
     develop.exposure_ev = 0.37;
-    const auto saved = service.save_develop(imported.value().asset->id, develop);
+    const auto saved = service.develop().save_develop(imported.value().asset->id, develop);
     ASSERT_TRUE(saved) << saved.error().message;
 
     ExportRequest eight_bit_after_edit = defaults;
     eight_bit_after_edit.output_path = (temporary.path() / "edited-8.png").string();
-    const auto eight_bit_export = service.export_asset(eight_bit_after_edit);
+    const auto eight_bit_export = service.exports().export_asset(eight_bit_after_edit);
     ASSERT_TRUE(eight_bit_export) << eight_bit_export.error().message;
 
     const std::size_t calls_before_sixteen = capturing->encode_calls;
     ExportRequest sixteen_bit = defaults;
     sixteen_bit.output_path = (temporary.path() / "edited-16.png").string();
     sixteen_bit.png_options = {PngBitDepth::k16, 5};
-    const auto sixteen = service.export_asset(sixteen_bit);
+    const auto sixteen = service.exports().export_asset(sixteen_bit);
     ASSERT_TRUE(sixteen) << sixteen.error().message;
     EXPECT_EQ(capturing->encode_calls, calls_before_sixteen + 1U);
     EXPECT_EQ(capturing->last_png_options, sixteen_bit.png_options);
@@ -1032,7 +1032,7 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     ExportRequest invalid = defaults;
     invalid.output_path = (temporary.path() / "invalid.png").string();
     invalid.png_options.compression = 10;
-    const auto invalid_result = service.export_asset(invalid);
+    const auto invalid_result = service.exports().export_asset(invalid);
     expect_png_error(invalid_result, ErrorCode::kValidation, "invalid_png_compression");
     EXPECT_EQ(capturing->encode_calls, calls_before_invalid);
     EXPECT_FALSE(std::filesystem::exists(invalid.output_path));
@@ -1040,7 +1040,7 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     ExportRequest invalid_depth = defaults;
     invalid_depth.output_path = (temporary.path() / "invalid-depth.png").string();
     invalid_depth.png_options.bit_depth = static_cast<PngBitDepth>(255U);
-    const auto invalid_depth_result = service.export_asset(invalid_depth);
+    const auto invalid_depth_result = service.exports().export_asset(invalid_depth);
     expect_png_error(invalid_depth_result, ErrorCode::kValidation, "invalid_png_bit_depth");
     EXPECT_EQ(capturing->encode_calls, calls_before_invalid);
     EXPECT_FALSE(std::filesystem::exists(invalid_depth.output_path));
@@ -1053,7 +1053,7 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
         unrelated.format = format;
         unrelated.output_path = (temporary.path() / ("unrelated" + std::string(suffix))).string();
         unrelated.png_options = deliberately_invalid;
-        const auto exported = service.export_asset(unrelated);
+        const auto exported = service.exports().export_asset(unrelated);
         ASSERT_TRUE(exported) << exported.error().message;
         EXPECT_EQ(capturing->last_format, format);
         EXPECT_EQ(capturing->last_png_options, deliberately_invalid);

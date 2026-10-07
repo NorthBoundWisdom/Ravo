@@ -112,11 +112,11 @@ void StudioPresenter::applyPhotoMerge(const QVariantMap &options)
             Result<PhotoMergeResult> result =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_)
-                result = service_->merge_selected_photos(request);
+                result = service_->merge().merge_selected_photos(request);
             std::optional<std::int64_t> revision;
             if (service_)
             {
-                auto snap = service_->snapshot();
+                auto snap = service_->library().snapshot();
                 if (snap)
                     revision = snap.value().revision;
             }
@@ -148,7 +148,7 @@ void StudioPresenter::applyPhotoMerge(const QVariantMap &options)
                         // and source collections. Show the completed result in
                         // the full library with newest imports first.
                         clearLastImportQuery();
-                        query_ = LibraryQuery{};
+                        library_.replaceQuery(LibraryQuery{});
                         cull_suggestion_filter_ = QStringLiteral("none");
                         cull_suggestion_asset_ids_.clear();
                         emit filterChanged();

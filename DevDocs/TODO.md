@@ -42,6 +42,11 @@ correctness reference.
 
 ## Queue discipline
 
+The user-requested architecture refactor is bounded to the existing correctness/
+performance stream. [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md)
+tracks its remaining ownership migrations and qualification gaps. It admits no
+new capability, renderer, scheduler platform, persistence format or dependency.
+
 The explicit user-requested HDR/Panorama work is admitted by
 [ADR-0163](adr/0163-hdr-panorama-derived-assets.md) as a narrow exception to the
 specialization freeze. Remaining release gates are real exposure-bracket and

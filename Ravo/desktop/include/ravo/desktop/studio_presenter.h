@@ -34,6 +34,10 @@
 #include "ravo/desktop/studio_import_draft.h"
 #include "ravo/desktop/folder_list_model.h"
 #include "ravo/desktop/library_set_list_model.h"
+#include "ravo/desktop/studio_library_presenter.h"
+#include "ravo/desktop/studio_inspect_presenter.h"
+#include "ravo/desktop/studio_develop_presenter.h"
+#include "ravo/desktop/studio_export_presenter.h"
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/domain/types.h"
@@ -70,6 +74,10 @@ class StudioStartupController;
 class StudioPresenter final : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(StudioExportPresenter *exports READ exports CONSTANT)
+    Q_PROPERTY(StudioDevelopPresenter *develop READ develop CONSTANT)
+    Q_PROPERTY(StudioInspectPresenter *inspect READ inspect CONSTANT)
+    Q_PROPERTY(StudioLibraryPresenter *library READ library CONSTANT)
     Q_PROPERTY(bool catalogOpen READ catalogOpen NOTIFY catalogChanged)
     Q_PROPERTY(QString catalogPath READ catalogPath NOTIFY catalogChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
@@ -102,16 +110,6 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(int gpuRoiHeight READ gpuRoiHeight NOTIFY inspectRoiChanged)
     Q_PROPERTY(QUrl comparisonBeforeUrl READ comparisonBeforeUrl NOTIFY previewChanged)
     Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
-    Q_PROPERTY(QString scopeMode READ scopeMode WRITE setScopeMode NOTIFY scopesChanged)
-    Q_PROPERTY(QVariantList scopeHistogramRed READ scopeHistogramRed NOTIFY scopesChanged)
-    Q_PROPERTY(QVariantList scopeHistogramGreen READ scopeHistogramGreen NOTIFY scopesChanged)
-    Q_PROPERTY(QVariantList scopeHistogramBlue READ scopeHistogramBlue NOTIFY scopesChanged)
-    Q_PROPERTY(QVariantList scopeHistogramLuma READ scopeHistogramLuma NOTIFY scopesChanged)
-    Q_PROPERTY(double scopeHistogramMax READ scopeHistogramMax NOTIFY scopesChanged)
-    Q_PROPERTY(QUrl scopeParadeUrl READ scopeParadeUrl NOTIFY scopesChanged)
-    Q_PROPERTY(QUrl scopeWaveformUrl READ scopeWaveformUrl NOTIFY scopesChanged)
-    Q_PROPERTY(QUrl scopeVectorscopeUrl READ scopeVectorscopeUrl NOTIFY scopesChanged)
-    Q_PROPERTY(QUrl scopeSplitUrl READ scopeSplitUrl NOTIFY scopesChanged)
     Q_PROPERTY(QString browseMode READ browseMode NOTIFY browseModeChanged)
     Q_PROPERTY(bool collapseStacks READ collapseStacks NOTIFY filterChanged)
     Q_PROPERTY(int surveySlotCount READ surveySlotCount NOTIFY surveyChanged)
@@ -120,210 +118,10 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double zoomFactor READ zoomFactor NOTIFY zoomChanged)
     Q_PROPERTY(
         int thumbnailSize READ thumbnailSize WRITE setThumbnailSize NOTIFY thumbnailSizeChanged)
-    Q_PROPERTY(QString ratingFilterMode READ ratingFilterMode NOTIFY filterChanged)
-    Q_PROPERTY(int ratingFilterValue READ ratingFilterValue NOTIFY filterChanged)
-    Q_PROPERTY(QStringList colorFilters READ colorFilters NOTIFY filterChanged)
-    Q_PROPERTY(QString rejectFilter READ rejectFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString pickFilter READ pickFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString cullFlagFilter READ cullFlagFilter NOTIFY filterChanged)
     Q_PROPERTY(QString cullSuggestionFilter READ cullSuggestionFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString filterText READ filterText NOTIFY filterChanged)
-    Q_PROPERTY(QString mediaFilter READ mediaFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString editFilter READ editFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString cameraFilter READ cameraFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString cameraMakeFilter READ cameraMakeFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString cameraModelFilter READ cameraModelFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString lensFilter READ lensFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString lensMakeFilter READ lensMakeFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString lensModelFilter READ lensModelFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString captureDateFilter READ captureDateFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString countryFilter READ countryFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString provinceStateFilter READ provinceStateFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString cityFilter READ cityFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString sublocationFilter READ sublocationFilter NOTIFY filterChanged)
-    Q_PROPERTY(QString locationFilter READ locationFilter NOTIFY filterChanged)
-    Q_PROPERTY(QVariantList cameraFacets READ cameraFacets NOTIFY facetsChanged)
-    Q_PROPERTY(QVariantList lensFacets READ lensFacets NOTIFY facetsChanged)
-    Q_PROPERTY(QVariantList lensNameFacets READ lensNameFacets NOTIFY facetsChanged)
-    Q_PROPERTY(QVariantList captureDateFacets READ captureDateFacets NOTIFY facetsChanged)
-    Q_PROPERTY(QVariantList countryFacets READ countryFacets NOTIFY facetsChanged)
-    Q_PROPERTY(QVariantList provinceStateFacets READ provinceStateFacets NOTIFY facetsChanged)
-    Q_PROPERTY(QVariantList cityFacets READ cityFacets NOTIFY facetsChanged)
-    Q_PROPERTY(QVariantList sublocationFacets READ sublocationFacets NOTIFY facetsChanged)
-    Q_PROPERTY(bool facetCountsScoped READ facetCountsScoped NOTIFY facetsChanged)
-    Q_PROPERTY(QString sortField READ sortField NOTIFY filterChanged)
-    Q_PROPERTY(QString sortDirection READ sortDirection NOTIFY filterChanged)
     Q_PROPERTY(int visibleCount READ visibleCount NOTIFY filterChanged)
     Q_PROPERTY(bool filtersActive READ filtersActive NOTIFY filterChanged)
     Q_PROPERTY(bool selectedHasEdits READ selectedHasEdits NOTIFY selectionChanged)
-    Q_PROPERTY(bool beforeAfter READ beforeAfter NOTIFY editChanged)
-    Q_PROPERTY(bool comparisonActive READ comparisonActive NOTIFY editChanged)
-    Q_PROPERTY(bool canUndo READ canUndo NOTIFY editChanged)
-    Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
-    Q_PROPERTY(bool hasCopiedParameters READ hasCopiedParameters NOTIFY copiedParametersChanged)
-    Q_PROPERTY(QVariantMap editWhiteBalance READ editWhiteBalance NOTIFY editChanged)
-    Q_PROPERTY(QString activeLocalId READ activeLocalId NOTIFY editingScopeChanged)
-    Q_PROPERTY(bool localEditing READ localEditing NOTIFY editingScopeChanged)
-    Q_PROPERTY(QVariantList localAdjustments READ localAdjustments NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editLocalMask READ editLocalMask NOTIFY editChanged)
-    Q_PROPERTY(bool localDonePending READ localDonePending NOTIFY editChanged)
-    Q_PROPERTY(bool maskDrawingActive READ maskDrawingActive NOTIFY editChanged)
-    Q_PROPERTY(QVariantList localMaskHandles READ localMaskHandles NOTIFY editChanged)
-    Q_PROPERTY(bool whiteBalancePickActive READ whiteBalancePickActive NOTIFY editChanged)
-    Q_PROPERTY(bool maskPlaceActive READ maskPlaceActive NOTIFY editChanged)
-    Q_PROPERTY(bool maskPlaceGeometryAllowed READ maskPlaceGeometryAllowed NOTIFY editChanged)
-    Q_PROPERTY(bool maskParametricAssistActive READ maskParametricAssistActive NOTIFY editChanged)
-    Q_PROPERTY(bool maskParametricAssistAllowed READ maskParametricAssistAllowed NOTIFY editChanged)
-    Q_PROPERTY(QVariantList editColorEqBands READ editColorEqBands NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editInputColor READ editInputColor NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editProfileGamma READ editProfileGamma NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editOutputColor READ editOutputColor NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerRR READ editChannelMixerRR NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerRG READ editChannelMixerRG NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerRB READ editChannelMixerRB NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerGR READ editChannelMixerGR NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerGG READ editChannelMixerGG NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerGB READ editChannelMixerGB NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerBR READ editChannelMixerBR NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerBG READ editChannelMixerBG NOTIFY editChanged)
-    Q_PROPERTY(double editChannelMixerBB READ editChannelMixerBB NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editExposureParams READ editExposureParams NOTIFY editChanged)
-    Q_PROPERTY(QVariantList exposureInstances READ exposureInstances NOTIFY editChanged)
-    Q_PROPERTY(
-        QString selectedExposureInstanceId READ selectedExposureInstanceId NOTIFY editChanged)
-    Q_PROPERTY(
-        QVariantList colorBalanceRgbInstances READ colorBalanceRgbInstances NOTIFY editChanged)
-    Q_PROPERTY(QString selectedColorBalanceRgbInstanceId READ selectedColorBalanceRgbInstanceId
-                   NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editExposureMask READ editExposureMask NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editHighlightsMask READ editHighlightsMask NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editShadowsMask READ editShadowsMask NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editWhitesMask READ editWhitesMask NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editBlacksMask READ editBlacksMask NOTIFY editChanged)
-    Q_PROPERTY(double editExposure READ editExposure NOTIFY editChanged)
-    Q_PROPERTY(double editContrast READ editContrast NOTIFY editChanged)
-    Q_PROPERTY(double editHighlights READ editHighlights NOTIFY editChanged)
-    Q_PROPERTY(double editShadows READ editShadows NOTIFY editChanged)
-    Q_PROPERTY(double editWhites READ editWhites NOTIFY editChanged)
-    Q_PROPERTY(double editBlacks READ editBlacks NOTIFY editChanged)
-    Q_PROPERTY(double editVibrance READ editVibrance NOTIFY editChanged)
-    Q_PROPERTY(double editSaturation READ editSaturation NOTIFY editChanged)
-    Q_PROPERTY(int editRotateQuarters READ editRotateQuarters NOTIFY editChanged)
-    Q_PROPERTY(double editCropX READ editCropX NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap cropPreviewLayout READ cropPreviewLayout NOTIFY previewChanged)
-    Q_PROPERTY(double editCropY READ editCropY NOTIFY editChanged)
-    Q_PROPERTY(double editCropWidth READ editCropWidth NOTIFY editChanged)
-    Q_PROPERTY(double editCropHeight READ editCropHeight NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editCanvas READ editCanvas NOTIFY editChanged)
-    Q_PROPERTY(bool editCanvasEnabled READ editCanvasEnabled NOTIFY editChanged)
-    Q_PROPERTY(double editStraighten READ editStraighten NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editPerspective READ editPerspective NOTIFY editChanged)
-    Q_PROPERTY(QString cropAspect READ cropAspect NOTIFY editChanged)
-    Q_PROPERTY(double cropAspectRatio READ cropAspectRatio NOTIFY editChanged)
-    Q_PROPERTY(int selectedWorkingWidth READ selectedWorkingWidth NOTIFY editChanged)
-    Q_PROPERTY(int selectedWorkingHeight READ selectedWorkingHeight NOTIFY editChanged)
-    Q_PROPERTY(double cropMinShortEdgePixels READ cropMinShortEdgePixels CONSTANT)
-    Q_PROPERTY(double cropMinShortEdgeFraction READ cropMinShortEdgeFraction CONSTANT)
-    Q_PROPERTY(double validCropX READ validCropX NOTIFY editChanged)
-    Q_PROPERTY(double validCropY READ validCropY NOTIFY editChanged)
-    Q_PROPERTY(double validCropWidth READ validCropWidth NOTIFY editChanged)
-    Q_PROPERTY(double validCropHeight READ validCropHeight NOTIFY editChanged)
-    Q_PROPERTY(bool cropGuideReady READ cropGuideReady NOTIFY previewChanged)
-    Q_PROPERTY(bool editFlipHorizontal READ editFlipHorizontal NOTIFY editChanged)
-    Q_PROPERTY(bool editFlipVertical READ editFlipVertical NOTIFY editChanged)
-    Q_PROPERTY(double editSharpen READ editSharpen NOTIFY editChanged)
-    Q_PROPERTY(double editSharpenRadius READ editSharpenRadius NOTIFY editChanged)
-    Q_PROPERTY(double editSharpenThreshold READ editSharpenThreshold NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editTexture READ editTexture NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editRetouch READ editRetouch NOTIFY editChanged)
-    Q_PROPERTY(double editClarity READ editClarity NOTIFY editChanged)
-    Q_PROPERTY(double editVignette READ editVignette NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editVignetteParams READ editVignetteParams NOTIFY editChanged)
-    Q_PROPERTY(double editGrain READ editGrain NOTIFY editChanged)
-    Q_PROPERTY(double editBloom READ editBloom NOTIFY editChanged)
-    Q_PROPERTY(double editSoften READ editSoften NOTIFY editChanged)
-    Q_PROPERTY(double editDehaze READ editDehaze NOTIFY editChanged)
-    Q_PROPERTY(double editDehazeDistance READ editDehazeDistance NOTIFY editChanged)
-    Q_PROPERTY(bool editDehazeAdaptive READ editDehazeAdaptive NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editOutputDither READ editOutputDither NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editOutputFrame READ editOutputFrame NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editWatermark READ editWatermark NOTIFY editChanged)
-    Q_PROPERTY(double editVelvia READ editVelvia NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editVelviaParams READ editVelviaParams NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editLut3d READ editLut3d NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editLegacyColorBalance READ editLegacyColorBalance NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorChecker READ editColorChecker NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorBalanceRgb READ editColorBalanceRgb NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorBalanceRgbMask READ editColorBalanceRgbMask NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorCorrection READ editColorCorrection NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editPrimaries READ editPrimaries NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorContrast READ editColorContrast NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorHarmonizer READ editColorHarmonizer NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorHarmonizerMask READ editColorHarmonizerMask NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorReconstruction READ editColorReconstruction NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editColorZones READ editColorZones NOTIFY editChanged)
-    Q_PROPERTY(bool maskOverlayVisible READ maskOverlayVisible NOTIFY previewChanged)
-    Q_PROPERTY(QString maskOverlayTarget READ maskOverlayTarget NOTIFY previewChanged)
-    Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editMonochromeFilter READ editMonochromeFilter NOTIFY editChanged)
-    Q_PROPERTY(double editSplitShadowsHue READ editSplitShadowsHue NOTIFY editChanged)
-    Q_PROPERTY(double editSplitHighlightsHue READ editSplitHighlightsHue NOTIFY editChanged)
-    Q_PROPERTY(double editSplitBalance READ editSplitBalance NOTIFY editChanged)
-    Q_PROPERTY(double editSplitAmount READ editSplitAmount NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editSplitToning READ editSplitToning NOTIFY editChanged)
-    Q_PROPERTY(double editGamma READ editGamma NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editRgbLevels READ editRgbLevels NOTIFY editChanged)
-    Q_PROPERTY(QVariantList editToneCurve READ editToneCurve NOTIFY editChanged)
-    Q_PROPERTY(QVariantList editToneCurveSamples READ editToneCurveSamples NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editCurve READ editCurve NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editRgbCurveMask READ editRgbCurveMask NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editToneCurveMask READ editToneCurveMask NOTIFY editChanged)
-    Q_PROPERTY(QVariantList editCurvePoints READ editCurvePoints NOTIFY editChanged)
-    Q_PROPERTY(QVariantList editCurveSamples READ editCurveSamples NOTIFY editChanged)
-    Q_PROPERTY(bool editSigmoidEnabled READ editSigmoidEnabled NOTIFY editChanged)
-    Q_PROPERTY(double editSigmoidContrast READ editSigmoidContrast NOTIFY editChanged)
-    Q_PROPERTY(double editSigmoidSkew READ editSigmoidSkew NOTIFY editChanged)
-    Q_PROPERTY(double editSigmoidHuePreservation READ editSigmoidHuePreservation NOTIFY editChanged)
-    Q_PROPERTY(bool editRapidRawToneControlsEnabled READ editRapidRawToneControlsEnabled NOTIFY
-                   editChanged)
-    Q_PROPERTY(
-        bool editRapidRawBasicToneEnabled READ editRapidRawBasicToneEnabled NOTIFY editChanged)
-    Q_PROPERTY(int editToneMapperIndex READ editToneMapperIndex NOTIFY editChanged)
-    Q_PROPERTY(double editRapidRawEvShift READ editRapidRawEvShift NOTIFY editChanged)
-    Q_PROPERTY(double editRapidRawExposure READ editRapidRawExposure NOTIFY editChanged)
-    Q_PROPERTY(double editRapidRawContrast READ editRapidRawContrast NOTIFY editChanged)
-    Q_PROPERTY(double editRapidRawHighlights READ editRapidRawHighlights NOTIFY editChanged)
-    Q_PROPERTY(double editRapidRawShadows READ editRapidRawShadows NOTIFY editChanged)
-    Q_PROPERTY(double editRapidRawWhites READ editRapidRawWhites NOTIFY editChanged)
-    Q_PROPERTY(double editRapidRawBlacks READ editRapidRawBlacks NOTIFY editChanged)
-    Q_PROPERTY(int editDemosaicModeIndex READ editDemosaicModeIndex NOTIFY editChanged)
-    Q_PROPERTY(double editRawHighlights READ editRawHighlights NOTIFY editChanged)
-    Q_PROPERTY(double editRawDenoiseThreshold READ editRawDenoiseThreshold NOTIFY editChanged)
-    Q_PROPERTY(double editHotPixelsStrength READ editHotPixelsStrength NOTIFY editChanged)
-    Q_PROPERTY(double editHotPixelsThreshold READ editHotPixelsThreshold NOTIFY editChanged)
-    Q_PROPERTY(bool editHotPixelsPermissive READ editHotPixelsPermissive NOTIFY editChanged)
-    Q_PROPERTY(int editRawCaIterations READ editRawCaIterations NOTIFY editChanged)
-    Q_PROPERTY(bool editRawCaAvoidShift READ editRawCaAvoidShift NOTIFY editChanged)
-    Q_PROPERTY(double editDenoise READ editDenoise NOTIFY editChanged)
-    Q_PROPERTY(double editDenoiseChroma READ editDenoiseChroma NOTIFY editChanged)
-    Q_PROPERTY(double editDenoiseRadius READ editDenoiseRadius NOTIFY editChanged)
-    Q_PROPERTY(double editLensK1 READ editLensK1 NOTIFY editChanged)
-    Q_PROPERTY(double editLensVignetting READ editLensVignetting NOTIFY editChanged)
-    Q_PROPERTY(double editLensMode READ editLensMode NOTIFY editChanged)
-    Q_PROPERTY(int editColorEqBand READ editColorEqBand NOTIFY editChanged)
-    Q_PROPERTY(double editColorEqHue READ editColorEqHue NOTIFY editChanged)
-    Q_PROPERTY(double editColorEqSat READ editColorEqSat NOTIFY editChanged)
-    Q_PROPERTY(double editColorEqLight READ editColorEqLight NOTIFY editChanged)
-    Q_PROPERTY(double editGraduatedDensity READ editGraduatedDensity NOTIFY editChanged)
-    Q_PROPERTY(double editGraduatedHardness READ editGraduatedHardness NOTIFY editChanged)
-    Q_PROPERTY(double editGraduatedRotation READ editGraduatedRotation NOTIFY editChanged)
-    Q_PROPERTY(double editGraduatedOffset READ editGraduatedOffset NOTIFY editChanged)
-    Q_PROPERTY(QVariantMap editGraduatedMask READ editGraduatedMask NOTIFY editChanged)
-    Q_PROPERTY(double editToneEqBlacks READ editToneEqBlacks NOTIFY editChanged)
-    Q_PROPERTY(double editToneEqShadows READ editToneEqShadows NOTIFY editChanged)
-    Q_PROPERTY(double editToneEqMidtones READ editToneEqMidtones NOTIFY editChanged)
-    Q_PROPERTY(double editToneEqHighlights READ editToneEqHighlights NOTIFY editChanged)
-    Q_PROPERTY(double editToneEqWhites READ editToneEqWhites NOTIFY editChanged)
     Q_PROPERTY(QString selectedTags READ selectedTags NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedTitle READ selectedTitle NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedDescription READ selectedDescription NOTIFY selectionChanged)
@@ -340,14 +138,6 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedUsageTerms READ selectedUsageTerms NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedJobId READ selectedJobId NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedCaptureSummary READ selectedCaptureSummary NOTIFY selectionChanged)
-    Q_PROPERTY(QVariantList recipeHistory READ recipeHistory NOTIFY editChanged)
-    Q_PROPERTY(QVariantList editPresets READ editPresets NOTIFY presetsChanged)
-    Q_PROPERTY(
-        QVariantList modifiedParameterChoices READ modifiedParameterChoices NOTIFY editChanged)
-    Q_PROPERTY(qlonglong activeHistoryId READ activeHistoryId NOTIFY editChanged)
-    Q_PROPERTY(qlonglong activeHistorySeq READ activeHistorySeq NOTIFY editChanged)
-    Q_PROPERTY(QString tagFilter READ tagFilter NOTIFY filterChanged)
-    Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
     Q_PROPERTY(LibrarySetListModel *librarySets READ librarySets CONSTANT)
@@ -434,6 +224,30 @@ class StudioPresenter final : public QObject
         FilesystemBrowserModel *importDestinationFolders READ importDestinationFolders CONSTANT)
 
 public:
+    [[nodiscard]] StudioExportPresenter *exports() noexcept
+    {
+        return export_presenter_.get();
+    }
+    [[nodiscard]] const StudioExportPresenter *exports() const noexcept
+    {
+        return export_presenter_.get();
+    }
+    [[nodiscard]] StudioDevelopPresenter *develop() noexcept
+    {
+        return develop_presenter_.get();
+    }
+    [[nodiscard]] const StudioDevelopPresenter *develop() const noexcept
+    {
+        return develop_presenter_.get();
+    }
+    [[nodiscard]] StudioInspectPresenter *inspect() noexcept
+    {
+        return &inspect_;
+    }
+    [[nodiscard]] StudioLibraryPresenter *library() noexcept
+    {
+        return &library_;
+    }
     explicit StudioPresenter(QObject *parent = nullptr);
     ~StudioPresenter() override;
 
@@ -536,21 +350,7 @@ public:
     [[nodiscard]] QUrl comparisonBeforeUrl() const;
     [[nodiscard]] QImage comparisonBeforeImage() const;
     [[nodiscard]] bool previewLoading() const noexcept;
-    [[nodiscard]] QString scopeMode() const;
-    void setScopeMode(const QString &mode);
-    [[nodiscard]] QVariantList scopeHistogramRed() const;
-    [[nodiscard]] QVariantList scopeHistogramGreen() const;
-    [[nodiscard]] QVariantList scopeHistogramBlue() const;
-    [[nodiscard]] QVariantList scopeHistogramLuma() const;
-    [[nodiscard]] double scopeHistogramMax() const noexcept;
-    [[nodiscard]] QUrl scopeParadeUrl() const;
-    [[nodiscard]] QImage scopeParadeImage() const;
-    [[nodiscard]] QUrl scopeWaveformUrl() const;
-    [[nodiscard]] QImage scopeWaveformImage() const;
-    [[nodiscard]] QUrl scopeVectorscopeUrl() const;
-    [[nodiscard]] QImage scopeVectorscopeImage() const;
-    [[nodiscard]] QUrl scopeSplitUrl() const;
-    [[nodiscard]] QImage scopeSplitImage() const;
+
     [[nodiscard]] QString browseMode() const;
     [[nodiscard]] bool collapseStacks() const noexcept;
     [[nodiscard]] int surveySlotCount() const noexcept;
@@ -558,183 +358,11 @@ public:
     [[nodiscard]] QString zoomMode() const;
     [[nodiscard]] double zoomFactor() const noexcept;
     [[nodiscard]] int thumbnailSize() const noexcept;
-    [[nodiscard]] QString ratingFilterMode() const;
-    [[nodiscard]] int ratingFilterValue() const noexcept;
-    [[nodiscard]] QStringList colorFilters() const;
-    [[nodiscard]] QString rejectFilter() const;
-    [[nodiscard]] QString filterText() const;
-    [[nodiscard]] QString mediaFilter() const;
-    [[nodiscard]] QString editFilter() const;
-    [[nodiscard]] QString cameraFilter() const;
-    [[nodiscard]] QString cameraMakeFilter() const;
-    [[nodiscard]] QString cameraModelFilter() const;
-    [[nodiscard]] QString lensFilter() const;
-    [[nodiscard]] QString lensMakeFilter() const;
-    [[nodiscard]] QString lensModelFilter() const;
-    [[nodiscard]] QString captureDateFilter() const;
-    [[nodiscard]] QString countryFilter() const;
-    [[nodiscard]] QString provinceStateFilter() const;
-    [[nodiscard]] QString cityFilter() const;
-    [[nodiscard]] QString sublocationFilter() const;
-    [[nodiscard]] QString locationFilter() const;
-    [[nodiscard]] QVariantList cameraFacets() const;
-    [[nodiscard]] QVariantList lensFacets() const;
-    [[nodiscard]] QVariantList lensNameFacets() const;
-    [[nodiscard]] QVariantList captureDateFacets() const;
-    [[nodiscard]] QVariantList countryFacets() const;
-    [[nodiscard]] QVariantList provinceStateFacets() const;
-    [[nodiscard]] QVariantList cityFacets() const;
-    [[nodiscard]] QVariantList sublocationFacets() const;
-    [[nodiscard]] bool facetCountsScoped() const noexcept;
-    [[nodiscard]] QString sortField() const;
-    [[nodiscard]] QString sortDirection() const;
+
     [[nodiscard]] int visibleCount() const;
     [[nodiscard]] bool filtersActive() const noexcept;
     [[nodiscard]] bool selectedHasEdits() const noexcept;
-    [[nodiscard]] bool beforeAfter() const noexcept;
-    [[nodiscard]] bool comparisonActive() const noexcept;
-    [[nodiscard]] bool canUndo() const noexcept;
-    [[nodiscard]] bool canRedo() const noexcept;
-    [[nodiscard]] bool hasCopiedParameters() const noexcept;
-    [[nodiscard]] QVariantMap editWhiteBalance() const;
-    [[nodiscard]] QVariantMap editInputColor() const;
-    [[nodiscard]] QVariantMap editProfileGamma() const;
-    [[nodiscard]] QVariantMap editOutputColor() const;
-    [[nodiscard]] double editChannelMixerRR() const noexcept;
-    [[nodiscard]] double editChannelMixerRG() const noexcept;
-    [[nodiscard]] double editChannelMixerRB() const noexcept;
-    [[nodiscard]] double editChannelMixerGR() const noexcept;
-    [[nodiscard]] double editChannelMixerGG() const noexcept;
-    [[nodiscard]] double editChannelMixerGB() const noexcept;
-    [[nodiscard]] double editChannelMixerBR() const noexcept;
-    [[nodiscard]] double editChannelMixerBG() const noexcept;
-    [[nodiscard]] double editChannelMixerBB() const noexcept;
-    [[nodiscard]] QVariantMap editExposureParams() const;
-    [[nodiscard]] QVariantMap editExposureMask() const;
-    [[nodiscard]] QVariantMap editHighlightsMask() const;
-    [[nodiscard]] QVariantMap editShadowsMask() const;
-    [[nodiscard]] QVariantMap editWhitesMask() const;
-    [[nodiscard]] QVariantMap editBlacksMask() const;
-    [[nodiscard]] double editExposure() const noexcept;
-    [[nodiscard]] double editContrast() const noexcept;
-    [[nodiscard]] double editHighlights() const noexcept;
-    [[nodiscard]] double editShadows() const noexcept;
-    [[nodiscard]] double editWhites() const noexcept;
-    [[nodiscard]] double editBlacks() const noexcept;
-    [[nodiscard]] bool editRapidRawToneControlsEnabled() const noexcept;
-    [[nodiscard]] bool editRapidRawBasicToneEnabled() const noexcept;
-    [[nodiscard]] int editToneMapperIndex() const noexcept;
-    [[nodiscard]] double editRapidRawEvShift() const noexcept;
-    [[nodiscard]] double editRapidRawExposure() const noexcept;
-    [[nodiscard]] double editRapidRawContrast() const noexcept;
-    [[nodiscard]] double editRapidRawHighlights() const noexcept;
-    [[nodiscard]] double editRapidRawShadows() const noexcept;
-    [[nodiscard]] double editRapidRawWhites() const noexcept;
-    [[nodiscard]] double editRapidRawBlacks() const noexcept;
-    [[nodiscard]] double editVibrance() const noexcept;
-    [[nodiscard]] double editSaturation() const noexcept;
-    [[nodiscard]] int editRotateQuarters() const noexcept;
-    [[nodiscard]] double editCropX() const noexcept;
-    [[nodiscard]] QVariantMap cropPreviewLayout() const;
-    [[nodiscard]] double editCropY() const noexcept;
-    [[nodiscard]] double editCropWidth() const noexcept;
-    [[nodiscard]] double editCropHeight() const noexcept;
-    [[nodiscard]] QVariantMap editCanvas() const;
-    [[nodiscard]] bool editCanvasEnabled() const noexcept;
-    [[nodiscard]] double editStraighten() const noexcept;
-    [[nodiscard]] QVariantMap editPerspective() const;
-    [[nodiscard]] QString cropAspect() const;
-    [[nodiscard]] double cropAspectRatio() const noexcept;
-    [[nodiscard]] int selectedWorkingWidth() const;
-    [[nodiscard]] int selectedWorkingHeight() const;
-    [[nodiscard]] double cropMinShortEdgePixels() const noexcept;
-    [[nodiscard]] double cropMinShortEdgeFraction() const noexcept;
-    [[nodiscard]] double validCropX() const;
-    [[nodiscard]] double validCropY() const;
-    [[nodiscard]] double validCropWidth() const;
-    [[nodiscard]] double validCropHeight() const;
-    [[nodiscard]] bool editFlipHorizontal() const noexcept;
-    [[nodiscard]] bool editFlipVertical() const noexcept;
-    [[nodiscard]] double editSharpen() const noexcept;
-    [[nodiscard]] double editSharpenRadius() const noexcept;
-    [[nodiscard]] double editSharpenThreshold() const noexcept;
-    [[nodiscard]] QVariantMap editTexture() const;
-    [[nodiscard]] QVariantMap editRetouch() const;
-    [[nodiscard]] double editClarity() const noexcept;
-    [[nodiscard]] double editVignette() const noexcept;
-    [[nodiscard]] QVariantMap editVignetteParams() const;
-    [[nodiscard]] double editGrain() const noexcept;
-    [[nodiscard]] double editBloom() const noexcept;
-    [[nodiscard]] double editSoften() const noexcept;
-    [[nodiscard]] double editDehaze() const noexcept;
-    [[nodiscard]] double editDehazeDistance() const noexcept;
-    [[nodiscard]] bool editDehazeAdaptive() const noexcept;
-    [[nodiscard]] QVariantMap editOutputDither() const;
-    [[nodiscard]] QVariantMap editOutputFrame() const;
-    [[nodiscard]] QVariantMap editWatermark() const;
-    [[nodiscard]] double editVelvia() const noexcept;
-    [[nodiscard]] QVariantMap editVelviaParams() const;
-    [[nodiscard]] QVariantMap editLut3d() const;
-    [[nodiscard]] QVariantMap editLegacyColorBalance() const;
-    [[nodiscard]] QVariantMap editColorChecker() const;
-    [[nodiscard]] QVariantMap editColorBalanceRgb() const;
-    [[nodiscard]] QVariantMap editColorBalanceRgbMask() const;
-    [[nodiscard]] QVariantMap editColorCorrection() const;
-    [[nodiscard]] QVariantMap editPrimaries() const;
-    [[nodiscard]] QVariantMap editColorContrast() const;
-    [[nodiscard]] QVariantMap editColorHarmonizer() const;
-    [[nodiscard]] QVariantMap editColorHarmonizerMask() const;
-    [[nodiscard]] QVariantMap editColorReconstruction() const;
-    [[nodiscard]] QVariantMap editColorZones() const;
-    [[nodiscard]] double editMonochrome() const noexcept;
-    [[nodiscard]] QVariantMap editMonochromeFilter() const;
-    [[nodiscard]] double editSplitShadowsHue() const noexcept;
-    [[nodiscard]] double editSplitHighlightsHue() const noexcept;
-    [[nodiscard]] double editSplitBalance() const noexcept;
-    [[nodiscard]] double editSplitAmount() const noexcept;
-    [[nodiscard]] QVariantMap editSplitToning() const;
-    [[nodiscard]] double editGamma() const noexcept;
-    [[nodiscard]] QVariantMap editRgbLevels() const;
-    [[nodiscard]] QVariantList editToneCurve() const;
-    [[nodiscard]] QVariantList editToneCurveSamples() const;
-    [[nodiscard]] QVariantMap editCurve() const;
-    [[nodiscard]] QVariantMap editRgbCurveMask() const;
-    [[nodiscard]] QVariantMap editToneCurveMask() const;
-    [[nodiscard]] QVariantList editCurvePoints() const;
-    [[nodiscard]] QVariantList editCurveSamples() const;
-    [[nodiscard]] bool editSigmoidEnabled() const noexcept;
-    [[nodiscard]] double editSigmoidContrast() const noexcept;
-    [[nodiscard]] double editSigmoidSkew() const noexcept;
-    [[nodiscard]] double editSigmoidHuePreservation() const noexcept;
-    [[nodiscard]] int editDemosaicModeIndex() const noexcept;
-    [[nodiscard]] double editRawHighlights() const noexcept;
-    [[nodiscard]] double editRawDenoiseThreshold() const noexcept;
-    [[nodiscard]] double editHotPixelsStrength() const noexcept;
-    [[nodiscard]] double editHotPixelsThreshold() const noexcept;
-    [[nodiscard]] bool editHotPixelsPermissive() const noexcept;
-    [[nodiscard]] int editRawCaIterations() const noexcept;
-    [[nodiscard]] bool editRawCaAvoidShift() const noexcept;
-    [[nodiscard]] double editDenoise() const noexcept;
-    [[nodiscard]] double editDenoiseChroma() const noexcept;
-    [[nodiscard]] double editDenoiseRadius() const noexcept;
-    [[nodiscard]] double editLensK1() const noexcept;
-    [[nodiscard]] double editLensVignetting() const noexcept;
-    [[nodiscard]] double editLensMode() const noexcept;
-    [[nodiscard]] int editColorEqBand() const noexcept;
-    [[nodiscard]] double editColorEqHue() const noexcept;
-    [[nodiscard]] double editColorEqSat() const noexcept;
-    [[nodiscard]] double editColorEqLight() const noexcept;
-    [[nodiscard]] QVariantList editColorEqBands() const;
-    [[nodiscard]] double editGraduatedDensity() const noexcept;
-    [[nodiscard]] double editGraduatedHardness() const noexcept;
-    [[nodiscard]] double editGraduatedRotation() const noexcept;
-    [[nodiscard]] double editGraduatedOffset() const noexcept;
-    [[nodiscard]] QVariantMap editGraduatedMask() const;
-    [[nodiscard]] double editToneEqBlacks() const noexcept;
-    [[nodiscard]] double editToneEqShadows() const noexcept;
-    [[nodiscard]] double editToneEqMidtones() const noexcept;
-    [[nodiscard]] double editToneEqHighlights() const noexcept;
-    [[nodiscard]] double editToneEqWhites() const noexcept;
+
     [[nodiscard]] QString selectedTags() const;
     [[nodiscard]] QString selectedTitle() const;
     [[nodiscard]] QString selectedDescription() const;
@@ -751,12 +379,7 @@ public:
     [[nodiscard]] QString selectedUsageTerms() const;
     [[nodiscard]] QString selectedJobId() const;
     [[nodiscard]] QString selectedCaptureSummary() const;
-    [[nodiscard]] QVariantList recipeHistory() const;
-    [[nodiscard]] qlonglong activeHistoryId() const noexcept;
-    [[nodiscard]] qlonglong activeHistorySeq() const noexcept;
-    [[nodiscard]] QString tagFilter() const;
-    [[nodiscard]] bool cropToolActive() const noexcept;
-    [[nodiscard]] bool cropGuideReady() const noexcept;
+
     [[nodiscard]] AssetListModel *assets() noexcept;
     [[nodiscard]] FolderListModel *folders() noexcept;
     [[nodiscard]] LibrarySetListModel *librarySets() noexcept;
@@ -817,22 +440,7 @@ public:
     Q_INVOKABLE void removeFolderFromCatalog(const QString &folder_uri);
     Q_INVOKABLE QString folderLocalPath(const QString &folder_uri) const;
     void checkScheduledBackup();
-    Q_INVOKABLE void exportSelectedToPath(const QString &path, const QString &format,
-                                          const QVariantMap &options);
-    Q_INVOKABLE void exportSelectedToDirectory(const QString &directory,
-                                               const QString &filename_template,
-                                               const QString &format, const QVariantMap &options);
-    Q_INVOKABLE QVariantList exportFormatChoices() const;
-    Q_INVOKABLE QVariantList jpegSubsamplingChoices() const;
-    Q_INVOKABLE QVariantList pngBitDepthChoices() const;
-    Q_INVOKABLE QVariantList tiffSampleTypeChoices() const;
-    Q_INVOKABLE QVariantList tiffCompressionChoices() const;
-    Q_INVOKABLE QVariantList exportMetadataModeChoices() const;
-    Q_INVOKABLE QVariantList exportWatermarkAlignmentChoices() const;
-    Q_INVOKABLE QVariantList exportOutputProfileChoices() const;
-    Q_INVOKABLE QVariantList exportRenderingIntentChoices() const;
-    Q_INVOKABLE QVariantMap exportDefaultOptions() const;
-    Q_INVOKABLE QVariantMap exportOptionBounds() const;
+
     Q_INVOKABLE QVariantMap externalEditorSession() const;
     Q_INVOKABLE void preparePhotoMerge(const QString &kind);
     Q_INVOKABLE void applyPhotoMerge(const QVariantMap &options);
@@ -895,86 +503,7 @@ public:
     Q_INVOKABLE void unstackSelection();
     Q_INVOKABLE void setSelectedStackPick();
     Q_INVOKABLE void setCollapseStacks(bool collapse);
-    Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
-    [[nodiscard]] QString activeLocalId() const;
-    [[nodiscard]] bool localEditing() const noexcept;
-    [[nodiscard]] QVariantList localAdjustments() const;
-    [[nodiscard]] QVariantMap editLocalMask() const;
-    [[nodiscard]] bool localDonePending() const noexcept;
-    [[nodiscard]] bool maskDrawingActive() const noexcept;
-    [[nodiscard]] QVariantList localMaskHandles() const;
-    [[nodiscard]] Result<bool> applyLocalAdjustmentCommand(const QString &action,
-                                                           const QVariantMap &arguments);
-    [[nodiscard]] QVariantList exposureInstances() const;
-    [[nodiscard]] QString selectedExposureInstanceId() const;
-    [[nodiscard]] QVariantList colorBalanceRgbInstances() const;
-    [[nodiscard]] QString selectedColorBalanceRgbInstanceId() const;
-    Q_INVOKABLE void selectExposureInstance(const QString &instanceId);
-    Q_INVOKABLE void selectColorBalanceRgbInstance(const QString &instanceId);
-    Q_INVOKABLE void addExposureInstance();
-    Q_INVOKABLE void addColorBalanceRgbInstance();
-    Q_INVOKABLE void duplicateExposureInstance();
-    Q_INVOKABLE void duplicateColorBalanceRgbInstance();
-    Q_INVOKABLE void deleteExposureInstance(const QString &instanceId);
-    Q_INVOKABLE void deleteColorBalanceRgbInstance(const QString &instanceId);
-    Q_INVOKABLE void renameExposureInstance(const QString &instanceId, const QString &name);
-    Q_INVOKABLE void renameColorBalanceRgbInstance(const QString &instanceId, const QString &name);
-    Q_INVOKABLE void setExposureInstanceBypass(const QString &instanceId, bool bypass);
-    Q_INVOKABLE void setColorBalanceRgbInstanceBypass(const QString &instanceId, bool bypass);
-    Q_INVOKABLE void setExposureInstanceEnabled(const QString &instanceId, bool enabled);
-    Q_INVOKABLE void setColorBalanceRgbInstanceEnabled(const QString &instanceId, bool enabled);
-    Q_INVOKABLE void reorderExposureInstance(int from, int to);
-    Q_INVOKABLE void reorderColorBalanceRgbInstance(int from, int to);
-    Q_INVOKABLE void setDevelopText(const QString &name, const QString &value);
-    Q_INVOKABLE void addRetouchRegion(const QVariantMap &region);
-    Q_INVOKABLE void removeRetouchRegion(int index);
-    Q_INVOKABLE void previewDevelopNumber(const QString &name, double value);
-    [[nodiscard]] bool maskOverlayVisible() const noexcept;
-    [[nodiscard]] QString maskOverlayTarget() const;
-    Q_INVOKABLE void setMaskOverlay(const QString &target, bool visible);
-    [[nodiscard]] bool maskPlaceActive() const noexcept;
-    [[nodiscard]] bool maskPlaceGeometryAllowed() const noexcept;
-    Q_INVOKABLE void setMaskPlaceActive(bool active);
-    Q_INVOKABLE void placeMask(double preview_x, double preview_y);
-    [[nodiscard]] bool maskParametricAssistActive() const noexcept;
-    [[nodiscard]] bool maskParametricAssistAllowed() const noexcept;
-    Q_INVOKABLE void setMaskParametricAssistActive(bool active);
-    Q_INVOKABLE void assistParametricMask(double preview_x, double preview_y);
-    void retranslate();
-    Q_INVOKABLE void setToneCurve(const QVariantList &points);
-    Q_INVOKABLE void previewToneCurve(const QVariantList &points);
-    Q_INVOKABLE void setCurveFamily(int family);
-    Q_INVOKABLE void setCurveChannel(int channel);
-    Q_INVOKABLE void setCurvePoints(const QString &family, int channel, const QVariantList &points);
-    Q_INVOKABLE void previewCurvePoints(const QString &family, int channel,
-                                        const QVariantList &points);
-    Q_INVOKABLE void setCropRect(double x, double y, double width, double height);
-    Q_INVOKABLE void previewCropRect(double x, double y, double width, double height);
-    Q_INVOKABLE void setCropAspect(const QString &aspect);
-    Q_INVOKABLE void rotateLeft();
-    Q_INVOKABLE void rotateRight();
-    Q_INVOKABLE void flipHorizontal();
-    Q_INVOKABLE void flipVertical();
-    Q_INVOKABLE void setCropToolActive(bool active);
-    [[nodiscard]] bool whiteBalancePickActive() const noexcept;
-    Q_INVOKABLE void setWhiteBalancePickActive(bool active);
-    Q_INVOKABLE void pickWhiteBalance(double preview_x, double preview_y);
-    Q_INVOKABLE void autoPerspective(const QString &mode);
-    Q_INVOKABLE void resetControl(const QString &name);
-    Q_INVOKABLE void resetSection(const QString &section);
-    Q_INVOKABLE bool sectionModified(const QString &section) const;
-    Q_INVOKABLE bool sectionEffectEnabled(const QString &section) const;
-    Q_INVOKABLE void setSectionEffectEnabled(const QString &section, bool enabled);
-    Q_INVOKABLE void resetAllEdits();
-    Q_INVOKABLE void copyParametersSelected(const QVariantList &fields);
-    Q_INVOKABLE void pasteParameters();
-    Q_INVOKABLE void pasteParametersToSelection();
-    Q_INVOKABLE void previewDevelopNumbers(const QVariantMap &fields);
-    Q_INVOKABLE void setDevelopNumbers(const QVariantMap &fields);
-    Q_INVOKABLE void undoEdit();
-    Q_INVOKABLE void redoEdit();
-    Q_INVOKABLE void toggleBeforeAfter();
-    Q_INVOKABLE void toggleComparison();
+
     Q_INVOKABLE void setZoomMode(const QString &mode);
     Q_INVOKABLE void setZoomFactor(double factor);
     Q_INVOKABLE void adjustZoom(int wheel_delta);
@@ -984,14 +513,7 @@ public:
     Q_INVOKABLE void setAssetTags(const QString &text);
     Q_INVOKABLE void setMetadataField(const QString &name, const QString &value);
     Q_INVOKABLE void refreshSelectedMetadata();
-    Q_INVOKABLE void saveStyleToPath(const QString &path);
-    Q_INVOKABLE void applyStyleFromPath(const QString &path);
-    [[nodiscard]] QVariantList editPresets() const;
-    [[nodiscard]] QVariantList modifiedParameterChoices() const;
-    Q_INVOKABLE void savePreset(const QString &name, const QVariantList &fields);
-    Q_INVOKABLE void importPresetFromPath(const QString &path);
-    Q_INVOKABLE void renamePreset(const QString &path, const QString &name);
-    Q_INVOKABLE void deletePreset(const QString &path);
+
     [[nodiscard]] QString selectedPhotoDebugInfo() const;
     [[nodiscard]] QString selectedPhotoParametersDebugInfo() const;
     [[nodiscard]] QString presetDebugInfo(const QString &path) const;
@@ -1001,33 +523,18 @@ public:
     Q_INVOKABLE void copyPresetDebugInfo(const QString &path);
     Q_INVOKABLE void createSnapshot(const QString &label);
     Q_INVOKABLE void renameSnapshot(int history_id, const QString &label);
-    Q_INVOKABLE void restoreHistory(int history_id);
-    Q_INVOKABLE void setTagFilter(const QString &tag);
+
     Q_INVOKABLE void setRating(int rating);
     Q_INVOKABLE void setColorLabel(const QString &label);
     Q_INVOKABLE void toggleRejected();
     Q_INVOKABLE void togglePicked();
     Q_INVOKABLE void applyCullReview(const QString &flagAction, const QVariant &rating,
                                      const QString &colorLabel, bool autoAdvance);
-    Q_INVOKABLE void setRatingFilter(const QString &mode, int value);
-    Q_INVOKABLE void toggleColorFilter(const QString &label);
-    Q_INVOKABLE void setRejectFilter(const QString &mode);
-    Q_INVOKABLE void setPickFilter(const QString &mode);
-    Q_INVOKABLE void setCullFlagFilter(const QString &mode);
+
     Q_INVOKABLE void setCullSuggestionFilter(const QString &mode);
-    [[nodiscard]] QString pickFilter() const;
-    [[nodiscard]] QString cullFlagFilter() const;
+
     [[nodiscard]] QString cullSuggestionFilter() const;
-    Q_INVOKABLE void setFilterText(const QString &text);
-    Q_INVOKABLE void setMediaFilter(const QString &mode);
-    Q_INVOKABLE void setEditFilter(const QString &mode);
-    Q_INVOKABLE void setCameraFacetFilter(const QString &make, const QString &model);
-    Q_INVOKABLE void setLensFacetFilter(const QString &focal_mm);
-    Q_INVOKABLE void setLensNameFacetFilter(const QString &make, const QString &model);
-    Q_INVOKABLE void setCaptureDateFacetFilter(const QString &local_date);
-    Q_INVOKABLE void setLocationFacetFilter(const QString &country, const QString &province_state,
-                                            const QString &city, const QString &sublocation);
-    Q_INVOKABLE void setSort(const QString &field, const QString &direction);
+
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);
     Q_INVOKABLE void selectLastImport();
@@ -1039,15 +546,12 @@ public:
     Q_INVOKABLE void addSelectionToLibrarySet(const QString &set_id);
     Q_INVOKABLE void removeSelectionFromLibrarySet(const QString &set_id);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
-    void checkSelectedCompanionJpegs();
+
     Q_INVOKABLE void ensureLibraryRow(int row);
     Q_INVOKABLE void loadNextLibraryPage();
     void pollCatalogRevision();
 signals:
-    void companionExportReady();
-    void companionExportMissing();
     void importContextChanged();
-    void editingScopeChanged();
     void catalogChanged();
     void busyChanged();
     void statusChanged();
@@ -1055,19 +559,14 @@ signals:
     void selectionChanged();
     void previewChanged();
     void inspectRoiChanged();
-    void previewIdentityChanged();
     void interactivePreviewPublished(qulonglong revision, qlonglong intentToImageMicroseconds);
-    void scopesChanged();
+    void inspectContextChanged();
     void browseModeChanged();
     void surveyChanged();
     void zoomChanged();
     void thumbnailSizeChanged();
     void filterChanged();
-    void facetsChanged();
     void folderChanged();
-    void editChanged();
-    void copiedParametersChanged();
-    void presetsChanged();
     void libraryWorkChanged();
     void externalEditorSessionChanged();
     void photoMergeDialogRequested(const QVariantMap &context);
@@ -1101,7 +600,6 @@ private:
     void finishLibraryResume(bool success);
     void applyFolders(std::vector<FolderRecord> folders);
     void applyLibrarySets(std::vector<LibrarySetRecord> sets);
-    void applyFacets(LibraryCaptureFacets capture, LibraryLocationFacets location);
     void clearLastImportQuery();
     void requestPreviewForSelection();
     void requestSurveyPreviews();
@@ -1131,49 +629,7 @@ private:
     void beginPlannedImport(ImportRequest request);
     void validateImportDestination();
     void startNextImportPreview();
-    void load_develop_for_selection();
-    void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
-    void reload_recipe_history();
-    void reload_presets();
-    [[nodiscard]] QString presets_directory() const;
-    void sync_active_history();
-    [[nodiscard]] DevelopParams baseline_develop() const;
-    [[nodiscard]] DevelopParams develop_from_history_entry(const RecipeHistoryEntry &entry) const;
-    enum class DevelopEdit : std::uint8_t
-    {
-        Preview,
-        Overlay,
-        Commit,
-        Restore,
-        Revert
-    };
-    bool mutate_develop(DevelopParams next, DevelopEdit edit, bool refresh_preview = true,
-                        std::optional<std::string> history_coalesce_key = {});
-    [[nodiscard]] const DevelopParams &edit_develop() const noexcept;
-    void sync_local_edit_scope();
-    void clear_local_edit_scope();
-    [[nodiscard]] Result<bool> applyMaskGesture(const QString &action,
-                                                const QVariantMap &arguments);
-    bool mutate_scoped_develop(DevelopParams next, DevelopEdit edit, bool refresh_preview = true,
-                               std::optional<std::string> history_coalesce_key = {});
-    void applyDevelopNumbers(const QVariantMap &fields, DevelopEdit edit);
-    void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true,
-                        RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew,
-                        std::optional<std::string> history_coalesce_key = {});
-    void preview_develop(DevelopParams params);
-    void break_history_coalescing();
-    void enqueue_preview();
-    void request_comparison_before();
-    [[nodiscard]] double selected_source_aspect() const;
-    [[nodiscard]] double selected_working_aspect() const;
-    [[nodiscard]] bool working_source_size(double &width, double &height) const;
-    void clamp_selected_crop(DevelopParams &params) const;
-    void constrain_geometry_crop(DevelopParams &params) const;
-    void fit_geometry_crop(DevelopParams &params) const;
-    void valid_crop_rect(double &x, double &y, double &width, double &height) const;
-    [[nodiscard]] std::optional<std::string>
-    current_overlay_mask_id(const DevelopParams &params) const;
-    void kick_develop_work();
+
     void clear_displayed_preview();
     [[nodiscard]] QImage
     apply_display_presentation_image(const QImage &output_referred,
@@ -1190,46 +646,13 @@ private:
     void remember_thumbnail_base(const std::string &asset_id, const QString &base_path,
                                  const ColorProfileState &source_profile,
                                  const QString &thumb_state);
-    [[nodiscard]] bool clear_comparison();
+
     void show_preview_result(const PreviewResult &preview, std::uint64_t revision,
                              bool preserve_viewport_extent);
     void show_comparison_before_result(const PreviewResult &preview, std::uint64_t revision);
-    void schedule_preview_analysis(const QImage &identity_image, const QImage &scope_image,
-                                   std::uint64_t preview_revision, const std::string &asset_id,
-                                   const QString &profile_id);
-    void drain_preview_analysis();
-    void cancel_preview_analysis(std::string reason);
-    void refresh_scopes(const QImage &image);
+
     void refresh_scopes_from_thumbnail(const QString &asset_id);
-    void clear_scopes();
-    [[nodiscard]] static QVariantList
-    histogram_channel_list(const std::array<std::uint32_t, kRgbHistogramBins> &channel);
-    struct PendingDevelopWork
-    {
-        bool save = false;
-        bool interactive = false;
-        DevelopParams params{};
-        DevelopParams previous{};
-        bool push_history = false;
-        bool pushed_undo = false;
-        RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew;
-        std::optional<std::int64_t> discard_history_after_seq;
-        std::optional<std::string> history_coalesce_key;
-        std::optional<std::int64_t> coalesce_history_id;
-        std::string asset_id;
-        bool ignore_edits = false;
-        bool ignore_crop = false;
-        bool ignore_straighten = false;
-        bool refresh_preview = true;
-        bool settle_preview = false;
-        bool prefer_cached_settled_preview = false;
-        bool comparison_before = false;
-        std::optional<std::string> overlay_mask_id;
-        std::optional<std::uint64_t> request_revision;
-        std::chrono::steady_clock::time_point intent_started_at{};
-        std::optional<AssetDescriptor> expected_source;
-        std::optional<std::int64_t> expected_history_head;
-    };
+
     [[nodiscard]] LibraryQuery current_query() const;
     struct PreparedCatalogSession
     {
@@ -1254,10 +677,8 @@ private:
     void startImportDestinationPreview();
 
     SerialExecutor executor_;
-    std::unique_ptr<StudioImportWorker> import_worker_;
     SerialExecutor filesystem_executor_;
     std::uint64_t import_roots_generation_ = 0;
-    SerialExecutor preview_analysis_executor_;
     SerialExecutor thumbnail_presentation_executor_;
     CancellationSource thumbnail_presentation_cancel_;
     CancellationSource library_reload_cancel_;
@@ -1282,19 +703,14 @@ private:
     AssetListModel assets_;
     FolderListModel folders_;
     LibrarySetListModel library_sets_;
-    ImportCandidateListModel import_candidates_;
     int import_context_row_ = -1;
     std::uint64_t import_context_generation_ = 0;
     QString import_context_path_;
-    FilesystemBrowserModel import_source_folders_;
-    FilesystemBrowserModel import_destination_folders_;
-    LibraryQuery query_;
     QString cull_suggestion_filter_{QStringLiteral("none")};
     std::unordered_set<std::string> cull_suggestion_asset_ids_;
-    LibraryCaptureFacets capture_facets_;
-    LibraryLocationFacets location_facets_;
+    StudioLibraryPresenter library_;
+    StudioInspectPresenter inspect_;
     QString catalog_path_;
-    QVariantList develop_presets_;
     QString startup_catalog_path_;
     std::unique_ptr<StudioLibraryResume> library_resume_;
     bool import_work_active_ = false;
@@ -1381,26 +797,8 @@ private:
     std::uint32_t live_preview_width_ = 0;
     std::uint32_t live_preview_height_ = 0;
     QString live_preview_color_profile_id_;
-    QString live_preview_pixel_sha256_;
-    bool preview_identity_pending_ = false;
     std::vector<float> preview_mask_alpha_;
-    bool mask_overlay_visible_ = false;
-    QString mask_overlay_target_{QStringLiteral("color_harmonizer")};
     mutable QMutex preview_image_mutex_;
-    QMutex preview_analysis_queue_mutex_;
-    std::optional<std::function<void()>> pending_preview_analysis_;
-    bool preview_analysis_worker_active_ = false;
-    QString scope_mode_{QStringLiteral("parade")};
-    RgbHistogram scope_histogram_{};
-    QImage scope_parade_image_;
-    QUrl scope_parade_url_;
-    QImage scope_waveform_image_;
-    QUrl scope_waveform_url_;
-    QImage scope_vectorscope_image_;
-    QUrl scope_vectorscope_url_;
-    QImage scope_split_image_;
-    QUrl scope_split_url_;
-    std::uint64_t scope_revision_ = 0;
     QString browse_mode_{QStringLiteral("grid")};
     bool collapse_stacks_ = true;
     std::vector<std::string> survey_slot_ids_;
@@ -1430,7 +828,6 @@ private:
     QVariantList ai_proposals_;
     bool busy_ = false;
     bool preview_loading_ = false;
-    PreviewRequestOwner develop_preview_owner_;
     PreviewRequestOwner inspect_roi_owner_;
     QUrl inspect_roi_url_;
     QImage inspect_roi_image_;
@@ -1450,79 +847,15 @@ private:
     int gpu_roi_height_ = 0;
     void clear_inspect_roi();
     void refresh_inspect_roi();
-    PreviewRequestOwner preview_analysis_owner_;
-    PreviewRequestOwner perspective_analysis_owner_;
     std::uint64_t thumbnail_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
     std::unordered_map<std::string, QString> thumbnail_base_paths_;
     std::unordered_map<std::string, ColorProfileState> thumbnail_base_profiles_;
     QString thumbnail_presented_root_;
-    void apply_curve_points(const QString &family, int channel, const QVariantList &points,
-                            DevelopEdit edit);
-    void sync_curve_ui_from_develop();
 
-    void capture_instance_front_for_field(const DevelopParams &params, std::string_view field);
-    void retarget_instance_edit_after_field(DevelopParams &params, std::string_view field);
-    void sync_selected_instance_edit_buffers(DevelopParams &params);
-
-    DevelopParams develop_{};
-    QString active_local_id_;
-    DevelopParams local_projection_;
-    bool local_done_pending_ = false;
-    bool mask_drawing_active_ = false;
-    bool mask_gesture_updating_ = false;
-    QString mask_gesture_token_;
-    QString mask_gesture_handle_;
-    QString mask_gesture_scope_;
-    QString mask_gesture_asset_;
-    std::optional<DevelopParams> mask_gesture_before_;
-    std::optional<DevelopParams> local_creation_before_;
-    DevelopParams mask_gesture_local_;
-    std::vector<LocalMaskPoint> mask_gesture_points_;
-    std::optional<MaskGeometryMapping> mask_gesture_mapping_;
-    std::size_t selected_exposure_instance_index_ = 0;
-    std::size_t selected_color_balance_rgb_instance_index_ = 0;
-    std::optional<DevelopExposureInstance> exposure_front_restore_;
-    std::optional<DevelopColorBalanceRgbInstance> color_balance_rgb_front_restore_;
-    bool develop_loaded_ = false;
-    bool develop_preview_deferred_ = false;
-    QString develop_load_error_;
-    int curve_family_ = 0;
-    int curve_channel_ = 0;
-    DevelopParams saved_develop_{};
-    std::optional<AssetDescriptor> loaded_recipe_asset_;
-    QVariantMap crop_preview_layout_;
-    // Durable head, updated with save results; independent of async history rows.
-    std::int64_t loaded_recipe_history_head_ = 0;
-    std::optional<DevelopParams> displayed_develop_;
-    std::vector<DevelopParams> undo_stack_;
-    std::vector<DevelopParams> redo_stack_;
-    struct CopiedDevelopParameters
-    {
-        DevelopParams source;
-        std::vector<std::string> fields;
-    };
-    std::optional<CopiedDevelopParameters> copied_parameters_;
-    bool before_after_ = false;
-    bool comparison_active_ = false;
-    bool comparison_before_requested_ = false;
-    bool crop_tool_active_ = false;
-    bool white_balance_pick_active_ = false;
-    bool mask_place_active_ = false;
-    bool mask_parametric_assist_active_ = false;
-    bool crop_guide_ready_ = false;
-    QString crop_aspect_{QStringLiteral("free")};
-    double locked_crop_ratio_ = 0.0;
-    bool develop_job_in_flight_ = false;
-    bool develop_interactive_job_in_flight_ = false;
-    std::optional<PendingDevelopWork> pending_save_;
-    std::optional<PendingDevelopWork> pending_preview_;
-    QVariantList recipe_history_;
-    std::vector<RecipeHistoryEntry> recipe_history_entries_;
-    std::int64_t active_history_id_ = 0;
-    std::int64_t active_history_seq_ = 0;
-    std::optional<std::string> history_coalesce_key_;
-    std::optional<std::int64_t> history_coalesce_id_;
+    // Borrowed session/view slots and executors outlive the edit owner.
+    std::unique_ptr<StudioDevelopPresenter> develop_presenter_;
+    std::unique_ptr<StudioExportPresenter> export_presenter_;
 };
 
 } // namespace ravo

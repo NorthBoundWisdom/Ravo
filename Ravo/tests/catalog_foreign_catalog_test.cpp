@@ -87,7 +87,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionMapsLightroomFixtureIntoNewCa
 
     ForeignCatalogConversionRequest request;
     request.source_path = source;
-    auto converted = service->convert_foreign_catalog(request);
+    auto converted = service->conversion().convert_foreign_catalog(request);
     ASSERT_TRUE(converted) << converted.error().message;
     const auto &report = converted.value();
     EXPECT_EQ(report.schema, kForeignCatalogFixtureContractVersion);
@@ -120,7 +120,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionMapsLightroomFixtureIntoNewCa
     EXPECT_TRUE(contains(skipped->reasons, "missing_original"));
     EXPECT_FALSE(skipped->asset_id.has_value());
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     ASSERT_EQ(assets.value().size(), 1U);
     const auto &asset = assets.value().front();
@@ -142,11 +142,11 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionMapsLightroomFixtureIntoNewCa
     EXPECT_EQ(snapshot_of(crs_sidecar), before_sidecar);
 
     // A second conversion into the now-populated catalog fails closed.
-    auto again = service->convert_foreign_catalog(request);
+    auto again = service->conversion().convert_foreign_catalog(request);
     ASSERT_FALSE(again);
     EXPECT_EQ(again.error().code, ErrorCode::kConflict);
     EXPECT_EQ(reason_of(again.error()), "destination_catalog_not_empty");
-    auto after_conflict = service->list_assets();
+    auto after_conflict = service->library().list_assets();
     ASSERT_TRUE(after_conflict) << after_conflict.error().message;
     EXPECT_EQ(after_conflict.value().size(), 1U);
 }
@@ -157,7 +157,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionCountsUnsupportedCaptureOneAd
     ForeignCatalogConversionRequest request;
     request.source_path = foreign_fixture_path("capture-one-v1.json");
     request.source_kind = ForeignCatalogSourceKind::kCaptureOne;
-    auto converted = service->convert_foreign_catalog(request);
+    auto converted = service->conversion().convert_foreign_catalog(request);
     ASSERT_TRUE(converted) << converted.error().message;
     const auto &report = converted.value();
     EXPECT_EQ(report.source_kind, ForeignCatalogSourceKind::kCaptureOne);
@@ -174,7 +174,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionCountsUnsupportedCaptureOneAd
     EXPECT_EQ(unsupported->unsupported_fields.front().reason, "unsupported_foreign_adjust");
     EXPECT_FALSE(contains(unsupported->mapped_fields, "crs"));
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_EQ(assets.value().size(), 2U);
 }
@@ -187,7 +187,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionFailsClosedOnUnsupportedSourc
     {
         ForeignCatalogConversionRequest request;
         request.source_path = source;
-        auto converted = service->convert_foreign_catalog(request);
+        auto converted = service->conversion().convert_foreign_catalog(request);
         ASSERT_FALSE(converted) << source;
         EXPECT_EQ(converted.error().code, code) << source;
         EXPECT_EQ(reason_of(converted.error()), reason) << source;
@@ -209,7 +209,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionFailsClosedOnUnsupportedSourc
         ErrorCode::kUnsupported, "unsupported_source_schema");
 
     ForeignCatalogConversionRequest empty;
-    auto missing_source = service->convert_foreign_catalog(empty);
+    auto missing_source = service->conversion().convert_foreign_catalog(empty);
     ASSERT_FALSE(missing_source);
     EXPECT_EQ(missing_source.error().code, ErrorCode::kInvalidArgument);
     EXPECT_EQ(reason_of(missing_source.error()), "foreign_catalog_source_missing");
@@ -218,7 +218,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionFailsClosedOnUnsupportedSourc
     ForeignCatalogConversionRequest mismatched;
     mismatched.source_path = foreign_fixture_path("capture-one-v1.json");
     mismatched.source_kind = ForeignCatalogSourceKind::kLightroomClassic;
-    auto kind_rejected = service->convert_foreign_catalog(mismatched);
+    auto kind_rejected = service->conversion().convert_foreign_catalog(mismatched);
     ASSERT_FALSE(kind_rejected);
     EXPECT_EQ(kind_rejected.error().code, ErrorCode::kValidation);
     EXPECT_EQ(reason_of(kind_rejected.error()), "foreign_catalog_source_kind_mismatch");
@@ -226,7 +226,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionFailsClosedOnUnsupportedSourc
     ForeignCatalogConversionRequest moved;
     moved.source_path = foreign_fixture_path("lightroom-classic-v1.json");
     moved.mode = ImportTransferMode::kMove;
-    auto move_rejected = service->convert_foreign_catalog(moved);
+    auto move_rejected = service->conversion().convert_foreign_catalog(moved);
     ASSERT_FALSE(move_rejected);
     EXPECT_EQ(move_rejected.error().code, ErrorCode::kInvalidArgument);
     EXPECT_EQ(reason_of(move_rejected.error()), "foreign_catalog_move_rejected");
@@ -237,7 +237,7 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionFailsClosedOnUnsupportedSourc
     EXPECT_EQ(reason_of(unknown_kind.error()), "unsupported_source_kind");
 
     // Every fail-closed path leaves the destination catalog empty.
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_TRUE(assets.value().empty());
 }
@@ -250,10 +250,10 @@ TEST_F(CatalogServiceTest, ForeignCatalogConversionCancelReportsRemainingItems)
     ForeignCatalogConversionRequest request;
     request.source_path = foreign_fixture_path("lightroom-classic-v1.json");
     request.cancellation = cancellation.token();
-    auto converted = service->convert_foreign_catalog(request);
+    auto converted = service->conversion().convert_foreign_catalog(request);
     ASSERT_FALSE(converted);
     EXPECT_EQ(converted.error().code, ErrorCode::kCancelled);
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_TRUE(assets.value().empty());
 }

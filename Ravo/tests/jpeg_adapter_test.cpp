@@ -1117,7 +1117,7 @@ TEST(JpegCatalogTest, ForwardsTypedOptionsAndIgnoresThemForOtherFormats)
                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
                            std::move(recovery).value());
 
-    const auto imported = service.import_one(input_path.string(), CancellationToken{});
+    const auto imported = service.import().import_one(input_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
 
@@ -1125,7 +1125,7 @@ TEST(JpegCatalogTest, ForwardsTypedOptionsAndIgnoresThemForOtherFormats)
     default_request.asset_id = imported.value().asset->id;
     default_request.output_path = (temporary.path() / "default.jpg").string();
     default_request.format = ExportFormat::kJpeg;
-    const auto default_export = service.export_asset(default_request);
+    const auto default_export = service.exports().export_asset(default_request);
     ASSERT_TRUE(default_export) << default_export.error().message;
     const auto default_bytes = vector_bytes(read_file(default_request.output_path));
     const auto default_sampling = jpeg_sampling_factors(default_bytes);
@@ -1159,7 +1159,7 @@ TEST(JpegCatalogTest, ForwardsTypedOptionsAndIgnoresThemForOtherFormats)
             (temporary.path() / ("output-" + std::to_string(index++) + ".jpg")).string();
         request.format = ExportFormat::kJpeg;
         request.jpeg_options = {85, expectation.subsampling};
-        const auto exported = service.export_asset(request);
+        const auto exported = service.exports().export_asset(request);
         ASSERT_TRUE(exported) << exported.error().message;
         const auto sampling = jpeg_sampling_factors(vector_bytes(read_file(request.output_path)));
         ASSERT_TRUE(sampling);
@@ -1172,7 +1172,7 @@ TEST(JpegCatalogTest, ForwardsTypedOptionsAndIgnoresThemForOtherFormats)
     invalid_jpeg.output_path = (temporary.path() / "invalid.jpg").string();
     invalid_jpeg.format = ExportFormat::kJpeg;
     invalid_jpeg.jpeg_options.quality = 4;
-    const auto invalid = service.export_asset(invalid_jpeg);
+    const auto invalid = service.exports().export_asset(invalid_jpeg);
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().code, ErrorCode::kValidation);
     EXPECT_EQ(invalid.error().context.at("reason"), "invalid_jpeg_quality");
@@ -1183,7 +1183,7 @@ TEST(JpegCatalogTest, ForwardsTypedOptionsAndIgnoresThemForOtherFormats)
     png.output_path = (temporary.path() / "unrelated.png").string();
     png.format = ExportFormat::kPng;
     png.jpeg_options = {4, static_cast<JpegSubsampling>(255U)};
-    const auto exported_png = service.export_asset(png);
+    const auto exported_png = service.exports().export_asset(png);
     ASSERT_TRUE(exported_png) << exported_png.error().message;
     EXPECT_TRUE(std::filesystem::exists(png.output_path));
     EXPECT_EQ(QCryptographicHash::hash(read_file(input_path), QCryptographicHash::Sha256),
@@ -1215,7 +1215,7 @@ TEST(JpegCatalogTest, CorruptJpegNeverPublishesAnAssetOrPreview)
                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
                            std::move(recovery).value());
 
-    const auto imported = service.import_one(input_path.string(), CancellationToken{});
+    const auto imported = service.import().import_one(input_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
     EXPECT_FALSE(imported.value().asset);
@@ -1224,10 +1224,10 @@ TEST(JpegCatalogTest, CorruptJpegNeverPublishesAnAssetOrPreview)
     EXPECT_EQ(imported.value().error->code, ErrorCode::kValidation);
     EXPECT_EQ(imported.value().error->context.at("format"), "jpeg");
     EXPECT_EQ(imported.value().error->context.at("reason"), "incomplete_jpeg_stream");
-    const auto assets = service.list_assets();
+    const auto assets = service.library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_TRUE(assets.value().empty());
-    const auto previews = service.list_previews();
+    const auto previews = service.library().list_previews();
     ASSERT_TRUE(previews) << previews.error().message;
     EXPECT_TRUE(previews.value().empty());
     EXPECT_EQ(QCryptographicHash::hash(read_file(input_path), QCryptographicHash::Sha256),

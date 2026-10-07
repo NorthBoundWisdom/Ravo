@@ -26,7 +26,7 @@ RowLayout {
             decimals: 9
             notation: DoubleValidator.ScientificNotation
         }
-        text: panel.hasPresenter ? Number(panel.presenter.editColorContrast[modelData.key]).toString() : "0"
+        text: panel.hasPresenter ? Number(panel.presenter.develop.editColorContrast[modelData.key]).toString() : "0"
         onEditingCommitted: function (committedText) {
             const parsed = Number(committedText);
             if (Number.isFinite(parsed) && panel.commands)

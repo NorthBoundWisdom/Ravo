@@ -512,7 +512,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return session.error();
         }
-        auto snapshot = session.value()->snapshot();
+        auto snapshot = session.value()->library().snapshot();
         if (!snapshot)
         {
             return snapshot.error();
@@ -549,7 +549,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }
         else
         {
-            auto pending = service.pending_recovery();
+            auto pending = service.recovery().pending_recovery();
             if (!pending)
             {
                 return pending.error();
@@ -663,7 +663,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         asset_ids.reserve(flags.value().asset_ids.size());
         for (const auto asset_id : flags.value().asset_ids)
             asset_ids.emplace_back(asset_id);
-        auto rebuilt = service.rebuild_previews(asset_ids, CancellationToken{});
+        auto rebuilt = service.preview().rebuild_previews(asset_ids, CancellationToken{});
         if (!rebuilt)
             return rebuilt.error();
         return preview_rebuild_to_json(rebuilt.value());
@@ -791,10 +791,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                                                                std::string(subcommand) +
                                                                " requires --asset-id <id>");
         auto mutated = subcommand == "set-add" ?
-                           service.add_library_set_members(flags.value().set_id, asset_ids,
-                                                           flags.value().expected_revision) :
-                           service.remove_library_set_members(flags.value().set_id, asset_ids,
-                                                              flags.value().expected_revision);
+                           service.library().add_library_set_members(
+                               flags.value().set_id, asset_ids, flags.value().expected_revision) :
+                           service.library().remove_library_set_members(
+                               flags.value().set_id, asset_ids, flags.value().expected_revision);
         if (!mutated)
             return mutated.error();
         return library_set_mutation_to_json(mutated.value());
@@ -804,8 +804,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().asset_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog version-create requires --asset-id <id>");
-        auto created =
-            service.create_asset_version(flags.value().asset_id, flags.value().expected_revision);
+        auto created = service.library().create_asset_version(flags.value().asset_id,
+                                                              flags.value().expected_revision);
         if (!created)
             return created.error();
         return asset_version_mutation_to_json(created.value());
@@ -822,7 +822,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                               "catalog stack requires at least two --asset-id values");
         const auto pick = flags.value().pick_id.empty() ? std::string_view{asset_ids.front()} :
                                                           flags.value().pick_id;
-        auto stacked = service.stack_assets(asset_ids, pick, flags.value().expected_revision);
+        auto stacked =
+            service.library().stack_assets(asset_ids, pick, flags.value().expected_revision);
         if (!stacked)
             return stacked.error();
         return library_stack_mutation_to_json(stacked.value());
@@ -832,8 +833,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().stack_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog unstack requires --stack-id <id>");
-        auto unstacked =
-            service.unstack_assets(flags.value().stack_id, flags.value().expected_revision);
+        auto unstacked = service.library().unstack_assets(flags.value().stack_id,
+                                                          flags.value().expected_revision);
         if (!unstacked)
             return unstacked.error();
         return JsonValue{JsonValue::Object{
@@ -846,8 +847,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().stack_id.empty() || flags.value().asset_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog stack-pick requires --stack-id <id> --asset-id <id>");
-        auto picked = service.set_stack_pick(flags.value().stack_id, flags.value().asset_id,
-                                             flags.value().expected_revision);
+        auto picked = service.library().set_stack_pick(
+            flags.value().stack_id, flags.value().asset_id, flags.value().expected_revision);
         if (!picked)
             return picked.error();
         return library_stack_mutation_to_json(picked.value());
@@ -1061,7 +1062,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             request.roi = flags.value().roi;
             request.persist_preview_record = false;
         }
-        auto previewed = service.request_preview(request);
+        auto previewed = service.preview().request_preview(request);
         if (!previewed)
         {
             return previewed.error();
@@ -1207,8 +1208,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             request.rotate_quarters = static_cast<int>(params.value().rotate_quarters);
             request.flip_horizontal = params.value().flip_horizontal != 0;
             request.flip_vertical = params.value().flip_vertical != 0;
-            auto sampled =
-                service.sample_white_balance(flags.value().asset_id, request, CancellationToken{});
+            auto sampled = service.develop().sample_white_balance(flags.value().asset_id, request,
+                                                                  CancellationToken{});
             if (!sampled)
             {
                 return sampled.error();
@@ -1319,8 +1320,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog refresh-metadata requires --asset-id");
         }
-        auto refreshed =
-            service.refresh_capture_metadata(flags.value().asset_id, CancellationToken{});
+        auto refreshed = service.metadata().refresh_capture_metadata(flags.value().asset_id,
+                                                                     CancellationToken{});
         if (!refreshed)
         {
             return refreshed.error();
@@ -1334,7 +1335,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             ids.emplace_back(id);
         if (ids.empty() && !flags.value().asset_id.empty())
             ids.emplace_back(flags.value().asset_id);
-        auto checked = service.check_companion_jpegs(ids, CancellationToken{});
+        auto checked = service.exports().check_companion_jpegs(ids, CancellationToken{});
         if (!checked)
             return checked.error();
         return JsonValue{
@@ -1405,7 +1406,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }
         if (!flags.value().add.empty() || !flags.value().remove.empty())
         {
-            auto saved = service.set_tags(flags.value().asset_id, tags);
+            auto saved = service.metadata().set_tags(flags.value().asset_id, tags);
             if (!saved)
             {
                 return saved.error();
@@ -1465,7 +1466,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         assign(flags.value().job_id, metadata.job_id);
         if (write)
         {
-            auto saved = service.set_writable_metadata(flags.value().asset_id, metadata);
+            auto saved = service.metadata().set_writable_metadata(flags.value().asset_id, metadata);
             if (!saved)
             {
                 return saved.error();
@@ -1543,7 +1544,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return run_catalog_convert_command(service, subcommand, flags.value());
     if (subcommand == "keywords")
     {
-        auto listed = service.list_keywords();
+        auto listed = service.metadata().list_keywords();
         if (!listed)
             return listed.error();
         JsonValue::Array rows;
@@ -1562,7 +1563,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         std::optional<std::string_view> parent;
         if (!flags.value().parent_id.empty())
             parent = flags.value().parent_id;
-        auto created = service.create_keyword(name, parent, flags.value().expected_revision);
+        auto created =
+            service.metadata().create_keyword(name, parent, flags.value().expected_revision);
         if (!created)
             return created.error();
         return keyword_mutation_to_json(created.value());
@@ -1577,8 +1579,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (name.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog keyword-rename requires --keyword-name or --name");
-        auto renamed =
-            service.rename_keyword(flags.value().keyword_id, name, flags.value().expected_revision);
+        auto renamed = service.metadata().rename_keyword(flags.value().keyword_id, name,
+                                                         flags.value().expected_revision);
         if (!renamed)
             return renamed.error();
         return keyword_mutation_to_json(renamed.value());
@@ -1591,8 +1593,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         std::optional<std::string_view> parent;
         if (!flags.value().parent_id.empty())
             parent = flags.value().parent_id;
-        auto moved =
-            service.move_keyword(flags.value().keyword_id, parent, flags.value().expected_revision);
+        auto moved = service.metadata().move_keyword(flags.value().keyword_id, parent,
+                                                     flags.value().expected_revision);
         if (!moved)
             return moved.error();
         return keyword_mutation_to_json(moved.value());
@@ -1602,9 +1604,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().keyword_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog keyword-delete requires --keyword-id");
-        auto deleted =
-            service.delete_keyword(flags.value().keyword_id, flags.value().keyword_recursive,
-                                   flags.value().expected_revision);
+        auto deleted = service.metadata().delete_keyword(flags.value().keyword_id,
+                                                         flags.value().keyword_recursive,
+                                                         flags.value().expected_revision);
         if (!deleted)
             return deleted.error();
         return JsonValue{JsonValue::Object{
@@ -1654,7 +1656,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                 request.provider_id = std::string(flags.value().provider_id);
             if (!flags.value().model_id.empty())
                 request.model_id = std::string(flags.value().model_id);
-            auto created = service.create_shoot_consistency_proposals(request);
+            auto created = service.ai().create_shoot_consistency_proposals(request);
             if (!created)
                 return created.error();
             JsonValue::Array rows;
@@ -1681,7 +1683,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             request.provider_id = std::string(flags.value().provider_id);
         if (!flags.value().model_id.empty())
             request.model_id = std::string(flags.value().model_id);
-        auto created = service.create_ai_proposal(request);
+        auto created = service.ai().create_ai_proposal(request);
         if (!created)
             return created.error();
         return ai_proposal_to_json(created.value());
@@ -1691,7 +1693,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().proposal_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-proposal requires --proposal-id");
-        auto proposal = service.get_ai_proposal(flags.value().proposal_id);
+        auto proposal = service.ai().get_ai_proposal(flags.value().proposal_id);
         if (!proposal)
             return proposal.error();
         return ai_proposal_to_json(proposal.value());
@@ -1701,7 +1703,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         std::optional<std::string_view> asset_id;
         if (!flags.value().asset_id.empty())
             asset_id = flags.value().asset_id;
-        auto listed = service.list_ai_proposals(asset_id);
+        auto listed = service.ai().list_ai_proposals(asset_id);
         if (!listed)
             return listed.error();
         JsonValue::Array rows;
@@ -1715,8 +1717,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().proposal_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-proposal-apply requires --proposal-id");
-        auto applied =
-            service.apply_ai_proposal(flags.value().proposal_id, flags.value().expected_revision);
+        auto applied = service.ai().apply_ai_proposal(flags.value().proposal_id,
+                                                      flags.value().expected_revision);
         if (!applied)
             return applied.error();
         return ai_proposal_apply_to_json(applied.value());
@@ -1726,7 +1728,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().proposal_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-proposal-reject requires --proposal-id");
-        auto rejected = service.reject_ai_proposal(flags.value().proposal_id);
+        auto rejected = service.ai().reject_ai_proposal(flags.value().proposal_id);
         if (!rejected)
             return rejected.error();
         return ai_proposal_to_json(rejected.value());
@@ -1736,7 +1738,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().proposal_id.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-proposal-cancel requires --proposal-id");
-        auto cancelled = service.cancel_ai_proposal(flags.value().proposal_id);
+        auto cancelled = service.ai().cancel_ai_proposal(flags.value().proposal_id);
         if (!cancelled)
             return cancelled.error();
         return ai_proposal_to_json(cancelled.value());

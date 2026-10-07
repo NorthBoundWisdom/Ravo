@@ -1,3 +1,4 @@
+#include "studio_import_workspace.h"
 #include <future>
 #include <memory>
 
@@ -24,7 +25,7 @@ public:
     static bool blockImport(StudioPresenter &presenter, std::shared_ptr<std::promise<void>> entered,
                             std::shared_future<void> release)
     {
-        return presenter.import_worker_->executor().post(
+        return presenter.import_workspace_->worker->executor().post(
             [entered, release]
             {
                 entered->set_value();
@@ -33,12 +34,17 @@ public:
     }
     static Result<Recipe> recipe(StudioPresenter &presenter, const std::string &asset)
     {
-        return presenter.executor_.submit([&] { return presenter.service_->load_recipe(asset); });
+        return presenter.executor_.submit(
+            [&] { return presenter.service_->develop().load_recipe(asset); });
     }
     static Result<ImportItemResult> importPhoto(StudioPresenter &presenter, const std::string &path)
     {
-        return presenter.import_worker_->executor().submit(
-            [&] { return presenter.import_worker_->service()->import_one(path, {}); });
+        return presenter.import_workspace_->worker->executor().submit(
+            [&]
+            {
+                return presenter.import_workspace_->worker->service()->import().import_one(path,
+                                                                                           {});
+            });
     }
 };
 } // namespace testing
@@ -135,8 +141,9 @@ TEST(StudioPipelinePriority, ColdPreviewAndRotationProceedWhileImportPreflightIs
     EXPECT_TRUE(live_edit.value());
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("develop"));
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
-    presenter.setCropToolActive(true);
-    ASSERT_TRUE(wait_until([&] { return presenter.cropGuideReady() && ready(presenter); }));
+    presenter.develop()->setCropToolActive(true);
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.develop()->cropGuideReady() && ready(presenter); }));
     const auto before = presenter.previewImage();
     const auto before_url = presenter.previewUrl();
     const auto rotate = [&](double value, bool live)
@@ -249,29 +256,30 @@ TEST(StudioPipelinePriority, CropFrameChangesKeepCompletePhotoAndViewport)
         wait_until([&] { return !presenter.importWorkActive() && presenter.visibleCount() == 1; }));
     presenter.setBrowseMode("develop");
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
-    presenter.setCropToolActive(true);
-    ASSERT_TRUE(wait_until([&] { return presenter.cropGuideReady() && ready(presenter); }));
+    presenter.develop()->setCropToolActive(true);
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.develop()->cropGuideReady() && ready(presenter); }));
     const auto original = presenter.previewImage();
     const QSize viewport(presenter.previewViewportWidth(), presenter.previewViewportHeight());
-    presenter.previewCropRect(0.15, 0.2, 0.65, 0.6);
+    presenter.develop()->previewCropRect(0.15, 0.2, 0.65, 0.6);
     EXPECT_EQ(presenter.previewImage(), original);
-    presenter.setCropRect(0.15, 0.2, 0.65, 0.6);
+    presenter.develop()->setCropRect(0.15, 0.2, 0.65, 0.6);
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
     EXPECT_EQ(presenter.previewImage(), original);
     EXPECT_EQ(QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight()), viewport);
-    presenter.setCropRect(0.2, 0.15, 0.6, 0.7);
+    presenter.develop()->setCropRect(0.2, 0.15, 0.6, 0.7);
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
     EXPECT_EQ(presenter.previewImage(), original);
     EXPECT_EQ(QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight()), viewport);
-    const auto layout = presenter.cropPreviewLayout();
+    const auto layout = presenter.inspect()->cropPreviewLayout();
     const double source_scale = layout.value("widthScale").toDouble() / original.width();
     ASSERT_GT(source_scale, 0.0);
     const auto unrotated_url = presenter.previewUrl();
-    presenter.previewDevelopNumber("straighten", 22.0);
+    presenter.develop()->previewDevelopNumber("straighten", 22.0);
     ASSERT_TRUE(
         wait_until([&] { return ready(presenter) && presenter.previewUrl() != unrotated_url; }));
     const auto rotated = presenter.previewImage();
-    const auto rotated_layout = presenter.cropPreviewLayout();
+    const auto rotated_layout = presenter.inspect()->cropPreviewLayout();
     // The full rotated source expands instead of being auto-cropped and enlarged.
     EXPECT_GT(rotated.width(), original.width());
     EXPECT_GT(rotated.height(), original.height());
@@ -279,15 +287,16 @@ TEST(StudioPipelinePriority, CropFrameChangesKeepCompletePhotoAndViewport)
                 1e-9);
     EXPECT_LT(rotated_layout.value("width").toDouble(), 1.0);
     EXPECT_LT(rotated_layout.value("height").toDouble(), 1.0);
-    presenter.setDevelopNumber("straighten", 22.0);
+    presenter.develop()->setDevelopNumber("straighten", 22.0);
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
-    presenter.setCropToolActive(false);
+    presenter.develop()->setCropToolActive(false);
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
     EXPECT_NE(presenter.previewImage().size(), original.size());
-    presenter.setCropToolActive(true);
-    ASSERT_TRUE(wait_until([&] { return presenter.cropGuideReady() && ready(presenter); }));
+    presenter.develop()->setCropToolActive(true);
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.develop()->cropGuideReady() && ready(presenter); }));
     EXPECT_EQ(presenter.previewImage(), rotated);
-    EXPECT_EQ(presenter.cropPreviewLayout(), rotated_layout);
+    EXPECT_EQ(presenter.inspect()->cropPreviewLayout(), rotated_layout);
 }
 
 TEST(StudioPipelinePriority, UnrelatedImportDoesNotRejectPhotoEdit)
@@ -312,7 +321,7 @@ TEST(StudioPipelinePriority, UnrelatedImportDoesNotRejectPhotoEdit)
     auto imported = testing::StudioPipelineTestControl::importPhoto(presenter, other.toStdString());
     ASSERT_TRUE(imported);
     ASSERT_EQ(imported.value().status, ImportItemStatus::kImported);
-    presenter.setDevelopNumber("exposure", 0.5);
+    presenter.develop()->setDevelopNumber("exposure", 0.5);
     ASSERT_TRUE(wait_until([&] { return ready(presenter); }))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();

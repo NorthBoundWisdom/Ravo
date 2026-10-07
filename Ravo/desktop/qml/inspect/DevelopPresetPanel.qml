@@ -10,8 +10,8 @@ Item {
     property var commands
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
-    readonly property var presets: hasPresenter ? presenter.editPresets : []
-    readonly property var saveParameters: hasPresenter ? presenter.modifiedParameterChoices : []
+    readonly property var presets: hasPresenter ? presenter.develop.editPresets : []
+    readonly property var saveParameters: hasPresenter ? presenter.develop.modifiedParameterChoices : []
 
     ColumnLayout {
         anchors.fill: parent

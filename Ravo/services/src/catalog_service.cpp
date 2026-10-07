@@ -35,7 +35,8 @@ void testing::CatalogServiceTestControl::set_merge_checkpoint(
 
 bool testing::CatalogServiceTestControl::has_decoded_raw(const CatalogService &service)
 {
-    return service.decoded_raw_.has_value() || service.browse_decoded_raw_.has_value();
+    return service.preview_capability_->decoded_raw_.has_value() ||
+           service.preview_capability_->browse_decoded_raw_.has_value();
 }
 
 void testing::CatalogServiceTestControl::set_before_import_publication(
@@ -75,11 +76,12 @@ std::array<std::optional<std::uint32_t>, 2>
 testing::CatalogServiceTestControl::linear_working_max_edges(const CatalogService &service)
 {
     std::array<std::optional<std::uint32_t>, 2> result;
-    for (std::size_t index = 0; index < service.linear_working_.size(); ++index)
+    for (std::size_t index = 0; index < service.preview_capability_->linear_working_.size();
+         ++index)
     {
-        if (service.linear_working_[index])
+        if (service.preview_capability_->linear_working_[index])
         {
-            result[index] = service.linear_working_[index]->max_edge;
+            result[index] = service.preview_capability_->linear_working_[index]->max_edge;
         }
     }
     return result;
@@ -88,21 +90,21 @@ testing::CatalogServiceTestControl::linear_working_max_edges(const CatalogServic
 std::optional<std::uint32_t>
 testing::CatalogServiceTestControl::browse_linear_working_max_edge(const CatalogService &service)
 {
-    if (!service.browse_linear_working_)
+    if (!service.preview_capability_->browse_linear_working_)
     {
         return std::nullopt;
     }
-    return service.browse_linear_working_->max_edge;
+    return service.preview_capability_->browse_linear_working_->max_edge;
 }
 
 std::optional<std::uint64_t>
 testing::CatalogServiceTestControl::roi_linear_working_generation(const CatalogService &service)
 {
-    if (!service.roi_linear_working_)
+    if (!service.preview_capability_->roi_linear_working_)
     {
         return std::nullopt;
     }
-    return service.roi_linear_working_->generation;
+    return service.preview_capability_->roi_linear_working_->generation;
 }
 
 CatalogService::CatalogService(const EngineFacade &engine,
@@ -120,12 +122,48 @@ CatalogService::CatalogService(const EngineFacade &engine,
                                       std::move(recovery_publication_mutex) :
                                       std::make_shared<std::mutex>())
 {
-    library_capability_ = std::make_unique<LibraryService>(*this);
-    develop_capability_ = std::make_unique<DevelopService>(*this);
-    metadata_capability_ = std::make_unique<MetadataService>(*this);
-    import_capability_ = std::make_unique<ImportService>(*this);
-    ingest_capability_ = std::make_unique<IngestService>(*this);
-    recovery_capability_ = std::make_unique<RecoveryService>(*this);
+    preview_capability_.reset(new PreviewService(engine_, repository_, raster_, cache_,
+                                                 testing_before_preview_cache_publication_));
+    recovery_capability_.reset(new RecoveryService(
+        repository_, recovery_, recovery_publication_mutex_, testing_backup_checkpoint_));
+    library_capability_.reset(
+        new LibraryService(repository_, cache_, recovery_, *recovery_capability_));
+    develop_capability_.reset(new DevelopService(repository_, engine_, *recovery_capability_));
+    metadata_capability_.reset(new MetadataService(repository_, engine_, *recovery_capability_));
+    import_capability_.reset(new ImportService(
+        repository_, raster_, engine_, cache_, *preview_capability_, *recovery_capability_,
+        testing_before_import_publication_, testing_import_checkpoint_));
+    ingest_capability_.reset(new IngestService(repository_, *import_capability_));
+    ai_capability_.reset(new AiService(repository_, *develop_capability_, *library_capability_,
+                                       *metadata_capability_, *recovery_capability_));
+    conversion_capability_.reset(new ConversionService(repository_, *develop_capability_,
+                                                       *import_capability_, *library_capability_,
+                                                       *metadata_capability_));
+    cull_capability_.reset(new CullService(repository_, *import_capability_, *library_capability_,
+                                           *recovery_capability_));
+    exports_capability_.reset(
+        new ExportService(repository_, raster_, engine_, *preview_capability_));
+    merge_capability_.reset(new PhotoMergeService(repository_, raster_, engine_,
+                                                  testing_merge_checkpoint_, *develop_capability_,
+                                                  *recovery_capability_));
+    xmp_capability_.reset(new XmpInterchangeService(repository_, *develop_capability_,
+                                                    *library_capability_, *metadata_capability_));
+    external_editor_capability_.reset(
+        new ExternalEditorService(repository_, raster_, engine_, *exports_capability_,
+                                  *import_capability_, *library_capability_));
+    offline_capability_.reset(new OfflineEditService(repository_, raster_, engine_,
+                                                     testing_before_offline_proxy_publish_,
+                                                     *exports_capability_, *develop_capability_));
+}
+
+PreviewService &CatalogService::preview() noexcept
+{
+    return *preview_capability_;
+}
+
+const PreviewService &CatalogService::preview() const noexcept
+{
+    return *preview_capability_;
 }
 
 LibraryService &CatalogService::library() noexcept
@@ -188,6 +226,86 @@ const RecoveryService &CatalogService::recovery() const noexcept
     return *recovery_capability_;
 }
 
+AiService &CatalogService::ai() noexcept
+{
+    return *ai_capability_;
+}
+
+const AiService &CatalogService::ai() const noexcept
+{
+    return *ai_capability_;
+}
+
+ConversionService &CatalogService::conversion() noexcept
+{
+    return *conversion_capability_;
+}
+
+const ConversionService &CatalogService::conversion() const noexcept
+{
+    return *conversion_capability_;
+}
+
+CullService &CatalogService::cull() noexcept
+{
+    return *cull_capability_;
+}
+
+const CullService &CatalogService::cull() const noexcept
+{
+    return *cull_capability_;
+}
+
+ExportService &CatalogService::exports() noexcept
+{
+    return *exports_capability_;
+}
+
+const ExportService &CatalogService::exports() const noexcept
+{
+    return *exports_capability_;
+}
+
+PhotoMergeService &CatalogService::merge() noexcept
+{
+    return *merge_capability_;
+}
+
+const PhotoMergeService &CatalogService::merge() const noexcept
+{
+    return *merge_capability_;
+}
+
+XmpInterchangeService &CatalogService::xmp() noexcept
+{
+    return *xmp_capability_;
+}
+
+const XmpInterchangeService &CatalogService::xmp() const noexcept
+{
+    return *xmp_capability_;
+}
+
+ExternalEditorService &CatalogService::external_editor() noexcept
+{
+    return *external_editor_capability_;
+}
+
+const ExternalEditorService &CatalogService::external_editor() const noexcept
+{
+    return *external_editor_capability_;
+}
+
+OfflineEditService &CatalogService::offline() noexcept
+{
+    return *offline_capability_;
+}
+
+const OfflineEditService &CatalogService::offline() const noexcept
+{
+    return *offline_capability_;
+}
+
 CatalogService::~CatalogService()
 {
     static_cast<void>(close());
@@ -202,7 +320,7 @@ Result<void> CatalogService::close()
     std::optional<TaskError> recovery_error;
     if (recovery_ != nullptr)
     {
-        auto synchronized = recovery().sync_recovery(std::nullopt);
+        auto synchronized = this->recovery().sync_recovery(std::nullopt);
         if (!synchronized)
         {
             recovery_error = synchronized.error();
@@ -214,16 +332,7 @@ Result<void> CatalogService::close()
     cache_.reset();
     recovery_.reset();
     engine_ = nullptr;
-    decoded_preview_source_.reset();
-    decoded_raw_.reset();
-    for (auto &working : linear_working_)
-    {
-        working.reset();
-    }
-    roi_linear_working_.reset();
-    browse_decoded_preview_source_.reset();
-    browse_decoded_raw_.reset();
-    browse_linear_working_.reset();
+    preview_capability_->clear_working_cache();
     if (recovery_error)
     {
         if (!closed)
@@ -234,1219 +343,6 @@ Result<void> CatalogService::close()
         return *recovery_error;
     }
     return closed;
-}
-
-Result<CatalogSnapshot> CatalogService::snapshot() const
-{
-    return library_capability_->snapshot();
-}
-
-Result<std::vector<AssetRecord>> CatalogService::list_assets() const
-{
-    return library().list_assets();
-}
-
-Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery &query) const
-{
-    return library().list_assets(query);
-}
-
-Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery &query,
-                                                             const bool collapse_stacks) const
-{
-    return library().list_assets(query, collapse_stacks);
-}
-
-Result<LibraryPage> CatalogService::list_assets_page(const LibraryPageRequest &request) const
-{
-    return library().list_assets_page(request);
-}
-
-Result<std::vector<LibrarySetRecord>> CatalogService::list_library_sets() const
-{
-    return library().list_library_sets();
-}
-
-Result<std::optional<LibrarySetRecord>>
-CatalogService::find_library_set(const std::string_view set_id) const
-{
-    return library().find_library_set(set_id);
-}
-
-Result<LibrarySetMutation>
-CatalogService::create_library_set(const LibrarySetKind kind, const std::string_view name,
-                                   const std::optional<LibraryQuery> &query,
-                                   const std::vector<std::string> &asset_ids,
-                                   const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->create_library_set(kind, name, query, asset_ids, expected_revision);
-}
-
-Result<LibrarySetMutation>
-CatalogService::rename_library_set(const std::string_view set_id, const std::string_view name,
-                                   const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->rename_library_set(set_id, name, expected_revision);
-}
-
-Result<std::int64_t>
-CatalogService::delete_library_set(const std::string_view set_id,
-                                   const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->delete_library_set(set_id, expected_revision);
-}
-
-Result<LibrarySetMutation>
-CatalogService::add_library_set_members(const std::string_view set_id,
-                                        const std::vector<std::string> &asset_ids,
-                                        const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->add_library_set_members(set_id, asset_ids, expected_revision);
-}
-
-Result<LibrarySetMutation>
-CatalogService::remove_library_set_members(const std::string_view set_id,
-                                           const std::vector<std::string> &asset_ids,
-                                           const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->remove_library_set_members(set_id, asset_ids, expected_revision);
-}
-
-Result<AssetVersionMutation>
-CatalogService::create_asset_version(const std::string_view source_asset_id,
-                                     const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    auto created = repository_->create_asset_version(source_asset_id, expected_revision);
-    if (!created)
-        return created.error();
-    auto recovered = synchronize_committed_change(created.value().version.id);
-    if (!recovered)
-        return recovered.error();
-    return created;
-}
-
-Result<LibraryStackMutation>
-CatalogService::stack_assets(const std::vector<std::string> &asset_ids,
-                             const std::string_view pick_asset_id,
-                             const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->stack_assets(asset_ids, pick_asset_id, expected_revision);
-}
-
-Result<std::int64_t>
-CatalogService::unstack_assets(const std::string_view stack_id,
-                               const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->unstack_assets(stack_id, expected_revision);
-}
-
-Result<LibraryStackMutation>
-CatalogService::set_stack_pick(const std::string_view stack_id,
-                               const std::string_view pick_asset_id,
-                               const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->set_stack_pick(stack_id, pick_asset_id, expected_revision);
-}
-
-Result<std::optional<LibraryStackRecord>>
-CatalogService::find_library_stack(const std::string_view stack_id) const
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return repository_->find_library_stack(stack_id);
-}
-
-Result<std::vector<PreviewRecord>> CatalogService::list_previews() const
-{
-    return library().list_previews();
-}
-
-Result<std::vector<PreviewRecord>>
-CatalogService::list_previews_for_assets(const std::vector<std::string> &asset_ids) const
-{
-    return library().list_previews_for_assets(asset_ids);
-}
-
-Result<AssetRecoveryState> CatalogService::recovery_state(const std::string_view asset_id) const
-{
-    return recovery().recovery_state(asset_id);
-}
-
-Result<std::vector<AssetRecoveryState>> CatalogService::pending_recovery() const
-{
-    return recovery().pending_recovery();
-}
-
-Result<RecoveryArtifact>
-CatalogService::synchronize_recovery_asset(const std::string_view asset_id,
-                                           const CancellationToken &cancellation)
-{
-    const std::lock_guard publication_lock(*recovery_publication_mutex_);
-    if (repository_ == nullptr || recovery_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto active = cancellation.check();
-    if (!active)
-    {
-        return active.error();
-    }
-    auto state = repository_->recovery_state(asset_id);
-    if (!state)
-    {
-        return state.error();
-    }
-    if (!state.value().pending())
-    {
-        return recovery_->verify(asset_id, state.value().generation, cancellation);
-    }
-    auto snapshot = repository_->load_recovery_snapshot(asset_id);
-    if (!snapshot)
-    {
-        return snapshot.error();
-    }
-    auto artifact = recovery_->publish(snapshot.value(), cancellation);
-    if (!artifact)
-    {
-        return artifact.error();
-    }
-    auto acknowledged =
-        repository_->acknowledge_recovery(asset_id, snapshot.value().state.generation);
-    if (!acknowledged)
-    {
-        auto error = acknowledged.error();
-        error.context.insert_or_assign("sidecar_published", "true");
-        error.context.insert_or_assign("sidecar_path", artifact.value().path);
-        return error;
-    }
-    auto cleaned = recovery_->remove_older(asset_id, snapshot.value().state.generation);
-    if (!cleaned)
-    {
-        auto error = cleaned.error();
-        error.context.insert_or_assign("recovery_acknowledged", "true");
-        error.context.insert_or_assign("sidecar_published", "true");
-        error.context.insert_or_assign("sidecar_path", artifact.value().path);
-        return error;
-    }
-    return artifact;
-}
-
-Result<void> CatalogService::synchronize_committed_change(const std::string_view asset_id,
-                                                          const CancellationToken &cancellation)
-{
-    auto synchronized = synchronize_recovery_asset(asset_id, cancellation);
-    if (!synchronized)
-    {
-        auto error = synchronized.error();
-        error.context.insert_or_assign("asset_id", std::string(asset_id));
-        error.context.insert_or_assign("catalog_committed", "true");
-        auto state = repository_->recovery_state(asset_id);
-        if (state)
-        {
-            error.context.insert_or_assign("recovery_generation",
-                                           std::to_string(state.value().generation));
-            error.context.insert_or_assign("recovery_synchronized_generation",
-                                           std::to_string(state.value().synchronized_generation));
-            error.context.insert_or_assign("recovery_pending",
-                                           state.value().pending() ? "true" : "false");
-        }
-        else
-        {
-            error.context.insert_or_assign("recovery_pending", "unknown");
-            error.context.insert_or_assign("recovery_state_error", state.error().message);
-        }
-        return error;
-    }
-    return {};
-}
-
-Result<RecoverySyncResult>
-CatalogService::sync_recovery(const std::optional<std::string_view> asset_id,
-                              const CancellationToken &cancellation)
-{
-    return recovery().sync_recovery(asset_id, cancellation);
-}
-
-Result<std::vector<FolderRecord>> CatalogService::list_folders() const
-{
-    return library().list_folders();
-}
-
-Result<AssetRecord> CatalogService::set_rating(const std::string_view asset_id, const int rating)
-{
-    auto valid = validate_rating(rating);
-    if (!valid)
-    {
-        return valid.error();
-    }
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    ReviewState review = asset.value()->review;
-    review.rating = rating;
-    const auto updated = repository_->update_review(asset_id, review);
-    if (!updated)
-    {
-        return updated.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    asset.value()->review = review;
-    auto recovered = synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
-}
-
-Result<AssetRecord> CatalogService::set_color_label(const std::string_view asset_id,
-                                                    const ColorLabel label)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    ReviewState review = asset.value()->review;
-    review.color_label = label;
-    const auto updated = repository_->update_review(asset_id, review);
-    if (!updated)
-    {
-        return updated.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    asset.value()->review = review;
-    auto recovered = synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
-}
-
-Result<AssetRecord> CatalogService::set_rejected(const std::string_view asset_id,
-                                                 const bool rejected)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    ReviewState review = asset.value()->review;
-    review.rejected = rejected;
-    if (rejected)
-        review.picked = false;
-    const auto updated = repository_->update_review(asset_id, review);
-    if (!updated)
-    {
-        return updated.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    asset.value()->review = review;
-    auto recovered = synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
-}
-
-Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    auto version_ids = repository_->list_version_asset_ids(asset_id);
-    if (!version_ids)
-        return version_ids.error();
-    std::vector<std::string> removed_ids = std::move(version_ids).value();
-    removed_ids.push_back(std::string(asset_id));
-    if (cache_ != nullptr)
-    {
-        for (const auto &id : removed_ids)
-        {
-            const auto removed_cache = cache_->remove_for_asset(id);
-            if (!removed_cache)
-                return removed_cache.error();
-        }
-    }
-    auto removed = repository_->remove_asset(asset_id);
-    if (!removed)
-    {
-        return removed.error();
-    }
-    if (recovery_ != nullptr)
-    {
-        for (const auto &id : removed_ids)
-        {
-            auto removed_recovery = recovery_->remove_asset(id);
-            if (!removed_recovery)
-            {
-                auto error = removed_recovery.error();
-                error.context.insert_or_assign("asset_id", id);
-                error.context.insert_or_assign("catalog_removed", "true");
-                return error;
-            }
-        }
-    }
-    return {};
-}
-
-Result<void> CatalogService::remove_original_and_catalog(const std::string_view asset_id)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    if (asset.value()->version_ordinal != kAssetVersionOrdinalPrimary)
-    {
-        return make_error(
-            ErrorCode::kValidation, "Only a primary asset can delete the original file",
-            {{"asset_id", std::string(asset_id)}, {"reason", "version_disk_delete_forbidden"}});
-    }
-    auto location = normalize_local_input(asset.value()->normalized_uri);
-    if (!location)
-    {
-        return location.error();
-    }
-    const auto path = std::filesystem::path(
-        std::u8string(location.value().path.begin(), location.value().path.end()));
-    std::error_code exists_error;
-    const bool exists = std::filesystem::exists(path, exists_error);
-    if (exists_error)
-    {
-        return make_error(ErrorCode::kIo, "Unable to inspect original file",
-                          {{"path", location.value().path},
-                           {"asset_id", std::string(asset_id)},
-                           {"detail", exists_error.message()}});
-    }
-    if (!exists)
-    {
-        return make_error(ErrorCode::kNotFound, "Original file is missing",
-                          {{"path", location.value().path}, {"asset_id", std::string(asset_id)}});
-    }
-    std::error_code type_error;
-    if (!std::filesystem::is_regular_file(path, type_error) || type_error)
-    {
-        return make_error(ErrorCode::kUnsupported, "Original path is not a regular file",
-                          {{"path", location.value().path},
-                           {"asset_id", std::string(asset_id)},
-                           {"detail", type_error.message()},
-                           {"reason", "original_delete_non_regular"}});
-    }
-    std::filesystem::path quarantine;
-    for (std::uint32_t suffix = 0U; suffix < 1024U; ++suffix)
-    {
-        std::filesystem::path candidate = path;
-        candidate += ".ravo-delete-" + std::to_string(suffix);
-        std::error_code candidate_error;
-        const bool occupied = std::filesystem::exists(candidate, candidate_error);
-        if (candidate_error)
-        {
-            return make_error(ErrorCode::kIo, "Unable to inspect delete quarantine path",
-                              {{"path", location.value().path},
-                               {"asset_id", std::string(asset_id)},
-                               {"detail", candidate_error.message()},
-                               {"reason", "delete_quarantine_inspect_failed"}});
-        }
-        if (!occupied)
-        {
-            quarantine = candidate;
-            break;
-        }
-    }
-    if (quarantine.empty())
-    {
-        return make_error(ErrorCode::kConflict, "No unique delete quarantine path is available",
-                          {{"path", location.value().path},
-                           {"asset_id", std::string(asset_id)},
-                           {"reason", "delete_quarantine_conflict"}});
-    }
-    std::error_code rename_error;
-    std::filesystem::rename(path, quarantine, rename_error);
-    if (rename_error)
-    {
-        return make_error(ErrorCode::kIo, "Unable to quarantine original before deletion",
-                          {{"path", location.value().path},
-                           {"asset_id", std::string(asset_id)},
-                           {"detail", rename_error.message()},
-                           {"reason", "delete_quarantine_rename_failed"}});
-    }
-    auto removed = remove_from_catalog(asset_id);
-    std::optional<TaskError> cleanup_error;
-    if (!removed)
-    {
-        TaskError primary = removed.error();
-        const auto committed = primary.context.find("catalog_removed");
-        if (committed != primary.context.end() && committed->second == "true")
-        {
-            cleanup_error = std::move(primary);
-        }
-        else
-        {
-            std::error_code rollback_error;
-            std::filesystem::rename(quarantine, path, rollback_error);
-            if (rollback_error)
-            {
-                primary.context.insert_or_assign("rollback_failed", "true");
-                primary.context.insert_or_assign("rollback_error", rollback_error.message());
-                primary.context.insert_or_assign("quarantine_path", quarantine.string());
-            }
-            return primary;
-        }
-    }
-    std::error_code remove_error;
-    if (!std::filesystem::remove(quarantine, remove_error) || remove_error)
-    {
-        auto error =
-            make_error(ErrorCode::kIo,
-                       "Catalog entry was removed but quarantined original could not be deleted",
-                       {{"path", location.value().path},
-                        {"quarantine_path", quarantine.string()},
-                        {"asset_id", std::string(asset_id)},
-                        {"catalog_removed", "true"},
-                        {"detail", remove_error.message()},
-                        {"reason", "delete_quarantine_finalize_failed"}});
-        if (cleanup_error)
-        {
-            error.context.insert_or_assign("recovery_cleanup_failed", "true");
-            error.context.insert_or_assign("recovery_cleanup_error", cleanup_error->message);
-        }
-        return error;
-    }
-    if (cleanup_error)
-    {
-        cleanup_error->context.insert_or_assign("original_removed", "true");
-        return *cleanup_error;
-    }
-    return {};
-}
-
-Result<AssetRecord> CatalogService::refresh_capture_metadata(const std::string_view asset_id,
-                                                             const CancellationToken &cancellation)
-{
-    auto active = cancellation.check();
-    if (!active)
-        return active.error();
-    if (repository_ == nullptr || engine_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    auto existing = repository_->find_asset_by_id(asset_id);
-    if (!existing)
-        return existing.error();
-    if (!existing.value())
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    auto location = normalize_local_input(existing.value()->normalized_uri);
-    if (!location)
-        return location.error();
-    auto identity = read_file_identity(location.value().path);
-    if (!identity)
-        return identity.error();
-
-    CaptureMetadata refreshed;
-    if (is_raw_media_type(existing.value()->media_type))
-    {
-        auto inspected = engine_->inspect(location.value().path, cancellation);
-        if (!inspected)
-            return inspected.error();
-        if (!inspected.value().is_raw)
-            return make_error(ErrorCode::kValidation,
-                              "Catalog RAW asset no longer identifies as RAW",
-                              {{"asset_id", std::string(asset_id)},
-                               {"reason", "metadata_refresh_media_mismatch"}});
-        if (!inspected.value().make.empty())
-            refreshed.camera_make = inspected.value().make;
-        if (!inspected.value().model.empty())
-            refreshed.camera_model = inspected.value().model;
-        refreshed.iso = inspected.value().iso;
-        refreshed.aperture = inspected.value().aperture;
-        refreshed.focal_length_mm = inspected.value().focal_length_mm;
-        refreshed.shutter_s = inspected.value().shutter_s;
-        refreshed.captured_unix_s = inspected.value().captured_unix_s;
-    }
-    if (media_type_has_embedded_capture(existing.value()->media_type))
-    {
-        auto extracted =
-            engine_->read_embedded_capture_metadata(location.value().path, cancellation);
-        if (!extracted)
-            return extracted.error();
-        merge_engine_capture(refreshed, extracted.value());
-    }
-    auto valid = validate_capture_metadata(refreshed);
-    if (!valid)
-        return valid.error();
-    active = cancellation.check();
-    if (!active)
-        return active.error();
-    AssetRecord updated = *existing.value();
-    updated.size_bytes = identity.value().size_bytes;
-    updated.mtime_unix_ms = identity.value().mtime_unix_ms;
-    updated.content_fingerprint = make_content_fingerprint(identity.value());
-    updated.import_state = std::string(kImportStateImported);
-    updated.error_code.reset();
-    updated.error_message.reset();
-    updated.capture = std::move(refreshed);
-    auto published = repository_->commit_refreshed_asset(updated);
-    if (!published)
-        return published.error();
-    auto recovered = synchronize_committed_change(asset_id, cancellation);
-    if (!recovered)
-        return recovered.error();
-    return updated;
-}
-
-Result<bool> CatalogService::asset_has_edits(const std::string_view asset_id) const
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    return asset.value()->has_edits;
-}
-
-Result<Recipe> CatalogService::load_baseline_recipe(const std::string_view asset_id) const
-{
-    if (repository_ == nullptr || engine_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    auto location = normalize_local_input(asset.value()->normalized_uri);
-    if (!location)
-    {
-        return location.error();
-    }
-    return baseline_recipe_for(*asset.value(), location.value().path);
-}
-
-Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) const
-{
-    if (repository_ == nullptr || engine_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto baseline = load_baseline_recipe(asset_id);
-    if (!baseline)
-    {
-        return baseline.error();
-    }
-    auto stored = repository_->load_recipe_json(asset_id);
-    if (!stored)
-    {
-        return stored.error();
-    }
-    if (!stored.value())
-    {
-        return baseline;
-    }
-    auto parsed = parse_recipe_json(*stored.value());
-    if (!parsed)
-    {
-        return parsed.error();
-    }
-    parsed.value().asset = baseline.value().asset;
-    auto merged = merge_missing_raw_baseline_operations(baseline.value(), parsed.value());
-    if (!merged)
-    {
-        return merged.error();
-    }
-    auto valid = engine_->validate(parsed.value());
-    if (!valid)
-    {
-        return valid.error();
-    }
-    return parsed;
-}
-
-Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
-                                                const Recipe &recipe,
-                                                const RecipeSaveOptions options)
-{
-    auto saved = save_recipe_with_history(asset_id, recipe, options);
-    if (!saved)
-    {
-        return saved.error();
-    }
-    return std::move(saved).value().asset;
-}
-
-Result<RecipeSaveResult> CatalogService::save_recipe_with_history(const std::string_view asset_id,
-                                                                  const Recipe &recipe,
-                                                                  const RecipeSaveOptions options)
-{
-    if (repository_ == nullptr || engine_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    std::optional<std::int64_t> expected_generation;
-    if (options.expected_base)
-    {
-        if (!options.expected_source)
-            return make_error(ErrorCode::kInvalidArgument, "Photo edit has no observed source",
-                              {{"reason", "missing_recipe_edit_source"}});
-        auto before = repository_->recovery_state(asset_id);
-        if (!before)
-            return before.error();
-        auto current = load_recipe(asset_id);
-        if (!current)
-            return current.error();
-        auto params = develop_from_recipe(current.value());
-        if (!params)
-            return params.error();
-        if (auto promoted = promote_legacy_local_adjustments(params.value()); !promoted)
-            return promoted.error();
-        auto expected_params = *options.expected_base;
-        if (auto promoted = promote_legacy_local_adjustments(expected_params); !promoted)
-            return promoted.error();
-        auto expected_path = normalize_local_input(options.expected_source->input_uri);
-        auto current_path = normalize_local_input(current.value().asset.input_uri);
-        if (!expected_path)
-            return expected_path.error();
-        if (!current_path)
-            return current_path.error();
-        auto expected_recipe = recipe_from_develop(current.value().asset, expected_params);
-        auto current_recipe = recipe_from_develop(current.value().asset, params.value());
-        if (!expected_recipe)
-            return expected_recipe.error();
-        if (!current_recipe)
-            return current_recipe.error();
-        auto expected_json = serialize_recipe(expected_recipe.value());
-        auto current_json = serialize_recipe(current_recipe.value());
-        if (!expected_json)
-            return expected_json.error();
-        if (!current_json)
-            return current_json.error();
-        if (options.expected_source->id != asset_id ||
-            expected_path.value().uri != current_path.value().uri ||
-            options.expected_source->content_hash != current.value().asset.content_hash ||
-            expected_json.value() != current_json.value())
-            return make_error(
-                ErrorCode::kConflict, "Photo changed since its recipe was loaded",
-                {{"reason", "stale_recipe_state"}, {"asset_id", std::string(asset_id)}});
-        auto after = repository_->recovery_state(asset_id);
-        if (!after)
-            return after.error();
-        if (before.value().generation != after.value().generation)
-            return make_error(
-                ErrorCode::kConflict, "Photo changed while checking its recipe",
-                {{"reason", "stale_recipe_state"}, {"asset_id", std::string(asset_id)}});
-        expected_generation = after.value().generation;
-    }
-    if (options.expected_revision)
-    {
-        auto current = snapshot();
-        if (!current)
-            return current.error();
-        if (*options.expected_revision != current.value().revision)
-        {
-            return make_error(ErrorCode::kConflict, "Catalog revision is stale",
-                              {{"reason", "stale_catalog_revision"},
-                               {"expected_revision", std::to_string(*options.expected_revision)},
-                               {"revision", std::to_string(current.value().revision)}});
-        }
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    auto location = normalize_local_input(asset.value()->normalized_uri);
-    if (!location)
-    {
-        return location.error();
-    }
-    Recipe stored = recipe;
-    stored.asset = {asset.value()->id, location.value().path, asset.value()->content_fingerprint};
-    auto valid = engine_->validate(stored);
-    if (!valid)
-    {
-        return valid.error();
-    }
-    auto lut_fingerprint = engine_->lut3d_cache_fingerprint(stored);
-    if (!lut_fingerprint)
-    {
-        return lut_fingerprint.error();
-    }
-    auto params = develop_from_recipe(stored);
-    if (!params)
-    {
-        return params.error();
-    }
-    std::optional<std::string> recipe_json;
-    if (matches_develop_baseline(*asset.value(), params.value()))
-    {
-        recipe_json.reset();
-    }
-    else
-    {
-        auto json = serialize_recipe(stored);
-        if (!json)
-        {
-            return json.error();
-        }
-        recipe_json = std::move(json).value();
-    }
-    const std::optional<std::string_view> recipe_json_view =
-        recipe_json ? std::optional<std::string_view>{*recipe_json} : std::nullopt;
-    // Keep an owned, non-null empty string for the explicit baseline history entry. A default
-    // string_view has a null data pointer, which Qt Sql correctly binds as SQL NULL.
-    const std::string history_json = recipe_json.value_or(std::string{});
-    const auto committed = repository_->commit_recipe(
-        asset_id, stored.schema_version, recipe_json_view, history_json, options.history_write,
-        options.discard_history_after_seq, options.coalesce_history_id,
-        RecipeCommitPrecondition{options.expected_revision, expected_generation,
-                                 options.expected_history_head});
-    if (!committed)
-    {
-        return committed.error();
-    }
-    asset.value()->has_edits = recipe_json.has_value();
-    if (!options.defer_recovery_publication)
-    {
-        auto recovered = synchronize_committed_change(asset_id);
-        if (!recovered)
-        {
-            return recovered.error();
-        }
-    }
-    return RecipeSaveResult{*asset.value(), committed.value().revision,
-                            committed.value().history_id, committed.value().history_head};
-}
-
-Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id,
-                                                 const DevelopParams &params,
-                                                 const RecipeSaveOptions options)
-{
-    auto saved = save_develop_with_history(asset_id, params, options);
-    if (!saved)
-    {
-        return saved.error();
-    }
-    return std::move(saved).value().asset;
-}
-
-Result<RecipeSaveResult> CatalogService::save_develop_with_history(const std::string_view asset_id,
-                                                                   const DevelopParams &params,
-                                                                   const RecipeSaveOptions options)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    auto location = normalize_local_input(asset.value()->normalized_uri);
-    if (!location)
-    {
-        return location.error();
-    }
-    DevelopParams stored = params;
-    if (stored.lens_mode == kLensModeLookup)
-    {
-        if (stored.lens_make.empty() && asset.value()->capture.camera_make)
-        {
-            stored.lens_make = *asset.value()->capture.camera_make;
-        }
-        if (stored.lens_model.empty() && asset.value()->capture.camera_model)
-        {
-            stored.lens_model = *asset.value()->capture.camera_model;
-        }
-        if (stored.lens_focal_mm <= 0.0 && asset.value()->capture.focal_length_mm)
-        {
-            stored.lens_focal_mm = *asset.value()->capture.focal_length_mm;
-        }
-    }
-    auto recipe = recipe_from_develop(
-        {asset.value()->id, location.value().path, asset.value()->content_fingerprint}, stored);
-    if (!recipe)
-    {
-        return recipe.error();
-    }
-    return save_recipe_with_history(asset_id, recipe.value(), options);
-}
-
-Result<std::array<double, 4>>
-CatalogService::sample_white_balance(const std::string_view asset_id,
-                                     const WhiteBalancePickRequest &request,
-                                     const CancellationToken &cancellation)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto cancelled = cancellation.check();
-    if (!cancelled)
-    {
-        return cancelled.error();
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    if (!is_raw_media_type(asset.value()->media_type))
-    {
-        return make_error(ErrorCode::kUnsupported,
-                          "White-balance pick requires a Bayer RAW original",
-                          {{"media_type", asset.value()->media_type}});
-    }
-    auto location = normalize_local_input(asset.value()->normalized_uri);
-    if (!location)
-    {
-        return location.error();
-    }
-    auto decoded = engine_->decode_raw_frame(location.value().path, cancellation);
-    if (!decoded)
-    {
-        return decoded.error();
-    }
-    return engine_->sample_white_balance(decoded.value(), request);
-}
-
-Result<AssetRecord> CatalogService::reset_recipe(const std::string_view asset_id)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    return save_develop(asset_id, baseline_develop_for(*asset.value()));
-}
-
-Result<AssetRecord> CatalogService::set_tags(const std::string_view asset_id,
-                                             const std::vector<std::string> &tags)
-{
-    auto mutated = set_tags_selection({std::string(asset_id)}, tags, std::nullopt);
-    if (!mutated)
-    {
-        return mutated.error();
-    }
-    if (mutated.value().assets.empty())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    return mutated.value().assets.front();
-}
-
-Result<WritableMetadataMutation>
-CatalogService::set_writable_metadata_selection(const std::vector<std::string> &asset_ids,
-                                                const WritableMetadataPatch &patch,
-                                                const std::optional<std::int64_t> expected_revision)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto mutated = repository_->patch_assets_writable_metadata(asset_ids, patch, expected_revision);
-    if (!mutated)
-    {
-        return mutated.error();
-    }
-    for (const auto &asset : mutated.value().assets)
-    {
-        auto recovered = synchronize_committed_change(asset.id);
-        if (!recovered)
-        {
-            return recovered.error();
-        }
-    }
-    return mutated;
-}
-
-Result<AssetRecord> CatalogService::set_writable_metadata(const std::string_view asset_id,
-                                                          const WritableMetadata &metadata)
-{
-    auto mutated = set_writable_metadata_selection(
-        {std::string(asset_id)}, writable_metadata_patch_all(metadata), std::nullopt);
-    if (!mutated)
-    {
-        return mutated.error();
-    }
-    if (mutated.value().assets.empty())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    return mutated.value().assets.front();
-}
-
-Result<std::vector<RecipeHistoryEntry>>
-CatalogService::list_recipe_history(const std::string_view asset_id) const
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    return repository_->list_recipe_history(asset_id);
-}
-
-Result<AssetRecord> CatalogService::create_recipe_snapshot(const std::string_view asset_id,
-                                                           const std::string_view label)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto trimmed = normalize_tag_name(label);
-    if (!trimmed)
-    {
-        return trimmed.error();
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    auto json = repository_->load_recipe_json(asset_id);
-    if (!json)
-    {
-        return json.error();
-    }
-    const std::string recipe_json = json.value().value_or(std::string{});
-    auto recorded = repository_->append_recipe_history(
-        asset_id, kRecipeHistoryKindSnapshot, std::string_view{trimmed.value()}, recipe_json);
-    if (!recorded)
-    {
-        return recorded.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    auto recovered = synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
-}
-
-Result<AssetRecord> CatalogService::rename_recipe_snapshot(const std::string_view asset_id,
-                                                           const std::int64_t history_id,
-                                                           const std::string_view label)
-{
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto trimmed = normalize_tag_name(label);
-    if (!trimmed)
-    {
-        return trimmed.error();
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    auto entry = repository_->find_recipe_history(history_id);
-    if (!entry)
-    {
-        return entry.error();
-    }
-    if (!entry.value() || entry.value()->asset_id != asset_id)
-    {
-        return make_error(ErrorCode::kNotFound, "Recipe snapshot does not exist",
-                          {{"history_id", std::to_string(history_id)}});
-    }
-    if (entry.value()->kind != kRecipeHistoryKindSnapshot)
-    {
-        return make_error(ErrorCode::kValidation, "Only snapshots can be renamed",
-                          {{"kind", entry.value()->kind}});
-    }
-    auto updated = repository_->update_recipe_history_label(history_id, trimmed.value());
-    if (!updated)
-    {
-        return updated.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    auto recovered = synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
-}
-
-Result<AssetRecord> CatalogService::restore_recipe_history(const std::string_view asset_id,
-                                                           const std::int64_t history_id)
-{
-    if (repository_ == nullptr || engine_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto entry = repository_->find_recipe_history(history_id);
-    if (!entry)
-    {
-        return entry.error();
-    }
-    if (!entry.value() || entry.value()->asset_id != asset_id)
-    {
-        return make_error(ErrorCode::kNotFound, "Recipe history entry does not exist",
-                          {{"history_id", std::to_string(history_id)}});
-    }
-    if (entry.value()->recipe_json.empty())
-    {
-        return reset_recipe(asset_id);
-    }
-    auto parsed = parse_recipe_json(entry.value()->recipe_json);
-    if (!parsed)
-    {
-        return parsed.error();
-    }
-    return save_recipe(asset_id, parsed.value());
 }
 
 } // namespace ravo

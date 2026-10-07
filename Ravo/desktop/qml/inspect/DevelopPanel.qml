@@ -12,8 +12,8 @@ ColumnLayout {
     property bool liveReady: false
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
-    readonly property bool localEditing: hasPresenter && presenter.localEditing === true
-    readonly property bool cropPinned: hasPresenter && presenter.cropToolActive
+    readonly property bool localEditing: hasPresenter && presenter.develop.localEditing === true
+    readonly property bool cropPinned: hasPresenter && presenter.develop.cropToolActive
     property bool showAdvancedInstances: false
     spacing: Fonts.smallSpacing
 
@@ -45,10 +45,10 @@ ColumnLayout {
     }
 
     Repeater {
-        model: [root.hasPresenter && root.presenter.activeLocalId !== undefined ? root.presenter.activeLocalId : ""]
+        model: [root.hasPresenter && root.presenter.develop.activeLocalId !== undefined ? root.presenter.develop.activeLocalId : ""]
         delegate: DevelopAdjustmentStack {
             required property var modelData
-            enabled: modelData === (root.hasPresenter && root.presenter.activeLocalId !== undefined ? root.presenter.activeLocalId : "")
+            enabled: modelData === (root.hasPresenter && root.presenter.develop.activeLocalId !== undefined ? root.presenter.develop.activeLocalId : "")
             panel: root
             Layout.fillWidth: true
         }

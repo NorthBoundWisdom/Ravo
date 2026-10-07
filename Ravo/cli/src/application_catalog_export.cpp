@@ -128,7 +128,7 @@ Result<JsonValue> run_catalog_export_command(CatalogService &service, std::strin
         if (!flags.filename_template.empty())
             request.filename_template = std::string(flags.filename_template);
         request.options = std::move(options).value();
-        auto job = service.create_export_job(request, std::string(flags.job_id));
+        auto job = service.exports().create_export_job(request, std::string(flags.job_id));
         if (!job)
             return job.error();
         auto serialized = serialize_export_job(job.value());
@@ -157,7 +157,7 @@ Result<JsonValue> run_catalog_export_command(CatalogService &service, std::strin
         auto parsed = parse_export_job_json(text_body.value());
         if (!parsed)
             return parsed.error();
-        auto resumed = service.resume_export_job(std::move(parsed).value());
+        auto resumed = service.exports().resume_export_job(std::move(parsed).value());
         if (!resumed)
             return resumed.error();
         auto serialized = serialize_export_job(resumed.value());
@@ -229,7 +229,7 @@ Result<JsonValue> run_catalog_export_command(CatalogService &service, std::strin
         if (!flags.filename_template.empty())
             request.filename_template = std::string(flags.filename_template);
         request.options = std::move(options).value();
-        auto exported = service.export_assets(request);
+        auto exported = service.exports().export_assets(request);
         if (!exported)
             return exported.error();
         JsonValue::Array items;
@@ -268,7 +268,7 @@ Result<JsonValue> run_catalog_export_command(CatalogService &service, std::strin
         if (!options)
             return options.error();
         static_cast<ExportOptions &>(request) = std::move(options).value();
-        auto exported = service.export_asset(request);
+        auto exported = service.exports().export_asset(request);
         if (!exported)
         {
             return exported.error();

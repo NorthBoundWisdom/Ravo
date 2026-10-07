@@ -103,7 +103,7 @@ namespace
 
 [[nodiscard]] std::string original_path_for(CatalogService &service, const std::string &asset_id)
 {
-    auto assets = service.list_assets();
+    auto assets = service.library().list_assets();
     EXPECT_TRUE(assets) << assets.error().message;
     for (const auto &asset : assets.value())
     {
@@ -124,7 +124,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterCreatesDerivedAssetWithoutTouch
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(20, 40, 80)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto source_id = imported.value().asset->id;
@@ -137,7 +137,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterCreatesDerivedAssetWithoutTouch
 
     const auto editor_out = root / "editor-output.jpg";
     ASSERT_TRUE(write_jpeg(editor_out, QColor(200, 30, 30)));
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
 
     ExternalEditorRegisterRequest request;
@@ -146,7 +146,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterCreatesDerivedAssetWithoutTouch
     request.editor_id = "photoshop";
     request.editor_version = "2026";
     request.expected_catalog_revision = snapshot.value().revision;
-    auto registered = service->register_external_editor_output(request);
+    auto registered = service->external_editor().register_external_editor_output(request);
     ASSERT_TRUE(registered) << registered.error().message;
     EXPECT_TRUE(registered.value().source_original_unchanged);
     EXPECT_NE(registered.value().derived_asset.id, source_id);
@@ -165,14 +165,15 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterCreatesDerivedAssetWithoutTouch
     EXPECT_EQ(after_identity.value().size_bytes, before_identity.value().size_bytes);
     EXPECT_EQ(after_identity.value().mtime_unix_ms, before_identity.value().mtime_unix_ms);
 
-    auto shown = service->external_editor_provenance(registered.value().derived_asset.id);
+    auto shown =
+        service->external_editor().external_editor_provenance(registered.value().derived_asset.id);
     ASSERT_TRUE(shown) << shown.error().message;
     EXPECT_EQ(shown.value().derived_asset_id, registered.value().derived_asset.id);
     EXPECT_EQ(shown.value().source_original.sha256, before_sha.value());
 
     // Same destination is fail-closed (no-replace).
     request.expected_catalog_revision = std::nullopt;
-    auto again = service->register_external_editor_output(request);
+    auto again = service->external_editor().register_external_editor_output(request);
     ASSERT_FALSE(again);
     EXPECT_EQ(again.error().code, ErrorCode::kConflict);
     EXPECT_EQ(again.error().context.at("reason"), "derived_destination_exists");
@@ -180,7 +181,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterCreatesDerivedAssetWithoutTouch
     // Registering the original itself is forbidden.
     ExternalEditorRegisterRequest same_file = request;
     same_file.editor_output_path = original;
-    auto blocked = service->register_external_editor_output(same_file);
+    auto blocked = service->external_editor().register_external_editor_output(same_file);
     ASSERT_FALSE(blocked);
     EXPECT_EQ(blocked.error().code, ErrorCode::kConflict);
     EXPECT_EQ(blocked.error().context.at("reason"), "editor_output_is_source_original");
@@ -191,7 +192,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterCreatesDerivedAssetWithoutTouch
     ASSERT_TRUE(write_jpeg(other_out, QColor(10, 180, 40)));
     stale.editor_output_path = other_out.string();
     stale.expected_catalog_revision = snapshot.value().revision - 1;
-    auto stale_blocked = service->register_external_editor_output(stale);
+    auto stale_blocked = service->external_editor().register_external_editor_output(stale);
     ASSERT_FALSE(stale_blocked);
     EXPECT_EQ(stale_blocked.error().code, ErrorCode::kConflict);
     EXPECT_EQ(stale_blocked.error().context.at("reason"), "stale_catalog_revision");
@@ -203,7 +204,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterCreatesDerivedAssetWithoutTouch
     cancelled_req.editor_output_path = other_out.string();
     cancelled_req.expected_catalog_revision = std::nullopt;
     cancelled_req.cancellation = cancel_source.token();
-    auto cancelled = service->register_external_editor_output(cancelled_req);
+    auto cancelled = service->external_editor().register_external_editor_output(cancelled_req);
     ASSERT_FALSE(cancelled);
     EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
 }
@@ -213,7 +214,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRejectsEmptyEditorId)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "source2.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(1, 2, 3)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto editor_out = root / "out2.jpg";
     ASSERT_TRUE(write_jpeg(editor_out, QColor(4, 5, 6)));
@@ -221,7 +222,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRejectsEmptyEditorId)
     request.source_asset_id = imported.value().asset->id;
     request.editor_output_path = editor_out.string();
     request.editor_id = "";
-    auto failed = service->register_external_editor_output(request);
+    auto failed = service->external_editor().register_external_editor_output(request);
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kInvalidArgument);
     EXPECT_EQ(failed.error().context.at("reason"), "invalid_editor_id");
@@ -232,7 +233,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesDerivedAndExternalEditorTrees)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "backup-source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(11, 22, 33)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
     const auto original = original_path_for(*service, source_id);
@@ -247,7 +248,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesDerivedAndExternalEditorTrees)
     request.editor_output_path = editor_out.string();
     request.editor_id = "photoshop";
     request.editor_version = "2026";
-    auto registered = service->register_external_editor_output(request);
+    auto registered = service->external_editor().register_external_editor_output(request);
     ASSERT_TRUE(registered) << registered.error().message;
     const auto derived_id = registered.value().derived_asset.id;
     const auto derived_location =
@@ -257,7 +258,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesDerivedAndExternalEditorTrees)
     ASSERT_TRUE(derived_sha) << derived_sha.error().message;
 
     const auto backup_path = root / "derived-backup";
-    auto backup = service->create_backup(backup_path.string());
+    auto backup = service->recovery().create_backup(backup_path.string());
     ASSERT_TRUE(backup) << backup.error().message;
     EXPECT_EQ(backup.value().format_version, kCatalogBackupFormatVersion);
     EXPECT_GE(backup.value().derived_count, 1U);
@@ -266,7 +267,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesDerivedAndExternalEditorTrees)
     EXPECT_TRUE(std::filesystem::is_directory(backup_path / "external-editor"));
     EXPECT_FALSE(std::filesystem::exists(backup_path / "originals"));
 
-    auto verified = service->verify_backup(backup_path.string());
+    auto verified = service->recovery().verify_backup(backup_path.string());
     ASSERT_TRUE(verified) << verified.error().message;
     EXPECT_EQ(verified.value().artifact.derived_count, backup.value().derived_count);
     EXPECT_EQ(verified.value().artifact.external_editor_count,
@@ -418,7 +419,7 @@ TEST_F(CatalogServiceTest, ExternalEditorOpenRecordsIntentForOriginalAndDerived)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "open-source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(30, 60, 90)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
     const auto original = original_path_for(*service, source_id);
@@ -427,7 +428,7 @@ TEST_F(CatalogServiceTest, ExternalEditorOpenRecordsIntentForOriginalAndDerived)
     ExternalEditorOpenRequest blocked;
     blocked.asset_id = source_id;
     blocked.user_initiated = false;
-    auto missing_flag = service->prepare_external_editor_open(blocked);
+    auto missing_flag = service->external_editor().prepare_external_editor_open(blocked);
     ASSERT_FALSE(missing_flag);
     EXPECT_EQ(missing_flag.error().code, ErrorCode::kInvalidArgument);
     EXPECT_EQ(missing_flag.error().context.at("reason"), "missing_user_initiated");
@@ -436,7 +437,7 @@ TEST_F(CatalogServiceTest, ExternalEditorOpenRecordsIntentForOriginalAndDerived)
     open_original.asset_id = source_id;
     open_original.user_initiated = true;
     open_original.editor_id = "photoshop";
-    auto opened = service->prepare_external_editor_open(open_original);
+    auto opened = service->external_editor().prepare_external_editor_open(open_original);
     ASSERT_TRUE(opened) << opened.error().message;
     EXPECT_EQ(opened.value().intent.open_kind, ExternalEditorOpenKind::kOriginal);
     {
@@ -459,14 +460,14 @@ TEST_F(CatalogServiceTest, ExternalEditorOpenRecordsIntentForOriginalAndDerived)
     request.source_asset_id = source_id;
     request.editor_output_path = editor_out.string();
     request.editor_id = "photoshop";
-    auto registered = service->register_external_editor_output(request);
+    auto registered = service->external_editor().register_external_editor_output(request);
     ASSERT_TRUE(registered) << registered.error().message;
     const auto derived_id = registered.value().derived_asset.id;
 
     ExternalEditorOpenRequest open_derived;
     open_derived.asset_id = derived_id;
     open_derived.user_initiated = true;
-    auto opened_derived = service->prepare_external_editor_open(open_derived);
+    auto opened_derived = service->external_editor().prepare_external_editor_open(open_derived);
     ASSERT_TRUE(opened_derived) << opened_derived.error().message;
     EXPECT_EQ(opened_derived.value().intent.open_kind, ExternalEditorOpenKind::kDerivedWorkingCopy);
     EXPECT_EQ(opened_derived.value().intent.source_asset_id, source_id);
@@ -487,7 +488,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterAutoStacksDerivedPair)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "stack-source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(15, 25, 35)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
 
@@ -498,7 +499,7 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterAutoStacksDerivedPair)
     request.editor_output_path = editor_out.string();
     request.editor_id = "affinity";
     request.auto_stack = true;
-    auto registered = service->register_external_editor_output(request);
+    auto registered = service->external_editor().register_external_editor_output(request);
     ASSERT_TRUE(registered) << registered.error().message;
     EXPECT_TRUE(registered.value().auto_stacked);
     ASSERT_TRUE(registered.value().stack);
@@ -515,13 +516,13 @@ TEST_F(CatalogServiceTest, ExternalEditorRegisterAutoStacksDerivedPair)
     again.editor_output_path = editor_out2.string();
     again.editor_id = "affinity";
     again.auto_stack = true;
-    auto conflict = service->register_external_editor_output(again);
+    auto conflict = service->external_editor().register_external_editor_output(again);
     ASSERT_FALSE(conflict);
     EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
     EXPECT_EQ(conflict.error().context.at("reason"), "editor_auto_stack_conflict");
     ASSERT_TRUE(conflict.error().context.count("derived_asset_id") != 0);
     const auto orphan_derived = conflict.error().context.at("derived_asset_id");
-    auto shown = service->external_editor_provenance(orphan_derived);
+    auto shown = service->external_editor().external_editor_provenance(orphan_derived);
     ASSERT_TRUE(shown) << shown.error().message;
     EXPECT_EQ(shown.value().source_asset_id, source_id);
 }
@@ -531,7 +532,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "wc-source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(40, 80, 120)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
     const auto original = original_path_for(*service, source_id);
@@ -543,7 +544,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
     blocked.asset_id = source_id;
     blocked.editor_id = "photoshop";
     blocked.user_initiated = false;
-    auto missing_flag = service->create_external_editor_working_copy(blocked);
+    auto missing_flag = service->external_editor().create_external_editor_working_copy(blocked);
     ASSERT_FALSE(missing_flag);
     EXPECT_EQ(missing_flag.error().code, ErrorCode::kInvalidArgument);
     EXPECT_EQ(missing_flag.error().context.at("reason"), "missing_user_initiated");
@@ -551,7 +552,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
     ExternalEditorWorkingCopyRequest missing_app = blocked;
     missing_app.user_initiated = true;
     missing_app.application_path = (root / "missing-editor.app").string();
-    auto app_missing = service->create_external_editor_working_copy(missing_app);
+    auto app_missing = service->external_editor().create_external_editor_working_copy(missing_app);
     ASSERT_FALSE(app_missing);
     EXPECT_EQ(app_missing.error().code, ErrorCode::kNotFound);
     EXPECT_EQ(app_missing.error().context.at("reason"), "missing_application");
@@ -564,7 +565,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
     request.auto_stack = true;
     request.tiff_sample_type = TiffSampleType::kUint16;
     request.max_edge = 64U;
-    auto prepared = service->create_external_editor_working_copy(request);
+    auto prepared = service->external_editor().create_external_editor_working_copy(request);
     ASSERT_TRUE(prepared) << prepared.error().message;
     EXPECT_TRUE(prepared.value().originals_unchanged);
     EXPECT_EQ(prepared.value().session.source_asset_id, source_id);
@@ -579,8 +580,8 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
               std::string::npos);
     EXPECT_TRUE(prepared.value().session.open_intent_id.has_value());
 
-    auto loaded =
-        service->external_editor_working_copy_session(prepared.value().session.working_copy_id);
+    auto loaded = service->external_editor().external_editor_working_copy_session(
+        prepared.value().session.working_copy_id);
     ASSERT_TRUE(loaded) << loaded.error().message;
     EXPECT_EQ(loaded.value().working_copy_id, prepared.value().session.working_copy_id);
     EXPECT_EQ(loaded.value().working_copy.sha256, prepared.value().session.working_copy.sha256);
@@ -588,7 +589,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
     // Unchanged working copy fails closed.
     ExternalEditorCheckReturnedRequest unchanged;
     unchanged.working_copy_id = prepared.value().session.working_copy_id;
-    auto unchanged_result = service->check_external_editor_returned(unchanged);
+    auto unchanged_result = service->external_editor().check_external_editor_returned(unchanged);
     ASSERT_FALSE(unchanged_result);
     EXPECT_EQ(unchanged_result.error().code, ErrorCode::kConflict);
     EXPECT_EQ(unchanged_result.error().context.at("reason"), "editor_output_unchanged");
@@ -599,7 +600,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
     ExternalEditorCheckReturnedRequest check;
     check.working_copy_id = prepared.value().session.working_copy_id;
     check.returned_path = returned.string();
-    auto checked = service->check_external_editor_returned(check);
+    auto checked = service->external_editor().check_external_editor_returned(check);
     ASSERT_TRUE(checked) << checked.error().message;
     EXPECT_TRUE(checked.value().registration.source_original_unchanged);
     EXPECT_TRUE(checked.value().registration.auto_stacked);
@@ -613,7 +614,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyCreateOpenAndCheckReturned)
     EXPECT_EQ(after_sha.value(), before_sha.value());
 
     // Duplicate registration of the same returned bytes fails closed.
-    auto duplicate = service->check_external_editor_returned(check);
+    auto duplicate = service->external_editor().check_external_editor_returned(check);
     ASSERT_FALSE(duplicate);
     EXPECT_EQ(duplicate.error().code, ErrorCode::kConflict);
 }
@@ -623,14 +624,14 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyRejectsUnsupportedProfile)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "wc-profile.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(9, 9, 9)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ExternalEditorWorkingCopyRequest request;
     request.asset_id = imported.value().asset->id;
     request.editor_id = "affinity";
     request.user_initiated = true;
     request.profile = "adobe-rgb";
-    auto failed = service->create_external_editor_working_copy(request);
+    auto failed = service->external_editor().create_external_editor_working_copy(request);
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kInvalidArgument);
     EXPECT_EQ(failed.error().context.at("reason"), "unsupported_working_copy_profile");
@@ -641,7 +642,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyStatusAbandonAndReopen)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "wc-status.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(11, 22, 33)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
     const auto original = original_path_for(*service, source_id);
@@ -654,11 +655,11 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyStatusAbandonAndReopen)
     request.editor_id = "photoshop";
     request.user_initiated = true;
     request.max_edge = 48U;
-    auto prepared = service->create_external_editor_working_copy(request);
+    auto prepared = service->external_editor().create_external_editor_working_copy(request);
     ASSERT_TRUE(prepared) << prepared.error().message;
     const auto working_id = prepared.value().session.working_copy_id;
 
-    auto pending = service->external_editor_working_copy_status(working_id);
+    auto pending = service->external_editor().external_editor_working_copy_status(working_id);
     ASSERT_TRUE(pending) << pending.error().message;
     EXPECT_EQ(pending.value().machine_state, ExternalEditorWorkingCopyMachineState::kPending);
     EXPECT_EQ(pending.value().reason, "pending");
@@ -669,13 +670,13 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyStatusAbandonAndReopen)
 
     // Modify working TIFF bytes so status becomes modified.
     ASSERT_TRUE(write_jpeg(prepared.value().session.working_path, QColor(200, 10, 10)));
-    auto modified = service->external_editor_working_copy_status(working_id);
+    auto modified = service->external_editor().external_editor_working_copy_status(working_id);
     ASSERT_TRUE(modified) << modified.error().message;
     EXPECT_EQ(modified.value().machine_state, ExternalEditorWorkingCopyMachineState::kModified);
     EXPECT_EQ(modified.value().reason, "modified");
     EXPECT_TRUE(modified.value().working_copy_modified);
 
-    auto listed = service->list_external_editor_working_copies(source_id);
+    auto listed = service->external_editor().list_external_editor_working_copies(source_id);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().working_copy_id, working_id);
@@ -683,7 +684,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyStatusAbandonAndReopen)
     ExternalEditorReopenRequest reopen_req;
     reopen_req.working_copy_id = working_id;
     reopen_req.user_initiated = true;
-    auto reopened = service->reopen_external_editor_working_copy(reopen_req);
+    auto reopened = service->external_editor().reopen_external_editor_working_copy(reopen_req);
     ASSERT_TRUE(reopened) << reopened.error().message;
     EXPECT_EQ(reopened.value().status.machine_state,
               ExternalEditorWorkingCopyMachineState::kModified);
@@ -691,23 +692,23 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyStatusAbandonAndReopen)
     ExternalEditorAbandonRequest blocked;
     blocked.working_copy_id = working_id;
     blocked.user_initiated = false;
-    auto missing_flag = service->abandon_external_editor_working_copy(blocked);
+    auto missing_flag = service->external_editor().abandon_external_editor_working_copy(blocked);
     ASSERT_FALSE(missing_flag);
     EXPECT_EQ(missing_flag.error().context.at("reason"), "missing_user_initiated");
 
     ExternalEditorAbandonRequest abandon;
     abandon.working_copy_id = working_id;
     abandon.user_initiated = true;
-    auto abandoned = service->abandon_external_editor_working_copy(abandon);
+    auto abandoned = service->external_editor().abandon_external_editor_working_copy(abandon);
     ASSERT_TRUE(abandoned) << abandoned.error().message;
     EXPECT_TRUE(abandoned.value().session_removed);
     EXPECT_TRUE(abandoned.value().originals_unchanged);
     EXPECT_FALSE(std::filesystem::exists(prepared.value().session.working_path));
 
-    auto missing = service->external_editor_working_copy_status(working_id);
+    auto missing = service->external_editor().external_editor_working_copy_status(working_id);
     ASSERT_FALSE(missing);
 
-    auto listed_after = service->list_external_editor_working_copies(source_id);
+    auto listed_after = service->external_editor().list_external_editor_working_copies(source_id);
     ASSERT_TRUE(listed_after) << listed_after.error().message;
     EXPECT_TRUE(listed_after.value().empty());
 
@@ -721,7 +722,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyMissingAndStaleStates)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "wc-missing.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(5, 5, 5)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
 
     ExternalEditorWorkingCopyRequest request;
@@ -729,7 +730,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyMissingAndStaleStates)
     request.editor_id = "gimp";
     request.user_initiated = true;
     request.max_edge = 32U;
-    auto prepared = service->create_external_editor_working_copy(request);
+    auto prepared = service->external_editor().create_external_editor_working_copy(request);
     ASSERT_TRUE(prepared) << prepared.error().message;
     const auto working_id = prepared.value().session.working_copy_id;
     const auto working_path = prepared.value().session.working_path;
@@ -737,7 +738,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyMissingAndStaleStates)
     std::error_code error;
     std::filesystem::remove(working_path, error);
     ASSERT_FALSE(error) << error.message();
-    auto missing = service->external_editor_working_copy_status(working_id);
+    auto missing = service->external_editor().external_editor_working_copy_status(working_id);
     ASSERT_TRUE(missing) << missing.error().message;
     EXPECT_EQ(missing.value().machine_state,
               ExternalEditorWorkingCopyMachineState::kMissingWorkingCopy);
@@ -749,13 +750,13 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyMissingAndStaleStates)
     again.editor_id = "gimp";
     again.user_initiated = true;
     again.max_edge = 32U;
-    auto prepared2 = service->create_external_editor_working_copy(again);
+    auto prepared2 = service->external_editor().create_external_editor_working_copy(again);
     ASSERT_TRUE(prepared2) << prepared2.error().message;
     ExternalEditorAbandonRequest stale;
     stale.working_copy_id = prepared2.value().session.working_copy_id;
     stale.user_initiated = true;
     stale.expected_catalog_revision = prepared2.value().session.observed_catalog_revision - 1;
-    auto stale_blocked = service->abandon_external_editor_working_copy(stale);
+    auto stale_blocked = service->external_editor().abandon_external_editor_working_copy(stale);
     ASSERT_FALSE(stale_blocked);
     EXPECT_EQ(stale_blocked.error().code, ErrorCode::kConflict);
     EXPECT_EQ(stale_blocked.error().context.at("reason"), "stale_catalog_revision");
@@ -766,7 +767,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesWorkingCopySessionsAndRelocatio
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "wc-backup-source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(18, 64, 90)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
     const auto original = original_path_for(*service, source_id);
@@ -780,7 +781,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesWorkingCopySessionsAndRelocatio
     request.user_initiated = true;
     request.max_edge = 40U;
     request.tiff_sample_type = TiffSampleType::kUint8;
-    auto prepared = service->create_external_editor_working_copy(request);
+    auto prepared = service->external_editor().create_external_editor_working_copy(request);
     ASSERT_TRUE(prepared) << prepared.error().message;
     const auto working_id = prepared.value().session.working_copy_id;
     const auto working_path_before = prepared.value().session.working_path;
@@ -789,7 +790,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesWorkingCopySessionsAndRelocatio
         std::string::npos);
 
     const auto backup_path = root / "wc-session-backup";
-    auto backup = service->create_backup(backup_path.string());
+    auto backup = service->recovery().create_backup(backup_path.string());
     ASSERT_TRUE(backup) << backup.error().message;
     EXPECT_GE(backup.value().external_editor_count, 1U);
     EXPECT_TRUE(std::filesystem::is_regular_file(backup_path / "external-editor" /
@@ -797,7 +798,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesWorkingCopySessionsAndRelocatio
     EXPECT_TRUE(std::filesystem::is_regular_file(backup_path / "external-editor" /
                                                  "working-copies" / working_id / "working.tif"));
 
-    auto verified = service->verify_backup(backup_path.string());
+    auto verified = service->recovery().verify_backup(backup_path.string());
     ASSERT_TRUE(verified) << verified.error().message;
 
     const SqliteCatalogBackupVerifier verifier;
@@ -822,7 +823,8 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesWorkingCopySessionsAndRelocatio
         engine, std::move(restored_repository).value(), std::make_unique<QtRasterDecoder>(),
         std::move(restored_cache).value(), std::move(restored_recovery).value());
 
-    auto status = restored_service.external_editor_working_copy_status(working_id);
+    auto status =
+        restored_service.external_editor().external_editor_working_copy_status(working_id);
     ASSERT_TRUE(status) << status.error().message;
     EXPECT_TRUE(status.value().working_copy_present);
     const auto restored_marker = std::filesystem::path(restored_path).filename().string() +
@@ -836,7 +838,7 @@ TEST_F(CatalogServiceTest, BackupRestorePreservesWorkingCopySessionsAndRelocatio
     ExternalEditorReopenRequest reopen;
     reopen.working_copy_id = working_id;
     reopen.user_initiated = true;
-    auto reopened = restored_service.reopen_external_editor_working_copy(reopen);
+    auto reopened = restored_service.external_editor().reopen_external_editor_working_copy(reopen);
     ASSERT_TRUE(reopened) << reopened.error().message;
     EXPECT_TRUE(reopened.value().status.working_copy_present);
 
@@ -855,7 +857,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyTiffBitDepthDimensionsNaming
         image.fill(QColor(33, 77, 121));
         ASSERT_TRUE(image.save(QString::fromStdString(source_path.string()), "JPEG", 90));
     }
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
     QtRasterDecoder decoder;
@@ -867,7 +869,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyTiffBitDepthDimensionsNaming
     uint16_req.tiff_sample_type = TiffSampleType::kUint16;
     uint16_req.profile = "srgb";
     uint16_req.max_edge = 32U;
-    auto prepared16 = service->create_external_editor_working_copy(uint16_req);
+    auto prepared16 = service->external_editor().create_external_editor_working_copy(uint16_req);
     ASSERT_TRUE(prepared16) << prepared16.error().message;
     EXPECT_EQ(prepared16.value().session.tiff_sample_type, TiffSampleType::kUint16);
     EXPECT_EQ(prepared16.value().session.profile, "srgb");
@@ -885,7 +887,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyTiffBitDepthDimensionsNaming
     ExternalEditorWorkingCopyRequest uint8_req = uint16_req;
     uint8_req.tiff_sample_type = TiffSampleType::kUint8;
     uint8_req.max_edge = 24U;
-    auto prepared8 = service->create_external_editor_working_copy(uint8_req);
+    auto prepared8 = service->external_editor().create_external_editor_working_copy(uint8_req);
     ASSERT_TRUE(prepared8) << prepared8.error().message;
     EXPECT_EQ(prepared8.value().session.tiff_sample_type, TiffSampleType::kUint8);
     const auto &path8 = prepared8.value().session.working_path;
@@ -900,19 +902,19 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopyTiffBitDepthDimensionsNaming
     ASSERT_TRUE(write_jpeg(path8, QColor(9, 200, 9)));
     ExternalEditorCheckReturnedRequest check;
     check.working_copy_id = prepared8.value().session.working_copy_id;
-    auto first = service->check_external_editor_returned(check);
+    auto first = service->external_editor().check_external_editor_returned(check);
     ASSERT_TRUE(first) << first.error().message;
-    auto second = service->check_external_editor_returned(check);
+    auto second = service->external_editor().check_external_editor_returned(check);
     ASSERT_FALSE(second);
     EXPECT_EQ(second.error().code, ErrorCode::kConflict);
 
     ExternalEditorWorkingCopyRequest stale = uint8_req;
     stale.expected_catalog_revision = 0;
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot);
     if (snapshot.value().revision != 0)
     {
-        auto stale_blocked = service->create_external_editor_working_copy(stale);
+        auto stale_blocked = service->external_editor().create_external_editor_working_copy(stale);
         ASSERT_FALSE(stale_blocked);
         EXPECT_EQ(stale_blocked.error().context.at("reason"), "stale_catalog_revision");
     }
@@ -923,7 +925,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopySourceConflictState)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "wc-source-conflict.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(70, 20, 20)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
     const auto original = original_path_for(*service, source_id);
@@ -934,12 +936,12 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopySourceConflictState)
     request.editor_id = "gimp";
     request.user_initiated = true;
     request.max_edge = 28U;
-    auto prepared = service->create_external_editor_working_copy(request);
+    auto prepared = service->external_editor().create_external_editor_working_copy(request);
     ASSERT_TRUE(prepared) << prepared.error().message;
     const auto working_id = prepared.value().session.working_copy_id;
 
     ASSERT_TRUE(write_jpeg(original, QColor(1, 2, 3)));
-    auto conflict = service->external_editor_working_copy_status(working_id);
+    auto conflict = service->external_editor().external_editor_working_copy_status(working_id);
     ASSERT_TRUE(conflict) << conflict.error().message;
     EXPECT_EQ(conflict.value().machine_state,
               ExternalEditorWorkingCopyMachineState::kSourceConflict);
@@ -949,7 +951,7 @@ TEST_F(CatalogServiceTest, ExternalEditorWorkingCopySourceConflictState)
     ASSERT_TRUE(write_jpeg(prepared.value().session.working_path, QColor(240, 10, 10)));
     ExternalEditorCheckReturnedRequest check;
     check.working_copy_id = working_id;
-    auto blocked = service->check_external_editor_returned(check);
+    auto blocked = service->external_editor().check_external_editor_returned(check);
     ASSERT_FALSE(blocked);
     EXPECT_EQ(blocked.error().code, ErrorCode::kConflict);
     EXPECT_EQ(blocked.error().context.at("reason"), "source_mutated_during_return");

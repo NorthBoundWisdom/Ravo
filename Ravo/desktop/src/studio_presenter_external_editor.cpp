@@ -105,7 +105,7 @@ QVariantMap StudioPresenter::externalEditorDefaultOptions() const
 
 QVariantList StudioPresenter::externalEditorTiffSampleTypeChoices() const
 {
-    return tiffSampleTypeChoices();
+    return exports()->tiffSampleTypeChoices();
 }
 
 void StudioPresenter::clearExternalEditorSession()
@@ -176,7 +176,7 @@ void StudioPresenter::prepareExternalEditorWorkingCopy(const QVariantMap &option
             Result<ExternalEditorWorkingCopyResult> prepared =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                prepared = service_->create_external_editor_working_copy(request);
+                prepared = service_->external_editor().create_external_editor_working_copy(request);
             QMetaObject::invokeMethod(
                 this,
                 [this, prepared = std::move(prepared), open_after, application_path]() mutable
@@ -267,17 +267,17 @@ void StudioPresenter::checkExternalEditorReturned(const QString &working_copy_id
             std::optional<std::int64_t> live_revision;
             if (service_ != nullptr)
             {
-                checked = service_->check_external_editor_returned(request);
+                checked = service_->external_editor().check_external_editor_returned(request);
                 if (!checked)
                 {
-                    auto status =
-                        service_->external_editor_working_copy_status(request.working_copy_id);
+                    auto status = service_->external_editor().external_editor_working_copy_status(
+                        request.working_copy_id);
                     if (status)
                         status_after_failure = std::move(status).value();
                 }
                 else
                 {
-                    auto snapshot = service_->snapshot();
+                    auto snapshot = service_->library().snapshot();
                     if (snapshot)
                         live_revision = snapshot.value().revision;
                 }
@@ -389,7 +389,8 @@ void StudioPresenter::abandonExternalEditorWorkingCopy(const QString &working_co
             Result<ExternalEditorAbandonResult> abandoned =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                abandoned = service_->abandon_external_editor_working_copy(request);
+                abandoned =
+                    service_->external_editor().abandon_external_editor_working_copy(request);
             QMetaObject::invokeMethod(
                 this,
                 [this, abandoned = std::move(abandoned)]() mutable
@@ -449,7 +450,8 @@ void StudioPresenter::reopenExternalEditorWorkingCopy(const QString &working_cop
             {
                 if (request.working_copy_id.empty())
                 {
-                    auto listed = service_->list_external_editor_working_copies(asset_id);
+                    auto listed =
+                        service_->external_editor().list_external_editor_working_copies(asset_id);
                     if (!listed)
                     {
                         reopened = listed.error();
@@ -463,12 +465,14 @@ void StudioPresenter::reopenExternalEditorWorkingCopy(const QString &working_cop
                     else
                     {
                         request.working_copy_id = listed.value().front().working_copy_id;
-                        reopened = service_->reopen_external_editor_working_copy(request);
+                        reopened = service_->external_editor().reopen_external_editor_working_copy(
+                            request);
                     }
                 }
                 else
                 {
-                    reopened = service_->reopen_external_editor_working_copy(request);
+                    reopened =
+                        service_->external_editor().reopen_external_editor_working_copy(request);
                 }
             }
             QMetaObject::invokeMethod(
@@ -529,7 +533,8 @@ void StudioPresenter::refreshExternalEditorWorkingCopyStatus(const QString &work
             Result<ExternalEditorWorkingCopyStatus> status =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                status = service_->external_editor_working_copy_status(working_id);
+                status =
+                    service_->external_editor().external_editor_working_copy_status(working_id);
             QMetaObject::invokeMethod(
                 this,
                 [this, status = std::move(status)]() mutable

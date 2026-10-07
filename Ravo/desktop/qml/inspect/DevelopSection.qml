@@ -22,14 +22,17 @@ CustomEditPanel {
     function syncEffectLamp() {
         if (!panel)
             return;
-        modified = panel.hasPresenter && sectionId.length && panel.presenter.sectionModified(sectionId);
-        effectEnabled = !panel.hasPresenter || !sectionId.length || panel.presenter.sectionEffectEnabled(sectionId);
+        modified = panel.hasPresenter && sectionId.length && panel.presenter.develop.sectionModified(sectionId);
+        effectEnabled = !panel.hasPresenter || !sectionId.length || panel.presenter.develop.sectionEffectEnabled(sectionId);
     }
     Connections {
-        target: panel ? panel.presenter : null
+        target: panel ? panel.presenter.develop : null
         function onEditChanged() {
             sectionPanel.syncEffectLamp();
         }
+    }
+    Connections {
+        target: panel ? panel.presenter : null
         function onSelectionChanged() {
             sectionPanel.syncEffectLamp();
         }

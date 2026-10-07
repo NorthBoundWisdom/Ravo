@@ -38,14 +38,14 @@ Item {
         event.accepted = true;
     }
     Connections {
-        target: root.presenter
+        target: root.presenter.develop
         function onEditingScopeChanged() {
             root.gestureToken = "";
         }
     }
 
     Repeater {
-        model: root.presenter.localMaskHandles
+        model: root.presenter.develop.localMaskHandles
         delegate: Rectangle {
             required property var modelData
             width: modelData.id === "rotation" ? 10 : 13
@@ -67,7 +67,7 @@ Item {
         onPressed: function (mouse) {
             let handle = "draw";
             let nearest = 18 * 18;
-            const handles = root.presenter.localMaskHandles;
+            const handles = root.presenter.develop.localMaskHandles;
             for (let i = 0; i < handles.length; ++i) {
                 const dx = mouse.x - handles[i].x * root.width;
                 const dy = mouse.y - handles[i].y * root.height;
@@ -77,11 +77,11 @@ Item {
                     nearest = distance;
                 }
             }
-            if (handle === "draw" && !root.presenter.maskDrawingActive) {
+            if (handle === "draw" && !root.presenter.develop.maskDrawingActive) {
                 mouse.accepted = false;
                 return;
             }
-            root.gestureScope = root.presenter.activeLocalId;
+            root.gestureScope = root.presenter.develop.activeLocalId;
             root.gestureAsset = root.presenter.selectedAssetId;
             const result = root.sendGesture("gesture_begin", mouse.x, mouse.y, handle);
             if (result && result.ok) {

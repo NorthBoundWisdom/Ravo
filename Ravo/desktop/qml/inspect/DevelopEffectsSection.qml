@@ -23,7 +23,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editVignette : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editVignette : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("vignette", value);
@@ -46,7 +46,7 @@ DevelopSection {
             resetValue: 0.8
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editVignetteParams.midpoint : 0.8
+            value: panel.hasPresenter ? panel.presenter.develop.editVignetteParams.midpoint : 0.8
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("vignetteMidpoint", value);
@@ -69,7 +69,7 @@ DevelopSection {
             resetValue: 0.5
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editVignetteParams.falloff : 0.5
+            value: panel.hasPresenter ? panel.presenter.develop.editVignetteParams.falloff : 0.5
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("vignetteFalloff", value);
@@ -92,7 +92,7 @@ DevelopSection {
             resetValue: 1
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editVignetteParams.shape : 1
+            value: panel.hasPresenter ? panel.presenter.develop.editVignetteParams.shape : 1
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("vignetteShape", value);
@@ -115,7 +115,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editVignetteParams.centerX : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editVignetteParams.centerX : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("vignetteCenterX", value);
@@ -138,7 +138,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editVignetteParams.centerY : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editVignetteParams.centerY : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("vignetteCenterY", value);
@@ -159,7 +159,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editBloom : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editBloom : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("bloom", value);
@@ -180,7 +180,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editSoften : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editSoften : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("soften", value);
@@ -201,7 +201,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editDehaze : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editDehaze : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("dehaze", value);
@@ -224,7 +224,7 @@ DevelopSection {
             resetValue: 0.2
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editDehazeDistance : 0.2
+            value: panel.hasPresenter ? panel.presenter.develop.editDehazeDistance : 0.2
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("dehazeDistance", value);
@@ -239,7 +239,7 @@ DevelopSection {
         CustomCheckBox {
             text: qsTr("Adaptive window scale")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editDehazeAdaptive
+            checked: panel.hasPresenter && panel.presenter.develop.editDehazeAdaptive
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("dehazeAdaptive", checked ? 1 : 0)
         }
@@ -255,7 +255,7 @@ DevelopSection {
                 objectName: "outputDitherEnabled"
                 text: qsTr("Enable output dither")
                 enabled: panel.hasSelection
-                checked: panel.hasPresenter && panel.presenter.editOutputDither.enabled
+                checked: panel.hasPresenter && panel.presenter.develop.editOutputDither.enabled
                 onToggled: if (panel.liveReady && panel.commands)
                     panel.commands.setDevelopNumber("outputDitherEnabled", checked ? 1 : 0)
             }
@@ -265,8 +265,8 @@ DevelopSection {
                 Layout.fillWidth: true
                 enabled: panel.hasSelection
                 textRole: "label"
-                model: panel.hasPresenter ? panel.presenter.editOutputDither.methodChoices : []
-                currentIndex: panel.hasPresenter ? panel.presenter.editOutputDither.methodIndex : 10
+                model: panel.hasPresenter ? panel.presenter.develop.editOutputDither.methodChoices : []
+                currentIndex: panel.hasPresenter ? panel.presenter.develop.editOutputDither.methodIndex : 10
                 Accessible.name: qsTr("Output dither method")
                 onActivated: function (index) {
                     if (panel.commands)
@@ -276,16 +276,16 @@ DevelopSection {
             CustomSlider {
                 Layout.fillWidth: true
                 title: qsTr("Random damping (dB)")
-                from: panel.hasPresenter ? panel.presenter.editOutputDither.dampingMinimum : -200
-                to: panel.hasPresenter ? panel.presenter.editOutputDither.dampingMaximum : 0
+                from: panel.hasPresenter ? panel.presenter.develop.editOutputDither.dampingMinimum : -200
+                to: panel.hasPresenter ? panel.presenter.develop.editOutputDither.dampingMaximum : 0
                 stepSize: 0.1
                 validatorDecimals: 1
                 showReset: true
                 resetValue: -100
                 delayedCommit: true
-                visible: panel.hasPresenter && panel.presenter.editOutputDither.dampingVisible
+                visible: panel.hasPresenter && panel.presenter.develop.editOutputDither.dampingVisible
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editOutputDither.dampingDb : -100
+                value: panel.hasPresenter ? panel.presenter.develop.editOutputDither.dampingDb : -100
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber("outputDitherDamping", value);
@@ -318,7 +318,7 @@ DevelopSection {
                 objectName: "outputFrameEnabled"
                 text: qsTr("Enable frame")
                 enabled: panel.hasSelection
-                checked: panel.hasPresenter && panel.presenter.editOutputFrame.enabled
+                checked: panel.hasPresenter && panel.presenter.develop.editOutputFrame.enabled
                 onToggled: if (panel.liveReady && panel.commands)
                     panel.commands.setDevelopNumber("outputFrameEnabled", checked ? 1 : 0)
             }
@@ -328,8 +328,8 @@ DevelopSection {
                     objectName: "outputFrameOrientation"
                     Layout.fillWidth: true
                     textRole: "label"
-                    model: panel.hasPresenter ? panel.presenter.editOutputFrame.orientationChoices : []
-                    currentIndex: panel.hasPresenter ? panel.presenter.editOutputFrame.orientationIndex : 0
+                    model: panel.hasPresenter ? panel.presenter.develop.editOutputFrame.orientationChoices : []
+                    currentIndex: panel.hasPresenter ? panel.presenter.develop.editOutputFrame.orientationIndex : 0
                     Accessible.name: qsTr("Frame orientation")
                     onActivated: function (index) {
                         if (panel.commands)
@@ -340,8 +340,8 @@ DevelopSection {
                     objectName: "outputFrameBasis"
                     Layout.fillWidth: true
                     textRole: "label"
-                    model: panel.hasPresenter ? panel.presenter.editOutputFrame.basisChoices : []
-                    currentIndex: panel.hasPresenter ? panel.presenter.editOutputFrame.basisIndex : 0
+                    model: panel.hasPresenter ? panel.presenter.develop.editOutputFrame.basisChoices : []
+                    currentIndex: panel.hasPresenter ? panel.presenter.develop.editOutputFrame.basisIndex : 0
                     Accessible.name: qsTr("Frame size basis")
                     onActivated: function (index) {
                         if (panel.commands)
@@ -411,7 +411,7 @@ DevelopSection {
                     showReset: false
                     delayedCommit: true
                     enabled: panel.hasSelection
-                    value: panel.hasPresenter ? panel.presenter.editOutputFrame[modelData.key] : modelData.reset
+                    value: panel.hasPresenter ? panel.presenter.develop.editOutputFrame[modelData.key] : modelData.reset
                     onValueEdited: function (value) {
                         if (panel.liveReady && panel.commands)
                             panel.commands.previewDevelopNumber(modelData.field, value);
@@ -472,7 +472,7 @@ DevelopSection {
                     showReset: false
                     delayedCommit: true
                     enabled: panel.hasSelection
-                    value: panel.hasPresenter ? panel.presenter.editOutputFrame[modelData.key] : modelData.reset
+                    value: panel.hasPresenter ? panel.presenter.develop.editOutputFrame[modelData.key] : modelData.reset
                     onValueEdited: function (value) {
                         if (panel.liveReady && panel.commands)
                             panel.commands.previewDevelopNumber(modelData.field, value);
@@ -498,7 +498,7 @@ DevelopSection {
                 objectName: "watermarkEnabled"
                 text: qsTr("Enable watermark")
                 enabled: panel.hasSelection
-                checked: panel.hasPresenter && panel.presenter.editWatermark.enabled
+                checked: panel.hasPresenter && panel.presenter.develop.editWatermark.enabled
                 onToggled: if (panel.liveReady && panel.commands)
                     panel.commands.setDevelopNumber("watermarkEnabled", checked ? 1 : 0)
             }
@@ -514,7 +514,7 @@ DevelopSection {
                     showEmptyIndicator: false
                     showClipIndicator: false
                     enabled: panel.hasSelection
-                    text: panel.hasPresenter ? panel.presenter.editWatermark.text : "RAVO"
+                    text: panel.hasPresenter ? panel.presenter.develop.editWatermark.text : "RAVO"
                     onEditingCommitted: function (committedText) {
                         if (panel.commands)
                             panel.commands.setDevelopText("watermarkText", committedText);
@@ -525,8 +525,8 @@ DevelopSection {
                 objectName: "watermarkAlignment"
                 Layout.fillWidth: true
                 textRole: "label"
-                model: panel.hasPresenter ? panel.presenter.editWatermark.alignmentChoices : []
-                currentIndex: panel.hasPresenter ? panel.presenter.editWatermark.alignmentIndex : 8
+                model: panel.hasPresenter ? panel.presenter.develop.editWatermark.alignmentChoices : []
+                currentIndex: panel.hasPresenter ? panel.presenter.develop.editWatermark.alignmentIndex : 8
                 Accessible.name: qsTr("Watermark alignment")
                 onActivated: function (index) {
                     if (panel.commands)
@@ -592,7 +592,7 @@ DevelopSection {
                     showReset: false
                     delayedCommit: true
                     enabled: panel.hasSelection
-                    value: panel.hasPresenter ? panel.presenter.editWatermark[modelData.key] : modelData.reset
+                    value: panel.hasPresenter ? panel.presenter.develop.editWatermark[modelData.key] : modelData.reset
                     onValueEdited: function (value) {
                         if (panel.liveReady && panel.commands)
                             panel.commands.previewDevelopNumber(modelData.field, value);
@@ -635,7 +635,7 @@ DevelopSection {
                     showReset: false
                     delayedCommit: true
                     enabled: panel.hasSelection
-                    value: panel.hasPresenter ? panel.presenter.editWatermark[modelData.key] : modelData.reset
+                    value: panel.hasPresenter ? panel.presenter.develop.editWatermark[modelData.key] : modelData.reset
                     onValueEdited: function (value) {
                         if (panel.liveReady && panel.commands)
                             panel.commands.previewDevelopNumber(modelData.field, value);

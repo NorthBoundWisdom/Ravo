@@ -19,14 +19,14 @@ RowLayout {
         Layout.preferredWidth: Fonts.standardFontMetrics.averageCharacterWidth * 12
         showEmptyIndicator: false
         showClipIndicator: false
-        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editColorChecker.patchCount > 0
+        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editColorChecker.patchCount > 0
         validator: DoubleValidator {
             bottom: -3.402823466e38
             top: 3.402823466e38
             decimals: 9
             notation: DoubleValidator.ScientificNotation
         }
-        text: panel.hasPresenter ? Number(panel.presenter.editColorChecker[modelData.key]).toString() : "0"
+        text: panel.hasPresenter ? Number(panel.presenter.develop.editColorChecker[modelData.key]).toString() : "0"
         onEditingCommitted: function (committedText) {
             const parsed = Number(committedText);
             if (Number.isFinite(parsed) && panel.commands)
@@ -35,7 +35,7 @@ RowLayout {
     }
     CustomButton {
         text: qsTr("Reset")
-        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editColorChecker.patchCount > 0
+        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editColorChecker.patchCount > 0
         onClicked: if (panel.commands)
             panel.commands.resetControl(modelData.field)
     }

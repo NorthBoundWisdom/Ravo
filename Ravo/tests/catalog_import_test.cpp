@@ -125,21 +125,21 @@ namespace
 TEST_F(CatalogServiceTest, CancellationAfterExifReadPreventsPublication)
 {
     ASSERT_TRUE(open_service(true));
-    auto before = service->snapshot();
+    auto before = service->library().snapshot();
     ASSERT_TRUE(before);
     const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "cancel-after-exif.jpg");
     CancellationSource cancellation;
     testing::CatalogServiceTestControl::set_before_import_publication(
         *service, [&cancellation] { EXPECT_TRUE(cancellation.cancel("after-exif")); });
-    auto imported = service->import_one(jpeg_path, cancellation.token());
+    auto imported = service->import().import_one(jpeg_path, cancellation.token());
     ASSERT_TRUE(imported);
     EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
     ASSERT_TRUE(imported.value().error);
     EXPECT_EQ(imported.value().error->code, ErrorCode::kCancelled);
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_TRUE(assets.value().empty());
-    auto after = service->snapshot();
+    auto after = service->library().snapshot();
     ASSERT_TRUE(after);
     EXPECT_EQ(after.value().revision, before.value().revision);
 }
@@ -237,7 +237,7 @@ TEST_F(CatalogServiceTest, ImportsPngAndTiffCaptureContainersIndependently)
     const auto tiff = make_synthetic_capture_exif_tiff();
     const auto png_path = write_png_with_exif_payload(root / "located.png", tiff);
     const auto png_hash = file_sha256(png_path);
-    auto png_imported = service->import_one(png_path, CancellationToken{});
+    auto png_imported = service->import().import_one(png_path, CancellationToken{});
     ASSERT_TRUE(png_imported) << png_imported.error().message;
     ASSERT_TRUE(png_imported.value().asset);
     ASSERT_TRUE(png_imported.value().asset->capture.location);
@@ -254,7 +254,8 @@ TEST_F(CatalogServiceTest, ImportsPngAndTiffCaptureContainersIndependently)
                      static_cast<std::streamsize>(tiff_bytes.size()));
     }
     const auto tiff_hash = file_sha256(standalone_tiff.string());
-    auto tiff_imported = service->import_one(standalone_tiff.string(), CancellationToken{});
+    auto tiff_imported =
+        service->import().import_one(standalone_tiff.string(), CancellationToken{});
     ASSERT_TRUE(tiff_imported) << tiff_imported.error().message;
     ASSERT_TRUE(tiff_imported.value().asset)
         << (tiff_imported.value().error ? tiff_imported.value().error->message : "");
@@ -265,7 +266,7 @@ TEST_F(CatalogServiceTest, ImportsPngAndTiffCaptureContainersIndependently)
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed);
     EXPECT_EQ(listed.value().size(), 2U);
 }
@@ -344,7 +345,7 @@ TEST_F(CatalogServiceTest, CorruptPngAndTiffNeverPublishAnAssetOrPreview)
     ASSERT_TRUE(open_service(true));
     const auto png_path = write_truncated_raster(root / "truncated.png", "PNG");
     const auto png_hash = file_sha256(png_path);
-    auto png_imported = service->import_one(png_path, CancellationToken{});
+    auto png_imported = service->import().import_one(png_path, CancellationToken{});
     ASSERT_TRUE(png_imported) << png_imported.error().message;
     EXPECT_EQ(png_imported.value().status, ImportItemStatus::kFailed);
     EXPECT_FALSE(png_imported.value().asset);
@@ -356,7 +357,7 @@ TEST_F(CatalogServiceTest, CorruptPngAndTiffNeverPublishAnAssetOrPreview)
 
     const auto tiff_path = write_truncated_raster(root / "truncated.tif", "TIFF");
     const auto tiff_hash = file_sha256(tiff_path);
-    auto tiff_imported = service->import_one(tiff_path, CancellationToken{});
+    auto tiff_imported = service->import().import_one(tiff_path, CancellationToken{});
     ASSERT_TRUE(tiff_imported) << tiff_imported.error().message;
     EXPECT_EQ(tiff_imported.value().status, ImportItemStatus::kFailed);
     EXPECT_FALSE(tiff_imported.value().asset);
@@ -366,10 +367,10 @@ TEST_F(CatalogServiceTest, CorruptPngAndTiffNeverPublishAnAssetOrPreview)
     EXPECT_EQ(tiff_imported.value().error->context.at("format"), "tiff");
     EXPECT_EQ(file_sha256(tiff_path), tiff_hash);
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_TRUE(assets.value().empty());
-    auto previews = service->list_previews();
+    auto previews = service->library().list_previews();
     ASSERT_TRUE(previews) << previews.error().message;
     EXPECT_TRUE(previews.value().empty());
 }
@@ -379,7 +380,7 @@ TEST_F(CatalogServiceTest, RecognizedTiffLayoutsDoNotStealRawRouting)
     ASSERT_TRUE(open_service(true));
     const auto float_path = write_float_rgb_tiff(root / "float.tif");
     const auto float_hash = file_sha256(float_path);
-    auto floating = service->import_one(float_path, CancellationToken{});
+    auto floating = service->import().import_one(float_path, CancellationToken{});
     ASSERT_TRUE(floating) << floating.error().message;
     EXPECT_EQ(floating.value().status, ImportItemStatus::kUnsupported);
     EXPECT_FALSE(floating.value().asset);
@@ -394,7 +395,7 @@ TEST_F(CatalogServiceTest, RecognizedTiffLayoutsDoNotStealRawRouting)
     const auto disguised = root / "camera.tif";
     std::filesystem::copy_file(arw, disguised);
     const auto disguised_hash = file_sha256(disguised.string());
-    auto imported = service->import_one(disguised.string(), CancellationToken{});
+    auto imported = service->import().import_one(disguised.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset)
         << (imported.value().error ? imported.value().error->message : "");
@@ -402,7 +403,7 @@ TEST_F(CatalogServiceTest, RecognizedTiffLayoutsDoNotStealRawRouting)
     EXPECT_EQ(imported.value().asset->media_type, kMediaTypeRaw);
     EXPECT_EQ(file_sha256(disguised.string()), disguised_hash);
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     ASSERT_EQ(assets.value().size(), 1U);
     EXPECT_EQ(assets.value().front().media_type, kMediaTypeRaw);
@@ -411,7 +412,8 @@ TEST_F(CatalogServiceTest, RecognizedTiffLayoutsDoNotStealRawRouting)
 TEST_F(CatalogServiceTest, CorruptAndUnrecognizedRawNeverPublishAnAsset)
 {
     ASSERT_TRUE(open_service(true));
-    const auto missing = service->import_one((root / "missing.cr2").string(), CancellationToken{});
+    const auto missing =
+        service->import().import_one((root / "missing.cr2").string(), CancellationToken{});
     ASSERT_TRUE(missing) << missing.error().message;
     EXPECT_EQ(missing.value().status, ImportItemStatus::kFailed);
     EXPECT_FALSE(missing.value().asset);
@@ -424,7 +426,7 @@ TEST_F(CatalogServiceTest, CorruptAndUnrecognizedRawNeverPublishAnAsset)
         output << "not a camera raw";
     }
     const auto garbage_hash = file_sha256(garbage_path.string());
-    auto garbage = service->import_one(garbage_path.string(), CancellationToken{});
+    auto garbage = service->import().import_one(garbage_path.string(), CancellationToken{});
     ASSERT_TRUE(garbage) << garbage.error().message;
     EXPECT_TRUE(garbage.value().status == ImportItemStatus::kUnsupported ||
                 garbage.value().status == ImportItemStatus::kFailed);
@@ -440,14 +442,14 @@ TEST_F(CatalogServiceTest, CorruptAndUnrecognizedRawNeverPublishAnAsset)
         output.write(prefix.data(), input.gcount());
     }
     const auto truncated_hash = file_sha256(truncated_path.string());
-    auto truncated = service->import_one(truncated_path.string(), CancellationToken{});
+    auto truncated = service->import().import_one(truncated_path.string(), CancellationToken{});
     ASSERT_TRUE(truncated) << truncated.error().message;
     EXPECT_TRUE(truncated.value().status == ImportItemStatus::kUnsupported ||
                 truncated.value().status == ImportItemStatus::kFailed);
     EXPECT_FALSE(truncated.value().asset);
     EXPECT_EQ(file_sha256(truncated_path.string()), truncated_hash);
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_TRUE(assets.value().empty());
 }
@@ -458,7 +460,7 @@ TEST_F(CatalogServiceTest, DngSuffixImportsAsRawWithoutRewritingTheSource)
     const auto dng_path = root / "camera.dng";
     std::filesystem::copy_file(raw_fixture_path(), dng_path);
     const auto dng_hash = file_sha256(dng_path.string());
-    auto imported = service->import_one(dng_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(dng_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset)
         << (imported.value().error ? imported.value().error->message : "");
@@ -481,7 +483,7 @@ TEST_F(CatalogServiceTest, XTransImportsAndPublishesAnEngineRenderedPreview)
     EXPECT_EQ(decoded.value().cfa_width, 6U);
     EXPECT_EQ(decoded.value().cfa_height, 6U);
 
-    auto imported = service->import_one(path, CancellationToken{});
+    auto imported = service->import().import_one(path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     EXPECT_EQ(file_sha256(path), hash);
     ASSERT_TRUE(imported.value().asset)
@@ -495,7 +497,7 @@ TEST_F(CatalogServiceTest, XTransImportsAndPublishesAnEngineRenderedPreview)
     PreviewRequest request;
     request.asset_id = imported.value().asset->id;
     request.max_edge = 320U;
-    auto preview = service->request_preview(request);
+    auto preview = service->preview().request_preview(request);
     ASSERT_TRUE(preview) << preview.error().message;
     EXPECT_EQ(preview.value().width, 320U);
     EXPECT_GT(preview.value().height, 0U);
@@ -505,20 +507,20 @@ TEST_F(CatalogServiceTest, XTransImportsAndPublishesAnEngineRenderedPreview)
 TEST_F(CatalogServiceTest, CancellationAfterRawInspectPreventsPublication)
 {
     ASSERT_TRUE(open_service(true));
-    auto before = service->snapshot();
+    auto before = service->library().snapshot();
     ASSERT_TRUE(before);
     CancellationSource cancellation;
     testing::CatalogServiceTestControl::set_before_import_publication(
         *service, [&cancellation] { EXPECT_TRUE(cancellation.cancel("after-raw-inspect")); });
-    auto imported = service->import_one(raw_fixture_path(), cancellation.token());
+    auto imported = service->import().import_one(raw_fixture_path(), cancellation.token());
     ASSERT_TRUE(imported);
     EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
     ASSERT_TRUE(imported.value().error);
     EXPECT_EQ(imported.value().error->code, ErrorCode::kCancelled);
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_TRUE(assets.value().empty());
-    auto after = service->snapshot();
+    auto after = service->library().snapshot();
     ASSERT_TRUE(after);
     EXPECT_EQ(after.value().revision, before.value().revision);
 }
@@ -531,10 +533,10 @@ TEST_F(CatalogServiceTest, CancellationBeforePreviewCacheCommitPublishesNoFileOr
     image.fill(QColor(10, 20, 30));
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 95));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
-    auto before = service->list_previews();
+    auto before = service->library().list_previews();
     ASSERT_TRUE(before) << before.error().message;
 
     const auto count_cache_files = [this]
@@ -562,13 +564,13 @@ TEST_F(CatalogServiceTest, CancellationBeforePreviewCacheCommitPublishesNoFileOr
     request.asset_id = imported.value().asset->id;
     request.max_edge = 11;
     request.cancellation = cancellation.token();
-    auto preview = service->request_preview(request);
+    auto preview = service->preview().request_preview(request);
     ASSERT_FALSE(preview);
     EXPECT_TRUE(hook_called);
     EXPECT_EQ(preview.error().code, ErrorCode::kCancelled);
     EXPECT_EQ(preview.error().context.at("reason"), "before-preview-cache-commit");
     EXPECT_EQ(count_cache_files(), files_before);
-    auto after = service->list_previews();
+    auto after = service->library().list_previews();
     ASSERT_TRUE(after) << after.error().message;
     EXPECT_EQ(after.value().size(), before.value().size());
 }
@@ -581,7 +583,7 @@ TEST_F(CatalogServiceTest, CloseAndCorruptCacheStillAllowReopenPreview)
     image.fill(QColor(10, 20, 30));
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 95));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -597,7 +599,7 @@ TEST_F(CatalogServiceTest, CloseAndCorruptCacheStillAllowReopenPreview)
     PreviewRequest request;
     request.asset_id = asset_id;
     request.max_edge = kThumbnailMaxEdge;
-    auto rebuilt = service->request_preview(request);
+    auto rebuilt = service->preview().request_preview(request);
     ASSERT_TRUE(rebuilt) << rebuilt.error().message;
     EXPECT_TRUE(std::filesystem::exists(rebuilt.value().cache_path));
     QFile rebuilt_file(QString::fromStdString(rebuilt.value().cache_path));
@@ -610,7 +612,7 @@ TEST_F(CatalogServiceTest, CloseAndCorruptCacheStillAllowReopenPreview)
     PreviewRequest after_close;
     after_close.asset_id = asset_id;
     after_close.max_edge = kThumbnailMaxEdge;
-    auto reopened = service->request_preview(after_close);
+    auto reopened = service->preview().request_preview(after_close);
     ASSERT_TRUE(reopened) << reopened.error().message;
     EXPECT_TRUE(std::filesystem::exists(reopened.value().cache_path));
 }
@@ -620,7 +622,7 @@ TEST_F(CatalogServiceTest, ExportsLocatedCaptureThroughJpegPngTiffDeterministica
     ASSERT_TRUE(open_service(true));
     const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "export-source.jpg");
     const auto source_hash = file_sha256(jpeg_path);
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -652,11 +654,11 @@ TEST_F(CatalogServiceTest, ExportsLocatedCaptureThroughJpegPngTiffDeterministica
     jpeg.asset_id = asset_id;
     jpeg.output_path = (root / "located-out.jpg").string();
     jpeg.format = ExportFormat::kJpeg;
-    auto first = service->export_asset(jpeg);
+    auto first = service->exports().export_asset(jpeg);
     ASSERT_TRUE(first) << first.error().message;
     ExportRequest second_request = jpeg;
     second_request.output_path = (root / "located-out-2.jpg").string();
-    auto second = service->export_asset(second_request);
+    auto second = service->exports().export_asset(second_request);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_EQ(file_sha256(jpeg.output_path), file_sha256(second.value().output_path));
     verify_embedded_capture(jpeg.output_path);
@@ -667,7 +669,7 @@ TEST_F(CatalogServiceTest, ExportsLocatedCaptureThroughJpegPngTiffDeterministica
     png.asset_id = asset_id;
     png.output_path = (root / "located-out.png").string();
     png.format = ExportFormat::kPng;
-    auto png_out = service->export_asset(png);
+    auto png_out = service->exports().export_asset(png);
     ASSERT_TRUE(png_out) << png_out.error().message;
     verify_embedded_capture(png.output_path);
     EXPECT_TRUE(parse_has(png.output_path, "2007:09:11 13:53:33"));
@@ -676,7 +678,7 @@ TEST_F(CatalogServiceTest, ExportsLocatedCaptureThroughJpegPngTiffDeterministica
     tiff.asset_id = asset_id;
     tiff.output_path = (root / "located-out.tif").string();
     tiff.format = ExportFormat::kTiff;
-    auto tiff_out = service->export_asset(tiff);
+    auto tiff_out = service->exports().export_asset(tiff);
     ASSERT_TRUE(tiff_out) << tiff_out.error().message;
     verify_embedded_capture(tiff.output_path);
     EXPECT_TRUE(parse_has(tiff.output_path, "2007:09:11 13:53:33"));
@@ -687,7 +689,7 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
 {
     ASSERT_TRUE(open_service(true));
     const auto source_path = write_synthetic_jpeg_with_capture(root / "privacy-source.jpg");
-    auto imported = service->import_one(source_path, CancellationToken{});
+    auto imported = service->import().import_one(source_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -699,14 +701,14 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
     writable.province_state = "PrivacyState";
     writable.city = "PrivacyCity";
     writable.sublocation = "PrivacySub";
-    ASSERT_TRUE(service->set_writable_metadata(asset_id, writable));
+    ASSERT_TRUE(service->metadata().set_writable_metadata(asset_id, writable));
 
     ExportRequest full;
     full.asset_id = asset_id;
     full.output_path = (root / "privacy-full.jpg").string();
     full.format = ExportFormat::kJpeg;
     full.metadata_mode = ExportMetadataMode::kFull;
-    auto full_result = service->export_asset(full);
+    auto full_result = service->exports().export_asset(full);
     ASSERT_TRUE(full_result) << full_result.error().message;
     {
         QFile file(QString::fromStdString(full.output_path));
@@ -725,7 +727,7 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
     no_location.output_path = (root / "privacy-no-location.jpg").string();
     no_location.format = ExportFormat::kJpeg;
     no_location.metadata_mode = ExportMetadataMode::kNoLocation;
-    auto no_location_result = service->export_asset(no_location);
+    auto no_location_result = service->exports().export_asset(no_location);
     ASSERT_TRUE(no_location_result) << no_location_result.error().message;
     auto no_location_capture =
         engine.read_embedded_capture_metadata(no_location.output_path, CancellationToken{});
@@ -756,7 +758,7 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
         request.output_path = (root / name).string();
         request.format = format;
         request.metadata_mode = ExportMetadataMode::kNone;
-        auto exported = service->export_asset(request);
+        auto exported = service->exports().export_asset(request);
         ASSERT_TRUE(exported) << name << ": " << exported.error().message;
         QFile file(QString::fromStdString(request.output_path));
         ASSERT_TRUE(file.open(QIODevice::ReadOnly));
@@ -780,7 +782,7 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
     original.output_path = (root / "privacy-original.jpg").string();
     original.format = ExportFormat::kOriginalCopy;
     original.metadata_mode = ExportMetadataMode::kNone;
-    const auto rejected = service->export_asset(original);
+    const auto rejected = service->exports().export_asset(original);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("reason"), "metadata_mode_not_applicable");
     EXPECT_FALSE(std::filesystem::exists(original.output_path));
@@ -809,18 +811,18 @@ TEST(PresetPerformanceProbe, AppliesCrsToWarmRawPreviewWithinRequestedBudget)
                             std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
                             std::move(recovery).value());
 
-    auto baseline_recipe = measured.load_baseline_recipe(asset_id);
+    auto baseline_recipe = measured.develop().load_baseline_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto baseline = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_TRUE(measured.save_develop(asset_id, baseline.value()));
+    ASSERT_TRUE(measured.develop().save_develop(asset_id, baseline.value()));
 
     PreviewRequest request;
     request.asset_id = asset_id;
     request.max_edge = kDefaultPreviewMaxEdge;
     request.persist_preview_record = true;
     request.prefer_embedded_preview = false;
-    auto warmed = measured.request_preview(request);
+    auto warmed = measured.preview().request_preview(request);
     ASSERT_TRUE(warmed) << warmed.error().message;
 
     const auto started = std::chrono::steady_clock::now();
@@ -831,15 +833,15 @@ TEST(PresetPerformanceProbe, AppliesCrsToWarmRawPreviewWithinRequestedBudget)
     auto applied = baseline.value();
     apply_crs_look(applied, imported.value().look, imported.value().mask);
     const auto parsed_at = std::chrono::steady_clock::now();
-    ASSERT_TRUE(measured.save_develop(asset_id, applied));
+    ASSERT_TRUE(measured.develop().save_develop(asset_id, applied));
     const auto saved_at = std::chrono::steady_clock::now();
     PreviewRequest interactive = request;
     interactive.max_edge = kInteractivePreviewMaxEdge;
     interactive.persist_preview_record = false;
-    auto first_preview = measured.request_preview(interactive, applied);
+    auto first_preview = measured.preview().request_preview(interactive, applied);
     ASSERT_TRUE(first_preview) << first_preview.error().message;
     const auto first_preview_at = std::chrono::steady_clock::now();
-    auto preview = measured.request_preview(request);
+    auto preview = measured.preview().request_preview(request);
     ASSERT_TRUE(preview) << preview.error().message;
     const auto finished = std::chrono::steady_clock::now();
     const auto parse_ms =
@@ -901,7 +903,7 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
                             std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
                             std::move(recovery).value());
 
-    auto recipe = measured.load_recipe(asset_id);
+    auto recipe = measured.develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto baseline = develop_from_recipe(recipe.value());
     ASSERT_TRUE(baseline) << baseline.error().message;
@@ -911,7 +913,7 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
     request.persist_preview_record = false;
     request.prefer_embedded_preview = false;
 
-    auto warm = measured.request_preview(request, baseline.value());
+    auto warm = measured.preview().request_preview(request, baseline.value());
     ASSERT_TRUE(warm) << warm.error().message;
     ASSERT_FALSE(warm.value().rgb.empty());
     ASSERT_LE(std::max(warm.value().width, warm.value().height), max_edge);
@@ -919,7 +921,7 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
     {
         PreviewRequest settled = request;
         settled.max_edge = kDefaultPreviewMaxEdge;
-        auto settled_warm = measured.request_preview(settled);
+        auto settled_warm = measured.preview().request_preview(settled);
         ASSERT_TRUE(settled_warm) << settled_warm.error().message;
         ASSERT_FALSE(settled_warm.value().rgb.empty());
     }
@@ -934,7 +936,7 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
         const double offset = static_cast<double>(static_cast<int>(run % 7U) - 3) * 0.01;
         adjusted.exposure_ev = std::clamp(adjusted.exposure_ev + offset, -18.0, 18.0);
         const auto started = std::chrono::steady_clock::now();
-        auto preview = measured.request_preview(request, adjusted);
+        auto preview = measured.preview().request_preview(request, adjusted);
         const auto rendered = std::chrono::steady_clock::now();
         ASSERT_TRUE(preview) << preview.error().message;
         ASSERT_FALSE(preview.value().rgb.empty());
@@ -1019,7 +1021,7 @@ TEST(PerspectiveInteractivePerformanceProbe, MeasuresWarmManualTransformWithoutC
                             std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
                             std::move(recovery).value());
 
-    auto recipe = measured.load_recipe(asset_id);
+    auto recipe = measured.develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto baseline = develop_from_recipe(recipe.value());
     ASSERT_TRUE(baseline) << baseline.error().message;
@@ -1028,7 +1030,7 @@ TEST(PerspectiveInteractivePerformanceProbe, MeasuresWarmManualTransformWithoutC
     request.max_edge = max_edge;
     request.persist_preview_record = false;
     request.prefer_embedded_preview = false;
-    auto warm = measured.request_preview(request, baseline.value());
+    auto warm = measured.preview().request_preview(request, baseline.value());
     ASSERT_TRUE(warm) << warm.error().message;
     ASSERT_FALSE(warm.value().rgb.empty());
 
@@ -1045,7 +1047,7 @@ TEST(PerspectiveInteractivePerformanceProbe, MeasuresWarmManualTransformWithoutC
         adjusted.perspective_constrain_crop = true;
         adjusted.perspective_interpolation_index = 2;
         const auto started = std::chrono::steady_clock::now();
-        auto preview = measured.request_preview(request, adjusted);
+        auto preview = measured.preview().request_preview(request, adjusted);
         const auto rendered = std::chrono::steady_clock::now();
         ASSERT_TRUE(preview) << preview.error().message;
         ASSERT_FALSE(preview.value().rgb.empty());
@@ -1115,7 +1117,7 @@ TEST(InteractivePreviewQualityProbe, ComparesInteractiveEdgesWithSettledDisplayP
     CatalogService measured(created_engine.value(), std::move(repository).value(),
                             std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
                             std::move(recovery).value());
-    auto recipe = measured.load_recipe(asset_id);
+    auto recipe = measured.develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
@@ -1127,7 +1129,7 @@ TEST(InteractivePreviewQualityProbe, ComparesInteractiveEdgesWithSettledDisplayP
         request.max_edge = edge;
         request.persist_preview_record = false;
         request.prefer_embedded_preview = false;
-        return measured.request_preview(request, develop.value());
+        return measured.preview().request_preview(request, develop.value());
     };
     auto former = render(640U);
     auto interactive = render(kInteractivePreviewMaxEdge);
@@ -1223,7 +1225,7 @@ TEST_F(CatalogServiceTest, TexturePersistsAndReproducesPreviewAndExportAfterReop
     }
     ASSERT_TRUE(source.save(QString::fromStdString(source_path), "PNG"));
     const auto source_hash = file_sha256(source_path);
-    auto imported = service->import_one(source_path, CancellationToken{});
+    auto imported = service->import().import_one(source_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const std::string asset_id = imported.value().asset->id;
@@ -1232,19 +1234,19 @@ TEST_F(CatalogServiceTest, TexturePersistsAndReproducesPreviewAndExportAfterReop
     preview.asset_id = asset_id;
     preview.max_edge = 96U;
     preview.persist_preview_record = true;
-    auto baseline = service->request_preview(preview);
+    auto baseline = service->preview().request_preview(preview);
     ASSERT_TRUE(baseline) << baseline.error().message;
     const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
     ASSERT_FALSE(baseline_image.isNull());
 
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     develop.value().texture = TextureParams{0.75, 4.0, 1};
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored = service->load_recipe(asset_id);
+    auto stored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored) << stored.error().message;
     const auto operation =
         std::find_if(stored.value().operations.begin(), stored.value().operations.end(),
@@ -1254,7 +1256,7 @@ TEST_F(CatalogServiceTest, TexturePersistsAndReproducesPreviewAndExportAfterReop
     ASSERT_TRUE(stored_params) << stored_params.error().message;
     EXPECT_EQ(stored_params.value(), develop.value().texture);
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
     ASSERT_FALSE(before_reopen_image.isNull());
@@ -1266,7 +1268,7 @@ TEST_F(CatalogServiceTest, TexturePersistsAndReproducesPreviewAndExportAfterReop
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 96U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage exported_image(QString::fromStdString(export_path));
     ASSERT_FALSE(exported_image.isNull());
@@ -1275,12 +1277,12 @@ TEST_F(CatalogServiceTest, TexturePersistsAndReproducesPreviewAndExportAfterReop
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_EQ(restored.value().texture, develop.value().texture);
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -1308,7 +1310,8 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     const auto jpeg_hash = file_sha256(jpeg_path.string());
     const auto raw_hash = file_sha256(raw_path.string());
 
-    auto enumerated = service->enumerate_import_inputs({source_dir.string()}, CancellationToken{});
+    auto enumerated =
+        service->import().enumerate_import_inputs({source_dir.string()}, CancellationToken{});
     ASSERT_TRUE(enumerated) << enumerated.error().message;
     ASSERT_EQ(enumerated.value().size(), 2U);
     std::vector<std::string> names;
@@ -1326,7 +1329,7 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     request.destination_directory = destination.string();
     request.preview = ImportPreviewPolicy::kMinimal;
     request.defer_previews = true;
-    auto imported = service->execute_import(request);
+    auto imported = service->import().execute_import(request);
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_EQ(imported.value().imported, 2U);
     ASSERT_EQ(imported.value().items.size(), 2U);
@@ -1339,7 +1342,7 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     EXPECT_EQ(file_sha256(raw_path.string()), raw_hash);
     EXPECT_EQ(file_sha256(jpeg_path.string()), jpeg_hash);
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     ASSERT_EQ(assets.value().size(), 2U);
     std::size_t raw_count = 0;
@@ -1372,7 +1375,7 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     EXPECT_TRUE(std::filesystem::equivalent(*raw_item->jpeg_companion_destination_path,
                                             destination / "DSC0001.jpg"));
 
-    auto recipe = service->load_recipe(raw_id);
+    auto recipe = service->develop().load_recipe(raw_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
@@ -1384,7 +1387,7 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     browse.max_edge = kThumbnailMaxEdge;
     browse.purpose = PreviewPurpose::kBrowse;
     browse.prefer_embedded_preview = true;
-    auto thumb = service->request_preview(browse);
+    auto thumb = service->preview().request_preview(browse);
     ASSERT_TRUE(thumb) << thumb.error().message;
     EXPECT_NE(thumb.value().cache_key.find(std::string(kCompanionJpegBrowsePreviewDigest)),
               std::string::npos);
@@ -1395,7 +1398,7 @@ TEST_F(CatalogServiceTest, RawJpegPairImportsAsOneAssetAndCopyKeepsCompanion)
     loupe.max_edge = kDefaultPreviewMaxEdge;
     loupe.purpose = PreviewPurpose::kBrowse;
     loupe.prefer_embedded_preview = true;
-    auto camera_look = service->request_preview(loupe);
+    auto camera_look = service->preview().request_preview(loupe);
     ASSERT_TRUE(camera_look) << camera_look.error().message;
     EXPECT_NE(camera_look.value().cache_key.find(std::string(kCompanionJpegBrowsePreviewDigest)),
               std::string::npos);
@@ -1415,7 +1418,8 @@ TEST_F(CatalogServiceTest, AmbiguousRawJpegCompanionsRejectImport)
     ASSERT_TRUE(
         jpeg.save(QString::fromStdString((source_dir / "DSC0001.jpeg").string()), "JPEG", 95));
 
-    auto enumerated = service->enumerate_import_inputs({source_dir.string()}, CancellationToken{});
+    auto enumerated =
+        service->import().enumerate_import_inputs({source_dir.string()}, CancellationToken{});
     ASSERT_TRUE(enumerated) << enumerated.error().message;
     ASSERT_EQ(enumerated.value().size(), 1U);
 
@@ -1423,10 +1427,10 @@ TEST_F(CatalogServiceTest, AmbiguousRawJpegCompanionsRejectImport)
     request.inputs = {source_dir.string()};
     request.source_root = source_dir.string();
     request.mode = ImportTransferMode::kAdd;
-    auto imported = service->execute_import(request);
+    auto imported = service->import().execute_import(request);
     ASSERT_FALSE(imported);
     EXPECT_EQ(imported.error().context.at("reason"), "import_jpeg_companion_ambiguous");
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_TRUE(assets.value().empty());
 }
@@ -1443,8 +1447,8 @@ TEST_F(CatalogServiceTest, DeferredImportOfUntaggedJpegPublishesBrowseThumbnail)
     ASSERT_TRUE(decoded) << decoded.error().message;
     ASSERT_EQ(decoded.value().color_profile.kind, ColorProfileKind::kMissing);
 
-    auto imported =
-        service->import_one(jpeg_path, CancellationToken{}, ImportPreviewPolicy::kStandard, true);
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{},
+                                                 ImportPreviewPolicy::kStandard, true);
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_EQ(imported.value().status, ImportItemStatus::kImported);
     ASSERT_TRUE(imported.value().asset);
@@ -1457,7 +1461,7 @@ TEST_F(CatalogServiceTest, DeferredImportOfUntaggedJpegPublishesBrowseThumbnail)
     browse.max_edge = kThumbnailMaxEdge;
     browse.purpose = PreviewPurpose::kBrowse;
     browse.prefer_embedded_preview = true;
-    auto thumb = service->request_preview(browse);
+    auto thumb = service->preview().request_preview(browse);
     ASSERT_TRUE(thumb) << thumb.error().message;
     EXPECT_TRUE(std::filesystem::exists(thumb.value().cache_path));
 }

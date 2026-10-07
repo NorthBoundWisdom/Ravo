@@ -33,7 +33,7 @@ public:
     static void pendingClassification(StudioPresenter &presenter)
     {
         const auto snapshot =
-            presenter.executor_.submit([&] { return presenter.service_->snapshot(); });
+            presenter.executor_.submit([&] { return presenter.service_->library().snapshot(); });
         ASSERT_TRUE(snapshot);
         static_cast<void>(presenter.import_workspace_->scan->begin("test_classification_pending"));
         presenter.import_workspace_->scan->setCatalogRevision(snapshot.value().revision);
@@ -50,7 +50,7 @@ public:
     }
     static bool blockImportWorker(StudioPresenter &presenter, std::shared_future<void> release)
     {
-        return presenter.import_worker_->executor().post([release] { release.wait(); });
+        return presenter.import_workspace_->worker->executor().post([release] { release.wait(); });
     }
 };
 } // namespace testing

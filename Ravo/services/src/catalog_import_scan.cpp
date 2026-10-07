@@ -1,9 +1,12 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/import_service.h"
 
 #include <filesystem>
 #include <map>
 #include <set>
 #include "catalog_internal.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/raster_decoder.h"
 #include "ravo/adapters/text_file.h"
 #include "ravo/domain/uri.h"
 
@@ -28,7 +31,7 @@ Result<std::string> stable_hash(const std::string &path, const FileIdentity &bef
 }
 } // namespace
 
-Result<ImportScanResult> CatalogService::scan_import_candidates(
+Result<ImportScanResult> ImportService::scan_import_candidates(
     const std::vector<std::string> &inputs, const std::string_view source_root,
     const bool recursive, const CancellationToken &cancellation,
     const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress,
@@ -38,7 +41,7 @@ Result<ImportScanResult> CatalogService::scan_import_candidates(
                                        enumerated, true);
 }
 
-Result<ImportScanResult> CatalogService::scan_import_candidates_impl(
+Result<ImportScanResult> ImportService::scan_import_candidates_impl(
     const std::vector<std::string> &inputs, const std::string_view source_root,
     const bool recursive, const CancellationToken &cancellation,
     const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress,

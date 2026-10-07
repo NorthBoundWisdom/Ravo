@@ -22,7 +22,7 @@ ColumnLayout {
         CustomCheckBox {
             text: qsTr("Enable color look-up table")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editColorChecker.enabled
+            checked: panel.hasPresenter && panel.presenter.develop.editColorChecker.enabled
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("colorCheckerEnabled", checked ? 1 : 0)
         }
@@ -30,7 +30,7 @@ ColumnLayout {
             Layout.fillWidth: true
             model: [qsTr("IT8 skin tones"), qsTr("Expanded color checker"), qsTr("Helmholtz/Kohlrausch monochrome"), qsTr("Fuji Astia emulation"), qsTr("Fuji Classic Chrome emulation"), qsTr("Fuji Monochrome emulation"), qsTr("Fuji Provia emulation"), qsTr("Fuji Velvia emulation")]
             enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editColorChecker.presetIndex : -1
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editColorChecker.presetIndex : -1
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("colorCheckerPreset", currentIndex)
         }
@@ -38,13 +38,13 @@ ColumnLayout {
             Layout.fillWidth: true
             model: {
                 const labels = [];
-                const count = panel.hasPresenter ? panel.presenter.editColorChecker.patchCount : 0;
+                const count = panel.hasPresenter ? panel.presenter.develop.editColorChecker.patchCount : 0;
                 for (let index = 0; index < count; ++index)
                     labels.push(qsTr("Patch %1").arg(index + 1));
                 return labels;
             }
-            enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editColorChecker.patchCount > 0
-            currentIndex: panel.hasPresenter ? panel.presenter.editColorChecker.patchIndex : -1
+            enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editColorChecker.patchCount > 0
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editColorChecker.patchIndex : -1
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("colorCheckerPatch", currentIndex)
         }
@@ -99,14 +99,14 @@ ColumnLayout {
         }
         CustomLabel {
             Layout.fillWidth: true
-            text: panel.hasPresenter && panel.presenter.editLegacyColorBalance.enabled ? qsTr("Enabled") : qsTr("Inactive until edited")
+            text: panel.hasPresenter && panel.presenter.develop.editLegacyColorBalance.enabled ? qsTr("Enabled") : qsTr("Inactive until edited")
             opacity: 0.75
         }
         CustomComboBox {
             Layout.fillWidth: true
             model: [qsTr("Lift / Gamma / Gain"), qsTr("Slope / Offset / Power")]
             enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editLegacyColorBalance.modeIndex : 1
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editLegacyColorBalance.modeIndex : 1
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("legacyColorBalanceMode", currentIndex)
         }
@@ -285,7 +285,7 @@ ColumnLayout {
                 resetValue: modelData.reset
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editLegacyColorBalance[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editLegacyColorBalance[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -314,7 +314,7 @@ ColumnLayout {
             objectName: "colorCorrectionEnabled"
             text: qsTr("Enable Color Correction")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editColorCorrection.enabled
+            checked: panel.hasPresenter && panel.presenter.develop.editColorCorrection.enabled
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("colorCorrectionEnabled", checked ? 1 : 0)
         }
@@ -383,7 +383,7 @@ ColumnLayout {
                 resetValue: modelData.reset
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editColorCorrection[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editColorCorrection[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -412,7 +412,7 @@ ColumnLayout {
             objectName: "colorContrastEnabled"
             text: qsTr("Enable Color contrast")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editColorContrast.enabled
+            checked: panel.hasPresenter && panel.presenter.develop.editColorContrast.enabled
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("colorContrastEnabled", checked ? 1 : 0)
         }
@@ -447,7 +447,7 @@ ColumnLayout {
                 resetValue: modelData.reset
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editColorContrast[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editColorContrast[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -483,7 +483,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 text: qsTr("Allow extended chroma")
                 enabled: panel.hasSelection
-                checked: panel.hasPresenter && panel.presenter.editColorContrast.unbound
+                checked: panel.hasPresenter && panel.presenter.develop.editColorContrast.unbound
                 onToggled: if (panel.liveReady && panel.commands)
                     panel.commands.setDevelopNumber("colorContrastUnbound", checked ? 1 : 0)
             }
@@ -510,21 +510,21 @@ ColumnLayout {
             objectName: "colorHarmonizerEnabled"
             text: qsTr("Enable Color Harmonizer")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editColorHarmonizer.enabled
+            checked: panel.hasPresenter && panel.presenter.develop.editColorHarmonizer.enabled
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("colorHarmonizerEnabled", checked ? 1 : 0)
         }
         CustomComboBox {
             objectName: "colorHarmonizerRuleIndex"
             Layout.fillWidth: true
-            model: panel.hasPresenter ? panel.presenter.editColorHarmonizer.ruleChoices : []
+            model: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer.ruleChoices : []
             enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editColorHarmonizer.ruleIndex : 3
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer.ruleIndex : 3
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("colorHarmonizerRuleIndex", currentIndex)
         }
         Repeater {
-            model: panel.hasPresenter ? panel.presenter.editColorHarmonizer.sharedControls : []
+            model: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer.sharedControls : []
             delegate: CustomSlider {
                 required property var modelData
                 Layout.fillWidth: true
@@ -538,7 +538,7 @@ ColumnLayout {
                 delayedCommit: true
                 visible: modelData.visible
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editColorHarmonizer[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -553,7 +553,7 @@ ColumnLayout {
         }
         CustomSlider {
             Layout.fillWidth: true
-            readonly property var nodeControl: panel.hasPresenter ? panel.presenter.editColorHarmonizer.customNodeControl : ({})
+            readonly property var nodeControl: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer.customNodeControl : ({})
             title: nodeControl.title !== undefined ? nodeControl.title : qsTr("Custom nodes")
             from: nodeControl.minimum !== undefined ? nodeControl.minimum : 2
             to: nodeControl.maximum !== undefined ? nodeControl.maximum : 4
@@ -563,8 +563,8 @@ ColumnLayout {
             resetValue: nodeControl.reset !== undefined ? nodeControl.reset : 4
             delayedCommit: true
             visible: panel.hasPresenter ? nodeControl.visible : false
-            enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editColorHarmonizer.customRule
-            value: panel.hasPresenter ? panel.presenter.editColorHarmonizer.customNodeCount : 4
+            enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editColorHarmonizer.customRule
+            value: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer.customNodeCount : 4
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber(nodeControl.field, value);
@@ -577,7 +577,7 @@ ColumnLayout {
                 panel.commands.resetControl(nodeControl.field)
         }
         Repeater {
-            model: panel.hasPresenter ? panel.presenter.editColorHarmonizer.customHueControls : []
+            model: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer.customHueControls : []
             delegate: CustomSlider {
                 required property var modelData
                 Layout.fillWidth: true
@@ -591,7 +591,7 @@ ColumnLayout {
                 delayedCommit: true
                 visible: modelData.visible
                 enabled: panel.hasSelection && modelData.visible
-                value: panel.hasPresenter ? panel.presenter.editColorHarmonizer[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -605,7 +605,7 @@ ColumnLayout {
             }
         }
         Repeater {
-            model: panel.hasPresenter ? panel.presenter.editColorHarmonizer.nodeSaturationControls : []
+            model: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer.nodeSaturationControls : []
             delegate: CustomSlider {
                 required property var modelData
                 Layout.fillWidth: true
@@ -619,7 +619,7 @@ ColumnLayout {
                 delayedCommit: true
                 visible: modelData.visible
                 enabled: panel.hasSelection && modelData.visible
-                value: panel.hasPresenter ? panel.presenter.editColorHarmonizer[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editColorHarmonizer[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -651,7 +651,7 @@ ColumnLayout {
                 objectName: "colorReconstructionEnabled"
                 text: qsTr("Enable Color Reconstruction")
                 enabled: panel.hasSelection
-                checked: panel.hasPresenter && panel.presenter.editColorReconstruction.enabled
+                checked: panel.hasPresenter && panel.presenter.develop.editColorReconstruction.enabled
                 onToggled: if (panel.liveReady && panel.commands)
                     panel.commands.setDevelopNumber("colorReconstructionEnabled", checked ? 1 : 0)
             }
@@ -663,9 +663,9 @@ ColumnLayout {
             CustomComboBox {
                 objectName: "colorReconstructionPrecedence"
                 Layout.fillWidth: true
-                model: panel.hasPresenter ? panel.presenter.editColorReconstruction.precedenceChoices : []
+                model: panel.hasPresenter ? panel.presenter.develop.editColorReconstruction.precedenceChoices : []
                 enabled: panel.hasSelection
-                currentIndex: panel.hasPresenter ? panel.presenter.editColorReconstruction.precedenceIndex : 0
+                currentIndex: panel.hasPresenter ? panel.presenter.develop.editColorReconstruction.precedenceIndex : 0
                 onActivated: if (panel.commands)
                     panel.commands.setDevelopNumber("colorReconstructionPrecedenceIndex", currentIndex)
             }
@@ -714,7 +714,7 @@ ColumnLayout {
                     resetValue: modelData.reset
                     delayedCommit: true
                     enabled: panel.hasSelection
-                    value: panel.hasPresenter ? panel.presenter.editColorReconstruction[modelData.key] : modelData.reset
+                    value: panel.hasPresenter ? panel.presenter.develop.editColorReconstruction[modelData.key] : modelData.reset
                     onValueEdited: function (value) {
                         if (panel.liveReady && panel.commands)
                             panel.commands.previewDevelopNumber(modelData.field, value);
@@ -737,9 +737,9 @@ ColumnLayout {
                 showReset: true
                 resetValue: 237.6
                 delayedCommit: true
-                visible: panel.hasPresenter && panel.presenter.editColorReconstruction.precedenceIndex === 2
+                visible: panel.hasPresenter && panel.presenter.develop.editColorReconstruction.precedenceIndex === 2
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editColorReconstruction.hueDegrees : 237.6
+                value: panel.hasPresenter ? panel.presenter.develop.editColorReconstruction.hueDegrees : 237.6
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber("colorReconstructionHueDegrees", value);
@@ -768,7 +768,7 @@ ColumnLayout {
             objectName: "colorZonesEnabled"
             text: qsTr("Enable Color Zones")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editColorZones.enabled
+            checked: panel.hasPresenter && panel.presenter.develop.editColorZones.enabled
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("colorZonesEnabled", checked ? 1 : 0)
         }
@@ -778,8 +778,8 @@ ColumnLayout {
                 objectName: "colorZonesSelectBy"
                 Layout.fillWidth: true
                 textRole: "label"
-                model: panel.hasPresenter ? panel.presenter.editColorZones.selectByChoices : []
-                currentIndex: panel.hasPresenter ? panel.presenter.editColorZones.selectByIndex : 2
+                model: panel.hasPresenter ? panel.presenter.develop.editColorZones.selectByChoices : []
+                currentIndex: panel.hasPresenter ? panel.presenter.develop.editColorZones.selectByIndex : 2
                 Accessible.name: qsTr("Color Zones select by")
                 onActivated: function (index) {
                     if (panel.commands)
@@ -790,8 +790,8 @@ ColumnLayout {
                 objectName: "colorZonesBand"
                 Layout.fillWidth: true
                 textRole: "label"
-                model: panel.hasPresenter ? panel.presenter.editColorZones.bandChoices : []
-                currentIndex: panel.hasPresenter ? panel.presenter.editColorZones.bandIndex : 0
+                model: panel.hasPresenter ? panel.presenter.develop.editColorZones.bandChoices : []
+                currentIndex: panel.hasPresenter ? panel.presenter.develop.editColorZones.bandIndex : 0
                 Accessible.name: qsTr("Color Zones band")
                 onActivated: function (index) {
                     if (panel.commands)
@@ -809,7 +809,7 @@ ColumnLayout {
             showReset: false
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editColorZones.strength : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editColorZones.strength : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("colorZonesStrength", value);
@@ -847,8 +847,8 @@ ColumnLayout {
                 validatorDecimals: 2
                 showReset: false
                 delayedCommit: true
-                enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editColorZones.editable
-                value: panel.hasPresenter ? panel.presenter.editColorZones[modelData.key] : 0.5
+                enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editColorZones.editable
+                value: panel.hasPresenter ? panel.presenter.develop.editColorZones[modelData.key] : 0.5
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -887,8 +887,8 @@ ColumnLayout {
                 CustomComboBox {
                     Layout.preferredWidth: Fonts.standardFontMetrics.averageCharacterWidth * 20
                     textRole: "label"
-                    model: panel.hasPresenter ? panel.presenter.editColorZones.interpolationChoices : []
-                    currentIndex: panel.hasPresenter ? panel.presenter.editColorZones[modelData.key] : 1
+                    model: panel.hasPresenter ? panel.presenter.develop.editColorZones.interpolationChoices : []
+                    currentIndex: panel.hasPresenter ? panel.presenter.develop.editColorZones[modelData.key] : 1
                     enabled: panel.hasSelection
                     onActivated: function (index) {
                         if (panel.commands)
@@ -901,8 +901,8 @@ ColumnLayout {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             opacity: 0.72
-            visible: panel.hasPresenter && (!panel.presenter.editColorZones.editable || panel.presenter.editColorZones.masked)
-            text: panel.hasPresenter && panel.presenter.editColorZones.masked ? qsTr("Loaded Color Zones mask is preserved but edited outside this panel.") : qsTr("Loaded custom-node curves are preserved; reset Color Zones to use the eight-band editor.")
+            visible: panel.hasPresenter && (!panel.presenter.develop.editColorZones.editable || panel.presenter.develop.editColorZones.masked)
+            text: panel.hasPresenter && panel.presenter.develop.editColorZones.masked ? qsTr("Loaded Color Zones mask is preserved but edited outside this panel.") : qsTr("Loaded custom-node curves are preserved; reset Color Zones to use the eight-band editor.")
         }
         CustomButton {
             text: qsTr("Disable and reset Color Zones")

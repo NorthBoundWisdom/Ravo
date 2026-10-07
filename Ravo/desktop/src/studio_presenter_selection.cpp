@@ -68,16 +68,12 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
         preview_viewport_height_ = static_cast<int>(height);
     }
     preview_loading_ = !asset_id.isEmpty();
-    before_after_ = false;
-    crop_tool_active_ = false;
-    static_cast<void>(develop_preview_owner_.supersede("selection_changed"));
-    static_cast<void>(perspective_analysis_owner_.supersede("selection_changed"));
-    pending_preview_.reset();
-    load_develop_for_selection();
+    develop_presenter_->selectionInvalidated();
+    develop_presenter_->load_develop_for_selection();
     publish_selection();
     emit previewChanged();
     emit thumbnailsChanged();
-    emit editChanged();
+    develop_presenter_->refreshContextProjection();
     requestPreviewForSelection();
     refreshOfflineEditMediaStatus();
 }
@@ -239,22 +235,23 @@ void StudioPresenter::setBrowseMode(const QString &mode)
     {
         return;
     }
-    const bool comparison_changed = normalized != QLatin1String("develop") && clear_comparison();
+    const bool comparison_changed =
+        normalized != QLatin1String("develop") && develop_presenter_->clear_comparison();
     const QString previous = browse_mode_;
     if (previous == QLatin1String("develop") && normalized != QLatin1String("develop"))
     {
-        break_history_coalescing();
+        develop_presenter_->break_history_coalescing();
     }
     browse_mode_ = normalized;
     emit browseModeChanged();
     if (previous == QLatin1String("develop") && normalized != QLatin1String("develop") &&
-        crop_tool_active_)
+        develop_presenter_->state().crop_tool_active_)
     {
-        setCropToolActive(false);
+        develop_presenter_->setCropToolActive(false);
     }
     if (comparison_changed)
     {
-        emit editChanged();
+        develop_presenter_->refreshContextProjection();
         emit previewChanged();
     }
     if (normalized == QLatin1String("survey"))
@@ -285,9 +282,9 @@ void StudioPresenter::openLoupe()
     {
         return;
     }
-    if (crop_tool_active_)
+    if (develop_presenter_->state().crop_tool_active_)
     {
-        setCropToolActive(false);
+        develop_presenter_->setCropToolActive(false);
         return;
     }
     setBrowseMode(QStringLiteral("loupe"));
@@ -337,7 +334,7 @@ void StudioPresenter::createAssetVersion()
             Result<AssetVersionMutation> created =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                created = service_->create_asset_version(source_id, revision);
+                created = service_->library().create_asset_version(source_id, revision);
             QMetaObject::invokeMethod(
                 this,
                 [this, created = std::move(created)]() mutable
@@ -377,7 +374,7 @@ void StudioPresenter::stackSelection()
             Result<LibraryStackMutation> stacked =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                stacked = service_->stack_assets(ids, pick, revision);
+                stacked = service_->library().stack_assets(ids, pick, revision);
             QMetaObject::invokeMethod(
                 this,
                 [this, stacked = std::move(stacked)]() mutable
@@ -410,7 +407,7 @@ void StudioPresenter::unstackSelection()
             Result<std::int64_t> unstacked =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                unstacked = service_->unstack_assets(stack_id, revision);
+                unstacked = service_->library().unstack_assets(stack_id, revision);
             QMetaObject::invokeMethod(
                 this,
                 [this, unstacked = std::move(unstacked)]() mutable
@@ -444,7 +441,7 @@ void StudioPresenter::setSelectedStackPick()
             Result<LibraryStackMutation> mutated =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                mutated = service_->set_stack_pick(stack_id, pick, revision);
+                mutated = service_->library().set_stack_pick(stack_id, pick, revision);
             QMetaObject::invokeMethod(
                 this,
                 [this, mutated = std::move(mutated)]() mutable
@@ -655,7 +652,7 @@ void StudioPresenter::apply_cull_review_request(const CullReviewFlagAction flag_
                         per.rating = rating;
                         per.color_label = color_label;
                         per.auto_advance = false;
-                        auto applied = service_->apply_cull_review(per);
+                        auto applied = service_->cull().apply_cull_review(per);
                         if (!applied)
                         {
                             error = applied.error();
@@ -699,7 +696,7 @@ void StudioPresenter::apply_cull_review_request(const CullReviewFlagAction flag_
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
-                applied = service_->apply_cull_review(request);
+                applied = service_->cull().apply_cull_review(request);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -833,10 +830,10 @@ void StudioPresenter::setAssetTags(const QString &text)
             if (service_ != nullptr)
             {
                 std::optional<std::int64_t> revision;
-                auto snapshot = service_->snapshot();
+                auto snapshot = service_->library().snapshot();
                 if (snapshot)
                     revision = snapshot.value().revision;
-                auto mutated = service_->set_tags_selection(ids, tags, revision);
+                auto mutated = service_->metadata().set_tags_selection(ids, tags, revision);
                 if (!mutated)
                 {
                     error = mutated.error();
@@ -897,11 +894,11 @@ void StudioPresenter::setMetadataField(const QString &name, const QString &value
             if (service_ != nullptr)
             {
                 std::optional<std::int64_t> revision;
-                auto snapshot = service_->snapshot();
+                auto snapshot = service_->library().snapshot();
                 if (snapshot)
                     revision = snapshot.value().revision;
-                auto mutated =
-                    service_->set_writable_metadata_selection(ids, metadata_patch, revision);
+                auto mutated = service_->metadata().set_writable_metadata_selection(
+                    ids, metadata_patch, revision);
                 if (!mutated)
                 {
                     error = mutated.error();
@@ -945,7 +942,8 @@ void StudioPresenter::refreshSelectedMetadata()
         {
             Result<AssetRecord> refreshed = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                refreshed = service_->refresh_capture_metadata(asset_id, shutdown_.token());
+                refreshed =
+                    service_->metadata().refresh_capture_metadata(asset_id, shutdown_.token());
             QMetaObject::invokeMethod(
                 this,
                 [this, refreshed = std::move(refreshed)]() mutable
@@ -994,12 +992,12 @@ void StudioPresenter::createSnapshot(const QString &label)
     const QString generic = QCoreApplication::translate("DevelopHistoryPanel", "Snapshot");
     if (trimmed.isEmpty() || trimmed.compare(generic, Qt::CaseInsensitive) == 0)
     {
-        trimmed = next_snapshot_label(recipe_history_entries_);
+        trimmed = next_snapshot_label(develop_presenter_->state().recipe_history_entries_);
     }
     const auto text = utf8_from_qstring(trimmed);
     mutate_selected_review([text](CatalogService &service, const std::string_view asset_id)
-                           { return service.create_recipe_snapshot(asset_id, text); });
-    load_develop_for_selection();
+                           { return service.develop().create_recipe_snapshot(asset_id, text); });
+    develop_presenter_->load_develop_for_selection();
 }
 
 void StudioPresenter::renameSnapshot(const int history_id, const QString &label)
@@ -1031,181 +1029,10 @@ void StudioPresenter::renameSnapshot(const int history_id, const QString &label)
                         setError(qstring_from_utf8(renamed.error().message));
                         return;
                     }
-                    reload_recipe_history();
+                    develop_presenter_->reload_recipe_history();
                 },
                 Qt::QueuedConnection);
         });
-}
-
-void StudioPresenter::restoreHistory(const int history_id)
-{
-    if (selected_asset_id_.isEmpty())
-    {
-        return;
-    }
-    DevelopParams params;
-    std::int64_t seq = 0;
-    if (history_id == 0)
-    {
-        params = baseline_develop();
-    }
-    else
-    {
-        const RecipeHistoryEntry *found = nullptr;
-        for (const auto &entry : recipe_history_entries_)
-        {
-            if (entry.id == history_id)
-            {
-                found = &entry;
-                break;
-            }
-        }
-        if (found == nullptr)
-        {
-            setError(QCoreApplication::translate("DevelopHistoryPanel",
-                                                 "Recipe history entry does not exist."));
-            return;
-        }
-        params = develop_from_history_entry(*found);
-        seq = found->seq;
-    }
-    active_history_id_ = history_id;
-    active_history_seq_ = seq;
-    if (!mutate_develop(std::move(params), StudioPresenter::DevelopEdit::Restore))
-    {
-        emit editChanged();
-    }
-}
-
-void StudioPresenter::setTagFilter(const QString &tag)
-{
-    auto parsed = tag.trimmed().isEmpty() ? Result<std::string>{std::string{}} :
-                                            normalize_tag_name(utf8_from_qstring(tag));
-    if (!parsed)
-    {
-        setError(qstring_from_utf8(parsed.error().message));
-        return;
-    }
-    if (query_.tag == parsed.value())
-    {
-        return;
-    }
-    query_.tag = parsed.value();
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setRatingFilter(const QString &mode, const int value)
-{
-    RatingFilterMode next_mode = RatingFilterMode::kAny;
-    if (mode == QStringLiteral("min"))
-    {
-        next_mode = RatingFilterMode::kMinimum;
-    }
-    else if (mode == QStringLiteral("exact"))
-    {
-        next_mode = RatingFilterMode::kExact;
-    }
-    if (query_.rating_mode == next_mode && query_.rating_value == value)
-    {
-        return;
-    }
-    query_.rating_mode = next_mode;
-    query_.rating_value = value;
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::toggleColorFilter(const QString &label)
-{
-    auto parsed = parse_color_label(utf8_from_qstring(label));
-    if (!parsed)
-    {
-        setError(qstring_from_utf8(parsed.error().message));
-        return;
-    }
-    auto &labels = query_.color_labels;
-    const auto found = std::find(labels.begin(), labels.end(), parsed.value());
-    if (found == labels.end())
-    {
-        labels.push_back(parsed.value());
-    }
-    else
-    {
-        labels.erase(found);
-    }
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setRejectFilter(const QString &mode)
-{
-    RejectFilter next = RejectFilter::kInclude;
-    if (mode == QStringLiteral("exclude"))
-    {
-        next = RejectFilter::kExclude;
-    }
-    else if (mode == QStringLiteral("only"))
-    {
-        next = RejectFilter::kOnly;
-    }
-    if (query_.reject_filter == next)
-    {
-        return;
-    }
-    query_.reject_filter = next;
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setPickFilter(const QString &mode)
-{
-    PickFilter next = PickFilter::kInclude;
-    if (mode == QStringLiteral("exclude"))
-    {
-        next = PickFilter::kExclude;
-    }
-    else if (mode == QStringLiteral("only"))
-    {
-        next = PickFilter::kOnly;
-    }
-    if (query_.pick_filter == next)
-    {
-        return;
-    }
-    query_.pick_filter = next;
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setCullFlagFilter(const QString &mode)
-{
-    CullFlagFilter next = CullFlagFilter::kAny;
-    if (mode == QStringLiteral("picked"))
-    {
-        next = CullFlagFilter::kPicked;
-    }
-    else if (mode == QStringLiteral("rejected"))
-    {
-        next = CullFlagFilter::kRejected;
-    }
-    else if (mode == QStringLiteral("unreviewed"))
-    {
-        next = CullFlagFilter::kUnreviewed;
-    }
-    else if (mode != QStringLiteral("any") && !mode.isEmpty())
-    {
-        setError(QCoreApplication::translate(
-            "StudioPresenter", "Cull flag filter must be any, picked, rejected, or unreviewed."));
-        return;
-    }
-    if (query_.cull_flag_filter == next)
-    {
-        return;
-    }
-    query_.cull_flag_filter = next;
-    emit filterChanged();
-    reloadVisibleAssets();
 }
 
 void StudioPresenter::setCullSuggestionFilter(const QString &mode)
@@ -1229,7 +1056,7 @@ void StudioPresenter::setCullSuggestionFilter(const QString &mode)
     }
     if (normalized == QStringLiteral("exact_duplicate"))
     {
-        auto report = service_->find_exact_duplicate_groups({});
+        auto report = service_->cull().find_exact_duplicate_groups({});
         if (!report)
         {
             setError(qstring_from_utf8(report.error().message));
@@ -1247,7 +1074,7 @@ void StudioPresenter::setCullSuggestionFilter(const QString &mode)
     }
     else if (normalized == QStringLiteral("near_duplicate"))
     {
-        auto report = service_->find_near_duplicate_groups({});
+        auto report = service_->cull().find_near_duplicate_groups({});
         if (!report)
         {
             setError(qstring_from_utf8(report.error().message));
@@ -1265,7 +1092,7 @@ void StudioPresenter::setCullSuggestionFilter(const QString &mode)
     }
     else if (normalized == QStringLiteral("burst"))
     {
-        auto report = service_->propose_burst_groups({});
+        auto report = service_->cull().propose_burst_groups({});
         if (!report)
         {
             setError(qstring_from_utf8(report.error().message));
@@ -1285,275 +1112,14 @@ void StudioPresenter::setCullSuggestionFilter(const QString &mode)
     reloadVisibleAssets();
 }
 
-void StudioPresenter::setFilterText(const QString &text)
-{
-    LibraryQuery next = query_;
-    next.text = utf8_from_qstring(text.trimmed());
-    auto valid = validate_library_query(next);
-    if (!valid)
-    {
-        setError(qstring_from_utf8(valid.error().message));
-        return;
-    }
-    if (next == query_)
-        return;
-    query_ = std::move(next);
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setMediaFilter(const QString &mode)
-{
-    LibraryQuery next = query_;
-    next.media_types.clear();
-    if (mode == QLatin1String("raw"))
-        next.media_types.emplace_back(kMediaTypeRaw);
-    else if (mode == QLatin1String("jpeg"))
-        next.media_types.emplace_back(kMediaTypeJpeg);
-    else if (mode == QLatin1String("png"))
-        next.media_types.emplace_back(kMediaTypePng);
-    else if (mode == QLatin1String("tiff"))
-        next.media_types.emplace_back(kMediaTypeTiff);
-    else if (mode != QLatin1String("any"))
-    {
-        setError(QCoreApplication::translate("StudioPresenter", "Unknown media filter mode."));
-        return;
-    }
-    if (next == query_)
-        return;
-    query_ = std::move(next);
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setEditFilter(const QString &mode)
-{
-    EditFilter next = EditFilter::kAny;
-    if (mode == QLatin1String("edited"))
-        next = EditFilter::kEdited;
-    else if (mode == QLatin1String("unedited"))
-        next = EditFilter::kUnedited;
-    else if (mode != QLatin1String("any"))
-    {
-        setError(QCoreApplication::translate("StudioPresenter", "Unknown edit filter mode."));
-        return;
-    }
-    if (query_.edit_filter == next)
-        return;
-    query_.edit_filter = next;
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setCameraFacetFilter(const QString &make, const QString &model)
-{
-    LibraryQuery next = query_;
-    const auto make_utf8 = utf8_from_qstring(make.trimmed());
-    const auto model_utf8 = utf8_from_qstring(model.trimmed());
-    if (make_utf8.empty() && model_utf8.empty())
-    {
-        next.camera_make_equals.reset();
-        next.camera_model_equals.reset();
-    }
-    else
-    {
-        next.camera_make_equals = make_utf8;
-        next.camera_model_equals = model_utf8;
-    }
-    auto valid = validate_library_query(next);
-    if (!valid)
-    {
-        setError(qstring_from_utf8(valid.error().message));
-        return;
-    }
-    if (next == query_)
-        return;
-    query_ = std::move(next);
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setLensFacetFilter(const QString &focal_mm)
-{
-    LibraryQuery next = query_;
-    const auto trimmed = focal_mm.trimmed();
-    if (trimmed.isEmpty())
-    {
-        next.focal_length_mm_equals.reset();
-    }
-    else
-    {
-        bool ok = false;
-        const double value = trimmed.toDouble(&ok);
-        if (!ok)
-        {
-            setError(QCoreApplication::translate(
-                "StudioPresenter", "Lens facet must be a focal length in millimeters."));
-            return;
-        }
-        next.focal_length_mm_equals = value;
-    }
-    auto valid = validate_library_query(next);
-    if (!valid)
-    {
-        setError(qstring_from_utf8(valid.error().message));
-        return;
-    }
-    if (next == query_)
-        return;
-    query_ = std::move(next);
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setLensNameFacetFilter(const QString &make, const QString &model)
-{
-    LibraryQuery next = query_;
-    const auto make_utf8 = utf8_from_qstring(make.trimmed());
-    const auto model_utf8 = utf8_from_qstring(model.trimmed());
-    if (make_utf8.empty() && model_utf8.empty())
-    {
-        next.lens_make_equals.reset();
-        next.lens_model_equals.reset();
-    }
-    else
-    {
-        next.lens_make_equals = make_utf8;
-        next.lens_model_equals = model_utf8;
-    }
-    auto valid = validate_library_query(next);
-    if (!valid)
-    {
-        setError(qstring_from_utf8(valid.error().message));
-        return;
-    }
-    if (next == query_)
-        return;
-    query_ = std::move(next);
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setCaptureDateFacetFilter(const QString &local_date)
-{
-    LibraryQuery next = query_;
-    const auto utf8 = utf8_from_qstring(local_date.trimmed());
-    if (utf8.empty())
-        next.captured_local_date.reset();
-    else
-        next.captured_local_date = utf8;
-    auto valid = validate_library_query(next);
-    if (!valid)
-    {
-        setError(qstring_from_utf8(valid.error().message));
-        return;
-    }
-    if (next == query_)
-        return;
-    query_ = std::move(next);
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setLocationFacetFilter(const QString &country, const QString &province_state,
-                                             const QString &city, const QString &sublocation)
-{
-    LibraryQuery next = query_;
-    const auto assign = [](std::optional<std::string> &field, const QString &text)
-    {
-        const auto utf8 = utf8_from_qstring(text.trimmed());
-        if (utf8.empty())
-            field.reset();
-        else
-            field = utf8;
-    };
-    assign(next.country_equals, country);
-    assign(next.province_state_equals, province_state);
-    assign(next.city_equals, city);
-    assign(next.sublocation_equals, sublocation);
-    auto valid = validate_library_query(next);
-    if (!valid)
-    {
-        setError(qstring_from_utf8(valid.error().message));
-        return;
-    }
-    if (next == query_)
-        return;
-    query_ = std::move(next);
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
-void StudioPresenter::setSort(const QString &field, const QString &direction)
-{
-    AssetSortField next_field = AssetSortField::kImportTime;
-    if (field == QStringLiteral("name"))
-    {
-        next_field = AssetSortField::kDisplayName;
-    }
-    else if (field == QStringLiteral("rating"))
-    {
-        next_field = AssetSortField::kRating;
-    }
-    else if (field == QStringLiteral("captured"))
-    {
-        next_field = AssetSortField::kCaptureTime;
-    }
-    else if (field == QStringLiteral("size"))
-    {
-        next_field = AssetSortField::kFileSize;
-    }
-    const auto next_direction =
-        direction == QStringLiteral("asc") ? SortDirection::kAscending : SortDirection::kDescending;
-    if (query_.sort_field == next_field && query_.sort_direction == next_direction)
-    {
-        return;
-    }
-    query_.sort_field = next_field;
-    query_.sort_direction = next_direction;
-    emit filterChanged();
-    reloadVisibleAssets();
-}
-
 void StudioPresenter::clearFilters()
 {
     if (!filtersActive())
     {
         return;
     }
-    query_.rating_mode = RatingFilterMode::kAny;
-    query_.rating_value = 0;
-    query_.color_labels.clear();
-    query_.reject_filter = RejectFilter::kInclude;
-    query_.tag.clear();
-    query_.text.clear();
-    query_.media_types.clear();
-    query_.edit_filter = EditFilter::kAny;
-    query_.camera.clear();
-    query_.camera_make_equals.reset();
-    query_.camera_model_equals.reset();
-    query_.lens_make_equals.reset();
-    query_.lens_model_equals.reset();
-    query_.focal_length_mm_equals.reset();
-    query_.captured_local_date.reset();
-    query_.country_equals.reset();
-    query_.province_state_equals.reset();
-    query_.city_equals.reset();
-    query_.sublocation_equals.reset();
-    query_.iso = {};
-    query_.aperture = {};
-    query_.focal_length_mm = {};
-    query_.shutter_s = {};
-    query_.aspect_ratio = {};
-    query_.imported_after_unix_ms.reset();
-    query_.imported_before_unix_ms.reset();
-    query_.captured_after_unix_s.reset();
-    query_.captured_before_unix_s.reset();
-    if (last_import_selected_)
-    {
-        query_.imported_after_unix_ms = last_import_after_unix_ms_;
-        query_.imported_before_unix_ms = last_import_before_unix_ms_;
-    }
+    library_.resetFilters(last_import_selected_ ? last_import_after_unix_ms_ : std::nullopt,
+                          last_import_selected_ ? last_import_before_unix_ms_ : std::nullopt);
     emit filterChanged();
     reloadVisibleAssets();
 }
@@ -1608,7 +1174,7 @@ void StudioPresenter::removeFolderFromCatalog(const QString &folder_uri)
     setCatalogOperation(QCoreApplication::translate("StudioPresenter", "Removing folder…"), 0, 0,
                         true);
     executor_.post(
-        [this, cancellation, folder]
+        [this, cancellation, folder, query = current_query()]
         {
             Result<FolderRemoveResult> removed =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1618,12 +1184,12 @@ void StudioPresenter::removeFolderFromCatalog(const QString &folder_uri)
             Result<std::vector<LibrarySetRecord>> sets = std::vector<LibrarySetRecord>{};
             if (service_ != nullptr)
             {
-                removed = service_->remove_folder_from_catalog(folder, cancellation);
+                removed = service_->library().remove_folder_from_catalog(folder, cancellation);
                 if (removed)
                 {
-                    listed = service_->list_assets(current_query());
-                    folders = service_->list_folders();
-                    sets = service_->list_library_sets();
+                    listed = service_->library().list_assets(query);
+                    folders = service_->library().list_folders();
+                    sets = service_->library().list_library_sets();
                 }
             }
             QMetaObject::invokeMethod(
@@ -1655,8 +1221,8 @@ void StudioPresenter::removeFolderFromCatalog(const QString &folder_uri)
                         setError(qstring_from_utf8(sets.error().message));
                         return;
                     }
-                    if (query_.folder_uri == folder)
-                        query_.folder_uri.clear();
+                    if (library_.query().folder_uri == folder)
+                        library_.setFolderScope({});
                     applyFolders(std::move(folders).value());
                     applyLibrarySets(std::move(sets).value());
                     const auto total = listed.value().size();
@@ -1697,7 +1263,7 @@ void StudioPresenter::remove_selected_from_catalog()
     const int keep_index = std::max(0, selectedIndex());
     const auto count = ids.size();
     executor_.post(
-        [this, ids, keep_index, count]()
+        [this, ids, keep_index, count, query = current_query()]()
         {
             Result<void> removed = make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<std::vector<AssetRecord>> listed =
@@ -1709,7 +1275,7 @@ void StudioPresenter::remove_selected_from_catalog()
                 removed = Result<void>{};
                 for (const auto &asset_id : ids)
                 {
-                    removed = service_->remove_from_catalog(asset_id);
+                    removed = service_->library().remove_from_catalog(asset_id);
                     if (!removed)
                     {
                         break;
@@ -1717,9 +1283,9 @@ void StudioPresenter::remove_selected_from_catalog()
                 }
                 if (removed)
                 {
-                    listed = service_->list_assets(current_query());
-                    folders = service_->list_folders();
-                    sets = service_->list_library_sets();
+                    listed = service_->library().list_assets(query);
+                    folders = service_->library().list_folders();
+                    sets = service_->library().list_library_sets();
                 }
             }
             QMetaObject::invokeMethod(
@@ -1791,7 +1357,7 @@ void StudioPresenter::remove_selected_from_disk()
     const int keep_index = std::max(0, selectedIndex());
     const auto count = ids.size();
     executor_.post(
-        [this, ids, keep_index, count]()
+        [this, ids, keep_index, count, query = current_query()]()
         {
             Result<void> removed = make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<std::vector<AssetRecord>> listed =
@@ -1803,7 +1369,7 @@ void StudioPresenter::remove_selected_from_disk()
                 removed = Result<void>{};
                 for (const auto &asset_id : ids)
                 {
-                    removed = service_->remove_original_and_catalog(asset_id);
+                    removed = service_->library().remove_original_and_catalog(asset_id);
                     if (!removed)
                     {
                         break;
@@ -1811,9 +1377,9 @@ void StudioPresenter::remove_selected_from_disk()
                 }
                 if (removed)
                 {
-                    listed = service_->list_assets(current_query());
-                    folders = service_->list_folders();
-                    sets = service_->list_library_sets();
+                    listed = service_->library().list_assets(query);
+                    folders = service_->library().list_folders();
+                    sets = service_->library().list_library_sets();
                 }
             }
             QMetaObject::invokeMethod(

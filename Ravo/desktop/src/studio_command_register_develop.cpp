@@ -23,16 +23,16 @@ void StudioCommandController::registerDevelopCommands(const command_registration
         { present(command::kStyleSave, argument); });
     add(command::kStyleSavePath, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
-        { presenter_.saveStyleToPath(argument.toString()); });
+        { presenter_.develop()->saveStyleToPath(argument.toString()); });
     add(command::kStyleApply, Condition::kDevelopSelection, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kStyleApply, argument); });
     add(command::kStyleApplyPath, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
-        { presenter_.applyStyleFromPath(argument.toString()); });
+        { presenter_.develop()->applyStyleFromPath(argument.toString()); });
     add(command::kPresetApplyPath, Condition::kReadySelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
-        { presenter_.applyStyleFromPath(argument.toString()); });
+        { presenter_.develop()->applyStyleFromPath(argument.toString()); });
     add(command::kPresetSave, Condition::kDevelopSelection, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kPresetSave, argument); });
@@ -46,7 +46,8 @@ void StudioCommandController::registerDevelopCommands(const command_registration
                 for (const auto &field : values.value(QStringLiteral("fields")).toStringList())
                     fields.push_back(field);
             }
-            presenter_.savePreset(values.value(QStringLiteral("name")).toString(), fields);
+            presenter_.develop()->savePreset(values.value(QStringLiteral("name")).toString(),
+                                             fields);
         });
     add(command::kPresetCopyInfo, Condition::kCatalogOpen, non_empty_string,
         [this](const QVariant &argument, const QString &)
@@ -58,8 +59,8 @@ void StudioCommandController::registerDevelopCommands(const command_registration
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.renamePreset(fields.value(QStringLiteral("path")).toString(),
-                                    fields.value(QStringLiteral("name")).toString());
+            presenter_.develop()->renamePreset(fields.value(QStringLiteral("path")).toString(),
+                                               fields.value(QStringLiteral("name")).toString());
         });
     add(command::kPresetRequestDelete, Condition::kCatalogOpen, preset_identity_argument,
         [request_preset_confirmation](const QVariant &argument, const QString &)
@@ -75,7 +76,7 @@ void StudioCommandController::registerDevelopCommands(const command_registration
         {
             const QString path = argument.toMap().value(QStringLiteral("path")).toString();
             clear_confirmation();
-            presenter_.deletePreset(path);
+            presenter_.develop()->deletePreset(path);
         });
     add(command::kViewDevelop, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.openDevelop(); });

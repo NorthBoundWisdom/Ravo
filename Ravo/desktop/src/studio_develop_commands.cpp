@@ -1,4 +1,4 @@
-#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_develop_presenter.h"
 
 #include <algorithm>
 #include <array>
@@ -37,7 +37,7 @@
 namespace ravo
 {
 
-void StudioPresenter::setDevelopNumber(const QString &name, const double value)
+void StudioDevelopPresenter::setDevelopNumber(const QString &name, const double value)
 {
     DevelopParams next = edit_develop();
     const auto field = utf8_from_qstring(name);
@@ -52,8 +52,9 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
             const auto reason_text = reason == applied.error().context.end() ?
                                          QStringLiteral("unknown") :
                                          qstring_from_utf8(reason->second);
-            setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
-                     QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+            emit errorOccurred(
+                QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                QStringLiteral(" [") + reason_text + QStringLiteral("]"));
             return;
         }
     }
@@ -68,20 +69,20 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     mutate_scoped_develop(std::move(next), DevelopEdit::Commit, true, field);
 }
 
-void StudioPresenter::setDevelopText(const QString &name, const QString &value)
+void StudioDevelopPresenter::setDevelopText(const QString &name, const QString &value)
 {
     DevelopParams next = edit_develop();
     auto applied =
         apply_develop_text_field_strict(next, utf8_from_qstring(name), utf8_from_qstring(value));
     if (!applied)
     {
-        setError(qstring_from_utf8(applied.error().message));
+        emit errorOccurred(qstring_from_utf8(applied.error().message));
         return;
     }
     mutate_scoped_develop(std::move(next), DevelopEdit::Commit, true, utf8_from_qstring(name));
 }
 
-void StudioPresenter::saveStyleToPath(const QString &path)
+void StudioDevelopPresenter::saveStyleToPath(const QString &path)
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     if (!asset || !engine_)
@@ -93,20 +94,21 @@ void StudioPresenter::saveStyleToPath(const QString &path)
         output_path += QStringLiteral(".rstyle.json");
     if (output_path.isEmpty())
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Style path must not be empty."));
+        emit errorOccurred(
+            QCoreApplication::translate("StudioPresenter", "Style path must not be empty."));
         return;
     }
     auto recipe = recipe_from_develop(
-        {asset->id, asset->normalized_uri, asset->content_fingerprint}, develop_);
+        {asset->id, asset->normalized_uri, asset->content_fingerprint}, state_.develop_);
     if (!recipe)
     {
-        setError(qstring_from_utf8(recipe.error().message));
+        emit errorOccurred(qstring_from_utf8(recipe.error().message));
         return;
     }
     auto valid = engine_->validate(recipe.value());
     if (!valid)
     {
-        setError(qstring_from_utf8(valid.error().message));
+        emit errorOccurred(qstring_from_utf8(valid.error().message));
         return;
     }
     QString style_name = QFileInfo(output_path).completeBaseName();
@@ -115,26 +117,26 @@ void StudioPresenter::saveStyleToPath(const QString &path)
     auto style = recipe_style_from_recipe(utf8_from_qstring(style_name), {}, recipe.value());
     if (!style)
     {
-        setError(qstring_from_utf8(style.error().message));
+        emit errorOccurred(qstring_from_utf8(style.error().message));
         return;
     }
     auto serialized = serialize_recipe_style(style.value());
     if (!serialized)
     {
-        setError(qstring_from_utf8(serialized.error().message));
+        emit errorOccurred(qstring_from_utf8(serialized.error().message));
         return;
     }
     auto written =
         write_utf8_text_file_atomically(utf8_from_qstring(output_path), serialized.value());
     if (!written)
     {
-        setError(qstring_from_utf8(written.error().message));
+        emit errorOccurred(qstring_from_utf8(written.error().message));
         return;
     }
-    setStatus(QCoreApplication::translate("StudioPresenter", "Recipe style saved."));
+    emit statusOccurred(QCoreApplication::translate("StudioPresenter", "Recipe style saved."));
 }
 
-void StudioPresenter::applyStyleFromPath(const QString &path)
+void StudioDevelopPresenter::applyStyleFromPath(const QString &path)
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     if (!asset || !engine_)
@@ -145,7 +147,7 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
     auto text = read_utf8_text_file(utf8_from_qstring(input_path), kRecipeStyleFileMaxBytes);
     if (!text)
     {
-        setError(qstring_from_utf8(text.error().message));
+        emit errorOccurred(qstring_from_utf8(text.error().message));
         return;
     }
     if (is_crs_xmp_document(text.value()))
@@ -154,16 +156,16 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
             {text.value(), {asset->id, asset->normalized_uri, asset->content_fingerprint}});
         if (!imported)
         {
-            setError(qstring_from_utf8(imported.error().message));
+            emit errorOccurred(qstring_from_utf8(imported.error().message));
             return;
         }
-        auto params = develop_;
+        auto params = state_.develop_;
         apply_crs_look(params, imported.value().look, imported.value().mask);
         mutate_develop(std::move(params), DevelopEdit::Commit);
         const auto name = imported.value().name.empty() ?
                               QString() :
                               QString::fromStdString(imported.value().name);
-        setStatus(
+        emit statusOccurred(
             name.isEmpty() ?
                 QCoreApplication::translate("StudioPresenter", "Lightroom preset applied.") :
                 QCoreApplication::translate("StudioPresenter", "Lightroom preset “%1” applied.")
@@ -173,38 +175,38 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
     auto style = parse_recipe_style_json(text.value());
     if (!style)
     {
-        setError(qstring_from_utf8(style.error().message));
+        emit errorOccurred(qstring_from_utf8(style.error().message));
         return;
     }
     auto valid_template = engine_->validate(style.value().recipe);
     if (!valid_template)
     {
-        setError(qstring_from_utf8(valid_template.error().message));
+        emit errorOccurred(qstring_from_utf8(valid_template.error().message));
         return;
     }
     auto target_recipe = recipe_from_develop(
-        {asset->id, asset->normalized_uri, asset->content_fingerprint}, develop_);
+        {asset->id, asset->normalized_uri, asset->content_fingerprint}, state_.develop_);
     if (!target_recipe)
     {
-        setError(qstring_from_utf8(target_recipe.error().message));
+        emit errorOccurred(qstring_from_utf8(target_recipe.error().message));
         return;
     }
     auto recipe = apply_recipe_style(style.value(), std::move(target_recipe).value());
     if (!recipe)
     {
-        setError(qstring_from_utf8(recipe.error().message));
+        emit errorOccurred(qstring_from_utf8(recipe.error().message));
         return;
     }
     auto valid = engine_->validate(recipe.value());
     if (!valid)
     {
-        setError(qstring_from_utf8(valid.error().message));
+        emit errorOccurred(qstring_from_utf8(valid.error().message));
         return;
     }
     auto params = develop_from_recipe(recipe.value());
     if (!params)
     {
-        setError(qstring_from_utf8(params.error().message));
+        emit errorOccurred(qstring_from_utf8(params.error().message));
         return;
     }
     mutate_develop(std::move(params).value(), DevelopEdit::Commit);

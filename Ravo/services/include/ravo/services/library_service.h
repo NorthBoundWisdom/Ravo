@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,17 +16,18 @@ namespace ravo
 {
 
 class CatalogService;
+class CatalogRepository;
+class PreviewCache;
+class RecoveryStore;
+class RecoveryService;
 
-// Narrow LibraryService capability face over CatalogService.
 class LibraryService
 {
 public:
-    explicit LibraryService(CatalogService &catalog) noexcept;
-
     LibraryService(const LibraryService &) = delete;
     LibraryService &operator=(const LibraryService &) = delete;
-    LibraryService(LibraryService &&) noexcept = default;
-    LibraryService &operator=(LibraryService &&) noexcept = default;
+    LibraryService(LibraryService &&) = delete;
+    LibraryService &operator=(LibraryService &&) = delete;
 
     [[nodiscard]] Result<CatalogSnapshot> snapshot() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const;
@@ -83,7 +85,18 @@ public:
     [[nodiscard]] Result<void> remove_original_and_catalog(std::string_view asset_id);
 
 private:
-    CatalogService *catalog_ = nullptr;
+    friend class CatalogService;
+    // Borrowed owner slots stay valid until this capability is destroyed. The
+    // composition owner is immovable; reset slots make post-close calls fail.
+    LibraryService(const std::unique_ptr<CatalogRepository> &repository,
+                   const std::shared_ptr<PreviewCache> &cache,
+                   const std::unique_ptr<RecoveryStore> &recovery,
+                   RecoveryService &recovery_service) noexcept;
+
+    const std::unique_ptr<CatalogRepository> &repository_;
+    const std::shared_ptr<PreviewCache> &cache_;
+    const std::unique_ptr<RecoveryStore> &recovery_;
+    RecoveryService &recovery_service_;
 };
 
 } // namespace ravo

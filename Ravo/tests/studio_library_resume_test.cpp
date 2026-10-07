@@ -81,7 +81,7 @@ TEST_F(StudioLibraryResumeTest, StartupRestoresLoupePastFirstPageAfterOrderChang
     {
         StudioPresenter presenter;
         open(presenter, catalog);
-        presenter.setSort("name", "asc");
+        presenter.library()->setSort("name", "asc");
         presenter.selectFolder(QString::fromStdString(uri_parent(records[350].normalized_uri)));
         ASSERT_TRUE(wait_until(
             [&]
@@ -108,7 +108,7 @@ TEST_F(StudioLibraryResumeTest, StartupRestoresLoupePastFirstPageAfterOrderChang
                          EXPECT_EQ(presenter.selectedAssetId(), selected);
                          EXPECT_EQ(presenter.selectedIndex(), 351);
                          EXPECT_EQ(presenter.browseMode(), "loupe");
-                         EXPECT_EQ(presenter.sortField(), "name");
+                         EXPECT_EQ(presenter.library()->sortField(), "name");
                          finished = true;
                      });
     startup.start();

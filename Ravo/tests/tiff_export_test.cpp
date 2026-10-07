@@ -1253,7 +1253,7 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
                            std::move(raster), std::move(cache).value(),
                            std::move(recovery).value());
 
-    const auto imported = service.import_one(input_path.string(), CancellationToken{});
+    const auto imported = service.import().import_one(input_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
 
@@ -1261,7 +1261,7 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     defaults.asset_id = imported.value().asset->id;
     defaults.output_path = (temporary.path() / "default.tif").string();
     defaults.format = ExportFormat::kTiff;
-    const auto default_export = service.export_asset(defaults);
+    const auto default_export = service.exports().export_asset(defaults);
     ASSERT_TRUE(default_export) << default_export.error().message;
     EXPECT_EQ(capturing->last_format, ExportFormat::kTiff);
     EXPECT_EQ(capturing->last_tiff_options, TiffExportOptions());
@@ -1274,19 +1274,19 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     ExportRequest explicit_options = defaults;
     explicit_options.output_path = (temporary.path() / "explicit.tif").string();
     explicit_options.tiff_options = {TiffSampleType::kUint8, TiffCompression::kNone, 1, true};
-    const auto explicit_export = service.export_asset(explicit_options);
+    const auto explicit_export = service.exports().export_asset(explicit_options);
     ASSERT_TRUE(explicit_export) << explicit_export.error().message;
     EXPECT_EQ(capturing->last_tiff_options, explicit_options.tiff_options);
     EXPECT_TRUE(std::filesystem::is_regular_file(explicit_options.output_path));
 
     DevelopParams develop;
     develop.exposure_ev = 0.37;
-    const auto saved = service.save_develop(imported.value().asset->id, develop);
+    const auto saved = service.develop().save_develop(imported.value().asset->id, develop);
     ASSERT_TRUE(saved) << saved.error().message;
 
     ExportRequest eight_bit = defaults;
     eight_bit.output_path = (temporary.path() / "edited-8.tif").string();
-    const auto eight_export = service.export_asset(eight_bit);
+    const auto eight_export = service.exports().export_asset(eight_bit);
     ASSERT_TRUE(eight_export) << eight_export.error().message;
     const auto eight_bytes = qbyte_array_bytes(read_file(eight_bit.output_path));
     const auto eight_document = parse_classic_little_endian_tiff(eight_bytes);
@@ -1311,7 +1311,7 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
         ExportRequest request = defaults;
         request.output_path = (temporary.path() / (entry.suffix + ".tif")).string();
         request.tiff_options.sample_type = entry.sample_type;
-        const auto exported = service.export_asset(request);
+        const auto exported = service.exports().export_asset(request);
         ASSERT_TRUE(exported) << exported.error().message << " " << entry.suffix;
         EXPECT_EQ(capturing->last_tiff_options.sample_type, entry.sample_type);
         const auto encoded = qbyte_array_bytes(read_file(request.output_path));
@@ -1355,7 +1355,7 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     ExportRequest invalid = defaults;
     invalid.output_path = (temporary.path() / "invalid.tif").string();
     invalid.tiff_options.compression_level = 10;
-    expect_tiff_error(service.export_asset(invalid), ErrorCode::kValidation,
+    expect_tiff_error(service.exports().export_asset(invalid), ErrorCode::kValidation,
                       "invalid_tiff_compression_level");
     EXPECT_EQ(capturing->encode_calls, calls_before_invalid);
     EXPECT_FALSE(std::filesystem::exists(invalid.output_path));
@@ -1372,7 +1372,7 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
         unrelated.format = format;
         unrelated.output_path = (temporary.path() / ("unrelated" + std::string(suffix))).string();
         unrelated.tiff_options = deliberately_invalid;
-        const auto exported = service.export_asset(unrelated);
+        const auto exported = service.exports().export_asset(unrelated);
         ASSERT_TRUE(exported) << exported.error().message;
         EXPECT_EQ(capturing->last_format, format);
         EXPECT_EQ(capturing->last_tiff_options, deliberately_invalid);
@@ -1380,7 +1380,7 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
         EXPECT_TRUE(std::filesystem::is_regular_file(unrelated.output_path));
     }
 
-    const auto conflict = service.export_asset(defaults);
+    const auto conflict = service.exports().export_asset(defaults);
     ASSERT_FALSE(conflict);
     EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
     EXPECT_TRUE(std::filesystem::is_regular_file(defaults.output_path));
@@ -1390,7 +1390,7 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     ExportRequest cancelled_request = defaults;
     cancelled_request.output_path = (temporary.path() / "cancelled.tif").string();
     cancelled_request.cancellation = cancelled.token();
-    const auto cancelled_result = service.export_asset(cancelled_request);
+    const auto cancelled_result = service.exports().export_asset(cancelled_request);
     ASSERT_FALSE(cancelled_result);
     EXPECT_EQ(cancelled_result.error().code, ErrorCode::kCancelled);
     EXPECT_FALSE(std::filesystem::exists(cancelled_request.output_path));

@@ -153,10 +153,10 @@ Result<JsonValue> run_catalog_facets_command(CatalogService &service,
     auto scope = build_library_query(flags);
     if (!scope)
         return scope.error();
-    auto captures = service.list_capture_facets(scope.value());
+    auto captures = service.metadata().list_capture_facets(scope.value());
     if (!captures)
         return captures.error();
-    auto locations = service.list_location_facets(scope.value());
+    auto locations = service.metadata().list_location_facets(scope.value());
     if (!locations)
         return locations.error();
     const bool scoped = captures.value().scoped || locations.value().scoped;

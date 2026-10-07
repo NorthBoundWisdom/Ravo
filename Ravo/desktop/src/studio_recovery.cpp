@@ -100,7 +100,7 @@ void StudioPresenter::refreshRecoveryStatus()
             Result<std::vector<AssetRecoveryState>> pending =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                pending = service_->pending_recovery();
+                pending = service_->recovery().pending_recovery();
             QMetaObject::invokeMethod(
                 this,
                 [this, pending = std::move(pending)]() mutable
@@ -143,7 +143,7 @@ void StudioPresenter::synchronizeRecovery()
             Result<RecoverySyncResult> synchronized =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                synchronized = service_->sync_recovery(std::nullopt, cancellation);
+                synchronized = service_->recovery().sync_recovery(std::nullopt, cancellation);
             QMetaObject::invokeMethod(
                 this,
                 [this, synchronized = std::move(synchronized)]() mutable
@@ -184,7 +184,7 @@ void StudioPresenter::createBackupAtPath(const QString &path)
             Result<CatalogBackupArtifact> backup =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                backup = service_->create_backup(destination, cancellation);
+                backup = service_->recovery().create_backup(destination, cancellation);
             QMetaObject::invokeMethod(
                 this,
                 [this, backup = std::move(backup)]() mutable
@@ -347,7 +347,7 @@ void StudioPresenter::startPreviewRebuild(std::vector<std::string> asset_ids,
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
-                rebuilt = service_->rebuild_previews(
+                rebuilt = service_->preview().rebuild_previews(
                     asset_ids, cancellation,
                     [this](const std::size_t completed, const std::size_t total,
                            const PreviewRebuildItemResult *)
@@ -432,7 +432,8 @@ void StudioPresenter::configureBackupSchedule(const QString &directory, const in
             Result<CatalogBackupPolicy> saved =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                saved = service_->set_backup_policy(std::move(requested), current_unix_ms());
+                saved =
+                    service_->recovery().set_backup_policy(std::move(requested), current_unix_ms());
             QMetaObject::invokeMethod(
                 this,
                 [this, saved = std::move(saved)]() mutable
@@ -492,9 +493,9 @@ void StudioPresenter::relinkFolder(const QString &folder_id, const QString &repl
             Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
             if (service_ != nullptr)
             {
-                relinked = service_->relink_folder(id, replacement, cancellation);
+                relinked = service_->library().relink_folder(id, replacement, cancellation);
                 if (relinked)
-                    folders = service_->list_folders();
+                    folders = service_->library().list_folders();
             }
             QMetaObject::invokeMethod(
                 this,
@@ -516,8 +517,8 @@ void StudioPresenter::relinkFolder(const QString &folder_id, const QString &repl
                             "StudioPresenter", "Folder relinked; folder refresh failed."));
                         return;
                     }
-                    if (query_.folder_uri == relinked.value().previous_uri)
-                        query_.folder_uri = relinked.value().replacement_uri;
+                    if (library_.query().folder_uri == relinked.value().previous_uri)
+                        library_.setFolderScope(relinked.value().replacement_uri);
                     recovery_pending_count_ = static_cast<int>(std::min<std::size_t>(
                         relinked.value().recovery_pending, static_cast<std::size_t>(INT_MAX)));
                     applyFolders(std::move(folders).value());
@@ -553,7 +554,8 @@ void StudioPresenter::startScheduledBackup(const bool force)
             Result<CatalogBackupScheduleResult> scheduled =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                scheduled = service_->run_scheduled_backup(current_unix_ms(), cancellation, force);
+                scheduled = service_->recovery().run_scheduled_backup(current_unix_ms(),
+                                                                      cancellation, force);
             QMetaObject::invokeMethod(
                 this,
                 [this, scheduled = std::move(scheduled), force]() mutable

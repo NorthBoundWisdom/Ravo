@@ -20,7 +20,7 @@ DevelopSection {
             Layout.fillWidth: true
             model: [qsTr("Auto — RCD / Markesteijn 3"), qsTr("PPG — Bayer compatibility"), qsTr("Markesteijn 1 — X-Trans fast"), qsTr("Markesteijn 3 — X-Trans quality")]
             enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.selectedMediaType === "image/x-raw"
-            currentIndex: panel.hasPresenter ? panel.presenter.editDemosaicModeIndex : 0
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editDemosaicModeIndex : 0
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("demosaicModeIndex", currentIndex)
         }
@@ -41,7 +41,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.selectedMediaType === "image/x-raw"
-            value: panel.hasPresenter ? panel.presenter.editRawDenoiseThreshold : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editRawDenoiseThreshold : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("rawDenoiseThreshold", value);
@@ -64,7 +64,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editHotPixelsStrength : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editHotPixelsStrength : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("hotPixelsStrength", value);
@@ -87,7 +87,7 @@ DevelopSection {
             resetValue: 0.05
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editHotPixelsThreshold : 0.05
+            value: panel.hasPresenter ? panel.presenter.develop.editHotPixelsThreshold : 0.05
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("hotPixelsThreshold", value);
@@ -102,7 +102,7 @@ DevelopSection {
         CustomCheckBox {
             text: qsTr("Permissive (3 neighbours)")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editHotPixelsPermissive
+            checked: panel.hasPresenter && panel.presenter.develop.editHotPixelsPermissive
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("hotPixelsPermissive", checked ? 1 : 0)
         }
@@ -117,7 +117,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editRawCaIterations : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editRawCaIterations : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("rawCaIterations", value);
@@ -132,7 +132,7 @@ DevelopSection {
         CustomCheckBox {
             text: qsTr("Avoid CA color shift")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editRawCaAvoidShift
+            checked: panel.hasPresenter && panel.presenter.develop.editRawCaAvoidShift
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("rawCaAvoidShift", checked ? 1 : 0)
         }
@@ -147,7 +147,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editRawHighlights : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editRawHighlights : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("rawHighlights", value);
@@ -170,7 +170,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editLensK1 : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editLensK1 : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("lensK1", value);
@@ -193,7 +193,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editLensVignetting : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editLensVignetting : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("lensVignetting", value);

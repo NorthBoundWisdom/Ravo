@@ -1,4 +1,5 @@
-#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_develop_presenter.h"
+#include "studio_preset_paths.h"
 
 #include <algorithm>
 #include <array>
@@ -39,26 +40,6 @@ namespace ravo
 namespace
 {
 
-QString local_file_path(QString path)
-{
-    path = path.trimmed();
-    if (path.startsWith(QStringLiteral("file:")))
-        path = QUrl(path).toLocalFile();
-    return path;
-}
-
-QString preset_name_from_filename(const QFileInfo &info)
-{
-    QString name = info.fileName();
-    const QString style_suffix = QStringLiteral(".rstyle.json");
-    const QString xmp_suffix = QStringLiteral(".xmp");
-    if (name.endsWith(style_suffix, Qt::CaseInsensitive))
-        name.chop(style_suffix.size());
-    else if (name.endsWith(xmp_suffix, Qt::CaseInsensitive))
-        name.chop(xmp_suffix.size());
-    return name;
-}
-
 QString preset_suffix_from_filename(const QFileInfo &info)
 {
     const QString file_name = info.fileName();
@@ -69,12 +50,6 @@ QString preset_suffix_from_filename(const QFileInfo &info)
     if (file_name.endsWith(xmp_suffix, Qt::CaseInsensitive))
         return file_name.right(xmp_suffix.size());
     return {};
-}
-
-QString canonical_or_absolute(const QFileInfo &info)
-{
-    const QString canonical = info.canonicalFilePath();
-    return canonical.isEmpty() ? info.absoluteFilePath() : canonical;
 }
 
 bool is_managed_preset(const QVariantList &presets, const QString &directory,
@@ -164,14 +139,14 @@ QString collect_modified_parameter_selection(const QVariantList &fields,
 
 } // namespace
 
-QString StudioPresenter::presets_directory() const
+QString StudioDevelopPresenter::presets_directory() const
 {
     if (catalog_path_.isEmpty())
         return {};
     return QDir(QFileInfo(catalog_path_).absolutePath()).filePath(QStringLiteral("Ravo Presets"));
 }
 
-void StudioPresenter::savePreset(const QString &name, const QVariantList &fields)
+void StudioDevelopPresenter::savePreset(const QString &name, const QVariantList &fields)
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     if (!asset || !engine_)
@@ -180,37 +155,39 @@ void StudioPresenter::savePreset(const QString &name, const QVariantList &fields
     const QString name_error = preset_name_validation_error(checked_name);
     if (!name_error.isEmpty())
     {
-        setError(name_error);
+        emit errorOccurred(name_error);
         return;
     }
     if (static_cast<std::size_t>(checked_name.toUtf8().size()) > kRecipeStyleNameMaxBytes)
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Preset name is too long."));
+        emit errorOccurred(
+            QCoreApplication::translate("StudioPresenter", "Preset name is too long."));
         return;
     }
     std::vector<std::string> selected_fields;
-    const QString selection_error =
-        collect_modified_parameter_selection(fields, baseline_develop(), develop_, selected_fields);
+    const QString selection_error = collect_modified_parameter_selection(
+        fields, baseline_develop(), state_.develop_, selected_fields);
     if (!selection_error.isEmpty())
     {
-        setError(selection_error);
+        emit errorOccurred(selection_error);
         return;
     }
 
     const QString directory = presets_directory();
     if (directory.isEmpty())
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Open a library to save presets."));
+        emit errorOccurred(
+            QCoreApplication::translate("StudioPresenter", "Open a library to save presets."));
         return;
     }
     if (!QDir().mkpath(directory))
     {
-        setError(
+        emit errorOccurred(
             QCoreApplication::translate("StudioPresenter", "Preset folder could not be created."));
         return;
     }
     const bool duplicate_name =
-        std::any_of(develop_presets_.cbegin(), develop_presets_.cend(),
+        std::any_of(state_.develop_presets_.cbegin(), state_.develop_presets_.cend(),
                     [&checked_name](const QVariant &entry)
                     {
                         return entry.toMap()
@@ -220,50 +197,50 @@ void StudioPresenter::savePreset(const QString &name, const QVariantList &fields
                     });
     if (duplicate_name)
     {
-        setError(QCoreApplication::translate("StudioPresenter",
-                                             "A preset with that name already exists."));
+        emit errorOccurred(QCoreApplication::translate("StudioPresenter",
+                                                       "A preset with that name already exists."));
         return;
     }
 
     auto recipe = recipe_from_develop(
-        {asset->id, asset->normalized_uri, asset->content_fingerprint}, develop_);
+        {asset->id, asset->normalized_uri, asset->content_fingerprint}, state_.develop_);
     if (!recipe)
     {
-        setError(qstring_from_utf8(recipe.error().message));
+        emit errorOccurred(qstring_from_utf8(recipe.error().message));
         return;
     }
     auto valid = engine_->validate(recipe.value());
     if (!valid)
     {
-        setError(qstring_from_utf8(valid.error().message));
+        emit errorOccurred(qstring_from_utf8(valid.error().message));
         return;
     }
     auto style = recipe_style_from_selected_fields(
         utf8_from_qstring(checked_name), {}, std::move(recipe).value(), std::move(selected_fields));
     if (!style)
     {
-        setError(qstring_from_utf8(style.error().message));
+        emit errorOccurred(qstring_from_utf8(style.error().message));
         return;
     }
     auto serialized = serialize_recipe_style(style.value());
     if (!serialized)
     {
-        setError(qstring_from_utf8(serialized.error().message));
+        emit errorOccurred(qstring_from_utf8(serialized.error().message));
         return;
     }
     const QString output = QDir(directory).filePath(checked_name + QStringLiteral(".rstyle.json"));
     auto written = write_utf8_text_file_atomically(utf8_from_qstring(output), serialized.value());
     if (!written)
     {
-        setError(qstring_from_utf8(written.error().message));
+        emit errorOccurred(qstring_from_utf8(written.error().message));
         return;
     }
     reload_presets();
-    setStatus(
+    emit statusOccurred(
         QCoreApplication::translate("StudioPresenter", "Preset “%1” saved.").arg(checked_name));
 }
 
-void StudioPresenter::reload_presets()
+void StudioDevelopPresenter::reload_presets()
 {
     QVariantList presets;
     const QString directory = presets_directory();
@@ -300,11 +277,11 @@ void StudioPresenter::reload_presets()
                                           {QStringLiteral("kind"), kind}});
         }
     }
-    develop_presets_ = std::move(presets);
+    state_.develop_presets_ = std::move(presets);
     emit presetsChanged();
 }
 
-void StudioPresenter::importPresetFromPath(const QString &path)
+void StudioDevelopPresenter::importPresetFromPath(const QString &path)
 {
     QString input_path = path.trimmed();
     if (input_path.startsWith(QStringLiteral("file:")))
@@ -312,26 +289,27 @@ void StudioPresenter::importPresetFromPath(const QString &path)
     const QFileInfo source(input_path);
     if (!source.exists() || !source.isFile())
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
+        emit errorOccurred(
+            QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
         return;
     }
     const QString directory = presets_directory();
     if (directory.isEmpty())
     {
-        setError(
+        emit errorOccurred(
             QCoreApplication::translate("StudioPresenter", "Open a library to import presets."));
         return;
     }
     if (!QDir().mkpath(directory))
     {
-        setError(
+        emit errorOccurred(
             QCoreApplication::translate("StudioPresenter", "Preset folder could not be created."));
         return;
     }
     auto text = read_utf8_text_file(utf8_from_qstring(input_path), kRecipeStyleFileMaxBytes);
     if (!text)
     {
-        setError(qstring_from_utf8(text.error().message));
+        emit errorOccurred(qstring_from_utf8(text.error().message));
         return;
     }
     QString stem = source.completeBaseName();
@@ -342,7 +320,7 @@ void StudioPresenter::importPresetFromPath(const QString &path)
             import_crs_xmp({text.value(), {"preset", "ravo-preset://library", std::nullopt}});
         if (!imported)
         {
-            setError(qstring_from_utf8(imported.error().message));
+            emit errorOccurred(qstring_from_utf8(imported.error().message));
             return;
         }
         if (!imported.value().name.empty())
@@ -354,7 +332,7 @@ void StudioPresenter::importPresetFromPath(const QString &path)
         auto style = parse_recipe_style_json(text.value());
         if (!style)
         {
-            setError(qstring_from_utf8(style.error().message));
+            emit errorOccurred(qstring_from_utf8(style.error().message));
             return;
         }
         stem = QString::fromStdString(style.value().name);
@@ -378,7 +356,8 @@ void StudioPresenter::importPresetFromPath(const QString &path)
         QFile::remove(destination);
         if (!QFile::copy(input_path, destination))
         {
-            setError(QCoreApplication::translate("StudioPresenter", "Preset could not be copied."));
+            emit errorOccurred(
+                QCoreApplication::translate("StudioPresenter", "Preset could not be copied."));
             return;
         }
     }
@@ -386,39 +365,41 @@ void StudioPresenter::importPresetFromPath(const QString &path)
     applyStyleFromPath(destination);
 }
 
-void StudioPresenter::renamePreset(const QString &path, const QString &name)
+void StudioDevelopPresenter::renamePreset(const QString &path, const QString &name)
 {
     const QString input_path = local_file_path(path);
     const QFileInfo source(input_path);
     if (!source.exists() || !source.isFile())
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
+        emit errorOccurred(
+            QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
         return;
     }
-    if (!is_managed_preset(develop_presets_, presets_directory(), source))
+    if (!is_managed_preset(state_.develop_presets_, presets_directory(), source))
     {
-        setError(QCoreApplication::translate(
+        emit errorOccurred(QCoreApplication::translate(
             "StudioPresenter", "Only presets imported into this library can be renamed."));
         return;
     }
     const QString name_error = preset_name_validation_error(name);
     if (!name_error.isEmpty())
     {
-        setError(name_error);
+        emit errorOccurred(name_error);
         return;
     }
     const QString suffix = preset_suffix_from_filename(source);
     if (suffix.isEmpty())
     {
-        setError(
+        emit errorOccurred(
             QCoreApplication::translate("StudioPresenter", "Preset file type is not supported."));
         return;
     }
     const QString destination = QDir(source.absolutePath()).filePath(name + suffix);
     if (QDir::cleanPath(destination) == QDir::cleanPath(source.absoluteFilePath()))
     {
-        setError({});
-        setStatus(QCoreApplication::translate("StudioPresenter", "Preset name is unchanged."));
+        emit errorOccurred({});
+        emit statusOccurred(
+            QCoreApplication::translate("StudioPresenter", "Preset name is unchanged."));
         return;
     }
     const QFileInfo target(destination);
@@ -426,251 +407,68 @@ void StudioPresenter::renamePreset(const QString &path, const QString &name)
     {
         if (canonical_or_absolute(target) == canonical_or_absolute(source))
         {
-            setError(QCoreApplication::translate(
+            emit errorOccurred(QCoreApplication::translate(
                 "StudioPresenter", "This filesystem cannot rename a preset by letter case only."));
         }
         else
         {
-            setError(QCoreApplication::translate("StudioPresenter",
-                                                 "A preset with that name already exists."));
+            emit errorOccurred(QCoreApplication::translate(
+                "StudioPresenter", "A preset with that name already exists."));
         }
         return;
     }
     QFile file(source.absoluteFilePath());
     if (!file.rename(destination))
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Preset could not be renamed: %1")
-                     .arg(file.errorString()));
+        emit errorOccurred(
+            QCoreApplication::translate("StudioPresenter", "Preset could not be renamed: %1")
+                .arg(file.errorString()));
         return;
     }
-    setError({});
+    emit errorOccurred({});
     reload_presets();
-    setStatus(QCoreApplication::translate("StudioPresenter", "Preset renamed to “%1”.").arg(name));
+    emit statusOccurred(
+        QCoreApplication::translate("StudioPresenter", "Preset renamed to “%1”.").arg(name));
 }
 
-void StudioPresenter::deletePreset(const QString &path)
+void StudioDevelopPresenter::deletePreset(const QString &path)
 {
     const QString input_path = local_file_path(path);
     const QFileInfo source(input_path);
     if (!source.exists() || !source.isFile())
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
+        emit errorOccurred(
+            QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
         return;
     }
-    if (!is_managed_preset(develop_presets_, presets_directory(), source))
+    if (!is_managed_preset(state_.develop_presets_, presets_directory(), source))
     {
-        setError(QCoreApplication::translate(
+        emit errorOccurred(QCoreApplication::translate(
             "StudioPresenter", "Only presets imported into this library can be deleted."));
         return;
     }
     QFile file(source.absoluteFilePath());
     if (!file.remove())
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Preset could not be deleted: %1")
-                     .arg(file.errorString()));
+        emit errorOccurred(
+            QCoreApplication::translate("StudioPresenter", "Preset could not be deleted: %1")
+                .arg(file.errorString()));
         return;
     }
-    setError({});
+    emit errorOccurred({});
     reload_presets();
-    setStatus(QCoreApplication::translate("StudioPresenter", "Preset deleted."));
+    emit statusOccurred(QCoreApplication::translate("StudioPresenter", "Preset deleted."));
 }
 
-QString StudioPresenter::selectedPhotoDebugInfo() const
-{
-    if (importPageOpen())
-    {
-        const QString path = importContextPath();
-        if (path.isEmpty())
-            return {};
-        const auto index = import_candidates_.index(import_context_row_, 0);
-        return QStringLiteral(
-                   "ravo.debug.import-photo 1\npath=%1\nuri=%2\ndisplay_name=%3\nsize_bytes=%4\nduplicate=%5")
-            .arg(path, QUrl::fromLocalFile(path).toString(),
-                 import_candidates_.data(index, ImportCandidateListModel::DisplayNameRole)
-                     .toString(),
-                 import_candidates_.data(index, ImportCandidateListModel::SizeBytesRole).toString(),
-                 import_candidates_.data(index, ImportCandidateListModel::DuplicateRole).toBool() ?
-                     QStringLiteral("true") :
-                     QStringLiteral("false"));
-    }
-    const auto asset = assets_.assetById(selected_asset_id_);
-    if (!asset)
-        return {};
-    PhotoDebugIdentity identity;
-    identity.catalog = catalog_path_;
-    identity.asset_id = selected_asset_id_;
-    identity.uri = qstring_from_utf8(asset->normalized_uri);
-    identity.path = QUrl(identity.uri).toLocalFile();
-    if (asset->content_fingerprint)
-        identity.fingerprint = qstring_from_utf8(*asset->content_fingerprint);
-    identity.media_type = qstring_from_utf8(asset->media_type);
-    identity.display_name = qstring_from_utf8(asset_display_name(*asset));
-    if (asset->width)
-        identity.width = QString::number(*asset->width);
-    if (asset->height)
-        identity.height = QString::number(*asset->height);
-    identity.size_bytes = QString::number(asset->size_bytes);
-    identity.has_edits = asset->has_edits;
-    identity.import_state = qstring_from_utf8(asset->import_state);
-    return format_photo_debug_info(identity);
-}
-
-QString StudioPresenter::selectedPhotoParametersDebugInfo() const
-{
-    const auto asset = assets_.assetById(selected_asset_id_);
-    if (!asset || !develop_loaded_)
-        return {};
-    const AssetDescriptor descriptor{asset->id, asset->normalized_uri, asset->content_fingerprint};
-    auto recipe = recipe_from_develop(descriptor, develop_);
-    if (!recipe)
-        return {};
-    auto serialized = serialize_recipe(recipe.value());
-    if (!serialized)
-        return {};
-
-    PhotoParametersDebugInfo parameters;
-    parameters.catalog = catalog_path_;
-    parameters.asset_id = selected_asset_id_;
-    parameters.display_name = qstring_from_utf8(asset_display_name(*asset));
-    parameters.recipe_state =
-        develop_ == saved_develop_ ? QStringLiteral("saved") : QStringLiteral("pending");
-    parameters.recipe_json = qstring_from_utf8(serialized.value());
-    return format_photo_parameters_debug_info(parameters);
-}
-
-QString StudioPresenter::presetDebugInfo(const QString &path) const
-{
-    QString input_path = path.trimmed();
-    if (input_path.startsWith(QStringLiteral("file:")))
-        input_path = QUrl(input_path).toLocalFile();
-    const QFileInfo info(input_path);
-    if (!info.exists() || !info.isFile())
-        return {};
-    if (info.size() > static_cast<qint64>(kRecipeStyleFileMaxBytes))
-        return {};
-    const QString canonical =
-        info.canonicalFilePath().isEmpty() ? info.absoluteFilePath() : info.canonicalFilePath();
-    QString name = info.completeBaseName();
-    QString kind;
-    for (const auto &entry : develop_presets_)
-    {
-        const auto listed = entry.toMap();
-        const QFileInfo listed_info(listed.value(QStringLiteral("path")).toString());
-        const QString listed_path = listed_info.canonicalFilePath().isEmpty() ?
-                                        listed_info.absoluteFilePath() :
-                                        listed_info.canonicalFilePath();
-        if (listed_path == canonical)
-        {
-            name = listed.value(QStringLiteral("name")).toString();
-            kind = listed.value(QStringLiteral("kind")).toString();
-            break;
-        }
-    }
-    if (kind.isEmpty())
-    {
-        auto text = read_utf8_text_file(utf8_from_qstring(canonical), kRecipeStyleFileMaxBytes);
-        if (!text)
-            return {};
-        if (is_crs_xmp_document(text.value()))
-        {
-            kind = QStringLiteral("crs");
-            auto parsed_name = crs_xmp_preset_name(text.value());
-            if (parsed_name && !parsed_name.value().empty())
-                name = QString::fromStdString(parsed_name.value());
-        }
-        else
-        {
-            auto style = parse_recipe_style_json(text.value());
-            if (!style)
-                return {};
-            kind = QStringLiteral("style");
-            name = QString::fromStdString(style.value().name);
-        }
-    }
-    QFile file(canonical);
-    if (!file.open(QIODevice::ReadOnly))
-        return {};
-    const QByteArray bytes = file.readAll();
-    if (bytes.size() != info.size())
-        return {};
-    PresetDebugIdentity identity;
-    identity.name = name;
-    identity.path = canonical;
-    identity.kind = kind;
-    identity.sha256 =
-        QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
-    identity.size_bytes = QString::number(bytes.size());
-    identity.mtime_unix_ms = QString::number(info.lastModified().toMSecsSinceEpoch());
-    return format_preset_debug_info(identity);
-}
-
-void StudioPresenter::copySelectedPhotoDebugInfo()
-{
-    const QString text = selectedPhotoDebugInfo();
-    if (text.isEmpty())
-        return;
-    if (!write_clipboard_text(text))
-    {
-        setError(QCoreApplication::translate(
-            "StudioPresenter", "Photo information could not be copied to the clipboard."));
-        return;
-    }
-    setStatus(QCoreApplication::translate("StudioPresenter", "Photo information copied."));
-}
-
-void StudioPresenter::copySelectedPhotoParametersDebugInfo()
-{
-    const QString text = selectedPhotoParametersDebugInfo();
-    if (text.isEmpty())
-    {
-        setError(
-            QCoreApplication::translate("StudioPresenter", "Photo parameters could not be read."));
-        return;
-    }
-    if (!write_clipboard_text(text))
-    {
-        setError(QCoreApplication::translate(
-            "StudioPresenter", "Photo parameters could not be copied to the clipboard."));
-        return;
-    }
-    setError({});
-    setStatus(QCoreApplication::translate("StudioPresenter", "Photo parameters copied."));
-}
-
-void StudioPresenter::copyPresetDebugInfo(const QString &path)
-{
-    QString input_path = path.trimmed();
-    if (input_path.startsWith(QStringLiteral("file:")))
-        input_path = QUrl(input_path).toLocalFile();
-    if (!QFileInfo::exists(input_path) || !QFileInfo(input_path).isFile())
-    {
-        setError(QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
-        return;
-    }
-    const QString text = presetDebugInfo(input_path);
-    if (text.isEmpty())
-    {
-        setError(QCoreApplication::translate("StudioPresenter",
-                                             "Preset information could not be read."));
-        return;
-    }
-    if (!write_clipboard_text(text))
-    {
-        setError(QCoreApplication::translate(
-            "StudioPresenter", "Preset information could not be copied to the clipboard."));
-        return;
-    }
-    setStatus(QCoreApplication::translate("StudioPresenter", "Preset information copied."));
-}
-
-void StudioPresenter::addRetouchRegion(const QVariantMap &values)
+void StudioDevelopPresenter::addRetouchRegion(const QVariantMap &values)
 {
     const auto reject = [&](const QString &reason)
     {
-        setError(QCoreApplication::translate("DevelopPanel", "Retouch region was rejected") +
-                 QStringLiteral(" [") + reason + QStringLiteral("]"));
+        emit errorOccurred(
+            QCoreApplication::translate("DevelopPanel", "Retouch region was rejected") +
+            QStringLiteral(" [") + reason + QStringLiteral("]"));
     };
-    if (develop_.retouch.regions.size() >= kRetouchMaxRegions)
+    if (state_.develop_.retouch.regions.size() >= kRetouchMaxRegions)
     {
         reject(QStringLiteral("region_limit"));
         return;
@@ -733,7 +531,7 @@ void StudioPresenter::addRetouchRegion(const QVariantMap &values)
         return;
     }
 
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     std::size_t suffix = next.retouch.regions.size() + 1U;
     std::string mask_id;
     do
@@ -761,15 +559,16 @@ void StudioPresenter::addRetouchRegion(const QVariantMap &values)
     mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
-void StudioPresenter::removeRetouchRegion(const int index)
+void StudioDevelopPresenter::removeRetouchRegion(const int index)
 {
-    if (index < 0 || static_cast<std::size_t>(index) >= develop_.retouch.regions.size())
+    if (index < 0 || static_cast<std::size_t>(index) >= state_.develop_.retouch.regions.size())
     {
-        setError(QCoreApplication::translate("DevelopPanel", "Retouch region was rejected") +
-                 QStringLiteral(" [invalid_region_index]"));
+        emit errorOccurred(
+            QCoreApplication::translate("DevelopPanel", "Retouch region was rejected") +
+            QStringLiteral(" [invalid_region_index]"));
         return;
     }
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     const std::string mask_id = next.retouch.regions[static_cast<std::size_t>(index)].mask_id;
     next.retouch.regions.erase(next.retouch.regions.begin() + index);
     const bool group_references_mask = std::any_of(
@@ -804,46 +603,46 @@ void StudioPresenter::removeRetouchRegion(const int index)
     mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
-void StudioPresenter::setToneCurve(const QVariantList &points)
+void StudioDevelopPresenter::setToneCurve(const QVariantList &points)
 {
     setCurvePoints(QStringLiteral("tone"), 0, points);
 }
 
-void StudioPresenter::previewToneCurve(const QVariantList &points)
+void StudioDevelopPresenter::previewToneCurve(const QVariantList &points)
 {
     previewCurvePoints(QStringLiteral("tone"), 0, points);
 }
 
-void StudioPresenter::setCurveFamily(const int family)
+void StudioDevelopPresenter::setCurveFamily(const int family)
 {
     const int next = family == 1 ? 1 : 0;
-    if (curve_family_ == next)
+    if (state_.curve_family_ == next)
         return;
-    curve_family_ = next;
-    curve_channel_ = 0;
+    state_.curve_family_ = next;
+    state_.curve_channel_ = 0;
     emit editChanged();
 }
 
-void StudioPresenter::setCurveChannel(const int channel)
+void StudioDevelopPresenter::setCurveChannel(const int channel)
 {
-    const int max_channel = curve_family_ == 0 ? 3 : 2;
+    const int max_channel = state_.curve_family_ == 0 ? 3 : 2;
     const int next = std::clamp(channel, 0, max_channel);
-    if (curve_channel_ == next)
+    if (state_.curve_channel_ == next)
         return;
-    curve_channel_ = next;
+    state_.curve_channel_ = next;
     emit editChanged();
 }
 
-void StudioPresenter::apply_curve_points(const QString &family, const int channel,
-                                         const QVariantList &points, const DevelopEdit edit)
+void StudioDevelopPresenter::apply_curve_points(const QString &family, const int channel,
+                                                const QVariantList &points, const DevelopEdit edit)
 {
     DevelopParams next = edit_develop();
     const int family_index = family == QLatin1String("tone") ? 1 : 0;
-    curve_family_ = family_index;
+    state_.curve_family_ = family_index;
     if (family_index == 0)
     {
-        curve_channel_ = std::clamp(channel, 0, 3);
-        if (curve_channel_ <= 0)
+        state_.curve_channel_ = std::clamp(channel, 0, 3);
+        if (state_.curve_channel_ <= 0)
         {
             next.rgb_curve.mode = std::string(kRgbLevelsModeLinked);
             next.rgb_curve.channels[0] = tone_curve_from_variant(points);
@@ -851,19 +650,19 @@ void StudioPresenter::apply_curve_points(const QString &family, const int channe
         else
         {
             next.rgb_curve.mode = std::string(kRgbLevelsModeIndependent);
-            next.rgb_curve.channels[static_cast<std::size_t>(curve_channel_ - 1)] =
+            next.rgb_curve.channels[static_cast<std::size_t>(state_.curve_channel_ - 1)] =
                 tone_curve_from_variant(points);
         }
     }
     else
     {
-        curve_channel_ = std::clamp(channel, 0, 2);
-        if (curve_channel_ == 1)
+        state_.curve_channel_ = std::clamp(channel, 0, 2);
+        if (state_.curve_channel_ == 1)
         {
             next.tone_curve_channel_mode = std::string(kToneCurveChannelModeIndependent);
             next.tone_curve_a = tone_curve_from_variant(points);
         }
-        else if (curve_channel_ == 2)
+        else if (state_.curve_channel_ == 2)
         {
             next.tone_curve_channel_mode = std::string(kToneCurveChannelModeIndependent);
             next.tone_curve_b = tone_curve_from_variant(points);
@@ -880,32 +679,32 @@ void StudioPresenter::apply_curve_points(const QString &family, const int channe
                               std::nullopt);
 }
 
-void StudioPresenter::setCurvePoints(const QString &family, const int channel,
-                                     const QVariantList &points)
+void StudioDevelopPresenter::setCurvePoints(const QString &family, const int channel,
+                                            const QVariantList &points)
 {
     apply_curve_points(family, channel, points, DevelopEdit::Commit);
 }
 
-void StudioPresenter::previewCurvePoints(const QString &family, const int channel,
-                                         const QVariantList &points)
+void StudioDevelopPresenter::previewCurvePoints(const QString &family, const int channel,
+                                                const QVariantList &points)
 {
     apply_curve_points(family, channel, points, DevelopEdit::Preview);
 }
 
-void StudioPresenter::sync_curve_ui_from_develop()
+void StudioDevelopPresenter::sync_curve_ui_from_develop()
 {
-    if (!develop_.rgb_curve.is_identity())
-        curve_family_ = 0;
-    else if (!tone_curve_is_identity(develop_.tone_curve) ||
-             !tone_curve_is_identity(develop_.tone_curve_a) ||
-             !tone_curve_is_identity(develop_.tone_curve_b))
-        curve_family_ = 1;
+    if (!state_.develop_.rgb_curve.is_identity())
+        state_.curve_family_ = 0;
+    else if (!tone_curve_is_identity(state_.develop_.tone_curve) ||
+             !tone_curve_is_identity(state_.develop_.tone_curve_a) ||
+             !tone_curve_is_identity(state_.develop_.tone_curve_b))
+        state_.curve_family_ = 1;
     else
-        curve_family_ = 0;
-    curve_channel_ = 0;
+        state_.curve_family_ = 0;
+    state_.curve_channel_ = 0;
 }
 
-void StudioPresenter::previewDevelopNumber(const QString &name, const double value)
+void StudioDevelopPresenter::previewDevelopNumber(const QString &name, const double value)
 {
     DevelopParams next = edit_develop();
     const auto field = utf8_from_qstring(name);
@@ -920,8 +719,9 @@ void StudioPresenter::previewDevelopNumber(const QString &name, const double val
             const auto reason_text = reason == applied.error().context.end() ?
                                          QStringLiteral("unknown") :
                                          qstring_from_utf8(reason->second);
-            setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
-                     QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+            emit errorOccurred(
+                QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                QStringLiteral(" [") + reason_text + QStringLiteral("]"));
             return;
         }
     }
@@ -934,10 +734,10 @@ void StudioPresenter::previewDevelopNumber(const QString &name, const double val
     mutate_scoped_develop(std::move(next), DevelopEdit::Preview);
 }
 
-void StudioPresenter::setCropRect(const double x, const double y, const double width,
-                                  const double height)
+void StudioDevelopPresenter::setCropRect(const double x, const double y, const double width,
+                                         const double height)
 {
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     next.crop_x = x;
     next.crop_y = y;
     next.crop_width = width;
@@ -948,10 +748,10 @@ void StudioPresenter::setCropRect(const double x, const double y, const double w
     mutate_develop(std::move(next), DevelopEdit::Commit, true, std::string{"cropRect"});
 }
 
-void StudioPresenter::previewCropRect(const double x, const double y, const double width,
-                                      const double height)
+void StudioDevelopPresenter::previewCropRect(const double x, const double y, const double width,
+                                             const double height)
 {
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     next.crop_x = x;
     next.crop_y = y;
     next.crop_width = width;
@@ -962,22 +762,23 @@ void StudioPresenter::previewCropRect(const double x, const double y, const doub
     mutate_develop(std::move(next), DevelopEdit::Overlay);
 }
 
-void StudioPresenter::setCropAspect(const QString &aspect)
+void StudioDevelopPresenter::setCropAspect(const QString &aspect)
 {
     if (aspect == QLatin1String("locked"))
     {
-        locked_crop_ratio_ = develop_.crop_width / std::max(develop_.crop_height, 1e-6);
-        crop_aspect_ = QStringLiteral("locked");
+        state_.locked_crop_ratio_ =
+            state_.develop_.crop_width / std::max(state_.develop_.crop_height, 1e-6);
+        state_.crop_aspect_ = QStringLiteral("locked");
         emit editChanged();
         return;
     }
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     if (!apply_crop_aspect(next, utf8_from_qstring(aspect)))
     {
         return;
     }
-    crop_aspect_ = aspect;
-    locked_crop_ratio_ = 0.0;
+    state_.crop_aspect_ = aspect;
+    state_.locked_crop_ratio_ = 0.0;
     fit_geometry_crop(next);
     clamp_selected_crop(next);
     if (!mutate_develop(std::move(next), DevelopEdit::Commit))
@@ -986,51 +787,51 @@ void StudioPresenter::setCropAspect(const QString &aspect)
     }
 }
 
-void StudioPresenter::rotateLeft()
+void StudioDevelopPresenter::rotateLeft()
 {
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     next.rotate_quarters = (next.rotate_quarters + 3) % 4;
     transform_crop_for_quarter_turns(next, 3);
     fit_geometry_crop(next);
     mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
-void StudioPresenter::rotateRight()
+void StudioDevelopPresenter::rotateRight()
 {
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     next.rotate_quarters = (next.rotate_quarters + 1) % 4;
     transform_crop_for_quarter_turns(next, 1);
     fit_geometry_crop(next);
     mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
-void StudioPresenter::flipHorizontal()
+void StudioDevelopPresenter::flipHorizontal()
 {
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     next.flip_horizontal = next.flip_horizontal == 0 ? 1 : 0;
     transform_crop_for_flip(next, true, false);
     fit_geometry_crop(next);
     mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
-void StudioPresenter::flipVertical()
+void StudioDevelopPresenter::flipVertical()
 {
-    DevelopParams next = develop_;
+    DevelopParams next = state_.develop_;
     next.flip_vertical = next.flip_vertical == 0 ? 1 : 0;
     transform_crop_for_flip(next, false, true);
     fit_geometry_crop(next);
     mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
-void StudioPresenter::setCropToolActive(const bool active)
+void StudioDevelopPresenter::setCropToolActive(const bool active)
 {
     if (active && localEditing())
     {
-        setError(QCoreApplication::translate("DevelopPanel",
-                                             "Finish mask editing before using global tools."));
+        emit errorOccurred(QCoreApplication::translate(
+            "DevelopPanel", "Finish mask editing before using global tools."));
         return;
     }
-    if (crop_tool_active_ == active)
+    if (state_.crop_tool_active_ == active)
     {
         return;
     }
@@ -1038,28 +839,28 @@ void StudioPresenter::setCropToolActive(const bool active)
     {
         static_cast<void>(clear_comparison());
     }
-    crop_tool_active_ = active;
+    state_.crop_tool_active_ = active;
     if (active)
     {
-        if (white_balance_pick_active_)
+        if (state_.white_balance_pick_active_)
         {
-            white_balance_pick_active_ = false;
+            state_.white_balance_pick_active_ = false;
         }
-        if (mask_place_active_)
+        if (state_.mask_place_active_)
         {
-            mask_place_active_ = false;
+            state_.mask_place_active_ = false;
         }
-        if (mask_parametric_assist_active_)
+        if (state_.mask_parametric_assist_active_)
         {
-            mask_parametric_assist_active_ = false;
+            state_.mask_parametric_assist_active_ = false;
         }
-        setZoomMode(QStringLiteral("fit"));
-        DevelopParams next = develop_;
+        host_.zoom_mode(QStringLiteral("fit"));
+        DevelopParams next = state_.develop_;
         // Geometry is rendered by the canonical Perspective owner while Crop
         // is stripped. The overlay therefore edits normalized coordinates in
         // the actual post-perspective frame without reproducing a homography
         // in QML.
-        crop_guide_ready_ = false;
+        state_.crop_guide_ready_ = false;
         if (mutate_develop(std::move(next), DevelopEdit::Commit))
         {
             return;
@@ -1067,10 +868,10 @@ void StudioPresenter::setCropToolActive(const bool active)
     }
     else
     {
-        crop_guide_ready_ = false;
-        if (develop_ != saved_develop_)
+        state_.crop_guide_ready_ = false;
+        if (state_.develop_ != state_.saved_develop_)
         {
-            DevelopParams pending = develop_;
+            DevelopParams pending = state_.develop_;
             if (mutate_develop(std::move(pending), DevelopEdit::Commit))
             {
                 return;
@@ -1082,7 +883,7 @@ void StudioPresenter::setCropToolActive(const bool active)
     enqueue_preview();
 }
 
-void StudioPresenter::resetControl(const QString &name)
+void StudioDevelopPresenter::resetControl(const QString &name)
 {
     DevelopParams next = edit_develop();
     const auto field = utf8_from_qstring(name);
@@ -1097,8 +898,9 @@ void StudioPresenter::resetControl(const QString &name)
             const auto reason_text = reason == reset.error().context.end() ?
                                          QStringLiteral("unknown") :
                                          qstring_from_utf8(reason->second);
-            setError(QCoreApplication::translate("DevelopPanel", "Mask reset was rejected") +
-                     QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+            emit errorOccurred(
+                QCoreApplication::translate("DevelopPanel", "Mask reset was rejected") +
+                QStringLiteral(" [") + reason_text + QStringLiteral("]"));
             return;
         }
     }
@@ -1111,7 +913,7 @@ void StudioPresenter::resetControl(const QString &name)
     mutate_scoped_develop(std::move(next), DevelopEdit::Commit, true, field);
 }
 
-void StudioPresenter::resetSection(const QString &section)
+void StudioDevelopPresenter::resetSection(const QString &section)
 {
     DevelopParams next = edit_develop();
     if (!reset_develop_section(next, utf8_from_qstring(section)))
@@ -1120,23 +922,23 @@ void StudioPresenter::resetSection(const QString &section)
     }
     if (section == QLatin1String("geometry"))
     {
-        crop_aspect_ = QStringLiteral("free");
-        locked_crop_ratio_ = 0.0;
+        state_.crop_aspect_ = QStringLiteral("free");
+        state_.locked_crop_ratio_ = 0.0;
     }
     mutate_scoped_develop(std::move(next), DevelopEdit::Commit);
 }
 
-bool StudioPresenter::sectionModified(const QString &section) const
+bool StudioDevelopPresenter::sectionModified(const QString &section) const
 {
     return develop_section_modified(edit_develop(), utf8_from_qstring(section));
 }
 
-bool StudioPresenter::sectionEffectEnabled(const QString &section) const
+bool StudioDevelopPresenter::sectionEffectEnabled(const QString &section) const
 {
     return develop_section_effect_enabled(edit_develop(), utf8_from_qstring(section));
 }
 
-void StudioPresenter::setSectionEffectEnabled(const QString &section, const bool enabled)
+void StudioDevelopPresenter::setSectionEffectEnabled(const QString &section, const bool enabled)
 {
     DevelopParams next = edit_develop();
     if (!set_develop_section_effect_enabled(next, utf8_from_qstring(section), enabled))
@@ -1146,60 +948,61 @@ void StudioPresenter::setSectionEffectEnabled(const QString &section, const bool
     mutate_scoped_develop(std::move(next), DevelopEdit::Commit);
 }
 
-void StudioPresenter::resetAllEdits()
+void StudioDevelopPresenter::resetAllEdits()
 {
-    crop_aspect_ = QStringLiteral("free");
-    locked_crop_ratio_ = 0.0;
+    state_.crop_aspect_ = QStringLiteral("free");
+    state_.locked_crop_ratio_ = 0.0;
     mutate_develop(baseline_develop(), DevelopEdit::Commit);
 }
 
-void StudioPresenter::copyParametersSelected(const QVariantList &fields)
+void StudioDevelopPresenter::copyParametersSelected(const QVariantList &fields)
 {
     if (selected_asset_id_.isEmpty())
         return;
     std::vector<std::string> selected_fields;
-    const QString selection_error =
-        collect_modified_parameter_selection(fields, baseline_develop(), develop_, selected_fields);
+    const QString selection_error = collect_modified_parameter_selection(
+        fields, baseline_develop(), state_.develop_, selected_fields);
     if (!selection_error.isEmpty())
     {
-        setError(selection_error);
+        emit errorOccurred(selection_error);
         return;
     }
-    copied_parameters_ = CopiedDevelopParameters{develop_, std::move(selected_fields)};
+    state_.copied_parameters_ =
+        CopiedDevelopParameters{state_.develop_, std::move(selected_fields)};
     emit copiedParametersChanged();
-    setStatus(QCoreApplication::translate("StudioPresenter", "Parameters copied."));
+    emit statusOccurred(QCoreApplication::translate("StudioPresenter", "Parameters copied."));
 }
 
-void StudioPresenter::pasteParameters()
+void StudioDevelopPresenter::pasteParameters()
 {
-    if (selected_asset_id_.isEmpty() || !copied_parameters_)
+    if (selected_asset_id_.isEmpty() || !state_.copied_parameters_)
         return;
-    DevelopParams next = develop_;
-    auto applied =
-        apply_develop_selected_fields(next, copied_parameters_->source, copied_parameters_->fields);
+    DevelopParams next = state_.develop_;
+    auto applied = apply_develop_selected_fields(next, state_.copied_parameters_->source,
+                                                 state_.copied_parameters_->fields);
     if (!applied)
     {
-        setError(qstring_from_utf8(applied.error().message));
+        emit errorOccurred(qstring_from_utf8(applied.error().message));
         return;
     }
     if (mutate_develop(std::move(next), DevelopEdit::Commit))
-        setStatus(QCoreApplication::translate("StudioPresenter", "Parameters pasted."));
+        emit statusOccurred(QCoreApplication::translate("StudioPresenter", "Parameters pasted."));
 }
 
-void StudioPresenter::pasteParametersToSelection()
+void StudioDevelopPresenter::pasteParametersToSelection()
 {
-    if (catalog_path_.isEmpty() || !copied_parameters_)
+    if (catalog_path_.isEmpty() || !state_.copied_parameters_)
         return;
     if (busy_ || catalog_operation_active_ || import_work_active_)
         return;
-    auto ids = selected_asset_ids();
+    auto ids = host_.selected_assets();
     if (ids.size() < 2)
         return;
-    catalog_operation_ = CancellationSource{};
-    const auto cancellation = catalog_operation_.token();
+    host_.begin_catalog_operation();
+    const auto cancellation = host_.catalog_operation_token();
     DevelopApplyRequest request;
-    request.source = copied_parameters_->source;
-    request.fields = copied_parameters_->fields;
+    request.source = state_.copied_parameters_->source;
+    request.fields = state_.copied_parameters_->fields;
     request.asset_ids = std::move(ids);
     if (observed_catalog_revision_ >= 0)
         request.expected_revision = observed_catalog_revision_;
@@ -1207,8 +1010,8 @@ void StudioPresenter::pasteParametersToSelection()
     const auto selected = utf8_from_qstring(selected_asset_id_);
     const bool reload_selected = std::find(request.asset_ids.begin(), request.asset_ids.end(),
                                            selected) != request.asset_ids.end();
-    setError({});
-    setCatalogOperation(
+    emit errorOccurred({});
+    host_.catalog_progress(
         QCoreApplication::translate("StudioPresenter", "Applying parameters to selection…"), 0,
         static_cast<int>(request.asset_ids.size()), true);
     executor_.post(
@@ -1216,9 +1019,9 @@ void StudioPresenter::pasteParametersToSelection()
         {
             Result<DevelopApplyResult> applied =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (service_ != nullptr)
+            if (host_.develop_service() != nullptr)
             {
-                applied = service_->develop().apply_develop_selection(
+                applied = host_.develop_service()->apply_develop_selection(
                     request,
                     [this](const std::size_t completed, const std::size_t total,
                            const DevelopApplyItemResult *)
@@ -1229,7 +1032,7 @@ void StudioPresenter::pasteParametersToSelection()
                             {
                                 if (!catalog_operation_active_)
                                     return;
-                                setCatalogOperation(
+                                host_.catalog_progress(
                                     QCoreApplication::translate(
                                         "StudioPresenter", "Applying parameters to selection…"),
                                     static_cast<int>(completed), static_cast<int>(total), true);
@@ -1241,46 +1044,46 @@ void StudioPresenter::pasteParametersToSelection()
                 this,
                 [this, applied = std::move(applied), selected, reload_selected]() mutable
                 {
-                    setCatalogOperation({}, 0, 0, false);
+                    host_.catalog_progress({}, 0, 0, false);
                     if (!applied)
                     {
-                        setError(qstring_from_utf8(applied.error().message));
-                        setStatus(QCoreApplication::translate(
+                        emit errorOccurred(qstring_from_utf8(applied.error().message));
+                        emit statusOccurred(QCoreApplication::translate(
                             "StudioPresenter", "Applying parameters to selection failed."));
                         return;
                     }
-                    observed_catalog_revision_ = applied.value().revision;
+                    host_.observed_revision(applied.value().revision);
                     const auto total = applied.value().items.size();
                     if (applied.value().failed > 0 || applied.value().skipped > 0)
                     {
-                        setStatus(QCoreApplication::translate(
-                                      "StudioPresenter",
-                                      "Applied parameters to %1 of %2 selected photos.")
-                                      .arg(applied.value().applied)
-                                      .arg(total));
+                        emit statusOccurred(QCoreApplication::translate(
+                                                "StudioPresenter",
+                                                "Applied parameters to %1 of %2 selected photos.")
+                                                .arg(applied.value().applied)
+                                                .arg(total));
                         for (const auto &item : applied.value().items)
                         {
                             if (item.status == DevelopApplyItemStatus::kFailed && item.error)
                             {
-                                setError(qstring_from_utf8(item.error->message));
+                                emit errorOccurred(qstring_from_utf8(item.error->message));
                                 break;
                             }
                         }
                     }
                     else
                     {
-                        setStatus(QCoreApplication::translate(
+                        emit statusOccurred(QCoreApplication::translate(
                             "StudioPresenter", "Parameters applied to the selection."));
                     }
                     if (reload_selected && utf8_from_qstring(selected_asset_id_) == selected)
                         load_develop_for_selection();
-                    reloadVisibleAssets();
+                    host_.reload_library();
                 },
                 Qt::QueuedConnection);
         });
 }
 
-void StudioPresenter::applyDevelopNumbers(const QVariantMap &fields, const DevelopEdit edit)
+void StudioDevelopPresenter::applyDevelopNumbers(const QVariantMap &fields, const DevelopEdit edit)
 {
     if (fields.isEmpty())
     {
@@ -1312,51 +1115,51 @@ void StudioPresenter::applyDevelopNumbers(const QVariantMap &fields, const Devel
     mutate_scoped_develop(std::move(next), edit, true, std::move(history_coalesce_key));
 }
 
-void StudioPresenter::previewDevelopNumbers(const QVariantMap &fields)
+void StudioDevelopPresenter::previewDevelopNumbers(const QVariantMap &fields)
 {
     applyDevelopNumbers(fields, DevelopEdit::Preview);
 }
 
-void StudioPresenter::setDevelopNumbers(const QVariantMap &fields)
+void StudioDevelopPresenter::setDevelopNumbers(const QVariantMap &fields)
 {
     applyDevelopNumbers(fields, DevelopEdit::Commit);
 }
 
-void StudioPresenter::undoEdit()
+void StudioDevelopPresenter::undoEdit()
 {
-    if (undo_stack_.empty())
+    if (state_.undo_stack_.empty())
     {
         return;
     }
-    redo_stack_.push_back(develop_);
-    const auto previous = undo_stack_.back();
-    undo_stack_.pop_back();
+    state_.redo_stack_.push_back(state_.develop_);
+    const auto previous = state_.undo_stack_.back();
+    state_.undo_stack_.pop_back();
     mutate_develop(previous, DevelopEdit::Revert);
 }
 
-void StudioPresenter::redoEdit()
+void StudioDevelopPresenter::redoEdit()
 {
-    if (redo_stack_.empty())
+    if (state_.redo_stack_.empty())
     {
         return;
     }
-    undo_stack_.push_back(develop_);
-    const auto next = redo_stack_.back();
-    redo_stack_.pop_back();
+    state_.undo_stack_.push_back(state_.develop_);
+    const auto next = state_.redo_stack_.back();
+    state_.redo_stack_.pop_back();
     mutate_develop(next, DevelopEdit::Revert);
 }
 
-void StudioPresenter::toggleBeforeAfter()
+void StudioDevelopPresenter::toggleBeforeAfter()
 {
     static_cast<void>(clear_comparison());
-    before_after_ = !before_after_;
+    state_.before_after_ = !state_.before_after_;
     emit editChanged();
     enqueue_preview();
 }
 
-void StudioPresenter::toggleComparison()
+void StudioDevelopPresenter::toggleComparison()
 {
-    if (comparison_active_)
+    if (state_.comparison_active_)
     {
         if (clear_comparison())
         {
@@ -1369,44 +1172,34 @@ void StudioPresenter::toggleComparison()
     {
         return;
     }
-    if (crop_tool_active_)
+    if (state_.crop_tool_active_)
     {
         setCropToolActive(false);
     }
-    if (white_balance_pick_active_)
+    if (state_.white_balance_pick_active_)
     {
         setWhiteBalancePickActive(false);
     }
-    if (mask_place_active_)
+    if (state_.mask_place_active_)
     {
         setMaskPlaceActive(false);
     }
-    if (mask_parametric_assist_active_)
+    if (state_.mask_parametric_assist_active_)
     {
         setMaskParametricAssistActive(false);
     }
-    if (mask_overlay_visible_)
+    if (state_.mask_overlay_visible_)
     {
-        setMaskOverlay(mask_overlay_target_, false);
+        setMaskOverlay(state_.mask_overlay_target_, false);
     }
 
-    comparison_active_ = true;
-    comparison_before_requested_ = true;
-    if (before_after_)
+    state_.comparison_active_ = true;
+    state_.comparison_before_requested_ = true;
+    if (state_.before_after_)
     {
-        QImage before;
-        {
-            const QMutexLocker lock(&preview_image_mutex_);
-            before = preview_image_;
-            comparison_before_image_ = before;
-        }
-        if (!before.isNull())
-        {
-            comparison_before_url_ = QUrl(
-                QStringLiteral("image://studioPreview/before?r=%1").arg(live_preview_revision_));
-            comparison_before_requested_ = false;
-        }
-        before_after_ = false;
+        if (host_.adopt_preview_as_comparison())
+            state_.comparison_before_requested_ = false;
+        state_.before_after_ = false;
         emit editChanged();
         enqueue_preview();
         return;
@@ -1415,7 +1208,7 @@ void StudioPresenter::toggleComparison()
     request_comparison_before();
 }
 
-bool StudioPresenter::working_source_size(double &width, double &height) const
+bool StudioDevelopPresenter::working_source_size(double &width, double &height) const
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     if (!asset || !asset->width || !asset->height || *asset->width == 0 || *asset->height == 0)
@@ -1424,7 +1217,7 @@ bool StudioPresenter::working_source_size(double &width, double &height) const
     }
     width = static_cast<double>(*asset->width);
     height = static_cast<double>(*asset->height);
-    const auto turns = ((develop_.rotate_quarters % 4) + 4) % 4;
+    const auto turns = ((state_.develop_.rotate_quarters % 4) + 4) % 4;
     if (turns == 1 || turns == 3)
     {
         std::swap(width, height);
@@ -1432,7 +1225,7 @@ bool StudioPresenter::working_source_size(double &width, double &height) const
     return true;
 }
 
-void StudioPresenter::clamp_selected_crop(DevelopParams &params) const
+void StudioDevelopPresenter::clamp_selected_crop(DevelopParams &params) const
 {
     double width = 0.0;
     double height = 0.0;
@@ -1443,7 +1236,7 @@ void StudioPresenter::clamp_selected_crop(DevelopParams &params) const
     clamp_develop_crop_min_extent(params, width, height);
 }
 
-double StudioPresenter::selected_source_aspect() const
+double StudioDevelopPresenter::selected_source_aspect() const
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     if (asset && asset->width && asset->height && *asset->height > 0)
@@ -1453,17 +1246,18 @@ double StudioPresenter::selected_source_aspect() const
     return 1.5;
 }
 
-double StudioPresenter::selected_working_aspect() const
+double StudioDevelopPresenter::selected_working_aspect() const
 {
-    if (crop_tool_active_)
+    if (state_.crop_tool_active_)
     {
         const QMutexLocker lock(&preview_image_mutex_);
         if (!preview_image_.isNull() && preview_image_.height() > 0)
         {
-            if (!crop_preview_layout_.isEmpty())
-                return (preview_image_.width() * crop_preview_layout_.value("width").toDouble()) /
+            if (!inspect_.cropPreviewLayout().isEmpty())
+                return (preview_image_.width() *
+                        inspect_.cropPreviewLayout().value("width").toDouble()) /
                        std::max(1.0, preview_image_.height() *
-                                         crop_preview_layout_.value("height").toDouble());
+                                         inspect_.cropPreviewLayout().value("height").toDouble());
             return static_cast<double>(preview_image_.width()) /
                    static_cast<double>(preview_image_.height());
         }
@@ -1471,7 +1265,7 @@ double StudioPresenter::selected_working_aspect() const
     const auto asset = assets_.assetById(selected_asset_id_);
     if (asset && asset->width && asset->height && *asset->height > 0)
     {
-        return working_image_aspect(develop_.rotate_quarters, selected_source_aspect());
+        return working_image_aspect(state_.develop_.rotate_quarters, selected_source_aspect());
     }
     const QMutexLocker lock(&preview_image_mutex_);
     if (!preview_image_.isNull() && preview_image_.height() > 0)
@@ -1479,10 +1273,10 @@ double StudioPresenter::selected_working_aspect() const
         return static_cast<double>(preview_image_.width()) /
                static_cast<double>(preview_image_.height());
     }
-    return working_image_aspect(develop_.rotate_quarters, selected_source_aspect());
+    return working_image_aspect(state_.develop_.rotate_quarters, selected_source_aspect());
 }
 
-void StudioPresenter::constrain_geometry_crop(DevelopParams &params) const
+void StudioDevelopPresenter::constrain_geometry_crop(DevelopParams &params) const
 {
     const double rotation = params.straighten_degrees;
     params.straighten_degrees = 0.0;
@@ -1490,7 +1284,7 @@ void StudioPresenter::constrain_geometry_crop(DevelopParams &params) const
     params.straighten_degrees = rotation;
 }
 
-void StudioPresenter::fit_geometry_crop(DevelopParams &params) const
+void StudioDevelopPresenter::fit_geometry_crop(DevelopParams &params) const
 {
     const double rotation = params.straighten_degrees;
     params.straighten_degrees = 0.0;

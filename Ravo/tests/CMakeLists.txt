@@ -21,6 +21,7 @@ endfunction()
 add_executable(ravo_unit_tests
   domain_test.cpp
   foundation_test.cpp
+  cancellation_generation_test.cpp
   recipe_test.cpp
   recipe_develop_test.cpp
   recipe_style_test.cpp

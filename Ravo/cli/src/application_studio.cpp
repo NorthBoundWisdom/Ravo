@@ -531,7 +531,7 @@ render_studio_artifact(const EngineFacade &engine, const LiveSessionDescriptor &
     auto cancellation = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
                                                           std::chrono::milliseconds(timeout_ms));
     request.cancellation = cancellation.token();
-    auto preview = service.value()->request_preview(request, params.value());
+    auto preview = service.value()->preview().request_preview(request, params.value());
     if (!preview)
         return preview.error();
     if (!preview.value().cache_path.empty() || preview.value().rgb.empty())

@@ -12,7 +12,7 @@ DevelopSection {
     ColumnLayout {
         id: colorMixer
         property int activeBand: 0
-        readonly property var bands: panel.hasPresenter ? panel.presenter.editColorEqBands : []
+        readonly property var bands: panel.hasPresenter ? panel.presenter.develop.editColorEqBands : []
         readonly property var band: bands.length > activeBand ? bands[activeBand] : null
         readonly property var colors: ["#f87171", "#fb923c", "#facc15", "#4ade80", "#2dd4bf", "#60a5fa", "#a78bfa", "#f472b6"]
         readonly property var hues: [0, 0.0833, 0.1667, 0.3333, 0.5, 0.6667, 0.8333, 0.9444]

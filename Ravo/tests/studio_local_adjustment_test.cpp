@@ -43,14 +43,14 @@ TEST(LocalAdjustmentWorkspaceTest, DrawAdjustDoneAndReopenKeepGlobalAndLocalSepa
         ASSERT_TRUE(wait_until(
             [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }));
         asset_id = presenter.selectedAssetId();
-        presenter.setDevelopNumber(QStringLiteral("exposure"), 0.8);
+        presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 0.8);
         ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
         StudioCommandController commands(presenter);
         ASSERT_TRUE(
             commands.applyLocalAdjustment(QStringLiteral("create"), {{QStringLiteral("kind"), 4}}));
-        mask_id = presenter.activeLocalId();
+        mask_id = presenter.develop()->activeLocalId();
         ASSERT_FALSE(mask_id.isEmpty());
-        EXPECT_DOUBLE_EQ(presenter.editExposure(), 0);
+        EXPECT_DOUBLE_EQ(presenter.develop()->editExposure(), 0);
         QVariantMap arguments{{QStringLiteral("id"), mask_id},
                               {QStringLiteral("asset"), asset_id},
                               {QStringLiteral("x"), 0.2},
@@ -65,14 +65,15 @@ TEST(LocalAdjustmentWorkspaceTest, DrawAdjustDoneAndReopenKeepGlobalAndLocalSepa
         arguments.insert(QStringLiteral("y"), 0.75);
         ASSERT_TRUE(commands.applyLocalAdjustment(QStringLiteral("gesture_end"), arguments));
         ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
-        presenter.setDevelopNumber(QStringLiteral("exposure"), -0.65);
+        presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), -0.65);
         ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
-        EXPECT_DOUBLE_EQ(presenter.editExposure(), -0.65) << presenter.errorText().toStdString();
+        EXPECT_DOUBLE_EQ(presenter.develop()->editExposure(), -0.65)
+            << presenter.errorText().toStdString();
         ASSERT_TRUE(commands.applyLocalAdjustment(QStringLiteral("done"), {}));
-        ASSERT_TRUE(
-            wait_until([&] { return !presenter.localEditing() && !presenter.previewLoading(); }));
-        EXPECT_DOUBLE_EQ(presenter.editExposure(), 0.8);
-        EXPECT_EQ(presenter.localAdjustments().size(), 1);
+        ASSERT_TRUE(wait_until(
+            [&] { return !presenter.develop()->localEditing() && !presenter.previewLoading(); }));
+        EXPECT_DOUBLE_EQ(presenter.develop()->editExposure(), 0.8);
+        EXPECT_EQ(presenter.develop()->localAdjustments().size(), 1);
         auto live = StudioLiveSessionController::create(presenter, commands);
         ASSERT_TRUE(live);
         QElapsedTimer quiet;
@@ -116,17 +117,18 @@ TEST(LocalAdjustmentWorkspaceTest, DrawAdjustDoneAndReopenKeepGlobalAndLocalSepa
             QString::fromStdString(recipe_state->find("revision")->number_if()->text)};
         const auto selected = run_cli_process(mask_command);
         ASSERT_EQ(selected.exit_code, 0) << selected.standard_output.constData();
-        EXPECT_TRUE(presenter.localEditing());
+        EXPECT_TRUE(presenter.develop()->localEditing());
         const auto stale_scope = run_cli_process(mask_command);
         EXPECT_NE(stale_scope.exit_code, 0);
-        EXPECT_DOUBLE_EQ(presenter.editExposure(), -0.65);
+        EXPECT_DOUBLE_EQ(presenter.develop()->editExposure(), -0.65);
         EXPECT_FALSE(commands.applyLocalAdjustment(
             QStringLiteral("delete"), {{QStringLiteral("id"), QStringLiteral("missing")}}));
-        EXPECT_EQ(presenter.localAdjustments().size(), 1);
+        EXPECT_EQ(presenter.develop()->localAdjustments().size(), 1);
         ASSERT_TRUE(commands.applyLocalAdjustment(QStringLiteral("done"), {}));
-        ASSERT_TRUE(
-            wait_until([&] { return !presenter.localEditing() && !presenter.previewLoading(); }))
-            << "local=" << presenter.localEditing() << " pending=" << presenter.localDonePending()
+        ASSERT_TRUE(wait_until(
+            [&] { return !presenter.develop()->localEditing() && !presenter.previewLoading(); }))
+            << "local=" << presenter.develop()->localEditing()
+            << " pending=" << presenter.develop()->localDonePending()
             << " preview=" << presenter.previewLoading()
             << " error=" << presenter.errorText().toStdString();
     }
@@ -178,14 +180,15 @@ TEST(LocalAdjustmentWorkspaceTest, UnfinishedCreationAndInvalidGestureLeaveNoSav
     StudioCommandController commands(presenter);
     ASSERT_TRUE(
         commands.applyLocalAdjustment(QStringLiteral("create"), {{QStringLiteral("kind"), 8}}));
-    EXPECT_FALSE(commands.applyLocalAdjustment(
-        QStringLiteral("gesture_begin"), {{QStringLiteral("id"), presenter.activeLocalId()},
-                                          {QStringLiteral("asset"), presenter.selectedAssetId()},
-                                          {QStringLiteral("x"), -1},
-                                          {QStringLiteral("y"), 0.5},
-                                          {QStringLiteral("handle"), QStringLiteral("draw")}}));
+    EXPECT_FALSE(
+        commands.applyLocalAdjustment(QStringLiteral("gesture_begin"),
+                                      {{QStringLiteral("id"), presenter.develop()->activeLocalId()},
+                                       {QStringLiteral("asset"), presenter.selectedAssetId()},
+                                       {QStringLiteral("x"), -1},
+                                       {QStringLiteral("y"), 0.5},
+                                       {QStringLiteral("handle"), QStringLiteral("draw")}}));
     ASSERT_TRUE(commands.applyLocalAdjustment(QStringLiteral("done"), {}));
-    EXPECT_FALSE(presenter.localEditing());
-    EXPECT_TRUE(presenter.localAdjustments().isEmpty());
+    EXPECT_FALSE(presenter.develop()->localEditing());
+    EXPECT_TRUE(presenter.develop()->localAdjustments().isEmpty());
 }
 } // namespace ravo

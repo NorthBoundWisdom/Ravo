@@ -91,7 +91,7 @@ void StudioPresenter::refreshOfflineEditMediaStatus()
             Result<OfflineEditProxyStatus> status =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                status = service_->offline_edit_media_status(asset_id);
+                status = service_->offline().offline_edit_media_status(asset_id);
             QMetaObject::invokeMethod(
                 this,
                 [this, status = std::move(status)]() mutable
@@ -125,7 +125,7 @@ void StudioPresenter::refreshOfflineEditProxyList()
             Result<OfflineEditProxyListReport> listed =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                listed = service_->list_offline_edit_proxies();
+                listed = service_->offline().list_offline_edit_proxies();
             QMetaObject::invokeMethod(
                 this,
                 [this, listed = std::move(listed)]() mutable
@@ -182,7 +182,7 @@ void StudioPresenter::createOfflineEditProxy(const unsigned int max_edge)
                 request.user_initiated = true;
                 if (max_edge > 0U)
                     request.max_edge = max_edge;
-                created = service_->create_offline_edit_proxy(request);
+                created = service_->offline().create_offline_edit_proxy(request);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -222,7 +222,7 @@ void StudioPresenter::reconnectOfflineEditProxy(const bool clear_proxy)
                 request.asset_id = asset_id;
                 request.user_initiated = true;
                 request.clear_proxy = clear_proxy;
-                reconnected = service_->reconnect_offline_edit_proxy(request);
+                reconnected = service_->offline().reconnect_offline_edit_proxy(request);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -271,7 +271,7 @@ void StudioPresenter::deleteOfflineEditProxy(const bool force)
                 request.asset_id = asset_id;
                 request.user_initiated = true;
                 request.force = force;
-                deleted = service_->delete_offline_edit_proxy(request);
+                deleted = service_->offline().delete_offline_edit_proxy(request);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -313,7 +313,7 @@ void StudioPresenter::pinOfflineEditProxy(const bool pinned)
                 request.asset_id = asset_id;
                 request.user_initiated = true;
                 request.pinned = pinned;
-                result = service_->pin_offline_edit_proxy(request);
+                result = service_->offline().pin_offline_edit_proxy(request);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -351,7 +351,7 @@ void StudioPresenter::evictOfflineEditProxies(const qulonglong max_total_bytes)
                 OfflineEditProxyEvictRequest request;
                 request.user_initiated = true;
                 request.max_total_bytes = static_cast<std::uint64_t>(max_total_bytes);
-                evicted = service_->evict_offline_edit_proxies(request);
+                evicted = service_->offline().evict_offline_edit_proxies(request);
             }
             QMetaObject::invokeMethod(
                 this,

@@ -36,8 +36,8 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionOverlaysChosenFieldsAndPreserves
     const auto second_path = root / "two.jpg";
     ASSERT_TRUE(write_jpeg(first_path, QColor(20, 80, 140)));
     ASSERT_TRUE(write_jpeg(second_path, QColor(140, 80, 20)));
-    auto first = service->import_one(first_path.string(), CancellationToken{});
-    auto second = service->import_one(second_path.string(), CancellationToken{});
+    auto first = service->import().import_one(first_path.string(), CancellationToken{});
+    auto second = service->import().import_one(second_path.string(), CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
     const auto first_id = first.value().asset->id;
@@ -46,20 +46,20 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionOverlaysChosenFieldsAndPreserves
     DevelopParams source;
     source.exposure_ev = 0.75;
     source.saturation = 0.4;
-    ASSERT_TRUE(service->save_develop(first_id, source)) << "source save failed";
+    ASSERT_TRUE(service->develop().save_develop(first_id, source)) << "source save failed";
     DevelopParams destination;
     destination.saturation = -0.3;
     destination.contrast = 0.2;
-    ASSERT_TRUE(service->save_develop(second_id, destination));
+    ASSERT_TRUE(service->develop().save_develop(second_id, destination));
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     DevelopApplyRequest request;
     request.source = source;
     request.fields = {"exposure"};
     request.asset_ids = {first_id, second_id};
     request.expected_revision = snapshot.value().revision;
-    auto applied = service->apply_develop_selection(request);
+    auto applied = service->develop().apply_develop_selection(request);
     ASSERT_TRUE(applied) << applied.error().message;
     EXPECT_EQ(applied.value().applied, 2U);
     EXPECT_EQ(applied.value().failed, 0U);
@@ -67,14 +67,14 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionOverlaysChosenFieldsAndPreserves
     EXPECT_EQ(applied.value().items.size(), 2U);
     EXPECT_GT(applied.value().revision, snapshot.value().revision);
 
-    auto first_recipe = service->load_recipe(first_id);
+    auto first_recipe = service->develop().load_recipe(first_id);
     ASSERT_TRUE(first_recipe) << first_recipe.error().message;
     auto first_params = develop_from_recipe(first_recipe.value());
     ASSERT_TRUE(first_params) << first_params.error().message;
     EXPECT_NEAR(first_params.value().exposure_ev, 0.75, 1e-9);
     EXPECT_NEAR(first_params.value().saturation, 0.4, 1e-9);
 
-    auto second_recipe = service->load_recipe(second_id);
+    auto second_recipe = service->develop().load_recipe(second_id);
     ASSERT_TRUE(second_recipe) << second_recipe.error().message;
     auto second_params = develop_from_recipe(second_recipe.value());
     ASSERT_TRUE(second_params) << second_params.error().message;
@@ -90,16 +90,16 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionRejectsPreflightWithoutWrites)
     const auto second_path = root / "two.jpg";
     ASSERT_TRUE(write_jpeg(first_path, QColor(20, 80, 140)));
     ASSERT_TRUE(write_jpeg(second_path, QColor(140, 80, 20)));
-    auto first = service->import_one(first_path.string(), CancellationToken{});
-    auto second = service->import_one(second_path.string(), CancellationToken{});
+    auto first = service->import().import_one(first_path.string(), CancellationToken{});
+    auto second = service->import().import_one(second_path.string(), CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
     const auto first_id = first.value().asset->id;
     const auto second_id = second.value().asset->id;
     DevelopParams source;
     source.exposure_ev = 0.5;
-    ASSERT_TRUE(service->save_develop(first_id, source));
-    auto before = service->snapshot();
+    ASSERT_TRUE(service->develop().save_develop(first_id, source));
+    auto before = service->library().snapshot();
     ASSERT_TRUE(before);
 
     DevelopApplyRequest request;
@@ -109,39 +109,39 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionRejectsPreflightWithoutWrites)
 
     auto empty_fields = request;
     empty_fields.fields.clear();
-    auto rejected = service->apply_develop_selection(empty_fields);
+    auto rejected = service->develop().apply_develop_selection(empty_fields);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
 
     auto unknown = request;
     unknown.fields = {"notADevelopField"};
-    rejected = service->apply_develop_selection(unknown);
+    rejected = service->develop().apply_develop_selection(unknown);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
 
     auto duplicate_ids = request;
     duplicate_ids.asset_ids = {first_id, first_id};
-    rejected = service->apply_develop_selection(duplicate_ids);
+    rejected = service->develop().apply_develop_selection(duplicate_ids);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
 
     auto missing = request;
     missing.asset_ids = {first_id, "ast_missing"};
-    rejected = service->apply_develop_selection(missing);
+    rejected = service->develop().apply_develop_selection(missing);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kNotFound);
 
     auto stale = request;
     stale.expected_revision = before.value().revision - 1;
-    rejected = service->apply_develop_selection(stale);
+    rejected = service->develop().apply_develop_selection(stale);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kConflict);
     EXPECT_EQ(rejected.error().context.find("reason")->second, "stale_catalog_revision");
 
-    auto after = service->snapshot();
+    auto after = service->library().snapshot();
     ASSERT_TRUE(after);
     EXPECT_EQ(after.value().revision, before.value().revision);
-    auto second_recipe = service->load_recipe(second_id);
+    auto second_recipe = service->develop().load_recipe(second_id);
     ASSERT_TRUE(second_recipe);
     auto second_params = develop_from_recipe(second_recipe.value());
     ASSERT_TRUE(second_params);
@@ -155,15 +155,15 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionCancellationKeepsCompletedPhotos
     const auto second_path = root / "two.jpg";
     ASSERT_TRUE(write_jpeg(first_path, QColor(20, 80, 140)));
     ASSERT_TRUE(write_jpeg(second_path, QColor(140, 80, 20)));
-    auto first = service->import_one(first_path.string(), CancellationToken{});
-    auto second = service->import_one(second_path.string(), CancellationToken{});
+    auto first = service->import().import_one(first_path.string(), CancellationToken{});
+    auto second = service->import().import_one(second_path.string(), CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
     const auto first_id = first.value().asset->id;
     const auto second_id = second.value().asset->id;
     DevelopParams source;
     source.exposure_ev = 0.9;
-    ASSERT_TRUE(service->save_develop(first_id, source));
+    ASSERT_TRUE(service->develop().save_develop(first_id, source));
 
     CancellationSource cancellation;
     DevelopApplyRequest request;
@@ -171,7 +171,7 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionCancellationKeepsCompletedPhotos
     request.fields = {"exposure"};
     request.asset_ids = {second_id, first_id};
     request.cancellation = cancellation.token();
-    auto applied = service->apply_develop_selection(
+    auto applied = service->develop().apply_develop_selection(
         request,
         [&](const std::size_t completed, const std::size_t, const DevelopApplyItemResult *)
         {
@@ -188,7 +188,7 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionCancellationKeepsCompletedPhotos
     EXPECT_EQ(applied.value().items[1].status, DevelopApplyItemStatus::kSkipped);
     EXPECT_EQ(applied.value().items[1].asset_id, first_id);
 
-    auto second_recipe = service->load_recipe(second_id);
+    auto second_recipe = service->develop().load_recipe(second_id);
     ASSERT_TRUE(second_recipe);
     auto second_params = develop_from_recipe(second_recipe.value());
     ASSERT_TRUE(second_params);
@@ -202,21 +202,21 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionReportsPartialItemFailure)
     const auto second_path = root / "two.jpg";
     ASSERT_TRUE(write_jpeg(first_path, QColor(20, 80, 140)));
     ASSERT_TRUE(write_jpeg(second_path, QColor(140, 80, 20)));
-    auto first = service->import_one(first_path.string(), CancellationToken{});
-    auto second = service->import_one(second_path.string(), CancellationToken{});
+    auto first = service->import().import_one(first_path.string(), CancellationToken{});
+    auto second = service->import().import_one(second_path.string(), CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
     const auto first_id = first.value().asset->id;
     const auto second_id = second.value().asset->id;
     DevelopParams source;
     source.exposure_ev = 0.35;
-    ASSERT_TRUE(service->save_develop(first_id, source));
+    ASSERT_TRUE(service->develop().save_develop(first_id, source));
 
     DevelopApplyRequest request;
     request.source = source;
     request.fields = {"exposure"};
     request.asset_ids = {first_id, second_id};
-    auto applied = service->apply_develop_selection(
+    auto applied = service->develop().apply_develop_selection(
         request,
         [&](const std::size_t completed, const std::size_t, const DevelopApplyItemResult *)
         {
@@ -234,12 +234,12 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionReportsPartialItemFailure)
     EXPECT_EQ(applied.value().items[1].error->code, ErrorCode::kIo);
 
     ASSERT_TRUE(open_service(false));
-    auto first_recipe = service->load_recipe(first_id);
+    auto first_recipe = service->develop().load_recipe(first_id);
     ASSERT_TRUE(first_recipe) << first_recipe.error().message;
     auto first_params = develop_from_recipe(first_recipe.value());
     ASSERT_TRUE(first_params);
     EXPECT_NEAR(first_params.value().exposure_ev, 0.35, 1e-9);
-    auto second_recipe = service->load_recipe(second_id);
+    auto second_recipe = service->develop().load_recipe(second_id);
     ASSERT_TRUE(second_recipe);
     auto second_params = develop_from_recipe(second_recipe.value());
     ASSERT_TRUE(second_params);
@@ -253,8 +253,8 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionCarriesMultiInstanceExposure)
     const auto second_path = root / "multi-b.jpg";
     ASSERT_TRUE(write_jpeg(first_path, QColor(20, 80, 140)));
     ASSERT_TRUE(write_jpeg(second_path, QColor(140, 80, 20)));
-    auto first = service->import_one(first_path.string(), CancellationToken{});
-    auto second = service->import_one(second_path.string(), CancellationToken{});
+    auto first = service->import().import_one(first_path.string(), CancellationToken{});
+    auto second = service->import().import_one(second_path.string(), CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
     const auto first_id = first.value().asset->id;
@@ -275,26 +275,26 @@ TEST_F(CatalogServiceTest, ApplyDevelopSelectionCarriesMultiInstanceExposure)
     mask.payload = EllipseMask{0.5, 0.45, 0.2, 0.15, 0.0, 0.05};
     source.masks.push_back(mask);
     source.saturation = 0.15;
-    ASSERT_TRUE(service->save_develop(first_id, source)) << "source save failed";
+    ASSERT_TRUE(service->develop().save_develop(first_id, source)) << "source save failed";
 
     DevelopParams destination;
     destination.saturation = -0.25;
     destination.contrast = 0.1;
-    ASSERT_TRUE(service->save_develop(second_id, destination));
+    ASSERT_TRUE(service->develop().save_develop(second_id, destination));
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     DevelopApplyRequest request;
     request.source = source;
     request.fields = {"exposure"};
     request.asset_ids = {second_id};
     request.expected_revision = snapshot.value().revision;
-    auto applied = service->apply_develop_selection(request);
+    auto applied = service->develop().apply_develop_selection(request);
     ASSERT_TRUE(applied) << applied.error().message;
     EXPECT_EQ(applied.value().applied, 1U);
     EXPECT_EQ(applied.value().failed, 0U);
 
-    auto second_recipe = service->load_recipe(second_id);
+    auto second_recipe = service->develop().load_recipe(second_id);
     ASSERT_TRUE(second_recipe) << second_recipe.error().message;
     auto second_params = develop_from_recipe(second_recipe.value());
     ASSERT_TRUE(second_params) << second_params.error().message;
@@ -317,9 +317,9 @@ TEST_F(CatalogServiceTest, Local01CancelMidStructuralMultiInstanceApply)
     ASSERT_TRUE(write_jpeg(a_path, QColor(20, 80, 140)));
     ASSERT_TRUE(write_jpeg(b_path, QColor(140, 80, 20)));
     ASSERT_TRUE(write_jpeg(c_path, QColor(40, 140, 80)));
-    auto a = service->import_one(a_path.string(), CancellationToken{});
-    auto b = service->import_one(b_path.string(), CancellationToken{});
-    auto c = service->import_one(c_path.string(), CancellationToken{});
+    auto a = service->import().import_one(a_path.string(), CancellationToken{});
+    auto b = service->import().import_one(b_path.string(), CancellationToken{});
+    auto c = service->import().import_one(c_path.string(), CancellationToken{});
     ASSERT_TRUE(a) << a.error().message;
     ASSERT_TRUE(b) << b.error().message;
     ASSERT_TRUE(c) << c.error().message;
@@ -341,12 +341,12 @@ TEST_F(CatalogServiceTest, Local01CancelMidStructuralMultiInstanceApply)
     Mask mask{"struct-mask-ellipse", kCanonicalMaskSchemaVersion, MaskKind::kEllipse};
     mask.payload = EllipseMask{0.48, 0.52, 0.19, 0.14, 0.0, 0.04};
     source.masks.push_back(mask);
-    ASSERT_TRUE(service->save_develop(a_id, source));
+    ASSERT_TRUE(service->develop().save_develop(a_id, source));
 
     DevelopParams baseline;
     baseline.exposure_ev = 0.0;
-    ASSERT_TRUE(service->save_develop(b_id, baseline));
-    ASSERT_TRUE(service->save_develop(c_id, baseline));
+    ASSERT_TRUE(service->develop().save_develop(b_id, baseline));
+    ASSERT_TRUE(service->develop().save_develop(c_id, baseline));
 
     CancellationSource cancellation;
     DevelopApplyRequest request;
@@ -354,7 +354,7 @@ TEST_F(CatalogServiceTest, Local01CancelMidStructuralMultiInstanceApply)
     request.fields = {"exposure"};
     request.asset_ids = {b_id, c_id};
     request.cancellation = cancellation.token();
-    auto applied = service->apply_develop_selection(
+    auto applied = service->develop().apply_develop_selection(
         request,
         [&](const std::size_t completed, const std::size_t, const DevelopApplyItemResult *)
         {
@@ -370,7 +370,7 @@ TEST_F(CatalogServiceTest, Local01CancelMidStructuralMultiInstanceApply)
     EXPECT_EQ(applied.value().items[1].status, DevelopApplyItemStatus::kSkipped);
     EXPECT_EQ(applied.value().items[1].asset_id, c_id);
 
-    auto b_recipe = service->load_recipe(b_id);
+    auto b_recipe = service->develop().load_recipe(b_id);
     ASSERT_TRUE(b_recipe);
     auto b_params = develop_from_recipe(b_recipe.value());
     ASSERT_TRUE(b_params);
@@ -378,7 +378,7 @@ TEST_F(CatalogServiceTest, Local01CancelMidStructuralMultiInstanceApply)
     EXPECT_EQ(b_params.value().exposure_instances[1].mask_id, "struct-mask-ellipse");
     EXPECT_EQ(b_params.value().masks.size(), 1U);
 
-    auto c_recipe = service->load_recipe(c_id);
+    auto c_recipe = service->develop().load_recipe(c_id);
     ASSERT_TRUE(c_recipe);
     auto c_params = develop_from_recipe(c_recipe.value());
     ASSERT_TRUE(c_params);

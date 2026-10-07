@@ -169,7 +169,7 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
             request.destination_directory = std::string(flags.import_destination);
         request.expected_catalog_revision = flags.expected_revision;
         request.auto_stack = flags.editor_auto_stack;
-        auto registered = service.register_external_editor_output(request);
+        auto registered = service.external_editor().register_external_editor_output(request);
         if (!registered)
             return registered.error();
         auto asset_json = asset_to_json(registered.value().derived_asset);
@@ -189,7 +189,7 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog editor-show requires --asset-id <derived-id>");
         }
-        auto provenance = service.external_editor_provenance(flags.asset_id);
+        auto provenance = service.external_editor().external_editor_provenance(flags.asset_id);
         if (!provenance)
             return provenance.error();
         return provenance_to_json(provenance.value());
@@ -213,7 +213,7 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
             request.editor_id = std::string(flags.editor_id);
         request.expected_catalog_revision = flags.expected_revision;
         request.user_initiated = true;
-        auto opened = service.prepare_external_editor_open(request);
+        auto opened = service.external_editor().prepare_external_editor_open(request);
         if (!opened)
             return opened.error();
 
@@ -270,7 +270,7 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
         if (flags.max_edge)
             request.max_edge = *flags.max_edge;
         request.expected_catalog_revision = flags.expected_revision;
-        auto prepared = service.create_external_editor_working_copy(request);
+        auto prepared = service.external_editor().create_external_editor_working_copy(request);
         if (!prepared)
             return prepared.error();
 
@@ -300,7 +300,7 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
         if (!flags.inputs.empty())
             request.returned_path = std::string(flags.inputs.front());
         request.expected_catalog_revision = flags.expected_revision;
-        auto checked = service.check_external_editor_returned(request);
+        auto checked = service.external_editor().check_external_editor_returned(request);
         if (!checked)
             return checked.error();
         auto asset_json = asset_to_json(checked.value().registration.derived_asset);
@@ -323,7 +323,8 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog editor-working-copy-status requires --working-copy-id");
         }
-        auto status = service.external_editor_working_copy_status(flags.working_copy_id);
+        auto status =
+            service.external_editor().external_editor_working_copy_status(flags.working_copy_id);
         if (!status)
             return status.error();
         return working_copy_status_json(status.value());
@@ -333,7 +334,7 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
         std::optional<std::string_view> asset_filter;
         if (!flags.asset_id.empty())
             asset_filter = flags.asset_id;
-        auto listed = service.list_external_editor_working_copies(asset_filter);
+        auto listed = service.external_editor().list_external_editor_working_copies(asset_filter);
         if (!listed)
             return listed.error();
         JsonValue::Array items;
@@ -363,7 +364,7 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
         request.working_copy_id = std::string(flags.working_copy_id);
         request.user_initiated = true;
         request.expected_catalog_revision = flags.expected_revision;
-        auto abandoned = service.abandon_external_editor_working_copy(request);
+        auto abandoned = service.external_editor().abandon_external_editor_working_copy(request);
         if (!abandoned)
             return abandoned.error();
         return JsonValue{JsonValue::Object{
@@ -389,7 +390,7 @@ Result<JsonValue> run_catalog_editor_command(CatalogService &service,
         ExternalEditorReopenRequest request;
         request.working_copy_id = std::string(flags.working_copy_id);
         request.user_initiated = true;
-        auto reopened = service.reopen_external_editor_working_copy(request);
+        auto reopened = service.external_editor().reopen_external_editor_working_copy(request);
         if (!reopened)
             return reopened.error();
         bool os_open_invoked = false;

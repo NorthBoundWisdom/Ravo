@@ -19,7 +19,7 @@ ColumnLayout {
         objectName: "velviaEnabled"
         text: qsTr("Enable Velvia")
         enabled: panel.hasSelection
-        checked: panel.hasPresenter && panel.presenter.editVelviaParams.enabled
+        checked: panel.hasPresenter && panel.presenter.develop.editVelviaParams.enabled
         onToggled: if (panel.liveReady && panel.commands)
             panel.commands.setDevelopNumber("velviaEnabled", checked ? 1 : 0)
     }
@@ -35,7 +35,7 @@ ColumnLayout {
         resetValue: 25
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editVelviaParams.strength : 25
+        value: panel.hasPresenter ? panel.presenter.develop.editVelviaParams.strength : 25
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("velviaStrength", value);
@@ -59,7 +59,7 @@ ColumnLayout {
         resetValue: 1
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editVelviaParams.bias : 1
+        value: panel.hasPresenter ? panel.presenter.develop.editVelviaParams.bias : 1
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("velviaBias", value);
@@ -75,7 +75,7 @@ ColumnLayout {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
         opacity: 0.72
-        visible: panel.hasPresenter && panel.presenter.editVelviaParams.masked
+        visible: panel.hasPresenter && panel.presenter.develop.editVelviaParams.masked
         text: qsTr("Loaded Velvia mask is preserved but edited outside this panel.")
     }
     CustomButton {
@@ -100,7 +100,7 @@ ColumnLayout {
             showClipIndicator: true
             placeholderText: qsTr("Choose a .cube file")
             enabled: panel.hasSelection
-            text: panel.hasPresenter ? panel.presenter.editLut3d.filePath : ""
+            text: panel.hasPresenter ? panel.presenter.develop.editLut3d.filePath : ""
             onEditingCommitted: function (committedText) {
                 if (panel.commands)
                     panel.commands.setDevelopText("lut3dFile", committedText);
@@ -115,8 +115,8 @@ ColumnLayout {
     CustomCheckBox {
         objectName: "lut3dEnabled"
         text: qsTr("Enable 3D LUT")
-        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editLut3d.hasFile
-        checked: panel.hasPresenter && panel.presenter.editLut3d.enabled
+        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editLut3d.hasFile
+        checked: panel.hasPresenter && panel.presenter.develop.editLut3d.enabled
         onToggled: if (panel.liveReady && panel.commands)
             panel.commands.setDevelopNumber("lut3dEnabled", checked ? 1 : 0)
     }
@@ -127,9 +127,9 @@ ColumnLayout {
     CustomComboBox {
         objectName: "lut3dInputSpace"
         Layout.fillWidth: true
-        model: panel.hasPresenter ? panel.presenter.editLut3d.spaceChoices : []
-        currentIndex: panel.hasPresenter ? panel.presenter.editLut3d.inputSpaceIndex : 0
-        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editLut3d.hasFile
+        model: panel.hasPresenter ? panel.presenter.develop.editLut3d.spaceChoices : []
+        currentIndex: panel.hasPresenter ? panel.presenter.develop.editLut3d.inputSpaceIndex : 0
+        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editLut3d.hasFile
         Accessible.name: qsTr("3D LUT input color space")
         onActivated: function (index) {
             if (panel.commands)
@@ -143,9 +143,9 @@ ColumnLayout {
     CustomComboBox {
         objectName: "lut3dOutputSpace"
         Layout.fillWidth: true
-        model: panel.hasPresenter ? panel.presenter.editLut3d.spaceChoices : []
-        currentIndex: panel.hasPresenter ? panel.presenter.editLut3d.outputSpaceIndex : 0
-        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editLut3d.hasFile
+        model: panel.hasPresenter ? panel.presenter.develop.editLut3d.spaceChoices : []
+        currentIndex: panel.hasPresenter ? panel.presenter.develop.editLut3d.outputSpaceIndex : 0
+        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editLut3d.hasFile
         Accessible.name: qsTr("3D LUT output color space")
         onActivated: function (index) {
             if (panel.commands)
@@ -159,9 +159,9 @@ ColumnLayout {
     CustomComboBox {
         objectName: "lut3dInterpolation"
         Layout.fillWidth: true
-        model: panel.hasPresenter ? panel.presenter.editLut3d.interpolationChoices : []
-        currentIndex: panel.hasPresenter ? panel.presenter.editLut3d.interpolationIndex : 0
-        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editLut3d.hasFile
+        model: panel.hasPresenter ? panel.presenter.develop.editLut3d.interpolationChoices : []
+        currentIndex: panel.hasPresenter ? panel.presenter.develop.editLut3d.interpolationIndex : 0
+        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editLut3d.hasFile
         Accessible.name: qsTr("3D LUT interpolation")
         onActivated: function (index) {
             if (panel.commands)
@@ -179,8 +179,8 @@ ColumnLayout {
         showReset: true
         resetValue: 1
         delayedCommit: true
-        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editLut3d.hasFile
-        value: panel.hasPresenter ? panel.presenter.editLut3d.strength : 1
+        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editLut3d.hasFile
+        value: panel.hasPresenter ? panel.presenter.develop.editLut3d.strength : 1
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("lut3dStrength", value);
@@ -194,7 +194,7 @@ ColumnLayout {
     }
     CustomButton {
         text: qsTr("Disable and reset 3D LUT")
-        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editLut3d.present
+        enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editLut3d.present
         onClicked: if (panel.commands)
             panel.commands.resetControl("lut3d")
     }
@@ -206,7 +206,7 @@ ColumnLayout {
             Layout.fillWidth: true
             model: [qsTr("darktable UCS (2022)"), qsTr("JzAzBz (2021)")]
             enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.formulaIndex : 0
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.formulaIndex : 0
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("colorBalanceFormula", currentIndex)
         }
@@ -545,7 +545,7 @@ ColumnLayout {
                 resetValue: modelData.reset
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editColorBalanceRgb[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);

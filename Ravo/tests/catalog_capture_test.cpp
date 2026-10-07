@@ -84,7 +84,7 @@ TEST_F(CatalogServiceTest, OutputDitherPersistsRebuildsAndExportsTheDisplayedPix
     }
     ASSERT_TRUE(image.save(QString::fromStdString(source_path), "PNG"));
     const auto source_hash = file_sha256(source_path);
-    auto imported = service->import_one(source_path, CancellationToken{});
+    auto imported = service->import().import_one(source_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -92,11 +92,11 @@ TEST_F(CatalogServiceTest, OutputDitherPersistsRebuildsAndExportsTheDisplayedPix
     develop.output_dither_present = true;
     develop.output_dither_enabled = true;
     develop.output_dither = {OutputDitherMethod::kPosterize4, -100.0};
-    ASSERT_TRUE(service->save_develop(asset_id, develop));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop));
 
     PreviewRequest preview_request;
     preview_request.asset_id = asset_id;
-    auto preview = service->request_preview(preview_request);
+    auto preview = service->preview().request_preview(preview_request);
     ASSERT_TRUE(preview) << preview.error().message;
     QImage preview_image(QString::fromStdString(preview.value().cache_path));
     ASSERT_FALSE(preview_image.isNull());
@@ -105,7 +105,7 @@ TEST_F(CatalogServiceTest, OutputDitherPersistsRebuildsAndExportsTheDisplayedPix
     export_request.asset_id = asset_id;
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -116,13 +116,13 @@ TEST_F(CatalogServiceTest, OutputDitherPersistsRebuildsAndExportsTheDisplayedPix
     service.reset();
     ASSERT_TRUE(std::filesystem::remove(preview.value().cache_path));
     ASSERT_TRUE(open_service(false));
-    auto restored = service->load_recipe(asset_id);
+    auto restored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
     auto restored_develop = develop_from_recipe(restored.value());
     ASSERT_TRUE(restored_develop) << restored_develop.error().message;
     EXPECT_TRUE(restored_develop.value().output_dither_enabled);
     EXPECT_EQ(restored_develop.value().output_dither.method, OutputDitherMethod::kPosterize4);
-    auto rebuilt = service->request_preview(preview_request);
+    auto rebuilt = service->preview().request_preview(preview_request);
     ASSERT_TRUE(rebuilt) << rebuilt.error().message;
     QImage rebuilt_image(QString::fromStdString(rebuilt.value().cache_path));
     ASSERT_FALSE(rebuilt_image.isNull());
@@ -148,14 +148,14 @@ TEST_F(CatalogServiceTest, VelviaPersistsRebuildsAndExportsTheDisplayedPixels)
     }
     ASSERT_TRUE(image.save(QString::fromStdString(source_path), "PNG"));
     const auto source_hash = file_sha256(source_path);
-    auto imported = service->import_one(source_path, CancellationToken{});
+    auto imported = service->import().import_one(source_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     PreviewRequest preview_request;
     preview_request.asset_id = asset_id;
-    auto baseline = service->request_preview(preview_request);
+    auto baseline = service->preview().request_preview(preview_request);
     ASSERT_TRUE(baseline) << baseline.error().message;
     const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
     ASSERT_FALSE(baseline_image.isNull());
@@ -164,8 +164,8 @@ TEST_F(CatalogServiceTest, VelviaPersistsRebuildsAndExportsTheDisplayedPixels)
     develop.velvia_present = true;
     develop.velvia_enabled = true;
     develop.velvia = {100.0, 0.15};
-    ASSERT_TRUE(service->save_develop(asset_id, develop));
-    auto preview = service->request_preview(preview_request);
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop));
+    auto preview = service->preview().request_preview(preview_request);
     ASSERT_TRUE(preview) << preview.error().message;
     const QImage preview_image(QString::fromStdString(preview.value().cache_path));
     ASSERT_FALSE(preview_image.isNull());
@@ -177,7 +177,7 @@ TEST_F(CatalogServiceTest, VelviaPersistsRebuildsAndExportsTheDisplayedPixels)
     export_request.asset_id = asset_id;
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -188,14 +188,14 @@ TEST_F(CatalogServiceTest, VelviaPersistsRebuildsAndExportsTheDisplayedPixels)
     service.reset();
     ASSERT_TRUE(std::filesystem::remove(preview.value().cache_path));
     ASSERT_TRUE(open_service(false));
-    auto restored = service->load_recipe(asset_id);
+    auto restored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
     auto restored_develop = develop_from_recipe(restored.value());
     ASSERT_TRUE(restored_develop) << restored_develop.error().message;
     EXPECT_TRUE(restored_develop.value().velvia_present);
     EXPECT_TRUE(restored_develop.value().velvia_enabled);
     EXPECT_EQ(restored_develop.value().velvia, (VelviaParams{100.0, 0.15}));
-    auto rebuilt = service->request_preview(preview_request);
+    auto rebuilt = service->preview().request_preview(preview_request);
     ASSERT_TRUE(rebuilt) << rebuilt.error().message;
     const QImage rebuilt_image(QString::fromStdString(rebuilt.value().cache_path));
     ASSERT_FALSE(rebuilt_image.isNull());
@@ -212,7 +212,7 @@ TEST_F(CatalogServiceTest, CanvasColorZonesMonochromeSplitFrameWatermarkPersistE
     image.fill(QColor(80, 120, 160));
     ASSERT_TRUE(image.save(QString::fromStdString(source_path), "PNG"));
     const auto source_hash = file_sha256(source_path);
-    auto imported = service->import_one(source_path, CancellationToken{});
+    auto imported = service->import().import_one(source_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -241,10 +241,10 @@ TEST_F(CatalogServiceTest, CanvasColorZonesMonochromeSplitFrameWatermarkPersistE
     develop.split_toning_present = true;
     develop.split_toning_enabled = true;
     develop.split_toning = {0.34, 0.9, 0.93, 0.9, 0.35, 15.0, 1.0};
-    ASSERT_TRUE(service->save_develop(asset_id, develop));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop));
     PreviewRequest preview_request;
     preview_request.asset_id = asset_id;
-    auto preview = service->request_preview(preview_request);
+    auto preview = service->preview().request_preview(preview_request);
     ASSERT_TRUE(preview) << preview.error().message;
     EXPECT_EQ(preview.value().width, 20U);
     EXPECT_EQ(preview.value().height, 14U);
@@ -255,7 +255,7 @@ TEST_F(CatalogServiceTest, CanvasColorZonesMonochromeSplitFrameWatermarkPersistE
     request.asset_id = asset_id;
     request.output_path = (root / "canvas-frame-export.png").string();
     request.format = ExportFormat::kPng;
-    auto exported = service->export_asset(request);
+    auto exported = service->exports().export_asset(request);
     ASSERT_TRUE(exported) << exported.error().message;
     EXPECT_EQ(exported.value().width, 20U);
     EXPECT_EQ(exported.value().height, 14U);
@@ -269,7 +269,7 @@ TEST_F(CatalogServiceTest, CanvasColorZonesMonochromeSplitFrameWatermarkPersistE
         ExportRequest additional = request;
         additional.format = format;
         additional.output_path = (root / filename).string();
-        auto result = service->export_asset(additional);
+        auto result = service->exports().export_asset(additional);
         ASSERT_TRUE(result) << filename << ": " << result.error().message;
         EXPECT_EQ(result.value().width, 20U);
         EXPECT_EQ(result.value().height, 14U);
@@ -283,7 +283,7 @@ TEST_F(CatalogServiceTest, CanvasColorZonesMonochromeSplitFrameWatermarkPersistE
     service.reset();
     ASSERT_TRUE(std::filesystem::remove(preview.value().cache_path));
     ASSERT_TRUE(open_service(false));
-    auto restored = service->load_recipe(asset_id);
+    auto restored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
     auto params = develop_from_recipe(restored.value());
     ASSERT_TRUE(params) << params.error().message;
@@ -298,7 +298,7 @@ TEST_F(CatalogServiceTest, CanvasColorZonesMonochromeSplitFrameWatermarkPersistE
     EXPECT_TRUE(params.value().split_toning_enabled);
     EXPECT_DOUBLE_EQ(params.value().split_toning.compress, 15.0);
     EXPECT_EQ(params.value().canvas.color, CanvasColor::kBlue);
-    auto rebuilt = service->request_preview(preview_request);
+    auto rebuilt = service->preview().request_preview(preview_request);
     ASSERT_TRUE(rebuilt) << rebuilt.error().message;
     EXPECT_EQ(QImage(QString::fromStdString(rebuilt.value().cache_path)), exported_image);
     EXPECT_EQ(file_sha256(source_path), source_hash);
@@ -366,7 +366,7 @@ TEST_F(CatalogServiceTest, ImportsMire1AsLocalCaptureWithoutOffsetOrGps)
     ASSERT_TRUE(created) << created.error().message;
     const auto source_hash = file_sha256(raw_fixture_path());
     const auto source_mtime = std::filesystem::last_write_time(raw_fixture_path());
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     ASSERT_TRUE(imported.value().asset->capture.captured_datetime);
@@ -381,7 +381,7 @@ TEST_F(CatalogServiceTest, ImportsMire1AsLocalCaptureWithoutOffsetOrGps)
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     ASSERT_TRUE(listed.value().front().capture.captured_datetime);
@@ -390,16 +390,16 @@ TEST_F(CatalogServiceTest, ImportsMire1AsLocalCaptureWithoutOffsetOrGps)
     EXPECT_FALSE(listed.value().front().capture.captured_datetime->utc_offset_minutes);
     EXPECT_FALSE(listed.value().front().capture.location);
 
-    auto before_duplicate = service->snapshot();
+    auto before_duplicate = service->library().snapshot();
     ASSERT_TRUE(before_duplicate);
-    auto duplicate = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto duplicate = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(duplicate) << duplicate.error().message;
     EXPECT_EQ(duplicate.value().status, ImportItemStatus::kDuplicate);
     EXPECT_EQ(duplicate.value().asset->id, imported.value().asset->id);
     EXPECT_EQ(duplicate.value().asset->capture.captured_datetime,
               imported.value().asset->capture.captured_datetime);
     EXPECT_EQ(duplicate.value().asset->capture.location, imported.value().asset->capture.location);
-    auto after_duplicate = service->snapshot();
+    auto after_duplicate = service->library().snapshot();
     ASSERT_TRUE(after_duplicate);
     EXPECT_EQ(after_duplicate.value().revision, before_duplicate.value().revision);
 }
@@ -409,7 +409,7 @@ TEST_F(CatalogServiceTest, ImportsSyntheticJpegCaptureTimeAndGps)
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "zoned.jpg");
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     ASSERT_TRUE(imported.value().asset->capture.captured_datetime);
@@ -458,7 +458,7 @@ TEST_F(CatalogServiceTest, ImportsAndReopensExifLensMakeModelFacet)
     ASSERT_EQ(file.write(jpeg), jpeg.size());
     file.close();
 
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     ASSERT_TRUE(imported.value().asset->capture.lens_make);
@@ -466,7 +466,7 @@ TEST_F(CatalogServiceTest, ImportsAndReopensExifLensMakeModelFacet)
     EXPECT_EQ(*imported.value().asset->capture.lens_make, "RavoOptics");
     EXPECT_EQ(*imported.value().asset->capture.lens_model, "Prime 35mm f/1.8");
 
-    auto facets = service->list_capture_facets();
+    auto facets = service->metadata().list_capture_facets();
     ASSERT_TRUE(facets) << facets.error().message;
     ASSERT_EQ(facets.value().lens_names.size(), 1U);
     EXPECT_EQ(facets.value().lens_names.front().label, "RavoOptics Prime 35mm f/1.8");
@@ -474,14 +474,14 @@ TEST_F(CatalogServiceTest, ImportsAndReopensExifLensMakeModelFacet)
     LibraryQuery query;
     query.lens_make_equals = "RavoOptics";
     query.lens_model_equals = "Prime 35mm f/1.8";
-    auto listed = service->list_assets(query);
+    auto listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
 
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    listed = service->list_assets();
+    listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     ASSERT_TRUE(listed.value().front().capture.lens_make);
@@ -508,11 +508,11 @@ TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomicall
 {
     ASSERT_TRUE(open_service(true));
     const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "refresh-capture.jpg");
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    auto before = service->snapshot();
+    auto before = service->library().snapshot();
     ASSERT_TRUE(before);
     replace_synthetic_capture_year(jpeg_path, QByteArray("2008"));
 
@@ -524,12 +524,12 @@ TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomicall
     writable.province_state = "KeepState";
     writable.city = "KeepCity";
     writable.sublocation = "KeepSub";
-    auto saved = service->set_writable_metadata(asset_id, writable);
+    auto saved = service->metadata().set_writable_metadata(asset_id, writable);
     ASSERT_TRUE(saved) << saved.error().message;
-    before = service->snapshot();
+    before = service->library().snapshot();
     ASSERT_TRUE(before);
 
-    auto refreshed = service->refresh_capture_metadata(asset_id, CancellationToken{});
+    auto refreshed = service->metadata().refresh_capture_metadata(asset_id, CancellationToken{});
     ASSERT_TRUE(refreshed) << refreshed.error().message;
     ASSERT_TRUE(refreshed.value().capture.captured_datetime);
     EXPECT_EQ(refreshed.value().capture.captured_datetime->local_exif, "2008:09:11 13:53:33");
@@ -547,14 +547,14 @@ TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomicall
     EXPECT_EQ(*refreshed.value().metadata.city, "KeepCity");
     ASSERT_TRUE(refreshed.value().metadata.sublocation);
     EXPECT_EQ(*refreshed.value().metadata.sublocation, "KeepSub");
-    auto after = service->snapshot();
+    auto after = service->library().snapshot();
     ASSERT_TRUE(after);
     EXPECT_EQ(after.value().revision, before.value().revision + 1);
 
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed);
     ASSERT_EQ(listed.value().size(), 1U);
     ASSERT_TRUE(listed.value().front().capture.captured_datetime);
@@ -573,11 +573,11 @@ TEST_F(CatalogServiceTest, RefreshFailurePreservesCaptureAndRevision)
 {
     ASSERT_TRUE(open_service(true));
     const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "refresh-rollback.jpg");
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    auto before = service->snapshot();
+    auto before = service->library().snapshot();
     ASSERT_TRUE(before);
     replace_synthetic_capture_year(jpeg_path, QByteArray("2009"));
 
@@ -595,21 +595,22 @@ TEST_F(CatalogServiceTest, RefreshFailurePreservesCaptureAndRevision)
         database = QSqlDatabase();
         QSqlDatabase::removeDatabase(connection);
     }
-    auto refreshed = service->refresh_capture_metadata(asset_id, CancellationToken{});
+    auto refreshed = service->metadata().refresh_capture_metadata(asset_id, CancellationToken{});
     ASSERT_FALSE(refreshed);
     EXPECT_EQ(refreshed.error().code, ErrorCode::kIo);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed);
     ASSERT_EQ(listed.value().size(), 1U);
     ASSERT_TRUE(listed.value().front().capture.captured_datetime);
     EXPECT_EQ(listed.value().front().capture.captured_datetime->local_exif, "2007:09:11 13:53:33");
-    auto after = service->snapshot();
+    auto after = service->library().snapshot();
     ASSERT_TRUE(after);
     EXPECT_EQ(after.value().revision, before.value().revision);
 
     CancellationSource cancelled;
     ASSERT_TRUE(cancelled.cancel("refresh-cancelled"));
-    auto cancelled_refresh = service->refresh_capture_metadata(asset_id, cancelled.token());
+    auto cancelled_refresh =
+        service->metadata().refresh_capture_metadata(asset_id, cancelled.token());
     ASSERT_FALSE(cancelled_refresh);
     EXPECT_EQ(cancelled_refresh.error().code, ErrorCode::kCancelled);
 }
@@ -674,10 +675,10 @@ TEST_F(CatalogServiceTest, MigratesV4CatalogLeavingNewCaptureColumnsNull)
 
     auto opened = open_service(false);
     ASSERT_TRUE(opened) << opened.error().message;
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().capture.captured_unix_s, 1189514013);
@@ -750,10 +751,10 @@ TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
 
     auto opened = open_service(false);
     ASSERT_TRUE(opened) << opened.error().message;
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed)
         << listed.error().message << " action="
         << (listed.error().context.contains("action") ? listed.error().context.at("action") : "")
@@ -787,7 +788,7 @@ TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    listed = service->list_assets();
+    listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 2U);
 }
@@ -1061,11 +1062,11 @@ TEST_F(CatalogServiceTest, V6RecoveryMigrationFailureRollsBackTheV5Catalog)
 
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
     EXPECT_EQ(snapshot.value().revision, 1);
-    auto recovery = service->recovery_state(asset.id);
+    auto recovery = service->recovery().recovery_state(asset.id);
     ASSERT_TRUE(recovery) << recovery.error().message;
     EXPECT_EQ(recovery.value().generation, 1);
     EXPECT_EQ(recovery.value().synchronized_generation, 1);
@@ -1075,7 +1076,7 @@ TEST_F(CatalogServiceTest, CaptureRowFailureRollsBackInvisibleAsset)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto snapshot_before = service->snapshot();
+    auto snapshot_before = service->library().snapshot();
     ASSERT_TRUE(snapshot_before) << snapshot_before.error().message;
     {
         const auto connection = QStringLiteral("ravo_capture_failure_injection");
@@ -1092,14 +1093,14 @@ TEST_F(CatalogServiceTest, CaptureRowFailureRollsBackInvisibleAsset)
         QSqlDatabase::removeDatabase(connection);
     }
 
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported);
     EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
     EXPECT_FALSE(imported.value().asset);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_TRUE(listed.value().empty());
-    auto snapshot_after = service->snapshot();
+    auto snapshot_after = service->library().snapshot();
     ASSERT_TRUE(snapshot_after) << snapshot_after.error().message;
     EXPECT_EQ(snapshot_after.value().revision, snapshot_before.value().revision);
 }
@@ -1107,7 +1108,7 @@ TEST_F(CatalogServiceTest, CaptureRowFailureRollsBackInvisibleAsset)
 TEST_F(CatalogServiceTest, RejectsPartialAndOutOfRangePersistedCaptureCoordinates)
 {
     ASSERT_TRUE(open_service(true));
-    auto imported = service->import_one(png_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(png_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1134,7 +1135,7 @@ TEST_F(CatalogServiceTest, RejectsPartialAndOutOfRangePersistedCaptureCoordinate
             "UPDATE asset_metadata SET gps_latitude_e6 = 1, gps_longitude_e6 = NULL, "
             "gps_altitude_magnitude_mm = NULL, gps_altitude_ref = NULL WHERE asset_id = ?"));
     ASSERT_TRUE(open_service(false, false));
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_location");
     auto closed = service->close();
@@ -1147,7 +1148,7 @@ TEST_F(CatalogServiceTest, RejectsPartialAndOutOfRangePersistedCaptureCoordinate
         QStringLiteral("UPDATE asset_metadata SET gps_latitude_e6 = 9223372036854775807, "
                        "gps_longitude_e6 = 0 WHERE asset_id = ?"));
     ASSERT_TRUE(open_service(false, false));
-    listed = service->list_assets();
+    listed = service->library().list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_integer");
     EXPECT_EQ(listed.error().context.at("field"), "gps_latitude_e6");
@@ -1159,7 +1160,7 @@ TEST_F(CatalogServiceTest, RejectsPartialAndOutOfRangePersistedCaptureCoordinate
 TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
 {
     ASSERT_TRUE(open_service(true));
-    auto imported = service->import_one(png_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(png_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1218,7 +1219,7 @@ TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
     {
         write_sql(QString::fromUtf8(test_case.connection), QString::fromUtf8(test_case.statement));
         ASSERT_TRUE(open_service(false, false));
-        auto listed = service->list_assets();
+        auto listed = service->library().list_assets();
         ASSERT_FALSE(listed) << test_case.field;
         EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_storage_class")
             << test_case.field;
@@ -1232,7 +1233,7 @@ TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
     write_sql(QStringLiteral("ravo_real_in_int"),
               QStringLiteral("UPDATE asset_metadata SET gps_latitude_e6 = 1.5 WHERE asset_id = ?"));
     ASSERT_TRUE(open_service(false, false));
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_storage_class");
     auto closed = service->close();
@@ -1245,7 +1246,7 @@ TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
                              "gps_longitude_e6 = NULL, captured_local_exif = NULL, "
                              "captured_subsecond_digits = '18' WHERE asset_id = ?"));
     ASSERT_TRUE(open_service(false, false));
-    listed = service->list_assets();
+    listed = service->library().list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_datetime");
     closed = service->close();
@@ -1259,7 +1260,7 @@ TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
                              "gps_altitude_magnitude_mm = 0, gps_altitude_ref = NULL "
                              "WHERE asset_id = ?"));
     ASSERT_TRUE(open_service(false, false));
-    listed = service->list_assets();
+    listed = service->library().list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_altitude");
 }
@@ -1312,7 +1313,7 @@ TEST_F(CatalogServiceTest, ReopensZeroOffsetCoordinatesAndBothZeroAltitudeRefere
 TEST_F(CatalogServiceTest, ImportInjectionMatrixLeavesNoVisibleAsset)
 {
     ASSERT_TRUE(open_service(true));
-    auto snapshot_before = service->snapshot();
+    auto snapshot_before = service->library().snapshot();
     ASSERT_TRUE(snapshot_before);
     const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "inject.jpg");
     const std::array<testing::SqliteImportFailure, 10> failures{
@@ -1335,14 +1336,14 @@ TEST_F(CatalogServiceTest, ImportInjectionMatrixLeavesNoVisibleAsset)
         }
         ASSERT_NE(sqlite_repository, nullptr);
         testing::SqliteCatalogTestControl::inject(*sqlite_repository, failure);
-        auto imported = service->import_one(jpeg_path, CancellationToken{});
+        auto imported = service->import().import_one(jpeg_path, CancellationToken{});
         ASSERT_TRUE(imported) << static_cast<int>(failure);
         EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
         EXPECT_FALSE(imported.value().asset);
-        auto listed = service->list_assets();
+        auto listed = service->library().list_assets();
         ASSERT_TRUE(listed) << listed.error().message;
         EXPECT_TRUE(listed.value().empty());
-        auto snapshot = service->snapshot();
+        auto snapshot = service->library().snapshot();
         ASSERT_TRUE(snapshot);
         EXPECT_EQ(snapshot.value().revision, snapshot_before.value().revision);
         if (failure == testing::SqliteImportFailure::kRollback)
@@ -1356,14 +1357,14 @@ TEST_F(CatalogServiceTest, ImportInjectionMatrixLeavesNoVisibleAsset)
         service.reset();
         sqlite_repository = nullptr;
         ASSERT_TRUE(open_service(false));
-        auto reopened = service->list_assets();
+        auto reopened = service->library().list_assets();
         ASSERT_TRUE(reopened) << reopened.error().message;
         EXPECT_TRUE(reopened.value().empty());
     }
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto reopened = service->list_assets();
+    auto reopened = service->library().list_assets();
     ASSERT_TRUE(reopened) << reopened.error().message;
     EXPECT_TRUE(reopened.value().empty());
 }

@@ -23,7 +23,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editGraduatedDensity : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editGraduatedDensity : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("graduatedDensity", value);
@@ -46,7 +46,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editGraduatedRotation : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editGraduatedRotation : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("graduatedRotation", value);

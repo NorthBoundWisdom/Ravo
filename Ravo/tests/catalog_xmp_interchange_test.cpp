@@ -59,18 +59,18 @@ TEST_F(CatalogServiceTest, XmpInterchangeConflictMatrixAndFailClosed)
     std::filesystem::copy_file(png_fixture_path(), local_png,
                                std::filesystem::copy_options::overwrite_existing, copy_error);
     ASSERT_FALSE(copy_error) << copy_error.message();
-    auto imported = service->import_one(local_png, CancellationToken{});
+    auto imported = service->import().import_one(local_png, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
     const auto original = [&]
     {
-        auto status = service->xmp_interchange_status(asset_id);
+        auto status = service->xmp().xmp_interchange_status(asset_id);
         EXPECT_TRUE(status) << status.error().message;
         return status.value().original_path;
     }();
 
-    auto missing = service->xmp_interchange_status(asset_id);
+    auto missing = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(missing) << missing.error().message;
     EXPECT_EQ(missing.value().conflict_class, XmpInterchangeConflictClass::kMissing);
 
@@ -80,21 +80,21 @@ TEST_F(CatalogServiceTest, XmpInterchangeConflictMatrixAndFailClosed)
     const auto before_sha = sha256_file_hex(original);
     ASSERT_TRUE(before_sha) << before_sha.error().message;
 
-    auto sidecar_newer = service->xmp_interchange_status(asset_id);
+    auto sidecar_newer = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(sidecar_newer) << sidecar_newer.error().message;
     EXPECT_EQ(sidecar_newer.value().conflict_class, XmpInterchangeConflictClass::kSidecarNewer);
     EXPECT_TRUE(sidecar_newer.value().crs_parse_ok);
     EXPECT_TRUE(sidecar_newer.value().metadata_parse_ok);
 
-    auto blocked = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kAbort);
+    auto blocked = service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kAbort);
     ASSERT_FALSE(blocked);
     EXPECT_EQ(blocked.error().code, ErrorCode::kConflict);
     EXPECT_EQ(blocked.error().context.at("conflict_class"), "sidecar-newer");
 
-    auto applied = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    auto applied = service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_TRUE(applied) << applied.error().message;
     EXPECT_EQ(applied.value().status.conflict_class, XmpInterchangeConflictClass::kIdentical);
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe);
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop);
@@ -110,36 +110,39 @@ TEST_F(CatalogServiceTest, XmpInterchangeConflictMatrixAndFailClosed)
 
     // Catalog edit without touching sidecar => catalog-newer.
     develop.value().exposure_ev = 0.25;
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
-    auto catalog_newer = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
+    auto catalog_newer = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(catalog_newer) << catalog_newer.error().message;
     EXPECT_EQ(catalog_newer.value().conflict_class, XmpInterchangeConflictClass::kCatalogNewer);
 
-    auto import_blocked = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kAbort);
+    auto import_blocked =
+        service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kAbort);
     ASSERT_FALSE(import_blocked);
     EXPECT_EQ(import_blocked.error().context.at("conflict_class"), "catalog-newer");
 
-    auto exported = service->xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
+    auto exported =
+        service->xmp().xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
     ASSERT_TRUE(exported) << exported.error().message;
     EXPECT_EQ(exported.value().status.conflict_class, XmpInterchangeConflictClass::kIdentical);
 
     // External sidecar edit while catalog unchanged since baseline => sidecar-newer again.
     ASSERT_TRUE(write_utf8_text_file_replace_atomically(sidecar_path, minimal_crs_xmp(1.0)));
-    auto again_sidecar = service->xmp_interchange_status(asset_id);
+    auto again_sidecar = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(again_sidecar);
     EXPECT_EQ(again_sidecar.value().conflict_class, XmpInterchangeConflictClass::kSidecarNewer);
 
     // Change catalog too => both-changed.
     develop.value().exposure_ev = -1.0;
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
-    auto both = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
+    auto both = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(both);
     EXPECT_EQ(both.value().conflict_class, XmpInterchangeConflictClass::kBothChanged);
-    auto both_blocked = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kAbort);
+    auto both_blocked =
+        service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kAbort);
     ASSERT_FALSE(both_blocked);
     EXPECT_EQ(both_blocked.error().context.at("conflict_class"), "both-changed");
     auto both_export_blocked =
-        service->xmp_interchange_export(asset_id, XmpInterchangeResolve::kAbort);
+        service->xmp().xmp_interchange_export(asset_id, XmpInterchangeResolve::kAbort);
     ASSERT_FALSE(both_export_blocked);
     EXPECT_EQ(both_export_blocked.error().context.at("reason"), "xmp_export_conflict");
 
@@ -149,12 +152,12 @@ TEST_F(CatalogServiceTest, XmpInterchangeConflictMatrixAndFailClosed)
     ASSERT_NE(marker, std::string::npos);
     unsupported_text.insert(marker, "crs:Texture=\"20\" ");
     ASSERT_TRUE(write_utf8_text_file_replace_atomically(sidecar_path, unsupported_text));
-    auto unsupported_status = service->xmp_interchange_status(asset_id);
+    auto unsupported_status = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(unsupported_status);
     EXPECT_FALSE(unsupported_status.value().crs_parse_ok);
     EXPECT_EQ(unsupported_status.value().crs_parse_reason.value_or(""), "unsupported_crs_key");
     auto unsupported_import =
-        service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+        service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_FALSE(unsupported_import);
     EXPECT_EQ(unsupported_import.error().code, ErrorCode::kUnsupported);
 
@@ -175,11 +178,11 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     std::filesystem::copy_file(png_fixture_path(), local_png,
                                std::filesystem::copy_options::overwrite_existing, copy_error);
     ASSERT_FALSE(copy_error) << copy_error.message();
-    auto imported = service->import_one(local_png, CancellationToken{});
+    auto imported = service->import().import_one(local_png, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    auto status0 = service->xmp_interchange_status(asset_id);
+    auto status0 = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(status0) << status0.error().message;
     const auto original = status0.value().original_path;
 
@@ -206,18 +209,18 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     const auto before_sha = sha256_file_hex(original);
     ASSERT_TRUE(before_sha);
 
-    auto status = service->xmp_interchange_status(asset_id);
+    auto status = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     EXPECT_EQ(status.value().conflict_class, XmpInterchangeConflictClass::kSidecarNewer);
     EXPECT_TRUE(status.value().crs_parse_ok);
     EXPECT_TRUE(status.value().metadata_parse_ok);
     EXPECT_FALSE(status.value().has_adjacent_metadata);
 
-    auto blocked = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kAbort);
+    auto blocked = service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kAbort);
     ASSERT_FALSE(blocked);
     EXPECT_EQ(blocked.error().context.at("conflict_class"), "sidecar-newer");
 
-    auto applied = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    auto applied = service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_TRUE(applied) << applied.error().message;
     EXPECT_TRUE(applied.value().applied_crs);
     EXPECT_TRUE(applied.value().applied_metadata);
@@ -247,7 +250,7 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     EXPECT_EQ(applied.value().asset.tags[0], "Archive");
     EXPECT_EQ(applied.value().asset.tags[1], "Nature|Birds");
 
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe);
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop);
@@ -256,14 +259,16 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     // Catalog metadata edit alone => catalog-newer.
     WritableMetadata edited = applied.value().asset.metadata;
     edited.title = "Catalog Title";
-    ASSERT_TRUE(service->set_writable_metadata(asset_id, edited));
-    auto catalog_newer = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(service->metadata().set_writable_metadata(asset_id, edited));
+    auto catalog_newer = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(catalog_newer);
     EXPECT_EQ(catalog_newer.value().conflict_class, XmpInterchangeConflictClass::kCatalogNewer);
 
-    auto export_blocked = service->xmp_interchange_export(asset_id, XmpInterchangeResolve::kAbort);
+    auto export_blocked =
+        service->xmp().xmp_interchange_export(asset_id, XmpInterchangeResolve::kAbort);
     ASSERT_FALSE(export_blocked);
-    auto exported = service->xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
+    auto exported =
+        service->xmp().xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
     ASSERT_TRUE(exported) << exported.error().message;
     EXPECT_EQ(exported.value().status.conflict_class, XmpInterchangeConflictClass::kIdentical);
     auto exported_text = read_utf8_text_file(sidecar_path);
@@ -276,8 +281,8 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     EXPECT_NE(exported_text.value().find("photoshop:TransmissionReference"), std::string::npos);
 
     // Keyword-only catalog change also participates.
-    ASSERT_TRUE(service->set_tags(asset_id, {"Nature|Birds", "Archive", "Travel"}));
-    auto keyword_newer = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(service->metadata().set_tags(asset_id, {"Nature|Birds", "Archive", "Travel"}));
+    auto keyword_newer = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(keyword_newer);
     EXPECT_EQ(keyword_newer.value().conflict_class, XmpInterchangeConflictClass::kCatalogNewer);
 
@@ -299,12 +304,13 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
     bad.insert(close, structured);
     // Also ensure xmlns:lr exists for the parser namespace binding via default xmlns on element.
     ASSERT_TRUE(write_utf8_text_file_replace_atomically(sidecar_path, bad));
-    auto bad_status = service->xmp_interchange_status(asset_id);
+    auto bad_status = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(bad_status) << bad_status.error().message;
     EXPECT_FALSE(bad_status.value().metadata_parse_ok);
     EXPECT_EQ(bad_status.value().metadata_parse_reason.value_or(""),
               "unsupported_hierarchical_keyword_shape");
-    auto bad_import = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    auto bad_import =
+        service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_FALSE(bad_import);
     EXPECT_EQ(bad_import.error().code, ErrorCode::kUnsupported);
     EXPECT_EQ(bad_import.error().context.at("reason"), "unsupported_hierarchical_keyword_shape");
@@ -319,7 +325,7 @@ TEST_F(CatalogServiceTest, XmpAdjacentKeywordIptcLocationMergeMatrix)
                                 "    </rdf:Bag>\n"
                                 "   </dc:subject>\n");
     ASSERT_TRUE(write_utf8_text_file_replace_atomically(sidecar_path, flat_bad));
-    auto flat_status = service->xmp_interchange_status(asset_id);
+    auto flat_status = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(flat_status);
     EXPECT_FALSE(flat_status.value().metadata_parse_ok);
 
@@ -340,10 +346,10 @@ TEST_F(CatalogServiceTest, XmpAdjacentMetadataOnlySidecarImport)
     std::filesystem::copy_file(png_fixture_path(), local_png,
                                std::filesystem::copy_options::overwrite_existing, copy_error);
     ASSERT_FALSE(copy_error);
-    auto imported = service->import_one(local_png, CancellationToken{});
+    auto imported = service->import().import_one(local_png, CancellationToken{});
     ASSERT_TRUE(imported);
     const auto asset_id = imported.value().asset->id;
-    auto status0 = service->xmp_interchange_status(asset_id);
+    auto status0 = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(status0);
     const auto original = status0.value().original_path;
 
@@ -365,13 +371,13 @@ TEST_F(CatalogServiceTest, XmpAdjacentMetadataOnlySidecarImport)
         "<?xpacket end=\"w\"?>\n";
     ASSERT_FALSE(write_adjacent_xmp(original, meta_only).empty());
 
-    auto status = service->xmp_interchange_status(asset_id);
+    auto status = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     EXPECT_FALSE(status.value().crs_parse_ok);
     EXPECT_TRUE(status.value().metadata_parse_ok);
     EXPECT_EQ(status.value().conflict_class, XmpInterchangeConflictClass::kSidecarNewer);
 
-    auto applied = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    auto applied = service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_TRUE(applied) << applied.error().message;
     EXPECT_FALSE(applied.value().applied_crs);
     EXPECT_TRUE(applied.value().applied_metadata);
@@ -392,15 +398,15 @@ TEST_F(CatalogServiceTest, XmpStatusReportsCrsProcessVersionClassAndFailClosedUn
     std::filesystem::copy_file(png_fixture_path(), local_png,
                                std::filesystem::copy_options::overwrite_existing, copy_error);
     ASSERT_FALSE(copy_error) << copy_error.message();
-    auto imported = service->import_one(local_png, CancellationToken{});
+    auto imported = service->import().import_one(local_png, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
-    auto status0 = service->xmp_interchange_status(asset_id);
+    auto status0 = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(status0) << status0.error().message;
     const auto original = status0.value().original_path;
 
     const auto ok_path = write_adjacent_xmp(original, minimal_crs_xmp(-0.2));
-    auto ok = service->xmp_interchange_status(asset_id);
+    auto ok = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(ok) << ok.error().message;
     EXPECT_TRUE(ok.value().crs_parse_ok);
     EXPECT_EQ(ok.value().crs_version_class, CrsProcessVersionClass::kSupportedPv2012);
@@ -415,14 +421,14 @@ TEST_F(CatalogServiceTest, XmpStatusReportsCrsProcessVersionClassAndFailClosedUn
     ASSERT_NE(end, std::string::npos);
     bad.replace(marker, end + 1 - marker, "crs:ProcessVersion=\"18.0\"");
     ASSERT_TRUE(write_utf8_text_file_replace_atomically(ok_path, bad));
-    auto unsupported = service->xmp_interchange_status(asset_id);
+    auto unsupported = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(unsupported) << unsupported.error().message;
     EXPECT_FALSE(unsupported.value().crs_parse_ok);
     EXPECT_EQ(unsupported.value().crs_version_class, CrsProcessVersionClass::kUnsupported);
     EXPECT_EQ(unsupported.value().crs_process_version.value_or(""), "18.0");
     EXPECT_EQ(unsupported.value().crs_parse_reason.value_or(""), "unsupported_crs_process_version");
 
-    auto apply = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    auto apply = service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_FALSE(apply);
     EXPECT_EQ(apply.error().context.at("reason"), "unsupported_crs_process_version");
     EXPECT_EQ(apply.error().context.at("crs_version_class"), "unsupported");
@@ -437,7 +443,7 @@ TEST_F(CatalogServiceTest, XmpFailsClosedForUnrepresentableMultiInstance)
     std::filesystem::copy_file(png_fixture_path(), local_png,
                                std::filesystem::copy_options::overwrite_existing, copy_error);
     ASSERT_FALSE(copy_error) << copy_error.message();
-    auto imported = service->import_one(local_png, CancellationToken{});
+    auto imported = service->import().import_one(local_png, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -451,16 +457,17 @@ TEST_F(CatalogServiceTest, XmpFailsClosedForUnrepresentableMultiInstance)
     local.name = "Dodge";
     local.exposure_ev = 0.35;
     multi.exposure_instances = {master, local};
-    auto saved = service->save_develop_with_history(asset_id, multi);
+    auto saved = service->develop().save_develop_with_history(asset_id, multi);
     ASSERT_TRUE(saved) << saved.error().message;
 
-    auto status = service->xmp_interchange_status(asset_id);
+    auto status = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     ASSERT_TRUE(status.value().catalog_crs_unrepresentable_reason);
     EXPECT_EQ(*status.value().catalog_crs_unrepresentable_reason,
               "unrepresentable_multi_instance_local_adjustments");
 
-    auto exported = service->xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
+    auto exported =
+        service->xmp().xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
     ASSERT_FALSE(exported);
     EXPECT_EQ(exported.error().code, ErrorCode::kUnsupported);
     EXPECT_EQ(exported.error().context.at("reason"),
@@ -468,20 +475,20 @@ TEST_F(CatalogServiceTest, XmpFailsClosedForUnrepresentableMultiInstance)
 
     const auto original = status.value().original_path;
     const auto sidecar_path = write_adjacent_xmp(original, minimal_crs_xmp(-0.25));
-    auto sidecar_status = service->xmp_interchange_status(asset_id);
+    auto sidecar_status = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(sidecar_status) << sidecar_status.error().message;
     ASSERT_TRUE(sidecar_status.value().catalog_crs_unrepresentable_reason);
     EXPECT_TRUE(sidecar_status.value().crs_parse_ok);
 
     auto blocked_import =
-        service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+        service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_FALSE(blocked_import);
     EXPECT_EQ(blocked_import.error().code, ErrorCode::kUnsupported);
     EXPECT_EQ(blocked_import.error().context.at("reason"),
               "unrepresentable_multi_instance_local_adjustments");
 
     // Recipe must remain multi-instance after blocked import.
-    auto loaded = service->load_recipe(asset_id);
+    auto loaded = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(loaded) << loaded.error().message;
     auto params = develop_from_recipe(loaded.value());
     ASSERT_TRUE(params) << params.error().message;
@@ -497,11 +504,11 @@ TEST_F(CatalogServiceTest, XmpInterchangeRatingRoundTripViaXmpRating)
     std::filesystem::copy_file(png_fixture_path(), local_png,
                                std::filesystem::copy_options::overwrite_existing, copy_error);
     ASSERT_FALSE(copy_error) << copy_error.message();
-    auto imported = service->import_one(local_png, CancellationToken{});
+    auto imported = service->import().import_one(local_png, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
-    auto rated = service->set_rating(asset_id, 4);
+    auto rated = service->library().set_rating(asset_id, 4);
     ASSERT_TRUE(rated) << rated.error().message;
     EXPECT_EQ(rated.value().review.rating, 4);
 
@@ -510,11 +517,11 @@ TEST_F(CatalogServiceTest, XmpInterchangeRatingRoundTripViaXmpRating)
     meta_patch.title = "Rating Round Trip";
     meta_patch.update_creator = true;
     meta_patch.creator = "REL01";
-    auto patched =
-        service->set_writable_metadata_selection({std::string(asset_id)}, meta_patch, std::nullopt);
+    auto patched = service->metadata().set_writable_metadata_selection({std::string(asset_id)},
+                                                                       meta_patch, std::nullopt);
     ASSERT_TRUE(patched) << patched.error().message;
 
-    auto before = service->xmp_interchange_status(asset_id);
+    auto before = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(before) << before.error().message;
     const auto original = before.value().original_path;
     const auto before_id = read_file_identity(original);
@@ -522,7 +529,8 @@ TEST_F(CatalogServiceTest, XmpInterchangeRatingRoundTripViaXmpRating)
     const auto before_sha = sha256_file_hex(original);
     ASSERT_TRUE(before_sha) << before_sha.error().message;
 
-    auto exported = service->xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
+    auto exported =
+        service->xmp().xmp_interchange_export(asset_id, XmpInterchangeResolve::kCatalog);
     ASSERT_TRUE(exported) << exported.error().message;
     EXPECT_EQ(exported.value().status.conflict_class, XmpInterchangeConflictClass::kIdentical);
     const auto sidecar_path = exported.value().sidecar_path;
@@ -532,17 +540,18 @@ TEST_F(CatalogServiceTest, XmpInterchangeRatingRoundTripViaXmpRating)
     EXPECT_NE(sidecar_text.value().find("xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\""),
               std::string::npos);
 
-    ASSERT_TRUE(service->set_rating(asset_id, 1));
+    ASSERT_TRUE(service->library().set_rating(asset_id, 1));
     WritableMetadataPatch diverge;
     diverge.update_title = true;
     diverge.title = "Diverged";
-    ASSERT_TRUE(
-        service->set_writable_metadata_selection({std::string(asset_id)}, diverge, std::nullopt));
-    auto catalog_newer = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(service->metadata().set_writable_metadata_selection({std::string(asset_id)},
+                                                                    diverge, std::nullopt));
+    auto catalog_newer = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(catalog_newer) << catalog_newer.error().message;
     EXPECT_EQ(catalog_newer.value().conflict_class, XmpInterchangeConflictClass::kCatalogNewer);
 
-    auto restored = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    auto restored =
+        service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().applied_rating);
     EXPECT_TRUE(restored.value().applied_metadata);
@@ -551,8 +560,8 @@ TEST_F(CatalogServiceTest, XmpInterchangeRatingRoundTripViaXmpRating)
     EXPECT_EQ(*restored.value().asset.metadata.title, "Rating Round Trip");
     EXPECT_EQ(restored.value().status.conflict_class, XmpInterchangeConflictClass::kIdentical);
 
-    ASSERT_TRUE(service->set_rating(asset_id, 5));
-    auto rating_newer = service->xmp_interchange_status(asset_id);
+    ASSERT_TRUE(service->library().set_rating(asset_id, 5));
+    auto rating_newer = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(rating_newer) << rating_newer.error().message;
     EXPECT_EQ(rating_newer.value().conflict_class, XmpInterchangeConflictClass::kCatalogNewer);
 
@@ -562,14 +571,15 @@ TEST_F(CatalogServiceTest, XmpInterchangeRatingRoundTripViaXmpRating)
     ASSERT_NE(rating_pos, std::string::npos);
     bad.replace(rating_pos, needle.size(), "xmp:Rating=\"9\"");
     ASSERT_TRUE(write_utf8_text_file_replace_atomically(sidecar_path, bad));
-    auto bad_status = service->xmp_interchange_status(asset_id);
+    auto bad_status = service->xmp().xmp_interchange_status(asset_id);
     ASSERT_TRUE(bad_status) << bad_status.error().message;
     EXPECT_FALSE(bad_status.value().metadata_parse_ok);
     EXPECT_EQ(bad_status.value().metadata_parse_reason.value_or(""), "invalid_xmp_rating");
-    auto bad_import = service->xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
+    auto bad_import =
+        service->xmp().xmp_interchange_import(asset_id, XmpInterchangeResolve::kSidecar);
     ASSERT_FALSE(bad_import);
     EXPECT_EQ(bad_import.error().code, ErrorCode::kUnsupported);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().review.rating, 5);

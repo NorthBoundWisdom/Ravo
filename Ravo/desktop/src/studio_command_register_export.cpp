@@ -15,7 +15,8 @@ void StudioCommandController::registerExportCommands(const command_registration:
     const auto &add = helpers.add;
     const auto &present = helpers.present;
     add(command::kLibraryExportCompanion, Condition::kReadySelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.checkSelectedCompanionJpegs(); });
+        [this](const QVariant &, const QString &)
+        { presenter_.exports()->checkSelectedCompanionJpegs(); });
 
     add(command::kLibraryExport, Condition::kReadySelection, no_argument,
         [present](const QVariant &argument, const QString &)
@@ -62,9 +63,10 @@ void StudioCommandController::registerExportCommands(const command_registration:
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.exportSelectedToPath(fields.value(QStringLiteral("path")).toString(),
-                                            fields.value(QStringLiteral("format")).toString(),
-                                            fields.value(QStringLiteral("options")).toMap());
+            presenter_.exports()->exportSelectedToPath(
+                fields.value(QStringLiteral("path")).toString(),
+                fields.value(QStringLiteral("format")).toString(),
+                fields.value(QStringLiteral("options")).toMap());
         });
     add(
         command::kLibraryExportBatchWrite, Condition::kReadySelection,
@@ -116,7 +118,7 @@ void StudioCommandController::registerExportCommands(const command_registration:
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.exportSelectedToDirectory(
+            presenter_.exports()->exportSelectedToDirectory(
                 fields.value(QStringLiteral("directory")).toString(),
                 fields.value(QStringLiteral("filenameTemplate")).toString(),
                 fields.value(QStringLiteral("format")).toString(),

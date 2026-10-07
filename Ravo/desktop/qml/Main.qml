@@ -68,7 +68,7 @@ ApplicationWindow {
     property alias pendingRelinkFolderId: dialogCoordinator.pendingRelinkFolderId
     property alias removeFolderConfirmationToken: dialogCoordinator.removeFolderConfirmationToken
     property alias removeFolderPath: dialogCoordinator.removeFolderPath
-    readonly property bool comparisonReady: studio.comparisonActive && studio.comparisonBeforeUrl.toString().length > 0 && studio.previewUrl.toString().length > 0
+    readonly property bool comparisonReady: studio.develop.comparisonActive && studio.comparisonBeforeUrl.toString().length > 0 && studio.previewUrl.toString().length > 0
     readonly property bool previewPlaceholderReady: studio.browseMode !== "grid" && studio.browseMode !== "survey" && studio.previewLoading && studio.previewUrl.toString().length === 0 && studio.selectedThumbnailUrl.toString().length > 0 && studio.selectedImportState !== "missing"
     readonly property alias navigatorVisible: inspectZoom.navigatorVisible
 
@@ -251,11 +251,11 @@ ApplicationWindow {
     }
 
     function openPresetSaveDialog() {
-        parameterSelectionDialog.openForPreset(studio.selectedDisplayName, studio.modifiedParameterChoices);
+        parameterSelectionDialog.openForPreset(studio.selectedDisplayName, studio.develop.modifiedParameterChoices);
     }
 
     function openParameterCopyDialog() {
-        parameterSelectionDialog.openForCopy(studio.modifiedParameterChoices);
+        parameterSelectionDialog.openForCopy(studio.develop.modifiedParameterChoices);
     }
 
     function swatchColor(name) {
@@ -790,7 +790,7 @@ ApplicationWindow {
                             anchors.fill: parent
                             anchors.margins: Fonts.size8
                             clip: true
-                            interactive: !(studio.browseMode === "develop" && studio.cropToolActive) && !inspectZoom.inspectZoomAnimating
+                            interactive: !(studio.browseMode === "develop" && studio.develop.cropToolActive) && !inspectZoom.inspectZoomAnimating
                             contentWidth: previewStage.width
                             contentHeight: previewStage.height
                             boundsBehavior: Flickable.StopAtBounds
@@ -820,10 +820,7 @@ ApplicationWindow {
 
                             Connections {
                                 target: studio
-                                function onZoomChanged() {
-                                    inspectRoiDebounce.restart();
-                                }
-                                function onEditChanged() {
+                                function onInspectContextChanged() {
                                     inspectRoiDebounce.restart();
                                 }
                             }
@@ -862,22 +859,22 @@ ApplicationWindow {
 
                                 // Inline studio Q_PROPERTY reads so Fit/Fill track previewChanged.
                                 readonly property real sourceW: {
-                                    if (studio.zoomMode === "actual" && studio.selectedWorkingWidth > 0)
-                                        return Math.max(1, Math.round(studio.selectedWorkingWidth / Screen.devicePixelRatio));
-                                    const width = Math.max(studio.previewViewportWidth > 0 ? studio.previewViewportWidth : studio.selectedWorkingWidth, 1);
+                                    if (studio.zoomMode === "actual" && studio.develop.selectedWorkingWidth > 0)
+                                        return Math.max(1, Math.round(studio.develop.selectedWorkingWidth / Screen.devicePixelRatio));
+                                    const width = Math.max(studio.previewViewportWidth > 0 ? studio.previewViewportWidth : studio.develop.selectedWorkingWidth, 1);
                                     return window.comparisonReady ? width * 2 : width;
                                 }
                                 readonly property real sourceH: {
-                                    if (studio.zoomMode === "actual" && studio.selectedWorkingHeight > 0)
-                                        return Math.max(1, Math.round(studio.selectedWorkingHeight / Screen.devicePixelRatio));
-                                    return Math.max(studio.previewViewportHeight > 0 ? studio.previewViewportHeight : studio.selectedWorkingHeight, 1);
+                                    if (studio.zoomMode === "actual" && studio.develop.selectedWorkingHeight > 0)
+                                        return Math.max(1, Math.round(studio.develop.selectedWorkingHeight / Screen.devicePixelRatio));
+                                    return Math.max(studio.previewViewportHeight > 0 ? studio.previewViewportHeight : studio.develop.selectedWorkingHeight, 1);
                                 }
                                 readonly property real containScale: Math.min(width / sourceW, height / sourceH)
-                                readonly property bool cropWorkspace: studio.cropToolActive && studio.cropPreviewLayout.widthScale !== undefined
+                                readonly property bool cropWorkspace: studio.develop.cropToolActive && studio.inspect.cropPreviewLayout.widthScale !== undefined
                                 // Halve the diagonal-fit surround toward the contained photo.
-                                readonly property real cropFitExtent: cropWorkspace ? (Math.min(width, height) + Math.min(width / studio.cropPreviewLayout.widthScale, height / studio.cropPreviewLayout.heightScale)) / 2 : 0
-                                readonly property real baseW: cropWorkspace ? cropFitExtent * studio.cropPreviewLayout.widthScale : sourceW * containScale
-                                readonly property real baseH: cropWorkspace ? cropFitExtent * studio.cropPreviewLayout.heightScale : sourceH * containScale
+                                readonly property real cropFitExtent: cropWorkspace ? (Math.min(width, height) + Math.min(width / studio.inspect.cropPreviewLayout.widthScale, height / studio.inspect.cropPreviewLayout.heightScale)) / 2 : 0
+                                readonly property real baseW: cropWorkspace ? cropFitExtent * studio.inspect.cropPreviewLayout.widthScale : sourceW * containScale
+                                readonly property real baseH: cropWorkspace ? cropFitExtent * studio.inspect.cropPreviewLayout.heightScale : sourceH * containScale
                                 readonly property real rotateScale: 1
 
                                 Item {
@@ -1043,7 +1040,7 @@ ApplicationWindow {
                                     HoverHandler {
                                         id: photoInspectHover
                                         enabled: inspectZoom.photoInspectEnabled
-                                        cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive || studio.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor
+                                        cursorShape: studio.develop.whiteBalancePickActive || studio.develop.maskPlaceActive || studio.develop.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor
                                     }
 
                                     LocalMaskOverlay {
@@ -1051,7 +1048,7 @@ ApplicationWindow {
                                         z: 20
                                         presenter: studio
                                         commands: studioActions
-                                        visible: studio.browseMode === "develop" && studio.localEditing && !studio.comparisonActive
+                                        visible: studio.browseMode === "develop" && studio.develop.localEditing && !studio.develop.comparisonActive
                                     }
 
                                     Rectangle {
@@ -1070,25 +1067,25 @@ ApplicationWindow {
                                     gesturePolicy: TapHandler.DragThreshold
                                     enabled: studio.browseMode !== "grid"
                                     onTapped: function (eventPoint, button) {
-                                        if (studio.browseMode === "develop" && studio.localEditing && !studio.maskParametricAssistActive)
+                                        if (studio.browseMode === "develop" && studio.develop.localEditing && !studio.develop.maskParametricAssistActive)
                                             return;
                                         if (studio.browseMode === "develop" && photoSurfaceTap.tapCount > 1)
                                             return;
                                         if (!inspectZoom.photoInspectEnabled || !inspectZoom.inspectPointInPhoto(eventPoint.position))
                                             return;
-                                        if (studio.browseMode === "develop" && studio.whiteBalancePickActive) {
+                                        if (studio.browseMode === "develop" && studio.develop.whiteBalancePickActive) {
                                             const w = Math.max(1, photoPlane.width);
                                             const h = Math.max(1, photoPlane.height);
                                             studioActions.pickWhiteBalance((eventPoint.position.x - photoPlane.x) / w, (eventPoint.position.y - photoPlane.y) / h);
                                             return;
                                         }
-                                        if (studio.browseMode === "develop" && studio.maskPlaceActive) {
+                                        if (studio.browseMode === "develop" && studio.develop.maskPlaceActive) {
                                             const w = Math.max(1, photoPlane.width);
                                             const h = Math.max(1, photoPlane.height);
                                             studioActions.placeMask((eventPoint.position.x - photoPlane.x) / w, (eventPoint.position.y - photoPlane.y) / h);
                                             return;
                                         }
-                                        if (studio.browseMode === "develop" && studio.maskParametricAssistActive) {
+                                        if (studio.browseMode === "develop" && studio.develop.maskParametricAssistActive) {
                                             const w = Math.max(1, photoPlane.width);
                                             const h = Math.max(1, photoPlane.height);
                                             studioActions.assistParametricMask((eventPoint.position.x - photoPlane.x) / w, (eventPoint.position.y - photoPlane.y) / h);
@@ -1100,23 +1097,23 @@ ApplicationWindow {
 
                                 CropOverlay {
                                     anchors.fill: parent
-                                    visible: studio.browseMode === "develop" && studio.cropToolActive && !studio.comparisonActive && studio.previewUrl.toString().length > 0 && photoPlane.width > 1
-                                    imageX: photoPlane.x + (previewStage.cropWorkspace ? studio.cropPreviewLayout.x * photoPlane.width : 0)
-                                    imageY: photoPlane.y + (previewStage.cropWorkspace ? studio.cropPreviewLayout.y * photoPlane.height : 0)
-                                    imageWidth: photoPlane.width * (previewStage.cropWorkspace ? studio.cropPreviewLayout.width : 1)
-                                    imageHeight: photoPlane.height * (previewStage.cropWorkspace ? studio.cropPreviewLayout.height : 1)
+                                    visible: studio.browseMode === "develop" && studio.develop.cropToolActive && !studio.develop.comparisonActive && studio.previewUrl.toString().length > 0 && photoPlane.width > 1
+                                    imageX: photoPlane.x + (previewStage.cropWorkspace ? studio.inspect.cropPreviewLayout.x * photoPlane.width : 0)
+                                    imageY: photoPlane.y + (previewStage.cropWorkspace ? studio.inspect.cropPreviewLayout.y * photoPlane.height : 0)
+                                    imageWidth: photoPlane.width * (previewStage.cropWorkspace ? studio.inspect.cropPreviewLayout.width : 1)
+                                    imageHeight: photoPlane.height * (previewStage.cropWorkspace ? studio.inspect.cropPreviewLayout.height : 1)
                                     imageRotation: photoPlane.rotation
                                     photoItem: null
-                                    sourceWidth: studio.selectedWorkingWidth
-                                    sourceHeight: studio.selectedWorkingHeight
-                                    minShortEdgePixels: studio.cropMinShortEdgePixels
-                                    minShortEdgeFraction: studio.cropMinShortEdgeFraction
-                                    cropX: studio.editCropX
-                                    cropY: studio.editCropY
-                                    cropWidth: studio.editCropWidth
-                                    cropHeight: studio.editCropHeight
-                                    aspectRatio: studio.cropAspectRatio
-                                    straighten: studio.editStraighten
+                                    sourceWidth: studio.develop.selectedWorkingWidth
+                                    sourceHeight: studio.develop.selectedWorkingHeight
+                                    minShortEdgePixels: studio.develop.cropMinShortEdgePixels
+                                    minShortEdgeFraction: studio.develop.cropMinShortEdgeFraction
+                                    cropX: studio.develop.editCropX
+                                    cropY: studio.develop.editCropY
+                                    cropWidth: studio.develop.editCropWidth
+                                    cropHeight: studio.develop.editCropHeight
+                                    aspectRatio: studio.develop.cropAspectRatio
+                                    straighten: studio.develop.editStraighten
                                     onCropEdited: function (x, y, w, h) {
                                         studioActions.previewCropRect(x, y, w, h);
                                     }
@@ -1149,7 +1146,7 @@ ApplicationWindow {
                             height: 28
                             z: 20
                             antialiasing: true
-                            visible: photoInspectHover.hovered && inspectZoom.photoInspectEnabled && !studio.whiteBalancePickActive && !studio.maskPlaceActive && !studio.maskParametricAssistActive
+                            visible: photoInspectHover.hovered && inspectZoom.photoInspectEnabled && !studio.develop.whiteBalancePickActive && !studio.develop.maskPlaceActive && !studio.develop.maskParametricAssistActive
                             property bool zoomOut: studio.zoomMode === "actual"
                             x: {
                                 if (!visible)

@@ -71,18 +71,34 @@ TEST_F(CatalogServiceTest, CreateReopenAndRejectNewerSchema)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_TRUE(listed.value().empty());
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
+    auto &library = service->library();
+    auto &metadata = service->metadata();
+    auto &develop = service->develop();
+    auto &import = service->import();
+    auto &preview = service->preview();
+    auto &recovery = service->recovery();
     ASSERT_TRUE(service->close());
+    // Capability references remain valid while the closed composition owner
+    // exists; they observe empty resource slots, never freed adapter handles.
+    EXPECT_EQ(library.snapshot().error().code, ErrorCode::kIo);
+    EXPECT_EQ(library.list_assets_page({}).error().code, ErrorCode::kIo);
+    EXPECT_EQ(metadata.list_keywords().error().code, ErrorCode::kIo);
+    EXPECT_EQ(develop.load_recipe("absent").error().code, ErrorCode::kIo);
+    EXPECT_EQ(import.enumerate_import_inputs({}, {}).error().code, ErrorCode::kIo);
+    EXPECT_EQ(preview.request_preview({}).error().code, ErrorCode::kIo);
+    EXPECT_EQ(recovery.pending_recovery().error().code, ErrorCode::kIo);
+    EXPECT_EQ(recovery.synchronize_committed_change("absent").error().code, ErrorCode::kIo);
     service.reset();
 
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    listed = service->list_assets();
+    listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_TRUE(listed.value().empty());
     ASSERT_TRUE(service->close());
@@ -117,25 +133,25 @@ TEST_F(CatalogServiceTest, NamedLibrarySetsPersistMembershipSmartQueryAndRejectS
     ASSERT_TRUE(image.save(QString::fromStdString(first_path.string()), "JPEG", 90));
     image.fill(QColor(140, 80, 20));
     ASSERT_TRUE(image.save(QString::fromStdString(second_path.string()), "JPEG", 90));
-    auto first = service->import_one(first_path.string(), CancellationToken{});
-    auto second = service->import_one(second_path.string(), CancellationToken{});
+    auto first = service->import().import_one(first_path.string(), CancellationToken{});
+    auto second = service->import().import_one(second_path.string(), CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
     const auto first_id = first.value().asset->id;
     const auto second_id = second.value().asset->id;
-    ASSERT_TRUE(service->set_rating(first_id, 5));
-    ASSERT_TRUE(service->set_rating(second_id, 2));
+    ASSERT_TRUE(service->library().set_rating(first_id, 5));
+    ASSERT_TRUE(service->library().set_rating(second_id, 2));
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot);
-    auto created = service->create_library_set(LibrarySetKind::kManual, " Job One ", std::nullopt,
-                                               {first_id}, snapshot.value().revision);
+    auto created = service->library().create_library_set(
+        LibrarySetKind::kManual, " Job One ", std::nullopt, {first_id}, snapshot.value().revision);
     ASSERT_TRUE(created) << created.error().message;
     EXPECT_EQ(created.value().set.name, "Job One");
     EXPECT_EQ(created.value().set.asset_count, 1U);
 
-    auto stale = service->create_library_set(LibrarySetKind::kManual, "Stale", std::nullopt, {},
-                                             snapshot.value().revision);
+    auto stale = service->library().create_library_set(LibrarySetKind::kManual, "Stale",
+                                                       std::nullopt, {}, snapshot.value().revision);
     ASSERT_FALSE(stale);
     EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
     EXPECT_EQ(stale.error().context.at("reason"), "stale_catalog_revision");
@@ -143,27 +159,28 @@ TEST_F(CatalogServiceTest, NamedLibrarySetsPersistMembershipSmartQueryAndRejectS
     LibraryQuery smart_query;
     smart_query.rating_mode = RatingFilterMode::kExact;
     smart_query.rating_value = 5;
-    auto smart = service->create_library_set(LibrarySetKind::kSmart, "Five stars", smart_query, {});
+    auto smart = service->library().create_library_set(LibrarySetKind::kSmart, "Five stars",
+                                                       smart_query, {});
     ASSERT_TRUE(smart) << smart.error().message;
     EXPECT_EQ(smart.value().set.asset_count, 1U);
 
     LibraryQuery listed_query;
     listed_query.collection_id = created.value().set.id;
-    auto members = service->list_assets(listed_query);
+    auto members = service->library().list_assets(listed_query);
     ASSERT_TRUE(members) << members.error().message;
     ASSERT_EQ(members.value().size(), 1U);
     EXPECT_EQ(members.value().front().id, first_id);
 
-    ASSERT_TRUE(service->add_library_set_members(created.value().set.id, {second_id}));
+    ASSERT_TRUE(service->library().add_library_set_members(created.value().set.id, {second_id}));
     listed_query = {};
     listed_query.collection_id = created.value().set.id;
-    members = service->list_assets(listed_query);
+    members = service->library().list_assets(listed_query);
     ASSERT_TRUE(members);
     EXPECT_EQ(members.value().size(), 2U);
 
     listed_query = {};
     listed_query.collection_id = smart.value().set.id;
-    auto smart_members = service->list_assets(listed_query);
+    auto smart_members = service->library().list_assets(listed_query);
     ASSERT_TRUE(smart_members) << smart_members.error().message;
     ASSERT_EQ(smart_members.value().size(), 1U);
     EXPECT_EQ(smart_members.value().front().id, first_id);
@@ -171,7 +188,7 @@ TEST_F(CatalogServiceTest, NamedLibrarySetsPersistMembershipSmartQueryAndRejectS
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto reopened = service->list_library_sets();
+    auto reopened = service->library().list_library_sets();
     ASSERT_TRUE(reopened) << reopened.error().message;
     ASSERT_EQ(reopened.value().size(), 2U);
     EXPECT_EQ(reopened.value().front().name, "Five stars");
@@ -179,7 +196,7 @@ TEST_F(CatalogServiceTest, NamedLibrarySetsPersistMembershipSmartQueryAndRejectS
     EXPECT_EQ(reopened.value().back().asset_count, 2U);
 
     const auto backup_path = root / "sets-backup";
-    auto backup = service->create_backup(backup_path.string());
+    auto backup = service->recovery().create_backup(backup_path.string());
     ASSERT_TRUE(backup) << backup.error().message;
     auto backup_recovery =
         FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
@@ -209,24 +226,24 @@ TEST_F(CatalogServiceTest, AssetVersionsStacksAndCollapsedListing)
     ASSERT_TRUE(image.save(QString::fromStdString(first_path.string()), "JPEG", 90));
     image.fill(QColor(140, 80, 20));
     ASSERT_TRUE(image.save(QString::fromStdString(second_path.string()), "JPEG", 90));
-    auto first = service->import_one(first_path.string(), CancellationToken{});
-    auto second = service->import_one(second_path.string(), CancellationToken{});
+    auto first = service->import().import_one(first_path.string(), CancellationToken{});
+    auto second = service->import().import_one(second_path.string(), CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
     const auto first_id = first.value().asset->id;
     const auto second_id = second.value().asset->id;
-    ASSERT_TRUE(service->set_rating(first_id, 4));
+    ASSERT_TRUE(service->library().set_rating(first_id, 4));
     DevelopParams edited;
     edited.exposure_ev = 0.75;
-    ASSERT_TRUE(service->save_develop(first_id, edited));
+    ASSERT_TRUE(service->develop().save_develop(first_id, edited));
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot);
-    auto stale = service->create_asset_version(first_id, snapshot.value().revision - 1);
+    auto stale = service->library().create_asset_version(first_id, snapshot.value().revision - 1);
     ASSERT_FALSE(stale);
     EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
 
-    auto versioned = service->create_asset_version(first_id, snapshot.value().revision);
+    auto versioned = service->library().create_asset_version(first_id, snapshot.value().revision);
     ASSERT_TRUE(versioned) << versioned.error().message;
     EXPECT_EQ(versioned.value().version.version_ordinal, 1);
     ASSERT_TRUE(versioned.value().version.source_asset_id);
@@ -243,9 +260,9 @@ TEST_F(CatalogServiceTest, AssetVersionsStacksAndCollapsedListing)
 
     DevelopParams version_edit;
     version_edit.exposure_ev = -0.5;
-    ASSERT_TRUE(service->save_develop(version_id, version_edit));
-    auto primary_recipe = service->load_recipe(first_id);
-    auto version_recipe = service->load_recipe(version_id);
+    ASSERT_TRUE(service->develop().save_develop(version_id, version_edit));
+    auto primary_recipe = service->develop().load_recipe(first_id);
+    auto version_recipe = service->develop().load_recipe(version_id);
     ASSERT_TRUE(primary_recipe) << primary_recipe.error().message;
     ASSERT_TRUE(version_recipe) << version_recipe.error().message;
     auto primary_develop = develop_from_recipe(primary_recipe.value());
@@ -265,26 +282,26 @@ TEST_F(CatalogServiceTest, AssetVersionsStacksAndCollapsedListing)
     version_request.asset_id = version_id;
     version_request.output_path = version_export;
     version_request.format = ExportFormat::kJpeg;
-    auto exported_primary = service->export_asset(primary_request);
-    auto exported_version = service->export_asset(version_request);
+    auto exported_primary = service->exports().export_asset(primary_request);
+    auto exported_version = service->exports().export_asset(version_request);
     ASSERT_TRUE(exported_primary) << exported_primary.error().message;
     ASSERT_TRUE(exported_version) << exported_version.error().message;
     EXPECT_NE(file_sha256(primary_export), file_sha256(version_export));
     EXPECT_TRUE(std::filesystem::exists(first_path));
 
-    auto all_versions = service->list_assets(LibraryQuery{}, false);
+    auto all_versions = service->library().list_assets(LibraryQuery{}, false);
     ASSERT_TRUE(all_versions);
     EXPECT_EQ(all_versions.value().size(), 3U);
 
-    snapshot = service->snapshot();
+    snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot);
     auto stacked =
-        service->stack_assets({first_id, second_id}, first_id, snapshot.value().revision);
+        service->library().stack_assets({first_id, second_id}, first_id, snapshot.value().revision);
     ASSERT_TRUE(stacked) << stacked.error().message;
     EXPECT_EQ(stacked.value().stack.member_ids.size(), 2U);
     EXPECT_EQ(stacked.value().stack.pick_asset_id, first_id);
 
-    auto collapsed = service->list_assets();
+    auto collapsed = service->library().list_assets();
     ASSERT_TRUE(collapsed) << collapsed.error().message;
     ASSERT_EQ(collapsed.value().size(), 2U);
     bool saw_pick = false;
@@ -304,35 +321,35 @@ TEST_F(CatalogServiceTest, AssetVersionsStacksAndCollapsedListing)
     EXPECT_TRUE(saw_pick);
     EXPECT_TRUE(saw_version);
 
-    auto expanded = service->list_assets(LibraryQuery{}, false);
+    auto expanded = service->library().list_assets(LibraryQuery{}, false);
     ASSERT_TRUE(expanded);
     EXPECT_EQ(expanded.value().size(), 3U);
 
-    auto forbidden = service->remove_original_and_catalog(version_id);
+    auto forbidden = service->library().remove_original_and_catalog(version_id);
     ASSERT_FALSE(forbidden);
     EXPECT_EQ(forbidden.error().code, ErrorCode::kValidation);
     EXPECT_EQ(forbidden.error().context.at("reason"), "version_disk_delete_forbidden");
     EXPECT_TRUE(std::filesystem::exists(first_path));
 
-    ASSERT_TRUE(service->remove_from_catalog(version_id));
+    ASSERT_TRUE(service->library().remove_from_catalog(version_id));
     EXPECT_TRUE(std::filesystem::exists(first_path));
-    collapsed = service->list_assets(LibraryQuery{}, false);
+    collapsed = service->library().list_assets(LibraryQuery{}, false);
     ASSERT_TRUE(collapsed);
     EXPECT_EQ(collapsed.value().size(), 2U);
 
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto reopened = service->list_assets(LibraryQuery{}, false);
+    auto reopened = service->library().list_assets(LibraryQuery{}, false);
     ASSERT_TRUE(reopened) << reopened.error().message;
     EXPECT_EQ(reopened.value().size(), 2U);
-    auto stacks = service->find_library_stack(stacked.value().stack.id);
+    auto stacks = service->library().find_library_stack(stacked.value().stack.id);
     ASSERT_TRUE(stacks) << stacks.error().message;
     ASSERT_TRUE(stacks.value());
     EXPECT_EQ(stacks.value()->pick_asset_id, first_id);
 
     const auto backup_path = root / "version-backup";
-    auto backup = service->create_backup(backup_path.string());
+    auto backup = service->recovery().create_backup(backup_path.string());
     ASSERT_TRUE(backup) << backup.error().message;
     auto backup_recovery =
         FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
@@ -351,16 +368,16 @@ TEST_F(CatalogServiceTest, AssetVersionsStacksAndCollapsedListing)
     ASSERT_TRUE(restored_stack.value());
     EXPECT_EQ(restored_stack.value()->member_ids.size(), 2U);
 
-    auto primary_again = service->create_asset_version(first_id);
+    auto primary_again = service->library().create_asset_version(first_id);
     ASSERT_TRUE(primary_again);
-    ASSERT_TRUE(service->remove_from_catalog(first_id));
+    ASSERT_TRUE(service->library().remove_from_catalog(first_id));
     EXPECT_TRUE(std::filesystem::exists(first_path));
-    auto remaining = service->list_assets(LibraryQuery{}, false);
+    auto remaining = service->library().list_assets(LibraryQuery{}, false);
     ASSERT_TRUE(remaining);
     ASSERT_EQ(remaining.value().size(), 1U);
     EXPECT_EQ(remaining.value().front().id, second_id);
 
-    auto stacked_again = service->stack_assets({second_id}, second_id);
+    auto stacked_again = service->library().stack_assets({second_id}, second_id);
     ASSERT_FALSE(stacked_again);
 }
 
@@ -443,16 +460,16 @@ TEST_F(CatalogServiceTest, SchemaV10MigratesToAssetVersionsAndStacks)
 
     auto opened = open_service(false);
     ASSERT_TRUE(opened) << opened.error().message;
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, "ast_old");
     EXPECT_EQ(listed.value().front().version_ordinal, 0);
     EXPECT_FALSE(listed.value().front().source_asset_id);
-    auto versioned = service->create_asset_version("ast_old");
+    auto versioned = service->library().create_asset_version("ast_old");
     ASSERT_TRUE(versioned) << versioned.error().message;
     ASSERT_TRUE(versioned.value().version.source_asset_id);
     EXPECT_EQ(*versioned.value().version.source_asset_id, "ast_old");
@@ -578,12 +595,12 @@ TEST_F(CatalogServiceTest, RecoverySidecarTracksDurableStateAndRejectsTampering)
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto source_hash = file_sha256(photo.string());
 
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     EXPECT_FALSE(imported.value().error);
     const auto asset_id = imported.value().asset->id;
-    auto initial = service->recovery_state(asset_id);
+    auto initial = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(initial) << initial.error().message;
     EXPECT_FALSE(initial.value().pending());
     EXPECT_GT(initial.value().generation, 0);
@@ -594,9 +611,9 @@ TEST_F(CatalogServiceTest, RecoverySidecarTracksDurableStateAndRejectsTampering)
         (asset_id + "." + std::to_string(initial.value().generation) + ".ravo.json");
     ASSERT_TRUE(std::filesystem::is_regular_file(initial_path));
 
-    auto rated = service->set_rating(asset_id, 4);
+    auto rated = service->library().set_rating(asset_id, 4);
     ASSERT_TRUE(rated) << rated.error().message;
-    auto current = service->recovery_state(asset_id);
+    auto current = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(current) << current.error().message;
     EXPECT_GT(current.value().generation, initial.value().generation);
     EXPECT_EQ(current.value().synchronized_generation, current.value().generation);
@@ -609,9 +626,9 @@ TEST_F(CatalogServiceTest, RecoverySidecarTracksDurableStateAndRejectsTampering)
     develop.exposure_ev = 0.25;
     RecipeSaveOptions deferred_options;
     deferred_options.defer_recovery_publication = true;
-    auto deferred = service->save_develop(asset_id, develop, deferred_options);
+    auto deferred = service->develop().save_develop(asset_id, develop, deferred_options);
     ASSERT_TRUE(deferred) << deferred.error().message;
-    auto pending = service->recovery_state(asset_id);
+    auto pending = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(pending) << pending.error().message;
     EXPECT_TRUE(pending.value().pending());
     EXPECT_TRUE(std::filesystem::is_regular_file(current_path));
@@ -629,16 +646,16 @@ TEST_F(CatalogServiceTest, RecoverySidecarTracksDurableStateAndRejectsTampering)
     const auto other_photo = root / "unrelated-revision.jpg";
     image.fill(QColor(140, 80, 20));
     ASSERT_TRUE(image.save(QString::fromStdString(other_photo.string()), "JPEG", 90));
-    auto unrelated = service->import_one(other_photo.string(), CancellationToken{});
+    auto unrelated = service->import().import_one(other_photo.string(), CancellationToken{});
     ASSERT_TRUE(unrelated) << unrelated.error().message;
     auto retry_snapshot = sqlite_repository->load_recovery_snapshot(asset_id);
     ASSERT_TRUE(retry_snapshot) << retry_snapshot.error().message;
     EXPECT_EQ(retry_snapshot.value().state.generation, pending_snapshot.value().state.generation);
     EXPECT_GT(retry_snapshot.value().catalog_revision, pending_snapshot.value().catalog_revision);
-    auto drained = service->sync_recovery(std::string_view{asset_id});
+    auto drained = service->recovery().sync_recovery(std::string_view{asset_id});
     ASSERT_TRUE(drained) << drained.error().message;
     ASSERT_EQ(drained.value().artifacts.size(), 1U);
-    current = service->recovery_state(asset_id);
+    current = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(current) << current.error().message;
     EXPECT_FALSE(current.value().pending());
     current_path = recovery_root /
@@ -651,7 +668,7 @@ TEST_F(CatalogServiceTest, RecoverySidecarTracksDurableStateAndRejectsTampering)
     ASSERT_TRUE(sidecar.open(QIODevice::Append));
     ASSERT_EQ(sidecar.write("tamper", 6), 6);
     sidecar.close();
-    auto verified = service->sync_recovery(std::string_view{asset_id});
+    auto verified = service->recovery().sync_recovery(std::string_view{asset_id});
     ASSERT_FALSE(verified);
     EXPECT_EQ(verified.error().code, ErrorCode::kValidation);
     EXPECT_EQ(file_sha256(photo.string()), source_hash);
@@ -666,7 +683,7 @@ TEST_F(CatalogServiceTest, PendingRecoveryRetriesAfterRestartWithoutLosingCommit
     image.fill(QColor(90, 30, 10));
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto source_hash = file_sha256(photo.string());
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -680,11 +697,11 @@ TEST_F(CatalogServiceTest, PendingRecoveryRetriesAfterRestartWithoutLosingCommit
         ASSERT_TRUE(blocker);
         blocker << "blocked";
     }
-    auto rated = service->set_rating(asset_id, 5);
+    auto rated = service->library().set_rating(asset_id, 5);
     ASSERT_FALSE(rated);
     EXPECT_EQ(rated.error().context.at("catalog_committed"), "true");
     EXPECT_EQ(rated.error().context.at("recovery_pending"), "true");
-    auto pending = service->recovery_state(asset_id);
+    auto pending = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(pending) << pending.error().message;
     EXPECT_TRUE(pending.value().pending());
 
@@ -693,10 +710,10 @@ TEST_F(CatalogServiceTest, PendingRecoveryRetriesAfterRestartWithoutLosingCommit
     std::filesystem::remove(recovery_root);
     std::filesystem::rename(parked, recovery_root);
     ASSERT_TRUE(open_service(false));
-    auto resumed = service->recovery_state(asset_id);
+    auto resumed = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(resumed) << resumed.error().message;
     EXPECT_FALSE(resumed.value().pending());
-    auto reopened = service->list_assets();
+    auto reopened = service->library().list_assets();
     ASSERT_TRUE(reopened) << reopened.error().message;
     ASSERT_EQ(reopened.value().size(), 1U);
     EXPECT_EQ(reopened.value().front().review.rating, 5);
@@ -712,15 +729,15 @@ TEST_F(CatalogServiceTest, RecoverySidecarStrictlyRejectsChecksumValidMalformedN
     image.fill(QColor(40, 90, 150));
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto source_hash = file_sha256(photo.string());
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    ASSERT_TRUE(service->set_tags(asset_id, {"alpha", "omega"}));
+    ASSERT_TRUE(service->metadata().set_tags(asset_id, {"alpha", "omega"}));
     DevelopParams develop;
     develop.exposure_ev = 0.5;
-    ASSERT_TRUE(service->save_develop(asset_id, develop));
-    auto state = service->recovery_state(asset_id);
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop));
+    auto state = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(state) << state.error().message;
     const auto recovery_root =
         std::filesystem::path(FilesystemRecoveryStore::default_root_for_catalog(database_path));
@@ -845,7 +862,7 @@ TEST_F(CatalogServiceTest, RecoveryAcknowledgementFailureKeepsExactPublishedGene
     image.fill(QColor(70, 110, 150));
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto source_hash = file_sha256(photo.string());
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -854,30 +871,30 @@ TEST_F(CatalogServiceTest, RecoveryAcknowledgementFailureKeepsExactPublishedGene
     develop.exposure_ev = 0.4;
     RecipeSaveOptions options;
     options.defer_recovery_publication = true;
-    ASSERT_TRUE(service->save_develop(asset_id, develop, options));
-    auto before = service->recovery_state(asset_id);
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop, options));
+    auto before = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(before) << before.error().message;
     ASSERT_TRUE(before.value().pending());
     ASSERT_NE(sqlite_repository, nullptr);
     testing::SqliteCatalogTestControl::inject_recovery(
         *sqlite_repository, testing::SqliteRecoveryFailure::kAcknowledge);
 
-    auto failed = service->sync_recovery(std::string_view{asset_id});
+    auto failed = service->recovery().sync_recovery(std::string_view{asset_id});
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kIo);
     EXPECT_EQ(failed.error().context.at("sidecar_published"), "true");
     const auto published_path = failed.error().context.at("sidecar_path");
     EXPECT_TRUE(std::filesystem::is_regular_file(published_path));
-    auto pending = service->recovery_state(asset_id);
+    auto pending = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(pending) << pending.error().message;
     EXPECT_EQ(pending.value(), before.value());
     EXPECT_TRUE(pending.value().pending());
 
-    auto retried = service->sync_recovery(std::string_view{asset_id});
+    auto retried = service->recovery().sync_recovery(std::string_view{asset_id});
     ASSERT_TRUE(retried) << retried.error().message;
     ASSERT_EQ(retried.value().artifacts.size(), 1U);
     EXPECT_EQ(retried.value().artifacts.front().path, published_path);
-    auto synchronized = service->recovery_state(asset_id);
+    auto synchronized = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(synchronized) << synchronized.error().message;
     EXPECT_EQ(synchronized.value().generation, before.value().generation);
     EXPECT_FALSE(synchronized.value().pending());
@@ -893,11 +910,11 @@ TEST_F(CatalogServiceTest, RecoveryCleanupFailureKeepsAcknowledgedGenerationAndR
     image.fill(QColor(80, 120, 160));
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto source_hash = file_sha256(photo.string());
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    auto initial = service->recovery_state(asset_id);
+    auto initial = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(initial) << initial.error().message;
     const auto recovery_root =
         std::filesystem::path(FilesystemRecoveryStore::default_root_for_catalog(database_path));
@@ -916,11 +933,11 @@ TEST_F(CatalogServiceTest, RecoveryCleanupFailureKeepsAcknowledgedGenerationAndR
     develop.exposure_ev = 0.3;
     RecipeSaveOptions options;
     options.defer_recovery_publication = true;
-    ASSERT_TRUE(service->save_develop(asset_id, develop, options));
-    auto pending = service->recovery_state(asset_id);
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop, options));
+    auto pending = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(pending) << pending.error().message;
     ASSERT_TRUE(pending.value().pending());
-    auto failed = service->sync_recovery(std::string_view{asset_id});
+    auto failed = service->recovery().sync_recovery(std::string_view{asset_id});
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kIo);
     EXPECT_EQ(failed.error().context.at("reason"), "recovery_cleanup_failed");
@@ -928,7 +945,7 @@ TEST_F(CatalogServiceTest, RecoveryCleanupFailureKeepsAcknowledgedGenerationAndR
     EXPECT_EQ(failed.error().context.at("sidecar_published"), "true");
     EXPECT_TRUE(std::filesystem::is_directory(obsolete));
 
-    auto synchronized = service->recovery_state(asset_id);
+    auto synchronized = service->recovery().recovery_state(asset_id);
     ASSERT_TRUE(synchronized) << synchronized.error().message;
     EXPECT_EQ(synchronized.value().generation, pending.value().generation);
     EXPECT_FALSE(synchronized.value().pending());
@@ -1040,13 +1057,13 @@ TEST_F(CatalogServiceTest, CatalogBackupIsImmutableVerifiedAndExcludesPreviewArt
     image.fill(QColor(14, 70, 120));
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto source_hash = file_sha256(photo.string());
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
-    ASSERT_TRUE(service->set_tags(imported.value().asset->id, {"backup", "verified"}));
+    ASSERT_TRUE(service->metadata().set_tags(imported.value().asset->id, {"backup", "verified"}));
 
     const auto destination = root / "catalog-backup";
-    auto backup = service->create_backup(destination.string());
+    auto backup = service->recovery().create_backup(destination.string());
     ASSERT_TRUE(backup) << backup.error().message;
     EXPECT_EQ(backup.value().sidecar_count, 1U);
     EXPECT_GT(backup.value().catalog.bytes, 0U);
@@ -1057,13 +1074,13 @@ TEST_F(CatalogServiceTest, CatalogBackupIsImmutableVerifiedAndExcludesPreviewArt
     EXPECT_FALSE(std::filesystem::exists(destination / "preview"));
     EXPECT_FALSE(std::filesystem::exists(destination / "originals"));
 
-    auto verified = service->verify_backup(destination.string());
+    auto verified = service->recovery().verify_backup(destination.string());
     ASSERT_TRUE(verified) << verified.error().message;
     EXPECT_FALSE(verified.value().originals_included);
     EXPECT_FALSE(verified.value().previews_included);
     EXPECT_EQ(verified.value().artifact.catalog.sha256, backup.value().catalog.sha256);
     const auto manifest_hash = file_sha256((destination / "manifest.json").string());
-    auto conflict = service->create_backup(destination.string());
+    auto conflict = service->recovery().create_backup(destination.string());
     ASSERT_FALSE(conflict);
     EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
     EXPECT_EQ(file_sha256((destination / "manifest.json").string()), manifest_hash);
@@ -1073,7 +1090,7 @@ TEST_F(CatalogServiceTest, CatalogBackupIsImmutableVerifiedAndExcludesPreviewArt
     ASSERT_TRUE(tampered.open(QIODevice::Append));
     ASSERT_EQ(tampered.write("x", 1), 1);
     tampered.close();
-    auto rejected = service->verify_backup(destination.string());
+    auto rejected = service->recovery().verify_backup(destination.string());
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
     EXPECT_EQ(file_sha256(photo.string()), source_hash);
@@ -1088,7 +1105,7 @@ TEST_F(CatalogServiceTest, CatalogBackupFailureAndCancellationMatrixPublishesNot
     image.fill(QColor(30, 100, 160));
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto source_hash = file_sha256(photo.string());
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const std::vector<std::string> checkpoints{
@@ -1116,7 +1133,7 @@ TEST_F(CatalogServiceTest, CatalogBackupFailureAndCancellationMatrixPublishesNot
                                       {{"reason", "injected_backup_failure"}});
                 return {};
             });
-        auto backup = service->create_backup(destination.string(), CancellationToken{});
+        auto backup = service->recovery().create_backup(destination.string(), CancellationToken{});
         ASSERT_FALSE(backup) << target;
         EXPECT_EQ(backup.error().code, ErrorCode::kIo) << target;
         EXPECT_EQ(backup.error().context.at("checkpoint"), target);
@@ -1138,7 +1155,7 @@ TEST_F(CatalogServiceTest, CatalogBackupFailureAndCancellationMatrixPublishesNot
                     static_cast<void>(cancellation.cancel("backup-checkpoint-test"));
                 return {};
             });
-        auto backup = service->create_backup(destination.string(), cancellation.token());
+        auto backup = service->recovery().create_backup(destination.string(), cancellation.token());
         ASSERT_FALSE(backup) << target;
         EXPECT_EQ(backup.error().code, ErrorCode::kCancelled) << target;
         EXPECT_EQ(backup.error().context.at("checkpoint"), target);
@@ -1146,7 +1163,7 @@ TEST_F(CatalogServiceTest, CatalogBackupFailureAndCancellationMatrixPublishesNot
         assert_no_stage(destination);
     }
     testing::CatalogServiceTestControl::set_backup_checkpoint(*service, {});
-    auto state = service->recovery_state(imported.value().asset->id);
+    auto state = service->recovery().recovery_state(imported.value().asset->id);
     ASSERT_TRUE(state) << state.error().message;
     EXPECT_FALSE(state.value().pending());
     EXPECT_EQ(file_sha256(photo.string()), source_hash);
@@ -1161,7 +1178,7 @@ TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwn
     image.fill(QColor(65, 105, 145));
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto source_hash = file_sha256(photo.string());
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto destination = root / "scheduled-backups";
     ASSERT_TRUE(std::filesystem::create_directory(destination));
@@ -1171,26 +1188,26 @@ TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwn
     policy.destination_directory = destination.string();
     policy.interval_minutes = kBackupScheduleIntervalMinutesMin;
     policy.retention_count = 2;
-    auto configured = service->set_backup_policy(policy, start);
+    auto configured = service->recovery().set_backup_policy(policy, start);
     ASSERT_TRUE(configured) << configured.error().message;
     ASSERT_TRUE(configured.value().next_run_unix_ms);
     const auto first_due = *configured.value().next_run_unix_ms;
-    auto early = service->run_scheduled_backup(first_due - 1, CancellationToken{});
+    auto early = service->recovery().run_scheduled_backup(first_due - 1, CancellationToken{});
     ASSERT_TRUE(early) << early.error().message;
     EXPECT_FALSE(early.value().ran);
 
-    auto first = service->run_scheduled_backup(first_due, CancellationToken{});
+    auto first = service->recovery().run_scheduled_backup(first_due, CancellationToken{});
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(first.value().backup);
     const auto first_path = first.value().backup->path;
     EXPECT_TRUE(std::filesystem::is_directory(first_path));
-    auto second =
-        service->run_scheduled_backup(*first.value().policy.next_run_unix_ms, CancellationToken{});
+    auto second = service->recovery().run_scheduled_backup(*first.value().policy.next_run_unix_ms,
+                                                           CancellationToken{});
     ASSERT_TRUE(second) << second.error().message;
     ASSERT_TRUE(second.value().backup);
     EXPECT_TRUE(std::filesystem::is_directory(second.value().backup->path));
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     const auto unverified =
         destination / ("ravo-" + snapshot.value().catalog_id + "-1999999.ravobackup");
@@ -1200,8 +1217,8 @@ TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwn
         ASSERT_TRUE(sentinel);
         sentinel << "never delete";
     }
-    auto third =
-        service->run_scheduled_backup(*second.value().policy.next_run_unix_ms, CancellationToken{});
+    auto third = service->recovery().run_scheduled_backup(*second.value().policy.next_run_unix_ms,
+                                                          CancellationToken{});
     ASSERT_TRUE(third) << third.error().message;
     ASSERT_TRUE(third.value().backup);
     ASSERT_EQ(third.value().removed_backups.size(), 1U);
@@ -1218,7 +1235,7 @@ TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwn
     EXPECT_GT(third.value().policy.last_backup_bytes, 0U);
     EXPECT_FALSE(third.value().policy.last_error);
 
-    auto persisted = service->backup_policy();
+    auto persisted = service->recovery().backup_policy();
     ASSERT_TRUE(persisted) << persisted.error().message;
     EXPECT_EQ(persisted.value().destination_directory, destination.string());
     EXPECT_EQ(persisted.value().retention_count, 2);
@@ -1227,7 +1244,7 @@ TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwn
     service.reset();
     sqlite_repository = nullptr;
     ASSERT_TRUE(open_service(false));
-    auto reopened_policy = service->backup_policy();
+    auto reopened_policy = service->recovery().backup_policy();
     ASSERT_TRUE(reopened_policy) << reopened_policy.error().message;
     EXPECT_TRUE(reopened_policy.value().enabled);
     EXPECT_EQ(reopened_policy.value().destination_directory, destination.string());
@@ -1245,7 +1262,7 @@ TEST_F(CatalogServiceTest, VirtualCopyPreservesMultiInstanceExposureRecipe)
     QImage image(16, 12, QImage::Format_RGB888);
     image.fill(QColor(40, 90, 130));
     ASSERT_TRUE(image.save(QString::fromStdString(path.string()), "JPEG", 90));
-    auto imported = service->import_one(path.string(), CancellationToken{});
+    auto imported = service->import().import_one(path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto source_id = imported.value().asset->id;
 
@@ -1263,15 +1280,15 @@ TEST_F(CatalogServiceTest, VirtualCopyPreservesMultiInstanceExposureRecipe)
     Mask mask{"vc-mask", kCanonicalMaskSchemaVersion, MaskKind::kEllipse};
     mask.payload = EllipseMask{0.4, 0.5, 0.2, 0.15, 10.0, 0.05};
     develop.masks.push_back(mask);
-    ASSERT_TRUE(service->save_develop(source_id, develop));
+    ASSERT_TRUE(service->develop().save_develop(source_id, develop));
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot);
-    auto versioned = service->create_asset_version(source_id, snapshot.value().revision);
+    auto versioned = service->library().create_asset_version(source_id, snapshot.value().revision);
     ASSERT_TRUE(versioned) << versioned.error().message;
     const auto version_id = versioned.value().version.id;
 
-    auto version_recipe = service->load_recipe(version_id);
+    auto version_recipe = service->develop().load_recipe(version_id);
     ASSERT_TRUE(version_recipe) << version_recipe.error().message;
     auto version_develop = develop_from_recipe(version_recipe.value());
     ASSERT_TRUE(version_develop) << version_develop.error().message;

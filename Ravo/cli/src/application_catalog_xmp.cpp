@@ -83,7 +83,7 @@ Result<JsonValue> run_catalog_xmp_command(CatalogService &service,
             return make_error(ErrorCode::kInvalidArgument,
                               "--resolve is only valid for catalog xmp-import or xmp-export");
         }
-        auto status = service.xmp_interchange_status(flags.asset_id, sidecar);
+        auto status = service.xmp().xmp_interchange_status(flags.asset_id, sidecar);
         if (!status)
             return status.error();
         return status_to_json(status.value());
@@ -100,7 +100,7 @@ Result<JsonValue> run_catalog_xmp_command(CatalogService &service,
 
     if (subcommand == "xmp-import")
     {
-        auto imported = service.xmp_interchange_import(flags.asset_id, resolve, sidecar);
+        auto imported = service.xmp().xmp_interchange_import(flags.asset_id, resolve, sidecar);
         if (!imported)
             return imported.error();
         auto asset_json = asset_to_json(imported.value().asset);
@@ -118,7 +118,7 @@ Result<JsonValue> run_catalog_xmp_command(CatalogService &service,
     }
     if (subcommand == "xmp-export")
     {
-        auto exported = service.xmp_interchange_export(flags.asset_id, resolve, sidecar);
+        auto exported = service.xmp().xmp_interchange_export(flags.asset_id, resolve, sidecar);
         if (!exported)
             return exported.error();
         auto asset_json = asset_to_json(exported.value().asset);

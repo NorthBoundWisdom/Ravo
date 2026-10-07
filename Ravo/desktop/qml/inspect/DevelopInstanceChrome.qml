@@ -16,7 +16,7 @@ Item {
     readonly property var instances: {
         if (!root.hasPresenter)
             return [];
-        return root.operation === "exposure" ? root.panel.presenter.exposureInstances : root.panel.presenter.colorBalanceRgbInstances;
+        return root.operation === "exposure" ? root.panel.presenter.develop.exposureInstances : root.panel.presenter.develop.colorBalanceRgbInstances;
     }
 
     Layout.fillWidth: true
@@ -42,9 +42,9 @@ Item {
                 enabled: root.hasPresenter && root.panel.hasSelection
                 onClicked: {
                     if (root.operation === "exposure")
-                        root.panel.presenter.addExposureInstance();
+                        root.panel.presenter.develop.addExposureInstance();
                     else
-                        root.panel.presenter.addColorBalanceRgbInstance();
+                        root.panel.presenter.develop.addColorBalanceRgbInstance();
                 }
             }
             CustomButton {
@@ -53,9 +53,9 @@ Item {
                 enabled: root.hasPresenter && root.panel.hasSelection
                 onClicked: {
                     if (root.operation === "exposure")
-                        root.panel.presenter.duplicateExposureInstance();
+                        root.panel.presenter.develop.duplicateExposureInstance();
                     else
-                        root.panel.presenter.duplicateColorBalanceRgbInstance();
+                        root.panel.presenter.develop.duplicateColorBalanceRgbInstance();
                 }
             }
         }
@@ -77,9 +77,9 @@ Item {
                     enabled: root.hasPresenter && root.panel.hasSelection
                     onClicked: {
                         if (root.operation === "exposure")
-                            root.panel.presenter.selectExposureInstance(modelData.id);
+                            root.panel.presenter.develop.selectExposureInstance(modelData.id);
                         else
-                            root.panel.presenter.selectColorBalanceRgbInstance(modelData.id);
+                            root.panel.presenter.develop.selectColorBalanceRgbInstance(modelData.id);
                     }
                 }
 
@@ -90,9 +90,9 @@ Item {
                     enabled: root.hasPresenter && root.panel.hasSelection && !modelData.synthetic
                     onToggled: {
                         if (root.operation === "exposure")
-                            root.panel.presenter.setExposureInstanceEnabled(modelData.id, checked);
+                            root.panel.presenter.develop.setExposureInstanceEnabled(modelData.id, checked);
                         else
-                            root.panel.presenter.setColorBalanceRgbInstanceEnabled(modelData.id, checked);
+                            root.panel.presenter.develop.setColorBalanceRgbInstanceEnabled(modelData.id, checked);
                     }
                 }
                 CustomCheckBox {
@@ -102,9 +102,9 @@ Item {
                     enabled: root.hasPresenter && root.panel.hasSelection && !modelData.synthetic
                     onToggled: {
                         if (root.operation === "exposure")
-                            root.panel.presenter.setExposureInstanceBypass(modelData.id, checked);
+                            root.panel.presenter.develop.setExposureInstanceBypass(modelData.id, checked);
                         else
-                            root.panel.presenter.setColorBalanceRgbInstanceBypass(modelData.id, checked);
+                            root.panel.presenter.develop.setColorBalanceRgbInstanceBypass(modelData.id, checked);
                     }
                 }
 
@@ -114,9 +114,9 @@ Item {
                     enabled: root.hasPresenter && root.panel.hasSelection && index > 0 && !modelData.synthetic
                     onClicked: {
                         if (root.operation === "exposure")
-                            root.panel.presenter.reorderExposureInstance(index, index - 1);
+                            root.panel.presenter.develop.reorderExposureInstance(index, index - 1);
                         else
-                            root.panel.presenter.reorderColorBalanceRgbInstance(index, index - 1);
+                            root.panel.presenter.develop.reorderColorBalanceRgbInstance(index, index - 1);
                     }
                 }
                 CustomButton {
@@ -125,9 +125,9 @@ Item {
                     enabled: root.hasPresenter && root.panel.hasSelection && index + 1 < root.instances.length && !modelData.synthetic
                     onClicked: {
                         if (root.operation === "exposure")
-                            root.panel.presenter.reorderExposureInstance(index, index + 1);
+                            root.panel.presenter.develop.reorderExposureInstance(index, index + 1);
                         else
-                            root.panel.presenter.reorderColorBalanceRgbInstance(index, index + 1);
+                            root.panel.presenter.develop.reorderColorBalanceRgbInstance(index, index + 1);
                     }
                 }
                 CustomButton {
@@ -138,9 +138,9 @@ Item {
                     enabled: root.hasPresenter && root.panel.hasSelection && !modelData.synthetic && root.instances.length > 1
                     onClicked: {
                         if (root.operation === "exposure")
-                            root.panel.presenter.deleteExposureInstance(modelData.id);
+                            root.panel.presenter.develop.deleteExposureInstance(modelData.id);
                         else
-                            root.panel.presenter.deleteColorBalanceRgbInstance(modelData.id);
+                            root.panel.presenter.develop.deleteColorBalanceRgbInstance(modelData.id);
                     }
                 }
             }
@@ -174,11 +174,11 @@ Item {
                 objectName: root.objectNamePrefix + "RenameApply"
                 text: qsTr("Rename")
                 onClicked: {
-                    const id = root.operation === "exposure" ? root.panel.presenter.selectedExposureInstanceId : root.panel.presenter.selectedColorBalanceRgbInstanceId;
+                    const id = root.operation === "exposure" ? root.panel.presenter.develop.selectedExposureInstanceId : root.panel.presenter.develop.selectedColorBalanceRgbInstanceId;
                     if (root.operation === "exposure")
-                        root.panel.presenter.renameExposureInstance(id, renameField.text);
+                        root.panel.presenter.develop.renameExposureInstance(id, renameField.text);
                     else
-                        root.panel.presenter.renameColorBalanceRgbInstance(id, renameField.text);
+                        root.panel.presenter.develop.renameColorBalanceRgbInstance(id, renameField.text);
                 }
             }
         }

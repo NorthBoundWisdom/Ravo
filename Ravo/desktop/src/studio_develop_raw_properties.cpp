@@ -1,4 +1,5 @@
-#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_develop_presenter.h"
+#include "ravo/services/preview_service.h"
 
 #include "studio_develop_internal.h"
 
@@ -92,9 +93,9 @@ curve_points_for(const DevelopParams &params, const int family, const int channe
 
 } // namespace
 
-QVariantMap StudioPresenter::editCurve() const
+QVariantMap StudioDevelopPresenter::editCurve() const
 {
-    const bool rgb_family = curve_family_ == 0;
+    const bool rgb_family = state_.curve_family_ == 0;
     const bool linked =
         rgb_family ?
             edit_develop().rgb_curve.mode != kRgbLevelsModeIndependent :
@@ -103,18 +104,18 @@ QVariantMap StudioPresenter::editCurve() const
     QString histogram_mode = QStringLiteral("luma");
     if (rgb_family)
     {
-        if (curve_channel_ == 1)
+        if (state_.curve_channel_ == 1)
             histogram_mode = QStringLiteral("red");
-        else if (curve_channel_ == 2)
+        else if (state_.curve_channel_ == 2)
             histogram_mode = QStringLiteral("green");
-        else if (curve_channel_ == 3)
+        else if (state_.curve_channel_ == 3)
             histogram_mode = QStringLiteral("blue");
         else
             histogram_mode = QStringLiteral("rgb");
     }
     return {
-        {QStringLiteral("familyIndex"), curve_family_},
-        {QStringLiteral("channel"), curve_channel_},
+        {QStringLiteral("familyIndex"), state_.curve_family_},
+        {QStringLiteral("channel"), state_.curve_channel_},
         {QStringLiteral("linked"), linked},
         {QStringLiteral("histogramMode"), histogram_mode},
         {QStringLiteral("interpolationIndex"),
@@ -137,16 +138,17 @@ QVariantMap StudioPresenter::editCurve() const
         {QStringLiteral("split2"), edit_develop().rgb_curve.parametric_split_highlights}};
 }
 
-QVariantList StudioPresenter::editCurvePoints() const
+QVariantList StudioDevelopPresenter::editCurvePoints() const
 {
-    return tone_curve_to_variant(curve_points_for(edit_develop(), curve_family_, curve_channel_));
+    return tone_curve_to_variant(
+        curve_points_for(edit_develop(), state_.curve_family_, state_.curve_channel_));
 }
 
-QVariantList StudioPresenter::editCurveSamples() const
+QVariantList StudioDevelopPresenter::editCurveSamples() const
 {
-    const auto interpolation = curve_family_ == 0 ? edit_develop().rgb_curve.interpolation :
-                                                    edit_develop().tone_curve_interpolation;
-    if (curve_family_ == 0 && curve_channel_ <= 0 &&
+    const auto interpolation = state_.curve_family_ == 0 ? edit_develop().rgb_curve.interpolation :
+                                                           edit_develop().tone_curve_interpolation;
+    if (state_.curve_family_ == 0 && state_.curve_channel_ <= 0 &&
         !rgb_curve_parametric_is_identity(edit_develop().rgb_curve))
     {
         constexpr int kSamples = 65;
@@ -161,136 +163,137 @@ QVariantList StudioPresenter::editCurveSamples() const
         }
         return samples;
     }
-    return tone_curve_sample_list(curve_points_for(edit_develop(), curve_family_, curve_channel_),
-                                  interpolation);
+    return tone_curve_sample_list(
+        curve_points_for(edit_develop(), state_.curve_family_, state_.curve_channel_),
+        interpolation);
 }
 
-bool StudioPresenter::editSigmoidEnabled() const noexcept
+bool StudioDevelopPresenter::editSigmoidEnabled() const noexcept
 {
     return edit_develop().sigmoid_enabled;
 }
 
-double StudioPresenter::editSigmoidContrast() const noexcept
+double StudioDevelopPresenter::editSigmoidContrast() const noexcept
 {
     return edit_develop().sigmoid_contrast;
 }
 
-double StudioPresenter::editSigmoidSkew() const noexcept
+double StudioDevelopPresenter::editSigmoidSkew() const noexcept
 {
     return edit_develop().sigmoid_skew;
 }
 
-double StudioPresenter::editSigmoidHuePreservation() const noexcept
+double StudioDevelopPresenter::editSigmoidHuePreservation() const noexcept
 {
     return edit_develop().sigmoid_hue_preservation;
 }
 
-int StudioPresenter::editDemosaicModeIndex() const noexcept
+int StudioDevelopPresenter::editDemosaicModeIndex() const noexcept
 {
-    if (develop_.demosaic_mode == kDemosaicModePpg)
+    if (state_.develop_.demosaic_mode == kDemosaicModePpg)
     {
         return 1;
     }
-    if (develop_.demosaic_mode == kDemosaicModeMarkesteijn1)
+    if (state_.develop_.demosaic_mode == kDemosaicModeMarkesteijn1)
     {
         return 2;
     }
-    if (develop_.demosaic_mode == kDemosaicModeMarkesteijn3)
+    if (state_.develop_.demosaic_mode == kDemosaicModeMarkesteijn3)
     {
         return 3;
     }
     return 0;
 }
 
-double StudioPresenter::editRawHighlights() const noexcept
+double StudioDevelopPresenter::editRawHighlights() const noexcept
 {
-    return develop_.raw_highlights;
+    return state_.develop_.raw_highlights;
 }
 
-double StudioPresenter::editRawDenoiseThreshold() const noexcept
+double StudioDevelopPresenter::editRawDenoiseThreshold() const noexcept
 {
-    return develop_.raw_denoise_threshold;
+    return state_.develop_.raw_denoise_threshold;
 }
 
-double StudioPresenter::editHotPixelsStrength() const noexcept
+double StudioDevelopPresenter::editHotPixelsStrength() const noexcept
 {
-    return develop_.hot_pixels_strength;
+    return state_.develop_.hot_pixels_strength;
 }
 
-double StudioPresenter::editHotPixelsThreshold() const noexcept
+double StudioDevelopPresenter::editHotPixelsThreshold() const noexcept
 {
-    return develop_.hot_pixels_threshold;
+    return state_.develop_.hot_pixels_threshold;
 }
 
-bool StudioPresenter::editHotPixelsPermissive() const noexcept
+bool StudioDevelopPresenter::editHotPixelsPermissive() const noexcept
 {
-    return develop_.hot_pixels_permissive;
+    return state_.develop_.hot_pixels_permissive;
 }
 
-int StudioPresenter::editRawCaIterations() const noexcept
+int StudioDevelopPresenter::editRawCaIterations() const noexcept
 {
-    return static_cast<int>(develop_.raw_ca_iterations);
+    return static_cast<int>(state_.develop_.raw_ca_iterations);
 }
 
-bool StudioPresenter::editRawCaAvoidShift() const noexcept
+bool StudioDevelopPresenter::editRawCaAvoidShift() const noexcept
 {
-    return develop_.raw_ca_avoid_shift;
+    return state_.develop_.raw_ca_avoid_shift;
 }
 
-double StudioPresenter::editDenoise() const noexcept
+double StudioDevelopPresenter::editDenoise() const noexcept
 {
     return edit_develop().denoise;
 }
 
-double StudioPresenter::editDenoiseChroma() const noexcept
+double StudioDevelopPresenter::editDenoiseChroma() const noexcept
 {
     return edit_develop().denoise_chroma;
 }
 
-double StudioPresenter::editDenoiseRadius() const noexcept
+double StudioDevelopPresenter::editDenoiseRadius() const noexcept
 {
     return edit_develop().denoise_radius;
 }
 
-double StudioPresenter::editLensK1() const noexcept
+double StudioDevelopPresenter::editLensK1() const noexcept
 {
-    return develop_.lens_k1;
+    return state_.develop_.lens_k1;
 }
 
-double StudioPresenter::editLensVignetting() const noexcept
+double StudioDevelopPresenter::editLensVignetting() const noexcept
 {
-    return develop_.lens_vignetting;
+    return state_.develop_.lens_vignetting;
 }
 
-double StudioPresenter::editLensMode() const noexcept
+double StudioDevelopPresenter::editLensMode() const noexcept
 {
-    return develop_.lens_mode == kLensModeLookup ? 1.0 : 0.0;
+    return state_.develop_.lens_mode == kLensModeLookup ? 1.0 : 0.0;
 }
 
-int StudioPresenter::editColorEqBand() const noexcept
+int StudioDevelopPresenter::editColorEqBand() const noexcept
 {
     return static_cast<int>(edit_develop().color_eq_band);
 }
 
-double StudioPresenter::editColorEqHue() const noexcept
+double StudioDevelopPresenter::editColorEqHue() const noexcept
 {
     return edit_develop().color_eq_hue[static_cast<std::size_t>(
         std::clamp(edit_develop().color_eq_band, std::int64_t{0}, std::int64_t{7}))];
 }
 
-double StudioPresenter::editColorEqSat() const noexcept
+double StudioDevelopPresenter::editColorEqSat() const noexcept
 {
     return edit_develop().color_eq_sat[static_cast<std::size_t>(
         std::clamp(edit_develop().color_eq_band, std::int64_t{0}, std::int64_t{7}))];
 }
 
-double StudioPresenter::editColorEqLight() const noexcept
+double StudioDevelopPresenter::editColorEqLight() const noexcept
 {
     return edit_develop().color_eq_light[static_cast<std::size_t>(
         std::clamp(edit_develop().color_eq_band, std::int64_t{0}, std::int64_t{7}))];
 }
 
-QVariantList StudioPresenter::editColorEqBands() const
+QVariantList StudioDevelopPresenter::editColorEqBands() const
 {
     static const char *titles[] = {
         QT_TRANSLATE_NOOP("DevelopPanel", "Red"),    QT_TRANSLATE_NOOP("DevelopPanel", "Orange"),
@@ -314,36 +317,37 @@ QVariantList StudioPresenter::editColorEqBands() const
     return bands;
 }
 
-bool StudioPresenter::whiteBalancePickActive() const noexcept
+bool StudioDevelopPresenter::whiteBalancePickActive() const noexcept
 {
-    return white_balance_pick_active_;
+    return state_.white_balance_pick_active_;
 }
 
-void StudioPresenter::setWhiteBalancePickActive(const bool active)
+void StudioDevelopPresenter::setWhiteBalancePickActive(const bool active)
 {
     if (active && localEditing())
     {
-        setError(QCoreApplication::translate("DevelopPanel",
-                                             "Finish mask editing before using global tools."));
+        emit errorOccurred(QCoreApplication::translate(
+            "DevelopPanel", "Finish mask editing before using global tools."));
         return;
     }
-    const bool enabled = active && selectedMediaType() == QLatin1String("image/x-raw") &&
-                         std::abs(develop_.straighten_degrees) <= 1.0e-4 &&
-                         std::abs(develop_.perspective_vertical) <= 1.0e-4 &&
-                         std::abs(develop_.perspective_horizontal) <= 1.0e-4 &&
-                         std::abs(develop_.perspective_shear) <= 1.0e-4 && !develop_.canvas_enabled;
-    if (white_balance_pick_active_ == enabled)
+    const bool enabled = active && host_.selected_media_type() == QLatin1String("image/x-raw") &&
+                         std::abs(state_.develop_.straighten_degrees) <= 1.0e-4 &&
+                         std::abs(state_.develop_.perspective_vertical) <= 1.0e-4 &&
+                         std::abs(state_.develop_.perspective_horizontal) <= 1.0e-4 &&
+                         std::abs(state_.develop_.perspective_shear) <= 1.0e-4 &&
+                         !state_.develop_.canvas_enabled;
+    if (state_.white_balance_pick_active_ == enabled)
     {
         return;
     }
     const bool comparison_changed = enabled && clear_comparison();
-    white_balance_pick_active_ = enabled;
+    state_.white_balance_pick_active_ = enabled;
     if (enabled)
     {
         setCropToolActive(false);
-        if (mask_place_active_)
+        if (state_.mask_place_active_)
             setMaskPlaceActive(false);
-        if (mask_parametric_assist_active_)
+        if (state_.mask_parametric_assist_active_)
             setMaskParametricAssistActive(false);
     }
     emit editChanged();
@@ -353,25 +357,25 @@ void StudioPresenter::setWhiteBalancePickActive(const bool active)
     }
 }
 
-void StudioPresenter::pickWhiteBalance(const double preview_x, const double preview_y)
+void StudioDevelopPresenter::pickWhiteBalance(const double preview_x, const double preview_y)
 {
-    if (selected_asset_id_.isEmpty() || service_ == nullptr)
+    if (selected_asset_id_.isEmpty() || host_.develop_service() == nullptr)
     {
         return;
     }
-    if (selectedMediaType() != QLatin1String("image/x-raw"))
+    if (host_.selected_media_type() != QLatin1String("image/x-raw"))
     {
-        setError(QCoreApplication::translate("DevelopPanel",
-                                             "White-balance pick requires a Bayer RAW original"));
+        emit errorOccurred(QCoreApplication::translate(
+            "DevelopPanel", "White-balance pick requires a Bayer RAW original"));
         setWhiteBalancePickActive(false);
         return;
     }
-    if (std::abs(develop_.straighten_degrees) > 1.0e-4 ||
-        std::abs(develop_.perspective_vertical) > 1.0e-4 ||
-        std::abs(develop_.perspective_horizontal) > 1.0e-4 ||
-        std::abs(develop_.perspective_shear) > 1.0e-4 || develop_.canvas_enabled)
+    if (std::abs(state_.develop_.straighten_degrees) > 1.0e-4 ||
+        std::abs(state_.develop_.perspective_vertical) > 1.0e-4 ||
+        std::abs(state_.develop_.perspective_horizontal) > 1.0e-4 ||
+        std::abs(state_.develop_.perspective_shear) > 1.0e-4 || state_.develop_.canvas_enabled)
     {
-        setError(QCoreApplication::translate(
+        emit errorOccurred(QCoreApplication::translate(
             "DevelopPanel", "White-balance pick is unavailable with Perspective or Canvas"));
         setWhiteBalancePickActive(false);
         return;
@@ -380,21 +384,22 @@ void StudioPresenter::pickWhiteBalance(const double preview_x, const double prev
     WhiteBalancePickRequest request;
     request.preview_x = preview_x;
     request.preview_y = preview_y;
-    request.crop_x = develop_.crop_x;
-    request.crop_y = develop_.crop_y;
-    request.crop_width = develop_.crop_width;
-    request.crop_height = develop_.crop_height;
-    request.rotate_quarters = static_cast<int>(develop_.rotate_quarters);
-    request.flip_horizontal = develop_.flip_horizontal != 0;
-    request.flip_vertical = develop_.flip_vertical != 0;
+    request.crop_x = state_.develop_.crop_x;
+    request.crop_y = state_.develop_.crop_y;
+    request.crop_width = state_.develop_.crop_width;
+    request.crop_height = state_.develop_.crop_height;
+    request.rotate_quarters = static_cast<int>(state_.develop_.rotate_quarters);
+    request.flip_horizontal = state_.develop_.flip_horizontal != 0;
+    request.flip_vertical = state_.develop_.flip_vertical != 0;
     executor_.post(
         [this, asset_id, request]()
         {
             Result<std::array<double, 4>> sampled =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (service_ != nullptr)
+            if (host_.develop_service() != nullptr)
             {
-                sampled = service_->sample_white_balance(asset_id, request, CancellationToken{});
+                sampled = host_.develop_service()->sample_white_balance(asset_id, request,
+                                                                        CancellationToken{});
             }
             QMetaObject::invokeMethod(
                 this,
@@ -407,16 +412,16 @@ void StudioPresenter::pickWhiteBalance(const double preview_x, const double prev
                     setWhiteBalancePickActive(false);
                     if (!sampled)
                     {
-                        setError(qstring_from_utf8(sampled.error().message));
+                        emit errorOccurred(qstring_from_utf8(sampled.error().message));
                         return;
                     }
-                    DevelopParams next = develop_;
+                    DevelopParams next = state_.develop_;
                     next.temperature.mode = std::string(kTemperatureModeManual);
                     next.temperature.coefficients = sampled.value();
                     if (mutate_develop(std::move(next), DevelopEdit::Commit))
                     {
-                        setStatus(QCoreApplication::translate("StudioPresenter",
-                                                              "White balance sampled."));
+                        emit statusOccurred(QCoreApplication::translate("StudioPresenter",
+                                                                        "White balance sampled."));
                     }
                 },
                 Qt::QueuedConnection);
@@ -424,7 +429,7 @@ void StudioPresenter::pickWhiteBalance(const double preview_x, const double prev
         TaskPriority::kForeground);
 }
 
-void StudioPresenter::autoPerspective(const QString &mode_name)
+void StudioDevelopPresenter::autoPerspective(const QString &mode_name)
 {
     PerspectiveAnalysisMode mode = PerspectiveAnalysisMode::kFull;
     const bool level_only = mode_name == QLatin1String("level");
@@ -436,22 +441,23 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
         mode = PerspectiveAnalysisMode::kHorizontal;
     else if (mode_name != QLatin1String("full"))
     {
-        setError(QCoreApplication::translate("DevelopPanel",
-                                             "Perspective analysis mode is unsupported"));
+        emit errorOccurred(QCoreApplication::translate("DevelopPanel",
+                                                       "Perspective analysis mode is unsupported"));
         return;
     }
     if (selected_asset_id_.isEmpty())
         return;
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    const DevelopParams analysis_develop = develop_;
-    const auto revision = perspective_analysis_owner_.supersede("perspective_analysis_superseded");
-    const auto cancellation = perspective_analysis_owner_.begin();
+    const DevelopParams analysis_develop = state_.develop_;
+    const auto revision =
+        state_.perspective_analysis_owner_.supersede("perspective_analysis_superseded");
+    const auto cancellation = state_.perspective_analysis_owner_.begin();
     executor_.post(
         [this, asset_id, revision, analysis_develop, mode, level_only, cancellation]() mutable
         {
             Result<PerspectiveAnalysis> analysis =
                 make_error(ErrorCode::kIo, "Engine session is closed");
-            if (service_ != nullptr && engine_)
+            if (host_.develop_service() != nullptr && engine_)
             {
                 PreviewRequest request;
                 request.asset_id = asset_id;
@@ -461,7 +467,7 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
                 request.ignore_straighten = true;
                 request.persist_preview_record = false;
                 request.cancellation = cancellation;
-                auto preview = service_->request_preview(request, analysis_develop);
+                auto preview = host_.preview_service()->request_preview(request, analysis_develop);
                 if (!preview)
                 {
                     analysis = preview.error();
@@ -493,16 +499,16 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
                 this,
                 [this, asset_id, revision, level_only, analysis = std::move(analysis)]() mutable
                 {
-                    if (!perspective_analysis_owner_.accepts(revision, asset_id,
-                                                             utf8_from_qstring(selected_asset_id_)))
+                    if (!state_.perspective_analysis_owner_.accepts(
+                            revision, asset_id, utf8_from_qstring(selected_asset_id_)))
                         return;
                     if (!analysis)
                     {
                         if (analysis.error().code != ErrorCode::kCancelled)
-                            setError(qstring_from_utf8(analysis.error().message));
+                            emit errorOccurred(qstring_from_utf8(analysis.error().message));
                         return;
                     }
-                    DevelopParams next = develop_;
+                    DevelopParams next = state_.develop_;
                     next.straighten_degrees = analysis.value().params.rotation_degrees;
                     if (!level_only)
                     {
@@ -512,84 +518,84 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
                         next.perspective_constrain_crop = true;
                     }
                     if (mutate_develop(std::move(next), DevelopEdit::Commit))
-                        setStatus(QCoreApplication::translate("StudioPresenter",
-                                                              "Perspective corrected."));
+                        emit statusOccurred(QCoreApplication::translate("StudioPresenter",
+                                                                        "Perspective corrected."));
                 },
                 Qt::QueuedConnection);
         },
         TaskPriority::kForeground);
 }
 
-double StudioPresenter::editGraduatedDensity() const noexcept
+double StudioDevelopPresenter::editGraduatedDensity() const noexcept
 {
     return edit_develop().graduated_density;
 }
 
-double StudioPresenter::editGraduatedHardness() const noexcept
+double StudioDevelopPresenter::editGraduatedHardness() const noexcept
 {
     return edit_develop().graduated_hardness;
 }
 
-double StudioPresenter::editGraduatedRotation() const noexcept
+double StudioDevelopPresenter::editGraduatedRotation() const noexcept
 {
     return edit_develop().graduated_rotation;
 }
 
-double StudioPresenter::editGraduatedOffset() const noexcept
+double StudioDevelopPresenter::editGraduatedOffset() const noexcept
 {
     return edit_develop().graduated_offset;
 }
 
-QVariantMap StudioPresenter::editGraduatedMask() const
+QVariantMap StudioDevelopPresenter::editGraduatedMask() const
 {
     return develop_mask_editor_map(
         develop_mask_editor_state(edit_develop(), DevelopMaskTarget::kGraduatedNd),
         DevelopMaskTarget::kGraduatedNd);
 }
 
-double StudioPresenter::editToneEqBlacks() const noexcept
+double StudioDevelopPresenter::editToneEqBlacks() const noexcept
 {
     return edit_develop().tone_eq_blacks;
 }
 
-double StudioPresenter::editToneEqShadows() const noexcept
+double StudioDevelopPresenter::editToneEqShadows() const noexcept
 {
     return edit_develop().tone_eq_shadows;
 }
 
-double StudioPresenter::editToneEqMidtones() const noexcept
+double StudioDevelopPresenter::editToneEqMidtones() const noexcept
 {
     return edit_develop().tone_eq_midtones;
 }
 
-double StudioPresenter::editToneEqHighlights() const noexcept
+double StudioDevelopPresenter::editToneEqHighlights() const noexcept
 {
     return edit_develop().tone_eq_highlights;
 }
 
-double StudioPresenter::editToneEqWhites() const noexcept
+double StudioDevelopPresenter::editToneEqWhites() const noexcept
 {
     return edit_develop().tone_eq_whites;
 }
 
-QVariantList StudioPresenter::recipeHistory() const
+QVariantList StudioDevelopPresenter::recipeHistory() const
 {
-    return recipe_history_;
+    return state_.recipe_history_;
 }
 
-QVariantList StudioPresenter::editPresets() const
+QVariantList StudioDevelopPresenter::editPresets() const
 {
-    return develop_presets_;
+    return state_.develop_presets_;
 }
 
-qlonglong StudioPresenter::activeHistoryId() const noexcept
+qlonglong StudioDevelopPresenter::activeHistoryId() const noexcept
 {
-    return static_cast<qlonglong>(active_history_id_);
+    return static_cast<qlonglong>(state_.active_history_id_);
 }
 
-qlonglong StudioPresenter::activeHistorySeq() const noexcept
+qlonglong StudioDevelopPresenter::activeHistorySeq() const noexcept
 {
-    return static_cast<qlonglong>(active_history_seq_);
+    return static_cast<qlonglong>(state_.active_history_seq_);
 }
 
 } // namespace ravo

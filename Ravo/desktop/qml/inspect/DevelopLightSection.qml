@@ -15,9 +15,9 @@ DevelopSection {
         CustomComboBox {
             Layout.fillWidth: true
             model: ["RapidRAW", "Sigmoid"]
-            visible: panel.hasPresenter && (panel.presenter.editRapidRawBasicToneEnabled || panel.presenter.editSigmoidEnabled)
+            visible: panel.hasPresenter && (panel.presenter.develop.editRapidRawBasicToneEnabled || panel.presenter.develop.editSigmoidEnabled)
             enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editToneMapperIndex : 0
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editToneMapperIndex : 0
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("toneMapperIndex", currentIndex)
         }
@@ -33,9 +33,9 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.editRapidRawBasicToneEnabled
+            visible: panel.hasPresenter && panel.presenter.develop.editRapidRawBasicToneEnabled
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editRapidRawEvShift : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editRapidRawEvShift : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("rapidrawEvShift", value);
@@ -57,9 +57,9 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.editRapidRawBasicToneEnabled
+            visible: panel.hasPresenter && panel.presenter.develop.editRapidRawBasicToneEnabled
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editRapidRawExposure : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editRapidRawExposure : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("rapidrawExposure", value);
@@ -110,7 +110,7 @@ DevelopSection {
                 showReset: true
                 resetValue: 0
                 delayedCommit: true
-                visible: panel.hasPresenter && panel.presenter.editRapidRawBasicToneEnabled
+                visible: panel.hasPresenter && panel.presenter.develop.editRapidRawBasicToneEnabled
                 enabled: panel.hasSelection
                 value: panel.hasPresenter ? panel.presenter[modelData.property] : 0
                 onValueEdited: function (value) {
@@ -130,7 +130,7 @@ DevelopSection {
             panel: sectionRoot.panel
             operation: "exposure"
             Layout.fillWidth: true
-            visible: panel.showAdvancedInstances && !panel.localEditing && (!panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled)
+            visible: panel.showAdvancedInstances && !panel.localEditing && (!panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled)
         }
         CustomSlider {
             Layout.fillWidth: true
@@ -142,9 +142,9 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: (!panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled) && (!panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0)
+            visible: (!panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled) && (!panel.hasPresenter || panel.presenter.develop.editExposureParams.modeIndex === 0)
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editExposureParams.exposureEv : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editExposureParams.exposureEv : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("exposure", value);
@@ -166,9 +166,9 @@ DevelopSection {
             showReset: true
             resetValue: 1.5
             delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.editSigmoidEnabled
+            visible: panel.hasPresenter && panel.presenter.develop.editSigmoidEnabled
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editSigmoidContrast : 1.5
+            value: panel.hasPresenter ? panel.presenter.develop.editSigmoidContrast : 1.5
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("sigmoidContrast", value);
@@ -188,9 +188,9 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: panel.hasPresenter && !panel.presenter.editSigmoidEnabled && !panel.presenter.editRapidRawBasicToneEnabled
+            visible: panel.hasPresenter && !panel.presenter.develop.editSigmoidEnabled && !panel.presenter.develop.editRapidRawBasicToneEnabled
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editContrast : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editContrast : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("contrast", value);
@@ -205,14 +205,14 @@ DevelopSection {
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Highlights")
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
+            visible: !panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editHighlights : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editHighlights : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("highlights", value);
@@ -227,14 +227,14 @@ DevelopSection {
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Shadows")
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
+            visible: !panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editShadows : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editShadows : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("shadows", value);
@@ -249,14 +249,14 @@ DevelopSection {
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Whites")
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
+            visible: !panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editWhites : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editWhites : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("whites", value);
@@ -271,7 +271,7 @@ DevelopSection {
         CustomSlider {
             Layout.fillWidth: true
             title: qsTr("Blacks")
-            visible: !panel.hasPresenter || !panel.presenter.editRapidRawBasicToneEnabled
+            visible: !panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled
             from: -0.1
             to: 0.1
             stepSize: 0.001
@@ -280,7 +280,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editBlacks : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editBlacks : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("blacks", value);
@@ -304,7 +304,7 @@ DevelopSection {
                 Layout.fillWidth: true
                 model: [qsTr("Manual"), qsTr("Deflicker")]
                 enabled: panel.hasSelection
-                currentIndex: panel.hasPresenter ? panel.presenter.editExposureParams.modeIndex : 0
+                currentIndex: panel.hasPresenter ? panel.presenter.develop.editExposureParams.modeIndex : 0
                 onActivated: if (panel.commands)
                     panel.commands.setDevelopNumber("exposureMode", currentIndex)
             }
@@ -319,7 +319,7 @@ DevelopSection {
                 resetValue: 0
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editExposureParams.black : 0
+                value: panel.hasPresenter ? panel.presenter.develop.editExposureParams.black : 0
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber("exposureBlack", value);
@@ -333,17 +333,17 @@ DevelopSection {
             }
             CustomCheckBox {
                 text: qsTr("Compensate exposure bias")
-                visible: !panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0
+                visible: !panel.hasPresenter || panel.presenter.develop.editExposureParams.modeIndex === 0
                 enabled: panel.hasSelection
-                checked: panel.hasPresenter && panel.presenter.editExposureParams.compensateExposureBias
+                checked: panel.hasPresenter && panel.presenter.develop.editExposureParams.compensateExposureBias
                 onToggled: if (panel.liveReady && panel.commands)
                     panel.commands.setDevelopNumber("exposureCompensateBias", checked ? 1 : 0)
             }
             CustomCheckBox {
                 text: qsTr("Compensate highlight preservation")
-                visible: !panel.hasPresenter || panel.presenter.editExposureParams.modeIndex === 0
+                visible: !panel.hasPresenter || panel.presenter.develop.editExposureParams.modeIndex === 0
                 enabled: panel.hasSelection
-                checked: panel.hasPresenter && panel.presenter.editExposureParams.compensateHighlightPreservation
+                checked: panel.hasPresenter && panel.presenter.develop.editExposureParams.compensateHighlightPreservation
                 onToggled: if (panel.liveReady && panel.commands)
                     panel.commands.setDevelopNumber("exposureCompensateHighlight", checked ? 1 : 0)
             }
@@ -357,9 +357,9 @@ DevelopSection {
                 showReset: true
                 resetValue: 50
                 delayedCommit: true
-                visible: panel.hasPresenter && panel.presenter.editExposureParams.modeIndex === 1
+                visible: panel.hasPresenter && panel.presenter.develop.editExposureParams.modeIndex === 1
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editExposureParams.deflickerPercentile : 50
+                value: panel.hasPresenter ? panel.presenter.develop.editExposureParams.deflickerPercentile : 50
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber("exposureDeflickerPercentile", value);
@@ -381,9 +381,9 @@ DevelopSection {
                 showReset: true
                 resetValue: -4
                 delayedCommit: true
-                visible: panel.hasPresenter && panel.presenter.editExposureParams.modeIndex === 1
+                visible: panel.hasPresenter && panel.presenter.develop.editExposureParams.modeIndex === 1
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editExposureParams.deflickerTargetEv : -4
+                value: panel.hasPresenter ? panel.presenter.develop.editExposureParams.deflickerTargetEv : -4
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber("exposureDeflickerTarget", value);
@@ -398,7 +398,7 @@ DevelopSection {
         }
         CustomLabel {
             Layout.fillWidth: true
-            visible: panel.hasPresenter && panel.presenter.editSigmoidEnabled
+            visible: panel.hasPresenter && panel.presenter.develop.editSigmoidEnabled
             text: qsTr("Sigmoid Display · Standard SDR")
             font.bold: true
         }
@@ -412,9 +412,9 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.editSigmoidEnabled
+            visible: panel.hasPresenter && panel.presenter.develop.editSigmoidEnabled
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editSigmoidSkew : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editSigmoidSkew : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("sigmoidSkew", value);
@@ -436,9 +436,9 @@ DevelopSection {
             showReset: true
             resetValue: 1
             delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.editSigmoidEnabled
+            visible: panel.hasPresenter && panel.presenter.develop.editSigmoidEnabled
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editSigmoidHuePreservation : 1
+            value: panel.hasPresenter ? panel.presenter.develop.editSigmoidHuePreservation : 1
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("sigmoidHuePreservation", value);
@@ -459,7 +459,7 @@ DevelopSection {
             resetValue: 1
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editGamma : 1
+            value: panel.hasPresenter ? panel.presenter.develop.editGamma : 1
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("gamma", value);
@@ -481,16 +481,16 @@ DevelopSection {
             Layout.fillWidth: true
             model: [qsTr("RGB, linked"), qsTr("RGB, independent")]
             enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editRgbLevels.modeIndex : 0
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editRgbLevels.modeIndex : 0
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("rgbLevelsMode", currentIndex)
         }
         CustomComboBox {
             Layout.fillWidth: true
-            visible: !panel.hasPresenter || panel.presenter.editRgbLevels.modeIndex === 0
+            visible: !panel.hasPresenter || panel.presenter.develop.editRgbLevels.modeIndex === 0
             model: [qsTr("None"), qsTr("Luminance"), qsTr("Max RGB"), qsTr("Average RGB"), qsTr("Sum RGB"), qsTr("Norm RGB"), qsTr("Basic power")]
             enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.editRgbLevels.preserveIndex : 1
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editRgbLevels.preserveIndex : 1
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("rgbLevelsPreserve", currentIndex)
         }
@@ -527,7 +527,7 @@ DevelopSection {
                 resetValue: modelData.reset
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editRgbLevels[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editRgbLevels[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -582,7 +582,7 @@ DevelopSection {
             delegate: CustomSlider {
                 required property var modelData
                 Layout.fillWidth: true
-                visible: panel.hasPresenter && panel.presenter.editRgbLevels.modeIndex === 1
+                visible: panel.hasPresenter && panel.presenter.develop.editRgbLevels.modeIndex === 1
                 title: modelData.title
                 from: 0
                 to: 1
@@ -592,7 +592,7 @@ DevelopSection {
                 resetValue: modelData.reset
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editRgbLevels[modelData.key] : modelData.reset
+                value: panel.hasPresenter ? panel.presenter.develop.editRgbLevels[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);

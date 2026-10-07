@@ -32,7 +32,7 @@ void StudioCommandController::registerImportCommands(const command_registration:
         { present(command::kPresetImport, argument); });
     add(command::kPresetImportPath, Condition::kReadySelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
-        { presenter_.importPresetFromPath(argument.toString()); });
+        { presenter_.develop()->importPresetFromPath(argument.toString()); });
     add(command::kLibrarySelectLastImport, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.selectLastImport(); });
 }

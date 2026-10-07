@@ -41,6 +41,12 @@ target_sources(ravo_desktop
     src/studio_display_presentation.cpp
     src/studio_live_session_controller.cpp
     src/studio_presenter.cpp
+    src/studio_presenter_composition.cpp
+    src/studio_inspect_presenter.cpp
+    src/studio_develop_presenter.cpp
+    src/studio_debug_actions.cpp
+    src/studio_preset_paths.cpp
+    src/studio_library_presenter.cpp
     src/studio_presenter_library.cpp
     src/studio_presenter_export.cpp
     src/studio_presenter_external_editor.cpp
@@ -86,6 +92,10 @@ target_sources(ravo_desktop
     include/ravo/desktop/studio_assistant_controller.h
     include/ravo/desktop/studio_command_controller.h
     include/ravo/desktop/studio_live_session_controller.h
+    include/ravo/desktop/studio_inspect_presenter.h
+    include/ravo/desktop/studio_export_presenter.h
+    include/ravo/desktop/studio_develop_presenter.h
+    include/ravo/desktop/studio_library_presenter.h
     include/ravo/desktop/studio_presenter.h
     include/ravo/desktop/studio_window_geometry.h
     include/ravo/desktop/studio_display_presentation.h

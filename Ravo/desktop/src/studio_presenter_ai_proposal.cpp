@@ -138,7 +138,7 @@ void StudioPresenter::refreshAiProposals()
             Result<std::vector<AiProposal>> listed =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                listed = service_->list_ai_proposals(asset_id);
+                listed = service_->ai().list_ai_proposals(asset_id);
             QMetaObject::invokeMethod(
                 this,
                 [this, listed = std::move(listed)]() mutable
@@ -216,7 +216,7 @@ void StudioPresenter::createAiStubProposal(const QString &kind_text, const QStri
         {
             Result<AiProposal> created = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                created = service_->create_ai_proposal(request);
+                created = service_->ai().create_ai_proposal(request);
             QMetaObject::invokeMethod(
                 this,
                 [this, created = std::move(created)]() mutable
@@ -268,7 +268,7 @@ void StudioPresenter::selectAiProposal(const QString &proposal_id)
         {
             Result<AiProposal> loaded = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                loaded = service_->get_ai_proposal(proposal_id);
+                loaded = service_->ai().get_ai_proposal(proposal_id);
             QMetaObject::invokeMethod(
                 this,
                 [this, loaded = std::move(loaded)]() mutable
@@ -308,7 +308,7 @@ void StudioPresenter::applySelectedAiProposal()
             Result<AiProposalApplyResult> applied =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                applied = service_->apply_ai_proposal(proposal_id, expected);
+                applied = service_->ai().apply_ai_proposal(proposal_id, expected);
             QMetaObject::invokeMethod(
                 this,
                 [this, applied = std::move(applied)]() mutable
@@ -327,7 +327,7 @@ void StudioPresenter::applySelectedAiProposal()
                         observed_catalog_revision_ = applied.value().revision;
                     setStatus(
                         QCoreApplication::translate("StudioPresenter", "Applied AI proposal."));
-                    load_develop_for_selection();
+                    develop_presenter_->load_develop_for_selection();
                     refreshAiProposals();
                 },
                 Qt::QueuedConnection);
@@ -352,7 +352,7 @@ void StudioPresenter::rejectSelectedAiProposal()
         {
             Result<AiProposal> rejected = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                rejected = service_->reject_ai_proposal(proposal_id);
+                rejected = service_->ai().reject_ai_proposal(proposal_id);
             QMetaObject::invokeMethod(
                 this,
                 [this, rejected = std::move(rejected)]() mutable
@@ -393,7 +393,7 @@ void StudioPresenter::cancelSelectedAiProposal()
         {
             Result<AiProposal> cancelled = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-                cancelled = service_->cancel_ai_proposal(proposal_id);
+                cancelled = service_->ai().cancel_ai_proposal(proposal_id);
             QMetaObject::invokeMethod(
                 this,
                 [this, cancelled = std::move(cancelled)]() mutable

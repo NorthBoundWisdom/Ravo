@@ -1,4 +1,4 @@
-#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_develop_presenter.h"
 
 #include <algorithm>
 #include <array>
@@ -314,7 +314,7 @@ DevelopParams develop_from_history_json(const std::string &recipe_json)
 
 } // namespace
 
-DevelopParams StudioPresenter::baseline_develop() const
+DevelopParams StudioDevelopPresenter::baseline_develop() const
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     if (asset && is_raw_media_type(asset->media_type))
@@ -322,12 +322,12 @@ DevelopParams StudioPresenter::baseline_develop() const
     return {};
 }
 
-QVariantList StudioPresenter::modifiedParameterChoices() const
+QVariantList StudioDevelopPresenter::modifiedParameterChoices() const
 {
     QVariantList result;
-    if (selected_asset_id_.isEmpty() || !develop_loaded_)
+    if (selected_asset_id_.isEmpty() || !state_.develop_loaded_)
         return result;
-    const auto changes = develop_modified_fields(baseline_develop(), develop_);
+    const auto changes = develop_modified_fields(baseline_develop(), state_.develop_);
     result.reserve(static_cast<qsizetype>(changes.size()));
     for (const auto &change : changes)
     {
@@ -338,7 +338,8 @@ QVariantList StudioPresenter::modifiedParameterChoices() const
     return result;
 }
 
-DevelopParams StudioPresenter::develop_from_history_entry(const RecipeHistoryEntry &entry) const
+DevelopParams
+StudioDevelopPresenter::develop_from_history_entry(const RecipeHistoryEntry &entry) const
 {
     if (entry.recipe_json.empty())
     {
@@ -347,51 +348,51 @@ DevelopParams StudioPresenter::develop_from_history_entry(const RecipeHistoryEnt
     return develop_from_history_json(entry.recipe_json);
 }
 
-void StudioPresenter::sync_active_history()
+void StudioDevelopPresenter::sync_active_history()
 {
-    if (develop_ == baseline_develop())
+    if (state_.develop_ == baseline_develop())
     {
-        active_history_id_ = 0;
-        active_history_seq_ = 0;
+        state_.active_history_id_ = 0;
+        state_.active_history_seq_ = 0;
         return;
     }
-    if (recipe_history_entries_.empty())
+    if (state_.recipe_history_entries_.empty())
     {
-        active_history_id_ = 0;
-        active_history_seq_ = 0;
+        state_.active_history_id_ = 0;
+        state_.active_history_seq_ = 0;
         return;
     }
-    for (const auto &entry : recipe_history_entries_)
+    for (const auto &entry : state_.recipe_history_entries_)
     {
-        if (entry.id == active_history_id_)
+        if (entry.id == state_.active_history_id_)
         {
-            active_history_seq_ = entry.seq;
+            state_.active_history_seq_ = entry.seq;
             return;
         }
     }
-    for (const auto &entry : recipe_history_entries_)
+    for (const auto &entry : state_.recipe_history_entries_)
     {
-        if (develop_from_history_entry(entry) == develop_)
+        if (develop_from_history_entry(entry) == state_.develop_)
         {
-            active_history_id_ = entry.id;
-            active_history_seq_ = entry.seq;
+            state_.active_history_id_ = entry.id;
+            state_.active_history_seq_ = entry.seq;
             return;
         }
     }
-    active_history_id_ = recipe_history_entries_.front().id;
-    active_history_seq_ = recipe_history_entries_.front().seq;
+    state_.active_history_id_ = state_.recipe_history_entries_.front().id;
+    state_.active_history_seq_ = state_.recipe_history_entries_.front().seq;
 }
 
-void StudioPresenter::apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries)
+void StudioDevelopPresenter::apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries)
 {
-    recipe_history_entries_ = entries;
+    state_.recipe_history_entries_ = entries;
     std::vector<DevelopParams> steps;
     steps.reserve(entries.size());
     for (const auto &entry : entries)
     {
         steps.push_back(develop_from_history_json(entry.recipe_json));
     }
-    recipe_history_.clear();
+    state_.recipe_history_.clear();
     for (std::size_t index = 0; index < entries.size(); ++index)
     {
         const auto &entry = entries[index];
@@ -419,51 +420,51 @@ void StudioPresenter::apply_recipe_history(const std::vector<RecipeHistoryEntry>
         row.insert(QStringLiteral("seq"), QVariant::fromValue(entry.seq));
         row.insert(QStringLiteral("createdUnixMs"), QVariant::fromValue(entry.created_unix_ms));
         row.insert(QStringLiteral("summary"), summary);
-        recipe_history_.push_back(row);
+        state_.recipe_history_.push_back(row);
     }
 }
 
-void StudioPresenter::reload_recipe_history()
+void StudioDevelopPresenter::reload_recipe_history()
 {
     if (selected_asset_id_.isEmpty())
     {
-        recipe_history_.clear();
-        recipe_history_entries_.clear();
-        active_history_id_ = 0;
-        active_history_seq_ = 0;
+        state_.recipe_history_.clear();
+        state_.recipe_history_entries_.clear();
+        state_.active_history_id_ = 0;
+        state_.active_history_seq_ = 0;
         emit editChanged();
         return;
     }
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    const auto observed_head = loaded_recipe_history_head_;
+    const auto observed_head = state_.loaded_recipe_history_head_;
     executor_.post(
         [this, asset_id, observed_head]()
         {
             Result<std::vector<RecipeHistoryEntry>> history =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (service_ != nullptr)
+            if (host_.develop_service() != nullptr)
             {
-                history = service_->develop().list_recipe_history(asset_id);
+                history = host_.develop_service()->list_recipe_history(asset_id);
             }
             QMetaObject::invokeMethod(
                 this,
                 [this, asset_id, observed_head, history = std::move(history)]() mutable
                 {
                     if (utf8_from_qstring(selected_asset_id_) != asset_id ||
-                        loaded_recipe_history_head_ != observed_head)
+                        state_.loaded_recipe_history_head_ != observed_head)
                     {
                         return;
                     }
                     if (history)
                     {
                         apply_recipe_history(history.value());
-                        loaded_recipe_history_head_ =
+                        state_.loaded_recipe_history_head_ =
                             history.value().empty() ? 0 : history.value().front().id;
                     }
                     else
                     {
-                        recipe_history_.clear();
-                        recipe_history_entries_.clear();
+                        state_.recipe_history_.clear();
+                        state_.recipe_history_entries_.clear();
                     }
                     sync_active_history();
                     emit editChanged();
@@ -473,14 +474,14 @@ void StudioPresenter::reload_recipe_history()
         TaskPriority::kForeground);
 }
 
-bool StudioPresenter::cropToolActive() const noexcept
+bool StudioDevelopPresenter::cropToolActive() const noexcept
 {
-    return crop_tool_active_;
+    return state_.crop_tool_active_;
 }
 
-bool StudioPresenter::cropGuideReady() const noexcept
+bool StudioDevelopPresenter::cropGuideReady() const noexcept
 {
-    return crop_guide_ready_;
+    return state_.crop_guide_ready_;
 }
 
 } // namespace ravo

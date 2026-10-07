@@ -9,7 +9,7 @@ ColumnLayout {
     property var commands
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
-    readonly property var history: hasPresenter ? presenter.recipeHistory : []
+    readonly property var history: hasPresenter ? presenter.develop.recipeHistory : []
     readonly property var historyEntries: {
         const all = root.history;
         const out = [];
@@ -37,8 +37,8 @@ ColumnLayout {
         }
         return out;
     }
-    readonly property var activeId: hasPresenter ? presenter.activeHistoryId : 0
-    readonly property var activeSeq: hasPresenter ? presenter.activeHistorySeq : 0
+    readonly property var activeId: hasPresenter ? presenter.develop.activeHistoryId : 0
+    readonly property var activeSeq: hasPresenter ? presenter.develop.activeHistorySeq : 0
     spacing: 0
 
     function entryText(entry, snapshotList) {
@@ -161,7 +161,7 @@ ColumnLayout {
             Layout.preferredWidth: 1
             Layout.minimumWidth: 0
             text: qsTr("Undo")
-            enabled: root.hasPresenter && root.presenter.canUndo
+            enabled: root.hasPresenter && root.presenter.develop.canUndo
             onClicked: if (root.commands)
                 root.commands.undo.trigger()
         }
@@ -170,7 +170,7 @@ ColumnLayout {
             Layout.preferredWidth: 1
             Layout.minimumWidth: 0
             text: qsTr("Redo")
-            enabled: root.hasPresenter && root.presenter.canRedo
+            enabled: root.hasPresenter && root.presenter.develop.canRedo
             onClicked: if (root.commands)
                 root.commands.redo.trigger()
         }
@@ -178,7 +178,7 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             Layout.minimumWidth: 0
-            text: root.hasPresenter && root.presenter.beforeAfter ? qsTr("After") : qsTr("Before")
+            text: root.hasPresenter && root.presenter.develop.beforeAfter ? qsTr("After") : qsTr("Before")
             enabled: root.hasSelection
             onClicked: if (root.commands)
                 root.commands.beforeAfter.trigger()
@@ -302,7 +302,7 @@ ColumnLayout {
             Layout.minimumWidth: 0
             objectName: "copyParametersButton"
             text: qsTr("Copy Parameters")
-            enabled: root.hasPresenter && root.presenter.modifiedParameterChoices.length > 0 && root.hasSelection && root.commands
+            enabled: root.hasPresenter && root.presenter.develop.modifiedParameterChoices.length > 0 && root.hasSelection && root.commands
             onClicked: if (root.commands)
                 root.commands.copyParameters.trigger()
         }
@@ -312,7 +312,7 @@ ColumnLayout {
             Layout.minimumWidth: 0
             objectName: "pasteParametersButton"
             text: qsTr("Paste Parameters")
-            enabled: root.hasPresenter && root.presenter.hasCopiedParameters && root.hasSelection && root.commands
+            enabled: root.hasPresenter && root.presenter.develop.hasCopiedParameters && root.hasSelection && root.commands
             onClicked: if (root.commands)
                 root.commands.pasteParameters.trigger()
         }

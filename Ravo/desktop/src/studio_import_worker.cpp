@@ -1,3 +1,4 @@
+#include "studio_import_workspace.h"
 #include "studio_import_worker.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "studio_qt.h"
@@ -19,7 +20,7 @@ StudioPresenter::make_catalog_service(const std::string &path, const bool create
     }
     // Cancellation is issued on the UI thread before switching catalogs. Drain
     // old import/cache publications before indexing a replacement cache owner.
-    import_worker_->executor().submit([] {});
+    import_workspace_->worker->executor().submit([] {});
     auto repository =
         create ? SqliteCatalogRepository::create(path) : SqliteCatalogRepository::open(path);
     if (!repository)

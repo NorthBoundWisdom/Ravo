@@ -1215,7 +1215,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         return false;
     }
     presenter->setBrowseMode(QStringLiteral("develop"));
-    presenter->setCropToolActive(true);
+    presenter->develop()->setCropToolActive(true);
     auto *pinned = window->findChild<QQuickItem *>(QStringLiteral("pinnedCropPanel"));
     auto *develop_scroll = window->findChild<QQuickItem *>(QStringLiteral("developPanelScroller"));
     auto *plane = window->findChild<QQuickItem *>(QStringLiteral("photoInspectPlane"));
@@ -1223,8 +1223,8 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         !wait_ready(
             [&]
             {
-                return !presenter->previewLoading() && !presenter->cropPreviewLayout().isEmpty() &&
-                       pinned->isVisible();
+                return !presenter->previewLoading() &&
+                       !presenter->inspect()->cropPreviewLayout().isEmpty() && pinned->isVisible();
             }))
         return false;
     for (const auto *name : {"cropAspectRatio", "cropAutoLevel", "cropFineRotation"})
@@ -1237,7 +1237,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         }
     }
     const auto *stage = plane->parentItem();
-    const auto geometry = presenter->cropPreviewLayout();
+    const auto geometry = presenter->inspect()->cropPreviewLayout();
     const double old_width =
         std::min(stage->width(), stage->height()) * geometry.value("widthScale").toDouble();
     const double old_height =
@@ -1255,7 +1255,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     develop_scroll->setProperty("contentY", 200.0);
     if (std::abs(pinned->y() - pinned_y) > .1)
         return false;
-    presenter->setCropToolActive(false);
+    presenter->develop()->setCropToolActive(false);
     if (pinned->isVisible() || !wait_ready([&] { return !presenter->previewLoading(); }))
         return false;
     return true;

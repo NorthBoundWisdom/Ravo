@@ -148,7 +148,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         request.asset_id = std::string(flags.asset_id);
         if (!flags.output.empty())
             request.output_path = std::string(flags.output);
-        auto converted = service.convert_asset_to_dng(request);
+        auto converted = service.conversion().convert_asset_to_dng(request);
         if (!converted)
             return converted.error();
         return JsonValue{JsonValue::Object{
@@ -179,12 +179,12 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         {
             SmartPreviewEnsureRequest request;
             request.asset_id = std::string(flags.asset_id);
-            auto ensured = service.ensure_smart_preview(request);
+            auto ensured = service.conversion().ensure_smart_preview(request);
             if (!ensured)
                 return ensured.error();
             return smart_preview_status_json(ensured.value());
         }
-        auto status = service.smart_preview_status(flags.asset_id);
+        auto status = service.conversion().smart_preview_status(flags.asset_id);
         if (!status)
             return status.error();
         return smart_preview_status_json(status.value());
@@ -209,7 +209,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         if (flags.max_edge)
             request.max_edge = *flags.max_edge;
         // v1 profile is fixed to srgb (ADR-0146); do not reuse export delivery flags.
-        auto created = service.create_offline_edit_proxy(request);
+        auto created = service.offline().create_offline_edit_proxy(request);
         if (!created)
             return created.error();
         return JsonValue{JsonValue::Object{
@@ -219,7 +219,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
     }
     if (subcommand == "offline-proxy-list")
     {
-        auto listed = service.list_offline_edit_proxies();
+        auto listed = service.offline().list_offline_edit_proxies();
         if (!listed)
             return listed.error();
         JsonValue::Array items;
@@ -246,7 +246,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog offline-proxy-verify requires --asset-id");
         }
-        auto status = service.verify_offline_edit_proxy(flags.asset_id);
+        auto status = service.offline().verify_offline_edit_proxy(flags.asset_id);
         if (!status)
             return status.error();
         return offline_proxy_status_json(status.value());
@@ -268,7 +268,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         request.asset_id = std::string(flags.asset_id);
         request.user_initiated = true;
         request.clear_proxy = flags.clear_proxy;
-        auto reconnected = service.reconnect_offline_edit_proxy(request);
+        auto reconnected = service.offline().reconnect_offline_edit_proxy(request);
         if (!reconnected)
             return reconnected.error();
         return JsonValue{JsonValue::Object{
@@ -296,7 +296,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         request.asset_id = std::string(flags.asset_id);
         request.user_initiated = true;
         request.force = flags.force;
-        auto deleted = service.delete_offline_edit_proxy(request);
+        auto deleted = service.offline().delete_offline_edit_proxy(request);
         if (!deleted)
             return deleted.error();
         return JsonValue{JsonValue::Object{
@@ -322,7 +322,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         request.asset_id = std::string(flags.asset_id);
         request.user_initiated = true;
         request.pinned = !flags.unpin;
-        auto pinned = service.pin_offline_edit_proxy(request);
+        auto pinned = service.offline().pin_offline_edit_proxy(request);
         if (!pinned)
             return pinned.error();
         return JsonValue{JsonValue::Object{
@@ -347,7 +347,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         OfflineEditProxyEvictRequest request;
         request.user_initiated = true;
         request.max_total_bytes = *flags.max_total_bytes;
-        auto evicted = service.evict_offline_edit_proxies(request);
+        auto evicted = service.offline().evict_offline_edit_proxies(request);
         if (!evicted)
             return evicted.error();
         JsonValue::Array evicted_ids;
@@ -383,7 +383,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
             return kind.error();
         request.source_kind = kind.value();
     }
-    auto converted = service.convert_foreign_catalog(request);
+    auto converted = service.conversion().convert_foreign_catalog(request);
     if (!converted)
         return converted.error();
     return report_json(converted.value());

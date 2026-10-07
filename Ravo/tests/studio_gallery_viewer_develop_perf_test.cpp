@@ -191,12 +191,12 @@ TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
         ASSERT_TRUE(
             wait_until([&] { return !setup.previewLoading() && !setup.previewImage().isNull(); }))
             << setup.errorText().toStdString();
-        setup.setDevelopNumber(QStringLiteral("exposure"), 1.0);
+        setup.develop()->setDevelopNumber(QStringLiteral("exposure"), 1.0);
         ASSERT_TRUE(wait_until(
             [&]
             {
                 return !setup.previewLoading() && setup.previewUrl().isLocalFile() &&
-                       std::abs(setup.editExposure() - 1.0) < 1.0e-9;
+                       std::abs(setup.develop()->editExposure() - 1.0) < 1.0e-9;
             }))
             << setup.errorText().toStdString();
     }
@@ -236,7 +236,7 @@ TEST(StudioPresenterTest, DevelopFirstFrameWaitsForSelectedRecipePublication)
     ASSERT_TRUE(wait_until(
         [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
         << presenter.errorText().toStdString();
-    ASSERT_NEAR(presenter.editExposure(), 1.0, 1.0e-9);
+    ASSERT_NEAR(presenter.develop()->editExposure(), 1.0, 1.0e-9);
     const QImage settled = presenter.previewImage();
     ASSERT_FALSE(settled.isNull());
     const QColor settled_center = settled.pixelColor(settled.width() / 2, settled.height() / 2);
@@ -467,7 +467,7 @@ TEST(StudioRapidRawTonePerformanceProbe, MeasuresAllToneControls)
         30000));
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until([&] { return preview_settled(presenter); }, 30000));
-    ASSERT_TRUE(presenter.editRapidRawToneControlsEnabled());
+    ASSERT_TRUE(presenter.develop()->editRapidRawToneControlsEnabled());
 
     const std::array<QString, 7> fields{
         QStringLiteral("rapidrawEvShift"),  QStringLiteral("rapidrawExposure"),
@@ -476,10 +476,10 @@ TEST(StudioRapidRawTonePerformanceProbe, MeasuresAllToneControls)
         QStringLiteral("rapidrawBlacks"),
     };
     const std::array<double, 7> baselines{
-        presenter.editRapidRawEvShift(),  presenter.editRapidRawExposure(),
-        presenter.editRapidRawContrast(), presenter.editRapidRawHighlights(),
-        presenter.editRapidRawShadows(),  presenter.editRapidRawWhites(),
-        presenter.editRapidRawBlacks(),
+        presenter.develop()->editRapidRawEvShift(),  presenter.develop()->editRapidRawExposure(),
+        presenter.develop()->editRapidRawContrast(), presenter.develop()->editRapidRawHighlights(),
+        presenter.develop()->editRapidRawShadows(),  presenter.develop()->editRapidRawWhites(),
+        presenter.develop()->editRapidRawBlacks(),
     };
     std::vector<std::int64_t> samples;
     samples.reserve(runs);
@@ -492,8 +492,8 @@ TEST(StudioRapidRawTonePerformanceProbe, MeasuresAllToneControls)
         const double delta = direction * magnitude * (index < 2U ? 0.01 : 1.0);
         const QUrl previous = presenter.previewUrl();
         auto elapsed = measure_until(
-            presenter,
-            [&] { presenter.previewDevelopNumber(fields[index], baselines[index] + delta); },
+            presenter, [&]
+            { presenter.develop()->previewDevelopNumber(fields[index], baselines[index] + delta); },
             [&]
             {
                 const QUrl current = presenter.previewUrl();

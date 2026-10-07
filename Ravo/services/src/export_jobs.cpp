@@ -1,4 +1,10 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/exports_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/preview_service.h"
 
 #include <filesystem>
 #include <set>
@@ -38,8 +44,8 @@ namespace
 
 } // namespace
 
-Result<ExportJob> CatalogService::create_export_job(const ExportBatchRequest &request,
-                                                    std::string job_id)
+Result<ExportJob> ExportService::create_export_job(const ExportBatchRequest &request,
+                                                   std::string job_id)
 {
     if (job_id.empty())
         return make_error(ErrorCode::kInvalidArgument, "Export job requires a job id",
@@ -102,14 +108,14 @@ Result<ExportJob> CatalogService::create_export_job(const ExportBatchRequest &re
     return job;
 }
 
-Result<ExportJob> CatalogService::run_export_job(
+Result<ExportJob> ExportService::run_export_job(
     ExportJob job,
     const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress)
 {
     return resume_export_job(std::move(job), progress);
 }
 
-Result<ExportJob> CatalogService::resume_export_job(
+Result<ExportJob> ExportService::resume_export_job(
     ExportJob job,
     const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress)
 {

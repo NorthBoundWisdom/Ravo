@@ -1,4 +1,13 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/conversion_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/develop_service.h"
+#include "ravo/services/import_service.h"
+#include "ravo/services/library_service.h"
+#include "ravo/services/metadata_service.h"
 
 #include "catalog_internal.h"
 #include "catalog_service_internal.h"
@@ -23,6 +32,19 @@
 
 namespace ravo
 {
+
+ConversionService::ConversionService(const std::unique_ptr<CatalogRepository> &repository,
+                                     DevelopService &develop_service, ImportService &import_service,
+                                     LibraryService &library_service,
+                                     MetadataService &metadata_service) noexcept
+    : repository_(repository)
+    , develop_service_(develop_service)
+    , import_service_(import_service)
+    , library_service_(library_service)
+    , metadata_service_(metadata_service)
+{
+}
+
 namespace
 {
 
@@ -502,7 +524,7 @@ Result<ForeignCatalogSourceKind> parse_foreign_catalog_source_kind(const std::st
 }
 
 Result<ForeignCatalogConversionReport>
-CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &request)
+ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -536,7 +558,7 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
     auto snapshot = repository_->snapshot();
     if (!snapshot)
         return snapshot.error();
-    auto existing = list_assets();
+    auto existing = library_service_.list_assets();
     if (!existing)
         return existing.error();
     if (!existing.value().empty())
@@ -619,8 +641,8 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
             continue;
         }
 
-        auto imported = import_one(original.value(), request.cancellation, request.preview,
-                                   request.defer_previews);
+        auto imported = import_service_.import_one(original.value(), request.cancellation,
+                                                   request.preview, request.defer_previews);
         if (!imported)
         {
             row.status = imported.error().code == ErrorCode::kCancelled ?
@@ -656,7 +678,7 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
 
         if (item.rating)
         {
-            auto rated = set_rating(asset_id, *item.rating);
+            auto rated = library_service_.set_rating(asset_id, *item.rating);
             if (!rated)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
@@ -669,7 +691,7 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
         }
         if (item.color_label)
         {
-            auto labeled = set_color_label(asset_id, *item.color_label);
+            auto labeled = library_service_.set_color_label(asset_id, *item.color_label);
             if (!labeled)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
@@ -682,7 +704,7 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
         }
         if (item.rejected)
         {
-            auto flagged = set_rejected(asset_id, *item.rejected);
+            auto flagged = library_service_.set_rejected(asset_id, *item.rejected);
             if (!flagged)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
@@ -695,7 +717,7 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
         }
         if (has_writable_metadata(item.metadata))
         {
-            auto written = set_writable_metadata(asset_id, item.metadata);
+            auto written = metadata_service_.set_writable_metadata(asset_id, item.metadata);
             if (!written)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
@@ -723,7 +745,7 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
         }
         if (!item.keywords.empty())
         {
-            auto tagged = set_tags(asset_id, item.keywords);
+            auto tagged = metadata_service_.set_tags(asset_id, item.keywords);
             if (!tagged)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
@@ -772,7 +794,7 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
                 }
                 else
                 {
-                    auto loaded = load_recipe(asset_id);
+                    auto loaded = develop_service_.load_recipe(asset_id);
                     if (!loaded)
                     {
                         row.status = ForeignCatalogItemStatus::kFailed;
@@ -806,7 +828,7 @@ CatalogService::convert_foreign_catalog(const ForeignCatalogConversionRequest &r
                     else
                     {
                         apply_crs_look(params.value(), crs.value().look, crs.value().mask);
-                        auto saved = save_develop(asset_id, params.value());
+                        auto saved = develop_service_.save_develop(asset_id, params.value());
                         if (!saved)
                         {
                             row.status = ForeignCatalogItemStatus::kFailed;

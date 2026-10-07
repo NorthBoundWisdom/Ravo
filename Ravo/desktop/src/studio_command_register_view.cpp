@@ -52,8 +52,8 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.setDevelopText(fields.value(QStringLiteral("name")).toString(),
-                                      fields.value(QStringLiteral("value")).toString());
+            presenter_.develop()->setDevelopText(fields.value(QStringLiteral("name")).toString(),
+                                                 fields.value(QStringLiteral("value")).toString());
         });
     add(
         command::kPhotoSelect, Condition::kCatalogOpen,
@@ -258,7 +258,7 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                        QStringLiteral("A non-negative integer history ID is required.");
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.restoreHistory(argument.toInt()); });
+        { presenter_.develop()->restoreHistory(argument.toInt()); });
     const auto optional_advance = [](const QVariant &argument)
     {
         return !argument.isValid() || argument.metaType().id() == QMetaType::Bool ?
@@ -604,8 +604,8 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         [this](const QVariant &argument, const QString &)
         {
             // Enter confirms a crop in Develop; E always enters the Library loupe.
-            if (!argument.isValid() && presenter_.cropToolActive())
-                presenter_.setCropToolActive(false);
+            if (!argument.isValid() && presenter_.develop()->cropToolActive())
+                presenter_.develop()->setCropToolActive(false);
             presenter_.openLoupe();
         });
     add(command::kViewSurvey, Condition::kSurveySelection, no_argument,
@@ -678,11 +678,11 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             return one_of(argument, values, QStringLiteral("scope mode"));
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.setScopeMode(argument.toString()); });
+        { presenter_.inspect()->setScopeMode(argument.toString()); });
     add(command::kEditUndo, Condition::kCanUndo, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.undoEdit(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->undoEdit(); });
     add(command::kEditRedo, Condition::kCanRedo, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.redoEdit(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->redoEdit(); });
     add(command::kEditCopyParameters, Condition::kModifiedParameters, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kEditCopyParameters, argument); });
@@ -696,18 +696,18 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                 for (const auto &field : argument.toStringList())
                     fields.push_back(field);
             }
-            presenter_.copyParametersSelected(fields);
+            presenter_.develop()->copyParametersSelected(fields);
         });
     add(command::kEditPasteParameters, Condition::kCanPasteParameters, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.pasteParameters(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->pasteParameters(); });
     add(command::kEditPasteParametersToSelection, Condition::kCanPasteParametersToSelection,
-        no_argument,
-        [this](const QVariant &, const QString &) { presenter_.pasteParametersToSelection(); });
+        no_argument, [this](const QVariant &, const QString &)
+        { presenter_.develop()->pasteParametersToSelection(); });
     add(command::kEditResetAll, Condition::kDevelopSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.resetAllEdits(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->resetAllEdits(); });
     add(command::kEditResetSection, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
-        { presenter_.resetSection(argument.toString()); });
+        { presenter_.develop()->resetSection(argument.toString()); });
     add(
         command::kEditSetSectionEnabled, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -727,12 +727,13 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.setSectionEffectEnabled(fields.value(QStringLiteral("section")).toString(),
-                                               fields.value(QStringLiteral("enabled")).toBool());
+            presenter_.develop()->setSectionEffectEnabled(
+                fields.value(QStringLiteral("section")).toString(),
+                fields.value(QStringLiteral("enabled")).toBool());
         });
     add(command::kEditResetControl, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
-        { presenter_.resetControl(argument.toString()); });
+        { presenter_.develop()->resetControl(argument.toString()); });
     add(
         command::kEditSetNumber, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -759,9 +760,9 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                 return;
             }
             if (fields.value(QStringLiteral("live")).toBool())
-                presenter_.previewDevelopNumber(name, value);
+                presenter_.develop()->previewDevelopNumber(name, value);
             else
-                presenter_.setDevelopNumber(name, value);
+                presenter_.develop()->setDevelopNumber(name, value);
         });
     add(
         command::kEditSetNumbers, Condition::kDevelopSelection,
@@ -789,9 +790,9 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             const auto payload = argument.toMap();
             const auto fields = payload.value(QStringLiteral("fields")).toMap();
             if (payload.value(QStringLiteral("live")).toBool())
-                presenter_.previewDevelopNumbers(fields);
+                presenter_.develop()->previewDevelopNumbers(fields);
             else
-                presenter_.setDevelopNumbers(fields);
+                presenter_.develop()->setDevelopNumbers(fields);
         });
     // clang-format off
     const auto validate_preview_xy =
@@ -812,28 +813,28 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         },
         [this](const QVariant &a, const QString &) {
             const auto fields = a.toMap();
-            presenter_.pickWhiteBalance(fields.value(QStringLiteral("x")).toDouble(),
+            presenter_.develop()->pickWhiteBalance(fields.value(QStringLiteral("x")).toDouble(),
                                         fields.value(QStringLiteral("y")).toDouble());
         });
     add(command::kEditSetWhiteBalancePick, Condition::kDevelopSelection,
         [&validate_bool](const QVariant &a) {
             return validate_bool(a, QStringLiteral("White-balance pick state must be boolean."));
         },
-        [this](const QVariant &a, const QString &) { presenter_.setWhiteBalancePickActive(a.toBool()); });
+        [this](const QVariant &a, const QString &) { presenter_.develop()->setWhiteBalancePickActive(a.toBool()); });
     add(command::kEditPlaceMask, Condition::kDevelopSelection,
         [&validate_preview_xy](const QVariant &a) {
             return validate_preview_xy(a, QStringLiteral("Mask place X"), QStringLiteral("Mask place Y"));
         },
         [this](const QVariant &a, const QString &) {
             const auto fields = a.toMap();
-            presenter_.placeMask(fields.value(QStringLiteral("x")).toDouble(),
+            presenter_.develop()->placeMask(fields.value(QStringLiteral("x")).toDouble(),
                                  fields.value(QStringLiteral("y")).toDouble());
         });
     add(command::kEditSetMaskPlace, Condition::kDevelopSelection,
         [&validate_bool](const QVariant &a) {
             return validate_bool(a, QStringLiteral("Mask place state must be boolean."));
         },
-        [this](const QVariant &a, const QString &) { presenter_.setMaskPlaceActive(a.toBool()); });
+        [this](const QVariant &a, const QString &) { presenter_.develop()->setMaskPlaceActive(a.toBool()); });
     add(command::kEditAssistParametricMask, Condition::kDevelopSelection,
         [&validate_preview_xy](const QVariant &a) {
             return validate_preview_xy(a, QStringLiteral("Parametric assist X"),
@@ -841,7 +842,7 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         },
         [this](const QVariant &a, const QString &) {
             const auto fields = a.toMap();
-            presenter_.assistParametricMask(fields.value(QStringLiteral("x")).toDouble(),
+            presenter_.develop()->assistParametricMask(fields.value(QStringLiteral("x")).toDouble(),
                                             fields.value(QStringLiteral("y")).toDouble());
         });
     add(command::kEditSetMaskParametricAssist, Condition::kDevelopSelection,
@@ -849,7 +850,7 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             return validate_bool(a, QStringLiteral("Mask parametric assist state must be boolean."));
         },
         [this](const QVariant &a, const QString &) {
-            presenter_.setMaskParametricAssistActive(a.toBool());
+            presenter_.develop()->setMaskParametricAssistActive(a.toBool());
         });
     // clang-format on
     add(
@@ -872,17 +873,17 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             if (fields.value(QStringLiteral("live")).toBool())
             {
                 if (family.isEmpty())
-                    presenter_.previewToneCurve(points);
+                    presenter_.develop()->previewToneCurve(points);
                 else
-                    presenter_.previewCurvePoints(family, channel, points);
+                    presenter_.develop()->previewCurvePoints(family, channel, points);
             }
             else if (family.isEmpty())
             {
-                presenter_.setToneCurve(points);
+                presenter_.develop()->setToneCurve(points);
             }
             else
             {
-                presenter_.setCurvePoints(family, channel, points);
+                presenter_.develop()->setCurvePoints(family, channel, points);
             }
         });
     add(
@@ -899,7 +900,7 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                  QStringLiteral("fillBrightness")});
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.addRetouchRegion(argument.toMap()); });
+        { presenter_.develop()->addRetouchRegion(argument.toMap()); });
     add(
         command::kEditRemoveRetouchRegion, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -912,7 +913,7 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                        QStringLiteral("Retouch region index must be a non-negative integer.");
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.removeRetouchRegion(argument.toInt()); });
+        { presenter_.develop()->removeRetouchRegion(argument.toInt()); });
     add(
         command::kEditSetCrop, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -942,13 +943,13 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             const double width = fields.value(QStringLiteral("width")).toDouble();
             const double height = fields.value(QStringLiteral("height")).toDouble();
             if (fields.value(QStringLiteral("live")).toBool())
-                presenter_.previewCropRect(x, y, width, height);
+                presenter_.develop()->previewCropRect(x, y, width, height);
             else
-                presenter_.setCropRect(x, y, width, height);
+                presenter_.develop()->setCropRect(x, y, width, height);
         });
     add(command::kEditSetCropAspect, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
-        { presenter_.setCropAspect(argument.toString()); });
+        { presenter_.develop()->setCropAspect(argument.toString()); });
     add(
         command::kEditAutoPerspective, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -961,15 +962,15 @@ void StudioCommandController::registerViewCommands(const command_registration::H
                            "Perspective mode must be vertical, horizontal, full, or level.");
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.autoPerspective(argument.toString()); });
+        { presenter_.develop()->autoPerspective(argument.toString()); });
     add(command::kEditRotateLeft, Condition::kDevelopSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.rotateLeft(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->rotateLeft(); });
     add(command::kEditRotateRight, Condition::kDevelopSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.rotateRight(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->rotateRight(); });
     add(command::kEditFlipHorizontal, Condition::kDevelopSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.flipHorizontal(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->flipHorizontal(); });
     add(command::kEditFlipVertical, Condition::kDevelopSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.flipVertical(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->flipVertical(); });
     add(
         command::kEditCropTool, Condition::kSelection,
         [](const QVariant &argument)
@@ -983,17 +984,18 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             presenter_.openDevelop();
             if (argument.isValid())
             {
-                presenter_.setCropToolActive(argument.toBool());
+                presenter_.develop()->setCropToolActive(argument.toBool());
                 return;
             }
             // R always enters crop. Menu/button still toggle so Done can exit.
-            presenter_.setCropToolActive(
-                source == QLatin1String("keyboard") ? true : !presenter_.cropToolActive());
+            presenter_.develop()->setCropToolActive(source == QLatin1String("keyboard") ?
+                                                        true :
+                                                        !presenter_.develop()->cropToolActive());
         });
     add(command::kEditBeforeAfter, Condition::kDevelop, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.toggleBeforeAfter(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->toggleBeforeAfter(); });
     add(command::kEditComparison, Condition::kDevelopSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.toggleComparison(); });
+        [this](const QVariant &, const QString &) { presenter_.develop()->toggleComparison(); });
     add(command::kWindowSettings, Condition::kAlways, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kWindowSettings, argument); });

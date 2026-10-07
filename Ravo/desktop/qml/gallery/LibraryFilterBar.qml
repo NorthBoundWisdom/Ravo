@@ -23,26 +23,26 @@ Item {
         return 0;
     }
 
-    readonly property int cameraFacetCount: !root.hasPresenter || root.presenter.cameraFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.cameraFacets, function (entry) {
-        return (entry.cameraMake || "") === root.presenter.cameraMakeFilter && (entry.cameraModel || "") === root.presenter.cameraModelFilter;
+    readonly property int cameraFacetCount: !root.hasPresenter || root.presenter.library.cameraFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.library.cameraFacets, function (entry) {
+        return (entry.cameraMake || "") === root.presenter.library.cameraMakeFilter && (entry.cameraModel || "") === root.presenter.library.cameraModelFilter;
     })
-    readonly property int lensFacetCount: !root.hasPresenter || root.presenter.lensFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.lensFacets, function (entry) {
-        return Math.abs(entry.focalLengthMm - Number(root.presenter.lensFilter)) < 0.000000001;
+    readonly property int lensFacetCount: !root.hasPresenter || root.presenter.library.lensFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.library.lensFacets, function (entry) {
+        return Math.abs(entry.focalLengthMm - Number(root.presenter.library.lensFilter)) < 0.000000001;
     })
-    readonly property int lensNameFacetCount: !root.hasPresenter || (root.presenter.lensMakeFilter.length === 0 && root.presenter.lensModelFilter.length === 0) ? -1 : root.matchingFacetCount(root.presenter.lensNameFacets, function (entry) {
-        return (entry.lensMake || "") === root.presenter.lensMakeFilter && (entry.lensModel || "") === root.presenter.lensModelFilter;
+    readonly property int lensNameFacetCount: !root.hasPresenter || (root.presenter.library.lensMakeFilter.length === 0 && root.presenter.library.lensModelFilter.length === 0) ? -1 : root.matchingFacetCount(root.presenter.library.lensNameFacets, function (entry) {
+        return (entry.lensMake || "") === root.presenter.library.lensMakeFilter && (entry.lensModel || "") === root.presenter.library.lensModelFilter;
     })
-    readonly property int captureDateFacetCount: !root.hasPresenter || root.presenter.captureDateFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.captureDateFacets, function (entry) {
-        return entry.captureDate === root.presenter.captureDateFilter;
+    readonly property int captureDateFacetCount: !root.hasPresenter || root.presenter.library.captureDateFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.library.captureDateFacets, function (entry) {
+        return entry.captureDate === root.presenter.library.captureDateFilter;
     })
-    readonly property int locationFacetCount: !root.hasPresenter || root.presenter.locationFilter.length === 0 ? -1 : root.presenter.sublocationFilter.length > 0 ? root.matchingFacetCount(root.presenter.sublocationFacets, function (entry) {
-        return entry.key === root.presenter.sublocationFilter;
-    }) : root.presenter.cityFilter.length > 0 ? root.matchingFacetCount(root.presenter.cityFacets, function (entry) {
-        return entry.key === root.presenter.cityFilter;
-    }) : root.presenter.provinceStateFilter.length > 0 ? root.matchingFacetCount(root.presenter.provinceStateFacets, function (entry) {
-        return entry.key === root.presenter.provinceStateFilter;
-    }) : root.matchingFacetCount(root.presenter.countryFacets, function (entry) {
-        return entry.key === root.presenter.countryFilter;
+    readonly property int locationFacetCount: !root.hasPresenter || root.presenter.library.locationFilter.length === 0 ? -1 : root.presenter.library.sublocationFilter.length > 0 ? root.matchingFacetCount(root.presenter.library.sublocationFacets, function (entry) {
+        return entry.key === root.presenter.library.sublocationFilter;
+    }) : root.presenter.library.cityFilter.length > 0 ? root.matchingFacetCount(root.presenter.library.cityFacets, function (entry) {
+        return entry.key === root.presenter.library.cityFilter;
+    }) : root.presenter.library.provinceStateFilter.length > 0 ? root.matchingFacetCount(root.presenter.library.provinceStateFacets, function (entry) {
+        return entry.key === root.presenter.library.provinceStateFilter;
+    }) : root.matchingFacetCount(root.presenter.library.countryFacets, function (entry) {
+        return entry.key === root.presenter.library.countryFilter;
     })
 
     implicitHeight: Math.max(Fonts.toolbarHeight, Fonts.inputFieldHeight + Fonts.size12)
@@ -53,29 +53,29 @@ Item {
         if (!root.hasPresenter)
             return false;
         if (id === "search")
-            return root.presenter.filterText.length > 0;
+            return root.presenter.library.filterText.length > 0;
         if (id === "type")
-            return root.presenter.mediaFilter !== "any";
+            return root.presenter.library.mediaFilter !== "any";
         if (id === "edits")
-            return root.presenter.editFilter !== "any";
+            return root.presenter.library.editFilter !== "any";
         if (id === "color")
-            return root.presenter.colorFilters.length > 0;
+            return root.presenter.library.colorFilters.length > 0;
         if (id === "rejected")
-            return root.presenter.rejectFilter !== "include";
+            return root.presenter.library.rejectFilter !== "include";
         if (id === "cullFlag")
-            return root.presenter.cullFlagFilter !== "any";
+            return root.presenter.library.cullFlagFilter !== "any";
         if (id === "cullSuggestion")
             return root.presenter.cullSuggestionFilter !== "none";
         if (id === "camera")
-            return root.presenter.cameraFilter.length > 0;
+            return root.presenter.library.cameraFilter.length > 0;
         if (id === "lens")
-            return root.presenter.lensFilter.length > 0;
+            return root.presenter.library.lensFilter.length > 0;
         if (id === "lensName")
-            return root.presenter.lensMakeFilter.length > 0 || root.presenter.lensModelFilter.length > 0;
+            return root.presenter.library.lensMakeFilter.length > 0 || root.presenter.library.lensModelFilter.length > 0;
         if (id === "captureDate")
-            return root.presenter.captureDateFilter.length > 0;
+            return root.presenter.library.captureDateFilter.length > 0;
         if (id === "location")
-            return root.presenter.locationFilter.length > 0;
+            return root.presenter.library.locationFilter.length > 0;
         return false;
     }
 
@@ -100,7 +100,7 @@ Item {
         else if (id === "rejected")
             root.commands.run(root.commands.ids.librarySetRejectFilter, "include");
         else if (id === "cullFlag" && root.hasPresenter)
-            root.presenter.setCullFlagFilter("any");
+            root.presenter.library.setCullFlagFilter("any");
         else if (id === "cullSuggestion" && root.hasPresenter)
             root.presenter.setCullSuggestionFilter("none");
         else if (id === "camera")
@@ -114,7 +114,7 @@ Item {
         else if (id === "location")
             root.commands.setLocationFacetFilter("", "", "", "");
         else if (id === "color" && root.hasPresenter) {
-            const colors = root.presenter.colorFilters.slice();
+            const colors = root.presenter.library.colorFilters.slice();
             for (let i = 0; i < colors.length; ++i)
                 root.commands.run(root.commands.ids.libraryToggleColorFilter, colors[i]);
         }
@@ -123,7 +123,7 @@ Item {
     function setRatingExact(value) {
         if (!root.commands)
             return;
-        const already = root.hasPresenter && root.presenter.ratingFilterMode === "exact" && root.presenter.ratingFilterValue === value;
+        const already = root.hasPresenter && root.presenter.library.ratingFilterMode === "exact" && root.presenter.library.ratingFilterValue === value;
         if (already)
             root.commands.run(root.commands.ids.librarySetRatingFilter, {
                 "mode": "any",
@@ -139,14 +139,14 @@ Item {
     function ratingStarActive(star) {
         if (!root.hasPresenter)
             return false;
-        if (root.presenter.ratingFilterMode === "exact")
-            return root.presenter.ratingFilterValue >= star && root.presenter.ratingFilterValue > 0;
-        if (root.presenter.ratingFilterMode === "min")
-            return root.presenter.ratingFilterValue >= star;
+        if (root.presenter.library.ratingFilterMode === "exact")
+            return root.presenter.library.ratingFilterValue >= star && root.presenter.library.ratingFilterValue > 0;
+        if (root.presenter.library.ratingFilterMode === "min")
+            return root.presenter.library.ratingFilterValue >= star;
         return false;
     }
 
-    readonly property bool ratingUnratedActive: root.hasPresenter && root.presenter.ratingFilterMode === "exact" && root.presenter.ratingFilterValue === 0
+    readonly property bool ratingUnratedActive: root.hasPresenter && root.presenter.library.ratingFilterMode === "exact" && root.presenter.library.ratingFilterValue === 0
 
     component FilterCloseButton: CustomButton {
         display: AbstractButton.IconOnly
@@ -266,7 +266,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("Search photos")
-                        text: root.hasPresenter ? root.presenter.filterText : ""
+                        text: root.hasPresenter ? root.presenter.library.filterText : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setTextFilter(text)
                     }
@@ -283,7 +283,7 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.preferredWidth: 105
                         model: [qsTr("Any type"), qsTr("RAW"), qsTr("JPEG"), qsTr("PNG"), qsTr("TIFF")]
-                        currentIndex: root.hasPresenter && root.presenter.mediaFilter === "raw" ? 1 : root.hasPresenter && root.presenter.mediaFilter === "jpeg" ? 2 : root.hasPresenter && root.presenter.mediaFilter === "png" ? 3 : root.hasPresenter && root.presenter.mediaFilter === "tiff" ? 4 : 0
+                        currentIndex: root.hasPresenter && root.presenter.library.mediaFilter === "raw" ? 1 : root.hasPresenter && root.presenter.library.mediaFilter === "jpeg" ? 2 : root.hasPresenter && root.presenter.library.mediaFilter === "png" ? 3 : root.hasPresenter && root.presenter.library.mediaFilter === "tiff" ? 4 : 0
                         onActivated: function (index) {
                             if (root.commands)
                                 root.commands.setMediaFilter(["any", "raw", "jpeg", "png", "tiff"][index]);
@@ -302,7 +302,7 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.preferredWidth: 115
                         model: [qsTr("Any edits"), qsTr("Edited"), qsTr("Unedited")]
-                        currentIndex: root.hasPresenter && root.presenter.editFilter === "edited" ? 1 : root.hasPresenter && root.presenter.editFilter === "unedited" ? 2 : 0
+                        currentIndex: root.hasPresenter && root.presenter.library.editFilter === "edited" ? 1 : root.hasPresenter && root.presenter.library.editFilter === "unedited" ? 2 : 0
                         onActivated: function (index) {
                             if (root.commands)
                                 root.commands.setEditFilter(index === 1 ? "edited" : (index === 2 ? "unedited" : "any"));
@@ -326,8 +326,8 @@ Item {
                             height: 18
                             radius: 9
                             color: root.swatchColor(modelData)
-                            border.width: root.hasPresenter && root.presenter.colorFilters.indexOf(modelData) >= 0 ? 2 : 1
-                            border.color: root.hasPresenter && root.presenter.colorFilters.indexOf(modelData) >= 0 ? Theme.textColor : Theme.dividerColor
+                            border.width: root.hasPresenter && root.presenter.library.colorFilters.indexOf(modelData) >= 0 ? 2 : 1
+                            border.color: root.hasPresenter && root.presenter.library.colorFilters.indexOf(modelData) >= 0 ? Theme.textColor : Theme.dividerColor
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: if (root.commands)
@@ -348,7 +348,7 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.preferredWidth: 120
                         model: [qsTr("Include"), qsTr("Exclude"), qsTr("Only")]
-                        currentIndex: root.hasPresenter && root.presenter.rejectFilter === "exclude" ? 1 : root.hasPresenter && root.presenter.rejectFilter === "only" ? 2 : 0
+                        currentIndex: root.hasPresenter && root.presenter.library.rejectFilter === "exclude" ? 1 : root.hasPresenter && root.presenter.library.rejectFilter === "only" ? 2 : 0
                         onActivated: function (index) {
                             if (root.commands)
                                 root.commands.run(root.commands.ids.librarySetRejectFilter, index === 1 ? "exclude" : (index === 2 ? "only" : "include"));
@@ -369,12 +369,12 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.preferredWidth: 140
                         model: [qsTr("Any review"), qsTr("Picked"), qsTr("Rejected"), qsTr("Unreviewed")]
-                        currentIndex: root.hasPresenter && root.presenter.cullFlagFilter === "picked" ? 1 : root.hasPresenter && root.presenter.cullFlagFilter === "rejected" ? 2 : root.hasPresenter && root.presenter.cullFlagFilter === "unreviewed" ? 3 : 0
+                        currentIndex: root.hasPresenter && root.presenter.library.cullFlagFilter === "picked" ? 1 : root.hasPresenter && root.presenter.library.cullFlagFilter === "rejected" ? 2 : root.hasPresenter && root.presenter.library.cullFlagFilter === "unreviewed" ? 3 : 0
                         onActivated: function (index) {
                             if (!root.hasPresenter)
                                 return;
                             const mode = index === 1 ? "picked" : index === 2 ? "rejected" : index === 3 ? "unreviewed" : "any";
-                            root.presenter.setCullFlagFilter(mode);
+                            root.presenter.library.setCullFlagFilter(mode);
                         }
                     }
                     FilterCloseButton {
@@ -418,7 +418,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("Camera make")
-                        text: root.hasPresenter ? root.presenter.cameraMakeFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.cameraMakeFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setCameraFacetFilter(text, cameraModelField.text)
                     }
@@ -431,7 +431,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("Camera model")
-                        text: root.hasPresenter ? root.presenter.cameraModelFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.cameraModelFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setCameraFacetFilter(cameraMakeField.text, text)
                     }
@@ -459,7 +459,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("Focal mm")
-                        text: root.hasPresenter ? root.presenter.lensFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.lensFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setLensFacetFilter(text)
                     }
@@ -488,7 +488,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("Lens make")
-                        text: root.hasPresenter ? root.presenter.lensMakeFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.lensMakeFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setLensNameFacetFilter(text, lensModelField.text)
                     }
@@ -501,7 +501,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("Lens model")
-                        text: root.hasPresenter ? root.presenter.lensModelFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.lensModelFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setLensNameFacetFilter(lensMakeField.text, text)
                     }
@@ -529,7 +529,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("YYYY:MM:DD")
-                        text: root.hasPresenter ? root.presenter.captureDateFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.captureDateFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setCaptureDateFacetFilter(text)
                     }
@@ -558,7 +558,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("Country")
-                        text: root.hasPresenter ? root.presenter.countryFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.countryFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setLocationFacetFilter(text, locationProvinceField.text, locationCityField.text, locationSublocationField.text)
                     }
@@ -571,7 +571,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("State")
-                        text: root.hasPresenter ? root.presenter.provinceStateFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.provinceStateFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setLocationFacetFilter(locationCountryField.text, text, locationCityField.text, locationSublocationField.text)
                     }
@@ -584,7 +584,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("City")
-                        text: root.hasPresenter ? root.presenter.cityFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.cityFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setLocationFacetFilter(locationCountryField.text, locationProvinceField.text, text, locationSublocationField.text)
                     }
@@ -597,7 +597,7 @@ Item {
                         showClipIndicator: false
                         alignRightWhenFocused: false
                         placeholderText: qsTr("Sublocation")
-                        text: root.hasPresenter ? root.presenter.sublocationFilter : ""
+                        text: root.hasPresenter ? root.presenter.library.sublocationFilter : ""
                         onEditingFinished: if (root.commands)
                             root.commands.setLocationFacetFilter(locationCountryField.text, locationProvinceField.text, locationCityField.text, text)
                     }
@@ -711,24 +711,24 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             model: [qsTr("Import time"), qsTr("Capture time"), qsTr("Filename"), qsTr("Rating"), qsTr("File size")]
             Layout.preferredWidth: 140
-            currentIndex: root.hasPresenter && root.presenter.sortField === "captured" ? 1 : root.hasPresenter && root.presenter.sortField === "name" ? 2 : root.hasPresenter && root.presenter.sortField === "rating" ? 3 : root.hasPresenter && root.presenter.sortField === "size" ? 4 : 0
+            currentIndex: root.hasPresenter && root.presenter.library.sortField === "captured" ? 1 : root.hasPresenter && root.presenter.library.sortField === "name" ? 2 : root.hasPresenter && root.presenter.library.sortField === "rating" ? 3 : root.hasPresenter && root.presenter.library.sortField === "size" ? 4 : 0
             onActivated: function (index) {
                 if (!root.commands || !root.hasPresenter)
                     return;
                 const field = ["imported", "captured", "name", "rating", "size"][index];
                 root.commands.run(root.commands.ids.librarySetSort, {
                     "field": field,
-                    "direction": root.presenter.sortDirection
+                    "direction": root.presenter.library.sortDirection
                 });
             }
         }
         CustomButton {
             Layout.alignment: Qt.AlignVCenter
-            text: root.hasPresenter && root.presenter.sortDirection === "asc" ? qsTr("Asc") : qsTr("Desc")
+            text: root.hasPresenter && root.presenter.library.sortDirection === "asc" ? qsTr("Asc") : qsTr("Desc")
             onClicked: if (root.commands && root.hasPresenter)
                 root.commands.run(root.commands.ids.librarySetSort, {
-                    "field": root.presenter.sortField,
-                    "direction": root.presenter.sortDirection === "asc" ? "desc" : "asc"
+                    "field": root.presenter.library.sortField,
+                    "direction": root.presenter.library.sortDirection === "asc" ? "desc" : "asc"
                 })
         }
     }

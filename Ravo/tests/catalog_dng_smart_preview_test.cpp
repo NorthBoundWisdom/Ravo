@@ -33,7 +33,7 @@ namespace
 
 [[nodiscard]] std::string original_path_for(CatalogService &service, const std::string &asset_id)
 {
-    auto assets = service.list_assets();
+    auto assets = service.library().list_assets();
     EXPECT_TRUE(assets) << assets.error().message;
     for (const auto &asset : assets.value())
     {
@@ -54,7 +54,7 @@ TEST_F(CatalogServiceTest, DngConvertFailsClosedWithoutPackagedConverterAndKeeps
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(12, 34, 56)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -69,7 +69,7 @@ TEST_F(CatalogServiceTest, DngConvertFailsClosedWithoutPackagedConverterAndKeeps
 
     DngConversionRequest request;
     request.asset_id = asset_id;
-    auto converted = service->convert_asset_to_dng(request);
+    auto converted = service->conversion().convert_asset_to_dng(request);
     ASSERT_TRUE(converted) << converted.error().message;
     EXPECT_EQ(converted.value().asset_id, asset_id);
     EXPECT_FALSE(converted.value().converter_available);
@@ -85,7 +85,7 @@ TEST_F(CatalogServiceTest, DngConvertFailsClosedWithoutPackagedConverterAndKeeps
     EXPECT_EQ(after_identity.value().size_bytes, before_identity.value().size_bytes);
     EXPECT_EQ(after_identity.value().mtime_unix_ms, before_identity.value().mtime_unix_ms);
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_EQ(assets.value().size(), 1U);
 }
@@ -95,14 +95,14 @@ TEST_F(CatalogServiceTest, SmartPreviewNeverAllowsDevelopFallback)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "browse.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(90, 10, 10)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     EXPECT_FALSE(smart_preview_encoder_is_packaged());
 
-    auto status = service->smart_preview_status(asset_id);
+    auto status = service->conversion().smart_preview_status(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     EXPECT_EQ(status.value().asset_id, asset_id);
     EXPECT_FALSE(status.value().encoder_available);
@@ -112,7 +112,7 @@ TEST_F(CatalogServiceTest, SmartPreviewNeverAllowsDevelopFallback)
 
     SmartPreviewEnsureRequest ensure;
     ensure.asset_id = asset_id;
-    auto ensured = service->ensure_smart_preview(ensure);
+    auto ensured = service->conversion().ensure_smart_preview(ensure);
     ASSERT_TRUE(ensured) << ensured.error().message;
     EXPECT_FALSE(ensured.value().encoder_available);
     EXPECT_FALSE(ensured.value().present);
@@ -125,7 +125,7 @@ TEST_F(CatalogServiceTest, DngConvertRejectsMissingAsset)
     ASSERT_TRUE(open_service(true));
     DngConversionRequest request;
     request.asset_id = "missing-asset";
-    auto converted = service->convert_asset_to_dng(request);
+    auto converted = service->conversion().convert_asset_to_dng(request);
     ASSERT_FALSE(converted);
     EXPECT_EQ(converted.error().code, ErrorCode::kNotFound);
 }
@@ -135,7 +135,7 @@ TEST_F(CatalogServiceTest, BackupRestorePackagesDngConversionAndSmartPreviewTree
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "dng-pack-source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(1, 2, 3)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -163,7 +163,7 @@ TEST_F(CatalogServiceTest, BackupRestorePackagesDngConversionAndSmartPreviewTree
     ASSERT_TRUE(smart_sha) << smart_sha.error().message;
 
     const auto backup_path = root / "ingest-trees-backup";
-    auto backup = service->create_backup(backup_path.string());
+    auto backup = service->recovery().create_backup(backup_path.string());
     ASSERT_TRUE(backup) << backup.error().message;
     EXPECT_EQ(backup.value().format_version, kCatalogBackupFormatVersion);
     EXPECT_EQ(kCatalogBackupFormatVersion, 3);
@@ -174,7 +174,7 @@ TEST_F(CatalogServiceTest, BackupRestorePackagesDngConversionAndSmartPreviewTree
     EXPECT_FALSE(std::filesystem::exists(backup_path / "originals"));
     EXPECT_FALSE(std::filesystem::exists(backup_path / "previews"));
 
-    auto verified = service->verify_backup(backup_path.string());
+    auto verified = service->recovery().verify_backup(backup_path.string());
     ASSERT_TRUE(verified) << verified.error().message;
     EXPECT_EQ(verified.value().artifact.dng_conversion_count, backup.value().dng_conversion_count);
     EXPECT_EQ(verified.value().artifact.smart_previews_count, backup.value().smart_previews_count);

@@ -43,9 +43,9 @@ TEST(ExportWorkflow, CompanionCheckRoutesMissingAndAvailableWithoutWriting)
         }));
     int missing = 0;
     int ready = 0;
-    QObject::connect(&presenter, &StudioPresenter::companionExportMissing, &presenter,
-                     [&] { ++missing; });
-    QObject::connect(&presenter, &StudioPresenter::companionExportReady, &presenter,
+    QObject::connect(presenter.exports(), &StudioExportPresenter::companionExportMissing,
+                     &presenter, [&] { ++missing; });
+    QObject::connect(presenter.exports(), &StudioExportPresenter::companionExportReady, &presenter,
                      [&] { ++ready; });
     auto request = [&]
     {

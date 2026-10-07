@@ -29,7 +29,7 @@ ColumnLayout {
             objectName: "finishLocalMask"
             text: qsTr("Done")
             visible: root.panel.localEditing
-            enabled: root.panel.hasSelection && !root.panel.presenter.localDonePending
+            enabled: root.panel.hasSelection && !root.panel.presenter.develop.localDonePending
             onClicked: root.panel.commands.localAdjustment("done", {})
         }
         CustomButton {
@@ -81,7 +81,7 @@ ColumnLayout {
         }
     }
     Repeater {
-        model: root.panel.hasPresenter && root.panel.presenter.localAdjustments !== undefined ? root.panel.presenter.localAdjustments : []
+        model: root.panel.hasPresenter && root.panel.presenter.develop.localAdjustments !== undefined ? root.panel.presenter.develop.localAdjustments : []
         delegate: RowLayout {
             id: maskRow
             required property var modelData
@@ -155,23 +155,23 @@ ColumnLayout {
         expanded: false
         MaskEditor {
             panel: root.panel
-            mask: root.panel.hasPresenter && root.panel.presenter.editLocalMask !== undefined ? root.panel.presenter.editLocalMask : ({})
+            mask: root.panel.hasPresenter && root.panel.presenter.develop.editLocalMask !== undefined ? root.panel.presenter.develop.editLocalMask : ({})
         }
     }
     RowLayout {
         visible: root.panel.localEditing
         CustomCheckBox {
             text: qsTr("Draw on photo")
-            checked: root.panel.hasPresenter && root.panel.presenter.maskDrawingActive
+            checked: root.panel.hasPresenter && root.panel.presenter.develop.maskDrawingActive
             onClicked: root.panel.commands.localAdjustment("draw", {
                 enabled: checked
             })
         }
         CustomCheckBox {
             text: qsTr("Overlay")
-            checked: root.panel.hasPresenter && root.panel.presenter.maskOverlayVisible
+            checked: root.panel.hasPresenter && root.panel.presenter.develop.maskOverlayVisible
             onClicked: if (root.panel.hasPresenter)
-                root.panel.presenter.setMaskOverlay("local", checked)
+                root.panel.presenter.develop.setMaskOverlay("local", checked)
         }
     }
     RowLayout {
@@ -203,7 +203,7 @@ ColumnLayout {
         property int combine: 1
         function add(kind) {
             root.panel.commands.localAdjustment("component", {
-                id: root.panel.presenter.activeLocalId,
+                id: root.panel.presenter.develop.activeLocalId,
                 kind: kind,
                 combine: combine
             });

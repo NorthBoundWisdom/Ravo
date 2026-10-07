@@ -152,10 +152,10 @@ TEST(StudioLibraryPaging, NewSelectionAndQueryInvalidateQueuedRowSelection)
     presenter.selectAsset(presenter.assets()->assetIdAt(0));
     ASSERT_TRUE(wait_until([&] { return presenter.assets()->rowLoaded(204); }));
     EXPECT_EQ(presenter.selectedAssetId(), "ast_page_0");
-    presenter.setSort("name", "asc");
+    presenter.library()->setSort("name", "asc");
     ASSERT_TRUE(wait_until([&] { return !presenter.assets()->rowLoaded(204); }));
     presenter.selectLibraryRow(204);
-    presenter.setFilterText("photo-0");
+    presenter.library()->setFilterText("photo-0");
     ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 1; }));
     EXPECT_EQ(presenter.selectedAssetId(), "ast_page_0");
 }

@@ -88,7 +88,7 @@ Result<void> CatalogServiceTest::open_service(const bool create, const bool resu
         std::move(cache).value(), std::move(recovery).value());
     if (resume_recovery)
     {
-        auto resumed = service->sync_recovery(std::nullopt);
+        auto resumed = service->recovery().sync_recovery(std::nullopt);
         if (!resumed)
         {
             return resumed.error();

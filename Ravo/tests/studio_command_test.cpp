@@ -137,9 +137,9 @@ TEST(StudioCommands, LightroomCommonShortcutsRouteAndRespectFocus)
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("develop"));
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && !presenter.busy(); }));
     press(QStringLiteral("R"));
-    EXPECT_TRUE(presenter.cropToolActive());
+    EXPECT_TRUE(presenter.develop()->cropToolActive());
     press(QStringLiteral("E"));
-    EXPECT_FALSE(presenter.cropToolActive());
+    EXPECT_FALSE(presenter.develop()->cropToolActive());
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("loupe"));
     const QString first_id = presenter.assets()->assetIdAt(0);
     const QString second_id = presenter.assets()->assetIdAt(1);
@@ -586,7 +586,7 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
     EXPECT_TRUE(QFileInfo::exists(baseline_output));
     EXPECT_FALSE(presenter.selectedHasEdits());
 
-    presenter.previewDevelopNumber(QStringLiteral("exposure"), 0.25);
+    presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"), 0.25);
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
     const auto pending_state_result =
@@ -615,7 +615,7 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
     EXPECT_TRUE(QFileInfo::exists(pending_output));
     EXPECT_FALSE(presenter.selectedHasEdits());
 
-    const double exposure_before_stale = presenter.editExposure();
+    const double exposure_before_stale = presenter.develop()->editExposure();
     const auto stale = run_cli_process(
         {QStringLiteral("studio"), QStringLiteral("develop"), QStringLiteral("--session-id"),
          session_id, QStringLiteral("--asset-id"), presenter.selectedAssetId(),
@@ -624,9 +624,9 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
          QStringLiteral("--json")});
     EXPECT_EQ(stale.exit_code, cli_exit_code(ErrorCode::kConflict));
     EXPECT_NE(stale.standard_output.indexOf("stale_session"), -1);
-    EXPECT_NEAR(presenter.editExposure(), exposure_before_stale, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), exposure_before_stale, 1e-9);
 
-    const double exposure_before_wrong_asset = presenter.editExposure();
+    const double exposure_before_wrong_asset = presenter.develop()->editExposure();
     const auto wrong_asset = run_cli_process(
         {QStringLiteral("studio"), QStringLiteral("develop"), QStringLiteral("--session-id"),
          session_id, QStringLiteral("--asset-id"), QStringLiteral("ast_wrong"),
@@ -634,16 +634,16 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
          QStringLiteral("5000"), QStringLiteral("--json")});
     EXPECT_EQ(wrong_asset.exit_code, cli_exit_code(ErrorCode::kConflict));
     EXPECT_NE(wrong_asset.standard_output.indexOf("wrong_asset"), -1);
-    EXPECT_NEAR(presenter.editExposure(), exposure_before_wrong_asset, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), exposure_before_wrong_asset, 1e-9);
 
-    const double exposure_before_invalid = presenter.editExposure();
+    const double exposure_before_invalid = presenter.develop()->editExposure();
     const auto invalid = run_cli_process(
         {QStringLiteral("studio"), QStringLiteral("develop"), QStringLiteral("--session-id"),
          session_id, QStringLiteral("--set"), QStringLiteral("notADevelopField=1"),
          QStringLiteral("--timeout-ms"), QStringLiteral("5000"), QStringLiteral("--json")});
     EXPECT_EQ(invalid.exit_code, cli_exit_code(ErrorCode::kInvalidArgument));
     EXPECT_NE(invalid.standard_output.indexOf("invalid_develop_field"), -1);
-    EXPECT_NEAR(presenter.editExposure(), exposure_before_invalid, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), exposure_before_invalid, 1e-9);
 
     const QString output = directory.filePath(QStringLiteral("live-result.png"));
     const auto developed = run_cli_process(
@@ -656,8 +656,8 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
     ASSERT_EQ(developed.exit_code, 0)
         << developed.standard_output.constData() << developed.standard_error.constData();
     ASSERT_TRUE(QFileInfo::exists(output));
-    EXPECT_NEAR(presenter.editExposure(), 0.75, 1e-9);
-    EXPECT_NEAR(presenter.editSaturation(), 0.1, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), 0.75, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editSaturation(), 0.1, 1e-9);
     EXPECT_TRUE(presenter.selectedHasEdits());
     QImage result(output);
     ASSERT_FALSE(result.isNull());
@@ -703,7 +703,7 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
          QStringLiteral("--json")});
     EXPECT_EQ(conflict.exit_code, cli_exit_code(ErrorCode::kConflict))
         << conflict.standard_output.constData() << conflict.standard_error.constData();
-    EXPECT_NEAR(presenter.editExposure(), 0.75, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), 0.75, 1e-9);
 
     live.value().reset();
     EXPECT_FALSE(QFileInfo::exists(descriptor_path));
@@ -713,34 +713,34 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerRR(), 1.0);
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerRG(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerRB(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerGR(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerGG(), 1.0);
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerGB(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerBR(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerBG(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editChannelMixerBB(), 1.0);
-    EXPECT_DOUBLE_EQ(presenter.editHotPixelsStrength(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editHotPixelsThreshold(), 0.05);
-    EXPECT_FALSE(presenter.editHotPixelsPermissive());
-    EXPECT_EQ(presenter.editRawCaIterations(), 0);
-    EXPECT_FALSE(presenter.editRawCaAvoidShift());
-    EXPECT_DOUBLE_EQ(presenter.editSharpen(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editSharpenRadius(), 2.0);
-    EXPECT_DOUBLE_EQ(presenter.editSharpenThreshold(), 0.5);
-    const auto retouch = presenter.editRetouch();
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerRR(), 1.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerRG(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerRB(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerGR(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerGG(), 1.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerGB(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerBR(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerBG(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editChannelMixerBB(), 1.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editHotPixelsStrength(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editHotPixelsThreshold(), 0.05);
+    EXPECT_FALSE(presenter.develop()->editHotPixelsPermissive());
+    EXPECT_EQ(presenter.develop()->editRawCaIterations(), 0);
+    EXPECT_FALSE(presenter.develop()->editRawCaAvoidShift());
+    EXPECT_DOUBLE_EQ(presenter.develop()->editSharpen(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editSharpenRadius(), 2.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editSharpenThreshold(), 0.5);
+    const auto retouch = presenter.develop()->editRetouch();
     EXPECT_EQ(retouch.value(QStringLiteral("regionCount")).toInt(), 0);
     EXPECT_TRUE(retouch.value(QStringLiteral("regions")).toList().isEmpty());
     EXPECT_EQ(retouch.value(QStringLiteral("numScales")).toInt(), 0);
-    EXPECT_DOUBLE_EQ(presenter.editDehaze(), 0.0);
-    EXPECT_DOUBLE_EQ(presenter.editDehazeDistance(), 0.2);
-    EXPECT_TRUE(presenter.editDehazeAdaptive());
-    EXPECT_TRUE(presenter.filterText().isEmpty());
-    EXPECT_EQ(presenter.mediaFilter(), QStringLiteral("any"));
-    EXPECT_EQ(presenter.editFilter(), QStringLiteral("any"));
-    const auto legacy_balance = presenter.editLegacyColorBalance();
+    EXPECT_DOUBLE_EQ(presenter.develop()->editDehaze(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.develop()->editDehazeDistance(), 0.2);
+    EXPECT_TRUE(presenter.develop()->editDehazeAdaptive());
+    EXPECT_TRUE(presenter.library()->filterText().isEmpty());
+    EXPECT_EQ(presenter.library()->mediaFilter(), QStringLiteral("any"));
+    EXPECT_EQ(presenter.library()->editFilter(), QStringLiteral("any"));
+    const auto legacy_balance = presenter.develop()->editLegacyColorBalance();
     EXPECT_EQ(legacy_balance.size(), 18);
     EXPECT_FALSE(legacy_balance.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(legacy_balance.value(QStringLiteral("modeIndex")).toInt(), 1);
@@ -751,7 +751,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("contrast")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("greyFulcrum")).toDouble(), 18.0);
     EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("outputSaturation")).toDouble(), 1.0);
-    const auto color_checker = presenter.editColorChecker();
+    const auto color_checker = presenter.develop()->editColorChecker();
     EXPECT_EQ(color_checker.size(), 10);
     EXPECT_FALSE(color_checker.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(color_checker.value(QStringLiteral("presetIndex")).toInt(), -1);
@@ -763,55 +763,58 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("targetL")).toDouble(), 37.990001678466797);
     EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("targetA")).toDouble(), 13.5600004196167);
     EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("targetB")).toDouble(), 14.0600004196167);
-    const auto balance = presenter.editColorBalanceRgb();
+    const auto balance = presenter.develop()->editColorBalanceRgb();
     EXPECT_EQ(balance.size(), 33);
-    const auto balance_mask = presenter.editColorBalanceRgbMask();
+    const auto balance_mask = presenter.develop()->editColorBalanceRgbMask();
     EXPECT_FALSE(balance_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(balance_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("colorBalanceRgbMaskKind"));
-    const auto exposure_mask = presenter.editExposureMask();
+    const auto exposure_mask = presenter.develop()->editExposureMask();
     EXPECT_FALSE(exposure_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(exposure_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("exposureMaskKind"));
     EXPECT_TRUE(exposure_mask.value(QStringLiteral("parametricAssistAuthorized")).toBool());
     EXPECT_TRUE(balance_mask.value(QStringLiteral("parametricAssistAuthorized")).toBool());
-    EXPECT_FALSE(presenter.editColorHarmonizerMask()
+    EXPECT_FALSE(presenter.develop()
+                     ->editColorHarmonizerMask()
                      .value(QStringLiteral("parametricAssistAuthorized"))
                      .toBool());
-    EXPECT_FALSE(
-        presenter.editGraduatedMask().value(QStringLiteral("parametricAssistAuthorized")).toBool());
-    const auto rgb_curve_mask = presenter.editRgbCurveMask();
+    EXPECT_FALSE(presenter.develop()
+                     ->editGraduatedMask()
+                     .value(QStringLiteral("parametricAssistAuthorized"))
+                     .toBool());
+    const auto rgb_curve_mask = presenter.develop()->editRgbCurveMask();
     EXPECT_FALSE(rgb_curve_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(rgb_curve_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("rgbCurveMaskKind"));
-    const auto tone_curve_mask = presenter.editToneCurveMask();
+    const auto tone_curve_mask = presenter.develop()->editToneCurveMask();
     EXPECT_FALSE(tone_curve_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(tone_curve_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("toneCurveMaskKind"));
-    const auto highlights_mask = presenter.editHighlightsMask();
+    const auto highlights_mask = presenter.develop()->editHighlightsMask();
     EXPECT_FALSE(highlights_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_EQ(highlights_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("highlightsMaskKind"));
-    const auto shadows_mask = presenter.editShadowsMask();
+    const auto shadows_mask = presenter.develop()->editShadowsMask();
     EXPECT_EQ(shadows_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("shadowsMaskKind"));
-    const auto whites_mask = presenter.editWhitesMask();
+    const auto whites_mask = presenter.develop()->editWhitesMask();
     EXPECT_EQ(whites_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("whitesMaskKind"));
-    const auto blacks_mask = presenter.editBlacksMask();
+    const auto blacks_mask = presenter.develop()->editBlacksMask();
     EXPECT_EQ(blacks_mask.value(QStringLiteral("kindField")).toString(),
               QStringLiteral("blacksMaskKind"));
-    EXPECT_FALSE(presenter.maskPlaceActive());
-    EXPECT_TRUE(presenter.maskPlaceGeometryAllowed());
-    EXPECT_FALSE(presenter.maskParametricAssistActive());
-    EXPECT_TRUE(presenter.maskParametricAssistAllowed());
+    EXPECT_FALSE(presenter.develop()->maskPlaceActive());
+    EXPECT_TRUE(presenter.develop()->maskPlaceGeometryAllowed());
+    EXPECT_FALSE(presenter.develop()->maskParametricAssistActive());
+    EXPECT_TRUE(presenter.develop()->maskParametricAssistAllowed());
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("shadowsFalloff")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("highlightsFalloff")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("maskGreyFulcrum")).toDouble(), 0.1845);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("greyFulcrum")).toDouble(), 0.1845);
     EXPECT_EQ(balance.value(QStringLiteral("formulaIndex")).toInt(), 0);
-    const auto color_correction = presenter.editColorCorrection();
+    const auto color_correction = presenter.develop()->editColorCorrection();
     EXPECT_EQ(color_correction.size(), 6);
     EXPECT_FALSE(color_correction.value(QStringLiteral("enabled")).toBool());
     EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("highlightA")).toDouble(), 0.0);
@@ -819,7 +822,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("shadowA")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("shadowB")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("saturation")).toDouble(), 1.0);
-    const auto color_contrast = presenter.editColorContrast();
+    const auto color_contrast = presenter.develop()->editColorContrast();
     EXPECT_EQ(color_contrast.size(), 6);
     EXPECT_FALSE(color_contrast.value(QStringLiteral("enabled")).toBool());
     EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("aSteepness")).toDouble(), 1.0);
@@ -827,7 +830,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bSteepness")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bOffset")).toDouble(), 0.0);
     EXPECT_TRUE(color_contrast.value(QStringLiteral("unbound")).toBool());
-    const auto color_reconstruction = presenter.editColorReconstruction();
+    const auto color_reconstruction = presenter.develop()->editColorReconstruction();
     EXPECT_EQ(color_reconstruction.size(), 7);
     EXPECT_FALSE(color_reconstruction.value(QStringLiteral("enabled")).toBool());
     EXPECT_DOUBLE_EQ(color_reconstruction.value(QStringLiteral("threshold")).toDouble(), 100.0);
@@ -837,7 +840,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_EQ(color_reconstruction.value(QStringLiteral("precedenceIndex")).toInt(), 0);
     EXPECT_EQ(color_reconstruction.value(QStringLiteral("precedenceChoices")).toStringList().size(),
               3);
-    const auto color_harmonizer = presenter.editColorHarmonizer();
+    const auto color_harmonizer = presenter.develop()->editColorHarmonizer();
     EXPECT_EQ(color_harmonizer.size(), 24);
     EXPECT_FALSE(color_harmonizer.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(color_harmonizer.value(QStringLiteral("ruleIndex")).toInt(), 3);
@@ -888,7 +891,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_TRUE(node_sats[1].toMap().value(QStringLiteral("visible")).toBool());
     EXPECT_FALSE(node_sats[2].toMap().value(QStringLiteral("visible")).toBool());
     EXPECT_FALSE(node_sats[3].toMap().value(QStringLiteral("visible")).toBool());
-    const auto harmonizer_mask = presenter.editColorHarmonizerMask();
+    const auto harmonizer_mask = presenter.develop()->editColorHarmonizerMask();
     EXPECT_FALSE(harmonizer_mask.value(QStringLiteral("attached")).toBool());
     EXPECT_TRUE(harmonizer_mask.value(QStringLiteral("editable")).toBool());
     EXPECT_EQ(harmonizer_mask.value(QStringLiteral("kindIndex")).toInt(), 0);
@@ -907,12 +910,12 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(radius->toMap().value(QStringLiteral("min")).toDouble(), 0.01);
     EXPECT_DOUBLE_EQ(radius->toMap().value(QStringLiteral("max")).toDouble(),
                      kCanonicalMaskUnitMax);
-    const auto graduated_mask = presenter.editGraduatedMask();
+    const auto graduated_mask = presenter.develop()->editGraduatedMask();
     EXPECT_EQ(graduated_mask.value(QStringLiteral("target")).toString(),
               QStringLiteral("graduatednd"));
     EXPECT_EQ(graduated_mask.value(QStringLiteral("detachField")).toString(),
               QStringLiteral("graduatedMask"));
-    const auto primaries = presenter.editPrimaries();
+    const auto primaries = presenter.develop()->editPrimaries();
     EXPECT_EQ(primaries.size(), 8);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("achromaticTintHueDegrees")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("achromaticTintPurity")).toDouble(), 0.0);
@@ -922,7 +925,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("greenPurity")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("blueHueDegrees")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("bluePurity")).toDouble(), 1.0);
-    const auto white_balance = presenter.editWhiteBalance();
+    const auto white_balance = presenter.develop()->editWhiteBalance();
     EXPECT_EQ(white_balance.size(), 7);
     EXPECT_EQ(white_balance.value(QStringLiteral("modeIndex")).toInt(), 0);
     EXPECT_FALSE(white_balance.value(QStringLiteral("hasCoefficients")).toBool());
@@ -931,9 +934,9 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("green")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("blue")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("fourth")).toDouble(), 1.0);
-    EXPECT_EQ(presenter.editDemosaicModeIndex(), 0);
-    EXPECT_EQ(presenter.editColorEqBands().size(), 8);
-    const auto input_color = presenter.editInputColor();
+    EXPECT_EQ(presenter.develop()->editDemosaicModeIndex(), 0);
+    EXPECT_EQ(presenter.develop()->editColorEqBands().size(), 8);
+    const auto input_color = presenter.develop()->editInputColor();
     EXPECT_EQ(input_color.size(), 7);
     EXPECT_EQ(input_color.value(QStringLiteral("inputProfileIndex")).toInt(), 0);
     EXPECT_EQ(input_color.value(QStringLiteral("workingProfileIndex")).toInt(), 0);
@@ -944,7 +947,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
               QStringLiteral("source"));
     EXPECT_EQ(input_color.value(QStringLiteral("workingProfile")).toString(),
               QStringLiteral("linear_rec709"));
-    const auto profile_gamma = presenter.editProfileGamma();
+    const auto profile_gamma = presenter.develop()->editProfileGamma();
     EXPECT_EQ(profile_gamma.size(), 8);
     EXPECT_FALSE(profile_gamma.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(profile_gamma.value(QStringLiteral("modeIndex")).toInt(), 0);
@@ -954,7 +957,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("greyPoint")).toDouble(), 18.0);
     EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("shadowsRange")).toDouble(), -5.0);
     EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("securityFactor")).toDouble(), 0.0);
-    const auto output_color = presenter.editOutputColor();
+    const auto output_color = presenter.develop()->editOutputColor();
     EXPECT_EQ(output_color.size(), 9);
     EXPECT_EQ(output_color.value(QStringLiteral("outputProfileIndex")).toInt(), 0);
     EXPECT_EQ(output_color.value(QStringLiteral("intentIndex")).toInt(), 0);
@@ -967,7 +970,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_EQ(output_color.value(QStringLiteral("proofMode")).toString(), QStringLiteral("off"));
     EXPECT_EQ(output_color.value(QStringLiteral("proofProfile")).toString(),
               QStringLiteral("srgb"));
-    const auto exposure = presenter.editExposureParams();
+    const auto exposure = presenter.develop()->editExposureParams();
     EXPECT_EQ(exposure.size(), 7);
     EXPECT_EQ(exposure.value(QStringLiteral("modeIndex")).toInt(), 0);
     EXPECT_DOUBLE_EQ(exposure.value(QStringLiteral("black")).toDouble(), 0.0);
@@ -1019,11 +1022,11 @@ TEST(StudioPresenterTest, CopiedParameterClipboardStartsEmptyAndIgnoresEmptySele
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    EXPECT_FALSE(presenter.hasCopiedParameters());
-    presenter.copyParametersSelected(QVariantList{QStringLiteral("exposure")});
-    EXPECT_FALSE(presenter.hasCopiedParameters());
-    presenter.pasteParameters();
-    EXPECT_FALSE(presenter.hasCopiedParameters());
+    EXPECT_FALSE(presenter.develop()->hasCopiedParameters());
+    presenter.develop()->copyParametersSelected(QVariantList{QStringLiteral("exposure")});
+    EXPECT_FALSE(presenter.develop()->hasCopiedParameters());
+    presenter.develop()->pasteParameters();
+    EXPECT_FALSE(presenter.develop()->hasCopiedParameters());
 }
 
 TEST(StudioDebugInfo, FormattersEmitStableSingleLineFields)
@@ -1144,7 +1147,7 @@ TEST(StudioPresenterTest, PhotoDebugInfoIdentifiesImportedAsset)
     EXPECT_TRUE(baseline_parameters.contains(QStringLiteral("recipe_json={")));
     EXPECT_TRUE(baseline_parameters.contains(QStringLiteral("\"operations\":")));
 
-    presenter.previewDevelopNumber(QStringLiteral("exposureBlack"), 0.0553);
+    presenter.develop()->previewDevelopNumber(QStringLiteral("exposureBlack"), 0.0553);
     const auto pending_parameters = presenter.selectedPhotoParametersDebugInfo();
     EXPECT_TRUE(pending_parameters.contains(QStringLiteral("recipe_state=pending\n")));
     EXPECT_TRUE(pending_parameters.contains(QStringLiteral("\"id\":\"ravo.core.exposure\"")));
@@ -1202,23 +1205,24 @@ TEST(StudioPresenterTest, ScopedFacetCountsFollowTheActiveLibraryQuery)
     presenter.openCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    EXPECT_EQ(presenter.cameraFacets().size(), 2);
-    EXPECT_EQ(presenter.countryFacets().size(), 2);
-    EXPECT_FALSE(presenter.facetCountsScoped());
+    EXPECT_EQ(presenter.library()->cameraFacets().size(), 2);
+    EXPECT_EQ(presenter.library()->countryFacets().size(), 2);
+    EXPECT_FALSE(presenter.library()->facetCountsScoped());
 
-    presenter.setRatingFilter(QStringLiteral("exact"), 5);
+    presenter.library()->setRatingFilter(QStringLiteral("exact"), 5);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return presenter.visibleCount() == 2 && presenter.facetCountsScoped() &&
-                   presenter.cameraFacets().size() == 1 && presenter.countryFacets().size() == 1;
+            return presenter.visibleCount() == 2 && presenter.library()->facetCountsScoped() &&
+                   presenter.library()->cameraFacets().size() == 1 &&
+                   presenter.library()->countryFacets().size() == 1;
         }))
         << presenter.errorText().toStdString();
-    const auto camera = presenter.cameraFacets().front().toMap();
+    const auto camera = presenter.library()->cameraFacets().front().toMap();
     EXPECT_EQ(camera.value(QStringLiteral("cameraMake")).toString(), QStringLiteral("RavoCam"));
     EXPECT_EQ(camera.value(QStringLiteral("cameraModel")).toString(), QStringLiteral("Scope"));
     EXPECT_EQ(camera.value(QStringLiteral("count")).toULongLong(), 2U);
-    const auto country = presenter.countryFacets().front().toMap();
+    const auto country = presenter.library()->countryFacets().front().toMap();
     EXPECT_EQ(country.value(QStringLiteral("key")).toString(), QStringLiteral("China"));
     EXPECT_EQ(country.value(QStringLiteral("count")).toULongLong(), 2U);
 }
@@ -1399,85 +1403,92 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
         << presenter.errorText().toStdString();
 
     const auto black_value = [&]
-    { return presenter.editExposureParams().value(QStringLiteral("black")).toDouble(); };
-    presenter.setDevelopNumber(QStringLiteral("exposureBlack"), 0.01);
+    { return presenter.develop()->editExposureParams().value(QStringLiteral("black")).toDouble(); };
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposureBlack"), 0.01);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() && std::abs(black_value() - 0.01) < 1e-9 &&
-                   presenter.recipeHistory().size() == 1;
+                   presenter.develop()->recipeHistory().size() == 1;
         }))
         << presenter.errorText().toStdString();
-    const auto history_id = presenter.recipeHistory().front().toMap().value(QStringLiteral("id"));
-    const auto first_summary =
-        presenter.recipeHistory().front().toMap().value(QStringLiteral("summary")).toString();
+    const auto history_id =
+        presenter.develop()->recipeHistory().front().toMap().value(QStringLiteral("id"));
+    const auto first_summary = presenter.develop()
+                                   ->recipeHistory()
+                                   .front()
+                                   .toMap()
+                                   .value(QStringLiteral("summary"))
+                                   .toString();
 
-    presenter.setDevelopNumber(QStringLiteral("exposureBlack"), 0.02);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposureBlack"), 0.02);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() && std::abs(black_value() - 0.02) < 1e-9 &&
-                   presenter.recipeHistory().size() == 1 &&
-                   presenter.recipeHistory().front().toMap().value(QStringLiteral("id")) ==
-                       history_id;
+                   presenter.develop()->recipeHistory().size() == 1 &&
+                   presenter.develop()->recipeHistory().front().toMap().value(
+                       QStringLiteral("id")) == history_id;
         }))
         << presenter.errorText().toStdString();
-    presenter.setDevelopNumber(QStringLiteral("exposureBlack"), 0.03);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposureBlack"), 0.03);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() && std::abs(black_value() - 0.03) < 1e-9 &&
-                   presenter.recipeHistory().size() == 1 &&
-                   presenter.recipeHistory().front().toMap().value(QStringLiteral("id")) ==
-                       history_id &&
-                   presenter.recipeHistory()
+                   presenter.develop()->recipeHistory().size() == 1 &&
+                   presenter.develop()->recipeHistory().front().toMap().value(
+                       QStringLiteral("id")) == history_id &&
+                   presenter.develop()
+                           ->recipeHistory()
                            .front()
                            .toMap()
                            .value(QStringLiteral("summary"))
                            .toString() != first_summary;
         }))
         << presenter.errorText().toStdString();
-    EXPECT_TRUE(presenter.canUndo());
+    EXPECT_TRUE(presenter.develop()->canUndo());
 
-    presenter.undoEdit();
+    presenter.develop()->undoEdit();
     ASSERT_TRUE(
         wait_until([&] { return !presenter.previewLoading() && std::abs(black_value()) < 1e-9; }))
         << presenter.errorText().toStdString() << " black=" << black_value()
-        << " canUndo=" << presenter.canUndo() << " canRedo=" << presenter.canRedo();
-    EXPECT_FALSE(presenter.canUndo());
-    EXPECT_TRUE(presenter.canRedo());
+        << " canUndo=" << presenter.develop()->canUndo()
+        << " canRedo=" << presenter.develop()->canRedo();
+    EXPECT_FALSE(presenter.develop()->canUndo());
+    EXPECT_TRUE(presenter.develop()->canRedo());
 
-    presenter.redoEdit();
+    presenter.develop()->redoEdit();
     ASSERT_TRUE(wait_until(
         [&] { return !presenter.previewLoading() && std::abs(black_value() - 0.03) < 1e-9; }))
         << presenter.errorText().toStdString();
-    presenter.setDevelopNumber(QStringLiteral("exposure"), 0.25);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 0.25);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() &&
-                   std::abs(presenter.editExposure() - 0.25) < 1e-9 &&
-                   presenter.recipeHistory().size() == 2;
+                   std::abs(presenter.develop()->editExposure() - 0.25) < 1e-9 &&
+                   presenter.develop()->recipeHistory().size() == 2;
         }))
         << presenter.errorText().toStdString();
-    presenter.setDevelopNumber(QStringLiteral("exposureBlack"), 0.04);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposureBlack"), 0.04);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() && std::abs(black_value() - 0.04) < 1e-9 &&
-                   presenter.recipeHistory().size() == 3;
+                   presenter.develop()->recipeHistory().size() == 3;
         }))
         << presenter.errorText().toStdString();
 
-    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.1);
-    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.2);
-    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.3);
+    presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), 0.1);
+    presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), 0.2);
+    presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), 0.3);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() &&
-                   std::abs(presenter.editSaturation() - 0.3) < 1e-9 &&
-                   presenter.recipeHistory().size() == 4;
+                   std::abs(presenter.develop()->editSaturation() - 0.3) < 1e-9 &&
+                   presenter.develop()->recipeHistory().size() == 4;
         }))
         << presenter.errorText().toStdString();
 
@@ -1574,17 +1585,17 @@ TEST(StudioPresenterTest, ManagedPresetRenameAndDeleteAreScopedAndPreserveConten
     presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
-    presenter.importPresetFromPath(external_path);
-    ASSERT_EQ(presenter.editPresets().size(), 1) << presenter.errorText().toStdString();
-    auto preset = presenter.editPresets().front().toMap();
+    presenter.develop()->importPresetFromPath(external_path);
+    ASSERT_EQ(presenter.develop()->editPresets().size(), 1) << presenter.errorText().toStdString();
+    auto preset = presenter.develop()->editPresets().front().toMap();
     ASSERT_EQ(preset.value(QStringLiteral("name")).toString(), QStringLiteral("Warm"));
     const QString imported_path = preset.value(QStringLiteral("path")).toString();
     ASSERT_TRUE(QFileInfo::exists(imported_path));
 
-    presenter.renamePreset(imported_path, QStringLiteral("Evening Warm"));
+    presenter.develop()->renamePreset(imported_path, QStringLiteral("Evening Warm"));
     ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
-    ASSERT_EQ(presenter.editPresets().size(), 1);
-    preset = presenter.editPresets().front().toMap();
+    ASSERT_EQ(presenter.develop()->editPresets().size(), 1);
+    preset = presenter.develop()->editPresets().front().toMap();
     EXPECT_EQ(preset.value(QStringLiteral("name")).toString(), QStringLiteral("Evening Warm"));
     const QString renamed_path = preset.value(QStringLiteral("path")).toString();
     EXPECT_TRUE(renamed_path.endsWith(QStringLiteral("Evening Warm.rstyle.json")));
@@ -1599,29 +1610,30 @@ TEST(StudioPresenterTest, ManagedPresetRenameAndDeleteAreScopedAndPreserveConten
     const QString conflict_path =
         QFileInfo(renamed_path).dir().filePath(QStringLiteral("Existing.rstyle.json"));
     ASSERT_TRUE(QFile::copy(renamed_path, conflict_path));
-    presenter.renamePreset(renamed_path, QStringLiteral("Existing"));
+    presenter.develop()->renamePreset(renamed_path, QStringLiteral("Existing"));
     EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("already exists")));
     EXPECT_TRUE(QFileInfo::exists(renamed_path));
     ASSERT_TRUE(QFile::remove(conflict_path));
 
-    presenter.renamePreset(renamed_path, QStringLiteral("../escape"));
+    presenter.develop()->renamePreset(renamed_path, QStringLiteral("../escape"));
     EXPECT_FALSE(presenter.errorText().isEmpty());
     EXPECT_TRUE(QFileInfo::exists(renamed_path));
     EXPECT_FALSE(QFileInfo::exists(directory.filePath(QStringLiteral("escape.rstyle.json"))));
-    presenter.renamePreset(QStringLiteral("/missing/preset.xmp"), QStringLiteral("Missing"));
+    presenter.develop()->renamePreset(QStringLiteral("/missing/preset.xmp"),
+                                      QStringLiteral("Missing"));
     EXPECT_EQ(presenter.errorText(),
               QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
-    presenter.renamePreset(external_path, QStringLiteral("External"));
+    presenter.develop()->renamePreset(external_path, QStringLiteral("External"));
     EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("imported into this library")));
     EXPECT_TRUE(QFileInfo::exists(external_path));
 
-    presenter.deletePreset(external_path);
+    presenter.develop()->deletePreset(external_path);
     EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("imported into this library")));
     EXPECT_TRUE(QFileInfo::exists(external_path));
-    presenter.deletePreset(renamed_path);
+    presenter.develop()->deletePreset(renamed_path);
     EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
     EXPECT_FALSE(QFileInfo::exists(renamed_path));
-    EXPECT_TRUE(presenter.editPresets().isEmpty());
+    EXPECT_TRUE(presenter.develop()->editPresets().isEmpty());
     EXPECT_EQ(presenter.statusText(),
               QCoreApplication::translate("StudioPresenter", "Preset deleted."));
 }

@@ -63,16 +63,16 @@ DialogShell {
     property bool frameEnabled: false
     property double frameSize: 0.1
 
-    property var formatChoices: presenter.exportFormatChoices()
-    property var jpegSubsamplingChoices: presenter.jpegSubsamplingChoices()
-    property var pngBitDepthChoices: presenter.pngBitDepthChoices()
-    property var tiffSampleTypeChoices: presenter.tiffSampleTypeChoices()
-    property var tiffCompressionChoices: presenter.tiffCompressionChoices()
-    property var metadataModeChoices: presenter.exportMetadataModeChoices()
-    property var watermarkAlignmentChoices: presenter.exportWatermarkAlignmentChoices()
-    property var outputProfileChoices: presenter.exportOutputProfileChoices()
-    property var renderingIntentChoices: presenter.exportRenderingIntentChoices()
-    readonly property var optionBounds: presenter.exportOptionBounds()
+    property var formatChoices: presenter.exports.exportFormatChoices()
+    property var jpegSubsamplingChoices: presenter.exports.jpegSubsamplingChoices()
+    property var pngBitDepthChoices: presenter.exports.pngBitDepthChoices()
+    property var tiffSampleTypeChoices: presenter.exports.tiffSampleTypeChoices()
+    property var tiffCompressionChoices: presenter.exports.tiffCompressionChoices()
+    property var metadataModeChoices: presenter.exports.exportMetadataModeChoices()
+    property var watermarkAlignmentChoices: presenter.exports.exportWatermarkAlignmentChoices()
+    property var outputProfileChoices: presenter.exports.exportOutputProfileChoices()
+    property var renderingIntentChoices: presenter.exports.exportRenderingIntentChoices()
+    readonly property var optionBounds: presenter.exports.exportOptionBounds()
     readonly property bool tiffLevelEnabled: formatId === "tiff" && tiffCompressionId !== "none"
     readonly property bool canContinue: formatId.length > 0 && (!batchMode || filenameTemplate.trim().length > 0) && (formatId === "original" || metadataModeId.length > 0) && (formatId !== "jpeg" || jpegSubsamplingId.length > 0) && (formatId !== "png" || pngBitDepthId.length > 0) && (formatId !== "tiff" || (tiffSampleTypeId.length > 0 && tiffCompressionId.length > 0))
 
@@ -92,16 +92,16 @@ DialogShell {
     }
 
     function resetFromPresenter() {
-        const defaults = presenter.exportDefaultOptions();
-        formatChoices = presenter.exportFormatChoices();
-        jpegSubsamplingChoices = presenter.jpegSubsamplingChoices();
-        pngBitDepthChoices = presenter.pngBitDepthChoices();
-        tiffSampleTypeChoices = presenter.tiffSampleTypeChoices();
-        tiffCompressionChoices = presenter.tiffCompressionChoices();
-        metadataModeChoices = presenter.exportMetadataModeChoices();
-        watermarkAlignmentChoices = presenter.exportWatermarkAlignmentChoices();
-        outputProfileChoices = presenter.exportOutputProfileChoices();
-        renderingIntentChoices = presenter.exportRenderingIntentChoices();
+        const defaults = presenter.exports.exportDefaultOptions();
+        formatChoices = presenter.exports.exportFormatChoices();
+        jpegSubsamplingChoices = presenter.exports.jpegSubsamplingChoices();
+        pngBitDepthChoices = presenter.exports.pngBitDepthChoices();
+        tiffSampleTypeChoices = presenter.exports.tiffSampleTypeChoices();
+        tiffCompressionChoices = presenter.exports.tiffCompressionChoices();
+        metadataModeChoices = presenter.exports.exportMetadataModeChoices();
+        watermarkAlignmentChoices = presenter.exports.exportWatermarkAlignmentChoices();
+        outputProfileChoices = presenter.exports.exportOutputProfileChoices();
+        renderingIntentChoices = presenter.exports.exportRenderingIntentChoices();
         formatId = defaults.format;
         jpegQuality = defaults.quality;
         jpegSizeLimitEnabled = false;

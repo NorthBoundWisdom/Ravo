@@ -15,15 +15,15 @@ DevelopSection {
         CustomCheckBox {
             text: qsTr("Enable correction")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editProfileGamma.enabled
+            checked: panel.hasPresenter && panel.presenter.develop.editProfileGamma.enabled
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("profileGammaEnabled", checked ? 1 : 0)
         }
         CustomComboBox {
             Layout.fillWidth: true
             model: [qsTr("Logarithmic"), qsTr("Gamma")]
-            enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editProfileGamma.enabled
-            currentIndex: panel.hasPresenter ? panel.presenter.editProfileGamma.modeIndex : 0
+            enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editProfileGamma.enabled
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editProfileGamma.modeIndex : 0
             onActivated: if (panel.commands)
                 panel.commands.setDevelopNumber("profileGammaModeIndex", currentIndex)
         }
@@ -63,7 +63,7 @@ DevelopSection {
             delegate: CustomSlider {
                 required property var modelData
                 Layout.fillWidth: true
-                visible: panel.hasPresenter && panel.presenter.editProfileGamma.modeIndex === 0
+                visible: panel.hasPresenter && panel.presenter.develop.editProfileGamma.modeIndex === 0
                 title: modelData.title
                 from: modelData.minimum
                 to: modelData.maximum
@@ -72,8 +72,8 @@ DevelopSection {
                 showReset: true
                 resetValue: modelData.reset
                 delayedCommit: true
-                enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editProfileGamma.enabled
-                value: panel.hasPresenter ? panel.presenter.editProfileGamma[modelData.key] : modelData.reset
+                enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editProfileGamma.enabled
+                value: panel.hasPresenter ? panel.presenter.develop.editProfileGamma[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -112,7 +112,7 @@ DevelopSection {
             delegate: CustomSlider {
                 required property var modelData
                 Layout.fillWidth: true
-                visible: panel.hasPresenter && panel.presenter.editProfileGamma.modeIndex === 1
+                visible: panel.hasPresenter && panel.presenter.develop.editProfileGamma.modeIndex === 1
                 title: modelData.title
                 from: modelData.minimum
                 to: modelData.maximum
@@ -121,8 +121,8 @@ DevelopSection {
                 showReset: true
                 resetValue: modelData.reset
                 delayedCommit: true
-                enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editProfileGamma.enabled
-                value: panel.hasPresenter ? panel.presenter.editProfileGamma[modelData.key] : modelData.reset
+                enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editProfileGamma.enabled
+                value: panel.hasPresenter ? panel.presenter.develop.editProfileGamma[modelData.key] : modelData.reset
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);

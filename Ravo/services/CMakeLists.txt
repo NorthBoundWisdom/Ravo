@@ -9,8 +9,6 @@ target_sources(ravo_services
     src/catalog_backup.cpp
     src/catalog_backup_trees.cpp
     src/catalog_backup_schedule.cpp
-    src/catalog_folder.cpp
-    src/catalog_keywords.cpp
     src/catalog_ai_proposal.cpp
     src/catalog_ai_suggestion.cpp
     src/catalog_xmp_interchange.cpp

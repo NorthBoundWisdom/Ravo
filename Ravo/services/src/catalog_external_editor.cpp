@@ -1,4 +1,12 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/external_editor_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/exports_service.h"
+#include "ravo/services/import_service.h"
+#include "ravo/services/library_service.h"
 
 #include "catalog_internal.h"
 #include "catalog_service_internal.h"
@@ -18,6 +26,22 @@
 
 namespace ravo
 {
+
+ExternalEditorService::ExternalEditorService(const std::unique_ptr<CatalogRepository> &repository,
+                                             const std::unique_ptr<RasterDecoder> &raster,
+                                             const EngineFacade *const &engine,
+                                             ExportService &exports_service,
+                                             ImportService &import_service,
+                                             LibraryService &library_service) noexcept
+    : repository_(repository)
+    , raster_(raster)
+    , engine_(engine)
+    , exports_service_(exports_service)
+    , import_service_(import_service)
+    , library_service_(library_service)
+{
+}
+
 namespace
 {
 
@@ -363,7 +387,7 @@ load_provenance(const std::string_view database_path, const std::string_view der
 } // namespace
 
 Result<ExternalEditorRegisterResult>
-CatalogService::register_external_editor_output(const ExternalEditorRegisterRequest &request)
+ExternalEditorService::register_external_editor_output(const ExternalEditorRegisterRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -523,8 +547,8 @@ CatalogService::register_external_editor_output(const ExternalEditorRegisterRequ
         return cancelled.error();
     }
 
-    auto imported =
-        import_one(derived_path, request.cancellation, ImportPreviewPolicy::kMinimal, true);
+    auto imported = import_service_.import_one(derived_path, request.cancellation,
+                                               ImportPreviewPolicy::kMinimal, true);
     if (!imported)
     {
         best_effort_remove(derived_path);
@@ -544,7 +568,7 @@ CatalogService::register_external_editor_output(const ExternalEditorRegisterRequ
     auto recovery = repository_->recovery_state(request.source_asset_id);
     if (!recovery)
     {
-        (void)remove_from_catalog(imported.value().asset->id);
+        (void)library_service_.remove_from_catalog(imported.value().asset->id);
         best_effort_remove(derived_path);
         return recovery.error();
     }
@@ -574,7 +598,7 @@ CatalogService::register_external_editor_output(const ExternalEditorRegisterRequ
     auto written = write_provenance(snapshot.value().database_path, provenance);
     if (!written)
     {
-        (void)remove_from_catalog(provenance.derived_asset_id);
+        (void)library_service_.remove_from_catalog(provenance.derived_asset_id);
         best_effort_remove(derived_path);
         return written.error();
     }
@@ -625,8 +649,8 @@ CatalogService::register_external_editor_output(const ExternalEditorRegisterRequ
         }
 
         std::vector<std::string> members{request.source_asset_id, result.derived_asset.id};
-        auto stacked =
-            stack_assets(members, result.derived_asset.id, /*expected_revision=*/std::nullopt);
+        auto stacked = library_service_.stack_assets(members, result.derived_asset.id,
+                                                     /*expected_revision=*/std::nullopt);
         if (!stacked)
         {
             const auto &stack_error = stacked.error();
@@ -652,7 +676,7 @@ CatalogService::register_external_editor_output(const ExternalEditorRegisterRequ
 }
 
 Result<ExternalEditorProvenance>
-CatalogService::external_editor_provenance(const std::string_view derived_asset_id) const
+ExternalEditorService::external_editor_provenance(const std::string_view derived_asset_id) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -677,7 +701,7 @@ CatalogService::external_editor_provenance(const std::string_view derived_asset_
 }
 
 Result<ExternalEditorOpenResult>
-CatalogService::prepare_external_editor_open(const ExternalEditorOpenRequest &request)
+ExternalEditorService::prepare_external_editor_open(const ExternalEditorOpenRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");

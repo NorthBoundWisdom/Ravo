@@ -23,7 +23,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editTexture.strength * 50 : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editTexture.strength * 50 : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("texture", value / 50);
@@ -50,7 +50,7 @@ DevelopSection {
                 resetValue: 0.2
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editTexture.detailThreshold : 0.2
+                value: panel.hasPresenter ? panel.presenter.develop.editTexture.detailThreshold : 0.2
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber("textureDetailThreshold", value);
@@ -73,7 +73,7 @@ DevelopSection {
                 resetValue: 1
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editTexture.iterations : 1
+                value: panel.hasPresenter ? panel.presenter.develop.editTexture.iterations : 1
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber("textureIterations", value);
@@ -95,7 +95,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editSharpen : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editSharpen : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("sharpen", value);
@@ -118,7 +118,7 @@ DevelopSection {
             resetValue: 2
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editSharpenRadius : 2
+            value: panel.hasPresenter ? panel.presenter.develop.editSharpenRadius : 2
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("sharpenRadius", value);
@@ -141,7 +141,7 @@ DevelopSection {
             resetValue: 0.5
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editSharpenThreshold : 0.5
+            value: panel.hasPresenter ? panel.presenter.develop.editSharpenThreshold : 0.5
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("sharpenThreshold", value);
@@ -164,7 +164,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editDenoise : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editDenoise : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("denoise", value);
@@ -187,7 +187,7 @@ DevelopSection {
             resetValue: 1
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editDenoiseChroma : 1
+            value: panel.hasPresenter ? panel.presenter.develop.editDenoiseChroma : 1
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("denoiseChroma", value);
@@ -210,7 +210,7 @@ DevelopSection {
             resetValue: 1
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editDenoiseRadius : 1
+            value: panel.hasPresenter ? panel.presenter.develop.editDenoiseRadius : 1
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("denoiseRadius", value);
@@ -460,11 +460,11 @@ DevelopSection {
                 })
             }
             Label {
-                text: qsTr("Regions: %1").arg(panel.hasPresenter ? panel.presenter.editRetouch.regionCount : 0)
+                text: qsTr("Regions: %1").arg(panel.hasPresenter ? panel.presenter.develop.editRetouch.regionCount : 0)
                 opacity: 0.72
             }
             Repeater {
-                model: panel.hasPresenter ? panel.presenter.editRetouch.regions : []
+                model: panel.hasPresenter ? panel.presenter.develop.editRetouch.regions : []
                 delegate: RowLayout {
                     required property var modelData
                     Layout.fillWidth: true
@@ -490,7 +490,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editClarity : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editClarity : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("clarity", value);
@@ -511,7 +511,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editGrain : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editGrain : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("grain", value);

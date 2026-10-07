@@ -822,7 +822,7 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
                            std::move(raster), std::move(cache).value(),
                            std::move(recovery).value());
 
-    const auto imported = service.import_one(input_path.string(), CancellationToken{});
+    const auto imported = service.import().import_one(input_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     WritableMetadata writable;
@@ -830,9 +830,10 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
     writable.description = "Catalog description";
     writable.creator = "Catalog creator";
     writable.copyright = "Catalog copyright";
-    const auto updated = service.set_writable_metadata(imported.value().asset->id, writable);
+    const auto updated =
+        service.metadata().set_writable_metadata(imported.value().asset->id, writable);
     ASSERT_TRUE(updated) << updated.error().message;
-    const auto tagged = service.set_tags(imported.value().asset->id, {"zeta", "alpha"});
+    const auto tagged = service.metadata().set_tags(imported.value().asset->id, {"zeta", "alpha"});
     ASSERT_TRUE(tagged) << tagged.error().message;
 
     ExportRequest request;
@@ -842,7 +843,7 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
     request.tiff_options.resolution_dpi = 600;
     const auto normalized_output = normalize_local_input(request.output_path);
     ASSERT_TRUE(normalized_output) << normalized_output.error().message;
-    const auto exported = service.export_asset(request);
+    const auto exported = service.exports().export_asset(request);
     ASSERT_TRUE(exported) << exported.error().message;
     ASSERT_EQ(capturing->calls, 1U);
     EXPECT_EQ(capturing->last_format, ExportFormat::kTiff);
@@ -880,7 +881,7 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
     ExportRequest unrelated = request;
     unrelated.format = ExportFormat::kPng;
     unrelated.output_path = (temporary.path() / "unrelated.png").string();
-    const auto png = service.export_asset(unrelated);
+    const auto png = service.exports().export_asset(unrelated);
     ASSERT_TRUE(png) << png.error().message;
     EXPECT_EQ(capturing->last_format, ExportFormat::kPng);
     EXPECT_TRUE(capturing->last_metadata.destination_document_name.empty());
@@ -898,14 +899,14 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
 
     ExportRequest png_repeat = unrelated;
     png_repeat.output_path = (temporary.path() / "unrelated-b.png").string();
-    const auto png_again = service.export_asset(png_repeat);
+    const auto png_again = service.exports().export_asset(png_repeat);
     ASSERT_TRUE(png_again) << png_again.error().message;
     EXPECT_EQ(read_file(unrelated.output_path), read_file(png_repeat.output_path));
 
     ExportRequest jpeg = request;
     jpeg.format = ExportFormat::kJpeg;
     jpeg.output_path = (temporary.path() / "metadata.jpg").string();
-    const auto jpeg_export = service.export_asset(jpeg);
+    const auto jpeg_export = service.exports().export_asset(jpeg);
     ASSERT_TRUE(jpeg_export) << jpeg_export.error().message;
     EXPECT_EQ(capturing->last_format, ExportFormat::kJpeg);
     EXPECT_TRUE(capturing->last_metadata.destination_document_name.empty());
@@ -919,7 +920,7 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
     EXPECT_FALSE(contains_text(jpeg_bytes, "DateTimeOriginal"));
     ExportRequest jpeg_repeat = jpeg;
     jpeg_repeat.output_path = (temporary.path() / "metadata-b.jpg").string();
-    const auto jpeg_again = service.export_asset(jpeg_repeat);
+    const auto jpeg_again = service.exports().export_asset(jpeg_repeat);
     ASSERT_TRUE(jpeg_again) << jpeg_again.error().message;
     EXPECT_EQ(read_file(jpeg.output_path), read_file(jpeg_repeat.output_path));
 
@@ -927,7 +928,7 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
     tiff_repeat.output_path = (temporary.path() / "metadata-b.tif").string();
     const auto normalized_repeat = normalize_local_input(tiff_repeat.output_path);
     ASSERT_TRUE(normalized_repeat) << normalized_repeat.error().message;
-    const auto tiff_again = service.export_asset(tiff_repeat);
+    const auto tiff_again = service.exports().export_asset(tiff_repeat);
     ASSERT_TRUE(tiff_again) << tiff_again.error().message;
     const auto repeat_directory = parse_classic_little_endian_directory(
         byte_vector(read_file(normalized_repeat.value().path)));
@@ -937,7 +938,7 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
     EXPECT_EQ(repeat_name->payload, nul_terminated_bytes(normalized_repeat.value().path));
     EXPECT_NE(read_file(normalized_output.value().path), read_file(normalized_repeat.value().path));
 
-    const auto conflict = service.export_asset(request);
+    const auto conflict = service.exports().export_asset(request);
     EXPECT_FALSE(conflict);
     EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
 

@@ -105,28 +105,34 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
         }))
         << presenter.errorText().toStdString();
 
-    const auto history_size = [&] { return presenter.recipeHistory().size(); };
+    const auto history_size = [&] { return presenter.develop()->recipeHistory().size(); };
 
-    presenter.addExposureInstance();
+    presenter.develop()->addExposureInstance();
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && presenter.exposureInstances().size() == 2 &&
-                   history_size() == 1;
+            return !presenter.previewLoading() &&
+                   presenter.develop()->exposureInstances().size() == 2 && history_size() == 1;
         }))
         << presenter.errorText().toStdString()
-        << " instances=" << presenter.exposureInstances().size() << " history=" << history_size();
-    EXPECT_TRUE(presenter.canUndo());
+        << " instances=" << presenter.develop()->exposureInstances().size()
+        << " history=" << history_size();
+    EXPECT_TRUE(presenter.develop()->canUndo());
 
-    const auto local_id =
-        presenter.exposureInstances().back().toMap().value(QStringLiteral("id")).toString();
-    presenter.selectExposureInstance(local_id);
-    presenter.setDevelopNumber(QStringLiteral("exposureMaskKind"), 3.0); // circle
+    const auto local_id = presenter.develop()
+                              ->exposureInstances()
+                              .back()
+                              .toMap()
+                              .value(QStringLiteral("id"))
+                              .toString();
+    presenter.develop()->selectExposureInstance(local_id);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposureMaskKind"), 3.0); // circle
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() && history_size() == 2 &&
-                   presenter.exposureInstances()
+                   presenter.develop()
+                       ->exposureInstances()
                        .back()
                        .toMap()
                        .value(QStringLiteral("hasMask"))
@@ -134,13 +140,14 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
         }))
         << presenter.errorText().toStdString() << " history=" << history_size();
 
-    presenter.duplicateExposureInstance();
+    presenter.develop()->duplicateExposureInstance();
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && presenter.exposureInstances().size() == 3 &&
-                   history_size() == 3 &&
-                   presenter.exposureInstances()
+            return !presenter.previewLoading() &&
+                   presenter.develop()->exposureInstances().size() == 3 && history_size() == 3 &&
+                   presenter.develop()
+                       ->exposureInstances()
                        .back()
                        .toMap()
                        .value(QStringLiteral("hasMask"))
@@ -148,13 +155,19 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
         }))
         << presenter.errorText().toStdString() << " history=" << history_size();
 
-    presenter.setExposureInstanceBypass(
-        presenter.exposureInstances().front().toMap().value(QStringLiteral("id")).toString(), true);
+    presenter.develop()->setExposureInstanceBypass(presenter.develop()
+                                                       ->exposureInstances()
+                                                       .front()
+                                                       .toMap()
+                                                       .value(QStringLiteral("id"))
+                                                       .toString(),
+                                                   true);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() && history_size() == 4 &&
-                   presenter.exposureInstances()
+                   presenter.develop()
+                       ->exposureInstances()
                        .front()
                        .toMap()
                        .value(QStringLiteral("bypass"))
@@ -162,32 +175,42 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
         }))
         << presenter.errorText().toStdString() << " history=" << history_size();
 
-    presenter.reorderExposureInstance(0, 2);
+    presenter.develop()->reorderExposureInstance(0, 2);
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && history_size() == 5; }))
         << presenter.errorText().toStdString() << " history=" << history_size();
 
     // Undo restores instance vector + masks step by step.
-    presenter.undoEdit();
+    presenter.develop()->undoEdit();
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading() && history_size() >= 4; }))
         << presenter.errorText().toStdString();
-    EXPECT_EQ(presenter.exposureInstances().size(), 3);
+    EXPECT_EQ(presenter.develop()->exposureInstances().size(), 3);
 
-    presenter.undoEdit(); // bypass
+    presenter.develop()->undoEdit(); // bypass
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
-    presenter.undoEdit(); // duplicate
-    ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && presenter.exposureInstances().size() == 2; }))
-        << presenter.errorText().toStdString();
-    EXPECT_TRUE(
-        presenter.exposureInstances().back().toMap().value(QStringLiteral("hasMask")).toBool());
-
-    presenter.undoEdit(); // mask
+    presenter.develop()->undoEdit(); // duplicate
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && presenter.exposureInstances().size() == 2 &&
-                   !presenter.exposureInstances()
+            return !presenter.previewLoading() &&
+                   presenter.develop()->exposureInstances().size() == 2;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.develop()
+                    ->exposureInstances()
+                    .back()
+                    .toMap()
+                    .value(QStringLiteral("hasMask"))
+                    .toBool());
+
+    presenter.develop()->undoEdit(); // mask
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   presenter.develop()->exposureInstances().size() == 2 &&
+                   !presenter.develop()
+                        ->exposureInstances()
                         .back()
                         .toMap()
                         .value(QStringLiteral("hasMask"))
@@ -195,34 +218,46 @@ TEST(StudioPresenterTest, MultiInstanceStructuralEditsCreateHistoryAndUndo)
         }))
         << presenter.errorText().toStdString();
 
-    presenter.undoEdit(); // add
-    ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && presenter.exposureInstances().size() <= 1; }))
-        << presenter.errorText().toStdString();
-    EXPECT_TRUE(presenter.canRedo());
-
-    presenter.redoEdit();
-    ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && presenter.exposureInstances().size() == 2; }))
-        << presenter.errorText().toStdString();
-
-    const auto before_delete = presenter.exposureInstances().size();
-    const auto delete_id =
-        presenter.exposureInstances().back().toMap().value(QStringLiteral("id")).toString();
-    presenter.deleteExposureInstance(delete_id);
+    presenter.develop()->undoEdit(); // add
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() &&
-                   presenter.exposureInstances().size() == before_delete - 1;
+                   presenter.develop()->exposureInstances().size() <= 1;
         }))
         << presenter.errorText().toStdString();
-    presenter.undoEdit();
+    EXPECT_TRUE(presenter.develop()->canRedo());
+
+    presenter.develop()->redoEdit();
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() &&
-                   presenter.exposureInstances().size() == before_delete;
+                   presenter.develop()->exposureInstances().size() == 2;
+        }))
+        << presenter.errorText().toStdString();
+
+    const auto before_delete = presenter.develop()->exposureInstances().size();
+    const auto delete_id = presenter.develop()
+                               ->exposureInstances()
+                               .back()
+                               .toMap()
+                               .value(QStringLiteral("id"))
+                               .toString();
+    presenter.develop()->deleteExposureInstance(delete_id);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   presenter.develop()->exposureInstances().size() == before_delete - 1;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.develop()->undoEdit();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   presenter.develop()->exposureInstances().size() == before_delete;
         }))
         << presenter.errorText().toStdString();
 }

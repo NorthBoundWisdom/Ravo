@@ -522,7 +522,7 @@ Rectangle {
             leftPadding: Fonts.size6
             rightPadding: Fonts.size6
             placeholderText: qsTr("Filter by tag")
-            text: root.presenter ? root.presenter.tagFilter : ""
+            text: root.presenter ? root.presenter.library.tagFilter : ""
             onEditingFinished: if (root.commands)
                 root.commands.setTagFilter(text)
         }

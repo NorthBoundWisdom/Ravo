@@ -77,7 +77,7 @@ Result<JsonValue> run_catalog_ai_suggestion_command(CatalogService &service,
         request.expected_catalog_revision = flags.expected_revision;
         if (!flags.destination_assets.empty())
             request.peer_asset_id = std::string(flags.destination_assets.front());
-        auto created = service.create_ai_suggestion(request);
+        auto created = service.ai().create_ai_suggestion(request);
         if (!created)
             return created.error();
         return ai_suggestion_to_json(created.value());
@@ -89,7 +89,7 @@ Result<JsonValue> run_catalog_ai_suggestion_command(CatalogService &service,
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-suggestion requires --suggestion-id");
         }
-        auto suggestion = service.get_ai_suggestion(flags.suggestion_id);
+        auto suggestion = service.ai().get_ai_suggestion(flags.suggestion_id);
         if (!suggestion)
             return suggestion.error();
         return ai_suggestion_to_json(suggestion.value());
@@ -99,7 +99,7 @@ Result<JsonValue> run_catalog_ai_suggestion_command(CatalogService &service,
         std::optional<std::string_view> asset;
         if (!flags.asset_id.empty())
             asset = flags.asset_id;
-        auto listed = service.list_ai_suggestions(asset);
+        auto listed = service.ai().list_ai_suggestions(asset);
         if (!listed)
             return listed.error();
         JsonValue::Array rows;
@@ -115,7 +115,8 @@ Result<JsonValue> run_catalog_ai_suggestion_command(CatalogService &service,
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-suggestion-accept requires --suggestion-id");
         }
-        auto accepted = service.accept_ai_suggestion(flags.suggestion_id, flags.expected_revision);
+        auto accepted =
+            service.ai().accept_ai_suggestion(flags.suggestion_id, flags.expected_revision);
         if (!accepted)
             return accepted.error();
         return JsonValue{JsonValue::Object{
@@ -130,7 +131,7 @@ Result<JsonValue> run_catalog_ai_suggestion_command(CatalogService &service,
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-suggestion-reject requires --suggestion-id");
         }
-        auto rejected = service.reject_ai_suggestion(flags.suggestion_id);
+        auto rejected = service.ai().reject_ai_suggestion(flags.suggestion_id);
         if (!rejected)
             return rejected.error();
         return ai_suggestion_to_json(rejected.value());
@@ -142,7 +143,7 @@ Result<JsonValue> run_catalog_ai_suggestion_command(CatalogService &service,
             return make_error(ErrorCode::kInvalidArgument,
                               "catalog ai-suggestion-cancel requires --suggestion-id");
         }
-        auto cancelled = service.cancel_ai_suggestion(flags.suggestion_id);
+        auto cancelled = service.ai().cancel_ai_suggestion(flags.suggestion_id);
         if (!cancelled)
             return cancelled.error();
         return ai_suggestion_to_json(cancelled.value());

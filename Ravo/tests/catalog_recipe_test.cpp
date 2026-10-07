@@ -79,17 +79,17 @@ TEST_F(CatalogServiceTest, RenameRecipeSnapshotUpdatesLabelAndRejectsHistoryRows
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(8, 16, 32));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     DevelopParams params;
     params.exposure_ev = 0.4;
-    ASSERT_TRUE(service->save_develop(asset_id, params));
-    auto snapshot = service->create_recipe_snapshot(asset_id, "keep");
+    ASSERT_TRUE(service->develop().save_develop(asset_id, params));
+    auto snapshot = service->develop().create_recipe_snapshot(asset_id, "keep");
     ASSERT_TRUE(snapshot) << snapshot.error().message;
-    auto history = service->list_recipe_history(asset_id);
+    auto history = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history) << history.error().message;
     std::int64_t snapshot_id = 0;
     std::int64_t history_id = 0;
@@ -103,9 +103,9 @@ TEST_F(CatalogServiceTest, RenameRecipeSnapshotUpdatesLabelAndRejectsHistoryRows
     ASSERT_NE(snapshot_id, 0);
     ASSERT_NE(history_id, 0);
 
-    auto renamed = service->rename_recipe_snapshot(asset_id, snapshot_id, "  look-a  ");
+    auto renamed = service->develop().rename_recipe_snapshot(asset_id, snapshot_id, "  look-a  ");
     ASSERT_TRUE(renamed) << renamed.error().message;
-    auto after = service->list_recipe_history(asset_id);
+    auto after = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(after) << after.error().message;
     bool found = false;
     for (const auto &entry : after.value())
@@ -118,11 +118,11 @@ TEST_F(CatalogServiceTest, RenameRecipeSnapshotUpdatesLabelAndRejectsHistoryRows
     }
     EXPECT_TRUE(found);
 
-    auto empty = service->rename_recipe_snapshot(asset_id, snapshot_id, "   ");
+    auto empty = service->develop().rename_recipe_snapshot(asset_id, snapshot_id, "   ");
     ASSERT_FALSE(empty);
     EXPECT_EQ(empty.error().code, ErrorCode::kValidation);
 
-    auto history_row = service->rename_recipe_snapshot(asset_id, history_id, "nope");
+    auto history_row = service->develop().rename_recipe_snapshot(asset_id, history_id, "nope");
     ASSERT_FALSE(history_row);
     EXPECT_EQ(history_row.error().code, ErrorCode::kValidation);
 }
@@ -136,7 +136,7 @@ TEST_F(CatalogServiceTest, ReopenUpgradesStoredRecipeV1ToExplicitColorBoundaries
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(30, 60, 90));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -161,7 +161,7 @@ TEST_F(CatalogServiceTest, ReopenUpgradesStoredRecipeV1ToExplicitColorBoundaries
     service.reset();
 
     ASSERT_TRUE(open_service(false));
-    auto restored = service->load_recipe(asset_id);
+    auto restored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_EQ(restored.value().schema_version, 4);
     ASSERT_EQ(restored.value().operations.size(), 3U);
@@ -179,17 +179,17 @@ TEST_F(CatalogServiceTest, RecipeTransactionFailurePreservesCurrentRecipeAndRevi
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(90, 45, 20));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     DevelopParams accepted;
     accepted.exposure_ev = 0.25;
-    ASSERT_TRUE(service->save_develop(asset_id, accepted));
-    auto snapshot_before = service->snapshot();
+    ASSERT_TRUE(service->develop().save_develop(asset_id, accepted));
+    auto snapshot_before = service->library().snapshot();
     ASSERT_TRUE(snapshot_before) << snapshot_before.error().message;
-    auto history_before = service->list_recipe_history(asset_id);
+    auto history_before = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history_before) << history_before.error().message;
 
     {
@@ -209,19 +209,19 @@ TEST_F(CatalogServiceTest, RecipeTransactionFailurePreservesCurrentRecipeAndRevi
 
     DevelopParams rejected = accepted;
     rejected.exposure_ev = -0.75;
-    auto failed = service->save_develop(asset_id, rejected);
+    auto failed = service->develop().save_develop(asset_id, rejected);
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kIo);
 
-    auto current = service->load_recipe(asset_id);
+    auto current = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(current) << current.error().message;
     auto current_params = develop_from_recipe(current.value());
     ASSERT_TRUE(current_params) << current_params.error().message;
     EXPECT_NEAR(current_params.value().exposure_ev, accepted.exposure_ev, 1e-9);
-    auto snapshot_after = service->snapshot();
+    auto snapshot_after = service->library().snapshot();
     ASSERT_TRUE(snapshot_after) << snapshot_after.error().message;
     EXPECT_EQ(snapshot_after.value().revision, snapshot_before.value().revision);
-    auto history_after = service->list_recipe_history(asset_id);
+    auto history_after = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history_after) << history_after.error().message;
     EXPECT_EQ(history_after.value().size(), history_before.value().size());
 
@@ -229,7 +229,7 @@ TEST_F(CatalogServiceTest, RecipeTransactionFailurePreservesCurrentRecipeAndRevi
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto restored = service->load_recipe(asset_id);
+    auto restored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
     auto restored_params = develop_from_recipe(restored.value());
     ASSERT_TRUE(restored_params) << restored_params.error().message;
@@ -245,21 +245,21 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRo
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(40, 80, 120));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     DevelopParams first;
     first.exposure_black = 0.01;
-    auto first_saved = service->save_develop_with_history(asset_id, first);
+    auto first_saved = service->develop().save_develop_with_history(asset_id, first);
     ASSERT_TRUE(first_saved) << first_saved.error().message;
     ASSERT_TRUE(first_saved.value().history_id);
     const auto coalesce_id = *first_saved.value().history_id;
 
     DevelopParams second = first;
     second.exposure_black = 0.02;
-    auto second_saved = service->save_develop_with_history(
+    auto second_saved = service->develop().save_develop_with_history(
         asset_id, second,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
@@ -269,7 +269,7 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRo
     ASSERT_TRUE(second_saved) << second_saved.error().message;
     ASSERT_TRUE(second_saved.value().history_id);
     EXPECT_EQ(*second_saved.value().history_id, coalesce_id);
-    auto coalesced = service->list_recipe_history(asset_id);
+    auto coalesced = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(coalesced) << coalesced.error().message;
     ASSERT_EQ(coalesced.value().size(), 1U);
     EXPECT_EQ(coalesced.value().front().id, coalesce_id);
@@ -279,9 +279,9 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRo
     ASSERT_TRUE(coalesced_params) << coalesced_params.error().message;
     EXPECT_NEAR(coalesced_params.value().exposure_black, second.exposure_black, 1e-9);
 
-    auto before_invalid = service->snapshot();
+    auto before_invalid = service->library().snapshot();
     ASSERT_TRUE(before_invalid) << before_invalid.error().message;
-    auto invalid = service->save_develop_with_history(
+    auto invalid = service->develop().save_develop_with_history(
         asset_id, second,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kUnchanged,
                           .discard_history_after_seq = {},
@@ -290,15 +290,15 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRo
                           .expected_revision = {}});
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().code, ErrorCode::kValidation);
-    auto after_invalid = service->snapshot();
+    auto after_invalid = service->library().snapshot();
     ASSERT_TRUE(after_invalid) << after_invalid.error().message;
     EXPECT_EQ(after_invalid.value().revision, before_invalid.value().revision);
 
-    auto snapshot = service->create_recipe_snapshot(asset_id, "boundary");
+    auto snapshot = service->develop().create_recipe_snapshot(asset_id, "boundary");
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     DevelopParams third = second;
     third.exposure_black = 0.03;
-    auto after_snapshot = service->save_develop_with_history(
+    auto after_snapshot = service->develop().save_develop_with_history(
         asset_id, third,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
@@ -308,7 +308,7 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRo
     ASSERT_TRUE(after_snapshot) << after_snapshot.error().message;
     ASSERT_TRUE(after_snapshot.value().history_id);
     EXPECT_NE(*after_snapshot.value().history_id, coalesce_id);
-    auto separated = service->list_recipe_history(asset_id);
+    auto separated = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(separated) << separated.error().message;
     ASSERT_EQ(separated.value().size(), 3U);
     EXPECT_EQ(separated.value()[1].kind, kRecipeHistoryKindSnapshot);
@@ -324,19 +324,19 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalesceFailureRollsBackRecipeHistoryAnd
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(120, 80, 40));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     DevelopParams first;
     first.exposure_black = 0.01;
-    auto first_saved = service->save_develop_with_history(asset_id, first);
+    auto first_saved = service->develop().save_develop_with_history(asset_id, first);
     ASSERT_TRUE(first_saved) << first_saved.error().message;
     ASSERT_TRUE(first_saved.value().history_id);
-    auto snapshot_before = service->snapshot();
+    auto snapshot_before = service->library().snapshot();
     ASSERT_TRUE(snapshot_before) << snapshot_before.error().message;
-    auto history_before = service->list_recipe_history(asset_id);
+    auto history_before = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history_before) << history_before.error().message;
 
     {
@@ -357,7 +357,7 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalesceFailureRollsBackRecipeHistoryAnd
 
     DevelopParams rejected = first;
     rejected.exposure_black = 0.03;
-    auto failed = service->save_develop_with_history(
+    auto failed = service->develop().save_develop_with_history(
         asset_id, rejected,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
@@ -367,15 +367,15 @@ TEST_F(CatalogServiceTest, RecipeHistoryCoalesceFailureRollsBackRecipeHistoryAnd
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kIo);
 
-    auto current = service->load_recipe(asset_id);
+    auto current = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(current) << current.error().message;
     auto current_params = develop_from_recipe(current.value());
     ASSERT_TRUE(current_params) << current_params.error().message;
     EXPECT_NEAR(current_params.value().exposure_black, first.exposure_black, 1e-9);
-    auto snapshot_after = service->snapshot();
+    auto snapshot_after = service->library().snapshot();
     ASSERT_TRUE(snapshot_after) << snapshot_after.error().message;
     EXPECT_EQ(snapshot_after.value().revision, snapshot_before.value().revision);
-    auto history_after = service->list_recipe_history(asset_id);
+    auto history_after = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history_after) << history_after.error().message;
     ASSERT_EQ(history_after.value().size(), history_before.value().size());
     EXPECT_EQ(history_after.value().front().id, history_before.value().front().id);
@@ -392,23 +392,23 @@ TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(20, 40, 80));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     DevelopParams first;
     first.exposure_ev = 0.4;
-    ASSERT_TRUE(service->save_develop(asset_id, first));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, first));
     DevelopParams second;
     second.exposure_ev = -0.5;
-    ASSERT_TRUE(service->save_develop(asset_id, second));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, second));
     DevelopParams third;
     third.exposure_ev = -0.5;
     third.highlights = 0.3;
-    ASSERT_TRUE(service->save_develop(asset_id, third));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, third));
 
-    auto history = service->list_recipe_history(asset_id);
+    auto history = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history) << history.error().message;
     ASSERT_EQ(history.value().size(), 3U);
     const auto newest = history.value()[0];
@@ -417,20 +417,20 @@ TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
     EXPECT_GT(newest.seq, middle.seq);
     EXPECT_GT(middle.seq, oldest.seq);
 
-    auto previewed =
-        service->save_develop(asset_id, second,
-                              RecipeSaveOptions{.history_write = RecipeHistoryWrite::kUnchanged,
-                                                .discard_history_after_seq = {},
-                                                .coalesce_history_id = {},
-                                                .defer_recovery_publication = false,
-                                                .expected_revision = {}});
+    auto previewed = service->develop().save_develop(
+        asset_id, second,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kUnchanged,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = {},
+                          .defer_recovery_publication = false,
+                          .expected_revision = {}});
     ASSERT_TRUE(previewed) << previewed.error().message;
-    auto preview_history = service->list_recipe_history(asset_id);
+    auto preview_history = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(preview_history) << preview_history.error().message;
     ASSERT_EQ(preview_history.value().size(), 3U);
     EXPECT_EQ(preview_history.value()[0].id, newest.id);
     EXPECT_EQ(preview_history.value()[1].id, middle.id);
-    auto preview_recipe = service->load_recipe(asset_id);
+    auto preview_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(preview_recipe) << preview_recipe.error().message;
     auto preview_params = develop_from_recipe(preview_recipe.value());
     ASSERT_TRUE(preview_params) << preview_params.error().message;
@@ -439,7 +439,8 @@ TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
 
     DevelopParams branched = second;
     branched.contrast = 0.2;
-    auto edited = service->save_develop(asset_id, branched,
+    auto edited =
+        service->develop().save_develop(asset_id, branched,
                                         RecipeSaveOptions{
                                             .history_write = RecipeHistoryWrite::kAppendIfNew,
                                             .discard_history_after_seq = middle.seq,
@@ -448,14 +449,14 @@ TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
                                             .expected_revision = {},
                                         });
     ASSERT_TRUE(edited) << edited.error().message;
-    auto truncated = service->list_recipe_history(asset_id);
+    auto truncated = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(truncated) << truncated.error().message;
     ASSERT_EQ(truncated.value().size(), 3U);
     EXPECT_EQ(truncated.value()[1].id, middle.id);
     EXPECT_EQ(truncated.value()[2].id, oldest.id);
     EXPECT_NE(truncated.value()[0].id, newest.id);
     EXPECT_GT(truncated.value()[0].seq, middle.seq);
-    auto current = service->load_recipe(asset_id);
+    auto current = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(current) << current.error().message;
     auto current_params = develop_from_recipe(current.value());
     ASSERT_TRUE(current_params) << current_params.error().message;
@@ -473,28 +474,28 @@ TEST_F(CatalogServiceTest, RestoreRecipeHistoryStillAppendsCurrentStep)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(8, 16, 32));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     DevelopParams first;
     first.exposure_ev = 0.25;
-    ASSERT_TRUE(service->save_develop(asset_id, first));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, first));
     DevelopParams second;
     second.exposure_ev = -0.25;
-    ASSERT_TRUE(service->save_develop(asset_id, second));
-    auto before = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(service->develop().save_develop(asset_id, second));
+    auto before = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(before) << before.error().message;
     ASSERT_EQ(before.value().size(), 2U);
     const auto oldest_id = before.value().back().id;
 
-    auto restored = service->restore_recipe_history(asset_id, oldest_id);
+    auto restored = service->develop().restore_recipe_history(asset_id, oldest_id);
     ASSERT_TRUE(restored) << restored.error().message;
-    auto after = service->list_recipe_history(asset_id);
+    auto after = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(after) << after.error().message;
     EXPECT_EQ(after.value().size(), 3U);
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto params = develop_from_recipe(recipe.value());
     ASSERT_TRUE(params) << params.error().message;
@@ -510,20 +511,20 @@ TEST_F(CatalogServiceTest, HistoryDiscardAndAppendShareRecipeTransaction)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(64, 32, 16));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
     DevelopParams first;
     first.exposure_ev = 0.25;
-    ASSERT_TRUE(service->save_develop(asset_id, first));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, first));
     DevelopParams second;
     second.exposure_ev = -0.75;
-    ASSERT_TRUE(service->save_develop(asset_id, second));
-    auto snapshot_before = service->snapshot();
+    ASSERT_TRUE(service->develop().save_develop(asset_id, second));
+    auto snapshot_before = service->library().snapshot();
     ASSERT_TRUE(snapshot_before) << snapshot_before.error().message;
-    auto history_before = service->list_recipe_history(asset_id);
+    auto history_before = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history_before) << history_before.error().message;
     ASSERT_EQ(history_before.value().size(), 2U);
     const auto cursor_seq = history_before.value().back().seq;
@@ -545,7 +546,8 @@ TEST_F(CatalogServiceTest, HistoryDiscardAndAppendShareRecipeTransaction)
 
     DevelopParams branched = first;
     branched.contrast = 0.4;
-    auto failed = service->save_develop(asset_id, branched,
+    auto failed =
+        service->develop().save_develop(asset_id, branched,
                                         RecipeSaveOptions{
                                             .history_write = RecipeHistoryWrite::kAppendIfNew,
                                             .discard_history_after_seq = cursor_seq,
@@ -556,16 +558,16 @@ TEST_F(CatalogServiceTest, HistoryDiscardAndAppendShareRecipeTransaction)
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kIo);
 
-    auto current = service->load_recipe(asset_id);
+    auto current = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(current) << current.error().message;
     auto current_params = develop_from_recipe(current.value());
     ASSERT_TRUE(current_params) << current_params.error().message;
     EXPECT_NEAR(current_params.value().exposure_ev, second.exposure_ev, 1e-9);
     EXPECT_NEAR(current_params.value().contrast, 0.0, 1e-9);
-    auto snapshot_after = service->snapshot();
+    auto snapshot_after = service->library().snapshot();
     ASSERT_TRUE(snapshot_after) << snapshot_after.error().message;
     EXPECT_EQ(snapshot_after.value().revision, snapshot_before.value().revision);
-    auto history_after = service->list_recipe_history(asset_id);
+    auto history_after = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history_after) << history_after.error().message;
     ASSERT_EQ(history_after.value().size(), history_before.value().size());
     EXPECT_EQ(history_after.value()[0].id, history_before.value()[0].id);
@@ -576,13 +578,13 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
     EXPECT_FALSE(imported.value().asset->has_edits);
 
-    auto baseline = service->load_recipe(asset_id);
+    auto baseline = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
     ASSERT_EQ(baseline.value().operations.size(), 7U);
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
@@ -624,7 +626,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     EXPECT_DOUBLE_EQ(baseline_params.value().raw_highlights, 1.0);
     EXPECT_DOUBLE_EQ(baseline_params.value().raw_highlights_clip, 1.0);
     EXPECT_EQ(baseline_params.value().raw_highlights_mode, kRawHighlightsModeOpposed);
-    auto baseline_has_edits = service->asset_has_edits(asset_id);
+    auto baseline_has_edits = service->develop().asset_has_edits(asset_id);
     ASSERT_TRUE(baseline_has_edits) << baseline_has_edits.error().message;
     EXPECT_FALSE(baseline_has_edits.value());
 
@@ -637,9 +639,9 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     auto prior_built = recipe_from_develop(baseline.value().asset, prior_params);
     ASSERT_TRUE(prior_built) << prior_built.error().message;
     Recipe prior_baseline = std::move(prior_built).value();
-    auto prior_saved = service->save_recipe(asset_id, prior_baseline);
+    auto prior_saved = service->develop().save_recipe(asset_id, prior_baseline);
     ASSERT_TRUE(prior_saved) << prior_saved.error().message;
-    auto prior_effective = service->load_recipe(asset_id);
+    auto prior_effective = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(prior_effective) << prior_effective.error().message;
     EXPECT_NE(std::find_if(prior_effective.value().operations.begin(),
                            prior_effective.value().operations.end(),
@@ -650,7 +652,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     prior_preview.asset_id = asset_id;
     prior_preview.max_edge = 64U;
     prior_preview.persist_preview_record = false;
-    auto prior_previewed = service->request_preview(prior_preview);
+    auto prior_previewed = service->preview().request_preview(prior_preview);
     ASSERT_TRUE(prior_previewed) << prior_previewed.error().message;
     EXPECT_FALSE(prior_previewed.value().rgb.empty());
     ExportRequest prior_export;
@@ -658,7 +660,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     prior_export.output_path = (root / "prior-baseline.png").string();
     prior_export.format = ExportFormat::kPng;
     prior_export.max_edge = 64U;
-    auto prior_exported = service->export_asset(prior_export);
+    auto prior_exported = service->exports().export_asset(prior_export);
     ASSERT_TRUE(prior_exported) << prior_exported.error().message;
     EXPECT_TRUE(std::filesystem::is_regular_file(prior_export.output_path));
     auto prior_persisted = sqlite_repository->load_recipe_json(asset_id);
@@ -679,7 +681,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     adjusted.rapidraw_shadows = 21.0;
     adjusted.rapidraw_whites = 9.0;
     adjusted.rapidraw_blacks = -7.0;
-    auto saved = service->save_develop(asset_id, adjusted);
+    auto saved = service->develop().save_develop(asset_id, adjusted);
     ASSERT_TRUE(saved) << saved.error().message;
     EXPECT_TRUE(saved.value().has_edits);
     ASSERT_TRUE(service->close());
@@ -687,7 +689,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto restored = service->load_recipe(asset_id);
+    auto restored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
     auto restored_params = develop_from_recipe(restored.value());
     ASSERT_TRUE(restored_params) << restored_params.error().message;
@@ -704,7 +706,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     rapidraw_preview_request.asset_id = asset_id;
     rapidraw_preview_request.max_edge = 64U;
     rapidraw_preview_request.persist_preview_record = false;
-    auto rapidraw_preview = service->request_preview(rapidraw_preview_request);
+    auto rapidraw_preview = service->preview().request_preview(rapidraw_preview_request);
     ASSERT_TRUE(rapidraw_preview) << rapidraw_preview.error().message;
     ASSERT_FALSE(rapidraw_preview.value().rgb.empty());
     ExportRequest rapidraw_export;
@@ -712,7 +714,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     rapidraw_export.output_path = (root / "rapidraw-tone-controls.png").string();
     rapidraw_export.format = ExportFormat::kPng;
     rapidraw_export.max_edge = 64U;
-    auto rapidraw_exported = service->export_asset(rapidraw_export);
+    auto rapidraw_exported = service->exports().export_asset(rapidraw_export);
     ASSERT_TRUE(rapidraw_exported) << rapidraw_exported.error().message;
     const QImage rapidraw_export_image(QString::fromStdString(rapidraw_export.output_path));
     ASSERT_FALSE(rapidraw_export_image.isNull());
@@ -737,10 +739,10 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     }
     EXPECT_LE(maximum_gpu_delta, 1);
 
-    auto reset = service->reset_recipe(asset_id);
+    auto reset = service->develop().reset_recipe(asset_id);
     ASSERT_TRUE(reset) << reset.error().message;
     EXPECT_FALSE(reset.value().has_edits);
-    auto reset_recipe = service->load_recipe(asset_id);
+    auto reset_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(reset_recipe) << reset_recipe.error().message;
     auto reset_params = develop_from_recipe(reset_recipe.value());
     ASSERT_TRUE(reset_params) << reset_params.error().message;
@@ -760,7 +762,7 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(200, 80, 40));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -774,7 +776,7 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
     request.asset_id = asset_id;
     request.max_edge = kInteractivePreviewMaxEdge;
     request.persist_preview_record = false;
-    auto first = service->request_preview(request, live);
+    auto first = service->preview().request_preview(request, live);
     ASSERT_TRUE(first) << first.error().message;
     EXPECT_TRUE(first.value().cache_path.empty());
     EXPECT_FALSE(first.value().rgb.empty());
@@ -782,19 +784,19 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
               static_cast<std::size_t>(first.value().width) * first.value().height * 3U);
     EXPECT_LE(std::max(first.value().width, first.value().height), kInteractivePreviewMaxEdge);
 
-    auto stored = service->load_recipe(asset_id);
+    auto stored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored) << stored.error().message;
     auto stored_params = develop_from_recipe(stored.value());
     ASSERT_TRUE(stored_params) << stored_params.error().message;
     EXPECT_TRUE(stored_params.value().is_identity());
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_FALSE(listed.value().front().has_edits);
 
     const auto first_pixels = first.value().rgb;
     live.exposure_ev = -0.75;
-    auto second = service->request_preview(request, live);
+    auto second = service->preview().request_preview(request, live);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_TRUE(second.value().cache_path.empty());
     EXPECT_NE(second.value().rgb, first_pixels);
@@ -818,7 +820,7 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
     }
     ASSERT_TRUE(image.save(QString::fromStdString(png_path), "PNG"));
     const auto original_hash = file_sha256(png_path);
-    auto imported = service->import_one(png_path, CancellationToken{});
+    auto imported = service->import().import_one(png_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -827,7 +829,7 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
     preview.asset_id = asset_id;
     preview.max_edge = 48;
     preview.persist_preview_record = true;
-    auto baseline = service->request_preview(preview);
+    auto baseline = service->preview().request_preview(preview);
     ASSERT_TRUE(baseline) << baseline.error().message;
     ASSERT_FALSE(baseline.value().cache_path.empty());
     ASSERT_TRUE(std::filesystem::exists(baseline.value().cache_path));
@@ -852,7 +854,7 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
         return true;
     };
 
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto edited = develop_from_recipe(recipe.value());
     ASSERT_TRUE(edited) << edited.error().message;
@@ -865,10 +867,10 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
     edited.value().primaries.blue_hue = -0.03;
     edited.value().primaries.blue_purity = 1.02;
     clamp_develop(edited.value());
-    auto saved = service->save_develop(asset_id, edited.value());
+    auto saved = service->develop().save_develop(asset_id, edited.value());
     ASSERT_TRUE(saved) << saved.error().message;
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto primaries_operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -877,7 +879,7 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
     EXPECT_EQ(primaries_operation->schema_version, 1);
     EXPECT_EQ(primaries_operation->parameters.size(), 8U);
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     ASSERT_FALSE(before_reopen.value().cache_path.empty());
     ASSERT_TRUE(std::filesystem::exists(before_reopen.value().cache_path));
@@ -888,7 +890,7 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
 
     PreviewRequest interactive = preview;
     interactive.persist_preview_record = false;
-    auto interactive_before_reopen = service->request_preview(interactive);
+    auto interactive_before_reopen = service->preview().request_preview(interactive);
     ASSERT_TRUE(interactive_before_reopen) << interactive_before_reopen.error().message;
     EXPECT_TRUE(interactive_before_reopen.value().cache_path.empty());
     ASSERT_FALSE(interactive_before_reopen.value().rgb.empty());
@@ -899,7 +901,7 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 48U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -908,13 +910,13 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_EQ(restored.value().primaries, edited.value().primaries);
 
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     ASSERT_FALSE(after_reopen.value().cache_path.empty());
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -922,7 +924,7 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
     EXPECT_TRUE(same_pixels(after_reopen_image, before_reopen_image));
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
 
-    auto interactive_after_reopen = service->request_preview(interactive);
+    auto interactive_after_reopen = service->preview().request_preview(interactive);
     ASSERT_TRUE(interactive_after_reopen) << interactive_after_reopen.error().message;
     EXPECT_EQ(interactive_after_reopen.value().rgb, interactive_before_reopen.value().rgb);
     EXPECT_EQ(file_sha256(png_path), original_hash);
@@ -946,7 +948,7 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
     }
     ASSERT_TRUE(image.save(QString::fromStdString(png_path), "PNG"));
     const auto original_hash = file_sha256(png_path);
-    auto imported = service->import_one(png_path, CancellationToken{});
+    auto imported = service->import().import_one(png_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -969,7 +971,7 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
     persisted.asset_id = asset_id;
     persisted.max_edge = 48;
     persisted.persist_preview_record = true;
-    auto baseline = service->request_preview(persisted);
+    auto baseline = service->preview().request_preview(persisted);
     ASSERT_TRUE(baseline) << baseline.error().message;
     const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
     ASSERT_FALSE(baseline_image.isNull());
@@ -992,7 +994,7 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
         return true;
     };
 
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto logarithmic = develop_from_recipe(recipe.value());
     ASSERT_TRUE(logarithmic) << logarithmic.error().message;
@@ -1005,9 +1007,9 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
     logarithmic.value().profile_gamma.shadows_range = -6.5;
     logarithmic.value().profile_gamma.security_factor = 12.0;
     clamp_develop(logarithmic.value());
-    ASSERT_TRUE(service->save_develop(asset_id, logarithmic.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, logarithmic.value()));
 
-    auto log_recipe = service->load_recipe(asset_id);
+    auto log_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(log_recipe) << log_recipe.error().message;
     const auto profile_gamma_operation =
         std::find_if(log_recipe.value().operations.begin(), log_recipe.value().operations.end(),
@@ -1018,7 +1020,7 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
     EXPECT_TRUE(profile_gamma_operation->enabled);
     EXPECT_EQ(profile_gamma_operation->parameters.size(), 7U);
 
-    auto log_persisted = service->request_preview(persisted);
+    auto log_persisted = service->preview().request_preview(persisted);
     ASSERT_TRUE(log_persisted) << log_persisted.error().message;
     const QImage log_image(QString::fromStdString(log_persisted.value().cache_path));
     ASSERT_FALSE(log_image.isNull());
@@ -1027,7 +1029,7 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
 
     PreviewRequest interactive = persisted;
     interactive.persist_preview_record = false;
-    auto log_interactive = service->request_preview(interactive);
+    auto log_interactive = service->preview().request_preview(interactive);
     ASSERT_TRUE(log_interactive) << log_interactive.error().message;
     ASSERT_FALSE(log_interactive.value().rgb.empty());
     EXPECT_EQ(log_interactive.value().rgb, image_rgb(log_image));
@@ -1037,7 +1039,7 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
     log_export.output_path = (root / "profile-gamma-log.png").string();
     log_export.format = ExportFormat::kPng;
     log_export.max_edge = 48U;
-    auto exported_log = service->export_asset(log_export);
+    auto exported_log = service->exports().export_asset(log_export);
     ASSERT_TRUE(exported_log) << exported_log.error().message;
     const QImage log_export_image(QString::fromStdString(log_export.output_path));
     ASSERT_FALSE(log_export_image.isNull());
@@ -1048,16 +1050,16 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
     gamma.profile_gamma.linear = 0.12;
     gamma.profile_gamma.gamma = 0.72;
     clamp_develop(gamma);
-    ASSERT_TRUE(service->save_develop(asset_id, gamma));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, gamma));
 
-    auto gamma_persisted = service->request_preview(persisted);
+    auto gamma_persisted = service->preview().request_preview(persisted);
     ASSERT_TRUE(gamma_persisted) << gamma_persisted.error().message;
     const QImage gamma_image(QString::fromStdString(gamma_persisted.value().cache_path));
     ASSERT_FALSE(gamma_image.isNull());
     EXPECT_NE(gamma_persisted.value().cache_key, log_persisted.value().cache_key);
     EXPECT_FALSE(same_pixels(gamma_image, log_image));
 
-    auto gamma_interactive = service->request_preview(interactive);
+    auto gamma_interactive = service->preview().request_preview(interactive);
     ASSERT_TRUE(gamma_interactive) << gamma_interactive.error().message;
     ASSERT_FALSE(gamma_interactive.value().rgb.empty());
     EXPECT_EQ(gamma_interactive.value().rgb, image_rgb(gamma_image));
@@ -1067,7 +1069,7 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
     gamma_export.output_path = (root / "profile-gamma-gamma.png").string();
     gamma_export.format = ExportFormat::kPng;
     gamma_export.max_edge = 48U;
-    auto exported_gamma = service->export_asset(gamma_export);
+    auto exported_gamma = service->exports().export_asset(gamma_export);
     ASSERT_TRUE(exported_gamma) << exported_gamma.error().message;
     const QImage gamma_export_image(QString::fromStdString(gamma_export.output_path));
     ASSERT_FALSE(gamma_export_image.isNull());
@@ -1076,21 +1078,21 @@ TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportA
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().profile_gamma_enabled);
     EXPECT_EQ(restored.value().profile_gamma, gamma.profile_gamma);
 
-    auto reopened_persisted = service->request_preview(persisted);
+    auto reopened_persisted = service->preview().request_preview(persisted);
     ASSERT_TRUE(reopened_persisted) << reopened_persisted.error().message;
     const QImage reopened_image(QString::fromStdString(reopened_persisted.value().cache_path));
     ASSERT_FALSE(reopened_image.isNull());
     EXPECT_EQ(reopened_persisted.value().cache_key, gamma_persisted.value().cache_key);
     EXPECT_TRUE(same_pixels(reopened_image, gamma_image));
 
-    auto reopened_interactive = service->request_preview(interactive);
+    auto reopened_interactive = service->preview().request_preview(interactive);
     ASSERT_TRUE(reopened_interactive) << reopened_interactive.error().message;
     EXPECT_EQ(reopened_interactive.value().rgb, gamma_interactive.value().rgb);
     EXPECT_EQ(file_sha256(png_path), original_hash);
@@ -1105,7 +1107,7 @@ TEST_F(CatalogServiceTest, FileIccContentInvalidatesPreviewAndSurvivesRecipeReop
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(180, 70, 30));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1120,33 +1122,33 @@ TEST_F(CatalogServiceTest, FileIccContentInvalidatesPreviewAndSurvivesRecipeReop
     };
     ASSERT_TRUE(write_profile(QColorSpace::SRgb));
 
-    auto baseline = service->load_recipe(asset_id);
+    auto baseline = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
     auto develop = develop_from_recipe(baseline.value());
     ASSERT_TRUE(develop) << develop.error().message;
     develop.value().input_color.input_profile = std::string(kInputProfileFileIcc);
     develop.value().input_color.input_profile_filename = profile_path.string();
-    auto saved = service->save_develop(asset_id, develop.value());
+    auto saved = service->develop().save_develop(asset_id, develop.value());
     ASSERT_TRUE(saved) << saved.error().message;
 
     PreviewRequest request;
     request.asset_id = asset_id;
     request.max_edge = 64;
-    auto first = service->request_preview(request);
+    auto first = service->preview().request_preview(request);
     ASSERT_TRUE(first) << first.error().message;
     EXPECT_TRUE(std::filesystem::exists(first.value().cache_path));
 
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored = service->load_recipe(asset_id);
+    auto restored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
     auto restored_develop = develop_from_recipe(restored.value());
     ASSERT_TRUE(restored_develop) << restored_develop.error().message;
     EXPECT_EQ(restored_develop.value().input_color, develop.value().input_color);
 
     ASSERT_TRUE(write_profile(QColorSpace::DisplayP3));
-    auto second = service->request_preview(request);
+    auto second = service->preview().request_preview(request);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_NE(second.value().cache_key, first.value().cache_key);
     EXPECT_NE(second.value().cache_path, first.value().cache_path);
@@ -1163,7 +1165,7 @@ TEST_F(CatalogServiceTest, OutputIccContentInvalidatesPreviewBeforeCachePublicat
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(170, 90, 35));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1178,18 +1180,18 @@ TEST_F(CatalogServiceTest, OutputIccContentInvalidatesPreviewBeforeCachePublicat
     };
     ASSERT_TRUE(write_profile(QColorSpace::SRgb));
 
-    auto baseline = service->load_recipe(asset_id);
+    auto baseline = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
     auto develop = develop_from_recipe(baseline.value());
     ASSERT_TRUE(develop) << develop.error().message;
     develop.value().output_color.output_profile = std::string(kInputProfileFileIcc);
     develop.value().output_color.output_profile_filename = profile_path.string();
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
     PreviewRequest request;
     request.asset_id = asset_id;
     request.max_edge = 64;
-    auto first = service->request_preview(request);
+    auto first = service->preview().request_preview(request);
     ASSERT_TRUE(first) << first.error().message;
     const QImage first_image(QString::fromStdString(first.value().cache_path));
     ASSERT_FALSE(first_image.isNull());
@@ -1199,14 +1201,14 @@ TEST_F(CatalogServiceTest, OutputIccContentInvalidatesPreviewBeforeCachePublicat
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored = service->load_recipe(asset_id);
+    auto restored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
     auto restored_develop = develop_from_recipe(restored.value());
     ASSERT_TRUE(restored_develop) << restored_develop.error().message;
     EXPECT_EQ(restored_develop.value().output_color, develop.value().output_color);
 
     ASSERT_TRUE(write_profile(QColorSpace::DisplayP3));
-    auto second = service->request_preview(request);
+    auto second = service->preview().request_preview(request);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_NE(second.value().cache_key, first.value().cache_key);
     EXPECT_NE(second.value().cache_path, first.value().cache_path);
@@ -1220,7 +1222,7 @@ TEST_F(CatalogServiceTest, OutputIccContentInvalidatesPreviewBeforeCachePublicat
     ASSERT_TRUE(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
     ASSERT_EQ(corrupt.write("bad", 3), 3);
     corrupt.close();
-    auto rejected = service->request_preview(request);
+    auto rejected = service->preview().request_preview(request);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
     EXPECT_TRUE(std::filesystem::exists(first.value().cache_path));
@@ -1231,7 +1233,7 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1244,7 +1246,7 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     request.max_edge = kInteractivePreviewMaxEdge;
     request.persist_preview_record = false;
     request.prefer_embedded_preview = true;
-    auto first = service->request_preview(request, live);
+    auto first = service->preview().request_preview(request, live);
     ASSERT_TRUE(first) << first.error().message;
     EXPECT_TRUE(first.value().cache_path.empty());
     EXPECT_FALSE(first.value().rgb.empty());
@@ -1258,7 +1260,7 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     ASSERT_TRUE(direct_recipe) << direct_recipe.error().message;
     PreviewRequest settled = request;
     settled.max_edge = kDefaultPreviewMaxEdge;
-    auto settled_live = service->request_preview(settled, live);
+    auto settled_live = service->preview().request_preview(settled, live);
     ASSERT_TRUE(settled_live) << settled_live.error().message;
     EXPECT_TRUE(settled_live.value().cache_path.empty());
     RenderRequest direct_request;
@@ -1270,7 +1272,7 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     ASSERT_TRUE(direct) << direct.error().message;
     EXPECT_EQ(settled_live.value().rgb, direct.value().rgb);
 
-    auto stored = service->load_recipe(asset_id);
+    auto stored = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored) << stored.error().message;
     auto stored_params = develop_from_recipe(stored.value());
     ASSERT_TRUE(stored_params) << stored_params.error().message;
@@ -1279,30 +1281,30 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     EXPECT_TRUE(stored_params.value().rapidraw_basic_tone_enabled);
 
     live.exposure_ev = -0.5;
-    auto second = service->request_preview(request, live);
+    auto second = service->preview().request_preview(request, live);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_TRUE(second.value().cache_path.empty());
     EXPECT_NE(second.value().rgb, first.value().rgb);
 
     live.exposure_ev = 0.75;
-    auto third = service->request_preview(request, live);
+    auto third = service->preview().request_preview(request, live);
     ASSERT_TRUE(third) << third.error().message;
     EXPECT_EQ(third.value().rgb, first.value().rgb);
 
     live.temperature.mode = std::string(kTemperatureModeManual);
     live.temperature.coefficients =
         std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
-    auto balanced = service->request_preview(request, live);
+    auto balanced = service->preview().request_preview(request, live);
     ASSERT_TRUE(balanced) << balanced.error().message;
     EXPECT_NE(balanced.value().rgb, first.value().rgb);
     ASSERT_TRUE(live.temperature.coefficients);
     (*live.temperature.coefficients)[0] += 0.25;
-    auto rebalanced = service->request_preview(request, live);
+    auto rebalanced = service->preview().request_preview(request, live);
     ASSERT_TRUE(rebalanced) << rebalanced.error().message;
     EXPECT_NE(rebalanced.value().rgb, balanced.value().rgb);
 
     live.raw_highlights = 1.0;
-    auto highlighted = service->request_preview(request, live);
+    auto highlighted = service->preview().request_preview(request, live);
     ASSERT_TRUE(highlighted) << highlighted.error().message;
     EXPECT_EQ(highlighted.value().width, first.value().width);
     EXPECT_EQ(highlighted.value().height, first.value().height);
@@ -1312,7 +1314,7 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReturnsWindowPixelsWithoutCache)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     PreviewRequest request;
@@ -1320,7 +1322,7 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReturnsWindowPixelsWithoutCache)
     request.persist_preview_record = false;
     request.prefer_embedded_preview = false;
     request.roi = PreviewNormRect{0.25, 0.25, 0.2, 0.15};
-    auto preview = service->request_preview(request);
+    auto preview = service->preview().request_preview(request);
     ASSERT_TRUE(preview) << preview.error().message;
     EXPECT_TRUE(preview.value().cache_path.empty());
     EXPECT_FALSE(preview.value().rgb.empty());
@@ -1331,14 +1333,14 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReturnsWindowPixelsWithoutCache)
                        imported.value().asset->height.value_or(0)));
 
     request.roi = PreviewNormRect{0.0, 0.0, 0.9, 0.9};
-    auto rejected_full = service->request_preview(request);
+    auto rejected_full = service->preview().request_preview(request);
     ASSERT_FALSE(rejected_full);
     EXPECT_EQ(rejected_full.error().context.at("reason"), "preview_roi_covers_full_frame");
 
     DevelopParams live;
     live.straighten_degrees = 5.0;
     request.roi = PreviewNormRect{0.25, 0.25, 0.2, 0.15};
-    auto rejected_geometry = service->request_preview(request, live);
+    auto rejected_geometry = service->preview().request_preview(request, live);
     ASSERT_FALSE(rejected_geometry);
     EXPECT_EQ(rejected_geometry.error().context.at("reason"), "preview_roi_geometry_unsupported");
 }
@@ -1358,7 +1360,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     // macOS-only; other hosts retain owned CPU pixels even without a download request.
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1418,7 +1420,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     settled.max_edge = 128U;
     settled.persist_preview_record = true;
     settled.prefer_embedded_preview = false;
-    auto preview = service->request_preview(settled);
+    auto preview = service->preview().request_preview(settled);
     ASSERT_TRUE(preview) << preview.error().message;
     ASSERT_TRUE(require_cpu_gold_backend(preview.value().gpu_backend, "settled_preview"));
 
@@ -1429,7 +1431,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     scaled_export.output_path = scaled_export_path;
     scaled_export.format = ExportFormat::kPng;
     scaled_export.max_edge = 128U;
-    auto scaled_exported = service->export_asset(scaled_export);
+    auto scaled_exported = service->exports().export_asset(scaled_export);
     ASSERT_TRUE(scaled_exported) << scaled_exported.error().message;
     EXPECT_EQ(scaled_exported.value().width, preview.value().width);
     EXPECT_EQ(scaled_exported.value().height, preview.value().height);
@@ -1443,7 +1445,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     full_export.output_path = full_export_path;
     full_export.format = ExportFormat::kPng;
     full_export.max_edge = 0U;
-    auto full_exported = service->export_asset(full_export);
+    auto full_exported = service->exports().export_asset(full_export);
     ASSERT_TRUE(full_exported) << full_exported.error().message;
     RecordProperty("iq00_full_export_width", static_cast<int>(full_exported.value().width));
     RecordProperty("iq00_full_export_height", static_cast<int>(full_exported.value().height));
@@ -1454,7 +1456,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto reopened = service->request_preview(settled);
+    auto reopened = service->preview().request_preview(settled);
     ASSERT_TRUE(reopened) << reopened.error().message;
     ASSERT_TRUE(require_cpu_gold_backend(reopened.value().gpu_backend, "reopen_preview"));
     EXPECT_EQ(reopened.value().color_profile, preview.value().color_profile);
@@ -1465,7 +1467,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     roi.prefer_embedded_preview = false;
     roi.need_cpu_pixels = true;
     roi.roi = roi_rect;
-    auto roi_preview = service->request_preview(roi);
+    auto roi_preview = service->preview().request_preview(roi);
     ASSERT_TRUE(roi_preview) << roi_preview.error().message;
     ASSERT_FALSE(roi_preview.value().rgb.empty());
     ASSERT_GT(roi_preview.value().width, 0U);
@@ -1584,14 +1586,14 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
 
     // Dedicated Metal apron-surface probe: admitted Exposure, GPU-only pixels.
     // Packed authority above stays on the baseline recipe / CPU-gold export crop.
-    auto live = service->load_recipe(asset_id);
+    auto live = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(live) << live.error().message;
     auto live_params = develop_from_recipe(live.value());
     ASSERT_TRUE(live_params) << live_params.error().message;
     live_params.value().exposure_ev = 0.35;
     auto admitted = recipe_from_develop(live.value().asset, live_params.value());
     ASSERT_TRUE(admitted) << admitted.error().message;
-    auto saved = service->save_recipe(asset_id, admitted.value());
+    auto saved = service->develop().save_recipe(asset_id, admitted.value());
     ASSERT_TRUE(saved) << saved.error().message;
 
     PreviewRequest roi_gpu_only;
@@ -1600,7 +1602,7 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     roi_gpu_only.prefer_embedded_preview = false;
     roi_gpu_only.need_cpu_pixels = false;
     roi_gpu_only.roi = roi_rect;
-    auto roi_gpu_preview = service->request_preview(roi_gpu_only);
+    auto roi_gpu_preview = service->preview().request_preview(roi_gpu_only);
     ASSERT_TRUE(roi_gpu_preview) << roi_gpu_preview.error().message;
     EXPECT_EQ(roi_gpu_preview.value().width, roi_preview.value().width);
     EXPECT_EQ(roi_gpu_preview.value().height, roi_preview.value().height);
@@ -1635,7 +1637,7 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReusesLinearWorkingForRgbEdits)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     PreviewRequest request;
@@ -1643,11 +1645,11 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReusesLinearWorkingForRgbEdits)
     request.persist_preview_record = false;
     request.prefer_embedded_preview = false;
     request.roi = PreviewNormRect{0.25, 0.25, 0.2, 0.15};
-    auto stored = service->load_recipe(request.asset_id);
+    auto stored = service->develop().load_recipe(request.asset_id);
     ASSERT_TRUE(stored) << stored.error().message;
     auto live = develop_from_recipe(stored.value());
     ASSERT_TRUE(live) << live.error().message;
-    auto first = service->request_preview(request, live.value());
+    auto first = service->preview().request_preview(request, live.value());
     ASSERT_TRUE(first) << first.error().message;
     const auto first_generation =
         testing::CatalogServiceTestControl::roi_linear_working_generation(*service);
@@ -1655,7 +1657,7 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReusesLinearWorkingForRgbEdits)
     EXPECT_EQ(*first_generation, 1U);
 
     live.value().exposure_ev = 0.75;
-    auto exposed = service->request_preview(request, live.value());
+    auto exposed = service->preview().request_preview(request, live.value());
     ASSERT_TRUE(exposed) << exposed.error().message;
     EXPECT_EQ(exposed.value().width, first.value().width);
     EXPECT_EQ(exposed.value().height, first.value().height);
@@ -1666,7 +1668,7 @@ TEST_F(CatalogServiceTest, RawPreviewRoiReusesLinearWorkingForRgbEdits)
     EXPECT_EQ(*exposed_generation, *first_generation);
 
     request.roi = PreviewNormRect{0.45, 0.45, 0.2, 0.15};
-    auto panned = service->request_preview(request, live.value());
+    auto panned = service->preview().request_preview(request, live.value());
     ASSERT_TRUE(panned) << panned.error().message;
     const auto panned_generation =
         testing::CatalogServiceTestControl::roi_linear_working_generation(*service);
@@ -1678,7 +1680,7 @@ TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIden
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1688,13 +1690,13 @@ TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIden
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto baseline = service->request_preview(preview);
+    auto baseline = service->preview().request_preview(preview);
     ASSERT_TRUE(baseline) << baseline.error().message;
     ASSERT_FALSE(baseline.value().cache_path.empty());
     const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
     ASSERT_FALSE(baseline_image.isNull());
 
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
@@ -1705,9 +1707,9 @@ TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIden
     develop.value().exposure_deflicker_target_ev = -3.5;
     develop.value().exposure_compensate_exposure_bias = true;
     develop.value().exposure_compensate_highlight_preservation = true;
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     ASSERT_FALSE(before_reopen.value().cache_path.empty());
     EXPECT_NE(before_reopen.value().cache_key, baseline.value().cache_key);
@@ -1721,7 +1723,7 @@ TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIden
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -1737,7 +1739,7 @@ TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIden
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
@@ -1752,7 +1754,7 @@ TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIden
               develop.value().exposure_compensate_exposure_bias);
     EXPECT_EQ(restored.value().exposure_compensate_highlight_preservation,
               develop.value().exposure_compensate_highlight_preservation);
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
     ASSERT_FALSE(after_reopen_image.isNull());
@@ -1768,17 +1770,17 @@ TEST_F(CatalogServiceTest, Cor01DevelopSaveBindsExpectedRevision)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(9, 18, 27));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
-    auto snap = service->snapshot();
+    auto snap = service->library().snapshot();
     ASSERT_TRUE(snap);
     const auto revision = snap.value().revision;
 
     DevelopParams first;
     first.exposure_ev = 0.25;
-    auto saved = service->save_develop_with_history(
+    auto saved = service->develop().save_develop_with_history(
         asset_id, first,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
@@ -1790,7 +1792,7 @@ TEST_F(CatalogServiceTest, Cor01DevelopSaveBindsExpectedRevision)
 
     DevelopParams second;
     second.exposure_ev = 0.5;
-    auto stale = service->save_develop_with_history(
+    auto stale = service->develop().save_develop_with_history(
         asset_id, second,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
@@ -1801,7 +1803,7 @@ TEST_F(CatalogServiceTest, Cor01DevelopSaveBindsExpectedRevision)
     EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
     EXPECT_EQ(stale.error().context.at("reason"), "stale_catalog_revision");
 
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto loaded = develop_from_recipe(recipe.value());
     ASSERT_TRUE(loaded) << loaded.error().message;
@@ -1820,7 +1822,7 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(22, 44, 66));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -1857,9 +1859,9 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     multi.masks.push_back(cbr_mask);
     multi.color_balance_rgb_mask_id = cbr_local.mask_id;
 
-    auto snap_rev = service->snapshot();
+    auto snap_rev = service->library().snapshot();
     ASSERT_TRUE(snap_rev);
-    auto saved = service->save_develop_with_history(
+    auto saved = service->develop().save_develop_with_history(
         asset_id, multi,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
@@ -1868,11 +1870,11 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
                           .expected_revision = snap_rev.value().revision});
     ASSERT_TRUE(saved) << saved.error().message;
 
-    auto snapshot = service->create_recipe_snapshot(asset_id, "local01-multi");
+    auto snapshot = service->develop().create_recipe_snapshot(asset_id, "local01-multi");
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     std::int64_t snapshot_id = 0;
     std::int64_t history_id = 0;
-    auto history = service->list_recipe_history(asset_id);
+    auto history = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history) << history.error().message;
     for (const auto &entry : history.value())
     {
@@ -1889,11 +1891,11 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     DevelopParams drifted;
     drifted.exposure_ev = -0.9;
     drifted.saturation = 0.4;
-    ASSERT_TRUE(service->save_develop(asset_id, drifted));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, drifted));
 
-    auto restored_snap = service->restore_recipe_history(asset_id, snapshot_id);
+    auto restored_snap = service->develop().restore_recipe_history(asset_id, snapshot_id);
     ASSERT_TRUE(restored_snap) << restored_snap.error().message;
-    auto after_snap = service->load_recipe(asset_id);
+    auto after_snap = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(after_snap) << after_snap.error().message;
     auto snap_params = develop_from_recipe(after_snap.value());
     ASSERT_TRUE(snap_params) << snap_params.error().message;
@@ -1913,10 +1915,10 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     // History reopen of the original multi-instance step also restores vectors.
     DevelopParams drifted_again;
     drifted_again.contrast = 0.5;
-    ASSERT_TRUE(service->save_develop(asset_id, drifted_again));
-    auto restored_hist = service->restore_recipe_history(asset_id, history_id);
+    ASSERT_TRUE(service->develop().save_develop(asset_id, drifted_again));
+    auto restored_hist = service->develop().restore_recipe_history(asset_id, history_id);
     ASSERT_TRUE(restored_hist) << restored_hist.error().message;
-    auto after_hist = service->load_recipe(asset_id);
+    auto after_hist = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(after_hist) << after_hist.error().message;
     auto hist_params = develop_from_recipe(after_hist.value());
     ASSERT_TRUE(hist_params) << hist_params.error().message;
@@ -1927,7 +1929,7 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     // Catalog reopen preserves multi-instance recipe.
     ASSERT_TRUE(service->close());
     ASSERT_TRUE(open_service(false));
-    auto reopened = service->load_recipe(asset_id);
+    auto reopened = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(reopened) << reopened.error().message;
     auto reopened_params = develop_from_recipe(reopened.value());
     ASSERT_TRUE(reopened_params) << reopened_params.error().message;
@@ -1939,12 +1941,12 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     EXPECT_EQ(reopened_params.value().masks.size(), 2U);
 
     // Stale revision on instance mutate leaves prior multi-instance state.
-    auto head = service->snapshot();
+    auto head = service->library().snapshot();
     ASSERT_TRUE(head);
     const auto stale_rev = head.value().revision;
     DevelopParams bump = reopened_params.value();
     bump.exposure_instances[1].exposure_ev = 0.9;
-    auto fresh = service->save_develop_with_history(
+    auto fresh = service->develop().save_develop_with_history(
         asset_id, bump,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
@@ -1957,7 +1959,7 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     DevelopParams hijack = bump;
     hijack.exposure_instances[1].exposure_ev = -1.5;
     hijack.exposure_instances.pop_back();
-    auto stale = service->save_develop_with_history(
+    auto stale = service->develop().save_develop_with_history(
         asset_id, hijack,
         RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
                           .discard_history_after_seq = {},
@@ -1968,7 +1970,7 @@ TEST_F(CatalogServiceTest, Local01MultiInstanceSnapshotHistoryReopenAndStaleRevi
     EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
     EXPECT_EQ(stale.error().context.at("reason"), "stale_catalog_revision");
 
-    auto kept = service->load_recipe(asset_id);
+    auto kept = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(kept) << kept.error().message;
     auto kept_params = develop_from_recipe(kept.value());
     ASSERT_TRUE(kept_params) << kept_params.error().message;

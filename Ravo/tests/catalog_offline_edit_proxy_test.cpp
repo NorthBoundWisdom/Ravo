@@ -35,7 +35,7 @@ namespace
 
 [[nodiscard]] std::string original_path_for(CatalogService &service, const std::string &asset_id)
 {
-    auto assets = service.list_assets();
+    auto assets = service.library().list_assets();
     EXPECT_TRUE(assets) << assets.error().message;
     for (const auto &asset : assets.value())
     {
@@ -56,7 +56,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyCreateVerifyAndDistinctFromSmartPrevi
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "offline-source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(20, 40, 60)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
     const auto original = original_path_for(*service, asset_id);
@@ -67,7 +67,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyCreateVerifyAndDistinctFromSmartPrevi
     OfflineEditProxyCreateRequest blocked;
     blocked.asset_id = asset_id;
     blocked.user_initiated = false;
-    auto missing_flag = service->create_offline_edit_proxy(blocked);
+    auto missing_flag = service->offline().create_offline_edit_proxy(blocked);
     ASSERT_FALSE(missing_flag);
     EXPECT_EQ(missing_flag.error().code, ErrorCode::kInvalidArgument);
 
@@ -75,7 +75,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyCreateVerifyAndDistinctFromSmartPrevi
     request.asset_id = asset_id;
     request.user_initiated = true;
     request.max_edge = 32;
-    auto created = service->create_offline_edit_proxy(request);
+    auto created = service->offline().create_offline_edit_proxy(request);
     ASSERT_TRUE(created) << created.error().message;
     EXPECT_TRUE(created.value().originals_unchanged);
     EXPECT_EQ(created.value().manifest.asset_id, asset_id);
@@ -91,7 +91,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyCreateVerifyAndDistinctFromSmartPrevi
     ASSERT_TRUE(after_sha) << after_sha.error().message;
     EXPECT_EQ(after_sha.value(), before_sha.value());
 
-    auto status = service->verify_offline_edit_proxy(asset_id);
+    auto status = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     EXPECT_EQ(status.value().media_state, OfflineEditMediaState::kOriginal);
     EXPECT_TRUE(status.value().proxy_present);
@@ -99,13 +99,13 @@ TEST_F(CatalogServiceTest, OfflineEditProxyCreateVerifyAndDistinctFromSmartPrevi
     EXPECT_TRUE(status.value().usable_for_develop);
     EXPECT_TRUE(status.value().usable_for_export);
 
-    auto listed = service->list_offline_edit_proxies();
+    auto listed = service->offline().list_offline_edit_proxies();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().manifests.size(), 1U);
     EXPECT_EQ(listed.value().manifests.front().asset_id, asset_id);
     EXPECT_TRUE(listed.value().corrupt.empty());
 
-    auto smart = service->smart_preview_status(asset_id);
+    auto smart = service->conversion().smart_preview_status(asset_id);
     ASSERT_TRUE(smart) << smart.error().message;
     EXPECT_FALSE(smart.value().develop_fallback);
 }
@@ -115,7 +115,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "offline-roundtrip.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(90, 10, 10)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
     const auto original = original_path_for(*service, asset_id);
@@ -125,7 +125,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 48;
-    auto created = service->create_offline_edit_proxy(create);
+    auto created = service->offline().create_offline_edit_proxy(create);
     ASSERT_TRUE(created) << created.error().message;
 
     const auto stashed = root / "stashed-original.jpg";
@@ -133,20 +133,20 @@ TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)
     std::filesystem::rename(original, stashed, ec);
     ASSERT_FALSE(ec) << ec.message();
 
-    auto offline_status = service->verify_offline_edit_proxy(asset_id);
+    auto offline_status = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(offline_status) << offline_status.error().message;
     EXPECT_EQ(offline_status.value().media_state, OfflineEditMediaState::kProxy);
     EXPECT_TRUE(offline_status.value().usable_for_develop);
     EXPECT_FALSE(offline_status.value().usable_for_export);
 
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto params = develop_from_recipe(recipe.value());
     ASSERT_TRUE(params) << params.error().message;
     params.value().exposure_ev = 0.35;
-    auto saved = service->save_develop(asset_id, params.value());
+    auto saved = service->develop().save_develop(asset_id, params.value());
     ASSERT_TRUE(saved) << saved.error().message;
-    auto reloaded = service->load_recipe(asset_id);
+    auto reloaded = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(reloaded) << reloaded.error().message;
     auto reloaded_params = develop_from_recipe(reloaded.value());
     ASSERT_TRUE(reloaded_params) << reloaded_params.error().message;
@@ -156,7 +156,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)
     export_request.asset_id = asset_id;
     export_request.output_path = (root / "should-fail.png").string();
     export_request.format = ExportFormat::kPng;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_FALSE(exported);
     EXPECT_EQ(exported.error().code, ErrorCode::kNotFound);
     ASSERT_TRUE(exported.error().context.contains("reason"));
@@ -168,7 +168,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)
     OfflineEditProxyReconnectRequest reconnect;
     reconnect.asset_id = asset_id;
     reconnect.user_initiated = true;
-    auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
+    auto reconnected = service->offline().reconnect_offline_edit_proxy(reconnect);
     ASSERT_TRUE(reconnected) << reconnected.error().message;
     EXPECT_TRUE(reconnected.value().source_hash_matched);
     EXPECT_TRUE(reconnected.value().offline_states_cleared);
@@ -176,7 +176,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)
     EXPECT_EQ(reconnected.value().status.reason, "reconnect_verified");
     EXPECT_TRUE(reconnected.value().status.usable_for_export);
 
-    auto listed_after = service->list_assets();
+    auto listed_after = service->library().list_assets();
     ASSERT_TRUE(listed_after) << listed_after.error().message;
     const AssetRecord *after_asset = nullptr;
     for (const auto &asset : listed_after.value())
@@ -191,7 +191,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)
     EXPECT_EQ(after_asset->import_state, kImportStateImported);
 
     export_request.output_path = (root / "after-reconnect.png").string();
-    auto exported_ok = service->export_asset(export_request);
+    auto exported_ok = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported_ok) << exported_ok.error().message;
 }
 
@@ -200,7 +200,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectRejectsHashMismatch)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "offline-mismatch.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(1, 2, 3)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
     const auto original = original_path_for(*service, asset_id);
@@ -209,7 +209,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectRejectsHashMismatch)
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 32;
-    ASSERT_TRUE(service->create_offline_edit_proxy(create));
+    ASSERT_TRUE(service->offline().create_offline_edit_proxy(create));
 
     const auto stashed = root / "mismatch-stashed.jpg";
     std::error_code ec;
@@ -220,7 +220,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectRejectsHashMismatch)
     OfflineEditProxyReconnectRequest reconnect;
     reconnect.asset_id = asset_id;
     reconnect.user_initiated = true;
-    auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
+    auto reconnected = service->offline().reconnect_offline_edit_proxy(reconnect);
     ASSERT_FALSE(reconnected);
     EXPECT_EQ(reconnected.error().code, ErrorCode::kConflict);
     ASSERT_TRUE(reconnected.error().context.contains("reason"));
@@ -232,7 +232,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectClearsMissingImportState)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "offline-missing-clear.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(30, 60, 90)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
     const auto original = original_path_for(*service, asset_id);
@@ -242,7 +242,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectClearsMissingImportState)
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 32;
-    ASSERT_TRUE(service->create_offline_edit_proxy(create));
+    ASSERT_TRUE(service->offline().create_offline_edit_proxy(create));
 
     const auto stashed = root / "missing-clear-stashed.jpg";
     std::error_code ec;
@@ -254,8 +254,8 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectClearsMissingImportState)
     preview.asset_id = asset_id;
     preview.max_edge = 64;
     preview.persist_preview_record = true;
-    static_cast<void>(service->request_preview(preview));
-    auto listed_missing = service->list_assets();
+    static_cast<void>(service->preview().request_preview(preview));
+    auto listed_missing = service->library().list_assets();
     ASSERT_TRUE(listed_missing);
     bool saw_missing = false;
     for (const auto &asset : listed_missing.value())
@@ -271,14 +271,14 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectClearsMissingImportState)
     OfflineEditProxyReconnectRequest reconnect;
     reconnect.asset_id = asset_id;
     reconnect.user_initiated = true;
-    auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
+    auto reconnected = service->offline().reconnect_offline_edit_proxy(reconnect);
     ASSERT_TRUE(reconnected) << reconnected.error().message;
     EXPECT_TRUE(reconnected.value().source_hash_matched);
     EXPECT_TRUE(reconnected.value().offline_states_cleared);
     EXPECT_EQ(reconnected.value().status.media_state, OfflineEditMediaState::kOriginal);
     EXPECT_TRUE(reconnected.value().status.usable_for_export);
 
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     bool cleared = false;
     for (const auto &asset : listed.value())
@@ -292,7 +292,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyReconnectClearsMissingImportState)
     }
     EXPECT_TRUE(cleared);
 
-    auto status = service->offline_edit_media_status(asset_id);
+    auto status = service->offline().offline_edit_media_status(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     EXPECT_EQ(status.value().media_state, OfflineEditMediaState::kOriginal);
     EXPECT_TRUE(status.value().usable_for_export);
@@ -304,7 +304,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyLoupeDevelopConsumeWhileOriginalMissi
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "offline-preview-source.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(30, 60, 90)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
     const auto original = original_path_for(*service, asset_id);
@@ -314,7 +314,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyLoupeDevelopConsumeWhileOriginalMissi
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 64;
-    auto created = service->create_offline_edit_proxy(create);
+    auto created = service->offline().create_offline_edit_proxy(create);
     ASSERT_TRUE(created) << created.error().message;
 
     const auto stashed = root / "stashed-preview-original.jpg";
@@ -322,7 +322,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyLoupeDevelopConsumeWhileOriginalMissi
     std::filesystem::rename(original, stashed, ec);
     ASSERT_FALSE(ec) << ec.message();
 
-    auto status = service->verify_offline_edit_proxy(asset_id);
+    auto status = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     EXPECT_EQ(status.value().media_state, OfflineEditMediaState::kProxy);
     EXPECT_TRUE(status.value().usable_for_develop);
@@ -333,7 +333,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyLoupeDevelopConsumeWhileOriginalMissi
     loupe.max_edge = 64;
     loupe.purpose = PreviewPurpose::kDevelop;
     loupe.prefer_embedded_preview = false;
-    auto previewed = service->request_preview(loupe);
+    auto previewed = service->preview().request_preview(loupe);
     ASSERT_TRUE(previewed) << previewed.error().message;
     EXPECT_TRUE(previewed.value().original_missing);
     EXPECT_EQ(previewed.value().media_state, "proxy");
@@ -343,7 +343,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyLoupeDevelopConsumeWhileOriginalMissi
 
     DevelopParams live;
     live.exposure_ev = 0.5;
-    auto live_preview = service->request_preview(loupe, live);
+    auto live_preview = service->preview().request_preview(loupe, live);
     ASSERT_TRUE(live_preview) << live_preview.error().message;
     EXPECT_EQ(live_preview.value().media_state, "proxy");
     EXPECT_TRUE(live_preview.value().original_missing);
@@ -352,7 +352,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyLoupeDevelopConsumeWhileOriginalMissi
     export_request.asset_id = asset_id;
     export_request.output_path = (root / "offline-preview-export-should-fail.png").string();
     export_request.format = ExportFormat::kPng;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_FALSE(exported);
     EXPECT_EQ(exported.error().code, ErrorCode::kNotFound);
     ASSERT_TRUE(exported.error().context.contains("reason"));
@@ -364,7 +364,7 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyCorruptManifestAndPathEscapeFailClos
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "cor01-proxy.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(11, 22, 33)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -372,12 +372,12 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyCorruptManifestAndPathEscapeFailClos
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 64;
-    auto created = service->create_offline_edit_proxy(create);
+    auto created = service->offline().create_offline_edit_proxy(create);
     ASSERT_TRUE(created) << created.error().message;
     EXPECT_EQ(created.value().manifest.pixel_provenance,
               kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8);
 
-    auto snap = service->snapshot();
+    auto snap = service->library().snapshot();
     ASSERT_TRUE(snap);
     const auto proxy_root = std::filesystem::path(snap.value().database_path).string() +
                             ".ravo/offline-edit-proxies/" + asset_id;
@@ -394,13 +394,13 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyCorruptManifestAndPathEscapeFailClos
                "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\","
                "\"width\":1,\"height\":1,\"created_unix_ms\":1}";
     }
-    auto listed = service->list_offline_edit_proxies();
+    auto listed = service->offline().list_offline_edit_proxies();
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_TRUE(listed.value().manifests.empty());
     ASSERT_FALSE(listed.value().corrupt.empty());
     EXPECT_FALSE(listed.value().corrupt.front().reason.empty());
 
-    auto status = service->verify_offline_edit_proxy(asset_id);
+    auto status = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_FALSE(status);
 }
 
@@ -409,7 +409,7 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyInterruptedPublishKeepsPrevious)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "cor01-proxy-keep.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(44, 55, 66)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -417,7 +417,7 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyInterruptedPublishKeepsPrevious)
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 64;
-    auto first = service->create_offline_edit_proxy(create);
+    auto first = service->offline().create_offline_edit_proxy(create);
     ASSERT_TRUE(first) << first.error().message;
     const auto first_sha = first.value().manifest.proxy_sha256;
 
@@ -426,10 +426,10 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyInterruptedPublishKeepsPrevious)
     OfflineEditProxyCreateRequest second = create;
     second.cancellation = cancel.token();
     // Cancelled token fails early before replacing the good proxy.
-    auto failed = service->create_offline_edit_proxy(second);
+    auto failed = service->offline().create_offline_edit_proxy(second);
     ASSERT_FALSE(failed);
 
-    auto status = service->verify_offline_edit_proxy(asset_id);
+    auto status = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     ASSERT_TRUE(status.value().manifest);
     EXPECT_EQ(status.value().manifest->proxy_sha256, first_sha);
@@ -441,19 +441,19 @@ TEST_F(CatalogServiceTest, Cor01ExportUsableRequiresCatalogIdentity)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "cor01-identity.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(12, 34, 56)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
     const auto original = original_path_for(*service, asset_id);
     ASSERT_FALSE(original.empty());
 
-    auto ok_status = service->verify_offline_edit_proxy(asset_id);
+    auto ok_status = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(ok_status) << ok_status.error().message;
     EXPECT_TRUE(ok_status.value().usable_for_export);
 
     // Rewrite bytes in place so presence remains but catalog identity drifts.
     ASSERT_TRUE(write_jpeg(std::filesystem::path(original), QColor(200, 10, 10)));
-    auto drifted = service->verify_offline_edit_proxy(asset_id);
+    auto drifted = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(drifted) << drifted.error().message;
     EXPECT_TRUE(std::filesystem::is_regular_file(original));
     EXPECT_FALSE(drifted.value().usable_for_export);
@@ -463,7 +463,7 @@ TEST_F(CatalogServiceTest, Cor01ExportUsableRequiresCatalogIdentity)
     export_request.asset_id = asset_id;
     export_request.output_path = (root / "identity-export-should-fail.png").string();
     export_request.format = ExportFormat::kPng;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_FALSE(exported);
     EXPECT_EQ(exported.error().code, ErrorCode::kConflict);
     ASSERT_TRUE(exported.error().context.contains("reason"));
@@ -475,7 +475,7 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyPublishInjectRetainsPrior)
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "cor01-proxy-inject.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(70, 80, 90)));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -483,7 +483,7 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyPublishInjectRetainsPrior)
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 64;
-    auto first = service->create_offline_edit_proxy(create);
+    auto first = service->offline().create_offline_edit_proxy(create);
     ASSERT_TRUE(first) << first.error().message;
     const auto first_sha = first.value().manifest.proxy_sha256;
 
@@ -495,12 +495,12 @@ TEST_F(CatalogServiceTest, Cor01OfflineProxyPublishInjectRetainsPrior)
                 ErrorCode::kIo, "Injected offline proxy publish failure",
                 {{"reason", "offline_edit_proxy_publish_failed"}, {"detail", "injected_enospc"}});
         });
-    auto failed = service->create_offline_edit_proxy(create);
+    auto failed = service->offline().create_offline_edit_proxy(create);
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().context.at("reason"), "offline_edit_proxy_publish_failed");
     testing::CatalogServiceTestControl::set_before_offline_proxy_publish(*service, {});
 
-    auto status = service->verify_offline_edit_proxy(asset_id);
+    auto status = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     ASSERT_TRUE(status.value().manifest);
     EXPECT_EQ(status.value().manifest->proxy_sha256, first_sha);
@@ -512,25 +512,25 @@ TEST_F(CatalogServiceTest, OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfter
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "offline-baked.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(16, 32, 64), 320, 240));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
     const auto original = original_path_for(*service, asset_id);
     ASSERT_FALSE(original.empty());
 
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto params = develop_from_recipe(recipe.value());
     ASSERT_TRUE(params) << params.error().message;
     params.value().exposure_ev = 0.4;
-    auto saved = service->save_develop(asset_id, params.value());
+    auto saved = service->develop().save_develop(asset_id, params.value());
     ASSERT_TRUE(saved) << saved.error().message;
 
     OfflineEditProxyCreateRequest create;
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 32;
-    auto created = service->create_offline_edit_proxy(create);
+    auto created = service->offline().create_offline_edit_proxy(create);
     ASSERT_TRUE(created) << created.error().message;
     EXPECT_EQ(created.value().manifest.pixel_provenance,
               kOfflineEditProxyPixelProvenanceRecipeBakedSrgb8);
@@ -548,7 +548,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfter
     after.prefer_embedded_preview = false;
     DevelopParams live;
     live.exposure_ev = 1.75;
-    auto live_preview = service->request_preview(after, live);
+    auto live_preview = service->preview().request_preview(after, live);
     ASSERT_TRUE(live_preview) << live_preview.error().message;
     EXPECT_EQ(live_preview.value().media_state, "proxy");
     EXPECT_EQ(live_preview.value().preview_apply_mode, kOfflineEditPreviewApplyIdentityBaked);
@@ -557,7 +557,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfter
 
     PreviewRequest before = after;
     before.ignore_edits = true;
-    auto before_preview = service->request_preview(before);
+    auto before_preview = service->preview().request_preview(before);
     ASSERT_TRUE(before_preview) << before_preview.error().message;
     EXPECT_EQ(before_preview.value().media_state, "proxy");
     EXPECT_EQ(before_preview.value().preview_apply_mode, kOfflineEditPreviewApplyIdentityBaked);
@@ -570,13 +570,13 @@ TEST_F(CatalogServiceTest, OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfter
 
     PreviewRequest interactive = after;
     interactive.persist_preview_record = false;
-    auto scope_source = service->request_preview(interactive);
+    auto scope_source = service->preview().request_preview(interactive);
     ASSERT_TRUE(scope_source) << scope_source.error().message;
     EXPECT_EQ(scope_source.value().media_state, "proxy");
     EXPECT_EQ(scope_source.value().preview_apply_mode, kOfflineEditPreviewApplyIdentityBaked);
 
     params.value().exposure_ev = 1.2;
-    auto saved_offline = service->save_develop(asset_id, params.value());
+    auto saved_offline = service->develop().save_develop(asset_id, params.value());
     ASSERT_TRUE(saved_offline) << saved_offline.error().message;
 
     std::filesystem::rename(stashed, original, ec);
@@ -586,7 +586,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfter
     reconnect.asset_id = asset_id;
     reconnect.user_initiated = true;
     reconnect.clear_proxy = true;
-    auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
+    auto reconnected = service->offline().reconnect_offline_edit_proxy(reconnect);
     ASSERT_TRUE(reconnected) << reconnected.error().message;
     EXPECT_TRUE(reconnected.value().source_hash_matched);
     EXPECT_TRUE(reconnected.value().offline_states_cleared);
@@ -596,7 +596,7 @@ TEST_F(CatalogServiceTest, OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfter
 
     PreviewRequest original_preview = after;
     original_preview.max_edge = 256;
-    auto restored = service->request_preview(original_preview);
+    auto restored = service->preview().request_preview(original_preview);
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_EQ(restored.value().media_state, "original");
     EXPECT_FALSE(restored.value().original_missing);
@@ -615,8 +615,8 @@ TEST_F(CatalogServiceTest, OfflineEditProxyPinDeleteAndPinnedSurvivesEvict)
     const auto drop_path = root / "offline-drop.jpg";
     ASSERT_TRUE(write_jpeg(keep_path, QColor(10, 20, 30)));
     ASSERT_TRUE(write_jpeg(drop_path, QColor(200, 10, 10)));
-    auto keep_imported = service->import_one(keep_path.string(), CancellationToken{});
-    auto drop_imported = service->import_one(drop_path.string(), CancellationToken{});
+    auto keep_imported = service->import().import_one(keep_path.string(), CancellationToken{});
+    auto drop_imported = service->import().import_one(drop_path.string(), CancellationToken{});
     ASSERT_TRUE(keep_imported) << keep_imported.error().message;
     ASSERT_TRUE(drop_imported) << drop_imported.error().message;
     const auto keep_id = keep_imported.value().asset->id;
@@ -626,41 +626,41 @@ TEST_F(CatalogServiceTest, OfflineEditProxyPinDeleteAndPinnedSurvivesEvict)
     create.user_initiated = true;
     create.max_edge = 32;
     create.asset_id = keep_id;
-    ASSERT_TRUE(service->create_offline_edit_proxy(create)) << "keep create";
+    ASSERT_TRUE(service->offline().create_offline_edit_proxy(create)) << "keep create";
     create.asset_id = drop_id;
-    ASSERT_TRUE(service->create_offline_edit_proxy(create)) << "drop create";
+    ASSERT_TRUE(service->offline().create_offline_edit_proxy(create)) << "drop create";
 
     OfflineEditProxyPinRequest pin;
     pin.asset_id = keep_id;
     pin.user_initiated = true;
     pin.pinned = true;
-    auto pinned = service->pin_offline_edit_proxy(pin);
+    auto pinned = service->offline().pin_offline_edit_proxy(pin);
     ASSERT_TRUE(pinned) << pinned.error().message;
     EXPECT_TRUE(pinned.value().manifest.pinned);
 
     OfflineEditProxyDeleteRequest blocked;
     blocked.asset_id = keep_id;
     blocked.user_initiated = true;
-    auto refuse = service->delete_offline_edit_proxy(blocked);
+    auto refuse = service->offline().delete_offline_edit_proxy(blocked);
     ASSERT_FALSE(refuse);
     EXPECT_EQ(refuse.error().context.at("reason"), "proxy_pinned");
 
     OfflineEditProxyEvictRequest evict;
     evict.user_initiated = true;
     evict.max_total_bytes = 1;
-    auto evicted = service->evict_offline_edit_proxies(evict);
+    auto evicted = service->offline().evict_offline_edit_proxies(evict);
     ASSERT_TRUE(evicted) << evicted.error().message;
     EXPECT_GE(evicted.value().evicted, 1U);
     EXPECT_EQ(evicted.value().retained_pinned, 1U);
     ASSERT_FALSE(evicted.value().retained_pinned_asset_ids.empty());
     EXPECT_EQ(evicted.value().retained_pinned_asset_ids.front(), keep_id);
 
-    auto keep_status = service->verify_offline_edit_proxy(keep_id);
+    auto keep_status = service->offline().verify_offline_edit_proxy(keep_id);
     ASSERT_TRUE(keep_status) << keep_status.error().message;
     EXPECT_TRUE(keep_status.value().proxy_verified);
     EXPECT_TRUE(keep_status.value().manifest->pinned);
 
-    auto drop_status = service->verify_offline_edit_proxy(drop_id);
+    auto drop_status = service->offline().verify_offline_edit_proxy(drop_id);
     ASSERT_TRUE(drop_status) << drop_status.error().message;
     EXPECT_FALSE(drop_status.value().proxy_present);
 }
@@ -677,9 +677,9 @@ TEST_F(CatalogServiceTest, Offline01C3TowardBackgroundQuotaFailClosedAndCleanupE
     ASSERT_TRUE(write_jpeg(a_path, QColor(11, 22, 33), 128, 96));
     ASSERT_TRUE(write_jpeg(b_path, QColor(44, 55, 66), 128, 96));
     ASSERT_TRUE(write_jpeg(c_path, QColor(77, 88, 99), 128, 96));
-    auto a = service->import_one(a_path.string(), CancellationToken{});
-    auto b = service->import_one(b_path.string(), CancellationToken{});
-    auto c = service->import_one(c_path.string(), CancellationToken{});
+    auto a = service->import().import_one(a_path.string(), CancellationToken{});
+    auto b = service->import().import_one(b_path.string(), CancellationToken{});
+    auto c = service->import().import_one(c_path.string(), CancellationToken{});
     ASSERT_TRUE(a) << a.error().message;
     ASSERT_TRUE(b) << b.error().message;
     ASSERT_TRUE(c) << c.error().message;
@@ -693,7 +693,7 @@ TEST_F(CatalogServiceTest, Offline01C3TowardBackgroundQuotaFailClosedAndCleanupE
     for (const auto &id : {id_a, id_b, id_c})
     {
         create.asset_id = id;
-        auto created = service->create_offline_edit_proxy(create);
+        auto created = service->offline().create_offline_edit_proxy(create);
         ASSERT_TRUE(created) << created.error().message << " id=" << id;
     }
 
@@ -701,20 +701,20 @@ TEST_F(CatalogServiceTest, Offline01C3TowardBackgroundQuotaFailClosedAndCleanupE
     pin.asset_id = id_a;
     pin.user_initiated = true;
     pin.pinned = true;
-    ASSERT_TRUE(service->pin_offline_edit_proxy(pin));
+    ASSERT_TRUE(service->offline().pin_offline_edit_proxy(pin));
 
     // Background / automatic quota cleanup remains fail-closed (ADR-0146).
     OfflineEditProxyEvictRequest auto_evict;
     auto_evict.user_initiated = false;
     auto_evict.max_total_bytes = 1;
-    auto refused = service->evict_offline_edit_proxies(auto_evict);
+    auto refused = service->offline().evict_offline_edit_proxies(auto_evict);
     ASSERT_FALSE(refused);
     EXPECT_EQ(refused.error().context.at("reason"), "missing_user_initiated");
 
     OfflineEditProxyEvictRequest missing_bytes;
     missing_bytes.user_initiated = true;
     missing_bytes.max_total_bytes = 0;
-    auto refused_bytes = service->evict_offline_edit_proxies(missing_bytes);
+    auto refused_bytes = service->offline().evict_offline_edit_proxies(missing_bytes);
     ASSERT_FALSE(refused_bytes);
     EXPECT_EQ(refused_bytes.error().context.at("reason"), "missing_max_total_bytes");
 
@@ -722,7 +722,7 @@ TEST_F(CatalogServiceTest, Offline01C3TowardBackgroundQuotaFailClosedAndCleanupE
     OfflineEditProxyEvictRequest evict;
     evict.user_initiated = true;
     evict.max_total_bytes = 1;
-    auto cleaned = service->evict_offline_edit_proxies(evict);
+    auto cleaned = service->offline().evict_offline_edit_proxies(evict);
     ASSERT_TRUE(cleaned) << cleaned.error().message;
     EXPECT_EQ(cleaned.value().evicted, 2U);
     EXPECT_EQ(cleaned.value().retained_pinned, 1U);
@@ -737,14 +737,14 @@ TEST_F(CatalogServiceTest, Offline01C3TowardBackgroundQuotaFailClosedAndCleanupE
     std::sort(expected.begin(), expected.end());
     EXPECT_EQ(evicted, expected);
 
-    auto keep = service->verify_offline_edit_proxy(id_a);
+    auto keep = service->offline().verify_offline_edit_proxy(id_a);
     ASSERT_TRUE(keep) << keep.error().message;
     EXPECT_TRUE(keep.value().proxy_present);
     EXPECT_TRUE(keep.value().proxy_verified);
     EXPECT_TRUE(keep.value().manifest->pinned);
     for (const auto &id : {id_b, id_c})
     {
-        auto gone = service->verify_offline_edit_proxy(id);
+        auto gone = service->offline().verify_offline_edit_proxy(id);
         ASSERT_TRUE(gone) << gone.error().message;
         EXPECT_FALSE(gone.value().proxy_present);
     }
@@ -755,7 +755,7 @@ TEST_F(CatalogServiceTest, Offline01C3TowardEnospcPublishRetainsPriorAndReconnec
     ASSERT_TRUE(open_service(true));
     const auto source_path = root / "c3-enospc.jpg";
     ASSERT_TRUE(write_jpeg(source_path, QColor(12, 34, 56), 160, 120));
-    auto imported = service->import_one(source_path.string(), CancellationToken{});
+    auto imported = service->import().import_one(source_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
     const auto original = original_path_for(*service, asset_id);
@@ -765,7 +765,7 @@ TEST_F(CatalogServiceTest, Offline01C3TowardEnospcPublishRetainsPriorAndReconnec
     create.asset_id = asset_id;
     create.user_initiated = true;
     create.max_edge = 64;
-    auto first = service->create_offline_edit_proxy(create);
+    auto first = service->offline().create_offline_edit_proxy(create);
     ASSERT_TRUE(first) << first.error().message;
     const auto first_sha = first.value().manifest.proxy_sha256;
 
@@ -778,14 +778,14 @@ TEST_F(CatalogServiceTest, Offline01C3TowardEnospcPublishRetainsPriorAndReconnec
                                {"detail", "injected_enospc"},
                                {"disk_full", "true"}});
         });
-    auto failed = service->create_offline_edit_proxy(create);
+    auto failed = service->offline().create_offline_edit_proxy(create);
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().context.at("reason"), "offline_edit_proxy_publish_failed");
     EXPECT_EQ(failed.error().context.at("disk_full"), "true");
     testing::CatalogServiceTestControl::set_before_offline_proxy_publish(*service, {});
 
     // Exact partial state: prior verified proxy retained; original untouched.
-    auto status = service->verify_offline_edit_proxy(asset_id);
+    auto status = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(status) << status.error().message;
     ASSERT_TRUE(status.value().manifest);
     EXPECT_EQ(status.value().manifest->proxy_sha256, first_sha);
@@ -797,12 +797,12 @@ TEST_F(CatalogServiceTest, Offline01C3TowardEnospcPublishRetainsPriorAndReconnec
     reconnect.asset_id = asset_id;
     reconnect.user_initiated = true;
     reconnect.clear_proxy = false;
-    auto reconnected = service->reconnect_offline_edit_proxy(reconnect);
+    auto reconnected = service->offline().reconnect_offline_edit_proxy(reconnect);
     ASSERT_TRUE(reconnected) << reconnected.error().message;
     EXPECT_TRUE(reconnected.value().source_hash_matched);
     EXPECT_EQ(reconnected.value().status.media_state, OfflineEditMediaState::kOriginal);
     // Prior proxy may still be present when clear_proxy=false.
-    auto after = service->verify_offline_edit_proxy(asset_id);
+    auto after = service->offline().verify_offline_edit_proxy(asset_id);
     ASSERT_TRUE(after) << after.error().message;
     ASSERT_TRUE(after.value().manifest);
     EXPECT_EQ(after.value().manifest->proxy_sha256, first_sha);

@@ -45,9 +45,8 @@ StudioImportScanController::StudioImportScanController(QObject *parent)
 
 CancellationToken StudioImportScanController::begin(const char *reason)
 {
-    static_cast<void>(operation_.cancel(reason));
-    operation_ = CancellationSource{};
-    ++generation_;
+    static_cast<void>(operation_.invalidate(reason));
+    static_cast<void>(operation_.begin());
     active_ = true;
     resetProgress();
     return operation_.token();
@@ -60,23 +59,21 @@ void StudioImportScanController::finish()
 
 void StudioImportScanController::abandon(const char *reason)
 {
-    static_cast<void>(operation_.cancel(reason));
-    operation_ = CancellationSource{};
-    ++generation_;
+    static_cast<void>(operation_.invalidate(reason));
+    static_cast<void>(operation_.begin());
     active_ = false;
     resetProgress();
 }
 
 void StudioImportScanController::bumpGeneration(const char *reason)
 {
-    static_cast<void>(operation_.cancel(reason));
-    operation_ = CancellationSource{};
-    ++generation_;
+    static_cast<void>(operation_.invalidate(reason));
+    static_cast<void>(operation_.begin());
 }
 
 void StudioImportScanController::cancel(const char *reason)
 {
-    static_cast<void>(operation_.cancel(reason));
+    operation_.cancel(reason);
 }
 
 void StudioImportScanController::setProgress(int completed, int total, int duplicates)
@@ -118,7 +115,7 @@ void StudioImportScanController::startRescan()
     if (host_.clear_preflight_active)
         host_.clear_preflight_active();
     const auto token = begin("import_source_changed");
-    const auto generation = generation_;
+    const auto generation = operation_.revision();
     const std::string root = utf8_from_qstring(source);
     const bool recursive = host_.recursive_for_root ? host_.recursive_for_root(source) : true;
     if (auto *model = host_.model ? host_.model() : nullptr)
@@ -182,12 +179,13 @@ void StudioImportScanController::startRescan()
                     return make_error(ErrorCode::kIo,
                                       "Import source folder is unavailable: " + root,
                                       {{"reason", "import_source_unavailable"}});
-                const auto snapshot = service->snapshot();
+                const auto snapshot = service->library().snapshot();
                 if (!snapshot)
                     return snapshot.error();
                 return service->import().scan_import_candidates(
                     {root}, root, recursive, token, publish,
-                    [self, root, generation, revision = snapshot.value().revision](const std::vector<std::string> &paths)
+                    [self, root, generation,
+                     revision = snapshot.value().revision](const std::vector<std::string> &paths)
                     {
                         std::vector<ImportCandidate> placeholders;
                         placeholders.reserve(paths.size());
@@ -197,7 +195,8 @@ void StudioImportScanController::startRescan()
                             return;
                         QMetaObject::invokeMethod(
                             self->host_.callback_receiver,
-                            [self, generation, revision, placeholders = std::move(placeholders)]() mutable
+                            [self, generation, revision,
+                             placeholders = std::move(placeholders)]() mutable
                             {
                                 if (!self || !self->matches(generation))
                                     return;

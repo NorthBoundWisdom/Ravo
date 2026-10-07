@@ -3,6 +3,7 @@ add_library(ravo_foundation STATIC)
 target_sources(ravo_foundation
   PRIVATE
     src/cancellation.cpp
+    src/cancellation_generation.cpp
     src/color.cpp
     src/error.cpp
     src/executor.cpp

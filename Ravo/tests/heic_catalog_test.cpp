@@ -96,7 +96,7 @@ TEST_F(HeicCatalogTest, PreservesStructuredFailureAndPublishesNoAsset)
     ASSERT_EQ(file.write(encoded), encoded.size());
     file.close();
 
-    const auto imported = service_->import_one(path.string(), CancellationToken{});
+    const auto imported = service_->import().import_one(path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
 #if defined(__APPLE__)
     EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
@@ -119,10 +119,10 @@ TEST_F(HeicCatalogTest, PreservesStructuredFailureAndPublishesNoAsset)
     EXPECT_EQ(imported.value().error->context.at("reason"), "heic_decoder_unavailable");
 #endif
 
-    const auto assets = service_->list_assets();
+    const auto assets = service_->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_TRUE(assets.value().empty());
-    const auto previews = service_->list_previews();
+    const auto previews = service_->library().list_previews();
     ASSERT_TRUE(previews) << previews.error().message;
     EXPECT_TRUE(previews.value().empty());
 }
@@ -137,7 +137,7 @@ TEST_F(HeicCatalogTest, EnumeratesHeicExtensionAndReportsInvalidOrUnavailableInp
     file.close();
 
     const auto enumerated =
-        service_->enumerate_import_inputs({root_.string()}, CancellationToken{}, false);
+        service_->import().enumerate_import_inputs({root_.string()}, CancellationToken{}, false);
     ASSERT_TRUE(enumerated) << enumerated.error().message;
     ASSERT_EQ(enumerated.value().size(), 1U);
     std::error_code equivalent_error;
@@ -145,8 +145,8 @@ TEST_F(HeicCatalogTest, EnumeratesHeicExtensionAndReportsInvalidOrUnavailableInp
         << enumerated.value().front() << " vs " << path.string();
     EXPECT_FALSE(equivalent_error);
 
-    const auto candidate =
-        service_->inspect_import_candidate(path.string(), root_.string(), CancellationToken{});
+    const auto candidate = service_->import().inspect_import_candidate(
+        path.string(), root_.string(), CancellationToken{});
     ASSERT_TRUE(candidate) << candidate.error().message;
     EXPECT_FALSE(candidate.value().supported);
     ASSERT_TRUE(candidate.value().error);
@@ -169,11 +169,12 @@ TEST_F(HeicCatalogTest, ImportsPrimaryImageAndKeepsSourceBytes)
     ASSERT_TRUE(file.open(QIODevice::WriteOnly));
     ASSERT_EQ(file.write(bytes), bytes.size());
     file.close();
-    auto scan = service_->scan_import_candidates({path.string()}, root_.string(), false, {});
+    auto scan =
+        service_->import().scan_import_candidates({path.string()}, root_.string(), false, {});
     ASSERT_TRUE(scan);
     EXPECT_EQ(scan.value().unavailable, 0);
     ASSERT_TRUE(scan.value().candidates.front().supported);
-    auto imported = service_->import_one(path.string(), {});
+    auto imported = service_->import().import_one(path.string(), {});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset)
         << (imported.value().error ? imported.value().error->message : "no asset");
@@ -182,7 +183,7 @@ TEST_F(HeicCatalogTest, ImportsPrimaryImageAndKeepsSourceBytes)
     EXPECT_EQ(imported.value().asset->height, 96U);
     ASSERT_TRUE(file.open(QIODevice::ReadOnly));
     EXPECT_EQ(file.readAll(), bytes);
-    const auto duplicate = service_->import_one(path.string(), {});
+    const auto duplicate = service_->import().import_one(path.string(), {});
     ASSERT_TRUE(duplicate);
     EXPECT_EQ(duplicate.value().status, ImportItemStatus::kDuplicate);
 }

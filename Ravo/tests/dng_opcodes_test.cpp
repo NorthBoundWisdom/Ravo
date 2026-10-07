@@ -223,9 +223,10 @@ vignette_payload(const std::array<double, 5> coefficients = {})
     set(TIFFSetField(tiff, TIFFTAG_CFAPATTERN, static_cast<std::uint16_t>(cfa_pattern.size()),
                      cfa_pattern.data()));
     set(TIFFSetField(tiff, TIFFTAG_BLACKLEVELREPEATDIM, black_repeat.data()));
-    set(TIFFSetField(tiff, TIFFTAG_BLACKLEVEL,
-                     static_cast<std::uint16_t>(black_grid ? black_grid->size() : black_level.size()),
-                     black_grid ? black_grid->data() : black_level.data()));
+    set(TIFFSetField(
+        tiff, TIFFTAG_BLACKLEVEL,
+        static_cast<std::uint16_t>(black_grid ? black_grid->size() : black_level.size()),
+        black_grid ? black_grid->data() : black_level.data()));
     set(TIFFSetField(tiff, TIFFTAG_WHITELEVEL, static_cast<std::uint16_t>(white_level.size()),
                      white_level.data()));
     set(TIFFSetField(tiff, TIFFTAG_DEFAULTSCALE, default_scale.data()));
@@ -252,10 +253,9 @@ vignette_payload(const std::array<double, 5> coefficients = {})
     {
         for (std::uint32_t x = 0U; x < width; ++x)
         {
-            row[x] = black_grid ?
-                static_cast<std::uint16_t>((*black_grid)[(y % 2U) * 2U + x % 2U] +
-                                           (x < 16U ? 0U : 200U)) :
-                static_cast<std::uint16_t>(200U + y * width + x);
+            row[x] = black_grid ? static_cast<std::uint16_t>((*black_grid)[(y % 2U) * 2U + x % 2U] +
+                                                             (x < 16U ? 0U : 200U)) :
+                                  static_cast<std::uint16_t>(200U + y * width + x);
         }
         ok = TIFFWriteScanline(tiff, row.data(), y, 0U) >= 0;
     }
@@ -325,9 +325,9 @@ TEST(DngOpcodeTest, RepeatingBlackPedestalIsRemovedBeforeWhiteBalance)
     SyntheticDngDirectory directory;
     auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
-    for (const auto grid : {std::array<float, 4>{128, 128, 128, 128},
-                            std::array<float, 4>{128, 160, 192, 224},
-                            std::array<float, 4>{1024, 1024, 1024, 1024}})
+    for (const auto grid :
+         {std::array<float, 4>{128, 128, 128, 128}, std::array<float, 4>{128, 160, 192, 224},
+          std::array<float, 4>{1024, 1024, 1024, 1024}})
     {
         const auto path = directory.path() / "black.dng";
         ASSERT_TRUE(write_synthetic_dng(path, {}, {}, &grid));
@@ -340,7 +340,8 @@ TEST(DngOpcodeTest, RepeatingBlackPedestalIsRemovedBeforeWhiteBalance)
             for (std::uint32_t x = 0; x < raw.width; ++x)
             {
                 EXPECT_EQ(static_cast<int>(raw.pixels[y * raw.width + x]) - raw.black_level,
-                          x < 16U ? 0 : 200) << x << "," << y;
+                          x < 16U ? 0 : 200)
+                    << x << "," << y;
             }
         }
         EXPECT_EQ(file_hash(path), source_hash);
@@ -531,7 +532,7 @@ TEST(DngOpcodeTest, CatalogPreviewReopenAndExportPreserveSyntheticDngSource)
     auto service_result = make_service(true);
     ASSERT_TRUE(service_result) << service_result.error().message;
     auto service = std::move(service_result).value();
-    auto imported = service->import_one(input.string(), CancellationToken{});
+    auto imported = service->import().import_one(input.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset)
         << (imported.value().error ? imported.value().error->message : "");
@@ -540,7 +541,7 @@ TEST(DngOpcodeTest, CatalogPreviewReopenAndExportPreserveSyntheticDngSource)
     request.asset_id = asset_id;
     request.max_edge = 32U;
     request.request_revision = 1U;
-    auto preview = service->request_preview(request);
+    auto preview = service->preview().request_preview(request);
     ASSERT_TRUE(preview) << preview.error().message;
     EXPECT_FALSE(preview.value().cache_path.empty());
     EXPECT_TRUE(std::filesystem::exists(preview.value().cache_path));
@@ -551,7 +552,7 @@ TEST(DngOpcodeTest, CatalogPreviewReopenAndExportPreserveSyntheticDngSource)
     ASSERT_TRUE(service_result) << service_result.error().message;
     service = std::move(service_result).value();
     request.request_revision = 2U;
-    preview = service->request_preview(request);
+    preview = service->preview().request_preview(request);
     ASSERT_TRUE(preview) << preview.error().message;
     EXPECT_FALSE(preview.value().cache_path.empty());
     EXPECT_TRUE(std::filesystem::exists(preview.value().cache_path));
@@ -560,7 +561,7 @@ TEST(DngOpcodeTest, CatalogPreviewReopenAndExportPreserveSyntheticDngSource)
     export_request.output_path = output.string();
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 32U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     EXPECT_TRUE(std::filesystem::exists(output));
     EXPECT_EQ(file_hash(input), source_hash);
@@ -593,8 +594,7 @@ TEST(DngOpcodeTest, ParsesOwnedFourParityGainMapsAndInterpolates)
     ASSERT_NE(cropped.value(), nullptr);
     EXPECT_EQ(cropped.value()->active_origin_x, 1U);
     EXPECT_EQ(cropped.value()->active_origin_y, 1U);
-    EXPECT_FLOAT_EQ(
-        apply_dng_opcode_list2_sample(*cropped.value(), 0U, 0U, 4U, 4U, 0.2F), 0.8F);
+    EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*cropped.value(), 0U, 0U, 4U, 4U, 0.2F), 0.8F);
     auto invalid_crop = parse_dng_opcode_metadata({true, bytes}, {}, 6U, 6U, 3U, 3U, 4U, 4U);
     ASSERT_FALSE(invalid_crop);
     EXPECT_EQ(invalid_crop.error().context.at("reason"), "invalid_dng_opcode_active_frame");

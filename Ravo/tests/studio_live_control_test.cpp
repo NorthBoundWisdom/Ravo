@@ -181,9 +181,9 @@ TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing
         source.contains(QStringLiteral("qsTr(\"Original copy writes the exact source bytes")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Cancel\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Continue\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exportFormatChoices()")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exportDefaultOptions()")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exportOptionBounds()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exports.exportFormatChoices()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exports.exportDefaultOptions()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exports.exportOptionBounds()")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetFromPresenter()")));
     EXPECT_TRUE(source.contains(QStringLiteral("exportAccepted")));
     EXPECT_TRUE(source.contains(QStringLiteral("exportCanceled")));
@@ -227,19 +227,22 @@ TEST(StudioQmlContract, CropOverlayShowsWhenCropToolActivates)
     EXPECT_TRUE(visible_line.contains(QStringLiteral("photoPlane.width")));
     EXPECT_FALSE(visible_line.contains(QStringLiteral("cropGuideReady")));
     EXPECT_TRUE(source.contains(QStringLiteral("rotation: 0")));
-    EXPECT_TRUE(source.contains(QStringLiteral("straighten: studio.editStraighten")));
-    EXPECT_FALSE(source.contains(
-        QStringLiteral("cropToolActive && studio.cropGuideReady ? studio.editStraighten : 0")));
+    EXPECT_TRUE(source.contains(QStringLiteral("straighten: studio.develop.editStraighten")));
+    EXPECT_FALSE(source.contains(QStringLiteral(
+        "cropToolActive && studio.develop.cropGuideReady ? studio.develop.editStraighten : 0")));
     EXPECT_TRUE(source.contains(QStringLiteral("photoItem: null")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.cropPreviewLayout.widthScale")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.cropPreviewLayout.x * photoPlane.width")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.cropPreviewLayout.height : 1")));
-    EXPECT_TRUE(source.contains(QStringLiteral("sourceWidth: studio.selectedWorkingWidth")));
-    EXPECT_TRUE(source.contains(QStringLiteral("sourceHeight: studio.selectedWorkingHeight")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.inspect.cropPreviewLayout.widthScale")));
     EXPECT_TRUE(
-        source.contains(QStringLiteral("minShortEdgePixels: studio.cropMinShortEdgePixels")));
+        source.contains(QStringLiteral("studio.inspect.cropPreviewLayout.x * photoPlane.width")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.inspect.cropPreviewLayout.height : 1")));
     EXPECT_TRUE(
-        source.contains(QStringLiteral("minShortEdgeFraction: studio.cropMinShortEdgeFraction")));
+        source.contains(QStringLiteral("sourceWidth: studio.develop.selectedWorkingWidth")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("sourceHeight: studio.develop.selectedWorkingHeight")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("minShortEdgePixels: studio.develop.cropMinShortEdgePixels")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("minShortEdgeFraction: studio.develop.cropMinShortEdgeFraction")));
     EXPECT_TRUE(source.contains(QStringLiteral("onTapped: window.showPhotoMenu()")));
     EXPECT_FALSE(source.contains(QStringLiteral("onClicked: window.showPhotoMenu()")));
 }
@@ -255,7 +258,7 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(
         source.contains(QStringLiteral("inspectZoom.viewportAssetId !== studio.selectedAssetId")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onZoomChanged()")));
-    EXPECT_TRUE(source.contains(QStringLiteral("function onEditChanged()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function onInspectContextChanged()")));
     EXPECT_TRUE(source.contains(QStringLiteral("inspectRoiDebounce.restart()")));
     EXPECT_TRUE(source.contains(QStringLiteral("StudioGpuPreviewItem")));
     EXPECT_TRUE(source.contains(QStringLiteral("function onBrowseModeChanged()")));
@@ -278,8 +281,8 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportWidth")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportHeight")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedWorkingWidth")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedWorkingHeight")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.develop.selectedWorkingWidth")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.develop.selectedWorkingHeight")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("return window.comparisonReady ? width * 2 : width")));
     EXPECT_FALSE(source.contains(QStringLiteral("inspectZoom.inspectSourceWidth")));
@@ -290,7 +293,7 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("inspectZoom.inspectAnimScale")));
     EXPECT_TRUE(source.contains(QStringLiteral("transform: Scale")));
     EXPECT_TRUE(source.contains(QStringLiteral(
-        "cursorShape: studio.whiteBalancePickActive || studio.maskPlaceActive || studio.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor")));
+        "cursorShape: studio.develop.whiteBalancePickActive || studio.develop.maskPlaceActive || studio.develop.maskParametricAssistActive ? Qt.CrossCursor : Qt.BlankCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
     EXPECT_FALSE(source.contains(QStringLiteral("inspectClickTimer")));
     EXPECT_FALSE(source.contains(QStringLiteral("onDoubleTapped")));
@@ -882,8 +885,8 @@ TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
     EXPECT_TRUE(source.contains(QStringLiteral("setTextFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("setMediaFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("setEditFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.mediaFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.editFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.mediaFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.editFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Capture time\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"File size\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("setRatingExact")));
@@ -915,12 +918,11 @@ TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
     EXPECT_TRUE(source.contains(QStringLiteral("setCameraFacetFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("setLensFacetFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("setLensNameFacetFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.lensNameFacets")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.lensNameFacets")));
     EXPECT_TRUE(source.contains(QStringLiteral("setCaptureDateFacetFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("setLocationFacetFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.cameraFacets")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.locationFacets")) ||
-                source.contains(QStringLiteral("presenter.countryFacets")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.cameraFacets")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.countryFacets")));
     EXPECT_TRUE(source.contains(QStringLiteral("matchingFacetCount")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"%1 photos\")")));
 }

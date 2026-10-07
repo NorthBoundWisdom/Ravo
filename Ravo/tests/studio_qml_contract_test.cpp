@@ -325,7 +325,7 @@ TEST(StudioQmlContract, RetouchAuthorsOrderedRegionsThroughCommandBoundary)
     const auto source = combined_develop_qml_source();
     ASSERT_FALSE(source.isEmpty());
     EXPECT_TRUE(source.contains(QStringLiteral("id: retouchEditor")));
-    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editRetouch.regions")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.develop.editRetouch.regions")));
     EXPECT_TRUE(source.contains(QStringLiteral("panel.commands.addRetouchRegion")));
     EXPECT_TRUE(source.contains(QStringLiteral("panel.commands.removeRetouchRegion")));
     EXPECT_TRUE(source.contains(QStringLiteral("[\"clone\", \"heal\", \"blur\", \"fill\"]")));
@@ -487,7 +487,7 @@ TEST(StudioQmlContract, DevelopReviewToolbarOffersSynchronizedBeforeAfterCompari
     EXPECT_TRUE(main_source.contains(QStringLiteral("comparisonReady: window.comparisonReady")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("text: qsTr(\"Before\")")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("text: qsTr(\"After\")")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("!studio.comparisonActive")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("!studio.develop.comparisonActive")));
     EXPECT_TRUE(
         main_source.contains(QStringLiteral("return window.comparisonReady ? width * 2 : width")));
 
@@ -597,14 +597,14 @@ TEST(StudioCommands, LockingCropAspectKeepsCurrentRatio)
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    EXPECT_EQ(presenter.cropAspect(), QStringLiteral("free"));
-    EXPECT_NEAR(presenter.cropAspectRatio(), 0.0, 1e-12);
-    presenter.setCropAspect(QStringLiteral("locked"));
-    EXPECT_EQ(presenter.cropAspect(), QStringLiteral("locked"));
-    EXPECT_NEAR(presenter.cropAspectRatio(), 1.0, 1e-6);
-    presenter.setCropAspect(QStringLiteral("free"));
-    EXPECT_EQ(presenter.cropAspect(), QStringLiteral("free"));
-    EXPECT_NEAR(presenter.cropAspectRatio(), 0.0, 1e-12);
+    EXPECT_EQ(presenter.develop()->cropAspect(), QStringLiteral("free"));
+    EXPECT_NEAR(presenter.develop()->cropAspectRatio(), 0.0, 1e-12);
+    presenter.develop()->setCropAspect(QStringLiteral("locked"));
+    EXPECT_EQ(presenter.develop()->cropAspect(), QStringLiteral("locked"));
+    EXPECT_NEAR(presenter.develop()->cropAspectRatio(), 1.0, 1e-6);
+    presenter.develop()->setCropAspect(QStringLiteral("free"));
+    EXPECT_EQ(presenter.develop()->cropAspect(), QStringLiteral("free"));
+    EXPECT_NEAR(presenter.develop()->cropAspectRatio(), 0.0, 1e-12);
 }
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
@@ -805,13 +805,13 @@ TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
 
-    presenter.setCropToolActive(true);
-    ASSERT_TRUE(presenter.cropToolActive());
-    presenter.previewCropRect(0.15, 0.20, 0.55, 0.50);
-    const double crop_x = presenter.editCropX();
-    const double crop_y = presenter.editCropY();
-    const double crop_width = presenter.editCropWidth();
-    const double crop_height = presenter.editCropHeight();
+    presenter.develop()->setCropToolActive(true);
+    ASSERT_TRUE(presenter.develop()->cropToolActive());
+    presenter.develop()->previewCropRect(0.15, 0.20, 0.55, 0.50);
+    const double crop_x = presenter.develop()->editCropX();
+    const double crop_y = presenter.develop()->editCropY();
+    const double crop_width = presenter.develop()->editCropWidth();
+    const double crop_height = presenter.develop()->editCropHeight();
     ASSERT_GT(crop_width, 0.0);
     ASSERT_GT(crop_height, 0.0);
     ASSERT_LT(crop_width, 0.999);
@@ -834,15 +834,19 @@ TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
 
     const auto confirmed = controller.executeAction(loupe, QStringLiteral("keyboard"));
     EXPECT_TRUE(confirmed.value(QStringLiteral("accepted")).toBool());
-    EXPECT_FALSE(presenter.cropToolActive());
+    EXPECT_FALSE(presenter.develop()->cropToolActive());
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("develop"));
-    EXPECT_NEAR(presenter.editCropX(), crop_x, 1e-6);
-    EXPECT_NEAR(presenter.editCropY(), crop_y, 1e-6);
-    EXPECT_NEAR(presenter.editCropWidth(), crop_width, 1e-6);
-    EXPECT_NEAR(presenter.editCropHeight(), crop_height, 1e-6);
+    EXPECT_NEAR(presenter.develop()->editCropX(), crop_x, 1e-6);
+    EXPECT_NEAR(presenter.develop()->editCropY(), crop_y, 1e-6);
+    EXPECT_NEAR(presenter.develop()->editCropWidth(), crop_width, 1e-6);
+    EXPECT_NEAR(presenter.develop()->editCropHeight(), crop_height, 1e-6);
 
     ASSERT_TRUE(wait_until(
-        [&] { return !presenter.previewLoading() && !presenter.busy() && presenter.canUndo(); }))
+        [&]
+        {
+            return !presenter.previewLoading() && !presenter.busy() &&
+                   presenter.develop()->canUndo();
+        }))
         << presenter.errorText().toStdString();
     const QString asset_id = presenter.selectedAssetId();
     presenter.setBrowseMode(QStringLiteral("grid"));
@@ -853,13 +857,13 @@ TEST(StudioCommands, ReturnConfirmsCropToolAndKeepsDevelopCrop)
         [&]
         {
             return !presenter.previewLoading() && !presenter.busy() &&
-                   std::abs(presenter.editCropWidth() - crop_width) < 1e-6;
+                   std::abs(presenter.develop()->editCropWidth() - crop_width) < 1e-6;
         }))
         << presenter.errorText().toStdString();
-    EXPECT_FALSE(presenter.cropToolActive());
-    EXPECT_NEAR(presenter.editCropX(), crop_x, 1e-6);
-    EXPECT_NEAR(presenter.editCropY(), crop_y, 1e-6);
-    EXPECT_NEAR(presenter.editCropHeight(), crop_height, 1e-6);
+    EXPECT_FALSE(presenter.develop()->cropToolActive());
+    EXPECT_NEAR(presenter.develop()->editCropX(), crop_x, 1e-6);
+    EXPECT_NEAR(presenter.develop()->editCropY(), crop_y, 1e-6);
+    EXPECT_NEAR(presenter.develop()->editCropHeight(), crop_height, 1e-6);
 }
 
 TEST(StudioCommands, SelectAllShortcutSelectsLoadedPhotosAndYieldsToTextInput)
@@ -1217,12 +1221,12 @@ TEST(StudioPresenterTest, ExportPresentationCatalogExposesCanonicalDefaults)
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    const auto formats = presenter.exportFormatChoices();
+    const auto formats = presenter.exports()->exportFormatChoices();
     ASSERT_EQ(formats.size(), 4);
     EXPECT_EQ(formats.at(0).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("jpeg"));
     EXPECT_EQ(formats.at(3).toMap().value(QStringLiteral("id")).toString(),
               QStringLiteral("original"));
-    const auto defaults = presenter.exportDefaultOptions();
+    const auto defaults = presenter.exports()->exportDefaultOptions();
     EXPECT_EQ(defaults.value(QStringLiteral("format")).toString(), QStringLiteral("jpeg"));
     EXPECT_EQ(defaults.value(QStringLiteral("quality")).toInt(), 95);
     const auto sizing = defaults.value(QStringLiteral("sizing")).toMap();
@@ -1240,11 +1244,11 @@ TEST(StudioPresenterTest, ExportPresentationCatalogExposesCanonicalDefaults)
     EXPECT_FALSE(defaults.value(QStringLiteral("tiffGrayscaleIfNeutral")).toBool());
     EXPECT_EQ(defaults.value(QStringLiteral("tiffResolutionDpi")).toInt(), 300);
     EXPECT_EQ(defaults.value(QStringLiteral("metadataMode")).toString(), QStringLiteral("full"));
-    const auto metadata_modes = presenter.exportMetadataModeChoices();
+    const auto metadata_modes = presenter.exports()->exportMetadataModeChoices();
     ASSERT_EQ(metadata_modes.size(), 3);
     EXPECT_EQ(metadata_modes.at(1).toMap().value(QStringLiteral("id")).toString(),
               QStringLiteral("no-location"));
-    const auto bounds = presenter.exportOptionBounds();
+    const auto bounds = presenter.exports()->exportOptionBounds();
     EXPECT_EQ(bounds.value(QStringLiteral("jpegQualityMin")).toInt(), 5);
     EXPECT_EQ(bounds.value(QStringLiteral("tiffResolutionDpiMax")).toInt(), 9600);
 }
@@ -1253,7 +1257,7 @@ TEST(StudioPresenterTest, OutputDitherPresentationOwnsAllFrozenMethods)
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    const auto dither = presenter.editOutputDither();
+    const auto dither = presenter.develop()->editOutputDither();
     EXPECT_FALSE(dither.value(QStringLiteral("present")).toBool());
     EXPECT_FALSE(dither.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(dither.value(QStringLiteral("methodIndex")).toInt(), 10);
@@ -1264,28 +1268,28 @@ TEST(StudioPresenterTest, OutputDitherPresentationOwnsAllFrozenMethods)
               QStringLiteral("random"));
     EXPECT_EQ(choices.back().toMap().value(QStringLiteral("id")).toString(),
               QStringLiteral("posterize_8"));
-    const auto canvas = presenter.editCanvas();
-    EXPECT_FALSE(presenter.editCanvasEnabled());
+    const auto canvas = presenter.develop()->editCanvas();
+    EXPECT_FALSE(presenter.develop()->editCanvasEnabled());
     EXPECT_FALSE(canvas.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(canvas.value(QStringLiteral("colorChoices")).toList().size(), 5);
-    const auto frame = presenter.editOutputFrame();
+    const auto frame = presenter.develop()->editOutputFrame();
     EXPECT_FALSE(frame.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(frame.value(QStringLiteral("orientationChoices")).toList().size(), 3);
     EXPECT_EQ(frame.value(QStringLiteral("basisChoices")).toList().size(), 5);
-    const auto watermark = presenter.editWatermark();
+    const auto watermark = presenter.develop()->editWatermark();
     EXPECT_FALSE(watermark.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(watermark.value(QStringLiteral("text")).toString(), QStringLiteral("RAVO"));
     EXPECT_EQ(watermark.value(QStringLiteral("alignmentChoices")).toList().size(), 9);
-    const auto zones = presenter.editColorZones();
+    const auto zones = presenter.develop()->editColorZones();
     EXPECT_FALSE(zones.value(QStringLiteral("enabled")).toBool());
     EXPECT_FALSE(zones.value(QStringLiteral("editable")).toBool());
     EXPECT_EQ(zones.value(QStringLiteral("selectByChoices")).toList().size(), 3);
     EXPECT_EQ(zones.value(QStringLiteral("interpolationChoices")).toList().size(), 3);
-    const auto monochrome = presenter.editMonochromeFilter();
+    const auto monochrome = presenter.develop()->editMonochromeFilter();
     EXPECT_FALSE(monochrome.value(QStringLiteral("enabled")).toBool());
     EXPECT_DOUBLE_EQ(monochrome.value(QStringLiteral("size")).toDouble(), 2.0);
     EXPECT_DOUBLE_EQ(monochrome.value(QStringLiteral("mix")).toDouble(), 1.0);
-    const auto split = presenter.editSplitToning();
+    const auto split = presenter.develop()->editSplitToning();
     EXPECT_FALSE(split.value(QStringLiteral("enabled")).toBool());
     EXPECT_DOUBLE_EQ(split.value(QStringLiteral("shadowSaturation")).toDouble(), 0.5);
     EXPECT_DOUBLE_EQ(split.value(QStringLiteral("compress")).toDouble(), 33.0);

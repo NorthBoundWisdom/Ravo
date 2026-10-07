@@ -15,26 +15,26 @@ DevelopSection {
         width: parent.width
         spacing: Fonts.smallSpacing
         property bool editRegions: false
-        readonly property bool rgbFamily: !panel.hasPresenter || panel.presenter.editCurve.familyIndex === 0
-        readonly property bool masterChannel: !panel.hasPresenter || panel.presenter.editCurve.channel === 0
-        readonly property bool regionsAvailable: rgbFamily && masterChannel && (!panel.hasPresenter || panel.presenter.editCurve.linked)
+        readonly property bool rgbFamily: !panel.hasPresenter || panel.presenter.develop.editCurve.familyIndex === 0
+        readonly property bool masterChannel: !panel.hasPresenter || panel.presenter.develop.editCurve.channel === 0
+        readonly property bool regionsAvailable: rgbFamily && masterChannel && (!panel.hasPresenter || panel.presenter.develop.editCurve.linked)
         readonly property color activeCurveColor: {
-            if (!panel.hasPresenter || panel.presenter.editCurve.channel === 0)
+            if (!panel.hasPresenter || panel.presenter.develop.editCurve.channel === 0)
                 return Theme.textColor;
-            if (panel.presenter.editCurve.familyIndex === 1)
-                return panel.presenter.editCurve.channel === 1 ? "#d97bdc" : "#64c7c9";
-            if (panel.presenter.editCurve.channel === 1)
+            if (panel.presenter.develop.editCurve.familyIndex === 1)
+                return panel.presenter.develop.editCurve.channel === 1 ? "#d97bdc" : "#64c7c9";
+            if (panel.presenter.develop.editCurve.channel === 1)
                 return "#ed6a70";
-            if (panel.presenter.editCurve.channel === 2)
+            if (panel.presenter.develop.editCurve.channel === 2)
                 return "#65c982";
             return "#6f9df4";
         }
         readonly property string activeChannelLabel: {
             if (!panel.hasPresenter)
                 return qsTr("RGB");
-            if (panel.presenter.editCurve.familyIndex === 1)
-                return [qsTr("Master"), qsTr("a"), qsTr("b")][panel.presenter.editCurve.channel];
-            return [qsTr("RGB"), qsTr("Red"), qsTr("Green"), qsTr("Blue")][panel.presenter.editCurve.channel];
+            if (panel.presenter.develop.editCurve.familyIndex === 1)
+                return [qsTr("Master"), qsTr("a"), qsTr("b")][panel.presenter.develop.editCurve.channel];
+            return [qsTr("RGB"), qsTr("Red"), qsTr("Green"), qsTr("Blue")][panel.presenter.develop.editCurve.channel];
         }
 
         onRegionsAvailableChanged: if (!regionsAvailable)
@@ -59,7 +59,7 @@ DevelopSection {
                 onClicked: {
                     curveControls.editRegions = false;
                     if (panel.hasPresenter)
-                        panel.presenter.setCurveFamily(0);
+                        panel.presenter.develop.setCurveFamily(0);
                 }
             }
             CurveOptionButton {
@@ -71,7 +71,7 @@ DevelopSection {
                 onClicked: {
                     curveControls.editRegions = false;
                     if (panel.hasPresenter)
-                        panel.presenter.setCurveFamily(1);
+                        panel.presenter.develop.setCurveFamily(1);
                 }
             }
         }
@@ -124,12 +124,12 @@ DevelopSection {
                     Layout.fillWidth: true
                     text: modelData.title
                     selectionColor: modelData.color
-                    selected: (panel.hasPresenter ? panel.presenter.editCurve.channel : 0) === index
+                    selected: (panel.hasPresenter ? panel.presenter.develop.editCurve.channel : 0) === index
                     enabled: panel.hasSelection
                     onClicked: {
                         curveControls.editRegions = false;
                         if (panel.hasPresenter)
-                            panel.presenter.setCurveChannel(index);
+                            panel.presenter.develop.setCurveChannel(index);
                     }
                 }
             }
@@ -180,14 +180,14 @@ DevelopSection {
             curveColor: curveControls.activeCurveColor
             channelLabel: curveControls.activeChannelLabel
             showRegionSplits: curveControls.editRegions && curveControls.regionsAvailable
-            regionSplits: panel.hasPresenter ? [panel.presenter.editCurve.split0, panel.presenter.editCurve.split1, panel.presenter.editCurve.split2] : [0.25, 0.5, 0.75]
-            histogramMode: panel.hasPresenter ? panel.presenter.editCurve.histogramMode : "rgb"
-            histogramRed: panel.hasPresenter ? panel.presenter.scopeHistogramRed : []
-            histogramGreen: panel.hasPresenter ? panel.presenter.scopeHistogramGreen : []
-            histogramBlue: panel.hasPresenter ? panel.presenter.scopeHistogramBlue : []
-            histogramLuma: panel.hasPresenter ? panel.presenter.scopeHistogramLuma : []
-            histogramMax: panel.hasPresenter ? panel.presenter.scopeHistogramMax : 0
-            points: panel.hasPresenter ? panel.presenter.editCurvePoints : [
+            regionSplits: panel.hasPresenter ? [panel.presenter.develop.editCurve.split0, panel.presenter.develop.editCurve.split1, panel.presenter.develop.editCurve.split2] : [0.25, 0.5, 0.75]
+            histogramMode: panel.hasPresenter ? panel.presenter.develop.editCurve.histogramMode : "rgb"
+            histogramRed: panel.hasPresenter ? panel.presenter.inspect.scopeHistogramRed : []
+            histogramGreen: panel.hasPresenter ? panel.presenter.inspect.scopeHistogramGreen : []
+            histogramBlue: panel.hasPresenter ? panel.presenter.inspect.scopeHistogramBlue : []
+            histogramLuma: panel.hasPresenter ? panel.presenter.inspect.scopeHistogramLuma : []
+            histogramMax: panel.hasPresenter ? panel.presenter.inspect.scopeHistogramMax : 0
+            points: panel.hasPresenter ? panel.presenter.develop.editCurvePoints : [
                 {
                     "x": 0,
                     "y": 0
@@ -197,14 +197,14 @@ DevelopSection {
                     "y": 1
                 }
             ]
-            samples: panel.hasPresenter ? panel.presenter.editCurveSamples : []
+            samples: panel.hasPresenter ? panel.presenter.develop.editCurveSamples : []
             onCurveEdited: function (points) {
                 if (panel.commands)
-                    panel.commands.previewCurve(panel.hasPresenter && panel.presenter.editCurve.familyIndex === 1 ? "tone" : "rgb", panel.hasPresenter ? panel.presenter.editCurve.channel : 0, points);
+                    panel.commands.previewCurve(panel.hasPresenter && panel.presenter.develop.editCurve.familyIndex === 1 ? "tone" : "rgb", panel.hasPresenter ? panel.presenter.develop.editCurve.channel : 0, points);
             }
             onCurveCommitted: function (points) {
                 if (panel.commands)
-                    panel.commands.setCurve(panel.hasPresenter && panel.presenter.editCurve.familyIndex === 1 ? "tone" : "rgb", panel.hasPresenter ? panel.presenter.editCurve.channel : 0, points);
+                    panel.commands.setCurve(panel.hasPresenter && panel.presenter.develop.editCurve.familyIndex === 1 ? "tone" : "rgb", panel.hasPresenter ? panel.presenter.develop.editCurve.channel : 0, points);
             }
         }
         CustomLabel {
@@ -260,7 +260,7 @@ DevelopSection {
                     resetValue: 0
                     delayedCommit: true
                     enabled: panel.hasSelection
-                    value: panel.hasPresenter ? panel.presenter.editCurve[modelData.key] : 0
+                    value: panel.hasPresenter ? panel.presenter.develop.editCurve[modelData.key] : 0
                     onValueEdited: function (value) {
                         if (panel.liveReady && panel.commands)
                             panel.commands.previewDevelopNumber(modelData.field, value);
@@ -304,7 +304,7 @@ DevelopSection {
                     Layout.fillWidth: true
                     model: [qsTr("Monotonic"), qsTr("Centripetal"), qsTr("Cubic")]
                     enabled: panel.hasSelection
-                    currentIndex: panel.hasPresenter ? panel.presenter.editCurve.interpolationIndex : 0
+                    currentIndex: panel.hasPresenter ? panel.presenter.develop.editCurve.interpolationIndex : 0
                     onActivated: if (panel.commands)
                         panel.commands.setDevelopNumber(curveControls.rgbFamily ? "rgbCurveInterpolation" : "toneCurveInterpolation", currentIndex)
                 }
@@ -319,22 +319,22 @@ DevelopSection {
                     visible: !curveControls.rgbFamily
                     model: [qsTr("RGB, linked"), qsTr("Lab"), qsTr("XYZ"), qsTr("Lab independent"), qsTr("sRGB"), qsTr("Linear RGB")]
                     enabled: panel.hasSelection
-                    currentIndex: panel.hasPresenter ? panel.presenter.editCurve.workingSpaceIndex : 0
+                    currentIndex: panel.hasPresenter ? panel.presenter.develop.editCurve.workingSpaceIndex : 0
                     onActivated: if (panel.commands)
                         panel.commands.setDevelopNumber("toneCurveWorkingSpace", currentIndex)
                 }
 
                 CustomLabel {
-                    visible: curveControls.masterChannel && (!panel.hasPresenter || panel.presenter.editCurve.linked)
+                    visible: curveControls.masterChannel && (!panel.hasPresenter || panel.presenter.develop.editCurve.linked)
                     text: qsTr("Preserve colors")
                     opacity: 0.72
                 }
                 CustomComboBox {
                     Layout.fillWidth: true
-                    visible: curveControls.masterChannel && (!panel.hasPresenter || panel.presenter.editCurve.linked)
+                    visible: curveControls.masterChannel && (!panel.hasPresenter || panel.presenter.develop.editCurve.linked)
                     model: [qsTr("None"), qsTr("Luminance"), qsTr("Max RGB"), qsTr("Average RGB"), qsTr("Sum RGB"), qsTr("Norm RGB"), qsTr("Basic power")]
                     enabled: panel.hasSelection
-                    currentIndex: panel.hasPresenter ? panel.presenter.editCurve.preserveIndex : 1
+                    currentIndex: panel.hasPresenter ? panel.presenter.develop.editCurve.preserveIndex : 1
                     onActivated: if (panel.commands)
                         panel.commands.setDevelopNumber(curveControls.rgbFamily ? "rgbCurvePreserve" : "toneCurvePreserve", currentIndex)
                 }
@@ -344,7 +344,7 @@ DevelopSection {
                     text: qsTr("Compensate middle grey")
                     visible: curveControls.rgbFamily
                     enabled: panel.hasSelection
-                    checked: panel.hasPresenter && panel.presenter.editCurve.compensate
+                    checked: panel.hasPresenter && panel.presenter.develop.editCurve.compensate
                     onToggled: if (panel.commands)
                         panel.commands.setDevelopNumber("rgbCurveCompensate", checked ? 1 : 0)
                 }
@@ -393,7 +393,7 @@ DevelopSection {
                             resetValue: modelData.reset
                             delayedCommit: true
                             enabled: panel.hasSelection
-                            value: panel.hasPresenter ? panel.presenter.editCurve[modelData.key] : modelData.reset
+                            value: panel.hasPresenter ? panel.presenter.develop.editCurve[modelData.key] : modelData.reset
                             onValueEdited: function (value) {
                                 if (panel.liveReady && panel.commands)
                                     panel.commands.previewDevelopNumber(modelData.field, value);

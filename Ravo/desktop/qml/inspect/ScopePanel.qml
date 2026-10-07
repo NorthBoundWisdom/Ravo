@@ -9,11 +9,11 @@ Rectangle {
     property var commands
 
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
-    readonly property bool histogramMode: hasPresenter && presenter.scopeMode === "histogram"
-    readonly property bool waveformMode: hasPresenter && presenter.scopeMode === "waveform"
-    readonly property bool paradeMode: !hasPresenter || presenter.scopeMode === "parade"
-    readonly property bool vectorscopeMode: hasPresenter && presenter.scopeMode === "vectorscope"
-    readonly property bool splitMode: hasPresenter && presenter.scopeMode === "split"
+    readonly property bool histogramMode: hasPresenter && presenter.inspect.scopeMode === "histogram"
+    readonly property bool waveformMode: hasPresenter && presenter.inspect.scopeMode === "waveform"
+    readonly property bool paradeMode: !hasPresenter || presenter.inspect.scopeMode === "parade"
+    readonly property bool vectorscopeMode: hasPresenter && presenter.inspect.scopeMode === "vectorscope"
+    readonly property bool splitMode: hasPresenter && presenter.inspect.scopeMode === "split"
 
     color: Theme.imageSurroundColor
     implicitHeight: Fonts.scaledUiSize(120)
@@ -58,9 +58,9 @@ Rectangle {
                     ctx.lineTo(w, y);
                     ctx.stroke();
                 }
-                if (!root.hasPresenter || root.presenter.scopeHistogramMax <= 0)
+                if (!root.hasPresenter || root.presenter.inspect.scopeHistogramMax <= 0)
                     return;
-                const maxv = root.presenter.scopeHistogramMax;
+                const maxv = root.presenter.inspect.scopeHistogramMax;
                 function drawChannel(values, color) {
                     ctx.beginPath();
                     ctx.moveTo(0, h);
@@ -75,9 +75,9 @@ Rectangle {
                     ctx.fill();
                 }
                 ctx.globalCompositeOperation = "lighter";
-                drawChannel(root.presenter.scopeHistogramRed, Qt.rgba(1, 0.15, 0.12, 0.55));
-                drawChannel(root.presenter.scopeHistogramGreen, Qt.rgba(0.15, 1, 0.18, 0.55));
-                drawChannel(root.presenter.scopeHistogramBlue, Qt.rgba(0.2, 0.4, 1, 0.55));
+                drawChannel(root.presenter.inspect.scopeHistogramRed, Qt.rgba(1, 0.15, 0.12, 0.55));
+                drawChannel(root.presenter.inspect.scopeHistogramGreen, Qt.rgba(0.15, 1, 0.18, 0.55));
+                drawChannel(root.presenter.inspect.scopeHistogramBlue, Qt.rgba(0.2, 0.4, 1, 0.55));
             }
         }
 
@@ -87,7 +87,7 @@ Rectangle {
             fillMode: Image.Stretch
             asynchronous: false
             cache: false
-            source: !root.hasPresenter ? "" : root.waveformMode ? root.presenter.scopeWaveformUrl : root.paradeMode ? root.presenter.scopeParadeUrl : root.vectorscopeMode ? root.presenter.scopeVectorscopeUrl : root.presenter.scopeSplitUrl
+            source: !root.hasPresenter ? "" : root.waveformMode ? root.presenter.inspect.scopeWaveformUrl : root.paradeMode ? root.presenter.inspect.scopeParadeUrl : root.vectorscopeMode ? root.presenter.inspect.scopeVectorscopeUrl : root.presenter.inspect.scopeSplitUrl
             opacity: 0.95
         }
 
@@ -145,7 +145,7 @@ Rectangle {
         implicitHeight: Math.max(Fonts.listItemHeight, Fonts.size24)
         leftPadding: Fonts.size12
         rightPadding: Fonts.size12
-        readonly property bool current: root.hasPresenter ? root.presenter.scopeMode === modeId : modeId === "parade"
+        readonly property bool current: root.hasPresenter ? root.presenter.inspect.scopeMode === modeId : modeId === "parade"
         contentItem: Text {
             text: (item.current ? "\u2713  " : "    ") + item.text
             font: Fonts.standardFont

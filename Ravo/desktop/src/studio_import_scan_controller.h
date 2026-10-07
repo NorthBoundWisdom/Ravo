@@ -9,7 +9,7 @@
 #include <QObject>
 #include <QString>
 
-#include "ravo/foundation/cancellation.h"
+#include "ravo/foundation/cancellation_generation.h"
 #include "ravo/foundation/executor.h"
 #include "ravo/services/catalog_service.h"
 
@@ -42,7 +42,7 @@ public:
     };
 
     explicit StudioImportScanController(Host host, QObject *parent = nullptr);
-    // Legacy construction for tests that only need generation/progress ownership.
+    // Isolated construction for generation/progress tests without a scan host.
     explicit StudioImportScanController(QObject *parent = nullptr);
 
     // Cancel prior scan token, assign a fresh token, bump generation, mark active.
@@ -56,11 +56,11 @@ public:
 
     [[nodiscard]] bool matches(std::uint64_t generation) const noexcept
     {
-        return generation == generation_;
+        return operation_.accepts(generation);
     }
     [[nodiscard]] std::uint64_t generation() const noexcept
     {
-        return generation_;
+        return operation_.revision();
     }
     [[nodiscard]] bool active() const noexcept
     {
@@ -96,8 +96,7 @@ public:
 
 private:
     Host host_;
-    CancellationSource operation_;
-    std::uint64_t generation_ = 0;
+    CancellationGeneration operation_;
     bool active_ = false;
     int completed_ = 0;
     int total_ = 0;

@@ -1,5 +1,14 @@
 #include "ravo/services/ai_proposal.h"
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/ai_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/develop_service.h"
+#include "ravo/services/library_service.h"
+#include "ravo/services/metadata_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include <algorithm>
 #include <array>
@@ -21,6 +30,18 @@
 
 namespace ravo
 {
+
+AiService::AiService(const std::unique_ptr<CatalogRepository> &repository,
+                     DevelopService &develop_service, LibraryService &library_service,
+                     MetadataService &metadata_service, RecoveryService &recovery_service) noexcept
+    : repository_(repository)
+    , develop_service_(develop_service)
+    , library_service_(library_service)
+    , metadata_service_(metadata_service)
+    , recovery_service_(recovery_service)
+{
+}
+
 namespace
 {
 
@@ -789,17 +810,17 @@ build_stub_semantic_mask_alternatives(const std::string_view asset_id,
     return std::vector<AiProposalAlternative>{std::move(alternative)};
 }
 
-Result<std::filesystem::path> CatalogService::ai_proposals_directory() const
+Result<std::filesystem::path> AiService::ai_proposals_directory() const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
-    auto snapshot = this->snapshot();
+    auto snapshot = library_service_.snapshot();
     if (!snapshot)
         return snapshot.error();
     return std::filesystem::path(snapshot.value().database_path).concat(".ai_proposals");
 }
 
-Result<void> CatalogService::persist_ai_proposal(const AiProposal &proposal)
+Result<void> AiService::persist_ai_proposal(const AiProposal &proposal)
 {
     auto directory = ai_proposals_directory();
     if (!directory)
@@ -818,7 +839,7 @@ Result<void> CatalogService::persist_ai_proposal(const AiProposal &proposal)
     return write_utf8_text_file_replace_atomically(path.string(), serialize_json(json.value()));
 }
 
-Result<void> CatalogService::ensure_ai_proposals_loaded() const
+Result<void> AiService::ensure_ai_proposals_loaded() const
 {
     if (ai_proposals_loaded_)
         return {};
@@ -859,7 +880,7 @@ Result<void> CatalogService::ensure_ai_proposals_loaded() const
     return {};
 }
 
-Result<AiProposal> CatalogService::create_ai_proposal(const AiProposalCreateRequest &request)
+Result<AiProposal> AiService::create_ai_proposal(const AiProposalCreateRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -933,7 +954,7 @@ Result<AiProposal> CatalogService::create_ai_proposal(const AiProposalCreateRequ
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", request.asset_id}});
     }
-    auto snapshot = this->snapshot();
+    auto snapshot = library_service_.snapshot();
     if (!snapshot)
         return snapshot.error();
     if (request.expected_catalog_revision &&
@@ -945,10 +966,10 @@ Result<AiProposal> CatalogService::create_ai_proposal(const AiProposalCreateRequ
              {"expected_revision", std::to_string(*request.expected_catalog_revision)},
              {"revision", std::to_string(snapshot.value().revision)}});
     }
-    auto recovery = recovery_state(request.asset_id);
+    auto recovery = recovery_service_.recovery_state(request.asset_id);
     if (!recovery)
         return recovery.error();
-    auto recipe = load_recipe(request.asset_id);
+    auto recipe = develop_service_.load_recipe(request.asset_id);
     if (!recipe)
         return recipe.error();
     auto current = develop_from_recipe(recipe.value());
@@ -1008,7 +1029,7 @@ Result<AiProposal> CatalogService::create_ai_proposal(const AiProposalCreateRequ
     return proposal;
 }
 
-Result<AiProposal> CatalogService::get_ai_proposal(const std::string_view proposal_id) const
+Result<AiProposal> AiService::get_ai_proposal(const std::string_view proposal_id) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1030,7 +1051,7 @@ Result<AiProposal> CatalogService::get_ai_proposal(const std::string_view propos
 }
 
 Result<std::vector<AiProposal>>
-CatalogService::list_ai_proposals(const std::optional<std::string_view> asset_id) const
+AiService::list_ai_proposals(const std::optional<std::string_view> asset_id) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1056,7 +1077,7 @@ CatalogService::list_ai_proposals(const std::optional<std::string_view> asset_id
     return listed;
 }
 
-Result<AiProposal> CatalogService::reject_ai_proposal(const std::string_view proposal_id)
+Result<AiProposal> AiService::reject_ai_proposal(const std::string_view proposal_id)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1083,7 +1104,7 @@ Result<AiProposal> CatalogService::reject_ai_proposal(const std::string_view pro
     return found->second;
 }
 
-Result<AiProposal> CatalogService::cancel_ai_proposal(const std::string_view proposal_id)
+Result<AiProposal> AiService::cancel_ai_proposal(const std::string_view proposal_id)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1111,8 +1132,8 @@ Result<AiProposal> CatalogService::cancel_ai_proposal(const std::string_view pro
 }
 
 Result<AiProposalApplyResult>
-CatalogService::apply_ai_proposal(const std::string_view proposal_id,
-                                  const std::optional<std::int64_t> expected_catalog_revision)
+AiService::apply_ai_proposal(const std::string_view proposal_id,
+                             const std::optional<std::int64_t> expected_catalog_revision)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1144,7 +1165,7 @@ CatalogService::apply_ai_proposal(const std::string_view proposal_id,
                            {"reason", "missing_ai_provider_or_model"}});
     }
 
-    auto snapshot = this->snapshot();
+    auto snapshot = library_service_.snapshot();
     if (!snapshot)
         return snapshot.error();
     const auto expected = expected_catalog_revision.value_or(proposal.observed_catalog_revision);
@@ -1156,7 +1177,7 @@ CatalogService::apply_ai_proposal(const std::string_view proposal_id,
                            {"revision", std::to_string(snapshot.value().revision)},
                            {"proposal_id", std::string(proposal_id)}});
     }
-    auto recovery = recovery_state(proposal.asset_id);
+    auto recovery = recovery_service_.recovery_state(proposal.asset_id);
     if (!recovery)
         return recovery.error();
     if (recovery.value().generation != proposal.observed_recovery_generation)
@@ -1170,7 +1191,7 @@ CatalogService::apply_ai_proposal(const std::string_view proposal_id,
              {"asset_id", proposal.asset_id}});
     }
 
-    auto recipe = load_recipe(proposal.asset_id);
+    auto recipe = develop_service_.load_recipe(proposal.asset_id);
     if (!recipe)
         return recipe.error();
     auto current = develop_from_recipe(recipe.value());
@@ -1180,7 +1201,7 @@ CatalogService::apply_ai_proposal(const std::string_view proposal_id,
     if (!proposed)
         return proposed.error();
 
-    auto saved = save_develop_with_history(proposal.asset_id, proposed.value());
+    auto saved = develop_service_.save_develop_with_history(proposal.asset_id, proposed.value());
     if (!saved)
         return saved.error();
 
@@ -1200,7 +1221,7 @@ CatalogService::apply_ai_proposal(const std::string_view proposal_id,
 }
 
 Result<std::vector<AiProposal>>
-CatalogService::create_shoot_consistency_proposals(const AiShootConsistencyRequest &request)
+AiService::create_shoot_consistency_proposals(const AiShootConsistencyRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1273,7 +1294,7 @@ CatalogService::create_shoot_consistency_proposals(const AiShootConsistencyReque
     if (!reference_asset.value())
         return make_error(ErrorCode::kNotFound, "Reference asset does not exist",
                           {{"asset_id", request.reference_asset_id}});
-    auto snapshot = this->snapshot();
+    auto snapshot = library_service_.snapshot();
     if (!snapshot)
         return snapshot.error();
     if (request.expected_catalog_revision &&
@@ -1285,7 +1306,7 @@ CatalogService::create_shoot_consistency_proposals(const AiShootConsistencyReque
              {"expected_revision", std::to_string(*request.expected_catalog_revision)},
              {"revision", std::to_string(snapshot.value().revision)}});
     }
-    auto reference_recipe = load_recipe(request.reference_asset_id);
+    auto reference_recipe = develop_service_.load_recipe(request.reference_asset_id);
     if (!reference_recipe)
         return reference_recipe.error();
     auto reference_develop = develop_from_recipe(reference_recipe.value());
@@ -1329,7 +1350,7 @@ CatalogService::create_shoot_consistency_proposals(const AiShootConsistencyReque
             return make_error(ErrorCode::kNotFound, "Destination asset does not exist",
                               {{"asset_id", destination}});
         }
-        auto recovery = recovery_state(destination);
+        auto recovery = recovery_service_.recovery_state(destination);
         if (!recovery)
         {
             for (const auto &id : published_ids)
@@ -1340,7 +1361,7 @@ CatalogService::create_shoot_consistency_proposals(const AiShootConsistencyReque
             }
             return recovery.error();
         }
-        auto recipe = load_recipe(destination);
+        auto recipe = develop_service_.load_recipe(destination);
         if (!recipe)
         {
             for (const auto &id : published_ids)

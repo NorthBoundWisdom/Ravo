@@ -117,7 +117,7 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestPrefersDcimAndPreservesSource)
     request.filename_template = "job-{sequence}-{stem}{ext}";
     request.preview = ImportPreviewPolicy::kMinimal;
     request.defer_previews = true;
-    auto batch = service->execute_ingest(request);
+    auto batch = service->ingest().execute_ingest(request);
     ASSERT_TRUE(batch) << batch.error().message;
     EXPECT_EQ(batch.value().imported, 2U);
     EXPECT_EQ(batch.value().verified_second_copies, 2U);
@@ -132,7 +132,7 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestPrefersDcimAndPreservesSource)
     EXPECT_TRUE(std::filesystem::exists(photo_a));
     EXPECT_TRUE(std::filesystem::exists(photo_b));
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_EQ(assets.value().size(), 2U);
 }
@@ -148,10 +148,10 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestRejectsMove)
     request.mode = ImportTransferMode::kMove;
     request.destination_directory = (root / "dest").string();
     std::filesystem::create_directories(root / "dest");
-    auto batch = service->execute_ingest(request);
+    auto batch = service->ingest().execute_ingest(request);
     ASSERT_FALSE(batch);
     EXPECT_EQ(reason_of(batch.error()), "ingest_move_unsupported");
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_TRUE(assets.value().empty());
 }
@@ -178,21 +178,21 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestReportsDisconnectPartialAndPreser
     request.preview = ImportPreviewPolicy::kMinimal;
     request.defer_previews = true;
     std::size_t imported_progress = 0;
-    auto batch =
-        service->execute_ingest(request,
-                                [&](std::size_t, std::size_t, const ImportItemResult *item)
-                                {
-                                    if (item && item->status == ImportItemStatus::kImported)
-                                    {
-                                        ++imported_progress;
-                                        if (imported_progress == 1U)
-                                        {
-                                            std::error_code error;
-                                            std::filesystem::remove_all(card, error);
-                                            EXPECT_FALSE(error) << error.message();
-                                        }
-                                    }
-                                });
+    auto batch = service->ingest().execute_ingest(
+        request,
+        [&](std::size_t, std::size_t, const ImportItemResult *item)
+        {
+            if (item && item->status == ImportItemStatus::kImported)
+            {
+                ++imported_progress;
+                if (imported_progress == 1U)
+                {
+                    std::error_code error;
+                    std::filesystem::remove_all(card, error);
+                    EXPECT_FALSE(error) << error.message();
+                }
+            }
+        });
     ASSERT_TRUE(batch) << batch.error().message;
     EXPECT_EQ(batch.value().items.size(), 3U);
     EXPECT_EQ(batch.value().imported, 1U);
@@ -208,7 +208,7 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestReportsDisconnectPartialAndPreser
     }
     EXPECT_EQ(disconnected, 2U);
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     EXPECT_EQ(assets.value().size(), 1U);
 }
@@ -233,7 +233,7 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestCancelReportsRemainingItems)
     request.preview = ImportPreviewPolicy::kMinimal;
     request.defer_previews = true;
     request.cancellation = cancellation.token();
-    auto batch = service->execute_ingest(
+    auto batch = service->ingest().execute_ingest(
         request,
         [&](std::size_t, std::size_t, const ImportItemResult *item)
         {
@@ -253,7 +253,7 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestCancelReportsRemainingItems)
             saw_cancelled = true;
     }
     EXPECT_TRUE(saw_cancelled);
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_EQ(assets.value().size(), batch.value().imported);
 }
@@ -274,10 +274,10 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestUnresolvedConflictPublishesNoCata
     request.destination_directory = destination.string();
     request.preview = ImportPreviewPolicy::kMinimal;
     request.defer_previews = true;
-    auto batch = service->execute_ingest(request);
+    auto batch = service->ingest().execute_ingest(request);
     ASSERT_FALSE(batch);
     EXPECT_EQ(reason_of(batch.error()), "import_destination_conflict");
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_TRUE(assets.value().empty());
     EXPECT_TRUE(std::filesystem::exists(card / "same.jpg"));
@@ -295,7 +295,7 @@ TEST_F(CatalogServiceTest, NativePtpUsbIngestFailsClosedWithMachineState)
     request.mode = ImportTransferMode::kCopy;
     request.destination_directory = (root / "dest").string();
     std::filesystem::create_directories(root / "dest");
-    auto batch = service->execute_ingest_detailed(request);
+    auto batch = service->ingest().execute_ingest_detailed(request);
     ASSERT_FALSE(batch);
     EXPECT_EQ(reason_of(batch.error()), "native_ingest_adapter_not_packaged");
     EXPECT_EQ(batch.error().context.at("adapter_packaged"), "false");
@@ -326,7 +326,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestCopiesThroughPlannerAndRejectsMove)
     move_request.source_root = (root / "ptp-fixture").string();
     move_request.mode = ImportTransferMode::kMove;
     move_request.destination_directory = destination.string();
-    auto moved = service->execute_ingest(move_request);
+    auto moved = service->ingest().execute_ingest(move_request);
     ASSERT_FALSE(moved);
     EXPECT_EQ(reason_of(moved.error()), "ingest_move_unsupported");
 
@@ -339,7 +339,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestCopiesThroughPlannerAndRejectsMove)
     request.filename_template = "cam-{sequence}-{stem}{ext}";
     request.preview = ImportPreviewPolicy::kMinimal;
     request.defer_previews = true;
-    auto detailed = service->execute_ingest_detailed(request);
+    auto detailed = service->ingest().execute_ingest_detailed(request);
     ASSERT_TRUE(detailed) << detailed.error().message;
     EXPECT_EQ(detailed.value().transport, "ptp-stub");
     EXPECT_EQ(detailed.value().import.imported, 2U);
@@ -347,7 +347,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestCopiesThroughPlannerAndRejectsMove)
     EXPECT_TRUE(detailed.value().resume_checkpoint_cleared);
     EXPECT_TRUE(std::filesystem::exists(fixture / "IMG_0001.jpg"));
     EXPECT_TRUE(std::filesystem::exists(fixture / "IMG_0002.jpg"));
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_EQ(assets.value().size(), 2U);
 }
@@ -373,7 +373,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesIncompleteBatchAfterReconnect)
 
     std::size_t imported_progress = 0;
     std::optional<std::string> batch_id;
-    auto first = service->execute_ingest_detailed(
+    auto first = service->ingest().execute_ingest_detailed(
         request,
         [&](std::size_t, std::size_t, const ImportItemResult *item)
         {
@@ -395,7 +395,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesIncompleteBatchAfterReconnect)
     EXPECT_GE(first.value().import.failed, 1U);
     EXPECT_FALSE(first.value().resume_checkpoint_cleared);
 
-    auto catalog = service->snapshot();
+    auto catalog = service->library().snapshot();
     ASSERT_TRUE(catalog);
     auto checkpoint = load_ingest_resume_checkpoint(catalog.value().database_path, *batch_id);
     ASSERT_TRUE(checkpoint) << checkpoint.error().message;
@@ -409,7 +409,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesIncompleteBatchAfterReconnect)
 
     IngestRequest resume = request;
     resume.resume_batch_id = batch_id;
-    auto second = service->execute_ingest_detailed(resume);
+    auto second = service->ingest().execute_ingest_detailed(resume);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_EQ(second.value().import.skipped, 1U);
     EXPECT_EQ(second.value().import.imported, 2U);
@@ -420,7 +420,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesIncompleteBatchAfterReconnect)
         if (item.status == ImportItemStatus::kSkipped)
             EXPECT_EQ(reason_of(*item.error), "ingest_resume_already_completed");
     }
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_EQ(assets.value().size(), 3U);
     auto cleared = load_ingest_resume_checkpoint(catalog.value().database_path, *batch_id);
@@ -446,13 +446,13 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestIdempotentRepeatedImportReportsDu
     request.preview = ImportPreviewPolicy::kMinimal;
     request.defer_previews = true;
 
-    auto first = service->execute_ingest_detailed(request);
+    auto first = service->ingest().execute_ingest_detailed(request);
     ASSERT_TRUE(first) << first.error().message;
     EXPECT_EQ(first.value().import.imported, 2U);
     EXPECT_EQ(first.value().import.duplicates, 0U);
     EXPECT_TRUE(first.value().resume_checkpoint_cleared);
 
-    auto second = service->execute_ingest_detailed(request);
+    auto second = service->ingest().execute_ingest_detailed(request);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_EQ(second.value().import.imported, 0U);
     EXPECT_EQ(second.value().import.duplicates, 2U);
@@ -460,7 +460,7 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestIdempotentRepeatedImportReportsDu
     for (const auto &item : second.value().import.items)
         EXPECT_EQ(item.status, ImportItemStatus::kDuplicate);
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_EQ(assets.value().size(), 2U);
 }
@@ -487,7 +487,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesAfterCancelMidBatch)
     CancellationSource cancellation;
     request.cancellation = cancellation.token();
     std::optional<std::string> batch_id;
-    auto first = service->execute_ingest_detailed(
+    auto first = service->ingest().execute_ingest_detailed(
         request,
         [&](std::size_t, std::size_t, const ImportItemResult *item)
         {
@@ -500,7 +500,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesAfterCancelMidBatch)
     EXPECT_GE(first.value().import.imported, 1U);
     EXPECT_FALSE(first.value().resume_checkpoint_cleared);
 
-    auto catalog = service->snapshot();
+    auto catalog = service->library().snapshot();
     ASSERT_TRUE(catalog);
     auto checkpoint = load_ingest_resume_checkpoint(catalog.value().database_path, *batch_id);
     ASSERT_TRUE(checkpoint) << checkpoint.error().message;
@@ -509,7 +509,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesAfterCancelMidBatch)
     IngestRequest resume = request;
     resume.cancellation = CancellationToken{};
     resume.resume_batch_id = batch_id;
-    auto second = service->execute_ingest_detailed(resume);
+    auto second = service->ingest().execute_ingest_detailed(resume);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_TRUE(second.value().resume_checkpoint_cleared);
     EXPECT_GE(second.value().import.skipped, 1U);
@@ -519,7 +519,7 @@ TEST_F(CatalogServiceTest, PtpStubIngestResumesAfterCancelMidBatch)
         if (item.status == ImportItemStatus::kSkipped)
             EXPECT_EQ(reason_of(*item.error), "ingest_resume_already_completed");
     }
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_EQ(assets.value().size(), 3U);
 }
@@ -532,7 +532,7 @@ TEST_F(CatalogServiceTest, IngestRejectsUnknownTransportName)
     request.transport = "not-a-transport";
     request.mode = ImportTransferMode::kCopy;
     request.destination_directory = (root / "out").string();
-    auto batch = service->execute_ingest_detailed(request);
+    auto batch = service->ingest().execute_ingest_detailed(request);
     ASSERT_FALSE(batch);
     EXPECT_EQ(reason_of(batch.error()), "ingest_transport_unknown");
 }
@@ -556,12 +556,12 @@ TEST_F(CatalogServiceTest, FilesystemCardIngestHonorsSelectedPathsFilter)
     request.defer_previews = true;
     request.selected_paths = {(card / "KEEP.JPG").string()};
 
-    auto batch = service->execute_ingest_detailed(request);
+    auto batch = service->ingest().execute_ingest_detailed(request);
     ASSERT_TRUE(batch) << batch.error().message;
     EXPECT_EQ(batch.value().import.imported, 1U);
     EXPECT_EQ(batch.value().import.items.size(), 1U);
     EXPECT_NE(batch.value().import.items.front().input_path.find("KEEP.JPG"), std::string::npos);
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets);
     EXPECT_EQ(assets.value().size(), 1U);
 }

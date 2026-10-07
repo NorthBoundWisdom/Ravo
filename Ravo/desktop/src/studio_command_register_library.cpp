@@ -39,7 +39,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
     add(
         command::kLibrarySetTagFilter, Condition::kCatalogOpen, [](const QVariant &)
         { return QString{}; }, [this](const QVariant &argument, const QString &)
-        { presenter_.setTagFilter(argument.toString()); });
+        { presenter_.library()->setTagFilter(argument.toString()); });
     add(
         command::kLibrarySetRatingFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -63,8 +63,8 @@ void StudioCommandController::registerLibraryCommands(const command_registration
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.setRatingFilter(fields.value(QStringLiteral("mode")).toString(),
-                                       fields.value(QStringLiteral("value")).toInt());
+            presenter_.library()->setRatingFilter(fields.value(QStringLiteral("mode")).toString(),
+                                                  fields.value(QStringLiteral("value")).toInt());
         });
     add(
         command::kLibraryToggleColorFilter, Condition::kCatalogOpen,
@@ -76,7 +76,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
             return one_of(argument, values, QStringLiteral("color filter"));
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.toggleColorFilter(argument.toString()); });
+        { presenter_.library()->toggleColorFilter(argument.toString()); });
     add(
         command::kLibrarySetRejectFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -86,7 +86,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
             return one_of(argument, values, QStringLiteral("reject filter"));
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.setRejectFilter(argument.toString()); });
+        { presenter_.library()->setRejectFilter(argument.toString()); });
     add(
         command::kLibrarySetTextFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -96,7 +96,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
                        QStringLiteral("Library text filter must be a string.");
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.setFilterText(argument.toString()); });
+        { presenter_.library()->setFilterText(argument.toString()); });
     add(
         command::kLibrarySetMediaFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -107,7 +107,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
             return one_of(argument, values, QStringLiteral("media filter"));
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.setMediaFilter(argument.toString()); });
+        { presenter_.library()->setMediaFilter(argument.toString()); });
     add(
         command::kLibrarySetEditFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -117,7 +117,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
             return one_of(argument, values, QStringLiteral("edit filter"));
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.setEditFilter(argument.toString()); });
+        { presenter_.library()->setEditFilter(argument.toString()); });
     add(
         command::kLibrarySetCameraFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -136,8 +136,9 @@ void StudioCommandController::registerLibraryCommands(const command_registration
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.setCameraFacetFilter(fields.value(QStringLiteral("make")).toString(),
-                                            fields.value(QStringLiteral("model")).toString());
+            presenter_.library()->setCameraFacetFilter(
+                fields.value(QStringLiteral("make")).toString(),
+                fields.value(QStringLiteral("model")).toString());
         });
     add(
         command::kLibrarySetLensFilter, Condition::kCatalogOpen,
@@ -148,7 +149,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
                        QStringLiteral("Lens facet must be a string focal length.");
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.setLensFacetFilter(argument.toString()); });
+        { presenter_.library()->setLensFacetFilter(argument.toString()); });
     add(
         command::kLibrarySetLensNameFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -168,8 +169,9 @@ void StudioCommandController::registerLibraryCommands(const command_registration
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.setLensNameFacetFilter(fields.value(QStringLiteral("make")).toString(),
-                                              fields.value(QStringLiteral("model")).toString());
+            presenter_.library()->setLensNameFacetFilter(
+                fields.value(QStringLiteral("make")).toString(),
+                fields.value(QStringLiteral("model")).toString());
         });
     add(
         command::kLibrarySetCaptureDateFilter, Condition::kCatalogOpen,
@@ -180,7 +182,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
                        QStringLiteral("Capture-date facet must be a YYYY:MM:DD string.");
         },
         [this](const QVariant &argument, const QString &)
-        { presenter_.setCaptureDateFacetFilter(argument.toString()); });
+        { presenter_.library()->setCaptureDateFacetFilter(argument.toString()); });
     add(
         command::kLibrarySetLocationFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
@@ -202,7 +204,7 @@ void StudioCommandController::registerLibraryCommands(const command_registration
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.setLocationFacetFilter(
+            presenter_.library()->setLocationFacetFilter(
                 fields.value(QStringLiteral("country")).toString(),
                 fields.value(QStringLiteral("province_state")).toString(),
                 fields.value(QStringLiteral("city")).toString(),
@@ -230,8 +232,8 @@ void StudioCommandController::registerLibraryCommands(const command_registration
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
-            presenter_.setSort(fields.value(QStringLiteral("field")).toString(),
-                               fields.value(QStringLiteral("direction")).toString());
+            presenter_.library()->setSort(fields.value(QStringLiteral("field")).toString(),
+                                          fields.value(QStringLiteral("direction")).toString());
         });
     add(command::kLibraryClearFilters, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.clearFilters(); });

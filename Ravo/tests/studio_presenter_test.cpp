@@ -98,19 +98,19 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
-    EXPECT_TRUE(presenter.modifiedParameterChoices().isEmpty());
+    EXPECT_TRUE(presenter.develop()->modifiedParameterChoices().isEmpty());
 
-    presenter.setDevelopNumber(QStringLiteral("exposure"), 0.75);
-    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.4);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 0.75);
+    presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), 0.4);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() &&
-                   std::abs(presenter.editExposure() - 0.75) < 1e-9 &&
-                   std::abs(presenter.editSaturation() - 0.4) < 1e-9;
+                   std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9 &&
+                   std::abs(presenter.develop()->editSaturation() - 0.4) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    const auto candidates = presenter.modifiedParameterChoices();
+    const auto candidates = presenter.develop()->modifiedParameterChoices();
     const auto has_field = [&candidates](const QString &field)
     {
         return std::any_of(
@@ -120,16 +120,17 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     EXPECT_TRUE(has_field(QStringLiteral("exposure")));
     EXPECT_TRUE(has_field(QStringLiteral("saturation")));
 
-    presenter.copyParametersSelected(QVariantList{QStringLiteral("exposure")});
-    ASSERT_TRUE(presenter.hasCopiedParameters());
+    presenter.develop()->copyParametersSelected(QVariantList{QStringLiteral("exposure")});
+    ASSERT_TRUE(presenter.develop()->hasCopiedParameters());
     EXPECT_EQ(presenter.statusText(),
               QCoreApplication::translate("StudioPresenter", "Parameters copied."));
 
-    presenter.savePreset(QStringLiteral("Exposure only"), QVariantList{QStringLiteral("exposure")});
+    presenter.develop()->savePreset(QStringLiteral("Exposure only"),
+                                    QVariantList{QStringLiteral("exposure")});
     ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
-    ASSERT_EQ(presenter.editPresets().size(), 1);
+    ASSERT_EQ(presenter.develop()->editPresets().size(), 1);
     const QString preset_path =
-        presenter.editPresets().front().toMap().value(QStringLiteral("path")).toString();
+        presenter.develop()->editPresets().front().toMap().value(QStringLiteral("path")).toString();
     QFile preset_file(preset_path);
     ASSERT_TRUE(preset_file.open(QIODevice::ReadOnly)) << preset_file.errorString().toStdString();
     auto style = parse_recipe_style_json(preset_file.readAll().toStdString());
@@ -137,71 +138,79 @@ TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay
     EXPECT_EQ(style.value().schema_version, kRecipeStyleSelectedSchemaVersion);
     EXPECT_EQ(style.value().selected_fields, (std::vector<std::string>{"exposure"}));
 
-    presenter.setDevelopNumber(QStringLiteral("exposure"), -0.25);
-    presenter.setDevelopNumber(QStringLiteral("saturation"), -0.3);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), -0.25);
+    presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), -0.3);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() &&
-                   std::abs(presenter.editExposure() + 0.25) < 1e-9 &&
-                   std::abs(presenter.editSaturation() + 0.3) < 1e-9;
+                   std::abs(presenter.develop()->editExposure() + 0.25) < 1e-9 &&
+                   std::abs(presenter.develop()->editSaturation() + 0.3) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    presenter.pasteParameters();
+    presenter.develop()->pasteParameters();
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(presenter.editExposure() - 0.75) < 1e-9;
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editSaturation(), -0.3, 1e-9);
     EXPECT_EQ(presenter.statusText(),
               QCoreApplication::translate("StudioPresenter", "Parameters pasted."));
 
-    presenter.setDevelopNumber(QStringLiteral("exposure"), -0.25);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), -0.25);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(presenter.editExposure() + 0.25) < 1e-9;
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.develop()->editExposure() + 0.25) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    presenter.applyStyleFromPath(preset_path);
+    presenter.develop()->applyStyleFromPath(preset_path);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(presenter.editExposure() - 0.75) < 1e-9;
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editSaturation(), -0.3, 1e-9);
 
-    presenter.savePreset(QStringLiteral("Exposure only"), QVariantList{QStringLiteral("exposure")});
+    presenter.develop()->savePreset(QStringLiteral("Exposure only"),
+                                    QVariantList{QStringLiteral("exposure")});
     EXPECT_EQ(
         presenter.errorText(),
         QCoreApplication::translate("StudioPresenter", "A preset with that name already exists."));
-    presenter.savePreset(QStringLiteral("Stale selection"),
-                         QVariantList{QStringLiteral("colorContrast")});
+    presenter.develop()->savePreset(QStringLiteral("Stale selection"),
+                                    QVariantList{QStringLiteral("colorContrast")});
     EXPECT_EQ(presenter.errorText(),
               QCoreApplication::translate("StudioPresenter",
                                           "The selected parameters are no longer modified."));
 
-    presenter.copyParametersSelected(QVariantList{QStringLiteral("colorContrast")});
-    EXPECT_TRUE(presenter.hasCopiedParameters());
+    presenter.develop()->copyParametersSelected(QVariantList{QStringLiteral("colorContrast")});
+    EXPECT_TRUE(presenter.develop()->hasCopiedParameters());
     EXPECT_EQ(presenter.errorText(),
               QCoreApplication::translate("StudioPresenter",
                                           "The selected parameters are no longer modified."));
-    presenter.setDevelopNumber(QStringLiteral("exposure"), -0.1);
-    ASSERT_TRUE(wait_until(
-        [&]
-        { return !presenter.previewLoading() && std::abs(presenter.editExposure() + 0.1) < 1e-9; }))
-        << presenter.errorText().toStdString();
-    presenter.pasteParameters();
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), -0.1);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(presenter.editExposure() - 0.75) < 1e-9;
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.develop()->editExposure() + 0.1) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
+    presenter.develop()->pasteParameters();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_NEAR(presenter.develop()->editSaturation(), -0.3, 1e-9);
 }
 
 TEST(StudioPresenterTest, SelectAllVisibleSelectsLoadedPhotosAndKeepsPrimary)
@@ -287,42 +296,43 @@ TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSe
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
-    presenter.setDevelopNumber(QStringLiteral("exposure"), 0.75);
-    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.4);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 0.75);
+    presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), 0.4);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() &&
-                   std::abs(presenter.editExposure() - 0.75) < 1e-9 &&
-                   std::abs(presenter.editSaturation() - 0.4) < 1e-9;
+                   std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9 &&
+                   std::abs(presenter.develop()->editSaturation() - 0.4) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    presenter.copyParametersSelected(QVariantList{QStringLiteral("exposure")});
-    ASSERT_TRUE(presenter.hasCopiedParameters());
+    presenter.develop()->copyParametersSelected(QVariantList{QStringLiteral("exposure")});
+    ASSERT_TRUE(presenter.develop()->hasCopiedParameters());
 
     presenter.selectAsset(second_id);
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
-    presenter.setDevelopNumber(QStringLiteral("saturation"), -0.3);
+    presenter.develop()->setDevelopNumber(QStringLiteral("saturation"), -0.3);
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(presenter.editSaturation() + 0.3) < 1e-9;
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.develop()->editSaturation() + 0.3) < 1e-9;
         }))
         << presenter.errorText().toStdString();
     presenter.toggleAssetSelected(first_id);
     ASSERT_EQ(presenter.selectedCount(), 2);
-    presenter.pasteParametersToSelection();
+    presenter.develop()->pasteParametersToSelection();
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.catalogOperationActive() && !presenter.previewLoading() &&
-                   std::abs(presenter.editExposure() - 0.75) < 1e-9;
+                   std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    EXPECT_NEAR(presenter.editSaturation(), 0.4, 1e-9);
-    EXPECT_FALSE(presenter.canUndo());
+    EXPECT_NEAR(presenter.develop()->editSaturation(), 0.4, 1e-9);
+    EXPECT_FALSE(presenter.develop()->canUndo());
     EXPECT_EQ(
         presenter.statusText(),
         QCoreApplication::translate("StudioPresenter", "Parameters applied to the selection."));
@@ -332,10 +342,11 @@ TEST(StudioPresenterTest, PasteParametersToSelectionOverlaysClipboardAndClearsSe
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return !presenter.previewLoading() && std::abs(presenter.editExposure() - 0.75) < 1e-9;
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.develop()->editExposure() - 0.75) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editSaturation(), -0.3, 1e-9);
 }
 
 TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
@@ -413,10 +424,10 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
                     QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight());
             }
         });
-    presenter.previewDevelopNumber(QStringLiteral("exposure"), 0.25);
+    presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"), 0.25);
     ASSERT_TRUE(wait_until([&] { return saw_uncommitted_live && !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
-    EXPECT_NEAR(presenter.editExposure(), 0.25, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), 0.25, 1e-9);
     EXPECT_EQ(uncommitted_live_image_size, settled_viewport);
     EXPECT_EQ(uncommitted_live_viewport, settled_viewport);
 
@@ -437,12 +448,12 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
                          }
                          saw_settled = saw_live && url.isLocalFile();
                      });
-    presenter.applyStyleFromPath(style_path);
+    presenter.develop()->applyStyleFromPath(style_path);
     ASSERT_TRUE(wait_until([&] { return saw_live && saw_settled; }))
         << presenter.errorText().toStdString()
         << " url=" << presenter.previewUrl().toString().toStdString();
     EXPECT_FALSE(presenter.previewLoading());
-    EXPECT_NEAR(presenter.editExposure(), 1.0, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), 1.0, 1e-9);
     EXPECT_TRUE(live_viewport_stayed_settled);
     EXPECT_EQ(QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight()),
               settled_viewport);
@@ -482,12 +493,12 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
         }))
         << presenter.errorText().toStdString();
 
-    presenter.setDevelopNumber(QStringLiteral("exposure"), 0.5);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 0.5);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() && presenter.previewUrl().isLocalFile() &&
-                   std::abs(presenter.editExposure() - 0.5) < 1e-9;
+                   std::abs(presenter.develop()->editExposure() - 0.5) < 1e-9;
         }))
         << presenter.errorText().toStdString();
     const QImage first_after = presenter.previewImage();
@@ -511,7 +522,7 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     ASSERT_TRUE(wait_until(
         [&]
         {
-            return presenter.comparisonActive() && !presenter.previewLoading() &&
+            return presenter.develop()->comparisonActive() && !presenter.previewLoading() &&
                    !presenter.comparisonBeforeUrl().isEmpty() &&
                    !presenter.comparisonBeforeImage().isNull();
         }))
@@ -524,21 +535,21 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     EXPECT_NE(before.pixelColor(center), after.pixelColor(center));
     EXPECT_EQ(first_after.pixelColor(center), after.pixelColor(center));
 
-    presenter.setDevelopNumber(QStringLiteral("exposure"), 1.0);
+    presenter.develop()->setDevelopNumber(QStringLiteral("exposure"), 1.0);
     ASSERT_TRUE(wait_until(
         [&]
         {
             return !presenter.previewLoading() && presenter.previewUrl().isLocalFile() &&
-                   std::abs(presenter.editExposure() - 1.0) < 1e-9;
+                   std::abs(presenter.develop()->editExposure() - 1.0) < 1e-9;
         }))
         << presenter.errorText().toStdString();
-    EXPECT_TRUE(presenter.comparisonActive());
+    EXPECT_TRUE(presenter.develop()->comparisonActive());
     EXPECT_EQ(before.pixelColor(center), presenter.comparisonBeforeImage().pixelColor(center));
     EXPECT_NE(after.pixelColor(center), presenter.previewImage().pixelColor(center));
 
     const auto deactivated = commands.executeAction(comparison_action, QStringLiteral("control"));
     ASSERT_TRUE(deactivated.value(QStringLiteral("accepted")).toBool());
-    EXPECT_FALSE(presenter.comparisonActive());
+    EXPECT_FALSE(presenter.develop()->comparisonActive());
     EXPECT_TRUE(presenter.comparisonBeforeUrl().isEmpty());
     EXPECT_TRUE(presenter.comparisonBeforeImage().isNull());
     EXPECT_FALSE(commands.action(comparison_action).value(QStringLiteral("checked")).toBool());
@@ -550,7 +561,7 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
                     .value(QStringLiteral("accepted"))
                     .toBool());
     ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
-    EXPECT_FALSE(presenter.comparisonActive());
+    EXPECT_FALSE(presenter.develop()->comparisonActive());
     EXPECT_TRUE(presenter.comparisonBeforeUrl().isEmpty());
 }
 
@@ -611,12 +622,12 @@ TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdenti
                              QUrlQuery(current).queryItemValue(QStringLiteral("r")).toULongLong());
                      });
 
-    presenter.previewDevelopNumber(QStringLiteral("exposure"), -0.2);
+    presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"), -0.2);
     constexpr int kIntentCount = 40;
     for (int index = 1; index < kIntentCount; ++index)
     {
-        presenter.previewDevelopNumber(QStringLiteral("exposure"),
-                                       -0.2 + static_cast<double>(index) * 0.02);
+        presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"),
+                                                  -0.2 + static_cast<double>(index) * 0.02);
     }
     const double latest_exposure = -0.2 + static_cast<double>(kIntentCount - 1) * 0.02;
 
@@ -644,7 +655,7 @@ TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdenti
     EXPECT_EQ(published_revisions.size(), 2U);
     EXPECT_EQ(timed_revisions, published_revisions);
     EXPECT_LT(published_revisions.front(), published_revisions.back());
-    EXPECT_NEAR(presenter.editExposure(), latest_exposure, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), latest_exposure, 1e-9);
 
     const auto state = live.value()->snapshot();
     const auto *preview = state.find("preview");
@@ -700,7 +711,7 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
         [&] { return !presenter.previewLoading() && !presenter.previewImage().isNull(); }, 30000))
         << presenter.errorText().toStdString();
 
-    const double baseline = presenter.editExposure();
+    const double baseline = presenter.develop()->editExposure();
     const double sweep_center = std::clamp(baseline, -2.9, 3.9);
     std::vector<std::int64_t> elapsed_us;
     elapsed_us.reserve(runs);
@@ -728,7 +739,8 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
                 }
             });
         timer.start();
-        presenter.previewDevelopNumber(QStringLiteral("exposure"), sweep_center + offset);
+        presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"),
+                                                  sweep_center + offset);
         timeout.start(5000);
         if (!published_us.has_value())
         {
@@ -805,7 +817,7 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresRapidIntentBurstToLatestP
         [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }, 30000))
         << presenter.errorText().toStdString();
 
-    const double baseline = presenter.editExposure();
+    const double baseline = presenter.develop()->editExposure();
     const double burst_start = std::clamp(baseline, -2.8, 3.8) - 0.02;
     QElapsedTimer timer;
     QEventLoop event_loop;
@@ -835,9 +847,9 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresRapidIntentBurstToLatestP
                          const auto now_us = timer.nsecsElapsed() / 1000;
                          if (!first_intent_us)
                              first_intent_us = now_us;
-                         presenter.previewDevelopNumber(QStringLiteral("exposure"),
-                                                        burst_start +
-                                                            static_cast<double>(sent) * 0.001);
+                         presenter.develop()->previewDevelopNumber(
+                             QStringLiteral("exposure"),
+                             burst_start + static_cast<double>(sent) * 0.001);
                          last_intent_us = now_us;
                          ++sent;
                          if (sent == intents)
@@ -896,13 +908,13 @@ TEST(StudioPresenterTest, SessionUndoStartsEmptyAndHistoryRestoreWithoutSelectio
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    EXPECT_FALSE(presenter.canUndo());
-    EXPECT_FALSE(presenter.canRedo());
-    presenter.restoreHistory(0);
-    presenter.undoEdit();
-    presenter.redoEdit();
-    EXPECT_FALSE(presenter.canUndo());
-    EXPECT_FALSE(presenter.canRedo());
+    EXPECT_FALSE(presenter.develop()->canUndo());
+    EXPECT_FALSE(presenter.develop()->canRedo());
+    presenter.develop()->restoreHistory(0);
+    presenter.develop()->undoEdit();
+    presenter.develop()->redoEdit();
+    EXPECT_FALSE(presenter.develop()->canUndo());
+    EXPECT_FALSE(presenter.develop()->canRedo());
 }
 
 TEST(StudioPresenterTest, PollAppliesDevelopWrittenByAnotherCatalogClient)
@@ -940,7 +952,7 @@ TEST(StudioPresenterTest, PollAppliesDevelopWrittenByAnotherCatalogClient)
             QThread::msleep(10);
         }
     }
-    EXPECT_NEAR(presenter.editExposure(), 0.0, 1e-9);
+    EXPECT_NEAR(presenter.develop()->editExposure(), 0.0, 1e-9);
     const auto asset_id = presenter.selectedAssetId().toStdString();
 
     auto engine = EngineFacade::create_phase1();
@@ -957,7 +969,7 @@ TEST(StudioPresenterTest, PollAppliesDevelopWrittenByAnotherCatalogClient)
                           std::move(recovery).value());
     DevelopParams params;
     params.exposure_ev = 1.0;
-    auto saved = writer.save_develop(asset_id, params);
+    auto saved = writer.develop().save_develop(asset_id, params);
     ASSERT_TRUE(saved) << saved.error().message;
     ASSERT_TRUE(writer.close());
 
@@ -965,30 +977,31 @@ TEST(StudioPresenterTest, PollAppliesDevelopWrittenByAnotherCatalogClient)
         [&]
         {
             presenter.pollCatalogRevision();
-            return std::abs(presenter.editExposure() - 1.0) < 1e-6;
+            return std::abs(presenter.develop()->editExposure() - 1.0) < 1e-6;
         }))
-        << presenter.errorText().toStdString() << " exposure=" << presenter.editExposure();
+        << presenter.errorText().toStdString()
+        << " exposure=" << presenter.develop()->editExposure();
     EXPECT_TRUE(presenter.selectedHasEdits());
-    EXPECT_FALSE(presenter.canUndo());
+    EXPECT_FALSE(presenter.develop()->canUndo());
 }
 
 TEST(StudioPresenterTest, ScopeModeOwnsAllAcceptedDiagnosticsAndRejectsFutureState)
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    EXPECT_EQ(presenter.scopeMode(), QStringLiteral("parade"));
+    EXPECT_EQ(presenter.inspect()->scopeMode(), QStringLiteral("parade"));
     for (const auto &mode : {QStringLiteral("waveform"), QStringLiteral("parade"),
                              QStringLiteral("vectorscope"), QStringLiteral("split")})
     {
-        presenter.setScopeMode(mode);
-        EXPECT_EQ(presenter.scopeMode(), mode);
+        presenter.inspect()->setScopeMode(mode);
+        EXPECT_EQ(presenter.inspect()->scopeMode(), mode);
     }
-    presenter.setScopeMode(QStringLiteral("future"));
-    EXPECT_EQ(presenter.scopeMode(), QStringLiteral("histogram"));
-    EXPECT_TRUE(presenter.scopeParadeUrl().isEmpty());
-    EXPECT_TRUE(presenter.scopeWaveformUrl().isEmpty());
-    EXPECT_TRUE(presenter.scopeVectorscopeUrl().isEmpty());
-    EXPECT_TRUE(presenter.scopeSplitUrl().isEmpty());
+    presenter.inspect()->setScopeMode(QStringLiteral("future"));
+    EXPECT_EQ(presenter.inspect()->scopeMode(), QStringLiteral("histogram"));
+    EXPECT_TRUE(presenter.inspect()->scopeParadeUrl().isEmpty());
+    EXPECT_TRUE(presenter.inspect()->scopeWaveformUrl().isEmpty());
+    EXPECT_TRUE(presenter.inspect()->scopeVectorscopeUrl().isEmpty());
+    EXPECT_TRUE(presenter.inspect()->scopeSplitUrl().isEmpty());
 }
 
 TEST(StudioQmlContract, LegacyColorBalanceSlidersExposeEverySchemaHardEndpoint)
@@ -1042,7 +1055,8 @@ TEST(StudioQmlContract, ColorCheckerExposesEveryLabFieldWithoutClampingCanonical
     EXPECT_TRUE(source.contains(QStringLiteral("DoubleValidator.ScientificNotation")));
     EXPECT_TRUE(source.contains(QStringLiteral("colorCheckerPreset")));
     EXPECT_TRUE(source.contains(QStringLiteral("colorCheckerPatch")));
-    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editColorChecker.patchCount > 0")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("panel.presenter.develop.editColorChecker.patchCount > 0")));
     EXPECT_FALSE(source.contains(QStringLiteral("panel.hasSelection && count > 0")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"colorChecker\")")));
 }
@@ -1072,7 +1086,7 @@ TEST(StudioQmlContract, ColorCorrectionUsesHardBoundsAndGenericDevelopIntents)
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editColorCorrection")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editColorCorrection")));
     EXPECT_TRUE(section.contains(
         QStringLiteral("setDevelopNumber(\"colorCorrectionEnabled\", checked ? 1 : 0)")));
     EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(modelData.field, value)")));
@@ -1116,7 +1130,7 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editColorContrast")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editColorContrast")));
     EXPECT_TRUE(section.contains(
         QStringLiteral("setDevelopNumber(\"colorContrastEnabled\", checked ? 1 : 0)")));
     EXPECT_TRUE(section.contains(QStringLiteral("qsTr(\"Enable Color contrast\")")));
@@ -1165,10 +1179,13 @@ TEST(StudioQmlContract, VelviaExposesTheFullV2SurfaceThroughGenericDevelopIntent
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editVelviaParams.enabled")));
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editVelviaParams.strength")));
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editVelviaParams.bias")));
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editVelviaParams.masked")));
+    EXPECT_TRUE(
+        section.contains(QStringLiteral("panel.presenter.develop.editVelviaParams.enabled")));
+    EXPECT_TRUE(
+        section.contains(QStringLiteral("panel.presenter.develop.editVelviaParams.strength")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editVelviaParams.bias")));
+    EXPECT_TRUE(
+        section.contains(QStringLiteral("panel.presenter.develop.editVelviaParams.masked")));
     EXPECT_TRUE(
         section.contains(QStringLiteral("setDevelopNumber(\"velviaEnabled\", checked ? 1 : 0)")));
     EXPECT_TRUE(
@@ -1190,7 +1207,7 @@ TEST(StudioQmlContract, VelviaExposesTheFullV2SurfaceThroughGenericDevelopIntent
 TEST(StudioQmlContract, ThreeDimensionalLutUsesTypedPresenterAndGenericDevelopIntents)
 {
     StudioPresenter presenter;
-    const auto state = presenter.editLut3d();
+    const auto state = presenter.develop()->editLut3d();
     EXPECT_FALSE(state.value(QStringLiteral("present")).toBool());
     EXPECT_FALSE(state.value(QStringLiteral("enabled")).toBool());
     EXPECT_FALSE(state.value(QStringLiteral("hasFile")).toBool());
@@ -1206,7 +1223,7 @@ TEST(StudioQmlContract, ThreeDimensionalLutUsesTypedPresenterAndGenericDevelopIn
     const auto section = source.mid(begin, end - begin);
     EXPECT_TRUE(source.contains(QStringLiteral("QmlFileDialogPage")));
     EXPECT_TRUE(source.contains(QStringLiteral("Cube LUT (*.cube *.CUBE)")));
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editLut3d.filePath")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editLut3d.filePath")));
     EXPECT_TRUE(section.contains(QStringLiteral("setDevelopText(\"lut3dFile\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("objectName: \"lut3dEnabled\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("lut3dInputSpaceIndex")));
@@ -1228,7 +1245,7 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editColorHarmonizer")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editColorHarmonizer")));
     EXPECT_TRUE(section.contains(
         QStringLiteral("setDevelopNumber(\"colorHarmonizerEnabled\", checked ? 1 : 0)")));
     EXPECT_TRUE(section.contains(QStringLiteral("colorHarmonizerRuleIndex")));
@@ -1249,8 +1266,8 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.customRule")));
     EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.customNodeCount")));
     EXPECT_FALSE(section.contains(QStringLiteral("\"minimum\": 0, \"maximum\": 360")));
-    EXPECT_FALSE(section.contains(
-        QStringLiteral("modelData.index < panel.presenter.editColorHarmonizer.customNodeCount")));
+    EXPECT_FALSE(section.contains(QStringLiteral(
+        "modelData.index < panel.presenter.develop.editColorHarmonizer.customNodeCount")));
     EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"colorHarmonizer\")")));
     EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
     EXPECT_FALSE(section.contains(QStringLiteral("auto-detect")));
@@ -1407,7 +1424,8 @@ TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editColorReconstruction")));
+    EXPECT_TRUE(
+        section.contains(QStringLiteral("panel.presenter.develop.editColorReconstruction")));
     EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionPrecedenceIndex")));
     EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionThreshold")));
     EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionSpatial")));
@@ -1450,9 +1468,9 @@ TEST(StudioQmlContract, SharpenExposesAmountRadiusAndThresholdFromOnePresenter)
     ASSERT_GE(begin, 0);
     ASSERT_GT(end, begin);
     const auto section = source.mid(begin, end - begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editSharpen")));
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editSharpenRadius")));
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editSharpenThreshold")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editSharpen")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editSharpenRadius")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editSharpenThreshold")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpen\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpenRadius\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpenThreshold\"")));
@@ -1465,7 +1483,7 @@ TEST(StudioQmlContract, SharpenExposesAmountRadiusAndThresholdFromOnePresenter)
 TEST(StudioQmlContract, TextureIsPrimaryDetailControlWithCollapsedAdvancedScale)
 {
     StudioPresenter presenter;
-    const auto state = presenter.editTexture();
+    const auto state = presenter.develop()->editTexture();
     EXPECT_DOUBLE_EQ(state.value(QStringLiteral("strength")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(state.value(QStringLiteral("detailThreshold")).toDouble(), 0.2);
     EXPECT_EQ(state.value(QStringLiteral("iterations")).toLongLong(), 1);
@@ -1479,7 +1497,7 @@ TEST(StudioQmlContract, TextureIsPrimaryDetailControlWithCollapsedAdvancedScale)
     ASSERT_GT(texture, detail);
     ASSERT_GT(sharpen, texture);
     const auto section = source.mid(texture, sharpen - texture);
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editTexture.strength")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editTexture.strength")));
     EXPECT_TRUE(section.contains(QStringLiteral("from: -100")));
     EXPECT_TRUE(section.contains(QStringLiteral("to: 100")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"texture\"")));
@@ -1501,9 +1519,9 @@ TEST(StudioQmlContract, DehazeExposesStrengthDistanceAndAdaptiveScale)
     ASSERT_GE(begin, 0);
     ASSERT_GT(end, begin);
     const auto section = source.mid(begin, end - begin);
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editDehaze")));
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editDehazeDistance")));
-    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.editDehazeAdaptive")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editDehaze")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editDehazeDistance")));
+    EXPECT_TRUE(section.contains(QStringLiteral("panel.presenter.develop.editDehazeAdaptive")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"dehaze\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"dehazeDistance\"")));
     EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(\"dehazeAdaptive\"")));
@@ -1517,7 +1535,8 @@ TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
     ASSERT_FALSE(source.isEmpty());
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputDitherEnabled\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputDitherMethod\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editOutputDither.methodChoices")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("panel.presenter.develop.editOutputDither.methodChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("outputDitherMethodIndex")));
     EXPECT_TRUE(source.contains(QStringLiteral("outputDitherDamping")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"outputDither\")")));
@@ -1525,35 +1544,38 @@ TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
     EXPECT_FALSE(source.contains(QStringLiteral("7.0 / 16.0")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"canvasEnabled\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: canvasEnabledBox")));
-    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editCanvasEnabled")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.develop.editCanvasEnabled")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Enlarge Canvas\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Enable enlarged canvas\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("visible: canvasEnabledBox.checked")));
-    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editCanvas.colorChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.develop.editCanvas.colorChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("canvasColorIndex")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"canvas\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputFrameEnabled\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editOutputFrame.basisChoices")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("panel.presenter.develop.editOutputFrame.basisChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("outputFrameLineOffset")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"outputFrame\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"watermarkEnabled\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"watermarkText\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editWatermark.alignmentChoices")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("panel.presenter.develop.editWatermark.alignmentChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("setDevelopText(\"watermarkText\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"watermark\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorZonesEnabled\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("panel.presenter.editColorZones.selectByChoices")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("panel.presenter.develop.editColorZones.selectByChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("colorZonesChroma")));
     EXPECT_TRUE(source.contains(QStringLiteral("colorZonesHueInterpolationIndex")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"colorZones\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"monochromeEnabled\"")));
-    EXPECT_TRUE(
-        source.contains(QStringLiteral("panel.presenter.editMonochromeFilter[modelData.key]")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("panel.presenter.develop.editMonochromeFilter[modelData.key]")));
     EXPECT_TRUE(source.contains(QStringLiteral("monochromeHighlights")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"monochrome\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"splitToningEnabled\"")));
-    EXPECT_TRUE(
-        source.contains(QStringLiteral("panel.presenter.editSplitToning.shadowSaturation")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("panel.presenter.develop.editSplitToning.shadowSaturation")));
     EXPECT_TRUE(source.contains(QStringLiteral("splitHighlightSaturation")));
     EXPECT_TRUE(source.contains(QStringLiteral("splitCompress")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"splitToning\")")));
@@ -1909,7 +1931,7 @@ TEST(StudioPresenterTest, ActualSizeInspectRoiFollowsLiveDevelopWithoutPan)
         << presenter.errorText().toStdString();
     const QUrl first_roi = presenter.inspectRoiUrl();
     ASSERT_FALSE(presenter.inspectRoiImage().isNull());
-    presenter.previewDevelopNumbers(QVariantMap{{QStringLiteral("exposure"), 0.75}});
+    presenter.develop()->previewDevelopNumbers(QVariantMap{{QStringLiteral("exposure"), 0.75}});
     ASSERT_TRUE(wait_until([&] { return presenter.inspectRoiUrl() != first_roi; }, 30000))
         << presenter.errorText().toStdString() << " first=" << first_roi.toString().toStdString()
         << " current=" << presenter.inspectRoiUrl().toString().toStdString();

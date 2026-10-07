@@ -56,7 +56,7 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
     {
         return serialized_before.error();
     }
-    auto previews_before = service.list_previews();
+    auto previews_before = service.library().list_previews();
     if (!previews_before)
     {
         return previews_before.error();
@@ -83,7 +83,7 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
     request.max_edge = flags.max_edge.value_or(512U);
     request.prefer_embedded_preview = false;
     request.persist_preview_record = false;
-    auto previewed = service.request_preview(request, params.value());
+    auto previewed = service.preview().request_preview(request, params.value());
     if (!previewed)
     {
         return previewed.error();
@@ -112,7 +112,7 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
     {
         return make_error(ErrorCode::kIo, "Develop probe unexpectedly changed the recipe");
     }
-    auto previews_after = service.list_previews();
+    auto previews_after = service.library().list_previews();
     if (!previews_after)
     {
         return previews_after.error();

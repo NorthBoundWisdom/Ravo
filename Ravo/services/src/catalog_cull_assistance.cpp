@@ -1,4 +1,12 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/cull_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/import_service.h"
+#include "ravo/services/library_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include "catalog_internal.h"
 #include "catalog_cull_fingerprint_store.h"
@@ -23,6 +31,17 @@
 
 namespace ravo
 {
+
+CullService::CullService(const std::unique_ptr<CatalogRepository> &repository,
+                         ImportService &import_service, LibraryService &library_service,
+                         RecoveryService &recovery_service) noexcept
+    : repository_(repository)
+    , import_service_(import_service)
+    , library_service_(library_service)
+    , recovery_service_(recovery_service)
+{
+}
+
 namespace
 {
 
@@ -56,7 +75,7 @@ namespace
 } // namespace
 
 Result<ExactDuplicateReport>
-CatalogService::find_exact_duplicate_groups(const ExactDuplicateRequest &request) const
+CullService::find_exact_duplicate_groups(const ExactDuplicateRequest &request) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -185,7 +204,7 @@ CatalogService::find_exact_duplicate_groups(const ExactDuplicateRequest &request
 }
 
 Result<BurstProposeReport>
-CatalogService::propose_burst_groups(const BurstProposeRequest &request) const
+CullService::propose_burst_groups(const BurstProposeRequest &request) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -291,7 +310,7 @@ CatalogService::propose_burst_groups(const BurstProposeRequest &request) const
 }
 
 Result<BurstAcceptResult>
-CatalogService::accept_burst_group_proposal(const BurstAcceptRequest &request)
+CullService::accept_burst_group_proposal(const BurstAcceptRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -357,7 +376,8 @@ CatalogService::accept_burst_group_proposal(const BurstAcceptRequest &request)
                           {{"pick_asset_id", pick}, {"reason", "burst_pick_not_member"}});
     }
 
-    auto stacked = stack_assets(unique_ids, pick, request.expected_catalog_revision);
+    auto stacked =
+        library_service_.stack_assets(unique_ids, pick, request.expected_catalog_revision);
     if (!stacked)
         return stacked.error();
 
@@ -368,7 +388,7 @@ CatalogService::accept_burst_group_proposal(const BurstAcceptRequest &request)
 }
 
 Result<NearDuplicateReport>
-CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) const
+CullService::find_near_duplicate_groups(const NearDuplicateRequest &request) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -415,7 +435,7 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
              {"reason", "near_dup_asset_bound_exceeded"}});
     }
 
-    auto snap = snapshot();
+    auto snap = library_service_.snapshot();
     if (!snap)
         return snap.error();
     auto store = cull_fingerprint_store::load_or_empty(snap.value().database_path);
@@ -579,7 +599,8 @@ CatalogService::find_near_duplicate_groups(const NearDuplicateRequest &request) 
             continue;
         }
 
-        auto raster = decode_cull_fingerprint_raster(location.value().path, request.cancellation);
+        auto raster = import_service_.decode_cull_fingerprint_raster(location.value().path,
+                                                                     request.cancellation);
         if (!raster)
         {
             if (raster.error().code == ErrorCode::kCancelled)
@@ -783,7 +804,7 @@ Result<BurstComparePair> resolve_burst_compare_pair(const LibraryStackRecord &st
 }
 
 Result<BurstComparePair>
-CatalogService::resolve_burst_compare_pair(const BurstCompareRequest &request) const
+CullService::resolve_burst_compare_pair(const BurstCompareRequest &request) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -824,7 +845,7 @@ CatalogService::resolve_burst_compare_pair(const BurstCompareRequest &request) c
 }
 
 Result<CullSuggestionDismissResult>
-CatalogService::dismiss_cull_suggestion(const CullSuggestionDismissRequest &request)
+CullService::dismiss_cull_suggestion(const CullSuggestionDismissRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -836,7 +857,7 @@ CatalogService::dismiss_cull_suggestion(const CullSuggestionDismissRequest &requ
         return make_error(ErrorCode::kInvalidArgument, "Cull suggestion dismiss requires a key",
                           {{"reason", "cull_dismiss_key_required"}});
     }
-    auto snap = snapshot();
+    auto snap = library_service_.snapshot();
     if (!snap)
         return snap.error();
     auto store = cull_fingerprint_store::load_or_empty(snap.value().database_path);
@@ -855,14 +876,14 @@ CatalogService::dismiss_cull_suggestion(const CullSuggestionDismissRequest &requ
     return result;
 }
 
-Result<bool> CatalogService::is_cull_suggestion_dismissed(const CullSuggestionKind kind,
-                                                          const std::string_view key) const
+Result<bool> CullService::is_cull_suggestion_dismissed(const CullSuggestionKind kind,
+                                                       const std::string_view key) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     if (key.empty())
         return false;
-    auto snap = snapshot();
+    auto snap = library_service_.snapshot();
     if (!snap)
         return snap.error();
     auto store = cull_fingerprint_store::load_or_empty(snap.value().database_path);

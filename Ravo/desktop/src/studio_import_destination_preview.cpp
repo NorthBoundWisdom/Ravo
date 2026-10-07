@@ -35,7 +35,7 @@ bool StudioPresenter::importDestinationPreviewActive() const
 ImportRequest StudioPresenter::plannedImportRequest() const
 {
     ImportRequest request;
-    for (const auto &path : import_candidates_.selectedPaths())
+    for (const auto &path : import_workspace_->candidates.selectedPaths())
         request.inputs.push_back(utf8_from_qstring(path));
     request.source_root = utf8_from_qstring(import_workspace_->draft.source_root);
     request.mode =
@@ -66,7 +66,7 @@ ImportRequest StudioPresenter::plannedImportRequest() const
     request.skip_existing = true;
     // Selected paths/hashes and destination conflicts are revalidated by the
     // import service. A photo edit while this worker runs is not an import conflict.
-    request.expected_content_hashes = import_candidates_.selectedContentHashes();
+    request.expected_content_hashes = import_workspace_->candidates.selectedContentHashes();
     request.cancellation = import_operation_.token();
     return request;
 }

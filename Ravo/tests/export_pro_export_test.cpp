@@ -28,7 +28,7 @@ TEST_F(CatalogServiceTest, BoxFitExportAndRestartableJobRetainDelivered)
         image.setColorSpace(QColorSpace(QColorSpace::SRgb));
         image.fill(color);
         EXPECT_TRUE(image.save(QString::fromStdString(path), "JPEG", 90));
-        auto imported = service->import_one(path, CancellationToken{});
+        auto imported = service->import().import_one(path, CancellationToken{});
         EXPECT_TRUE(imported) << imported.error().message;
         EXPECT_TRUE(imported.value().asset.has_value());
         return imported.value().asset->id;
@@ -42,7 +42,7 @@ TEST_F(CatalogServiceTest, BoxFitExportAndRestartableJobRetainDelivered)
     sized.format = ExportFormat::kPng;
     sized.max_width = 40;
     sized.max_height = 30;
-    auto exported = service->export_asset(sized);
+    auto exported = service->exports().export_asset(sized);
     ASSERT_TRUE(exported) << exported.error().message;
     EXPECT_EQ(exported.value().width, 40U);
     EXPECT_EQ(exported.value().height, 20U);
@@ -53,7 +53,7 @@ TEST_F(CatalogServiceTest, BoxFitExportAndRestartableJobRetainDelivered)
     sharpened.output_sharpen.amount = 0.8;
     sharpened.output_sharpen.radius = 0.6;
     sharpened.output_sharpen.threshold = 0.0;
-    auto sharpened_out = service->export_asset(sharpened);
+    auto sharpened_out = service->exports().export_asset(sharpened);
     ASSERT_TRUE(sharpened_out) << sharpened_out.error().message;
     EXPECT_EQ(sharpened_out.value().width, 40U);
     EXPECT_EQ(sharpened_out.value().height, 20U);
@@ -63,7 +63,7 @@ TEST_F(CatalogServiceTest, BoxFitExportAndRestartableJobRetainDelivered)
     original.output_path = (root / "original-copy.jpg").string();
     original.format = ExportFormat::kOriginalCopy;
     original.max_width = 40;
-    auto rejected = service->export_asset(original);
+    auto rejected = service->exports().export_asset(original);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("reason"), "original_copy_resize_not_applicable");
 
@@ -74,7 +74,7 @@ TEST_F(CatalogServiceTest, BoxFitExportAndRestartableJobRetainDelivered)
     batch.filename_template = "{stem}-{sequence}{ext}";
     batch.options.format = ExportFormat::kPng;
     batch.options.max_edge = 48;
-    auto job = service->create_export_job(batch, "job-1");
+    auto job = service->exports().create_export_job(batch, "job-1");
     ASSERT_TRUE(job) << job.error().message;
     ASSERT_EQ(job.value().items.size(), 2U);
 
@@ -82,18 +82,18 @@ TEST_F(CatalogServiceTest, BoxFitExportAndRestartableJobRetainDelivered)
     static_cast<ExportOptions &>(first) = batch.options;
     first.asset_id = job.value().items[0].asset_id;
     first.output_path = job.value().items[0].output_path;
-    auto first_out = service->export_asset(first);
+    auto first_out = service->exports().export_asset(first);
     ASSERT_TRUE(first_out) << first_out.error().message;
     job.value().items[0].status = ExportJobItemStatus::kDelivered;
 
-    auto resumed = service->resume_export_job(job.value());
+    auto resumed = service->exports().resume_export_job(job.value());
     ASSERT_TRUE(resumed) << resumed.error().message;
     EXPECT_EQ(resumed.value().items[0].status, ExportJobItemStatus::kDelivered);
     EXPECT_EQ(resumed.value().items[1].status, ExportJobItemStatus::kDelivered);
     EXPECT_TRUE(std::filesystem::exists(resumed.value().items[0].output_path));
     EXPECT_TRUE(std::filesystem::exists(resumed.value().items[1].output_path));
 
-    auto again = service->resume_export_job(resumed.value());
+    auto again = service->exports().resume_export_job(resumed.value());
     ASSERT_TRUE(again) << again.error().message;
     EXPECT_EQ(again.value().items[0].status, ExportJobItemStatus::kDelivered);
     EXPECT_EQ(again.value().items[1].status, ExportJobItemStatus::kDelivered);
@@ -108,12 +108,12 @@ TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(40, 80, 120));
     ASSERT_TRUE(image.save(QString::fromStdString(path), "JPEG", 95));
-    auto imported = service->import_one(path, CancellationToken{});
+    auto imported = service->import().import_one(path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset.has_value());
     const auto asset_id = imported.value().asset->id;
 
-    auto before_recipe = service->load_recipe(asset_id);
+    auto before_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(before_recipe) << before_recipe.error().message;
     const auto before_json = serialize_recipe(before_recipe.value());
     ASSERT_TRUE(before_json) << before_json.error().message;
@@ -123,7 +123,7 @@ TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
     off.output_path = (root / "wm-off.png").string();
     off.format = ExportFormat::kPng;
     off.metadata_mode = ExportMetadataMode::kNoLocation;
-    auto off_result = service->export_asset(off);
+    auto off_result = service->exports().export_asset(off);
     ASSERT_TRUE(off_result) << off_result.error().message;
 
     ExportRequest on = off;
@@ -133,7 +133,7 @@ TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
     on.watermark.opacity = 1.0;
     on.watermark.scale_percent = 20.0;
     on.watermark.alignment = "bottom_right";
-    auto on_result = service->export_asset(on);
+    auto on_result = service->exports().export_asset(on);
     ASSERT_TRUE(on_result) << on_result.error().message;
     EXPECT_EQ(on_result.value().width, off_result.value().width);
     EXPECT_EQ(on_result.value().height, off_result.value().height);
@@ -159,7 +159,7 @@ TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
 
     ExportRequest again = on;
     again.output_path = (root / "wm-on-again.png").string();
-    auto again_result = service->export_asset(again);
+    auto again_result = service->exports().export_asset(again);
     ASSERT_TRUE(again_result) << again_result.error().message;
     QImage again_image(QString::fromStdString(again.output_path));
     ASSERT_FALSE(again_image.isNull());
@@ -170,7 +170,7 @@ TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
             EXPECT_EQ(on_image.pixel(x, y), again_image.pixel(x, y)) << x << "," << y;
     }
 
-    auto after_recipe = service->load_recipe(asset_id);
+    auto after_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(after_recipe) << after_recipe.error().message;
     const auto after_json = serialize_recipe(after_recipe.value());
     ASSERT_TRUE(after_json) << after_json.error().message;
@@ -179,7 +179,7 @@ TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
     ExportRequest none_meta = on;
     none_meta.output_path = (root / "wm-none-meta.png").string();
     none_meta.metadata_mode = ExportMetadataMode::kNone;
-    auto none_result = service->export_asset(none_meta);
+    auto none_result = service->exports().export_asset(none_meta);
     ASSERT_TRUE(none_result) << none_result.error().message;
     QImage none_image(QString::fromStdString(none_meta.output_path));
     ASSERT_FALSE(none_image.isNull());
@@ -194,7 +194,7 @@ TEST_F(CatalogServiceTest, DeliveryWatermarkEqualityPrivacyAndNoRecipeMutation)
     original.output_path = (root / "wm-original.jpg").string();
     original.format = ExportFormat::kOriginalCopy;
     original.watermark.enabled = true;
-    auto rejected = service->export_asset(original);
+    auto rejected = service->exports().export_asset(original);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("reason"), "original_copy_resize_not_applicable");
 }
@@ -208,12 +208,12 @@ TEST_F(CatalogServiceTest, DeliveryColourAndFrameEqualityAndNoRecipeMutation)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(30, 90, 150));
     ASSERT_TRUE(image.save(QString::fromStdString(path), "JPEG", 95));
-    auto imported = service->import_one(path, CancellationToken{});
+    auto imported = service->import().import_one(path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset.has_value());
     const auto asset_id = imported.value().asset->id;
 
-    auto before_recipe = service->load_recipe(asset_id);
+    auto before_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(before_recipe) << before_recipe.error().message;
     const auto before_json = serialize_recipe(before_recipe.value());
     ASSERT_TRUE(before_json) << before_json.error().message;
@@ -222,7 +222,7 @@ TEST_F(CatalogServiceTest, DeliveryColourAndFrameEqualityAndNoRecipeMutation)
     baseline.asset_id = asset_id;
     baseline.output_path = (root / "cf-base.png").string();
     baseline.format = ExportFormat::kPng;
-    auto base_out = service->export_asset(baseline);
+    auto base_out = service->exports().export_asset(baseline);
     ASSERT_TRUE(base_out) << base_out.error().message;
 
     ExportRequest framed = baseline;
@@ -230,14 +230,14 @@ TEST_F(CatalogServiceTest, DeliveryColourAndFrameEqualityAndNoRecipeMutation)
     framed.frame.enabled = true;
     framed.frame.size = 0.2;
     framed.frame.border_color = {1.0, 1.0, 1.0};
-    auto frame_out = service->export_asset(framed);
+    auto frame_out = service->exports().export_asset(framed);
     ASSERT_TRUE(frame_out) << frame_out.error().message;
     EXPECT_GT(frame_out.value().width, base_out.value().width);
     EXPECT_GT(frame_out.value().height, base_out.value().height);
 
     ExportRequest framed_again = framed;
     framed_again.output_path = (root / "cf-frame-again.png").string();
-    auto again = service->export_asset(framed_again);
+    auto again = service->exports().export_asset(framed_again);
     ASSERT_TRUE(again) << again.error().message;
     QImage first(QString::fromStdString(framed.output_path));
     QImage second(QString::fromStdString(framed_again.output_path));
@@ -255,7 +255,7 @@ TEST_F(CatalogServiceTest, DeliveryColourAndFrameEqualityAndNoRecipeMutation)
     colored.output_color.enabled = true;
     colored.output_color.output_profile = "adobe_rgb";
     colored.output_color.rendering_intent = "relative_colorimetric";
-    auto color_out = service->export_asset(colored);
+    auto color_out = service->exports().export_asset(colored);
     ASSERT_TRUE(color_out) << color_out.error().message;
     EXPECT_EQ(color_out.value().width, base_out.value().width);
     EXPECT_EQ(color_out.value().height, base_out.value().height);
@@ -269,11 +269,11 @@ TEST_F(CatalogServiceTest, DeliveryColourAndFrameEqualityAndNoRecipeMutation)
     ordered.watermark.opacity = 1.0;
     ordered.watermark.scale_percent = 18.0;
     ordered.watermark.alignment = "bottom_right";
-    auto ordered_out = service->export_asset(ordered);
+    auto ordered_out = service->exports().export_asset(ordered);
     ASSERT_TRUE(ordered_out) << ordered_out.error().message;
     EXPECT_GT(ordered_out.value().width, base_out.value().width);
 
-    auto after_recipe = service->load_recipe(asset_id);
+    auto after_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(after_recipe) << after_recipe.error().message;
     const auto after_json = serialize_recipe(after_recipe.value());
     ASSERT_TRUE(after_json) << after_json.error().message;
@@ -284,13 +284,13 @@ TEST_F(CatalogServiceTest, DeliveryColourAndFrameEqualityAndNoRecipeMutation)
     original.output_path = (root / "cf-original.jpg").string();
     original.format = ExportFormat::kOriginalCopy;
     original.frame.enabled = true;
-    auto rejected_frame = service->export_asset(original);
+    auto rejected_frame = service->exports().export_asset(original);
     ASSERT_FALSE(rejected_frame);
     EXPECT_EQ(rejected_frame.error().context.at("reason"), "original_copy_resize_not_applicable");
 
     original.frame.enabled = false;
     original.output_color.enabled = true;
-    auto rejected_color = service->export_asset(original);
+    auto rejected_color = service->exports().export_asset(original);
     ASSERT_FALSE(rejected_color);
     EXPECT_EQ(rejected_color.error().context.at("reason"), "original_copy_resize_not_applicable");
 }

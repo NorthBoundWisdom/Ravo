@@ -44,25 +44,25 @@ TEST(StudioCropTest, AutoLevelChangesOnlyRotationAndRejectsInvalidModes)
         [&] { return !presenter.selectedAssetId().isEmpty() && !presenter.busy(); }));
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(studio_test_support::wait_until([&] { return !presenter.previewLoading(); }));
-    presenter.setDevelopNumbers({{"straighten", .7},
-                                 {"perspectiveVertical", .08},
-                                 {"perspectiveHorizontal", -.05},
-                                 {"perspectiveShear", .015},
-                                 {"perspectiveConstrainCrop", 0.0}});
+    presenter.develop()->setDevelopNumbers({{"straighten", .7},
+                                            {"perspectiveVertical", .08},
+                                            {"perspectiveHorizontal", -.05},
+                                            {"perspectiveShear", .015},
+                                            {"perspectiveConstrainCrop", 0.0}});
     ASSERT_TRUE(studio_test_support::wait_until([&] { return !presenter.previewLoading(); }));
-    const auto before = presenter.editPerspective();
+    const auto before = presenter.develop()->editPerspective();
     const auto command = QStringLiteral("studio.edit.auto_perspective");
     const auto accepted = commands.executeCommand(command, QStringLiteral("level"));
     ASSERT_TRUE(accepted.value("accepted").toBool());
     ASSERT_TRUE(studio_test_support::wait_until(
         [&]
         {
-            return std::abs(presenter.editStraighten() - .7) > .01 ||
+            return std::abs(presenter.develop()->editStraighten() - .7) > .01 ||
                    !presenter.errorText().isEmpty();
         }));
     ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
-    EXPECT_NEAR(presenter.editStraighten(), 5.0, .3);
-    const auto after = presenter.editPerspective();
+    EXPECT_NEAR(presenter.develop()->editStraighten(), 5.0, .3);
+    const auto after = presenter.develop()->editPerspective();
     for (const auto *key :
          {"vertical", "horizontal", "shear", "constrainCrop", "interpolationIndex"})
         EXPECT_EQ(after.value(key), before.value(key)) << key;

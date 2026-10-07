@@ -1,4 +1,4 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/preview_service.h"
 
 #include <algorithm>
 #include <chrono>
@@ -10,6 +10,9 @@
 #include <utility>
 
 #include "catalog_internal.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/raster_decoder.h"
 #include "ravo/domain/types.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
@@ -17,11 +20,43 @@
 #include "ravo/recipe/recipe.h"
 #include "ravo/engine/crop_preview.h"
 #include "ravo/services/offline_edit_proxy.h"
+#include "offline_edit_proxy_verification.h"
 
 namespace ravo
 {
 
-Result<PreviewResult> CatalogService::build_import_preview(const std::string_view asset_id,
+PreviewService::PreviewService(const EngineFacade *const &engine,
+                               const std::unique_ptr<CatalogRepository> &repository,
+                               const std::unique_ptr<RasterDecoder> &raster,
+                               const std::shared_ptr<PreviewCache> &cache,
+                               std::function<void()> &before_cache_publication) noexcept
+    : engine_(engine)
+    , repository_(repository)
+    , raster_(raster)
+    , cache_(cache)
+    , testing_before_preview_cache_publication_(before_cache_publication)
+{
+}
+
+void PreviewService::clear_working_cache() noexcept
+{
+    decoded_preview_source_.reset();
+    decoded_raw_.reset();
+    for (auto &working : linear_working_)
+        working.reset();
+    roi_linear_working_.reset();
+    browse_decoded_preview_source_.reset();
+    browse_decoded_raw_.reset();
+    browse_linear_working_.reset();
+}
+
+void PreviewService::seed_browse_source(const AssetRecord &asset, RasterBuffer raster)
+{
+    browse_decoded_preview_source_ = DecodedPreviewSource{
+        asset.id, asset.content_fingerprint.value_or("none"), kThumbnailMaxEdge, std::move(raster)};
+}
+
+Result<PreviewResult> PreviewService::build_import_preview(const std::string_view asset_id,
                                                            const ImportPreviewPolicy policy,
                                                            const CancellationToken &cancellation)
 {
@@ -36,7 +71,7 @@ Result<PreviewResult> CatalogService::build_import_preview(const std::string_vie
     return request_preview(request);
 }
 Result<PreviewResult>
-CatalogService::request_preview(const PreviewRequest &request,
+PreviewService::request_preview(const PreviewRequest &request,
                                 const std::optional<DevelopParams> &live_develop)
 {
     if (request.crop_workspace && (request.persist_preview_record || request.roi ||
@@ -69,7 +104,7 @@ CatalogService::request_preview(const PreviewRequest &request,
 }
 
 Result<void>
-CatalogService::require_preview_generation(const std::string_view asset_id,
+PreviewService::require_preview_generation(const std::string_view asset_id,
                                            const std::optional<std::int64_t> generation) const
 {
     if (!generation)
@@ -83,7 +118,7 @@ CatalogService::require_preview_generation(const std::string_view asset_id,
     return {};
 }
 
-Result<PreviewRebuildResult> CatalogService::rebuild_previews(
+Result<PreviewRebuildResult> PreviewService::rebuild_previews(
     const std::vector<std::string> &asset_ids, const CancellationToken &cancellation,
     const std::function<void(std::size_t, std::size_t, const PreviewRebuildItemResult *)> &progress)
 {
@@ -210,7 +245,7 @@ Result<PreviewRebuildResult> CatalogService::rebuild_previews(
     return result;
 }
 
-Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
+Result<PreviewResult> PreviewService::persist_embedded_browse_preview(
     const AssetRecord &asset, const EmbeddedPreview &embedded, const std::uint32_t max_edge,
     const CancellationToken &cancellation, std::optional<std::int64_t> expected_generation)
 {
@@ -339,7 +374,7 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     return result;
 }
 
-Result<PreviewResult> CatalogService::persist_companion_jpeg_browse_preview(
+Result<PreviewResult> PreviewService::persist_companion_jpeg_browse_preview(
     const AssetRecord &asset, const std::string_view jpeg_path, const std::uint32_t max_edge,
     const CancellationToken &cancellation, const std::optional<std::int64_t> expected_generation)
 {
@@ -456,7 +491,7 @@ Result<PreviewResult> CatalogService::persist_companion_jpeg_browse_preview(
 }
 
 Result<PreviewResult>
-CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest &request,
+PreviewService::generate_preview(const AssetRecord &asset, const PreviewRequest &request,
                                  const std::optional<DevelopParams> &live_develop,
                                  std::int64_t expected_generation)
 {
@@ -521,7 +556,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             std::string(offline_edit_media_state_name(OfflineEditMediaState::kMissing));
     if (!original_exists)
     {
-        auto offline = verify_offline_edit_proxy(asset.id);
+        auto offline = verify_offline_proxy(*repository_, asset.id);
         if (offline && offline.value().usable_for_develop && offline.value().manifest.has_value())
         {
             render_path = offline.value().manifest->proxy_path;
@@ -1078,13 +1113,15 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     return result;
 }
 
-Result<RenderedExportImage> CatalogService::render_for_export(const AssetRecord &asset,
+Result<RenderedExportImage> PreviewService::render_for_export(const AssetRecord &asset,
                                                               const std::string_view path,
                                                               const Recipe &recipe,
                                                               const ExportOptions &options,
                                                               const CancellationToken &cancellation,
                                                               const RenderSampleKind sample_kind)
 {
+    if (repository_ == nullptr || raster_ == nullptr || engine_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
     RenderRequest render;
     render.asset = {asset.id, std::string(path), asset.content_fingerprint};
     render.recipe = recipe;
@@ -1121,7 +1158,7 @@ Result<RenderedExportImage> CatalogService::render_for_export(const AssetRecord 
                       {{"media_type", asset.media_type}, {"asset_id", asset.id}});
 }
 
-Result<const DecodedRaw *> CatalogService::cached_raw_frame(const AssetRecord &asset,
+Result<const DecodedRaw *> PreviewService::cached_raw_frame(const AssetRecord &asset,
                                                             const std::string_view path,
                                                             const CancellationToken &cancellation,
                                                             const PreviewLane lane)
@@ -1159,8 +1196,8 @@ Result<const DecodedRaw *> CatalogService::cached_raw_frame(const AssetRecord &a
     return &cache_entry->raw;
 }
 
-Result<CatalogService::CachedLinearWorking *>
-CatalogService::cached_linear_working(const AssetRecord &asset, const std::string_view path,
+Result<PreviewService::CachedLinearWorking *>
+PreviewService::cached_linear_working(const AssetRecord &asset, const std::string_view path,
                                       const Recipe &recipe, const std::uint32_t width,
                                       const std::uint32_t height, const std::uint32_t max_edge,
                                       const CancellationToken &cancellation, const PreviewLane lane)
@@ -1357,7 +1394,7 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
     });
 }
 
-Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &asset,
+Result<RasterBuffer> PreviewService::decode_preview_source(const AssetRecord &asset,
                                                            const std::string_view path,
                                                            const std::uint32_t max_edge,
                                                            const CancellationToken &cancellation,

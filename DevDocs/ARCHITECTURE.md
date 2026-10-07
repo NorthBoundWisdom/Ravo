@@ -1779,7 +1779,37 @@ buffer must not implicitly select colour strategy. See
 
 ## Services
 
-First-version services provide:
+`CatalogService` composes one owner-thread resource session and its use-case
+services. Library, Metadata, Develop, Import, Ingest, Recovery, Preview, Export,
+XMP interchange, external editor, offline edit, conversion, Cull, AI and photo
+merge services do not retain a pointer
+to that composition object. They borrow only their required resource slots or
+another specific capability. The composition object is immovable; its private
+slot references remain valid through `close()`, where empty slots produce the
+existing structured closed-session errors. CLI, Studio and tests call the
+capability directly; removed central methods have no compatibility forwarding.
+
+Library owns query validation, smart-set expansion, paging, sets, stacks and
+review/removal use cases. Metadata owns facets, keywords and writable/capture
+metadata. Develop owns recipe validation, guarded recipe/history commits and
+batch application. Import owns candidate classification, transfer planning and
+publication; Ingest uses that same planner and owns transport/resume behavior.
+Recovery owns durable generation publication/acknowledgement and backup policy.
+Transactions, expected revisions, cancellation checkpoints and post-commit
+error context stay with those use cases. Resource injection does not split a
+transaction or share a connection across owner threads.
+
+Preview owns the existing independent foreground, interactive/settled, browse
+and ROI working slots. Import seeds only the browse slot; Export renders through
+this owner. Read-only offline-proxy verification is shared with the existing
+proxy workflow. No second renderer, cache-key rule or Recipe writer is added.
+Close drains pending recovery before repository close, releases working buffers
+on their original owner thread and resets resources. Capabilities are declared
+after their borrowed slots and in dependency order so dependents are destroyed
+first. The shared preview cache and recovery-publication mutex retain their
+original synchronization scope.
+
+Services provide:
 
 - `CreateCatalog` / `OpenCatalog`: create, validate, migrate, and return an
   immutable catalog snapshot;
@@ -1828,6 +1858,51 @@ assemble the same services, ports, and adapters.
   snapshot; ICC remains part of pixel color state.
 
 ## Desktop boundary
+
+`StudioLibraryPresenter` is the sole owner of Library query, filter and sort
+state and of the capture/location facet snapshots. Commands call its filter
+intents directly; QML reads the stable `library` child. A filter intent emits one
+reload request to the listing owner. Catalog open, resume, import and scope
+navigation supply explicit query snapshots without scheduling a second reload.
+The listing owner checks catalog/query generation before applying both facet
+snapshots together; identical snapshots emit no notification. Selection, listing
+generation, paging and Last Import identity remain with their existing owner.
+Queries needed by workers are captured on the GUI thread. The child has no
+root-presenter back-pointer, executor, SQL or selection state.
+
+`StudioDevelopPresenter` owns the only writable current/saved editing state,
+undo/redo, recipe/history head and coalescing, local masks/gestures, copied
+parameters and pending save/preview work. Its borrowed GUI context observes
+window selection/catalog/view identity and the asset model; it does not write
+selection. The root supplies specific worker-thread Develop/Preview/Recovery
+capabilities and explicit presentation/progress callbacks. Work uses the existing
+foreground executor and original commit, supersession, progress and recovery
+order. Command/control consumers read a const edit-state view on the GUI thread.
+
+`StudioInspectPresenter` owns scopes, frame pixel hash and pending identity,
+observed displayed Recipe and crop-frame layout, and the original bounded
+latest-pending analysis queue/executor. It consumes owned QImage/Recipe snapshots
+and has no Recipe mutation API. Analysis checks request, selection and frame
+identities. Image-provider reads and GUI publication synchronize short owned-value
+snapshots; signals emit after unlock. Shutdown cancels and joins this owner before
+catalog/Engine release. `inspectContextChanged` composes zoom/edit notifications
+for ROI debounce without duplicating edit state or growing Main.qml.
+
+`StudioExportPresenter` snapshots selected IDs and validated options before
+dispatch on the existing executor, and owns companion preflight and export
+result presentation. The command registry retains all command policy; transient
+form values remain distinct from active service options. Companion confirmation
+is bound to the originating catalog/listing/selection. Import's existing workspace
+owns draft, controllers, candidate/folder models and `StudioImportWorker`; its
+worker remains a separate catalog/Engine owner thread. Shutdown retains the
+original foreground-to-import-session handoff order and destroys dependents first.
+
+`CancellationGeneration` in foundation owns only an owner-thread cancellation
+source and revision. Develop preview, Import scan and destination preview share
+its invalidation mechanism. Each consumer retains its own debounce, queue bound,
+asset/context validation, publication and shutdown policy. Invalidating cancels
+borrowed tokens and advances identity; beginning a token does not advance it.
+Cancelling alone does not imply a new revision or an undone catalog commit.
 
 Ravo Studio owns:
 

@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,16 +17,16 @@ namespace ravo
 {
 
 class CatalogService;
+class CatalogRepository;
+class RecoveryStore;
 
 class RecoveryService
 {
 public:
-    explicit RecoveryService(CatalogService &catalog) noexcept;
-
     RecoveryService(const RecoveryService &) = delete;
     RecoveryService &operator=(const RecoveryService &) = delete;
-    RecoveryService(RecoveryService &&) noexcept = default;
-    RecoveryService &operator=(RecoveryService &&) noexcept = default;
+    RecoveryService(RecoveryService &&) = delete;
+    RecoveryService &operator=(RecoveryService &&) = delete;
 
     [[nodiscard]] Result<AssetRecoveryState> recovery_state(std::string_view asset_id) const;
     [[nodiscard]] Result<std::vector<AssetRecoveryState>> pending_recovery() const;
@@ -43,8 +45,28 @@ public:
     run_scheduled_backup(std::int64_t now_unix_ms, const CancellationToken &cancellation = {},
                          bool force = false);
 
+    // Called only after the repository commit; failures retain committed-state context.
+    [[nodiscard]] Result<void>
+    synchronize_committed_change(std::string_view asset_id,
+                                 const CancellationToken &cancellation = {});
+
 private:
-    CatalogService *catalog_ = nullptr;
+    [[nodiscard]] Result<RecoveryArtifact>
+    synchronize_recovery_asset(std::string_view asset_id, const CancellationToken &cancellation);
+    friend class CatalogService;
+    // Borrowed owner slots stay valid until this capability is destroyed. The
+    // composition owner is immovable; reset slots make post-close calls fail.
+    RecoveryService(const std::unique_ptr<CatalogRepository> &repository,
+                    const std::unique_ptr<RecoveryStore> &recovery,
+                    const std::shared_ptr<std::mutex> &publication_mutex,
+                    const std::function<Result<void>(std::string_view, std::string_view)>
+                        &backup_checkpoint) noexcept;
+
+    const std::unique_ptr<CatalogRepository> &repository_;
+    const std::unique_ptr<RecoveryStore> &recovery_;
+    const std::shared_ptr<std::mutex> &recovery_publication_mutex_;
+    const std::function<Result<void>(std::string_view, std::string_view)>
+        &testing_backup_checkpoint_;
 };
 
 } // namespace ravo

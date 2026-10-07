@@ -154,8 +154,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
     connect(&presenter_, &StudioPresenter::surveyChanged, this, changed);
     connect(&presenter_, &StudioPresenter::zoomChanged, this, changed);
-    connect(&presenter_, &StudioPresenter::editChanged, this, changed);
-    connect(&presenter_, &StudioPresenter::copiedParametersChanged, this, changed);
+    connect(presenter_.develop(), &StudioDevelopPresenter::editChanged, this, changed);
+    connect(presenter_.develop(), &StudioDevelopPresenter::copiedParametersChanged, this, changed);
 }
 
 StudioCommandController::~StudioCommandController() = default;

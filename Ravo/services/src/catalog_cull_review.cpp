@@ -1,4 +1,12 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/cull_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/import_service.h"
+#include "ravo/services/library_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include <algorithm>
 #include <optional>
@@ -29,7 +37,7 @@ namespace
 }
 
 [[nodiscard]] Result<std::optional<std::string>>
-compute_auto_advance_next(CatalogService &service, const CullReviewRequest &request)
+compute_auto_advance_next(LibraryService &library, const CullReviewRequest &request)
 {
     if (!request.auto_advance)
         return std::optional<std::string>{};
@@ -42,7 +50,7 @@ compute_auto_advance_next(CatalogService &service, const CullReviewRequest &requ
     else
     {
         LibraryQuery query = request.query.value_or(LibraryQuery{});
-        auto listed = service.list_assets(query);
+        auto listed = library.list_assets(query);
         if (!listed)
             return listed.error();
         order.reserve(listed.value().size());
@@ -60,34 +68,7 @@ compute_auto_advance_next(CatalogService &service, const CullReviewRequest &requ
 
 } // namespace
 
-Result<AssetRecord> CatalogService::set_picked(const std::string_view asset_id, const bool picked)
-{
-    if (repository_ == nullptr)
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    auto asset = load_asset(*repository_, asset_id);
-    if (!asset)
-        return asset.error();
-    ReviewState review = asset.value().review;
-    review.picked = picked;
-    if (picked)
-        review.rejected = false;
-    auto valid = validate_review_state(review);
-    if (!valid)
-        return valid.error();
-    const auto revision = repository_->commit_review(asset_id, review);
-    if (!revision)
-        return revision.error();
-    asset.value().review = review;
-    auto recovered = synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        // Catalog mutation is durable; surface committed vs recovery explicitly.
-        return recovered.error();
-    }
-    return asset.value();
-}
-
-Result<CullReviewResult> CatalogService::apply_cull_review(const CullReviewRequest &request)
+Result<CullReviewResult> CullService::apply_cull_review(const CullReviewRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -116,7 +97,7 @@ Result<CullReviewResult> CatalogService::apply_cull_review(const CullReviewReque
 
     if (request.expected_catalog_revision)
     {
-        auto snap = snapshot();
+        auto snap = library_service_.snapshot();
         if (!snap)
             return snap.error();
         if (snap.value().revision != *request.expected_catalog_revision)
@@ -166,7 +147,7 @@ Result<CullReviewResult> CatalogService::apply_cull_review(const CullReviewReque
 
     // Navigation order is computed before mutation so a committed review is never
     // reported as a failed mutation due to list/query failure afterward.
-    auto next_asset = compute_auto_advance_next(*this, request);
+    auto next_asset = compute_auto_advance_next(library_service_, request);
     if (!next_asset)
         return next_asset.error();
 
@@ -188,7 +169,8 @@ Result<CullReviewResult> CatalogService::apply_cull_review(const CullReviewReque
     }
     asset.value().review = review;
 
-    auto recovered = synchronize_committed_change(request.asset_id, request.cancellation);
+    auto recovered =
+        recovery_service_.synchronize_committed_change(request.asset_id, request.cancellation);
     if (!recovered)
     {
         // Review + revision are committed; do not imply the mutation rolled back.

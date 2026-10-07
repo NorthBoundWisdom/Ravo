@@ -1,4 +1,4 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/import_service.h"
 #include "ravo/services/import_thumbnail.h"
 
 #include <algorithm>
@@ -13,6 +13,9 @@
 #include <utility>
 
 #include "catalog_internal.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/raster_decoder.h"
 #include "ravo/domain/uri.h"
 #include "ravo/adapters/text_file.h"
 
@@ -162,9 +165,9 @@ void remove_owned_files(std::vector<std::string> &paths, TaskError &primary)
 } // namespace
 
 Result<ImportCandidate>
-CatalogService::inspect_import_candidate(const std::string_view path,
-                                         const std::string_view source_root,
-                                         const CancellationToken &cancellation) const
+ImportService::inspect_import_candidate(const std::string_view path,
+                                        const std::string_view source_root,
+                                        const CancellationToken &cancellation) const
 {
     auto active = cancellation.check();
     if (!active)
@@ -245,8 +248,8 @@ CatalogService::inspect_import_candidate(const std::string_view path,
 }
 
 Result<RasterBuffer>
-CatalogService::decode_import_candidate_thumbnail(const std::string_view path,
-                                                  const CancellationToken &cancellation) const
+ImportService::decode_import_candidate_thumbnail(const std::string_view path,
+                                                 const CancellationToken &cancellation) const
 {
     if (raster_ == nullptr || engine_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -357,20 +360,20 @@ Result<RasterBuffer> decode_import_thumbnail(const EngineFacade &engine,
 }
 
 Result<RasterBuffer>
-CatalogService::decode_cull_fingerprint_raster(const std::string_view path,
-                                               const CancellationToken &cancellation) const
+ImportService::decode_cull_fingerprint_raster(const std::string_view path,
+                                              const CancellationToken &cancellation) const
 {
     return decode_import_candidate_thumbnail(path, cancellation);
 }
 
-Result<ImportBatchResult> CatalogService::execute_import(
+Result<ImportBatchResult> ImportService::execute_import(
     const ImportRequest &request,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress)
 {
     return execute_import_impl(request, progress, false);
 }
 
-Result<void> CatalogService::preflight_import(const ImportRequest &request)
+Result<void> ImportService::preflight_import(const ImportRequest &request)
 {
     auto result = execute_import_impl(request, {}, true);
     if (!result)
@@ -379,7 +382,7 @@ Result<void> CatalogService::preflight_import(const ImportRequest &request)
 }
 
 Result<ImportDestinationPreview>
-CatalogService::preview_import_destinations(const ImportRequest &request)
+ImportService::preview_import_destinations(const ImportRequest &request)
 {
     if (request.mode == ImportTransferMode::kAdd)
         return make_error(ErrorCode::kInvalidArgument, "Destination preview requires Copy or Move",
@@ -391,12 +394,12 @@ CatalogService::preview_import_destinations(const ImportRequest &request)
     return preview;
 }
 
-Result<ImportBatchResult> CatalogService::execute_import_impl(
+Result<ImportBatchResult> ImportService::execute_import_impl(
     const ImportRequest &request,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
     const bool preflight_only, ImportDestinationPreview *const destination_preview)
 {
-    auto snapshot_before = snapshot();
+    auto snapshot_before = library_snapshot();
     if (!snapshot_before)
         return snapshot_before.error();
     if (request.expected_catalog_revision &&
@@ -801,7 +804,7 @@ Result<ImportBatchResult> CatalogService::execute_import_impl(
         }
         if (auto active = request.cancellation.check(); !active)
             return active.error();
-        auto current = snapshot();
+        auto current = library_snapshot();
         if (!current)
             return current.error();
         if (current.value().revision != preview.catalog_revision)
@@ -813,7 +816,7 @@ Result<ImportBatchResult> CatalogService::execute_import_impl(
     }
     if (request.expected_catalog_revision)
     {
-        auto current = snapshot();
+        auto current = library_snapshot();
         if (!current)
             return current.error();
         if (current.value().revision != *request.expected_catalog_revision)

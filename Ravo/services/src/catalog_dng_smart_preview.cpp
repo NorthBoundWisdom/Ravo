@@ -1,4 +1,13 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/conversion_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/develop_service.h"
+#include "ravo/services/import_service.h"
+#include "ravo/services/library_service.h"
+#include "ravo/services/metadata_service.h"
 
 #include "catalog_internal.h"
 
@@ -73,7 +82,7 @@ bool smart_preview_encoder_is_packaged() noexcept
 }
 
 Result<DngConversionResult>
-CatalogService::convert_asset_to_dng(const DngConversionRequest &request)
+ConversionService::convert_asset_to_dng(const DngConversionRequest &request)
 {
     if (repository_ == nullptr)
     {
@@ -137,7 +146,7 @@ CatalogService::convert_asset_to_dng(const DngConversionRequest &request)
 }
 
 Result<SmartPreviewStatus>
-CatalogService::smart_preview_status(const std::string_view asset_id) const
+ConversionService::smart_preview_status(const std::string_view asset_id) const
 {
     if (repository_ == nullptr)
     {
@@ -181,7 +190,7 @@ CatalogService::smart_preview_status(const std::string_view asset_id) const
 }
 
 Result<SmartPreviewStatus>
-CatalogService::ensure_smart_preview(const SmartPreviewEnsureRequest &request)
+ConversionService::ensure_smart_preview(const SmartPreviewEnsureRequest &request)
 {
     if (repository_ == nullptr)
     {

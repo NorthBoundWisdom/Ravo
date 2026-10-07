@@ -1,4 +1,12 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/external_editor_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/exports_service.h"
+#include "ravo/services/import_service.h"
+#include "ravo/services/library_service.h"
 
 #include "catalog_internal.h"
 
@@ -306,8 +314,8 @@ load_session(const std::string_view database_path, const std::string_view workin
 
 } // namespace
 
-Result<ExternalEditorWorkingCopyResult>
-CatalogService::create_external_editor_working_copy(const ExternalEditorWorkingCopyRequest &request)
+Result<ExternalEditorWorkingCopyResult> ExternalEditorService::create_external_editor_working_copy(
+    const ExternalEditorWorkingCopyRequest &request)
 {
     if (repository_ == nullptr || engine_ == nullptr || raster_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -407,7 +415,7 @@ CatalogService::create_external_editor_working_copy(const ExternalEditorWorkingC
         export_request.max_edge = *request.max_edge;
     export_request.cancellation = request.cancellation;
 
-    auto exported = export_asset(export_request);
+    auto exported = exports_service_.export_asset(export_request);
     if (!exported)
     {
         best_effort_remove_tree(dir);
@@ -525,7 +533,8 @@ CatalogService::create_external_editor_working_copy(const ExternalEditorWorkingC
 }
 
 Result<ExternalEditorWorkingCopySession>
-CatalogService::external_editor_working_copy_session(const std::string_view working_copy_id) const
+ExternalEditorService::external_editor_working_copy_session(
+    const std::string_view working_copy_id) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -541,8 +550,8 @@ CatalogService::external_editor_working_copy_session(const std::string_view work
     return load_session(snapshot.value().database_path, working_copy_id);
 }
 
-Result<ExternalEditorCheckReturnedResult>
-CatalogService::check_external_editor_returned(const ExternalEditorCheckReturnedRequest &request)
+Result<ExternalEditorCheckReturnedResult> ExternalEditorService::check_external_editor_returned(
+    const ExternalEditorCheckReturnedRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -653,8 +662,8 @@ CatalogService::check_external_editor_returned(const ExternalEditorCheckReturned
     return result;
 }
 
-Result<ExternalEditorWorkingCopyStatus>
-CatalogService::external_editor_working_copy_status(const std::string_view working_copy_id) const
+Result<ExternalEditorWorkingCopyStatus> ExternalEditorService::external_editor_working_copy_status(
+    const std::string_view working_copy_id) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -743,7 +752,7 @@ CatalogService::external_editor_working_copy_status(const std::string_view worki
 }
 
 Result<std::vector<ExternalEditorWorkingCopySession>>
-CatalogService::list_external_editor_working_copies(
+ExternalEditorService::list_external_editor_working_copies(
     const std::optional<std::string_view> source_asset_id) const
 {
     if (repository_ == nullptr)
@@ -775,8 +784,8 @@ CatalogService::list_external_editor_working_copies(
     return sessions;
 }
 
-Result<ExternalEditorAbandonResult>
-CatalogService::abandon_external_editor_working_copy(const ExternalEditorAbandonRequest &request)
+Result<ExternalEditorAbandonResult> ExternalEditorService::abandon_external_editor_working_copy(
+    const ExternalEditorAbandonRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -855,8 +864,8 @@ CatalogService::abandon_external_editor_working_copy(const ExternalEditorAbandon
     return result;
 }
 
-Result<ExternalEditorReopenResult>
-CatalogService::reopen_external_editor_working_copy(const ExternalEditorReopenRequest &request)
+Result<ExternalEditorReopenResult> ExternalEditorService::reopen_external_editor_working_copy(
+    const ExternalEditorReopenRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");

@@ -82,7 +82,7 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
     if (subcommand == "cull-exact-duplicates")
     {
         ExactDuplicateRequest request;
-        auto report = service.find_exact_duplicate_groups(request);
+        auto report = service.cull().find_exact_duplicate_groups(request);
         if (!report)
             return report.error();
         JsonValue::Array groups;
@@ -112,7 +112,7 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
         BurstProposeRequest request;
         if (flags.burst_window_seconds)
             request.window_seconds = *flags.burst_window_seconds;
-        auto report = service.propose_burst_groups(request);
+        auto report = service.cull().propose_burst_groups(request);
         if (!report)
             return report.error();
         JsonValue::Array proposals;
@@ -152,7 +152,7 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
             request.asset_ids.push_back(std::string(id));
         if (!flags.pick_id.empty())
             request.pick_asset_id = std::string(flags.pick_id);
-        auto accepted = service.accept_burst_group_proposal(request);
+        auto accepted = service.cull().accept_burst_group_proposal(request);
         if (!accepted)
             return accepted.error();
         return JsonValue{JsonValue::Object{
@@ -165,7 +165,7 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
         NearDuplicateRequest request;
         if (flags.near_dup_max_hamming)
             request.max_hamming = *flags.near_dup_max_hamming;
-        auto report = service.find_near_duplicate_groups(request);
+        auto report = service.cull().find_near_duplicate_groups(request);
         if (!report)
             return report.error();
         JsonValue::Array groups;
@@ -276,7 +276,7 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
             request.query = std::move(parsed).value();
         }
         request.expected_catalog_revision = flags.expected_revision;
-        auto applied = service.apply_cull_review(request);
+        auto applied = service.cull().apply_cull_review(request);
         if (!applied)
             return applied.error();
         JsonValue::Object previous{
@@ -329,7 +329,7 @@ Result<JsonValue> run_catalog_cull_command(CatalogService &service,
             }
             request.step = *step;
         }
-        auto pair = service.resolve_burst_compare_pair(request);
+        auto pair = service.cull().resolve_burst_compare_pair(request);
         if (!pair)
             return pair.error();
         JsonValue::Array members;

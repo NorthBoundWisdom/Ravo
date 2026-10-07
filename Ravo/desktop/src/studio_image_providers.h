@@ -49,10 +49,11 @@ public:
     QImage requestImage(const QString &id, QSize *size, const QSize &) override
     {
         const QImage image =
-            id.startsWith(QLatin1String("waveform"))    ? studio_->scopeWaveformImage() :
-            id.startsWith(QLatin1String("vectorscope")) ? studio_->scopeVectorscopeImage() :
-            id.startsWith(QLatin1String("split"))       ? studio_->scopeSplitImage() :
-                                                          studio_->scopeParadeImage();
+            id.startsWith(QLatin1String("waveform")) ? studio_->inspect()->scopeWaveformImage() :
+            id.startsWith(QLatin1String("vectorscope")) ?
+                                                       studio_->inspect()->scopeVectorscopeImage() :
+            id.startsWith(QLatin1String("split")) ? studio_->inspect()->scopeSplitImage() :
+                                                    studio_->inspect()->scopeParadeImage();
         if (size != nullptr)
         {
             *size = image.size();

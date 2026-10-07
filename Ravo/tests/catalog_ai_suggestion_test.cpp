@@ -34,17 +34,17 @@ TEST_F(CatalogServiceTest, AiSuggestionKeywordAcceptMergesTagsRejectLeavesUnchan
     ASSERT_TRUE(open_service(true));
     const auto path = root / "ai04-keyword.jpg";
     ASSERT_TRUE(write_jpeg(path, QColor(40, 90, 140)));
-    auto imported = service->import_one(path.string(), CancellationToken{});
+    auto imported = service->import().import_one(path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
-    ASSERT_TRUE(service->set_tags(asset_id, {"existing"}));
+    ASSERT_TRUE(service->metadata().set_tags(asset_id, {"existing"}));
 
     AiSuggestionCreateRequest denied;
     denied.asset_id = asset_id;
     denied.kind = AiSuggestionKind::kKeyword;
     denied.user_initiated = false;
-    auto missing = service->create_ai_suggestion(denied);
+    auto missing = service->ai().create_ai_suggestion(denied);
     ASSERT_FALSE(missing);
     EXPECT_EQ(missing.error().context.at("reason"), "ai_suggestion_not_user_initiated");
 
@@ -52,7 +52,7 @@ TEST_F(CatalogServiceTest, AiSuggestionKeywordAcceptMergesTagsRejectLeavesUnchan
     request.asset_id = asset_id;
     request.kind = AiSuggestionKind::kKeyword;
     request.user_initiated = true;
-    auto created = service->create_ai_suggestion(request);
+    auto created = service->ai().create_ai_suggestion(request);
     ASSERT_TRUE(created) << created.error().message;
     EXPECT_EQ(created.value().contract_version, kAiSuggestionContractVersion);
     EXPECT_EQ(created.value().provider.model_id, kAiStubSuggestionModelId);
@@ -60,12 +60,12 @@ TEST_F(CatalogServiceTest, AiSuggestionKeywordAcceptMergesTagsRejectLeavesUnchan
     EXPECT_FALSE(created.value().suggested_keywords.empty());
     EXPECT_TRUE(created.value().catalog_mutated_on_accept);
 
-    auto rejected = service->reject_ai_suggestion(created.value().id);
+    auto rejected = service->ai().reject_ai_suggestion(created.value().id);
     ASSERT_TRUE(rejected) << rejected.error().message;
     EXPECT_EQ(rejected.value().status, AiSuggestionStatus::kRejected);
-    auto after_reject = service->get_ai_suggestion(created.value().id);
+    auto after_reject = service->ai().get_ai_suggestion(created.value().id);
     ASSERT_TRUE(after_reject);
-    auto asset_after_reject = service->list_assets();
+    auto asset_after_reject = service->library().list_assets();
     ASSERT_TRUE(asset_after_reject);
     const auto *found = [&]() -> const AssetRecord *
     {
@@ -79,14 +79,14 @@ TEST_F(CatalogServiceTest, AiSuggestionKeywordAcceptMergesTagsRejectLeavesUnchan
     ASSERT_NE(found, nullptr);
     EXPECT_EQ(found->tags, (std::vector<std::string>{"existing"}));
 
-    auto created2 = service->create_ai_suggestion(request);
+    auto created2 = service->ai().create_ai_suggestion(request);
     ASSERT_TRUE(created2) << created2.error().message;
-    auto accepted = service->accept_ai_suggestion(created2.value().id);
+    auto accepted = service->ai().accept_ai_suggestion(created2.value().id);
     ASSERT_TRUE(accepted) << accepted.error().message;
     EXPECT_TRUE(accepted.value().catalog_mutated);
     EXPECT_EQ(accepted.value().suggestion.status, AiSuggestionStatus::kAccepted);
 
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed);
     const AssetRecord *accepted_asset = nullptr;
     for (const auto &asset : listed.value())
@@ -109,7 +109,7 @@ TEST_F(CatalogServiceTest, AiSuggestionCaptionAcceptWritesDescriptionAndHeadline
     ASSERT_TRUE(open_service(true));
     const auto path = root / "ai04-caption.jpg";
     ASSERT_TRUE(write_jpeg(path, QColor(20, 70, 120)));
-    auto imported = service->import_one(path.string(), CancellationToken{});
+    auto imported = service->import().import_one(path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -117,16 +117,16 @@ TEST_F(CatalogServiceTest, AiSuggestionCaptionAcceptWritesDescriptionAndHeadline
     request.asset_id = asset_id;
     request.kind = AiSuggestionKind::kCaption;
     request.user_initiated = true;
-    auto created = service->create_ai_suggestion(request);
+    auto created = service->ai().create_ai_suggestion(request);
     ASSERT_TRUE(created) << created.error().message;
     ASSERT_TRUE(created.value().suggested_caption);
     ASSERT_TRUE(created.value().suggested_headline);
 
-    auto accepted = service->accept_ai_suggestion(created.value().id);
+    auto accepted = service->ai().accept_ai_suggestion(created.value().id);
     ASSERT_TRUE(accepted) << accepted.error().message;
     EXPECT_TRUE(accepted.value().catalog_mutated);
 
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed);
     const AssetRecord *asset = nullptr;
     for (const auto &row : listed.value())
@@ -148,23 +148,23 @@ TEST_F(CatalogServiceTest, AiSuggestionFocusAndDuplicateNeverMutateCatalog)
     const auto b_path = root / "ai04-peer.jpg";
     ASSERT_TRUE(write_jpeg(a_path, QColor(10, 10, 10)));
     ASSERT_TRUE(write_jpeg(b_path, QColor(200, 100, 50)));
-    auto a = service->import_one(a_path.string(), CancellationToken{});
-    auto b = service->import_one(b_path.string(), CancellationToken{});
+    auto a = service->import().import_one(a_path.string(), CancellationToken{});
+    auto b = service->import().import_one(b_path.string(), CancellationToken{});
     ASSERT_TRUE(a) << a.error().message;
     ASSERT_TRUE(b) << b.error().message;
     const auto a_id = a.value().asset->id;
     const auto b_id = b.value().asset->id;
-    auto before = service->snapshot();
+    auto before = service->library().snapshot();
     ASSERT_TRUE(before);
 
     AiSuggestionCreateRequest focus;
     focus.asset_id = a_id;
     focus.kind = AiSuggestionKind::kFocus;
     focus.user_initiated = true;
-    auto focus_created = service->create_ai_suggestion(focus);
+    auto focus_created = service->ai().create_ai_suggestion(focus);
     ASSERT_TRUE(focus_created) << focus_created.error().message;
     EXPECT_FALSE(focus_created.value().catalog_mutated_on_accept);
-    auto focus_accepted = service->accept_ai_suggestion(focus_created.value().id);
+    auto focus_accepted = service->ai().accept_ai_suggestion(focus_created.value().id);
     ASSERT_TRUE(focus_accepted) << focus_accepted.error().message;
     EXPECT_FALSE(focus_accepted.value().catalog_mutated);
 
@@ -173,19 +173,19 @@ TEST_F(CatalogServiceTest, AiSuggestionFocusAndDuplicateNeverMutateCatalog)
     dup.kind = AiSuggestionKind::kDuplicate;
     dup.user_initiated = true;
     dup.peer_asset_id = b_id;
-    auto dup_created = service->create_ai_suggestion(dup);
+    auto dup_created = service->ai().create_ai_suggestion(dup);
     ASSERT_TRUE(dup_created) << dup_created.error().message;
     ASSERT_FALSE(dup_created.value().peer_asset_ids.empty());
     EXPECT_EQ(dup_created.value().peer_asset_ids.front(), b_id);
-    auto dup_accepted = service->accept_ai_suggestion(dup_created.value().id);
+    auto dup_accepted = service->ai().accept_ai_suggestion(dup_created.value().id);
     ASSERT_TRUE(dup_accepted) << dup_accepted.error().message;
     EXPECT_FALSE(dup_accepted.value().catalog_mutated);
 
     // Both assets still present; accept never deletes peers.
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed);
     EXPECT_GE(listed.value().size(), 2U);
-    auto after = service->snapshot();
+    auto after = service->library().snapshot();
     ASSERT_TRUE(after);
     // Focus/duplicate accept must not bump catalog revision via metadata writes.
     EXPECT_EQ(before.value().revision, after.value().revision);
@@ -196,20 +196,20 @@ TEST_F(CatalogServiceTest, AiSuggestionCancelLeavesCatalogUntouched)
     ASSERT_TRUE(open_service(true));
     const auto path = root / "ai04-cancel.jpg";
     ASSERT_TRUE(write_jpeg(path, QColor(80, 40, 20)));
-    auto imported = service->import_one(path.string(), CancellationToken{});
+    auto imported = service->import().import_one(path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
 
     AiSuggestionCreateRequest request;
     request.asset_id = imported.value().asset->id;
     request.kind = AiSuggestionKind::kKeyword;
     request.user_initiated = true;
-    auto created = service->create_ai_suggestion(request);
+    auto created = service->ai().create_ai_suggestion(request);
     ASSERT_TRUE(created) << created.error().message;
-    auto cancelled = service->cancel_ai_suggestion(created.value().id);
+    auto cancelled = service->ai().cancel_ai_suggestion(created.value().id);
     ASSERT_TRUE(cancelled) << cancelled.error().message;
     EXPECT_EQ(cancelled.value().status, AiSuggestionStatus::kCancelled);
 
-    auto again = service->accept_ai_suggestion(created.value().id);
+    auto again = service->ai().accept_ai_suggestion(created.value().id);
     ASSERT_FALSE(again);
     EXPECT_EQ(again.error().context.at("reason"), "ai_suggestion_not_pending");
 }
@@ -219,7 +219,7 @@ TEST_F(CatalogServiceTest, AiSuggestionSurvivesReloadAndListsByAsset)
     ASSERT_TRUE(open_service(true));
     const auto path = root / "ai04-reload.jpg";
     ASSERT_TRUE(write_jpeg(path, QColor(30, 60, 90)));
-    auto imported = service->import_one(path.string(), CancellationToken{});
+    auto imported = service->import().import_one(path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -227,20 +227,20 @@ TEST_F(CatalogServiceTest, AiSuggestionSurvivesReloadAndListsByAsset)
     request.asset_id = asset_id;
     request.kind = AiSuggestionKind::kFocus;
     request.user_initiated = true;
-    auto created = service->create_ai_suggestion(request);
+    auto created = service->ai().create_ai_suggestion(request);
     ASSERT_TRUE(created) << created.error().message;
     const auto suggestion_id = created.value().id;
 
     ASSERT_TRUE(service->close());
     ASSERT_TRUE(open_service(false));
 
-    auto loaded = service->get_ai_suggestion(suggestion_id);
+    auto loaded = service->ai().get_ai_suggestion(suggestion_id);
     ASSERT_TRUE(loaded) << loaded.error().message;
     EXPECT_EQ(loaded.value().kind, AiSuggestionKind::kFocus);
     EXPECT_EQ(loaded.value().status, AiSuggestionStatus::kPending);
     EXPECT_EQ(loaded.value().provider.model_id, kAiStubSuggestionModelId);
 
-    auto listed = service->list_ai_suggestions(asset_id);
+    auto listed = service->ai().list_ai_suggestions(asset_id);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, suggestion_id);

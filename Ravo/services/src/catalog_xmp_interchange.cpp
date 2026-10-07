@@ -1,4 +1,12 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/xmp_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/develop_service.h"
+#include "ravo/services/library_service.h"
+#include "ravo/services/metadata_service.h"
 
 #include "catalog_internal.h"
 #include "catalog_service_internal.h"
@@ -24,6 +32,18 @@
 
 namespace ravo
 {
+
+XmpInterchangeService::XmpInterchangeService(const std::unique_ptr<CatalogRepository> &repository,
+                                             DevelopService &develop_service,
+                                             LibraryService &library_service,
+                                             MetadataService &metadata_service) noexcept
+    : repository_(repository)
+    , develop_service_(develop_service)
+    , library_service_(library_service)
+    , metadata_service_(metadata_service)
+{
+}
+
 namespace
 {
 
@@ -346,9 +366,8 @@ Result<XmpInterchangeResolve> parse_xmp_interchange_resolve(const std::string_vi
                       {{"resolve", std::string(text)}, {"reason", "invalid_xmp_resolve"}});
 }
 
-Result<XmpInterchangeStatus>
-CatalogService::xmp_interchange_status(const std::string_view asset_id,
-                                       const std::optional<std::string_view> sidecar_path) const
+Result<XmpInterchangeStatus> XmpInterchangeService::xmp_interchange_status(
+    const std::string_view asset_id, const std::optional<std::string_view> sidecar_path) const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -366,7 +385,7 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
     auto location = normalize_local_input(asset.value()->normalized_uri);
     if (!location)
         return location.error();
-    auto has_edits = asset_has_edits(asset_id);
+    auto has_edits = develop_service_.asset_has_edits(asset_id);
     if (!has_edits)
         return has_edits.error();
     auto recovery = repository_->recovery_state(asset_id);
@@ -522,9 +541,9 @@ CatalogService::xmp_interchange_status(const std::string_view asset_id,
 }
 
 Result<XmpInterchangeImportResult>
-CatalogService::xmp_interchange_import(const std::string_view asset_id,
-                                       const XmpInterchangeResolve resolve,
-                                       const std::optional<std::string_view> sidecar_path)
+XmpInterchangeService::xmp_interchange_import(const std::string_view asset_id,
+                                              const XmpInterchangeResolve resolve,
+                                              const std::optional<std::string_view> sidecar_path)
 {
     auto status = xmp_interchange_status(asset_id, sidecar_path);
     if (!status)
@@ -634,7 +653,7 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
 
     if (status.value().crs_parse_ok)
     {
-        auto loaded = load_recipe(asset_id);
+        auto loaded = develop_service_.load_recipe(asset_id);
         if (!loaded)
             return loaded.error();
         auto params = develop_from_recipe(loaded.value());
@@ -655,7 +674,7 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
         if (!imported)
             return imported.error();
         apply_crs_look(params.value(), imported.value().look, imported.value().mask);
-        auto saved = save_develop(asset_id, params.value());
+        auto saved = develop_service_.save_develop(asset_id, params.value());
         if (!saved)
             return saved.error();
         latest = std::move(saved).value();
@@ -667,8 +686,8 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
     const auto patch = writable_patch_from_present_fields(adjacent.metadata.writable);
     if (!patch.empty())
     {
-        auto mutated =
-            set_writable_metadata_selection({std::string(asset_id)}, patch, std::nullopt);
+        auto mutated = metadata_service_.set_writable_metadata_selection({std::string(asset_id)},
+                                                                         patch, std::nullopt);
         if (!mutated)
             return mutated.error();
         if (!mutated.value().assets.empty())
@@ -678,7 +697,7 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
 
     if (adjacent.metadata.keyword_paths)
     {
-        auto tagged = set_tags(asset_id, *adjacent.metadata.keyword_paths);
+        auto tagged = metadata_service_.set_tags(asset_id, *adjacent.metadata.keyword_paths);
         if (!tagged)
             return tagged.error();
         latest = std::move(tagged).value();
@@ -687,7 +706,7 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
 
     if (adjacent.metadata.rating)
     {
-        auto rated = set_rating(asset_id, *adjacent.metadata.rating);
+        auto rated = library_service_.set_rating(asset_id, *adjacent.metadata.rating);
         if (!rated)
             return rated.error();
         latest = std::move(rated).value();
@@ -722,9 +741,9 @@ CatalogService::xmp_interchange_import(const std::string_view asset_id,
 }
 
 Result<XmpInterchangeExportResult>
-CatalogService::xmp_interchange_export(const std::string_view asset_id,
-                                       const XmpInterchangeResolve resolve,
-                                       const std::optional<std::string_view> sidecar_path)
+XmpInterchangeService::xmp_interchange_export(const std::string_view asset_id,
+                                              const XmpInterchangeResolve resolve,
+                                              const std::optional<std::string_view> sidecar_path)
 {
     auto status = xmp_interchange_status(asset_id, sidecar_path);
     if (!status)
@@ -807,7 +826,7 @@ CatalogService::xmp_interchange_export(const std::string_view asset_id,
               std::string(xmp_interchange_conflict_class_name(status.value().conflict_class))}});
     }
 
-    auto loaded = load_recipe(asset_id);
+    auto loaded = develop_service_.load_recipe(asset_id);
     if (!loaded)
         return loaded.error();
     auto params = develop_from_recipe(loaded.value());

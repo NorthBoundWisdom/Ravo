@@ -71,7 +71,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultLegacyColorBalancePersistsReopensAndEx
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -81,19 +81,19 @@ TEST_F(CatalogServiceTest, ExplicitDefaultLegacyColorBalancePersistsReopensAndEx
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     EXPECT_FALSE(develop.value().color_balance_enabled);
     develop.value().color_balance_enabled = true;
     develop.value().color_balance = ColorBalanceParams{};
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -106,7 +106,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultLegacyColorBalancePersistsReopensAndEx
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_EQ(decoded.value(), ColorBalanceParams{});
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     ASSERT_FALSE(before_reopen.value().cache_path.empty());
@@ -119,7 +119,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultLegacyColorBalancePersistsReopensAndEx
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -135,13 +135,13 @@ TEST_F(CatalogServiceTest, ExplicitDefaultLegacyColorBalancePersistsReopensAndEx
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().color_balance_enabled);
     EXPECT_EQ(restored.value().color_balance, ColorBalanceParams{});
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -153,7 +153,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCheckerPersistsReopensAndExportsE
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -163,19 +163,19 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCheckerPersistsReopensAndExportsE
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     EXPECT_FALSE(develop.value().color_checker_enabled);
     develop.value().color_checker_enabled = true;
     develop.value().color_checker = ColorCheckerParams{};
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -188,7 +188,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCheckerPersistsReopensAndExportsE
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_EQ(decoded.value(), ColorCheckerParams{});
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     ASSERT_FALSE(before_reopen.value().cache_path.empty());
@@ -201,7 +201,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCheckerPersistsReopensAndExportsE
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -210,13 +210,13 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCheckerPersistsReopensAndExportsE
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().color_checker_enabled);
     EXPECT_EQ(restored.value().color_checker, ColorCheckerParams{});
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -228,7 +228,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCorrectionPersistsReopensAndExpor
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -238,20 +238,20 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCorrectionPersistsReopensAndExpor
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
     ASSERT_FALSE(absent.value().cache_path.empty());
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     EXPECT_FALSE(develop.value().color_correction_enabled);
     develop.value().color_correction_enabled = true;
     develop.value().color_correction = ColorCorrectionParams{};
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -264,7 +264,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCorrectionPersistsReopensAndExpor
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_EQ(decoded.value(), ColorCorrectionParams{});
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     ASSERT_FALSE(before_reopen.value().cache_path.empty());
@@ -277,7 +277,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCorrectionPersistsReopensAndExpor
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -286,13 +286,13 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorCorrectionPersistsReopensAndExpor
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().color_correction_enabled);
     EXPECT_EQ(restored.value().color_correction, ColorCorrectionParams{});
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -304,7 +304,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorContrastPersistsReopensAndExports
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -314,20 +314,20 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorContrastPersistsReopensAndExports
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
     ASSERT_FALSE(absent.value().cache_path.empty());
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     EXPECT_FALSE(develop.value().color_contrast_enabled);
     develop.value().color_contrast_enabled = true;
     develop.value().color_contrast = ColorContrastParams{};
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -340,7 +340,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorContrastPersistsReopensAndExports
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_EQ(decoded.value(), ColorContrastParams{});
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     ASSERT_FALSE(before_reopen.value().cache_path.empty());
@@ -353,7 +353,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorContrastPersistsReopensAndExports
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -362,13 +362,13 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorContrastPersistsReopensAndExports
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().color_contrast_enabled);
     EXPECT_EQ(restored.value().color_contrast, ColorContrastParams{});
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -380,7 +380,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorHarmonizerPersistsReopensAndExpor
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -390,20 +390,20 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorHarmonizerPersistsReopensAndExpor
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
     ASSERT_FALSE(absent.value().cache_path.empty());
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     EXPECT_FALSE(develop.value().color_harmonizer_enabled);
     develop.value().color_harmonizer_enabled = true;
     develop.value().color_harmonizer = ColorHarmonizerParams{};
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -416,7 +416,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorHarmonizerPersistsReopensAndExpor
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_EQ(decoded.value(), ColorHarmonizerParams{});
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     ASSERT_FALSE(before_reopen.value().cache_path.empty());
@@ -429,7 +429,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorHarmonizerPersistsReopensAndExpor
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -438,13 +438,13 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorHarmonizerPersistsReopensAndExpor
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().color_harmonizer_enabled);
     EXPECT_EQ(restored.value().color_harmonizer, ColorHarmonizerParams{});
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -457,7 +457,7 @@ TEST_F(CatalogServiceTest, ColorReconstructionPersistsReopensAndExportsExactPixe
     const auto source_hash = file_sha256(raw_fixture_path());
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -467,12 +467,12 @@ TEST_F(CatalogServiceTest, ColorReconstructionPersistsReopensAndExportsExactPixe
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
     const QImage absent_image(QString::fromStdString(absent.value().cache_path));
     ASSERT_FALSE(absent_image.isNull());
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
@@ -480,9 +480,9 @@ TEST_F(CatalogServiceTest, ColorReconstructionPersistsReopensAndExportsExactPixe
     develop.value().color_reconstruction_enabled = true;
     develop.value().color_reconstruction = ColorReconstructionParams{
         60.0, 300.0, 10.0, 0.6600000262260437, ColorReconstructionPrecedence::kChroma};
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -496,7 +496,7 @@ TEST_F(CatalogServiceTest, ColorReconstructionPersistsReopensAndExportsExactPixe
     ASSERT_NE(std::next(operation), stored_recipe.value().operations.end());
     EXPECT_EQ(std::next(operation)->id, "ravo.color.output");
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
@@ -509,7 +509,7 @@ TEST_F(CatalogServiceTest, ColorReconstructionPersistsReopensAndExportsExactPixe
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -518,13 +518,13 @@ TEST_F(CatalogServiceTest, ColorReconstructionPersistsReopensAndExportsExactPixe
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().color_reconstruction_enabled);
     EXPECT_EQ(restored.value().color_reconstruction, develop.value().color_reconstruction);
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -538,7 +538,7 @@ TEST_F(CatalogServiceTest, SourceExactSharpenPersistsReopensAndExportsExactPixel
     const auto source_hash = file_sha256(raw_fixture_path());
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -548,21 +548,21 @@ TEST_F(CatalogServiceTest, SourceExactSharpenPersistsReopensAndExportsExactPixel
     preview.max_edge = 128U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
     const QImage absent_image(QString::fromStdString(absent.value().cache_path));
     ASSERT_FALSE(absent_image.isNull());
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     develop.value().sharpen = 1.0;
     develop.value().sharpen_radius = 99.0;
     develop.value().sharpen_threshold = 0.0;
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -573,7 +573,7 @@ TEST_F(CatalogServiceTest, SourceExactSharpenPersistsReopensAndExportsExactPixel
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_EQ(decoded.value(), (SharpenParams{99.0, 1.0, 0.0}));
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
@@ -586,7 +586,7 @@ TEST_F(CatalogServiceTest, SourceExactSharpenPersistsReopensAndExportsExactPixel
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 128U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -595,14 +595,14 @@ TEST_F(CatalogServiceTest, SourceExactSharpenPersistsReopensAndExportsExactPixel
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_DOUBLE_EQ(restored.value().sharpen, 1.0);
     EXPECT_DOUBLE_EQ(restored.value().sharpen_radius, 99.0);
     EXPECT_DOUBLE_EQ(restored.value().sharpen_threshold, 0.0);
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -616,7 +616,7 @@ TEST_F(CatalogServiceTest, DarkChannelDehazePersistsReopensAndExportsExactPixels
     const auto source_hash = file_sha256(raw_fixture_path());
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -626,21 +626,21 @@ TEST_F(CatalogServiceTest, DarkChannelDehazePersistsReopensAndExportsExactPixels
     preview.max_edge = 128U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
     const QImage absent_image(QString::fromStdString(absent.value().cache_path));
     ASSERT_FALSE(absent_image.isNull());
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
     develop.value().dehaze = 0.9;
     develop.value().dehaze_distance = 0.8;
     develop.value().dehaze_adaptive = false;
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -651,7 +651,7 @@ TEST_F(CatalogServiceTest, DarkChannelDehazePersistsReopensAndExportsExactPixels
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_EQ(decoded.value(), (DehazeParams{0.9, 0.8, false}));
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
@@ -664,7 +664,7 @@ TEST_F(CatalogServiceTest, DarkChannelDehazePersistsReopensAndExportsExactPixels
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 128U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -673,14 +673,14 @@ TEST_F(CatalogServiceTest, DarkChannelDehazePersistsReopensAndExportsExactPixels
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_DOUBLE_EQ(restored.value().dehaze, 0.9);
     EXPECT_DOUBLE_EQ(restored.value().dehaze_distance, 0.8);
     EXPECT_FALSE(restored.value().dehaze_adaptive);
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -694,7 +694,7 @@ TEST_F(CatalogServiceTest, OrderedRetouchPersistsReopensAndExportsExactPixels)
     const auto source_hash = file_sha256(raw_fixture_path());
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -704,12 +704,12 @@ TEST_F(CatalogServiceTest, OrderedRetouchPersistsReopensAndExportsExactPixels)
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto absent = service->request_preview(preview);
+    auto absent = service->preview().request_preview(preview);
     ASSERT_TRUE(absent) << absent.error().message;
     const QImage absent_image(QString::fromStdString(absent.value().cache_path));
     ASSERT_FALSE(absent_image.isNull());
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto develop = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
@@ -724,9 +724,9 @@ TEST_F(CatalogServiceTest, OrderedRetouchPersistsReopensAndExportsExactPixels)
     region.fill_color = {0.9, 0.15, 0.05};
     region.fill_brightness = -0.03;
     develop.value().retouch.regions.push_back(region);
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
-    auto stored_recipe = service->load_recipe(asset_id);
+    auto stored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
     const auto operation = std::find_if(
         stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
@@ -736,7 +736,7 @@ TEST_F(CatalogServiceTest, OrderedRetouchPersistsReopensAndExportsExactPixels)
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_EQ(decoded.value(), develop.value().retouch);
 
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
     const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
@@ -749,7 +749,7 @@ TEST_F(CatalogServiceTest, OrderedRetouchPersistsReopensAndExportsExactPixels)
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     ASSERT_FALSE(export_image.isNull());
@@ -758,13 +758,13 @@ TEST_F(CatalogServiceTest, OrderedRetouchPersistsReopensAndExportsExactPixels)
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_EQ(restored.value().retouch, develop.value().retouch);
     EXPECT_EQ(restored.value().masks, develop.value().masks);
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
@@ -777,12 +777,12 @@ TEST_F(CatalogServiceTest, PositiveColorHarmonizerSmoothingPersistsReopensAndExp
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     const auto baseline_serialized = serialize_recipe(baseline_recipe.value());
     ASSERT_TRUE(baseline_serialized) << baseline_serialized.error().message;
@@ -791,7 +791,7 @@ TEST_F(CatalogServiceTest, PositiveColorHarmonizerSmoothingPersistsReopensAndExp
     const DevelopParams before_reject = develop.value();
     EXPECT_FALSE(apply_develop_field_strict(develop.value(), "colorHarmonizerPullStrength", 1.5));
     EXPECT_EQ(develop.value(), before_reject);
-    auto still_baseline = service->load_recipe(asset_id);
+    auto still_baseline = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(still_baseline) << still_baseline.error().message;
     auto still_serialized = serialize_recipe(still_baseline.value());
     ASSERT_TRUE(still_serialized) << still_serialized.error().message;
@@ -806,27 +806,27 @@ TEST_F(CatalogServiceTest, PositiveColorHarmonizerSmoothingPersistsReopensAndExp
     edited.smoothing = 0.5;
     develop.value().color_harmonizer_enabled = true;
     develop.value().color_harmonizer = edited;
-    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, develop.value()));
 
     PreviewRequest preview;
     preview.asset_id = asset_id;
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
     preview.prefer_embedded_preview = false;
-    auto live = service->request_preview(preview);
+    auto live = service->preview().request_preview(preview);
     ASSERT_TRUE(live) << live.error().message;
     const auto cache_key = live.value().cache_key;
 
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_TRUE(restored.value().color_harmonizer_enabled);
     EXPECT_EQ(restored.value().color_harmonizer, edited);
-    auto after = service->request_preview(preview);
+    auto after = service->preview().request_preview(preview);
     ASSERT_TRUE(after) << after.error().message;
     EXPECT_EQ(after.value().cache_key, cache_key);
     const auto export_path = (root / "colorharmonizer-0176.png").string();
@@ -835,7 +835,7 @@ TEST_F(CatalogServiceTest, PositiveColorHarmonizerSmoothingPersistsReopensAndExp
     export_request.output_path = export_path;
     export_request.format = ExportFormat::kPng;
     export_request.max_edge = 64U;
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage export_image(QString::fromStdString(export_path));
     const QImage preview_image(QString::fromStdString(after.value().cache_path));
@@ -848,12 +848,12 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    auto imported = service->import().import_one(raw_fixture_path(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
-    auto baseline_recipe = service->load_recipe(asset_id);
+    auto baseline_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
     auto edited = develop_from_recipe(baseline_recipe.value());
     ASSERT_TRUE(edited) << edited.error().message;
@@ -909,13 +909,13 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     preview.asset_id = asset_id;
     preview.max_edge = 96;
     preview.persist_preview_record = false;
-    auto baseline = service->request_preview(preview);
+    auto baseline = service->preview().request_preview(preview);
     ASSERT_TRUE(baseline) << baseline.error().message;
     ASSERT_FALSE(baseline.value().rgb.empty());
 
-    auto saved = service->save_develop(asset_id, edited.value());
+    auto saved = service->develop().save_develop(asset_id, edited.value());
     ASSERT_TRUE(saved) << saved.error().message;
-    auto before_reopen = service->request_preview(preview);
+    auto before_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
     ASSERT_FALSE(before_reopen.value().rgb.empty());
     EXPECT_EQ(before_reopen.value().color_profile.identifier, kInputProfileDisplayP3);
@@ -926,7 +926,7 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto restored_recipe = service->load_recipe(asset_id);
+    auto restored_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
     auto restored = develop_from_recipe(restored_recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
@@ -952,14 +952,14 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     }
     EXPECT_EQ(comparable, edited.value());
 
-    auto after_reopen = service->request_preview(preview);
+    auto after_reopen = service->preview().request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().rgb, before_reopen.value().rgb);
     EXPECT_EQ(after_reopen.value().color_profile, before_reopen.value().color_profile);
 
     PreviewRequest settled = preview;
     settled.persist_preview_record = true;
-    auto settled_preview = service->request_preview(settled);
+    auto settled_preview = service->preview().request_preview(settled);
     ASSERT_TRUE(settled_preview) << settled_preview.error().message;
     const auto export_path = (root / "migrated-develop-perspective.png").string();
     ExportRequest export_request;
@@ -974,7 +974,7 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
                                                 dimensions.value().height, preview.max_edge);
     ASSERT_TRUE(source_size);
     export_request.max_edge = std::max(source_size.value().width, source_size.value().height);
-    auto exported = service->export_asset(export_request);
+    auto exported = service->exports().export_asset(export_request);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage preview_image(QString::fromStdString(settled_preview.value().cache_path));
     const QImage export_image(QString::fromStdString(export_path));
@@ -992,7 +992,7 @@ TEST_F(CatalogServiceTest, IgnoreStraightenRemovesCanonicalPerspectiveForAnalysi
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(200, 80, 40));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1007,12 +1007,12 @@ TEST_F(CatalogServiceTest, IgnoreStraightenRemovesCanonicalPerspectiveForAnalysi
     baked.asset_id = asset_id;
     baked.max_edge = kInteractivePreviewMaxEdge;
     baked.persist_preview_record = false;
-    auto straightened = service->request_preview(baked, tilted);
+    auto straightened = service->preview().request_preview(baked, tilted);
     ASSERT_TRUE(straightened) << straightened.error().message;
     ASSERT_FALSE(straightened.value().rgb.empty());
     PreviewRequest guide = baked;
     guide.ignore_straighten = true;
-    auto unstraightened = service->request_preview(guide, tilted);
+    auto unstraightened = service->preview().request_preview(guide, tilted);
     ASSERT_TRUE(unstraightened) << unstraightened.error().message;
     ASSERT_FALSE(unstraightened.value().rgb.empty());
     EXPECT_EQ(unstraightened.value().width, 48U);
@@ -1034,20 +1034,20 @@ TEST_F(CatalogServiceTest, InvalidStoredRecipeFailsStructuredWithoutTouchingRevi
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(10, 80, 10));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
-    ASSERT_TRUE(service->set_rating(asset_id, 2));
+    ASSERT_TRUE(service->library().set_rating(asset_id, 2));
 
     auto repository = SqliteCatalogRepository::open(database_path);
     ASSERT_TRUE(repository) << repository.error().message;
     ASSERT_TRUE(repository.value()->save_recipe_json(asset_id, 1, R"({"not":"a-recipe")"));
     ASSERT_TRUE(repository.value()->close());
 
-    auto loaded = service->load_recipe(asset_id);
+    auto loaded = service->develop().load_recipe(asset_id);
     ASSERT_FALSE(loaded);
     EXPECT_EQ(loaded.error().code, ErrorCode::kValidation);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().review.rating, 2);
@@ -1060,27 +1060,29 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
         ASSERT_TRUE(open_service(true));
         const auto raw = root / "companion.raw";
         std::filesystem::copy_file(raw_fixture_path(), raw);
-        auto imported = service->import_one(raw.string(), CancellationToken{});
+        auto imported = service->import().import_one(raw.string(), CancellationToken{});
         ASSERT_TRUE(imported) << imported.error().message;
         ASSERT_TRUE(imported.value().asset);
         ExportRequest request;
         request.asset_id = imported.value().asset->id;
         request.format = ExportFormat::kCompanionJpeg;
         request.output_path = (root / "export.jpg").string();
-        auto missing = service->export_asset(request);
+        auto missing = service->exports().export_asset(request);
         ASSERT_FALSE(missing);
         EXPECT_EQ(missing.error().context.at("reason"), "companion_jpeg_missing");
-        EXPECT_FALSE(service->check_companion_jpegs({request.asset_id}, CancellationToken{}));
+        EXPECT_FALSE(
+            service->exports().check_companion_jpegs({request.asset_id}, CancellationToken{}));
         const auto jpeg = root / "companion.JPG";
         QImage image(32, 24, QImage::Format_RGB888);
         image.fill(QColor(40, 120, 200));
         ASSERT_TRUE(image.save(QString::fromStdString(jpeg.string()), "JPEG", 90));
-        EXPECT_TRUE(service->check_companion_jpegs({request.asset_id}, CancellationToken{}));
+        EXPECT_TRUE(
+            service->exports().check_companion_jpegs({request.asset_id}, CancellationToken{}));
         const auto raw_hash = file_sha256(raw.string());
         const auto jpeg_hash = file_sha256(jpeg.string());
-        ASSERT_TRUE(service->export_asset(request));
+        ASSERT_TRUE(service->exports().export_asset(request));
         EXPECT_EQ(file_sha256(request.output_path), jpeg_hash);
-        auto conflict = service->export_asset(request);
+        auto conflict = service->exports().export_asset(request);
         ASSERT_FALSE(conflict);
         EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
         ExportBatchRequest batch;
@@ -1088,13 +1090,13 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
         batch.output_directory = root.string();
         batch.filename_template = "{stem}-batch";
         batch.options.format = ExportFormat::kCompanionJpeg;
-        auto exported_batch = service->export_assets(batch);
+        auto exported_batch = service->exports().export_assets(batch);
         ASSERT_TRUE(exported_batch) << exported_batch.error().message;
         EXPECT_EQ(file_sha256(exported_batch.value().front().output_path), jpeg_hash);
         const auto second = root / "companion.jpeg";
         std::filesystem::copy_file(jpeg, second);
         request.output_path = (root / "ambiguous.jpg").string();
-        auto ambiguous = service->export_asset(request);
+        auto ambiguous = service->exports().export_asset(request);
         ASSERT_FALSE(ambiguous);
         EXPECT_EQ(ambiguous.error().context.at("reason"), "import_jpeg_companion_ambiguous");
         EXPECT_FALSE(std::filesystem::exists(request.output_path));
@@ -1103,7 +1105,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
         CancellationSource cancellation;
         ASSERT_TRUE(cancellation.cancel("test"));
         request.cancellation = cancellation.token();
-        ASSERT_FALSE(service->export_asset(request));
+        ASSERT_FALSE(service->exports().export_asset(request));
         EXPECT_FALSE(std::filesystem::exists(request.output_path));
         EXPECT_EQ(file_sha256(raw.string()), raw_hash);
         EXPECT_EQ(file_sha256(jpeg.string()), jpeg_hash);
@@ -1116,7 +1118,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     image.fill(QColor(40, 120, 200));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     const auto original_hash = file_sha256(jpeg_path);
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
@@ -1131,14 +1133,14 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     params.exposure_ev = 0.5;
     params.output_color.output_profile = std::string(kInputProfileFileIcc);
     params.output_color.output_profile_filename = export_profile_path.string();
-    ASSERT_TRUE(service->save_develop(asset_id, params));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, params));
 
     const auto png_out = (root / "out.png").string();
     ExportRequest png;
     png.asset_id = asset_id;
     png.output_path = png_out;
     png.format = ExportFormat::kPng;
-    auto exported_png = service->export_asset(png);
+    auto exported_png = service->exports().export_asset(png);
     ASSERT_TRUE(exported_png) << exported_png.error().message;
     EXPECT_EQ(exported_png.value().format, ExportFormat::kPng);
     EXPECT_GT(exported_png.value().bytes_written, 0U);
@@ -1151,7 +1153,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     EXPECT_EQ(read_png.colorSpace(), QColorSpace(QColorSpace::DisplayP3));
     EXPECT_EQ(file_sha256(jpeg_path), original_hash);
 
-    auto conflict = service->export_asset(png);
+    auto conflict = service->exports().export_asset(png);
     ASSERT_FALSE(conflict);
     EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
     EXPECT_TRUE(std::filesystem::exists(png_out));
@@ -1163,7 +1165,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     jpeg.output_path = jpeg_out;
     jpeg.format = ExportFormat::kJpeg;
     jpeg.jpeg_options.quality = 85;
-    auto exported_jpeg = service->export_asset(jpeg);
+    auto exported_jpeg = service->exports().export_asset(jpeg);
     ASSERT_TRUE(exported_jpeg) << exported_jpeg.error().message;
     EXPECT_TRUE(std::filesystem::exists(jpeg_out));
     const QImage read_jpeg(QString::fromStdString(jpeg_out));
@@ -1181,7 +1183,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
                                     QColor((x * 37 + y * 61) % 256, (x * 89 + y * 23) % 256,
                                            (x * 17 + y * 97) % 256));
         ASSERT_TRUE(noisy.save(QString::fromStdString(noisy_path), "PNG"));
-        auto source = service->import_one(noisy_path, CancellationToken{});
+        auto source = service->import().import_one(noisy_path, CancellationToken{});
         ASSERT_TRUE(source);
         ASSERT_TRUE(source.value().asset);
         ExportRequest limited;
@@ -1189,21 +1191,21 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
         limited.format = ExportFormat::kJpeg;
         limited.jpeg_options.quality = 100;
         limited.output_path = (root / "size-unlimited.jpg").string();
-        auto full = service->export_asset(limited);
+        auto full = service->exports().export_asset(limited);
         ASSERT_TRUE(full) << full.error().message;
         limited.jpeg_max_bytes = static_cast<std::uint32_t>(full.value().bytes_written / 2U);
         limited.output_path = (root / "size-limited.jpg").string();
-        auto fitted = service->export_asset(limited);
+        auto fitted = service->exports().export_asset(limited);
         ASSERT_TRUE(fitted) << fitted.error().message;
         EXPECT_LE(fitted.value().bytes_written, limited.jpeg_max_bytes);
         EXPECT_EQ(std::filesystem::file_size(limited.output_path), fitted.value().bytes_written);
         EXPECT_EQ(fitted.value().width, full.value().width);
         EXPECT_EQ(fitted.value().height, full.value().height);
         EXPECT_FALSE(QImage(QString::fromStdString(limited.output_path)).isNull());
-        EXPECT_FALSE(service->export_asset(limited));
+        EXPECT_FALSE(service->exports().export_asset(limited));
         limited.jpeg_max_bytes = 1;
         limited.output_path = (root / "size-impossible.jpg").string();
-        auto impossible = service->export_asset(limited);
+        auto impossible = service->exports().export_asset(limited);
         ASSERT_FALSE(impossible);
         EXPECT_EQ(impossible.error().context.at("reason"), "jpeg_size_limit_unreachable");
         EXPECT_FALSE(std::filesystem::exists(limited.output_path));
@@ -1211,7 +1213,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
         ASSERT_TRUE(cancellation.cancel("size-test"));
         limited.cancellation = cancellation.token();
         limited.output_path = (root / "size-cancelled.jpg").string();
-        EXPECT_FALSE(service->export_asset(limited));
+        EXPECT_FALSE(service->exports().export_asset(limited));
         EXPECT_FALSE(std::filesystem::exists(limited.output_path));
     }
 
@@ -1220,7 +1222,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     tiff.asset_id = asset_id;
     tiff.output_path = tiff_out;
     tiff.format = ExportFormat::kTiff;
-    auto exported_tiff = service->export_asset(tiff);
+    auto exported_tiff = service->exports().export_asset(tiff);
     if (exported_tiff)
     {
         EXPECT_TRUE(std::filesystem::exists(tiff_out));
@@ -1240,7 +1242,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     copy.asset_id = asset_id;
     copy.output_path = copy_out;
     copy.format = ExportFormat::kOriginalCopy;
-    auto exported_copy = service->export_asset(copy);
+    auto exported_copy = service->exports().export_asset(copy);
     ASSERT_TRUE(exported_copy) << exported_copy.error().message;
     EXPECT_EQ(file_sha256(copy_out), original_hash);
     EXPECT_EQ(file_sha256(jpeg_path), original_hash);
@@ -1254,7 +1256,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     cancel.output_path = cancelled_out;
     cancel.format = ExportFormat::kPng;
     cancel.cancellation = cancelled.token();
-    auto exported_cancel = service->export_asset(cancel);
+    auto exported_cancel = service->exports().export_asset(cancel);
     ASSERT_FALSE(exported_cancel);
     EXPECT_EQ(exported_cancel.error().code, ErrorCode::kCancelled);
     EXPECT_FALSE(std::filesystem::exists(cancelled_out));
@@ -1263,14 +1265,14 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     ExportRequest bad_quality = jpeg;
     bad_quality.output_path = (root / "bad-quality.jpg").string();
     bad_quality.jpeg_options.quality = 0;
-    auto invalid_quality = service->export_asset(bad_quality);
+    auto invalid_quality = service->exports().export_asset(bad_quality);
     ASSERT_FALSE(invalid_quality);
     EXPECT_EQ(invalid_quality.error().code, ErrorCode::kValidation);
     EXPECT_FALSE(std::filesystem::exists(bad_quality.output_path));
 
     ExportRequest missing_directory = png;
     missing_directory.output_path = (root / "missing" / "out.png").string();
-    auto missing_result = service->export_asset(missing_directory);
+    auto missing_result = service->exports().export_asset(missing_directory);
     ASSERT_FALSE(missing_result);
     EXPECT_EQ(missing_result.error().code, ErrorCode::kIo);
     EXPECT_FALSE(std::filesystem::exists(missing_directory.output_path));
@@ -1286,7 +1288,7 @@ TEST_F(CatalogServiceTest, BatchExportExpandsInOrderAndPreflightsEveryConflict)
         image.setColorSpace(QColorSpace(QColorSpace::SRgb));
         image.fill(color);
         EXPECT_TRUE(image.save(QString::fromStdString(path), "JPEG", 90));
-        auto imported = service->import_one(path, CancellationToken{});
+        auto imported = service->import().import_one(path, CancellationToken{});
         EXPECT_TRUE(imported) << imported.error().message;
         EXPECT_TRUE(imported.value().asset.has_value());
         return imported.value().asset->id;
@@ -1302,15 +1304,15 @@ TEST_F(CatalogServiceTest, BatchExportExpandsInOrderAndPreflightsEveryConflict)
     request.filename_template = "{sequence}-{stem}{ext}";
     request.options.format = ExportFormat::kPng;
     std::vector<std::size_t> progress_indices;
-    auto exported = service->export_assets(request,
-                                           [&progress_indices](const std::size_t current,
-                                                               const std::size_t total,
-                                                               const ExportResult *result)
-                                           {
-                                               EXPECT_EQ(total, 2U);
-                                               ASSERT_NE(result, nullptr);
-                                               progress_indices.push_back(current);
-                                           });
+    auto exported = service->exports().export_assets(request,
+                                                     [&progress_indices](const std::size_t current,
+                                                                         const std::size_t total,
+                                                                         const ExportResult *result)
+                                                     {
+                                                         EXPECT_EQ(total, 2U);
+                                                         ASSERT_NE(result, nullptr);
+                                                         progress_indices.push_back(current);
+                                                     });
     ASSERT_TRUE(exported) << exported.error().message;
     ASSERT_EQ(exported.value().size(), 2U);
     EXPECT_EQ(progress_indices, (std::vector<std::size_t>{1U, 2U}));
@@ -1330,7 +1332,7 @@ TEST_F(CatalogServiceTest, BatchExportExpandsInOrderAndPreflightsEveryConflict)
     }
     const auto conflict_hash = file_sha256(conflict_path.string());
     request.output_directory = conflict_directory.string();
-    auto conflict = service->export_assets(request);
+    auto conflict = service->exports().export_assets(request);
     ASSERT_FALSE(conflict);
     EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
     EXPECT_EQ(conflict.error().context.at("completed_count"), "0");
@@ -1341,7 +1343,7 @@ TEST_F(CatalogServiceTest, BatchExportExpandsInOrderAndPreflightsEveryConflict)
     request.output_directory = (root / "batch-duplicate-name").string();
     std::filesystem::create_directory(request.output_directory);
     request.filename_template = "same{ext}";
-    auto duplicate = service->export_assets(request);
+    auto duplicate = service->exports().export_assets(request);
     ASSERT_FALSE(duplicate);
     EXPECT_EQ(duplicate.error().context.at("reason"), "duplicate_export_output");
     EXPECT_TRUE(std::filesystem::is_empty(request.output_directory));
@@ -1358,7 +1360,7 @@ TEST_F(CatalogServiceTest, BatchExportCancellationReportsStablePartialDelivery)
         image.setColorSpace(QColorSpace(QColorSpace::SRgb));
         image.fill(index == 0 ? QColor(200, 20, 30) : QColor(20, 200, 30));
         ASSERT_TRUE(image.save(QString::fromStdString(path), "JPEG", 90));
-        auto imported = service->import_one(path, CancellationToken{});
+        auto imported = service->import().import_one(path, CancellationToken{});
         ASSERT_TRUE(imported) << imported.error().message;
         ASSERT_TRUE(imported.value().asset);
         asset_ids.push_back(imported.value().asset->id);
@@ -1371,7 +1373,7 @@ TEST_F(CatalogServiceTest, BatchExportCancellationReportsStablePartialDelivery)
     request.output_directory = output_directory.string();
     request.options.format = ExportFormat::kJpeg;
     request.cancellation = cancellation.token();
-    auto exported = service->export_assets(
+    auto exported = service->exports().export_assets(
         request,
         [&cancellation](const std::size_t current, const std::size_t, const ExportResult *)
         {
@@ -1399,7 +1401,7 @@ TEST_F(CatalogServiceTest, BatchExportRuntimeFailureNamesAlreadyDeliveredOutputs
         image.setColorSpace(QColorSpace(QColorSpace::SRgb));
         image.fill(index == 0 ? QColor(200, 20, 30) : QColor(20, 200, 30));
         ASSERT_TRUE(image.save(QString::fromStdString(path), "JPEG", 90));
-        auto imported = service->import_one(path, CancellationToken{});
+        auto imported = service->import().import_one(path, CancellationToken{});
         ASSERT_TRUE(imported) << imported.error().message;
         ASSERT_TRUE(imported.value().asset);
         asset_ids.push_back(imported.value().asset->id);
@@ -1411,7 +1413,7 @@ TEST_F(CatalogServiceTest, BatchExportRuntimeFailureNamesAlreadyDeliveredOutputs
     request.asset_ids = asset_ids;
     request.output_directory = output_directory.string();
     request.options.format = ExportFormat::kPng;
-    auto exported = service->export_assets(
+    auto exported = service->exports().export_assets(
         request,
         [&source_paths](const std::size_t current, const std::size_t, const ExportResult *)
         {

@@ -89,7 +89,7 @@ DevelopSection {
                 resetValue: 0
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? (modelData.field === "straighten" ? panel.presenter.editStraighten : panel.presenter.editPerspective[modelData.key]) : 0
+                value: panel.hasPresenter ? (modelData.field === "straighten" ? panel.presenter.develop.editStraighten : panel.presenter.develop.editPerspective[modelData.key]) : 0
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -107,19 +107,22 @@ DevelopSection {
             objectName: "perspectiveConstrainCrop"
             text: qsTr("Constrain crop")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editPerspective.constrainCrop
+            checked: panel.hasPresenter && panel.presenter.develop.editPerspective.constrainCrop
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("perspectiveConstrainCrop", checked ? 1 : 0)
         }
         Connections {
-            target: panel.presenter
+            target: panel.presenter ? panel.presenter.develop : null
             function onEditChanged() {
-                const constrained = panel.hasPresenter && panel.presenter.editPerspective.constrainCrop;
+                const constrained = panel.hasPresenter && panel.presenter.develop.editPerspective.constrainCrop;
                 if (perspectiveConstrainCropBox.checked !== constrained)
                     perspectiveConstrainCropBox.checked = constrained;
             }
+        }
+        Connections {
+            target: panel.presenter
             function onSelectionChanged() {
-                perspectiveConstrainCropBox.checked = panel.hasPresenter && panel.presenter.editPerspective.constrainCrop;
+                perspectiveConstrainCropBox.checked = panel.hasPresenter && panel.presenter.develop.editPerspective.constrainCrop;
             }
         }
         CustomComboBox {
@@ -127,7 +130,7 @@ DevelopSection {
             Layout.fillWidth: true
             enabled: panel.hasSelection
             model: [qsTr("Bilinear — fast"), qsTr("Lanczos 2"), qsTr("Lanczos 3 — best quality")]
-            currentIndex: panel.hasPresenter ? panel.presenter.editPerspective.interpolationIndex : 2
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editPerspective.interpolationIndex : 2
             Accessible.name: qsTr("Perspective interpolation")
             onActivated: function (index) {
                 if (panel.commands)
@@ -139,19 +142,22 @@ DevelopSection {
             objectName: "canvasEnabled"
             text: qsTr("Enlarge Canvas")
             enabled: panel.hasSelection
-            checked: panel.hasPresenter && panel.presenter.editCanvasEnabled
+            checked: panel.hasPresenter && panel.presenter.develop.editCanvasEnabled
             onToggled: if (panel.liveReady && panel.commands)
                 panel.commands.setDevelopNumber("canvasEnabled", checked ? 1 : 0)
         }
         Connections {
-            target: panel.presenter
+            target: panel.presenter ? panel.presenter.develop : null
             function onEditChanged() {
-                const enabled = panel.hasPresenter && panel.presenter.editCanvasEnabled;
+                const enabled = panel.hasPresenter && panel.presenter.develop.editCanvasEnabled;
                 if (canvasEnabledBox.checked !== enabled)
                     canvasEnabledBox.checked = enabled;
             }
+        }
+        Connections {
+            target: panel.presenter
             function onSelectionChanged() {
-                canvasEnabledBox.checked = panel.hasPresenter && panel.presenter.editCanvasEnabled;
+                canvasEnabledBox.checked = panel.hasPresenter && panel.presenter.develop.editCanvasEnabled;
             }
         }
         Repeater {
@@ -191,7 +197,7 @@ DevelopSection {
                 showReset: false
                 delayedCommit: true
                 enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.editCanvas[modelData.key] : 0
+                value: panel.hasPresenter ? panel.presenter.develop.editCanvas[modelData.key] : 0
                 onValueEdited: function (value) {
                     if (panel.liveReady && panel.commands)
                         panel.commands.previewDevelopNumber(modelData.field, value);
@@ -210,8 +216,8 @@ DevelopSection {
             visible: canvasEnabledBox.checked
             enabled: panel.hasSelection
             textRole: "label"
-            model: panel.hasPresenter ? panel.presenter.editCanvas.colorChoices : []
-            currentIndex: panel.hasPresenter ? panel.presenter.editCanvas.colorIndex : 0
+            model: panel.hasPresenter ? panel.presenter.develop.editCanvas.colorChoices : []
+            currentIndex: panel.hasPresenter ? panel.presenter.develop.editCanvas.colorIndex : 0
             Accessible.name: qsTr("Canvas color")
             onActivated: function (index) {
                 if (panel.commands)

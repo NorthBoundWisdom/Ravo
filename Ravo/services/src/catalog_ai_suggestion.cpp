@@ -1,5 +1,14 @@
 #include "ravo/services/ai_suggestion.h"
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/ai_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/develop_service.h"
+#include "ravo/services/library_service.h"
+#include "ravo/services/metadata_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -244,17 +253,17 @@ Result<AiSuggestionKind> parse_ai_suggestion_kind(const std::string_view text)
                       {{"kind", std::string(text)}, {"reason", "unsupported_ai_suggestion_kind"}});
 }
 
-Result<std::filesystem::path> CatalogService::ai_suggestions_directory() const
+Result<std::filesystem::path> AiService::ai_suggestions_directory() const
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
-    auto snapshot = this->snapshot();
+    auto snapshot = library_service_.snapshot();
     if (!snapshot)
         return snapshot.error();
     return std::filesystem::path(snapshot.value().database_path).concat(".ai_suggestions");
 }
 
-Result<void> CatalogService::persist_ai_suggestion(const AiSuggestion &suggestion)
+Result<void> AiService::persist_ai_suggestion(const AiSuggestion &suggestion)
 {
     auto directory = ai_suggestions_directory();
     if (!directory)
@@ -271,7 +280,7 @@ Result<void> CatalogService::persist_ai_suggestion(const AiSuggestion &suggestio
         path.string(), serialize_json(suggestion_to_storage_json(suggestion)));
 }
 
-Result<void> CatalogService::ensure_ai_suggestions_loaded() const
+Result<void> AiService::ensure_ai_suggestions_loaded() const
 {
     if (ai_suggestions_loaded_)
         return {};
@@ -312,7 +321,7 @@ Result<void> CatalogService::ensure_ai_suggestions_loaded() const
     return {};
 }
 
-Result<AiSuggestion> CatalogService::create_ai_suggestion(const AiSuggestionCreateRequest &request)
+Result<AiSuggestion> AiService::create_ai_suggestion(const AiSuggestionCreateRequest &request)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -333,7 +342,7 @@ Result<AiSuggestion> CatalogService::create_ai_suggestion(const AiSuggestionCrea
     if (!cancelled)
         return cancelled.error();
 
-    auto snapshot = this->snapshot();
+    auto snapshot = library_service_.snapshot();
     if (!snapshot)
         return snapshot.error();
     if (request.expected_catalog_revision &&
@@ -393,7 +402,7 @@ Result<AiSuggestion> CatalogService::create_ai_suggestion(const AiSuggestionCrea
     return suggestion;
 }
 
-Result<AiSuggestion> CatalogService::get_ai_suggestion(const std::string_view suggestion_id) const
+Result<AiSuggestion> AiService::get_ai_suggestion(const std::string_view suggestion_id) const
 {
     auto loaded = ensure_ai_suggestions_loaded();
     if (!loaded)
@@ -413,7 +422,7 @@ Result<AiSuggestion> CatalogService::get_ai_suggestion(const std::string_view su
 }
 
 Result<std::vector<AiSuggestion>>
-CatalogService::list_ai_suggestions(const std::optional<std::string_view> asset_id) const
+AiService::list_ai_suggestions(const std::optional<std::string_view> asset_id) const
 {
     auto loaded = ensure_ai_suggestions_loaded();
     if (!loaded)
@@ -438,8 +447,8 @@ CatalogService::list_ai_suggestions(const std::optional<std::string_view> asset_
 }
 
 Result<AiSuggestionAcceptResult>
-CatalogService::accept_ai_suggestion(const std::string_view suggestion_id,
-                                     const std::optional<std::int64_t> expected_catalog_revision)
+AiService::accept_ai_suggestion(const std::string_view suggestion_id,
+                                const std::optional<std::int64_t> expected_catalog_revision)
 {
     auto loaded = ensure_ai_suggestions_loaded();
     if (!loaded)
@@ -458,7 +467,7 @@ CatalogService::accept_ai_suggestion(const std::string_view suggestion_id,
                            {"reason", "ai_suggestion_not_pending"}});
     }
 
-    auto snapshot = this->snapshot();
+    auto snapshot = library_service_.snapshot();
     if (!snapshot)
         return snapshot.error();
     if (expected_catalog_revision && *expected_catalog_revision != snapshot.value().revision)
@@ -487,7 +496,7 @@ CatalogService::accept_ai_suggestion(const std::string_view suggestion_id,
             if (std::find(tags.begin(), tags.end(), keyword) == tags.end())
                 tags.push_back(keyword);
         }
-        auto updated = set_tags(suggestion.asset_id, tags);
+        auto updated = metadata_service_.set_tags(suggestion.asset_id, tags);
         if (!updated)
             return updated.error();
         result.catalog_mutated = true;
@@ -511,7 +520,7 @@ CatalogService::accept_ai_suggestion(const std::string_view suggestion_id,
         metadata.description = *suggestion.suggested_caption;
         if (suggestion.suggested_headline)
             metadata.headline = *suggestion.suggested_headline;
-        auto updated = set_writable_metadata(suggestion.asset_id, metadata);
+        auto updated = metadata_service_.set_writable_metadata(suggestion.asset_id, metadata);
         if (!updated)
             return updated.error();
         result.catalog_mutated = true;
@@ -532,7 +541,7 @@ CatalogService::accept_ai_suggestion(const std::string_view suggestion_id,
     return result;
 }
 
-Result<AiSuggestion> CatalogService::reject_ai_suggestion(const std::string_view suggestion_id)
+Result<AiSuggestion> AiService::reject_ai_suggestion(const std::string_view suggestion_id)
 {
     auto loaded = ensure_ai_suggestions_loaded();
     if (!loaded)
@@ -556,7 +565,7 @@ Result<AiSuggestion> CatalogService::reject_ai_suggestion(const std::string_view
     return found->second;
 }
 
-Result<AiSuggestion> CatalogService::cancel_ai_suggestion(const std::string_view suggestion_id)
+Result<AiSuggestion> AiService::cancel_ai_suggestion(const std::string_view suggestion_id)
 {
     auto loaded = ensure_ai_suggestions_loaded();
     if (!loaded)

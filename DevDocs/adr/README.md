@@ -6,6 +6,14 @@ status, date, context, decision, consequences, and rejected alternatives. Do
 not silently rewrite an accepted ADR; record a new ADR and mark the
 supersession relationship when direction changes.
 
+Use a new ADR for durable dependency, persistence, public protocol or
+thread/ownership decisions and consequential tradeoffs. Routine bug fixes belong
+in regression tests; current algorithm parameter tables and UI specifications
+belong in their existing owning documents. Internal code relocation that keeps
+an accepted decision unchanged updates the current architecture and tests rather
+than duplicating that decision in another ADR. Historical identifiers and accepted
+decision bodies remain stable.
+
 | ADR | Status | Decision |
 | --- | --- | --- |
 | [0001](0001-cpp20-headless-first.md) | Partially superseded by 0007 | C++20 headless engine/CLI first; no Rust in the first version |

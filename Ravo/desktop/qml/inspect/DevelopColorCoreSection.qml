@@ -40,7 +40,7 @@ DevelopSection {
                     visible: !panel.localEditing
                     model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
                     enabled: panel.hasSelection
-                    currentIndex: panel.hasPresenter ? panel.presenter.editWhiteBalance.modeIndex : 0
+                    currentIndex: panel.hasPresenter ? panel.presenter.develop.editWhiteBalance.modeIndex : 0
                     onActivated: if (panel.commands)
                         panel.commands.setDevelopNumber("whiteBalanceMode", currentIndex)
                 }
@@ -48,27 +48,27 @@ DevelopSection {
                     objectName: "whiteBalancePickActive"
                     visible: !panel.localEditing
                     text: qsTr("Pick white on photo")
-                    enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.editWhiteBalance.canPick
-                    checked: panel.hasPresenter && panel.presenter.whiteBalancePickActive
+                    enabled: panel.hasSelection && panel.hasPresenter && panel.presenter.develop.editWhiteBalance.canPick
+                    checked: panel.hasPresenter && panel.presenter.develop.whiteBalancePickActive
                     onToggled: if (panel.commands)
                         panel.commands.setWhiteBalancePickActive(checked)
                 }
                 CustomLabel {
                     Layout.fillWidth: true
-                    visible: panel.hasPresenter && panel.presenter.whiteBalancePickActive
+                    visible: panel.hasPresenter && panel.presenter.develop.whiteBalancePickActive
                     text: qsTr("Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.")
                     wrapMode: Text.WordWrap
                     opacity: 0.75
                 }
                 Repeater {
-                    model: panel.hasPresenter && (panel.presenter.editWhiteBalance.modeIndex === 3 || panel.presenter.editWhiteBalance.hasCoefficients) ? [
+                    model: panel.hasPresenter && (panel.presenter.develop.editWhiteBalance.modeIndex === 3 || panel.presenter.develop.editWhiteBalance.hasCoefficients) ? [
                         {
                             "title": qsTr("Red coefficient"),
                             "key": "red",
                             "field": "whiteBalanceRed",
                             "low": "#4091bd",
                             "high": "#e7a044",
-                            "value": panel.presenter.editWhiteBalance.red,
+                            "value": panel.presenter.develop.editWhiteBalance.red,
                             "commands": panel.commands,
                             "liveReady": panel.liveReady,
                             "enabled": panel.hasSelection
@@ -79,7 +79,7 @@ DevelopSection {
                             "field": "whiteBalanceGreen",
                             "low": "#43af56",
                             "high": "#d24bab",
-                            "value": panel.presenter.editWhiteBalance.green,
+                            "value": panel.presenter.develop.editWhiteBalance.green,
                             "commands": panel.commands,
                             "liveReady": panel.liveReady,
                             "enabled": panel.hasSelection
@@ -90,7 +90,7 @@ DevelopSection {
                             "field": "whiteBalanceBlue",
                             "low": "#e7a044",
                             "high": "#4091bd",
-                            "value": panel.presenter.editWhiteBalance.blue,
+                            "value": panel.presenter.develop.editWhiteBalance.blue,
                             "commands": panel.commands,
                             "liveReady": panel.liveReady,
                             "enabled": panel.hasSelection
@@ -101,7 +101,7 @@ DevelopSection {
                             "field": "whiteBalanceFourth",
                             "low": "#43af56",
                             "high": "#d24bab",
-                            "value": panel.presenter.editWhiteBalance.fourth,
+                            "value": panel.presenter.develop.editWhiteBalance.fourth,
                             "commands": panel.commands,
                             "liveReady": panel.liveReady,
                             "enabled": panel.hasSelection
@@ -163,7 +163,7 @@ DevelopSection {
             displayDecimals: 0
             resetValue: 0
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editVibrance : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editVibrance : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("vibrance", value);
@@ -184,7 +184,7 @@ DevelopSection {
             displayDecimals: 0
             resetValue: 0
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editSaturation : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editSaturation : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("saturation", value);
@@ -217,7 +217,7 @@ DevelopSection {
             displayDecimals: 0
             resetValue: 0
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.hueRotation : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.hueRotation : 0
             trackGradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop {
@@ -323,9 +323,9 @@ DevelopSection {
                 hueField: "colorBalanceMidtonesHue"
                 chromaField: "colorBalanceMidtonesChroma"
                 luminanceField: "colorBalanceMidtonesY"
-                hue: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.midtonesHue : 0
-                chroma: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.midtonesChroma : 0
-                luminance: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.midtonesY : 0
+                hue: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.midtonesHue : 0
+                chroma: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.midtonesChroma : 0
+                luminance: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.midtonesY : 0
                 maxChroma: 0.1
                 luminanceFrom: -0.25
                 luminanceTo: 0.25
@@ -346,9 +346,9 @@ DevelopSection {
                     hueField: "colorBalanceShadowsHue"
                     chromaField: "colorBalanceShadowsChroma"
                     luminanceField: "colorBalanceShadowsY"
-                    hue: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.shadowsHue : 0
-                    chroma: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.shadowsChroma : 0
-                    luminance: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.shadowsY : 0
+                    hue: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.shadowsHue : 0
+                    chroma: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.shadowsChroma : 0
+                    luminance: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.shadowsY : 0
                     maxChroma: 0.5
                     luminanceFrom: -1
                     luminanceTo: 1
@@ -365,9 +365,9 @@ DevelopSection {
                     hueField: "colorBalanceHighlightsHue"
                     chromaField: "colorBalanceHighlightsChroma"
                     luminanceField: "colorBalanceHighlightsY"
-                    hue: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.highlightsHue : 0
-                    chroma: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.highlightsChroma : 0
-                    luminance: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.highlightsY : 0
+                    hue: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.highlightsHue : 0
+                    chroma: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.highlightsChroma : 0
+                    luminance: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.highlightsY : 0
                     maxChroma: 0.2
                     luminanceFrom: -0.5
                     luminanceTo: 0.5
@@ -389,9 +389,9 @@ DevelopSection {
             hueField: "colorBalanceGlobalHue"
             chromaField: "colorBalanceGlobalChroma"
             luminanceField: "colorBalanceGlobalY"
-            hue: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.globalHue : 0
-            chroma: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.globalChroma : 0
-            luminance: panel.hasPresenter ? panel.presenter.editColorBalanceRgb.globalY : 0
+            hue: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.globalHue : 0
+            chroma: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.globalChroma : 0
+            luminance: panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.globalY : 0
             maxChroma: 0.5
             luminanceFrom: -0.05
             luminanceTo: 0.05
@@ -415,7 +415,7 @@ DevelopSection {
                         "from": 0,
                         "to": 3,
                         "reset": 1,
-                        "value": panel.hasPresenter ? panel.presenter.editColorBalanceRgb.shadowsFalloff : 1,
+                        "value": panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.shadowsFalloff : 1,
                         "commands": panel.commands,
                         "liveReady": panel.liveReady,
                         "enabled": panel.hasSelection
@@ -427,7 +427,7 @@ DevelopSection {
                         "from": 0,
                         "to": 3,
                         "reset": 1,
-                        "value": panel.hasPresenter ? panel.presenter.editColorBalanceRgb.highlightsFalloff : 1,
+                        "value": panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.highlightsFalloff : 1,
                         "commands": panel.commands,
                         "liveReady": panel.liveReady,
                         "enabled": panel.hasSelection
@@ -439,7 +439,7 @@ DevelopSection {
                         "from": 0,
                         "to": 1,
                         "reset": 0.1845,
-                        "value": panel.hasPresenter ? panel.presenter.editColorBalanceRgb.maskGreyFulcrum : 0.1845,
+                        "value": panel.hasPresenter ? panel.presenter.develop.editColorBalanceRgb.maskGreyFulcrum : 0.1845,
                         "commands": panel.commands,
                         "liveReady": panel.liveReady,
                         "enabled": panel.hasSelection

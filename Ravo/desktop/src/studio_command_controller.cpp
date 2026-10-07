@@ -203,15 +203,17 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     case Condition::kModifiedParameters:
         if (!selection)
             return {false, tr_command(QStringLiteral("Select a photo first."))};
-        return presenter.modifiedParameterChoices().isEmpty() ?
+        return presenter.develop()->modifiedParameterChoices().isEmpty() ?
                    State{false, tr_command(QStringLiteral("No modified parameters to copy."))} :
                    State{};
     case Condition::kCanUndo:
-        return presenter.browseMode() == QLatin1String("develop") && presenter.canUndo() ?
+        return presenter.browseMode() == QLatin1String("develop") &&
+                       presenter.develop()->canUndo() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Nothing to undo."))};
     case Condition::kCanRedo:
-        return presenter.browseMode() == QLatin1String("develop") && presenter.canRedo() ?
+        return presenter.browseMode() == QLatin1String("develop") &&
+                       presenter.develop()->canRedo() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Nothing to redo."))};
     case Condition::kCanPasteParameters:
@@ -219,7 +221,7 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
             return {false, tr_command(QStringLiteral("Open a library first."))};
         if (!selection)
             return {false, tr_command(QStringLiteral("Select a photo first."))};
-        return presenter.hasCopiedParameters() ?
+        return presenter.develop()->hasCopiedParameters() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Copy parameters first."))};
     case Condition::kCanPasteParametersToSelection:
@@ -231,7 +233,7 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
             return {false, tr_command(QStringLiteral("Wait for library work to finish."))};
         if (presenter.selectedCount() < 2)
             return {false, tr_command(QStringLiteral("Select at least two photos first."))};
-        return presenter.hasCopiedParameters() ?
+        return presenter.develop()->hasCopiedParameters() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Copy parameters first."))};
     case Condition::kCanDelete:
@@ -265,7 +267,8 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
         title = tr_command(QStringLiteral("Unreject"));
     if (found->id == QLatin1String(command::kPhotoTogglePick) && presenter_.selectedPicked())
         title = tr_command(QStringLiteral("Unpick"));
-    if (found->id == QLatin1String(command::kEditCropTool) && presenter_.cropToolActive())
+    if (found->id == QLatin1String(command::kEditCropTool) &&
+        presenter_.develop()->cropToolActive())
         title = tr_command(QStringLiteral("Done Cropping"));
 
     bool checkable = false;
@@ -325,17 +328,17 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     else if (found->id == QLatin1String(command::kEditCropTool))
     {
         checkable = true;
-        checked = presenter_.cropToolActive();
+        checked = presenter_.develop()->cropToolActive();
     }
     else if (found->id == QLatin1String(command::kEditBeforeAfter))
     {
         checkable = true;
-        checked = presenter_.beforeAfter();
+        checked = presenter_.develop()->beforeAfter();
     }
     else if (found->id == QLatin1String(command::kEditComparison))
     {
         checkable = true;
-        checked = presenter_.comparisonActive();
+        checked = presenter_.develop()->comparisonActive();
     }
     else if (found->id == QLatin1String(command::kWindowAssistant))
     {
@@ -506,15 +509,18 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
         return make_error(ErrorCode::kConflict, state.reason.toUtf8().toStdString(),
                           {{"reason", "command_unavailable"}});
     }
-    if (!presenter_.develop_loaded_ || presenter_.busy_ || presenter_.mask_gesture_before_ ||
-        presenter_.local_creation_before_ || presenter_.develop_job_in_flight_ ||
-        presenter_.pending_save_ || presenter_.pending_preview_)
+    if (!presenter_.develop()->state().develop_loaded_ || presenter_.busy_ ||
+        presenter_.develop()->state().mask_gesture_before_ ||
+        presenter_.develop()->state().local_creation_before_ ||
+        presenter_.develop()->state().develop_job_in_flight_ ||
+        presenter_.develop()->state().pending_save_ ||
+        presenter_.develop()->state().pending_preview_)
     {
         return make_error(ErrorCode::kConflict, "Studio Develop state is busy",
                           {{"reason", "busy"}});
     }
 
-    DevelopParams next = presenter_.develop_;
+    DevelopParams next = presenter_.develop()->state().develop_;
     std::set<std::string, std::less<>> names;
     for (const auto &field : fields)
     {
@@ -542,7 +548,8 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
     {
         presenter_.openDevelop();
     }
-    return presenter_.mutate_develop(std::move(next), StudioPresenter::DevelopEdit::Commit);
+    return presenter_.develop()->mutate_develop(std::move(next),
+                                                StudioDevelopPresenter::DevelopEdit::Commit);
 }
 
 Result<bool> StudioCommandController::applyLocalAdjustment(const QString &action,
@@ -556,7 +563,7 @@ Result<bool> StudioCommandController::applyLocalAdjustment(const QString &action
     if (modal_open_ || !state.enabled)
         return make_error(ErrorCode::kConflict, "Local adjustment command is unavailable",
                           {{"reason", "command_unavailable"}});
-    return presenter_.applyLocalAdjustmentCommand(action, arguments);
+    return presenter_.develop()->applyLocalAdjustmentCommand(action, arguments);
 }
 
 QVariantMap StudioCommandController::localAdjustment(const QString &action,
@@ -571,7 +578,7 @@ QVariantMap StudioCommandController::localAdjustment(const QString &action,
     }
     return {{QStringLiteral("ok"), true},
             {QStringLiteral("changed"), applied.value()},
-            {QStringLiteral("token"), presenter_.mask_gesture_token_}};
+            {QStringLiteral("token"), presenter_.develop()->state().mask_gesture_token_}};
 }
 
 void StudioCommandController::cancelPendingConfirmation(const QString &token)

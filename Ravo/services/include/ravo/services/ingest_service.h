@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,16 +17,16 @@ namespace ravo
 {
 
 class CatalogService;
+class CatalogRepository;
+class ImportService;
 
 class IngestService
 {
 public:
-    explicit IngestService(CatalogService &catalog) noexcept;
-
     IngestService(const IngestService &) = delete;
     IngestService &operator=(const IngestService &) = delete;
-    IngestService(IngestService &&) noexcept = default;
-    IngestService &operator=(IngestService &&) noexcept = default;
+    IngestService(IngestService &&) = delete;
+    IngestService &operator=(IngestService &&) = delete;
 
     [[nodiscard]] Result<ImportBatchResult>
     execute_ingest(const IngestRequest &request,
@@ -38,7 +39,11 @@ public:
     [[nodiscard]] Result<NativeIngestPlatformSupport> probe_ingest_native_support() const;
 
 private:
-    CatalogService *catalog_ = nullptr;
+    friend class CatalogService;
+    IngestService(const std::unique_ptr<CatalogRepository> &repository,
+                  ImportService &import_service) noexcept;
+    const std::unique_ptr<CatalogRepository> &repository_;
+    ImportService &import_service_;
 };
 
 } // namespace ravo

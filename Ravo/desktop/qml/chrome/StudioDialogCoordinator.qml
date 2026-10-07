@@ -82,13 +82,16 @@ QtObject {
     property Connections presenterSignals: Connections {
         target: root.presenter
         function onPhotoMergeDialogRequested(context) { root.photoMergeDialog.openForContext(context); }
+        function onSelectionChanged() { root.companionDialog.close(); }
+        function onCatalogChanged() { root.companionDialog.close(); }
+    }
+    property Connections exportSignals: Connections {
+        target: root.presenter ? root.presenter.exports : null
         function onCompanionExportReady() { root.openCompanionExportDialog(); }
         function onCompanionExportMissing() {
             root.windowHost.clearPendingExport();
             root.companionDialog.openWithButtons();
         }
-        function onSelectionChanged() { root.companionDialog.close(); }
-        function onCatalogChanged() { root.companionDialog.close(); }
     }
 
     property string pendingRelinkFolderId: ""

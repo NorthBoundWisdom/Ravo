@@ -10,7 +10,7 @@
 #include <QVariantList>
 
 #include "ravo/domain/types.h"
-#include "ravo/foundation/cancellation.h"
+#include "ravo/foundation/cancellation_generation.h"
 #include "ravo/foundation/executor.h"
 #include "ravo/services/catalog_service.h"
 
@@ -68,7 +68,7 @@ public:
     }
     [[nodiscard]] std::uint64_t generation() const noexcept
     {
-        return generation_;
+        return operation_.revision();
     }
 
 signals:
@@ -80,12 +80,11 @@ private:
 
     Host host_;
     QTimer timer_;
-    CancellationSource operation_;
+    CancellationGeneration operation_;
     QVariantList folders_;
     std::vector<ImportDestinationFolder> tree_folders_;
     QString error_;
     QByteArray key_;
-    std::uint64_t generation_ = 0;
     bool active_ = false;
     bool stopped_ = false;
 };

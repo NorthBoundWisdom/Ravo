@@ -23,7 +23,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editToneEqBlacks : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editToneEqBlacks : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("toneEqBlacks", value);
@@ -46,7 +46,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editToneEqShadows : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editToneEqShadows : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("toneEqShadows", value);
@@ -69,7 +69,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editToneEqMidtones : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editToneEqMidtones : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("toneEqMidtones", value);
@@ -92,7 +92,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editToneEqHighlights : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editToneEqHighlights : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("toneEqHighlights", value);
@@ -115,7 +115,7 @@ DevelopSection {
             resetValue: 0
             delayedCommit: true
             enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.editToneEqWhites : 0
+            value: panel.hasPresenter ? panel.presenter.develop.editToneEqWhites : 0
             onValueEdited: function (value) {
                 if (panel.liveReady && panel.commands)
                     panel.commands.previewDevelopNumber("toneEqWhites", value);

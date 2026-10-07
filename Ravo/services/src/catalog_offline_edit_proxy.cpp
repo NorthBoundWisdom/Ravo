@@ -1,4 +1,13 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/offline_service.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/recovery_store.h"
+#include "ravo/engine/engine.h"
+#include "ravo/services/exports_service.h"
+#include "ravo/services/develop_service.h"
+
+#include "offline_edit_proxy_verification.h"
 
 #include "catalog_internal.h"
 
@@ -21,6 +30,21 @@
 
 namespace ravo
 {
+
+OfflineEditService::OfflineEditService(
+    const std::unique_ptr<CatalogRepository> &repository,
+    const std::unique_ptr<RasterDecoder> &raster, const EngineFacade *const &engine,
+    const std::function<Result<void>(std::string_view, std::string_view)> &offline_checkpoint,
+    ExportService &exports_service, DevelopService &develop_service) noexcept
+    : repository_(repository)
+    , raster_(raster)
+    , engine_(engine)
+    , testing_before_offline_proxy_publish_(offline_checkpoint)
+    , exports_service_(exports_service)
+    , develop_service_(develop_service)
+{
+}
+
 namespace
 {
 
@@ -394,10 +418,10 @@ void best_effort_remove_tree(const std::string_view path_utf8)
     return manifest;
 }
 
-[[nodiscard]] Result<std::string> recipe_cache_key_for(CatalogService &service,
+[[nodiscard]] Result<std::string> recipe_cache_key_for(DevelopService &develop,
                                                        const std::string_view asset_id)
 {
-    auto recipe = service.load_recipe(asset_id);
+    auto recipe = develop.load_recipe(asset_id);
     if (!recipe)
         return recipe.error();
     auto serialized = serialize_recipe(recipe.value());
@@ -454,7 +478,7 @@ void best_effort_remove_tree(const std::string_view path_utf8)
 } // namespace
 
 Result<OfflineEditProxyCreateResult>
-CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &request)
+OfflineEditService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &request)
 {
     if (repository_ == nullptr || engine_ == nullptr || raster_ == nullptr)
     {
@@ -523,7 +547,7 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
     if (!created_dir)
         return created_dir.error();
 
-    auto recipe_key = recipe_cache_key_for(*this, request.asset_id);
+    auto recipe_key = recipe_cache_key_for(develop_service_, request.asset_id);
     if (!recipe_key)
     {
         best_effort_remove_tree(staging_root);
@@ -543,7 +567,7 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
     export_request.output_color.output_profile = request.profile;
     export_request.cancellation = request.cancellation;
 
-    auto exported = export_asset(export_request);
+    auto exported = exports_service_.export_asset(export_request);
     if (!exported)
     {
         best_effort_remove_tree(staging_root);
@@ -648,7 +672,7 @@ CatalogService::create_offline_edit_proxy(const OfflineEditProxyCreateRequest &r
     return result;
 }
 
-Result<OfflineEditProxyListReport> CatalogService::list_offline_edit_proxies() const
+Result<OfflineEditProxyListReport> OfflineEditService::list_offline_edit_proxies() const
 {
     if (repository_ == nullptr)
     {
@@ -712,21 +736,16 @@ Result<OfflineEditProxyListReport> CatalogService::list_offline_edit_proxies() c
     return report;
 }
 
-Result<OfflineEditProxyStatus>
-CatalogService::verify_offline_edit_proxy(const std::string_view asset_id) const
+Result<OfflineEditProxyStatus> verify_offline_proxy(CatalogRepository &repository,
+                                                    const std::string_view asset_id)
 {
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kInvalidArgument, "Catalog is not open",
-                          {{"reason", "catalog_not_open"}});
-    }
     if (asset_id.empty() || !safe_path_component(asset_id))
     {
         return make_error(ErrorCode::kInvalidArgument, "Offline-edit proxy requires an asset id",
                           {{"reason", "missing_asset_id"}});
     }
 
-    auto source = repository_->find_asset_by_id(asset_id);
+    auto source = repository.find_asset_by_id(asset_id);
     if (!source)
         return source.error();
     if (!source.value())
@@ -735,7 +754,7 @@ CatalogService::verify_offline_edit_proxy(const std::string_view asset_id) const
                           {{"asset_id", std::string(asset_id)}, {"reason", "asset_not_found"}});
     }
 
-    auto snapshot = repository_->snapshot();
+    auto snapshot = repository.snapshot();
     if (!snapshot)
         return snapshot.error();
 
@@ -824,13 +843,24 @@ CatalogService::verify_offline_edit_proxy(const std::string_view asset_id) const
 }
 
 Result<OfflineEditProxyStatus>
-CatalogService::offline_edit_media_status(const std::string_view asset_id) const
+OfflineEditService::verify_offline_edit_proxy(const std::string_view asset_id) const
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Catalog is not open",
+                          {{"reason", "catalog_not_open"}});
+    }
+    return verify_offline_proxy(*repository_, asset_id);
+}
+
+Result<OfflineEditProxyStatus>
+OfflineEditService::offline_edit_media_status(const std::string_view asset_id) const
 {
     return verify_offline_edit_proxy(asset_id);
 }
 
 Result<OfflineEditProxyReconnectResult>
-CatalogService::reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequest &request)
+OfflineEditService::reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequest &request)
 {
     if (repository_ == nullptr)
     {
@@ -979,7 +1009,7 @@ CatalogService::reconnect_offline_edit_proxy(const OfflineEditProxyReconnectRequ
 }
 
 Result<OfflineEditProxyDeleteResult>
-CatalogService::delete_offline_edit_proxy(const OfflineEditProxyDeleteRequest &request)
+OfflineEditService::delete_offline_edit_proxy(const OfflineEditProxyDeleteRequest &request)
 {
     if (repository_ == nullptr)
     {
@@ -1040,7 +1070,7 @@ CatalogService::delete_offline_edit_proxy(const OfflineEditProxyDeleteRequest &r
 }
 
 Result<OfflineEditProxyPinResult>
-CatalogService::pin_offline_edit_proxy(const OfflineEditProxyPinRequest &request)
+OfflineEditService::pin_offline_edit_proxy(const OfflineEditProxyPinRequest &request)
 {
     if (repository_ == nullptr)
     {
@@ -1089,7 +1119,7 @@ CatalogService::pin_offline_edit_proxy(const OfflineEditProxyPinRequest &request
 }
 
 Result<OfflineEditProxyEvictResult>
-CatalogService::evict_offline_edit_proxies(const OfflineEditProxyEvictRequest &request)
+OfflineEditService::evict_offline_edit_proxies(const OfflineEditProxyEvictRequest &request)
 {
     if (repository_ == nullptr)
     {

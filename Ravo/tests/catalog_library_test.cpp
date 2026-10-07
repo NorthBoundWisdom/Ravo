@@ -84,15 +84,15 @@ TEST_F(CatalogServiceTest, StableFolderIdentityRelinksMissingRootAndSurvivesReop
     ASSERT_TRUE(second_image.save(QString::fromStdString(second.string()), "PNG"));
     const auto first_hash = file_sha256(first.string());
     const auto second_hash = file_sha256(second.string());
-    auto imported = service->import_inputs({original.string()}, CancellationToken{});
+    auto imported = service->import().import_inputs({original.string()}, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_EQ(imported.value().size(), 2U);
     ASSERT_TRUE(imported.value().front().asset);
     DevelopParams edited;
     edited.exposure_ev = 0.35;
-    ASSERT_TRUE(service->save_develop(imported.value().front().asset->id, edited));
+    ASSERT_TRUE(service->develop().save_develop(imported.value().front().asset->id, edited));
 
-    auto before_folders = service->list_folders();
+    auto before_folders = service->library().list_folders();
     ASSERT_TRUE(before_folders) << before_folders.error().message;
     const auto before = std::find_if(before_folders.value().begin(), before_folders.value().end(),
                                      [](const FolderRecord &folder)
@@ -104,7 +104,7 @@ TEST_F(CatalogServiceTest, StableFolderIdentityRelinksMissingRootAndSurvivesReop
     const auto previous_uri = before->uri;
 
     std::filesystem::rename(original, replacement);
-    auto missing_folders = service->list_folders();
+    auto missing_folders = service->library().list_folders();
     ASSERT_TRUE(missing_folders) << missing_folders.error().message;
     const auto missing =
         std::find_if(missing_folders.value().begin(), missing_folders.value().end(),
@@ -113,20 +113,20 @@ TEST_F(CatalogServiceTest, StableFolderIdentityRelinksMissingRootAndSurvivesReop
     EXPECT_TRUE(missing->missing);
     EXPECT_EQ(missing->uri, previous_uri);
 
-    auto relinked = service->relink_folder(folder_id, replacement.string());
+    auto relinked = service->library().relink_folder(folder_id, replacement.string());
     ASSERT_TRUE(relinked) << relinked.error().message;
     EXPECT_EQ(relinked.value().folder_id, folder_id);
     EXPECT_EQ(relinked.value().previous_uri, previous_uri);
     EXPECT_EQ(relinked.value().asset_count, 2U);
     EXPECT_EQ(relinked.value().recovery_pending, 2U);
-    auto pending = service->pending_recovery();
+    auto pending = service->recovery().pending_recovery();
     ASSERT_TRUE(pending) << pending.error().message;
     EXPECT_EQ(pending.value().size(), 2U);
-    auto synchronized = service->sync_recovery(std::nullopt);
+    auto synchronized = service->recovery().sync_recovery(std::nullopt);
     ASSERT_TRUE(synchronized) << synchronized.error().message;
     EXPECT_EQ(synchronized.value().pending_after, 0U);
 
-    auto assets = service->list_assets();
+    auto assets = service->library().list_assets();
     ASSERT_TRUE(assets) << assets.error().message;
     ASSERT_EQ(assets.value().size(), 2U);
     for (const auto &asset : assets.value())
@@ -137,7 +137,7 @@ TEST_F(CatalogServiceTest, StableFolderIdentityRelinksMissingRootAndSurvivesReop
     service.reset();
     sqlite_repository = nullptr;
     ASSERT_TRUE(open_service(false));
-    auto reopened_folders = service->list_folders();
+    auto reopened_folders = service->library().list_folders();
     ASSERT_TRUE(reopened_folders) << reopened_folders.error().message;
     const auto reopened =
         std::find_if(reopened_folders.value().begin(), reopened_folders.value().end(),
@@ -145,7 +145,7 @@ TEST_F(CatalogServiceTest, StableFolderIdentityRelinksMissingRootAndSurvivesReop
     ASSERT_NE(reopened, reopened_folders.value().end());
     EXPECT_FALSE(reopened->missing);
     EXPECT_EQ(reopened->display_name, "replacement-root");
-    auto reopened_recipe = service->load_recipe(imported.value().front().asset->id);
+    auto reopened_recipe = service->develop().load_recipe(imported.value().front().asset->id);
     ASSERT_TRUE(reopened_recipe) << reopened_recipe.error().message;
     auto reopened_develop = develop_from_recipe(reopened_recipe.value());
     ASSERT_TRUE(reopened_develop) << reopened_develop.error().message;
@@ -163,12 +163,12 @@ TEST_F(CatalogServiceTest, FolderRelinkRejectsCancellationAndIdentityMismatchWit
     source.fill(QColor(20, 70, 120));
     const auto photo = original / "asset.png";
     ASSERT_TRUE(source.save(QString::fromStdString(photo.string()), "PNG"));
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
     const auto original_uri = imported.value().asset->normalized_uri;
-    auto folders = service->list_folders();
+    auto folders = service->library().list_folders();
     ASSERT_TRUE(folders) << folders.error().message;
     const auto folder =
         std::find_if(folders.value().begin(), folders.value().end(),
@@ -180,10 +180,10 @@ TEST_F(CatalogServiceTest, FolderRelinkRejectsCancellationAndIdentityMismatchWit
     CancellationSource cancelled;
     ASSERT_TRUE(cancelled.cancel("test_cancel"));
     auto cancelled_result =
-        service->relink_folder(folder_id, replacement.string(), cancelled.token());
+        service->library().relink_folder(folder_id, replacement.string(), cancelled.token());
     ASSERT_FALSE(cancelled_result);
     EXPECT_EQ(cancelled_result.error().code, ErrorCode::kCancelled);
-    auto unchanged = service->list_assets();
+    auto unchanged = service->library().list_assets();
     ASSERT_TRUE(unchanged) << unchanged.error().message;
     ASSERT_EQ(unchanged.value().size(), 1U);
     EXPECT_EQ(unchanged.value().front().normalized_uri, original_uri);
@@ -192,16 +192,16 @@ TEST_F(CatalogServiceTest, FolderRelinkRejectsCancellationAndIdentityMismatchWit
     wrong.setColorSpace(QColorSpace(QColorSpace::SRgb));
     wrong.fill(QColor(220, 40, 20));
     ASSERT_TRUE(wrong.save(QString::fromStdString((replacement / "asset.png").string()), "PNG"));
-    auto mismatched = service->relink_folder(folder_id, replacement.string());
+    auto mismatched = service->library().relink_folder(folder_id, replacement.string());
     ASSERT_FALSE(mismatched);
     EXPECT_EQ(mismatched.error().code, ErrorCode::kConflict);
     EXPECT_EQ(mismatched.error().context.at("reason"), "replacement_asset_identity_mismatch");
-    unchanged = service->list_assets();
+    unchanged = service->library().list_assets();
     ASSERT_TRUE(unchanged) << unchanged.error().message;
     ASSERT_EQ(unchanged.value().size(), 1U);
     EXPECT_EQ(unchanged.value().front().id, asset_id);
     EXPECT_EQ(unchanged.value().front().normalized_uri, original_uri);
-    auto still_missing = service->list_folders();
+    auto still_missing = service->library().list_folders();
     ASSERT_TRUE(still_missing) << still_missing.error().message;
     const auto same_folder =
         std::find_if(still_missing.value().begin(), still_missing.value().end(),
@@ -222,9 +222,9 @@ TEST_F(CatalogServiceTest, FolderRelinkTransactionFailuresRollBackFolderAssetsAn
     ASSERT_TRUE(image.save(QString::fromStdString((original / "a.png").string()), "PNG"));
     image.fill(QColor(145, 95, 45));
     ASSERT_TRUE(image.save(QString::fromStdString((original / "b.png").string()), "PNG"));
-    auto imported = service->import_inputs({original.string()}, CancellationToken{});
+    auto imported = service->import().import_inputs({original.string()}, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
-    auto folders = service->list_folders();
+    auto folders = service->library().list_folders();
     ASSERT_TRUE(folders) << folders.error().message;
     const auto folder =
         std::find_if(folders.value().begin(), folders.value().end(), [](const FolderRecord &item)
@@ -232,9 +232,9 @@ TEST_F(CatalogServiceTest, FolderRelinkTransactionFailuresRollBackFolderAssetsAn
     ASSERT_NE(folder, folders.value().end());
     const auto folder_id = folder->id;
     const auto folder_uri = folder->uri;
-    auto before_assets = service->list_assets();
+    auto before_assets = service->library().list_assets();
     ASSERT_TRUE(before_assets) << before_assets.error().message;
-    auto before_snapshot = service->snapshot();
+    auto before_snapshot = service->library().snapshot();
     ASSERT_TRUE(before_snapshot) << before_snapshot.error().message;
     std::filesystem::rename(original, replacement);
     ASSERT_NE(sqlite_repository, nullptr);
@@ -247,10 +247,10 @@ TEST_F(CatalogServiceTest, FolderRelinkTransactionFailuresRollBackFolderAssetsAn
     for (const auto failure : failures)
     {
         testing::SqliteCatalogTestControl::inject_folder_relink(*sqlite_repository, failure);
-        auto relinked = service->relink_folder(folder_id, replacement.string());
+        auto relinked = service->library().relink_folder(folder_id, replacement.string());
         ASSERT_FALSE(relinked);
         EXPECT_EQ(relinked.error().code, ErrorCode::kIo);
-        auto after_assets = service->list_assets();
+        auto after_assets = service->library().list_assets();
         ASSERT_TRUE(after_assets) << after_assets.error().message;
         ASSERT_EQ(after_assets.value().size(), before_assets.value().size());
         for (std::size_t index = 0; index < before_assets.value().size(); ++index)
@@ -263,10 +263,10 @@ TEST_F(CatalogServiceTest, FolderRelinkTransactionFailuresRollBackFolderAssetsAn
         ASSERT_TRUE(after_folder) << after_folder.error().message;
         ASSERT_TRUE(after_folder.value());
         EXPECT_EQ(after_folder.value()->uri, folder_uri);
-        auto after_snapshot = service->snapshot();
+        auto after_snapshot = service->library().snapshot();
         ASSERT_TRUE(after_snapshot) << after_snapshot.error().message;
         EXPECT_EQ(after_snapshot.value().revision, before_snapshot.value().revision);
-        auto pending = service->pending_recovery();
+        auto pending = service->recovery().pending_recovery();
         ASSERT_TRUE(pending) << pending.error().message;
         EXPECT_TRUE(pending.value().empty());
     }
@@ -274,7 +274,7 @@ TEST_F(CatalogServiceTest, FolderRelinkTransactionFailuresRollBackFolderAssetsAn
     service.reset();
     sqlite_repository = nullptr;
     ASSERT_TRUE(open_service(false));
-    auto reopened = service->list_assets();
+    auto reopened = service->library().list_assets();
     ASSERT_TRUE(reopened) << reopened.error().message;
     ASSERT_EQ(reopened.value().size(), before_assets.value().size());
     for (std::size_t index = 0; index < before_assets.value().size(); ++index)
@@ -291,14 +291,14 @@ TEST_F(CatalogServiceTest, LibraryQueryValidationFailsBeforeFiltering)
     ASSERT_TRUE(created) << created.error().message;
     LibraryQuery query;
     query.rating_value = 9;
-    auto rejected = service->list_assets(query);
+    auto rejected = service->library().list_assets(query);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
     EXPECT_EQ(rejected.error().context.at("reason"), "invalid_library_rating_filter");
 
     query = {};
     query.aperture = {8.0, 2.8};
-    rejected = service->list_assets(query);
+    rejected = service->library().list_assets(query);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("field"), "aperture");
     EXPECT_EQ(rejected.error().context.at("reason"), "invalid_library_filter_range");
@@ -315,8 +315,8 @@ TEST_F(CatalogServiceTest, LibraryQueryFiltersMediaTextAndEditStateThroughServic
     image.fill(QColor(30, 80, 140));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     ASSERT_TRUE(image.save(QString::fromStdString(png_path), "PNG"));
-    auto jpeg = service->import_one(jpeg_path, CancellationToken{});
-    auto png = service->import_one(png_path, CancellationToken{});
+    auto jpeg = service->import().import_one(jpeg_path, CancellationToken{});
+    auto png = service->import().import_one(png_path, CancellationToken{});
     ASSERT_TRUE(jpeg) << jpeg.error().message;
     ASSERT_TRUE(png) << png.error().message;
     ASSERT_TRUE(jpeg.value().asset);
@@ -324,25 +324,25 @@ TEST_F(CatalogServiceTest, LibraryQueryFiltersMediaTextAndEditStateThroughServic
 
     DevelopParams edited;
     edited.exposure_ev = 0.25;
-    ASSERT_TRUE(service->save_develop(jpeg.value().asset->id, edited));
+    ASSERT_TRUE(service->develop().save_develop(jpeg.value().asset->id, edited));
 
     LibraryQuery query;
     query.media_types = {std::string(kMediaTypePng)};
-    auto listed = service->list_assets(query);
+    auto listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, png.value().asset->id);
 
     query = {};
     query.text = "golden-jpeg";
-    listed = service->list_assets(query);
+    listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, jpeg.value().asset->id);
 
     query = {};
     query.edit_filter = EditFilter::kEdited;
-    listed = service->list_assets(query);
+    listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, jpeg.value().asset->id);
@@ -382,7 +382,7 @@ TEST_F(CatalogServiceTest, CaptureFacetsEnumerateAndFilterThroughService)
     auto service_opened = open_service(false);
     ASSERT_TRUE(service_opened) << service_opened.error().message;
 
-    auto facets = service->list_capture_facets();
+    auto facets = service->metadata().list_capture_facets();
     ASSERT_TRUE(facets) << facets.error().message;
     EXPECT_FALSE(facets.value().truncated);
     ASSERT_EQ(facets.value().cameras.size(), 4U);
@@ -396,38 +396,38 @@ TEST_F(CatalogServiceTest, CaptureFacetsEnumerateAndFilterThroughService)
     LibraryQuery query;
     query.camera_make_equals = "RavoCam";
     query.camera_model_equals = "Alpha";
-    auto listed = service->list_assets(query);
+    auto listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().capture.camera_model, "Alpha");
 
     query = {};
     query.focal_length_mm_equals = 85.0;
-    listed = service->list_assets(query);
+    listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 2U);
 
     query = {};
     query.captured_local_date = "2024:05:01";
-    listed = service->list_assets(query);
+    listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 3U);
 
     query.camera_make_equals = "RavoCam";
-    auto invalid = service->list_assets(query);
+    auto invalid = service->library().list_assets(query);
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().context.at("reason"), "invalid_library_camera_facet");
 
     query = {};
     query.lens_make_equals = "RavoOptics";
     query.lens_model_equals = "Prime 35";
-    listed = service->list_assets(query);
+    listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().capture.lens_model, "Prime 35");
 
     query.lens_model_equals.reset();
-    invalid = service->list_assets(query);
+    invalid = service->library().list_assets(query);
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().context.at("reason"), "invalid_library_lens_name_facet");
 }
@@ -497,7 +497,7 @@ TEST_F(CatalogServiceTest, MigratesV13CatalogAddsLensNameColumns)
 
     auto opened = open_service(false);
     ASSERT_TRUE(opened) << opened.error().message;
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
     ASSERT_TRUE(service->close());
@@ -558,7 +558,7 @@ TEST_F(CatalogServiceTest, LocationFacetsEnumerateAndFilterThroughService)
     auto service_opened = open_service(false);
     ASSERT_TRUE(service_opened) << service_opened.error().message;
 
-    auto facets = service->list_location_facets();
+    auto facets = service->metadata().list_location_facets();
     ASSERT_TRUE(facets) << facets.error().message;
     EXPECT_FALSE(facets.value().truncated);
     ASSERT_EQ(facets.value().countries.size(), 2U);
@@ -569,24 +569,24 @@ TEST_F(CatalogServiceTest, LocationFacetsEnumerateAndFilterThroughService)
 
     LibraryQuery query;
     query.country_equals = "China";
-    auto listed = service->list_assets(query);
+    auto listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 2U);
 
     query.city_equals = "Shanghai";
-    listed = service->list_assets(query);
+    listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 2U);
 
     query.sublocation_equals = "Bund";
-    listed = service->list_assets(query);
+    listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
 
     query = {};
     query.country_equals = "Japan";
     query.city_equals = "Shanghai";
-    listed = service->list_assets(query);
+    listed = service->library().list_assets(query);
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_TRUE(listed.value().empty());
 }
@@ -894,7 +894,7 @@ TEST_F(CatalogServiceTest, PrivatePhotoManagementReleaseProbePreservesCorpus)
     };
 
     const auto enumeration_started = std::chrono::steady_clock::now();
-    auto enumerated = service->enumerate_import_inputs({corpus}, CancellationToken{});
+    auto enumerated = service->import().enumerate_import_inputs({corpus}, CancellationToken{});
     ASSERT_TRUE(enumerated) << enumerated.error().message;
     ASSERT_FALSE(enumerated.value().empty());
     ASSERT_LE(enumerated.value().size(), kImportBatchMaximumAssets);
@@ -924,7 +924,7 @@ TEST_F(CatalogServiceTest, PrivatePhotoManagementReleaseProbePreservesCorpus)
     for (const auto &path : enumerated.value())
     {
         const auto started = std::chrono::steady_clock::now();
-        auto imported = service->import_one(path, CancellationToken{});
+        auto imported = service->import().import_one(path, CancellationToken{});
         const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                                  std::chrono::steady_clock::now() - started)
                                  .count();
@@ -958,13 +958,13 @@ TEST_F(CatalogServiceTest, PrivatePhotoManagementReleaseProbePreservesCorpus)
         request.max_edge = kDefaultPreviewMaxEdge;
         request.prefer_embedded_preview = false;
         auto started = std::chrono::steady_clock::now();
-        auto cold = service->request_preview(request);
+        auto cold = service->preview().request_preview(request);
         cold_preview_us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
                                       std::chrono::steady_clock::now() - started)
                                       .count());
         ASSERT_TRUE(cold) << cold.error().message;
         started = std::chrono::steady_clock::now();
-        auto warm = service->request_preview(request);
+        auto warm = service->preview().request_preview(request);
         warm_preview_us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
                                       std::chrono::steady_clock::now() - started)
                                       .count());
@@ -984,7 +984,7 @@ TEST_F(CatalogServiceTest, PrivatePhotoManagementReleaseProbePreservesCorpus)
         request.limit = kLibraryPageDefaultSize;
         request.after_asset_id = cursor;
         request.known_total = known_total;
-        auto page = service->list_assets_page(request);
+        auto page = service->library().list_assets_page(request);
         ASSERT_TRUE(page) << page.error().message;
         EXPECT_LE(page.value().materialized_rows, kLibraryPageDefaultSize);
         page_us.push_back(page.value().query_elapsed_us);
@@ -1038,27 +1038,27 @@ TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto original_hash = file_sha256(photo.string());
 
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
     PreviewRequest thumb;
     thumb.asset_id = asset_id;
     thumb.max_edge = kThumbnailMaxEdge;
-    auto thumb_preview = service->request_preview(thumb);
+    auto thumb_preview = service->preview().request_preview(thumb);
     ASSERT_TRUE(thumb_preview) << thumb_preview.error().message;
     PreviewRequest full;
     full.asset_id = asset_id;
     full.max_edge = kDefaultPreviewMaxEdge;
-    auto full_preview = service->request_preview(full);
+    auto full_preview = service->preview().request_preview(full);
     ASSERT_TRUE(full_preview) << full_preview.error().message;
     EXPECT_NE(thumb_preview.value().cache_path, full_preview.value().cache_path);
     EXPECT_TRUE(std::filesystem::exists(thumb_preview.value().cache_path));
     EXPECT_TRUE(std::filesystem::exists(full_preview.value().cache_path));
 
-    auto removed = service->remove_from_catalog(asset_id);
+    auto removed = service->library().remove_from_catalog(asset_id);
     ASSERT_TRUE(removed) << removed.error().message;
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_TRUE(listed.value().empty());
     EXPECT_TRUE(std::filesystem::exists(photo));
@@ -1066,7 +1066,7 @@ TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
     EXPECT_FALSE(std::filesystem::exists(thumb_preview.value().cache_path));
     EXPECT_FALSE(std::filesystem::exists(full_preview.value().cache_path));
 
-    auto missing = service->remove_from_catalog(asset_id);
+    auto missing = service->library().remove_from_catalog(asset_id);
     ASSERT_FALSE(missing);
     EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
 }
@@ -1084,11 +1084,11 @@ TEST_F(CatalogServiceTest, RemoveFolderFromCatalogKeepsOriginalsAndRejectsAllPho
     ASSERT_TRUE(image.save(QString::fromStdString(first.string()), "PNG"));
     image.fill(QColor(120, 80, 40));
     ASSERT_TRUE(image.save(QString::fromStdString(second.string()), "PNG"));
-    auto imported = service->import_inputs({folder.string()}, CancellationToken{});
+    auto imported = service->import().import_inputs({folder.string()}, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_EQ(imported.value().size(), 2U);
 
-    auto folders = service->list_folders();
+    auto folders = service->library().list_folders();
     ASSERT_TRUE(folders) << folders.error().message;
     const auto found =
         std::find_if(folders.value().begin(), folders.value().end(), [](const FolderRecord &item)
@@ -1096,20 +1096,20 @@ TEST_F(CatalogServiceTest, RemoveFolderFromCatalogKeepsOriginalsAndRejectsAllPho
     ASSERT_NE(found, folders.value().end());
     ASSERT_FALSE(found->uri.empty());
 
-    auto rejected = service->remove_folder_from_catalog({});
+    auto rejected = service->library().remove_folder_from_catalog({});
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kInvalidArgument);
 
-    auto removed = service->remove_folder_from_catalog(found->uri);
+    auto removed = service->library().remove_folder_from_catalog(found->uri);
     ASSERT_TRUE(removed) << removed.error().message;
     EXPECT_EQ(removed.value().asset_count, 2U);
     EXPECT_EQ(removed.value().folder_uri, found->uri);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_TRUE(listed.value().empty());
     EXPECT_TRUE(std::filesystem::exists(first));
     EXPECT_TRUE(std::filesystem::exists(second));
-    auto after_folders = service->list_folders();
+    auto after_folders = service->library().list_folders();
     ASSERT_TRUE(after_folders) << after_folders.error().message;
     EXPECT_TRUE(std::none_of(after_folders.value().begin(), after_folders.value().end(),
                              [](const FolderRecord &item)
@@ -1125,15 +1125,15 @@ TEST_F(CatalogServiceTest, RemoveOriginalAndCatalogDeletesTheFile)
     image.fill(QColor(12, 34, 56));
     const auto photo = root / "delete-original.jpg";
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
     ASSERT_TRUE(std::filesystem::exists(photo));
 
-    auto removed = service->remove_original_and_catalog(asset_id);
+    auto removed = service->library().remove_original_and_catalog(asset_id);
     ASSERT_TRUE(removed) << removed.error().message;
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_TRUE(listed.value().empty());
     EXPECT_FALSE(std::filesystem::exists(photo));
@@ -1148,16 +1148,16 @@ TEST_F(CatalogServiceTest, RemoveOriginalAndCatalogFailsWhenFileIsMissing)
     image.fill(QColor(90, 12, 12));
     const auto photo = root / "already-gone.jpg";
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
     ASSERT_TRUE(std::filesystem::remove(photo));
 
-    auto removed = service->remove_original_and_catalog(asset_id);
+    auto removed = service->library().remove_original_and_catalog(asset_id);
     ASSERT_FALSE(removed);
     EXPECT_EQ(removed.error().code, ErrorCode::kNotFound);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, asset_id);
@@ -1172,11 +1172,11 @@ TEST_F(CatalogServiceTest, RemoveTransactionFailurePreservesAssetAndRevision)
     image.fill(QColor(40, 50, 60));
     const auto photo = root / "remove-rollback.jpg";
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    auto before = service->snapshot();
+    auto before = service->library().snapshot();
     ASSERT_TRUE(before) << before.error().message;
 
     {
@@ -1194,14 +1194,14 @@ TEST_F(CatalogServiceTest, RemoveTransactionFailurePreservesAssetAndRevision)
         QSqlDatabase::removeDatabase(connection);
     }
 
-    auto removed = service->remove_from_catalog(asset_id);
+    auto removed = service->library().remove_from_catalog(asset_id);
     ASSERT_FALSE(removed);
     EXPECT_EQ(removed.error().code, ErrorCode::kIo);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, asset_id);
-    auto after = service->snapshot();
+    auto after = service->library().snapshot();
     ASSERT_TRUE(after) << after.error().message;
     EXPECT_EQ(after.value().revision, before.value().revision);
     EXPECT_TRUE(std::filesystem::exists(photo));
@@ -1217,11 +1217,11 @@ TEST_F(CatalogServiceTest, DiskDeleteDatabaseFailureRestoresOriginalAndCatalog)
     const auto photo = root / "disk-delete-rollback.jpg";
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     const auto original_hash = file_sha256(photo.string());
-    auto imported = service->import_one(photo.string(), CancellationToken{});
+    auto imported = service->import().import_one(photo.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    auto before = service->snapshot();
+    auto before = service->library().snapshot();
     ASSERT_TRUE(before) << before.error().message;
 
     {
@@ -1239,17 +1239,17 @@ TEST_F(CatalogServiceTest, DiskDeleteDatabaseFailureRestoresOriginalAndCatalog)
         QSqlDatabase::removeDatabase(connection);
     }
 
-    auto removed = service->remove_original_and_catalog(asset_id);
+    auto removed = service->library().remove_original_and_catalog(asset_id);
     ASSERT_FALSE(removed);
     EXPECT_EQ(removed.error().code, ErrorCode::kIo);
     EXPECT_TRUE(std::filesystem::exists(photo));
     EXPECT_EQ(file_sha256(photo.string()), original_hash);
     EXPECT_FALSE(std::filesystem::exists(photo.string() + ".ravo-delete-0"));
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, asset_id);
-    auto after = service->snapshot();
+    auto after = service->library().snapshot();
     ASSERT_TRUE(after) << after.error().message;
     EXPECT_EQ(after.value().revision, before.value().revision);
 }
@@ -1258,7 +1258,7 @@ TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
 
@@ -1267,18 +1267,18 @@ TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(20, 40, 80));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
-    auto rated = service->set_rating(asset_id, 4);
+    auto rated = service->library().set_rating(asset_id, 4);
     ASSERT_TRUE(rated) << rated.error().message;
     EXPECT_EQ(rated.value().review.rating, 4);
-    auto labeled = service->set_color_label(asset_id, ColorLabel::kGreen);
+    auto labeled = service->library().set_color_label(asset_id, ColorLabel::kGreen);
     ASSERT_TRUE(labeled) << labeled.error().message;
     EXPECT_EQ(labeled.value().review.color_label, ColorLabel::kGreen);
-    auto rejected = service->set_rejected(asset_id, true);
+    auto rejected = service->library().set_rejected(asset_id, true);
     ASSERT_TRUE(rejected) << rejected.error().message;
     EXPECT_TRUE(rejected.value().review.rejected);
 
@@ -1286,7 +1286,7 @@ TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().review.rating, 4);
@@ -1295,7 +1295,7 @@ TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
 
     LibraryQuery exclude_rejected;
     exclude_rejected.reject_filter = RejectFilter::kExclude;
-    auto filtered = service->list_assets(exclude_rejected);
+    auto filtered = service->library().list_assets(exclude_rejected);
     ASSERT_TRUE(filtered) << filtered.error().message;
     EXPECT_TRUE(filtered.value().empty());
 }
@@ -1332,10 +1332,10 @@ TEST_F(CatalogServiceTest, MigratesV1CatalogToReviewSchema)
 
     auto opened = open_service(false);
     ASSERT_TRUE(opened) << opened.error().message;
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().review.rating, 0);
@@ -1353,11 +1353,11 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(180, 40, 40));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    auto rated = service->set_rating(asset_id, 3);
+    auto rated = service->library().set_rating(asset_id, 3);
     ASSERT_TRUE(rated) << rated.error().message;
 
     DevelopParams params;
@@ -1366,7 +1366,7 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     params.saturation = -0.2;
     params.vignette = 0.35;
     params.flip_horizontal = 1;
-    auto saved = service->save_develop(asset_id, params);
+    auto saved = service->develop().save_develop(asset_id, params);
     ASSERT_TRUE(saved) << saved.error().message;
     EXPECT_TRUE(saved.value().has_edits);
     EXPECT_EQ(saved.value().review.rating, 3);
@@ -1376,7 +1376,7 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto loaded = service->load_recipe(asset_id);
+    auto loaded = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(loaded) << loaded.error().message;
     auto roundtrip = develop_from_recipe(loaded.value());
     ASSERT_TRUE(roundtrip) << roundtrip.error().message;
@@ -1385,7 +1385,7 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     EXPECT_NEAR(roundtrip.value().saturation, -0.2, 1e-6);
     EXPECT_NEAR(roundtrip.value().vignette, 0.35, 1e-6);
     EXPECT_EQ(roundtrip.value().flip_horizontal, 1);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_TRUE(listed.value().front().has_edits);
@@ -1394,7 +1394,7 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
 
     PreviewRequest preview;
     preview.asset_id = asset_id;
-    auto previewed = service->request_preview(preview);
+    auto previewed = service->preview().request_preview(preview);
     ASSERT_TRUE(previewed) << previewed.error().message;
     EXPECT_FALSE(previewed.value().original_missing);
 
@@ -1403,20 +1403,20 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     cropped_params.crop_y = 0.25;
     cropped_params.crop_width = 0.5;
     cropped_params.crop_height = 0.5;
-    ASSERT_TRUE(service->save_develop(asset_id, cropped_params));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, cropped_params));
     PreviewRequest guides;
     guides.asset_id = asset_id;
     guides.ignore_crop = true;
-    auto uncropped = service->request_preview(guides);
+    auto uncropped = service->preview().request_preview(guides);
     ASSERT_TRUE(uncropped) << uncropped.error().message;
     PreviewRequest applied;
     applied.asset_id = asset_id;
-    auto cropped_again = service->request_preview(applied);
+    auto cropped_again = service->preview().request_preview(applied);
     ASSERT_TRUE(cropped_again) << cropped_again.error().message;
     EXPECT_GT(uncropped.value().width, cropped_again.value().width);
     EXPECT_GT(uncropped.value().height, cropped_again.value().height);
 
-    auto reset = service->reset_recipe(asset_id);
+    auto reset = service->develop().reset_recipe(asset_id);
     ASSERT_TRUE(reset) << reset.error().message;
     EXPECT_FALSE(reset.value().has_edits);
     EXPECT_EQ(reset.value().review.rating, 3);
@@ -1431,12 +1431,12 @@ TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseR
     image.fill(QColor(90, 130, 180));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     const auto source_hash = file_sha256(jpeg_path);
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
 
-    auto baseline = service->load_recipe(asset_id);
+    auto baseline = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
     auto develop = develop_from_recipe(baseline.value());
     ASSERT_TRUE(develop) << develop.error().message;
@@ -1456,7 +1456,7 @@ TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseR
     EXPECT_EQ(authored_masks[1].kind, MaskKind::kParametric);
     EXPECT_TRUE(develop.value().graduated_enabled);
     EXPECT_TRUE(develop.value().color_harmonizer_enabled);
-    auto saved = service->save_develop(asset_id, develop.value());
+    auto saved = service->develop().save_develop(asset_id, develop.value());
     ASSERT_TRUE(saved) << saved.error().message;
     EXPECT_TRUE(saved.value().has_edits);
 
@@ -1464,7 +1464,7 @@ TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseR
     preview.asset_id = asset_id;
     preview.max_edge = 64U;
     preview.persist_preview_record = true;
-    const auto first_live = service->request_preview(preview, develop.value());
+    const auto first_live = service->preview().request_preview(preview, develop.value());
     ASSERT_TRUE(first_live) << first_live.error().message;
 
     auto ordinary_edit = develop.value();
@@ -1472,15 +1472,15 @@ TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseR
     EXPECT_EQ(ordinary_edit.masks, authored_masks);
     EXPECT_EQ(ordinary_edit.graduated_mask_id, develop.value().graduated_mask_id);
     EXPECT_EQ(ordinary_edit.color_harmonizer_mask_id, develop.value().color_harmonizer_mask_id);
-    const auto second_live = service->request_preview(preview, ordinary_edit);
+    const auto second_live = service->preview().request_preview(preview, ordinary_edit);
     ASSERT_TRUE(second_live) << second_live.error().message;
     EXPECT_NE(first_live.value().cache_key, second_live.value().cache_key);
-    ASSERT_TRUE(service->save_develop(asset_id, ordinary_edit));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, ordinary_edit));
 
     ASSERT_TRUE(service->close());
     service.reset();
     ASSERT_TRUE(open_service(false));
-    auto loaded = service->load_recipe(asset_id);
+    auto loaded = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(loaded) << loaded.error().message;
     ASSERT_EQ(loaded.value().masks, authored_masks);
     const auto graduated =
@@ -1496,12 +1496,12 @@ TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseR
     ASSERT_NE(harmonizer, loaded.value().operations.end());
     EXPECT_TRUE(harmonizer->enabled);
     EXPECT_EQ(harmonizer->mask_id, ordinary_edit.color_harmonizer_mask_id);
-    auto reopened_preview = service->request_preview(preview);
+    auto reopened_preview = service->preview().request_preview(preview);
     ASSERT_TRUE(reopened_preview) << reopened_preview.error().message;
     EXPECT_EQ(reopened_preview.value().cache_key, second_live.value().cache_key);
     EXPECT_EQ(file_sha256(jpeg_path), source_hash);
 
-    auto reset = service->reset_recipe(asset_id);
+    auto reset = service->develop().reset_recipe(asset_id);
     ASSERT_TRUE(reset) << reset.error().message;
     EXPECT_FALSE(reset.value().has_edits);
 }
@@ -1515,11 +1515,11 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(12, 34, 56));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
-    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    auto imported = service->import().import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
-    auto tagged = service->set_tags(asset_id, {"landscape", "  landscape  ", "archive"});
+    auto tagged = service->metadata().set_tags(asset_id, {"landscape", "  landscape  ", "archive"});
     ASSERT_TRUE(tagged) << tagged.error().message;
     ASSERT_EQ(tagged.value().tags.size(), 2U);
     EXPECT_NE(std::find(tagged.value().tags.begin(), tagged.value().tags.end(), "landscape"),
@@ -1530,27 +1530,27 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     WritableMetadata metadata;
     metadata.title = "Title";
     metadata.creator = "Ravo";
-    auto written = service->set_writable_metadata(asset_id, metadata);
+    auto written = service->metadata().set_writable_metadata(asset_id, metadata);
     ASSERT_TRUE(written) << written.error().message;
     EXPECT_EQ(written.value().metadata.title, "Title");
 
     DevelopParams params;
     params.exposure_ev = 0.4;
     params.graduated_density = 0.6;
-    ASSERT_TRUE(service->save_develop(asset_id, params));
-    auto snapshot = service->create_recipe_snapshot(asset_id, "keep");
+    ASSERT_TRUE(service->develop().save_develop(asset_id, params));
+    auto snapshot = service->develop().create_recipe_snapshot(asset_id, "keep");
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     DevelopParams next;
     next.exposure_ev = -0.5;
-    ASSERT_TRUE(service->save_develop(asset_id, next));
+    ASSERT_TRUE(service->develop().save_develop(asset_id, next));
 
     LibraryQuery query;
     query.tag = "landscape";
-    auto filtered = service->list_assets(query);
+    auto filtered = service->library().list_assets(query);
     ASSERT_TRUE(filtered) << filtered.error().message;
     ASSERT_EQ(filtered.value().size(), 1U);
 
-    auto empty = service->set_tags(asset_id, {""});
+    auto empty = service->metadata().set_tags(asset_id, {""});
     ASSERT_FALSE(empty);
     EXPECT_EQ(empty.error().code, ErrorCode::kValidation);
 
@@ -1558,12 +1558,12 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().tags.size(), 2U);
     EXPECT_EQ(listed.value().front().metadata.title, "Title");
-    auto history = service->list_recipe_history(asset_id);
+    auto history = service->develop().list_recipe_history(asset_id);
     ASSERT_TRUE(history) << history.error().message;
     ASSERT_FALSE(history.value().empty());
     std::int64_t snapshot_id = 0;
@@ -1576,9 +1576,9 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
         }
     }
     ASSERT_NE(snapshot_id, 0);
-    auto restored = service->restore_recipe_history(asset_id, snapshot_id);
+    auto restored = service->develop().restore_recipe_history(asset_id, snapshot_id);
     ASSERT_TRUE(restored) << restored.error().message;
-    auto recipe = service->load_recipe(asset_id);
+    auto recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto develop = develop_from_recipe(recipe.value());
     ASSERT_TRUE(develop) << develop.error().message;
@@ -1599,8 +1599,8 @@ TEST_F(CatalogServiceTest, HierarchicalKeywordsSurviveReopenBackupAndRename)
         image.fill(QColor(40, 90, 130));
         ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     }
-    auto imported_a = service->import_one(photo_a.string(), CancellationToken{});
-    auto imported_b = service->import_one(photo_b.string(), CancellationToken{});
+    auto imported_a = service->import().import_one(photo_a.string(), CancellationToken{});
+    auto imported_b = service->import().import_one(photo_b.string(), CancellationToken{});
     ASSERT_TRUE(imported_a) << imported_a.error().message;
     ASSERT_TRUE(imported_b) << imported_b.error().message;
     ASSERT_TRUE(imported_a.value().asset);
@@ -1608,12 +1608,12 @@ TEST_F(CatalogServiceTest, HierarchicalKeywordsSurviveReopenBackupAndRename)
     const auto id_a = imported_a.value().asset->id;
     const auto id_b = imported_b.value().asset->id;
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
 
-    auto tagged = service->set_tags_selection({id_a, id_b}, {"Nature|Birds", "Archive"},
-                                              snapshot.value().revision);
+    auto tagged = service->metadata().set_tags_selection({id_a, id_b}, {"Nature|Birds", "Archive"},
+                                                         snapshot.value().revision);
     ASSERT_TRUE(tagged) << tagged.error().message;
     ASSERT_EQ(tagged.value().assets.size(), 2U);
     for (const auto &asset : tagged.value().assets)
@@ -1624,11 +1624,12 @@ TEST_F(CatalogServiceTest, HierarchicalKeywordsSurviveReopenBackupAndRename)
         EXPECT_NE(std::find(asset.tags.begin(), asset.tags.end(), "Archive"), asset.tags.end());
     }
 
-    auto stale = service->set_tags_selection({id_a}, {"Stale"}, snapshot.value().revision);
+    auto stale =
+        service->metadata().set_tags_selection({id_a}, {"Stale"}, snapshot.value().revision);
     ASSERT_FALSE(stale);
     EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
 
-    auto keywords = service->list_keywords();
+    auto keywords = service->metadata().list_keywords();
     ASSERT_TRUE(keywords) << keywords.error().message;
     ASSERT_GE(keywords.value().size(), 3U);
     const KeywordRecord *birds = nullptr;
@@ -1639,11 +1640,11 @@ TEST_F(CatalogServiceTest, HierarchicalKeywordsSurviveReopenBackupAndRename)
     }
     ASSERT_NE(birds, nullptr);
 
-    auto renamed = service->rename_keyword(birds->id, "Avian");
+    auto renamed = service->metadata().rename_keyword(birds->id, "Avian");
     ASSERT_TRUE(renamed) << renamed.error().message;
     EXPECT_EQ(renamed.value().keyword.path, "Nature|Avian");
 
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     for (const auto &asset : listed.value())
     {
@@ -1660,28 +1661,28 @@ TEST_F(CatalogServiceTest, HierarchicalKeywordsSurviveReopenBackupAndRename)
 
     LibraryQuery query;
     query.tag = "Nature|Avian";
-    auto filtered = service->list_assets(query);
+    auto filtered = service->library().list_assets(query);
     ASSERT_TRUE(filtered) << filtered.error().message;
     EXPECT_EQ(filtered.value().size(), 2U);
 
     const auto backup_dir = root / "keyword-backup";
-    auto backup = service->create_backup(backup_dir.string());
+    auto backup = service->recovery().create_backup(backup_dir.string());
     ASSERT_TRUE(backup) << backup.error().message;
 
     ASSERT_TRUE(service->close());
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto reopened_snapshot = service->snapshot();
+    auto reopened_snapshot = service->library().snapshot();
     ASSERT_TRUE(reopened_snapshot) << reopened_snapshot.error().message;
     EXPECT_EQ(reopened_snapshot.value().schema_version, kCatalogSchemaVersion);
-    auto reopened_keywords = service->list_keywords();
+    auto reopened_keywords = service->metadata().list_keywords();
     ASSERT_TRUE(reopened_keywords) << reopened_keywords.error().message;
     bool found_avian = false;
     for (const auto &keyword : reopened_keywords.value())
         found_avian = found_avian || keyword.path == "Nature|Avian";
     EXPECT_TRUE(found_avian);
-    auto reopened_assets = service->list_assets();
+    auto reopened_assets = service->library().list_assets();
     ASSERT_TRUE(reopened_assets);
     std::size_t matched = 0;
     for (const auto &asset : reopened_assets.value())
@@ -1709,8 +1710,8 @@ TEST_F(CatalogServiceTest, IptcCoreWritablePatchIsTransactionalAndSurvivesReopen
         image.fill(QColor(50, 70, 90));
         ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     }
-    auto imported_a = service->import_one(photo_a.string(), CancellationToken{});
-    auto imported_b = service->import_one(photo_b.string(), CancellationToken{});
+    auto imported_a = service->import().import_one(photo_a.string(), CancellationToken{});
+    auto imported_b = service->import().import_one(photo_b.string(), CancellationToken{});
     ASSERT_TRUE(imported_a) << imported_a.error().message;
     ASSERT_TRUE(imported_b) << imported_b.error().message;
     ASSERT_TRUE(imported_a.value().asset);
@@ -1721,18 +1722,18 @@ TEST_F(CatalogServiceTest, IptcCoreWritablePatchIsTransactionalAndSurvivesReopen
     WritableMetadata only_a;
     only_a.title = "Alpha";
     only_a.creator = "Alice";
-    ASSERT_TRUE(service->set_writable_metadata(id_a, only_a));
+    ASSERT_TRUE(service->metadata().set_writable_metadata(id_a, only_a));
     WritableMetadata only_b;
     only_b.title = "Beta";
     only_b.creator = "Bob";
-    ASSERT_TRUE(service->set_writable_metadata(id_b, only_b));
+    ASSERT_TRUE(service->metadata().set_writable_metadata(id_b, only_b));
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     auto copyright_patch = writable_metadata_patch_for_field("copyright", std::string("© Ravo"));
     ASSERT_TRUE(copyright_patch) << copyright_patch.error().message;
-    auto patched = service->set_writable_metadata_selection({id_a, id_b}, copyright_patch.value(),
-                                                            snapshot.value().revision);
+    auto patched = service->metadata().set_writable_metadata_selection(
+        {id_a, id_b}, copyright_patch.value(), snapshot.value().revision);
     ASSERT_TRUE(patched) << patched.error().message;
     ASSERT_EQ(patched.value().assets.size(), 2U);
     for (const auto &asset : patched.value().assets)
@@ -1755,12 +1756,12 @@ TEST_F(CatalogServiceTest, IptcCoreWritablePatchIsTransactionalAndSurvivesReopen
         }
     }
 
-    auto stale = service->set_writable_metadata_selection(
+    auto stale = service->metadata().set_writable_metadata_selection(
         {id_a}, writable_metadata_patch_for_field("title", std::string("Stale")).value(),
         snapshot.value().revision);
     ASSERT_FALSE(stale);
     EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
-    auto listed = service->list_assets();
+    auto listed = service->library().list_assets();
     ASSERT_TRUE(listed);
     for (const auto &asset : listed.value())
     {
@@ -1772,14 +1773,14 @@ TEST_F(CatalogServiceTest, IptcCoreWritablePatchIsTransactionalAndSurvivesReopen
     }
 
     const auto backup_dir = root / "iptc-backup";
-    auto backup = service->create_backup(backup_dir.string());
+    auto backup = service->recovery().create_backup(backup_dir.string());
     ASSERT_TRUE(backup) << backup.error().message;
 
     ASSERT_TRUE(service->close());
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto reopened_assets = service->list_assets();
+    auto reopened_assets = service->library().list_assets();
     ASSERT_TRUE(reopened_assets);
     std::size_t matched = 0;
     for (const auto &asset : reopened_assets.value())
@@ -1805,8 +1806,8 @@ TEST_F(CatalogServiceTest, CatalogLocationWritablePatchIsTransactionalAndSurvive
         image.fill(QColor(40, 60, 80));
         ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
     }
-    auto imported_a = service->import_one(photo_a.string(), CancellationToken{});
-    auto imported_b = service->import_one(photo_b.string(), CancellationToken{});
+    auto imported_a = service->import().import_one(photo_a.string(), CancellationToken{});
+    auto imported_b = service->import().import_one(photo_b.string(), CancellationToken{});
     ASSERT_TRUE(imported_a) << imported_a.error().message;
     ASSERT_TRUE(imported_b) << imported_b.error().message;
     ASSERT_TRUE(imported_a.value().asset);
@@ -1817,18 +1818,18 @@ TEST_F(CatalogServiceTest, CatalogLocationWritablePatchIsTransactionalAndSurvive
     WritableMetadata only_a;
     only_a.city = "Shanghai";
     only_a.country = "China";
-    ASSERT_TRUE(service->set_writable_metadata(id_a, only_a));
+    ASSERT_TRUE(service->metadata().set_writable_metadata(id_a, only_a));
     WritableMetadata only_b;
     only_b.city = "Tokyo";
     only_b.country = "Japan";
-    ASSERT_TRUE(service->set_writable_metadata(id_b, only_b));
+    ASSERT_TRUE(service->metadata().set_writable_metadata(id_b, only_b));
 
-    auto snapshot = service->snapshot();
+    auto snapshot = service->library().snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     auto province_patch = writable_metadata_patch_for_field("province_state", std::string("Metro"));
     ASSERT_TRUE(province_patch) << province_patch.error().message;
-    auto patched = service->set_writable_metadata_selection({id_a, id_b}, province_patch.value(),
-                                                            snapshot.value().revision);
+    auto patched = service->metadata().set_writable_metadata_selection(
+        {id_a, id_b}, province_patch.value(), snapshot.value().revision);
     ASSERT_TRUE(patched) << patched.error().message;
     ASSERT_EQ(patched.value().assets.size(), 2U);
     for (const auto &asset : patched.value().assets)
@@ -1851,7 +1852,7 @@ TEST_F(CatalogServiceTest, CatalogLocationWritablePatchIsTransactionalAndSurvive
         }
     }
 
-    auto stale = service->set_writable_metadata_selection(
+    auto stale = service->metadata().set_writable_metadata_selection(
         {id_a}, writable_metadata_patch_for_field("sublocation", std::string("Bund")).value(),
         snapshot.value().revision);
     ASSERT_FALSE(stale);
@@ -1861,7 +1862,7 @@ TEST_F(CatalogServiceTest, CatalogLocationWritablePatchIsTransactionalAndSurvive
     service.reset();
     auto reopened = open_service(false);
     ASSERT_TRUE(reopened) << reopened.error().message;
-    auto reopened_assets = service->list_assets();
+    auto reopened_assets = service->library().list_assets();
     ASSERT_TRUE(reopened_assets);
     std::size_t matched = 0;
     for (const auto &asset : reopened_assets.value())
@@ -1878,7 +1879,7 @@ TEST_F(CatalogServiceTest, CatalogLocationWritablePatchIsTransactionalAndSurvive
         }
     }
     EXPECT_EQ(matched, 2U);
-    auto reopened_snapshot = service->snapshot();
+    auto reopened_snapshot = service->library().snapshot();
     ASSERT_TRUE(reopened_snapshot);
     EXPECT_EQ(reopened_snapshot.value().schema_version, kCatalogSchemaVersion);
 }
@@ -1889,7 +1890,7 @@ TEST_F(CatalogServiceTest, IptcExtensionWritablePatchSurvivesReopenAndRefresh)
     const auto path_a = root / "iptc-ext.jpg";
     ASSERT_TRUE(
         QImage(32, 24, QImage::Format_RGB32).save(QString::fromStdString(path_a.string()), "JPG"));
-    auto imported = service->import_one(path_a.string(), CancellationToken{});
+    auto imported = service->import().import_one(path_a.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
@@ -1901,15 +1902,15 @@ TEST_F(CatalogServiceTest, IptcExtensionWritablePatchSurvivesReopenAndRefresh)
     metadata.usage_terms = "Editorial only";
     metadata.job_id = "JOB-0140";
     metadata.title = "Keep title";
-    auto written = service->set_writable_metadata(asset_id, metadata);
+    auto written = service->metadata().set_writable_metadata(asset_id, metadata);
     ASSERT_TRUE(written) << written.error().message;
     EXPECT_EQ(written.value().metadata.headline, std::optional<std::string>{"Press headline"});
     EXPECT_EQ(written.value().metadata.job_id, std::optional<std::string>{"JOB-0140"});
 
     auto headline_patch = writable_metadata_patch_for_field("headline", std::string{"Updated HL"});
     ASSERT_TRUE(headline_patch) << headline_patch.error().message;
-    auto patched =
-        service->set_writable_metadata_selection({asset_id}, headline_patch.value(), std::nullopt);
+    auto patched = service->metadata().set_writable_metadata_selection(
+        {asset_id}, headline_patch.value(), std::nullopt);
     ASSERT_TRUE(patched) << patched.error().message;
     ASSERT_FALSE(patched.value().assets.empty());
     EXPECT_EQ(patched.value().assets.front().metadata.headline,
@@ -1917,7 +1918,7 @@ TEST_F(CatalogServiceTest, IptcExtensionWritablePatchSurvivesReopenAndRefresh)
     EXPECT_EQ(patched.value().assets.front().metadata.credit,
               std::optional<std::string>{"Ravo Desk"});
 
-    auto refreshed = service->refresh_capture_metadata(asset_id, CancellationToken{});
+    auto refreshed = service->metadata().refresh_capture_metadata(asset_id, CancellationToken{});
     ASSERT_TRUE(refreshed) << refreshed.error().message;
     EXPECT_EQ(refreshed.value().metadata.headline, std::optional<std::string>{"Updated HL"});
     EXPECT_EQ(refreshed.value().metadata.usage_terms, std::optional<std::string>{"Editorial only"});
@@ -1925,7 +1926,7 @@ TEST_F(CatalogServiceTest, IptcExtensionWritablePatchSurvivesReopenAndRefresh)
 
     ASSERT_TRUE(service->close());
     ASSERT_TRUE(open_service(false));
-    auto reopened_assets = service->list_assets();
+    auto reopened_assets = service->library().list_assets();
     ASSERT_TRUE(reopened_assets);
     ASSERT_EQ(reopened_assets.value().size(), 1U);
     EXPECT_EQ(reopened_assets.value().front().metadata.headline,
@@ -1939,7 +1940,7 @@ TEST_F(CatalogServiceTest, IptcExtensionWritablePatchSurvivesReopenAndRefresh)
               std::optional<std::string>{"Editorial only"});
     EXPECT_EQ(reopened_assets.value().front().metadata.job_id,
               std::optional<std::string>{"JOB-0140"});
-    auto reopened_snapshot = service->snapshot();
+    auto reopened_snapshot = service->library().snapshot();
     ASSERT_TRUE(reopened_snapshot);
     EXPECT_EQ(reopened_snapshot.value().schema_version, kCatalogSchemaVersion);
 }

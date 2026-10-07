@@ -29,10 +29,10 @@ ColumnLayout {
             Layout.fillWidth: true
             model: ["free", "1:1", "3:2", "4:3", "5:4", "16:9"]
             enabled: panel.hasSelection
-            displayText: panel.hasPresenter && panel.presenter.cropAspect === "locked" ? qsTr("Custom") : currentText
+            displayText: panel.hasPresenter && panel.presenter.develop.cropAspect === "locked" ? qsTr("Custom") : currentText
             currentIndex: {
                 const aspects = ["free", "1:1", "3:2", "4:3", "5:4", "16:9"];
-                const current = panel.hasPresenter ? panel.presenter.cropAspect : "free";
+                const current = panel.hasPresenter ? panel.presenter.develop.cropAspect : "free";
                 return aspects.indexOf(current);
             }
             onActivated: if (panel.commands)
@@ -41,7 +41,7 @@ ColumnLayout {
         CustomButton {
             display: AbstractButton.IconOnly
             checkable: true
-            checked: panel.hasPresenter && panel.presenter.cropAspect !== "free"
+            checked: panel.hasPresenter && panel.presenter.develop.cropAspect !== "free"
             icon.source: checked ? "qrc:/GeoControls/icons/Lock.svg" : "qrc:/GeoControls/icons/Unlock.svg"
             tooltipText: checked ? qsTr("Unlock aspect ratio") : qsTr("Lock aspect ratio")
             enabled: panel.hasSelection
@@ -74,7 +74,7 @@ ColumnLayout {
         resetValue: 0
         delayedCommit: true
         enabled: panel.hasSelection
-        value: panel.hasPresenter ? panel.presenter.editStraighten : 0
+        value: panel.hasPresenter ? panel.presenter.develop.editStraighten : 0
         onValueEdited: function (value) {
             if (panel.liveReady && panel.commands)
                 panel.commands.previewDevelopNumber("straighten", value);
@@ -148,7 +148,7 @@ ColumnLayout {
     }
     CustomButton {
         Layout.fillWidth: true
-        text: panel.hasPresenter && panel.presenter.cropToolActive ? qsTr("Done") : qsTr("Crop & Rotate")
+        text: panel.hasPresenter && panel.presenter.develop.cropToolActive ? qsTr("Done") : qsTr("Crop & Rotate")
         enabled: panel.hasSelection
         onClicked: if (panel.commands)
             panel.commands.toggleCropTool()

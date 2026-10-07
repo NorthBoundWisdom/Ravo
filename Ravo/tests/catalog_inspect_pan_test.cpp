@@ -13,20 +13,20 @@ TEST_F(CatalogServiceTest, SameSizeInspectPansMatchTheirCpuExportRegions)
     ASSERT_TRUE(open_service(true));
     const auto source_hash = file_sha256(raw_fixture_path());
     auto imported =
-        service->import_one(raw_fixture_path(), {}, ImportPreviewPolicy::kMinimal, true);
+        service->import().import_one(raw_fixture_path(), {}, ImportPreviewPolicy::kMinimal, true);
     ASSERT_TRUE(imported);
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    const auto before_recipe = service->load_recipe(asset_id);
+    const auto before_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(before_recipe);
     const auto serialized_before = serialize_recipe(before_recipe.value());
     ASSERT_TRUE(serialized_before);
-    const auto revision_before = service->snapshot().value().revision;
+    const auto revision_before = service->library().snapshot().value().revision;
     ExportRequest output;
     output.asset_id = asset_id;
     output.output_path = (root / "cpu-full.png").string();
     output.format = ExportFormat::kPng;
-    auto exported = service->export_asset(output);
+    auto exported = service->exports().export_asset(output);
     ASSERT_TRUE(exported) << exported.error().message;
     const QImage gold =
         QImage(QString::fromStdString(output.output_path)).convertToFormat(QImage::Format_RGB888);
@@ -42,7 +42,7 @@ TEST_F(CatalogServiceTest, SameSizeInspectPansMatchTheirCpuExportRegions)
         request.persist_preview_record = false;
         request.prefer_embedded_preview = false;
         request.need_cpu_pixels = true;
-        auto preview = service->request_preview(request);
+        auto preview = service->preview().request_preview(request);
         ASSERT_TRUE(preview) << preview.error().message;
         const int x = static_cast<int>(std::llround(rect.x * gold.width()));
         const int y = static_cast<int>(std::llround(rect.y * gold.height()));
@@ -73,8 +73,8 @@ TEST_F(CatalogServiceTest, SameSizeInspectPansMatchTheirCpuExportRegions)
             EXPECT_NE(first_pixels, preview.value().rgb);
     }
     EXPECT_EQ(file_sha256(raw_fixture_path()), source_hash);
-    EXPECT_EQ(service->snapshot().value().revision, revision_before);
-    auto after_recipe = service->load_recipe(asset_id);
+    EXPECT_EQ(service->library().snapshot().value().revision, revision_before);
+    auto after_recipe = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(after_recipe);
     EXPECT_EQ(serialize_recipe(after_recipe.value()).value(), serialized_before.value());
 }

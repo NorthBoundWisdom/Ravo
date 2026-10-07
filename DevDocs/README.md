@@ -53,6 +53,14 @@ in those authorities.
 
 ## Document authority
 
+Service capability/resource ownership, bounded Preview buffers, Library/Develop/
+Inspect/Export presenters and shared cancellation generations are specified in
+[ARCHITECTURE.md](ARCHITECTURE.md), with lifecycle and regression coverage in
+[TESTING.md](TESTING.md). Historical migration records do not form a current
+implementation checklist; current product execution stays in [TODO.md](TODO.md).
+Remaining architecture-refactor work is in
+[TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md) within that queue.
+
 Burst Compare availability and stack/selection lifetimes are specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with regression coverage in
 [TESTING.md](TESTING.md) and the service contract in

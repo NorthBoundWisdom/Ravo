@@ -279,9 +279,9 @@ Result<void> StudioLiveSessionController::start()
     connect(&presenter_, &StudioPresenter::libraryWorkChanged, this, changed);
     connect(&presenter_, &StudioPresenter::selectionChanged, this, changed);
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
-    connect(&presenter_, &StudioPresenter::editChanged, this, changed);
+    connect(presenter_.develop(), &StudioDevelopPresenter::editChanged, this, changed);
     connect(&presenter_, &StudioPresenter::previewChanged, this, changed);
-    connect(&presenter_, &StudioPresenter::previewIdentityChanged, this, changed);
+    connect(presenter_.inspect(), &StudioInspectPresenter::identityChanged, this, changed);
     connect(&commands_, &StudioCommandController::commandsChanged, this, changed);
     refresh();
 
@@ -323,13 +323,16 @@ void StudioLiveSessionController::refresh()
     std::string baseline;
     std::string failure;
     const auto asset = presenter_.assets_.assetById(presenter_.selected_asset_id_);
-    if (asset && presenter_.develop_loaded_)
+    if (asset && presenter_.develop()->state().develop_loaded_)
     {
         const AssetDescriptor descriptor{asset->id, asset->normalized_uri,
                                          asset->content_fingerprint};
-        auto current_recipe = recipe_from_develop(descriptor, presenter_.develop_);
-        auto saved_recipe = recipe_from_develop(descriptor, presenter_.saved_develop_);
-        auto baseline_recipe = recipe_from_develop(descriptor, presenter_.baseline_develop());
+        auto current_recipe =
+            recipe_from_develop(descriptor, presenter_.develop()->state().develop_);
+        auto saved_recipe =
+            recipe_from_develop(descriptor, presenter_.develop()->state().saved_develop_);
+        auto baseline_recipe =
+            recipe_from_develop(descriptor, presenter_.develop()->baseline_develop());
         if (!current_recipe)
             failure = current_recipe.error().message;
         else if (!saved_recipe)
@@ -355,9 +358,9 @@ void StudioLiveSessionController::refresh()
             }
         }
     }
-    else if (!presenter_.develop_load_error_.isEmpty())
+    else if (!presenter_.develop()->state().develop_load_error_.isEmpty())
     {
-        failure = utf8_from_qstring(presenter_.develop_load_error_);
+        failure = utf8_from_qstring(presenter_.develop()->state().develop_load_error_);
     }
     if (current != current_recipe_json_)
     {
@@ -373,9 +376,9 @@ void StudioLiveSessionController::refresh()
     recipe_error_ = std::move(failure);
 
     const std::string preview = std::to_string(presenter_.live_preview_revision_) + "\n" +
-                                utf8_from_qstring(presenter_.live_preview_pixel_sha256_) + "\n" +
+                                utf8_from_qstring(presenter_.inspect_.pixelSha256()) + "\n" +
                                 std::to_string(presenter_.preview_loading_ ? 1 : 0) + "\n" +
-                                std::to_string(presenter_.preview_identity_pending_ ? 1 : 0);
+                                std::to_string(presenter_.inspect_.identityPending() ? 1 : 0);
     if (preview != preview_identity_)
     {
         preview_identity_ = preview;
@@ -426,7 +429,8 @@ JsonValue StudioLiveSessionController::snapshot() const
             baseline = std::move(parsed).value();
     }
     const bool selected = !presenter_.selected_asset_id_.isEmpty();
-    const bool available = selected && presenter_.develop_loaded_ && current.object_if() != nullptr;
+    const bool available =
+        selected && presenter_.develop()->state().develop_loaded_ && current.object_if() != nullptr;
     const bool pending = available && current_recipe_json_ != saved_recipe_json_;
     JsonValue::Object recipe{
         {"current", current},
@@ -438,45 +442,48 @@ JsonValue StudioLiveSessionController::snapshot() const
         {"revision", JsonValue::number(std::to_string(recipe_revision_))},
         {"saved", saved},
         {"saved_revision", JsonValue::number(std::to_string(saved_recipe_revision_))},
-        {"state", !selected                   ? "none" :
-                  !recipe_error_.empty()      ? "error" :
-                  !presenter_.develop_loaded_ ? "loading" :
-                  pending                     ? "pending" :
-                                                "saved"},
+        {"state", !selected                                      ? "none" :
+                  !recipe_error_.empty()                         ? "error" :
+                  !presenter_.develop()->state().develop_loaded_ ? "loading" :
+                  pending                                        ? "pending" :
+                                                                   "saved"},
     };
     if (!recipe_error_.empty())
         recipe.emplace("error", recipe_error_);
 
-    const bool preview_ready = !presenter_.live_preview_pixel_sha256_.isEmpty() &&
+    const bool preview_ready = !presenter_.inspect_.pixelSha256().isEmpty() &&
                                presenter_.live_preview_width_ > 0U &&
                                presenter_.live_preview_height_ > 0U;
     JsonValue::Object preview{
         {"color_profile", utf8_from_qstring(presenter_.live_preview_color_profile_id_)},
         {"height", JsonValue::number(std::to_string(presenter_.live_preview_height_))},
-        {"matches_current_recipe", available && presenter_.displayed_develop_.has_value() &&
-                                       *presenter_.displayed_develop_ == presenter_.develop_ &&
-                                       !presenter_.before_after_ && !presenter_.crop_tool_active_ &&
-                                       !presenter_.mask_overlay_visible_},
+        {"matches_current_recipe",
+         available && presenter_.inspect_.displayedDevelop().has_value() &&
+             *presenter_.inspect_.displayedDevelop() == presenter_.develop()->state().develop_ &&
+             !presenter_.develop()->state().before_after_ &&
+             !presenter_.develop()->state().crop_tool_active_ &&
+             !presenter_.develop()->state().mask_overlay_visible_},
         {"pixel_format", "rgb8"},
-        {"pixel_sha256", utf8_from_qstring(presenter_.live_preview_pixel_sha256_)},
+        {"pixel_sha256", utf8_from_qstring(presenter_.inspect_.pixelSha256())},
         {"resource_id", preview_ready ?
                             descriptor_.session_id +
                                 ":preview:" + std::to_string(presenter_.live_preview_revision_) +
-                                ":" + utf8_from_qstring(presenter_.live_preview_pixel_sha256_) :
+                                ":" + utf8_from_qstring(presenter_.inspect_.pixelSha256()) :
                             std::string{}},
         {"revision", JsonValue::number(std::to_string(preview_state_revision_))},
         {"source_revision", JsonValue::number(std::to_string(presenter_.live_preview_revision_))},
-        {"state", presenter_.preview_loading_ || presenter_.preview_identity_pending_ ? "loading" :
-                  preview_ready                                                       ? "ready" :
-                                                                                        "none"},
+        {"state", presenter_.preview_loading_ || presenter_.inspect_.identityPending() ? "loading" :
+                  preview_ready                                                        ? "ready" :
+                                                                                         "none"},
         {"width", JsonValue::number(std::to_string(presenter_.live_preview_width_))},
     };
 
     return JsonValue::Object{
         {"browse_mode", utf8_from_qstring(presenter_.browse_mode_)},
         {"busy", presenter_.busy_ || presenter_.import_work_active_ ||
-                     presenter_.develop_job_in_flight_ || presenter_.pending_save_.has_value() ||
-                     presenter_.pending_preview_.has_value()},
+                     presenter_.develop()->state().develop_job_in_flight_ ||
+                     presenter_.develop()->state().pending_save_.has_value() ||
+                     presenter_.develop()->state().pending_preview_.has_value()},
         {"catalog", std::move(catalog)},
         {"command_revision", JsonValue::number(std::to_string(commands_.revision()))},
         {"error", utf8_from_qstring(presenter_.error_text_)},
@@ -490,15 +497,18 @@ JsonValue StudioLiveSessionController::snapshot() const
         {"editing_scope",
          JsonValue::Object{
              {"schema_version", JsonValue::number("1")},
-             {"kind", presenter_.localEditing() ? "local" : "global"},
-             {"local_id", utf8_from_qstring(presenter_.activeLocalId())},
-             {"done_pending", presenter_.localDonePending()},
-             {"component_index", JsonValue::number(std::to_string(
-                                     presenter_.local_projection_.local_mask_child_index))},
-             {"point_index", JsonValue::number(std::to_string(
-                                 presenter_.local_projection_.local_mask_point_index))},
-             {"drawing", presenter_.maskDrawingActive()},
-             {"gesture_token", utf8_from_qstring(presenter_.mask_gesture_token_)}}},
+             {"kind", presenter_.develop()->localEditing() ? "local" : "global"},
+             {"local_id", utf8_from_qstring(presenter_.develop()->activeLocalId())},
+             {"done_pending", presenter_.develop()->localDonePending()},
+             {"component_index",
+              JsonValue::number(std::to_string(
+                  presenter_.develop()->state().local_projection_.local_mask_child_index))},
+             {"point_index",
+              JsonValue::number(std::to_string(
+                  presenter_.develop()->state().local_projection_.local_mask_point_index))},
+             {"drawing", presenter_.develop()->maskDrawingActive()},
+             {"gesture_token",
+              utf8_from_qstring(presenter_.develop()->state().mask_gesture_token_)}}},
         {"selection", std::move(selection)},
         {"session_id", descriptor_.session_id},
         {"status", utf8_from_qstring(presenter_.status_text_)},
@@ -612,8 +622,11 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
                            {"expected", asset_id.value()},
                            {"actual", utf8_from_qstring(presenter_.selected_asset_id_)}});
     }
-    if (presenter_.busy_ || presenter_.import_work_active_ || presenter_.develop_job_in_flight_ ||
-        presenter_.pending_save_ || presenter_.pending_preview_ || !presenter_.develop_loaded_)
+    if (presenter_.busy_ || presenter_.import_work_active_ ||
+        presenter_.develop()->state().develop_job_in_flight_ ||
+        presenter_.develop()->state().pending_save_ ||
+        presenter_.develop()->state().pending_preview_ ||
+        !presenter_.develop()->state().develop_loaded_)
     {
         return make_error(ErrorCode::kConflict, "Studio Develop state is busy",
                           {{"reason", "busy"}});

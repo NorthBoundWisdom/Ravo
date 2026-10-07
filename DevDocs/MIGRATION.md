@@ -49,73 +49,28 @@ Forbidden:
 Production dependencies remain completely independent; neither `src → Ravo`
 nor `Ravo → src` may exist.
 
-## First-version migration unit
+## Historical migration and current execution
 
-The current migration unit is a vertical slice observable by both users and
-automated tests:
+The catalog/viewer vertical slice and subsequent accepted algorithm migrations
+are historical decisions recorded in the ledger and their ADRs. The leftover
+source tree has been deleted (ADR-0106); there is no remaining retirement queue
+or old consumer count to drive current implementation. Do not start a
+leftover-faithful port of an unaccepted IOP or reintroduce that tree.
 
-1. **Evidence:** list the frozen owner, input formats, data/thread/error
-   behavior, and read-only fixtures.
-2. **Define the contract:** document catalog schema, Asset/Import/Preview value
-   types, ports, lifecycle, cancellation, and failure semantics.
-3. **Implement the Ravo owner:** domain/services/engine/adapters/desktop each
-   own only their layer's responsibility.
-4. **Validate without UI:** service integration completes create → import →
-   preview → reopen.
-5. **Desktop acceptance:** Ravo Studio creates/opens, imports, lists, selects,
-   and views.
-6. **Resources and recovery:** cover duplicates, corruption, missing files,
-   cancellation, disk/database failure, close, and restart.
-7. **Record status:** update roadmap, ADR, ledger, actual validation, and
-   untested platforms.
+Current product work follows [TODO.md](TODO.md), ownership follows
+[ARCHITECTURE.md](ARCHITECTURE.md), and reproducible validation follows
+[TESTING.md](TESTING.md). Three-platform package evidence belongs in
+[Packaging.md](Packaging.md). New photographic tools need their own accepted
+contract, CPU mathematics, supported clients and failure/resource behavior.
 
-A change need not complete an entire vertical slice, but neither “target was
-created,” “database opens,” nor “window is visible” alone counts as a completed
-first version.
-
-## Subsequent algorithm migration unit
-
-Do not start a leftover-faithful port of an unaccepted leftover IOP
-(ADR-0106). The leftover source tree is gone.
-
-New photographic tools are independent Ravo product work under
-[`TODO.md`](TODO.md) and [`ProductRoadmap.md`](ProductRoadmap.md). They need a dated contract, owned
-CPU mathematics, CLI/Studio consumers, and cancellation/resource failures.
-They are not leftover C twins.
-
-Accepted Ravo operations keep their current contracts. Historic leftover XMP
-that names an unaccepted leftover IOP stays fail-closed.
-
-## Definition of “absorbed by Ravo”
-
-“Ravo accepted” and “old implementation removed” are distinct states. A
-capability is final only when all of these are true:
-
-- Ravo is the supported implementation and owns data, CPU/UI behavior, error,
-  cancellation, and resource contracts.
-- Promised fixtures, service/desktop tests, and platform gates meet their
-  thresholds.
-- Historical-data migration or an explicit rejection strategy is recorded and
-  tested.
-- Release transition is complete and production builds have no second reachable
-  old implementation.
-- Production builds have no leftover darktable source tree.
-- Documentation, search, and the link graph have no accidental consumers or
-  reverse dependencies.
-
-## Migration order
-
-1. Keep the accepted catalog/review/develop/export baseline regressible.
-2. Close remaining private-corpus and Gallery measurement evidence in
-   [`TODO.md`](TODO.md). Three-platform package evidence lives in
-   [`Packaging.md`](Packaging.md). Photographer-useful remaining product work is
-   independent Ravo work under the professional-workflow TODO and product
-   roadmap, not leftover IOP twins.
-3. Do not resume leftover-faithful IOP, pixelpipe, GTK, or OpenCL ports.
-4. Apply data-safety, cache/resource, accessibility, and three-platform gates
-   continuously. Leftover catalog import and adjacent-XMP interoperability
-   still need dated product decisions. GPU is an Engine adapter only
-   (ADR-0133); 0.9 OpenCL is leftover. CPU remains the correctness reference.
+Accepted Ravo operations and the documented historic XMP import subset keep
+existing compatibility contracts. XMP naming unaccepted leftover IOPs remains
+fail-closed. Frozen image/XMP/golden fixtures and their licences are current test
+evidence, protected by `Ravo/tools/freeze_legacy_manifest.py --check`; that tool
+is not a migration runner. FreeCM, source-root locks/pins and private native
+adapters remain the current build/dependency workflow and are not retirement
+scaffolding. GPU stays an Engine QRhi adapter with CPU as the correctness
+reference (ADR-0133/0134); no OpenCL port or silent CPU fallback is admitted.
 
 ## Explicit leftovers
 

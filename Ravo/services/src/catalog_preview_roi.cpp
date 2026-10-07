@@ -1,6 +1,9 @@
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/preview_service.h"
 
 #include "catalog_internal.h"
+#include "ravo/domain/catalog_repository.h"
+#include "ravo/domain/preview_cache.h"
+#include "ravo/domain/raster_decoder.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/canvas_frame.h"
 #include "ravo/recipe/color_reconstruction.h"
@@ -189,7 +192,7 @@ void disable_mapped_geometry(Recipe &recipe)
 
 } // namespace
 
-Result<CatalogService::CachedRoiLinearWorking *> CatalogService::cached_roi_linear_working(
+Result<PreviewService::CachedRoiLinearWorking *> PreviewService::cached_roi_linear_working(
     const AssetRecord &asset, const std::string_view path, const Recipe &recipe,
     const std::uint32_t origin_x, const std::uint32_t origin_y, const std::uint32_t width,
     const std::uint32_t height, const CancellationToken &cancellation)
@@ -242,7 +245,7 @@ Result<CatalogService::CachedRoiLinearWorking *> CatalogService::cached_roi_line
     return &*roi_linear_working_;
 }
 
-Result<PreviewResult> CatalogService::generate_roi_preview(const AssetRecord &asset,
+Result<PreviewResult> PreviewService::generate_roi_preview(const AssetRecord &asset,
                                                            const PreviewRequest &request,
                                                            const Recipe &recipe,
                                                            const std::string_view path)

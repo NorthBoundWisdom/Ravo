@@ -1,4 +1,6 @@
-#include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_develop_presenter.h"
+#include "ravo/services/preview_service.h"
+#include "ravo/services/recovery_service.h"
 
 #include <algorithm>
 #include <array>
@@ -39,26 +41,26 @@
 namespace ravo
 {
 
-void StudioPresenter::load_develop_for_selection()
+void StudioDevelopPresenter::load_develop_for_selection()
 {
     break_history_coalescing();
-    develop_ = {};
+    state_.develop_ = {};
     clear_local_edit_scope();
-    saved_develop_ = {};
-    loaded_recipe_asset_.reset();
-    loaded_recipe_history_head_ = 0;
-    develop_loaded_ = false;
-    develop_preview_deferred_ = false;
-    develop_load_error_.clear();
-    white_balance_pick_active_ = false;
-    mask_place_active_ = false;
-    mask_parametric_assist_active_ = false;
-    undo_stack_.clear();
-    redo_stack_.clear();
-    recipe_history_.clear();
-    recipe_history_entries_.clear();
-    active_history_id_ = 0;
-    active_history_seq_ = 0;
+    state_.saved_develop_ = {};
+    state_.loaded_recipe_asset_.reset();
+    state_.loaded_recipe_history_head_ = 0;
+    state_.develop_loaded_ = false;
+    state_.develop_preview_deferred_ = false;
+    state_.develop_load_error_.clear();
+    state_.white_balance_pick_active_ = false;
+    state_.mask_place_active_ = false;
+    state_.mask_parametric_assist_active_ = false;
+    state_.undo_stack_.clear();
+    state_.redo_stack_.clear();
+    state_.recipe_history_.clear();
+    state_.recipe_history_entries_.clear();
+    state_.active_history_id_ = 0;
+    state_.active_history_seq_ = 0;
     if (selected_asset_id_.isEmpty())
     {
         emit editChanged();
@@ -71,10 +73,10 @@ void StudioPresenter::load_develop_for_selection()
             Result<Recipe> loaded = make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<std::vector<RecipeHistoryEntry>> history =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (service_ != nullptr)
+            if (host_.develop_service() != nullptr)
             {
-                loaded = service_->develop().load_recipe(asset_id);
-                history = service_->develop().list_recipe_history(asset_id);
+                loaded = host_.develop_service()->load_recipe(asset_id);
+                history = host_.develop_service()->list_recipe_history(asset_id);
             }
             QMetaObject::invokeMethod(
                 this,
@@ -87,28 +89,28 @@ void StudioPresenter::load_develop_for_selection()
                     if (history)
                     {
                         apply_recipe_history(history.value());
-                        loaded_recipe_history_head_ =
+                        state_.loaded_recipe_history_head_ =
                             history.value().empty() ? 0 : history.value().front().id;
                     }
                     else
                     {
-                        recipe_history_.clear();
-                        recipe_history_entries_.clear();
+                        state_.recipe_history_.clear();
+                        state_.recipe_history_entries_.clear();
                     }
                     if (!loaded)
                     {
-                        develop_ = {};
-                        saved_develop_ = {};
-                        develop_load_error_ = qstring_from_utf8(loaded.error().message);
+                        state_.develop_ = {};
+                        state_.saved_develop_ = {};
+                        state_.develop_load_error_ = qstring_from_utf8(loaded.error().message);
                         sync_active_history();
-                        develop_preview_deferred_ = false;
+                        state_.develop_preview_deferred_ = false;
                         if (browse_mode_ == QLatin1String("develop"))
                         {
-                            preview_loading_ = false;
+                            host_.preview_loading(false);
                             emit previewChanged();
                         }
                         emit editChanged();
-                        setError(qstring_from_utf8(loaded.error().message));
+                        emit errorOccurred(qstring_from_utf8(loaded.error().message));
                         return;
                     }
                     auto params = develop_from_recipe(loaded.value());
@@ -120,35 +122,35 @@ void StudioPresenter::load_develop_for_selection()
                     }
                     if (!params)
                     {
-                        develop_ = {};
-                        saved_develop_ = {};
-                        develop_load_error_ = qstring_from_utf8(params.error().message);
+                        state_.develop_ = {};
+                        state_.saved_develop_ = {};
+                        state_.develop_load_error_ = qstring_from_utf8(params.error().message);
                         sync_active_history();
-                        develop_preview_deferred_ = false;
+                        state_.develop_preview_deferred_ = false;
                         if (browse_mode_ == QLatin1String("develop"))
                         {
-                            preview_loading_ = false;
+                            host_.preview_loading(false);
                             emit previewChanged();
                         }
                         emit editChanged();
-                        setError(qstring_from_utf8(params.error().message));
+                        emit errorOccurred(qstring_from_utf8(params.error().message));
                         return;
                     }
-                    develop_ = params.value();
-                    selected_exposure_instance_index_ = 0;
-                    selected_color_balance_rgb_instance_index_ = 0;
-                    sync_selected_instance_edit_buffers(develop_);
-                    saved_develop_ = develop_;
-                    loaded_recipe_asset_ = loaded.value().asset;
-                    develop_loaded_ = true;
-                    develop_load_error_.clear();
+                    state_.develop_ = params.value();
+                    state_.selected_exposure_instance_index_ = 0;
+                    state_.selected_color_balance_rgb_instance_index_ = 0;
+                    sync_selected_instance_edit_buffers(state_.develop_);
+                    state_.saved_develop_ = state_.develop_;
+                    state_.loaded_recipe_asset_ = loaded.value().asset;
+                    state_.develop_loaded_ = true;
+                    state_.develop_load_error_.clear();
                     sync_curve_ui_from_develop();
                     sync_active_history();
-                    const bool preview_deferred = develop_preview_deferred_;
-                    develop_preview_deferred_ = false;
+                    const bool preview_deferred = state_.develop_preview_deferred_;
+                    state_.develop_preview_deferred_ = false;
                     if (preview_deferred && browse_mode_ == QLatin1String("develop"))
                     {
-                        requestPreviewForSelection();
+                        host_.request_selection_preview();
                     }
                     emit editChanged();
                 },
@@ -157,16 +159,16 @@ void StudioPresenter::load_develop_for_selection()
         TaskPriority::kForeground);
 }
 
-void StudioPresenter::break_history_coalescing()
+void StudioDevelopPresenter::break_history_coalescing()
 {
-    history_coalesce_key_.reset();
-    history_coalesce_id_.reset();
+    state_.history_coalesce_key_.reset();
+    state_.history_coalesce_id_.reset();
 }
 
-void StudioPresenter::commit_develop(DevelopParams params, const bool push_history,
-                                     const bool refresh_preview,
-                                     const RecipeHistoryWrite history_write,
-                                     std::optional<std::string> history_coalesce_key)
+void StudioDevelopPresenter::commit_develop(DevelopParams params, const bool push_history,
+                                            const bool refresh_preview,
+                                            const RecipeHistoryWrite history_write,
+                                            std::optional<std::string> history_coalesce_key)
 {
     if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
     {
@@ -174,22 +176,22 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     }
     const auto intent_started_at = std::chrono::steady_clock::now();
     clamp_develop(params);
-    const auto previous = saved_develop_;
-    const auto history_head_before = loaded_recipe_history_head_;
-    const bool same_control = push_history && params != saved_develop_ &&
+    const auto previous = state_.saved_develop_;
+    const auto history_head_before = state_.loaded_recipe_history_head_;
+    const bool same_control = push_history && params != state_.saved_develop_ &&
                               history_write == RecipeHistoryWrite::kAppendIfNew &&
-                              history_coalesce_key && history_coalesce_key_ &&
-                              *history_coalesce_key == *history_coalesce_key_;
+                              history_coalesce_key && state_.history_coalesce_key_ &&
+                              *history_coalesce_key == *state_.history_coalesce_key_;
     bool pushed_undo = false;
-    if (push_history && params != saved_develop_ && !same_control)
+    if (push_history && params != state_.saved_develop_ && !same_control)
     {
-        undo_stack_.push_back(saved_develop_);
+        state_.undo_stack_.push_back(state_.saved_develop_);
         pushed_undo = true;
-        if (undo_stack_.size() > 40U)
+        if (state_.undo_stack_.size() > 40U)
         {
-            undo_stack_.erase(undo_stack_.begin());
+            state_.undo_stack_.erase(state_.undo_stack_.begin());
         }
-        redo_stack_.clear();
+        state_.redo_stack_.clear();
     }
     if (history_write != RecipeHistoryWrite::kAppendIfNew || !history_coalesce_key)
     {
@@ -197,48 +199,49 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     }
     else if (!same_control)
     {
-        history_coalesce_key_ = history_coalesce_key;
-        history_coalesce_id_.reset();
+        state_.history_coalesce_key_ = history_coalesce_key;
+        state_.history_coalesce_id_.reset();
     }
-    const auto coalesce_history_id = same_control ? history_coalesce_id_ : std::nullopt;
+    const auto coalesce_history_id = same_control ? state_.history_coalesce_id_ : std::nullopt;
     std::optional<std::int64_t> discard_after;
     if (push_history && history_write == RecipeHistoryWrite::kAppendIfNew && !same_control &&
-        !recipe_history_entries_.empty() &&
-        active_history_seq_ < recipe_history_entries_.front().seq)
+        !state_.recipe_history_entries_.empty() &&
+        state_.active_history_seq_ < state_.recipe_history_entries_.front().seq)
     {
-        discard_after = active_history_seq_;
+        discard_after = state_.active_history_seq_;
         const auto cursor_seq = *discard_after;
-        recipe_history_entries_.erase(std::remove_if(recipe_history_entries_.begin(),
-                                                     recipe_history_entries_.end(),
-                                                     [cursor_seq](const RecipeHistoryEntry &entry)
-                                                     { return entry.seq > cursor_seq; }),
-                                      recipe_history_entries_.end());
+        state_.recipe_history_entries_.erase(
+            std::remove_if(
+                state_.recipe_history_entries_.begin(), state_.recipe_history_entries_.end(),
+                [cursor_seq](const RecipeHistoryEntry &entry) { return entry.seq > cursor_seq; }),
+            state_.recipe_history_entries_.end());
         QVariantList kept;
-        kept.reserve(recipe_history_.size());
-        for (const auto &row : recipe_history_)
+        kept.reserve(state_.recipe_history_.size());
+        for (const auto &row : state_.recipe_history_)
         {
             if (row.toMap().value(QStringLiteral("seq")).toLongLong() <= cursor_seq)
             {
                 kept.push_back(row);
             }
         }
-        recipe_history_ = std::move(kept);
+        state_.recipe_history_ = std::move(kept);
     }
-    develop_ = params;
+    state_.develop_ = params;
     emit editChanged();
     if (refresh_preview)
     {
-        refresh_inspect_roi();
+        host_.refresh_roi();
     }
-    const bool crop_guides = crop_tool_active_ && !before_after_;
-    const bool overlay = mask_overlay_visible_ && !before_after_;
+    const bool crop_guides = state_.crop_tool_active_ && !state_.before_after_;
+    const bool overlay = state_.mask_overlay_visible_ && !state_.before_after_;
     const bool needs_first_preview =
-        refresh_preview && !crop_guides && !overlay && !before_after_ &&
-        (!displayed_develop_.has_value() || *displayed_develop_ != params);
-    preview_loading_ = refresh_preview;
+        refresh_preview && !crop_guides && !overlay && !state_.before_after_ &&
+        (!inspect_.displayedDevelop().has_value() || *inspect_.displayedDevelop() != params);
+    host_.preview_loading(refresh_preview);
     emit previewChanged();
-    const auto request_revision = develop_preview_owner_.supersede("develop_save_superseded");
-    pending_save_ = PendingDevelopWork{
+    const auto request_revision =
+        state_.develop_preview_owner_.supersede("develop_save_superseded");
+    state_.pending_save_ = PendingDevelopWork{
         .save = true,
         .interactive = crop_guides || overlay || needs_first_preview,
         .params = params,
@@ -250,7 +253,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .history_coalesce_key = std::move(history_coalesce_key),
         .coalesce_history_id = coalesce_history_id,
         .asset_id = utf8_from_qstring(selected_asset_id_),
-        .ignore_edits = before_after_,
+        .ignore_edits = state_.before_after_,
         .ignore_crop = crop_guides,
         .ignore_straighten = false,
         .refresh_preview = refresh_preview,
@@ -258,51 +261,51 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .overlay_mask_id = current_overlay_mask_id(params),
         .request_revision = request_revision,
         .intent_started_at = intent_started_at,
-        .expected_source = loaded_recipe_asset_,
+        .expected_source = state_.loaded_recipe_asset_,
         .expected_history_head =
             discard_after ? std::optional<std::int64_t>{history_head_before} : std::nullopt,
     };
-    pending_preview_.reset();
+    state_.pending_preview_.reset();
     kick_develop_work();
 }
 
 [[nodiscard]] std::optional<std::string>
-StudioPresenter::current_overlay_mask_id(const DevelopParams &params) const
+StudioDevelopPresenter::current_overlay_mask_id(const DevelopParams &params) const
 {
-    if (!mask_overlay_visible_ || before_after_)
+    if (!state_.mask_overlay_visible_ || state_.before_after_)
     {
         return std::nullopt;
     }
-    if (mask_overlay_target_ == QLatin1String("local"))
+    if (state_.mask_overlay_target_ == QLatin1String("local"))
     {
-        const auto id = utf8_from_qstring(active_local_id_);
+        const auto id = utf8_from_qstring(state_.active_local_id_);
         for (const auto &local : params.local_adjustments)
             if (local.operation.instance_id == id)
                 return local.operation.mask_id;
         return std::nullopt;
     }
-    if (mask_overlay_target_ == QLatin1String("graduatednd"))
+    if (state_.mask_overlay_target_ == QLatin1String("graduatednd"))
         return params.graduated_mask_id;
-    if (mask_overlay_target_ == QLatin1String("color_balance_rgb"))
+    if (state_.mask_overlay_target_ == QLatin1String("color_balance_rgb"))
         return params.color_balance_rgb_mask_id;
-    if (mask_overlay_target_ == QLatin1String("exposure"))
+    if (state_.mask_overlay_target_ == QLatin1String("exposure"))
         return params.exposure_mask_id;
-    if (mask_overlay_target_ == QLatin1String("rgb_curve"))
+    if (state_.mask_overlay_target_ == QLatin1String("rgb_curve"))
         return params.rgb_curve_mask_id;
-    if (mask_overlay_target_ == QLatin1String("tone_curve"))
+    if (state_.mask_overlay_target_ == QLatin1String("tone_curve"))
         return params.tone_curve_mask_id;
-    if (mask_overlay_target_ == QLatin1String("highlights"))
+    if (state_.mask_overlay_target_ == QLatin1String("highlights"))
         return params.highlights_mask_id;
-    if (mask_overlay_target_ == QLatin1String("shadows"))
+    if (state_.mask_overlay_target_ == QLatin1String("shadows"))
         return params.shadows_mask_id;
-    if (mask_overlay_target_ == QLatin1String("whites"))
+    if (state_.mask_overlay_target_ == QLatin1String("whites"))
         return params.whites_mask_id;
-    if (mask_overlay_target_ == QLatin1String("blacks"))
+    if (state_.mask_overlay_target_ == QLatin1String("blacks"))
         return params.blacks_mask_id;
     return params.color_harmonizer_mask_id;
 }
 
-void StudioPresenter::preview_develop(DevelopParams params)
+void StudioDevelopPresenter::preview_develop(DevelopParams params)
 {
     if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
     {
@@ -310,21 +313,23 @@ void StudioPresenter::preview_develop(DevelopParams params)
     }
     const auto intent_started_at = std::chrono::steady_clock::now();
     clamp_develop(params);
-    if (params == develop_)
+    if (params == state_.develop_)
     {
         return;
     }
-    develop_ = params;
-    refresh_inspect_roi();
-    const bool crop_guides = crop_tool_active_ && !before_after_;
+    state_.develop_ = params;
+    host_.refresh_roi();
+    const bool crop_guides = state_.crop_tool_active_ && !state_.before_after_;
     std::optional<std::uint64_t> request_revision;
-    const bool finish_active_frame =
-        develop_job_in_flight_ && develop_interactive_job_in_flight_ && !pending_save_.has_value();
+    const bool finish_active_frame = state_.develop_job_in_flight_ &&
+                                     state_.develop_interactive_job_in_flight_ &&
+                                     !state_.pending_save_.has_value();
     if (!finish_active_frame)
     {
-        request_revision = develop_preview_owner_.supersede("interactive_preview_superseded");
+        request_revision =
+            state_.develop_preview_owner_.supersede("interactive_preview_superseded");
     }
-    pending_preview_ = PendingDevelopWork{
+    state_.pending_preview_ = PendingDevelopWork{
         .interactive = true,
         .params = params,
         .pushed_undo = false,
@@ -333,7 +338,7 @@ void StudioPresenter::preview_develop(DevelopParams params)
         .history_coalesce_key = {},
         .coalesce_history_id = {},
         .asset_id = utf8_from_qstring(selected_asset_id_),
-        .ignore_edits = before_after_,
+        .ignore_edits = state_.before_after_,
         .ignore_crop = crop_guides,
         .ignore_straighten = false,
         .overlay_mask_id = current_overlay_mask_id(params),
@@ -347,15 +352,16 @@ void StudioPresenter::preview_develop(DevelopParams params)
     emit editChanged();
 }
 
-bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
-                                     const bool refresh_preview,
-                                     std::optional<std::string> history_coalesce_key)
+bool StudioDevelopPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
+                                            const bool refresh_preview,
+                                            std::optional<std::string> history_coalesce_key)
 {
-    if (!mask_gesture_updating_ &&
-        (mask_gesture_before_ || (local_creation_before_ && edit == DevelopEdit::Commit)))
+    if (!state_.mask_gesture_updating_ &&
+        (state_.mask_gesture_before_ ||
+         (state_.local_creation_before_ && edit == DevelopEdit::Commit)))
     {
-        setError(QCoreApplication::translate("DevelopPanel",
-                                             "Finish mask editing before using global tools."));
+        emit errorOccurred(QCoreApplication::translate(
+            "DevelopPanel", "Finish mask editing before using global tools."));
         return false;
     }
     clamp_develop(next);
@@ -363,24 +369,24 @@ bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
     switch (edit)
     {
     case DevelopEdit::Overlay:
-        if (next == develop_)
+        if (next == state_.develop_)
         {
             return false;
         }
-        develop_ = std::move(next);
+        state_.develop_ = std::move(next);
         emit editChanged();
         return true;
     case DevelopEdit::Preview:
         preview_develop(std::move(next));
         return true;
     case DevelopEdit::Commit:
-        if (next == saved_develop_ && next == develop_)
+        if (next == state_.saved_develop_ && next == state_.develop_)
         {
             return false;
         }
-        if (next == saved_develop_)
+        if (next == state_.saved_develop_)
         {
-            develop_ = std::move(next);
+            state_.develop_ = std::move(next);
             emit editChanged();
             if (refresh_preview)
             {
@@ -392,7 +398,7 @@ bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
                        std::move(history_coalesce_key));
         return true;
     case DevelopEdit::Restore:
-        if (next == develop_ && next == saved_develop_)
+        if (next == state_.develop_ && next == state_.saved_develop_)
         {
             return false;
         }
@@ -405,11 +411,11 @@ bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
     return false;
 }
 
-void StudioPresenter::enqueue_preview()
+void StudioDevelopPresenter::enqueue_preview()
 {
     if (selected_asset_id_.isEmpty())
     {
-        preview_loading_ = false;
+        host_.preview_loading(false);
         emit previewChanged();
         return;
     }
@@ -418,35 +424,36 @@ void StudioPresenter::enqueue_preview()
     // temporary identity value for a Develop render while that publication is
     // still queued: it warms the RAW/GPU working generation for the wrong
     // recipe and makes the first real slider intent pay the complete rebuild.
-    if (browse_mode_ == QLatin1String("develop") && !develop_loaded_)
+    if (browse_mode_ == QLatin1String("develop") && !state_.develop_loaded_)
     {
-        develop_preview_deferred_ = true;
-        preview_loading_ = true;
+        state_.develop_preview_deferred_ = true;
+        host_.preview_loading(true);
         emit previewChanged();
         return;
     }
-    preview_loading_ = true;
+    host_.preview_loading(true);
     emit previewChanged();
-    const auto request_revision = develop_preview_owner_.supersede("preview_superseded");
-    const bool crop_guides = crop_tool_active_ && !before_after_;
+    const auto request_revision = state_.develop_preview_owner_.supersede("preview_superseded");
+    const bool crop_guides = state_.crop_tool_active_ && !state_.before_after_;
     const bool progressive_develop = browse_mode_ == QLatin1String("develop") &&
-                                     !mask_overlay_visible_ && !crop_guides && !before_after_;
-    refresh_inspect_roi();
-    pending_preview_ = PendingDevelopWork{
-        .interactive = mask_overlay_visible_ || crop_guides || progressive_develop,
-        .params = develop_,
+                                     !state_.mask_overlay_visible_ && !crop_guides &&
+                                     !state_.before_after_;
+    host_.refresh_roi();
+    state_.pending_preview_ = PendingDevelopWork{
+        .interactive = state_.mask_overlay_visible_ || crop_guides || progressive_develop,
+        .params = state_.develop_,
         .pushed_undo = false,
         .history_write = RecipeHistoryWrite::kUnchanged,
         .discard_history_after_seq = {},
         .history_coalesce_key = {},
         .coalesce_history_id = {},
         .asset_id = utf8_from_qstring(selected_asset_id_),
-        .ignore_edits = before_after_,
+        .ignore_edits = state_.before_after_,
         .ignore_crop = crop_guides,
         .ignore_straighten = false,
         .settle_preview = progressive_develop,
         .prefer_cached_settled_preview = progressive_develop,
-        .overlay_mask_id = current_overlay_mask_id(develop_),
+        .overlay_mask_id = current_overlay_mask_id(state_.develop_),
         .request_revision = request_revision,
         .intent_started_at = std::chrono::steady_clock::now(),
         .expected_source = {},
@@ -454,43 +461,43 @@ void StudioPresenter::enqueue_preview()
     kick_develop_work();
 }
 
-void StudioPresenter::request_comparison_before()
+void StudioDevelopPresenter::request_comparison_before()
 {
-    if (!comparison_active_ || selected_asset_id_.isEmpty())
+    if (!state_.comparison_active_ || selected_asset_id_.isEmpty())
     {
         return;
     }
-    comparison_before_requested_ = true;
-    preview_loading_ = true;
+    state_.comparison_before_requested_ = true;
+    host_.preview_loading(true);
     emit previewChanged();
     kick_develop_work();
 }
 
-void StudioPresenter::kick_develop_work()
+void StudioDevelopPresenter::kick_develop_work()
 {
-    if (develop_job_in_flight_)
+    if (state_.develop_job_in_flight_)
     {
         return;
     }
     PendingDevelopWork job;
     bool starting_comparison_before = false;
-    if (pending_save_.has_value())
+    if (state_.pending_save_.has_value())
     {
-        job = *pending_save_;
-        pending_save_.reset();
+        job = *state_.pending_save_;
+        state_.pending_save_.reset();
     }
-    else if (pending_preview_.has_value())
+    else if (state_.pending_preview_.has_value())
     {
-        job = *pending_preview_;
-        pending_preview_.reset();
+        job = *state_.pending_preview_;
+        state_.pending_preview_.reset();
     }
-    else if (comparison_active_ && comparison_before_requested_)
+    else if (state_.comparison_active_ && state_.comparison_before_requested_)
     {
-        comparison_before_requested_ = false;
+        state_.comparison_before_requested_ = false;
         starting_comparison_before = true;
         job = PendingDevelopWork{
             .interactive = false,
-            .params = develop_,
+            .params = state_.develop_,
             .pushed_undo = false,
             .history_write = RecipeHistoryWrite::kUnchanged,
             .discard_history_after_seq = {},
@@ -508,22 +515,24 @@ void StudioPresenter::kick_develop_work()
     }
     else
     {
-        kickThumbnailDemand();
+        host_.kick_thumbnails();
         return;
     }
     if (starting_comparison_before)
     {
-        job.request_revision = develop_preview_owner_.supersede("comparison_before_requested");
-        preview_loading_ = true;
+        job.request_revision =
+            state_.develop_preview_owner_.supersede("comparison_before_requested");
+        host_.preview_loading(true);
         emit previewChanged();
     }
-    static_cast<void>(thumbnail_work_.cancel("foreground_preview_requested"));
-    develop_job_in_flight_ = true;
-    develop_interactive_job_in_flight_ = job.interactive && !job.save && !job.comparison_before;
+    host_.cancel_thumbnails("foreground_preview_requested");
+    state_.develop_job_in_flight_ = true;
+    state_.develop_interactive_job_in_flight_ =
+        job.interactive && !job.save && !job.comparison_before;
     const auto revision = job.request_revision ?
                               *job.request_revision :
-                              develop_preview_owner_.supersede("queued_preview_started");
-    const auto cancellation = develop_preview_owner_.begin();
+                              state_.develop_preview_owner_.supersede("queued_preview_started");
+    const auto cancellation = state_.develop_preview_owner_.begin();
     executor_.post(
         [this, job, revision, cancellation]()
         {
@@ -531,11 +540,11 @@ void StudioPresenter::kick_develop_work()
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
             bool save_ok = !job.save;
-            if (service_ != nullptr)
+            if (host_.develop_service() != nullptr)
             {
                 if (job.save)
                 {
-                    saved = service_->develop().save_develop_with_history(
+                    saved = host_.develop_service()->save_develop_with_history(
                         job.asset_id, job.params,
                         RecipeSaveOptions{
                             .history_write = job.history_write,
@@ -574,7 +583,7 @@ void StudioPresenter::kick_develop_work()
                         request.overlay_mask_id = job.overlay_mask_id;
                         request.persist_preview_record = false;
                     }
-                    preview = service_->request_preview(
+                    preview = host_.preview_service()->request_preview(
                         request, job.interactive && !job.comparison_before ?
                                      std::optional<DevelopParams>{job.params} :
                                      std::optional<DevelopParams>{});
@@ -592,31 +601,31 @@ void StudioPresenter::kick_develop_work()
                 [this, job, revision, saved = std::move(saved),
                  preview = std::move(preview)]() mutable
                 {
-                    develop_job_in_flight_ = false;
-                    develop_interactive_job_in_flight_ = false;
+                    state_.develop_job_in_flight_ = false;
+                    state_.develop_interactive_job_in_flight_ = false;
                     const bool selected_matches =
                         utf8_from_qstring(selected_asset_id_) == job.asset_id;
                     if (job.save)
                     {
                         if (!saved)
                         {
-                            local_done_pending_ = false;
-                            if (selected_matches && !pending_save_.has_value() &&
-                                develop_ == job.params)
+                            state_.local_done_pending_ = false;
+                            if (selected_matches && !state_.pending_save_.has_value() &&
+                                state_.develop_ == job.params)
                             {
-                                develop_ = job.previous;
-                                saved_develop_ = job.previous;
-                                if (job.pushed_undo && !undo_stack_.empty())
+                                state_.develop_ = job.previous;
+                                state_.saved_develop_ = job.previous;
+                                if (job.pushed_undo && !state_.undo_stack_.empty())
                                 {
-                                    undo_stack_.pop_back();
+                                    state_.undo_stack_.pop_back();
                                 }
                                 if (job.history_coalesce_key &&
-                                    history_coalesce_key_ == job.history_coalesce_key &&
+                                    state_.history_coalesce_key_ == job.history_coalesce_key &&
                                     !job.coalesce_history_id)
                                 {
                                     break_history_coalescing();
                                 }
-                                active_history_id_ = 0;
+                                state_.active_history_id_ = 0;
                                 if (job.discard_history_after_seq)
                                 {
                                     reload_recipe_history();
@@ -625,11 +634,11 @@ void StudioPresenter::kick_develop_work()
                                 {
                                     sync_active_history();
                                 }
-                                preview_loading_ = false;
+                                host_.preview_loading(false);
                                 emit editChanged();
                                 emit previewChanged();
                             }
-                            setError(qstring_from_utf8(saved.error().message));
+                            emit errorOccurred(qstring_from_utf8(saved.error().message));
                             kick_develop_work();
                             return;
                         }
@@ -638,43 +647,44 @@ void StudioPresenter::kick_develop_work()
                             if (job.coalesce_history_id && saved.value().history_id &&
                                 *saved.value().history_id != *job.coalesce_history_id)
                             {
-                                undo_stack_.push_back(job.previous);
-                                if (undo_stack_.size() > 40U)
+                                state_.undo_stack_.push_back(job.previous);
+                                if (state_.undo_stack_.size() > 40U)
                                 {
-                                    undo_stack_.erase(undo_stack_.begin());
+                                    state_.undo_stack_.erase(state_.undo_stack_.begin());
                                 }
-                                redo_stack_.clear();
+                                state_.redo_stack_.clear();
                             }
-                            saved_develop_ = job.params;
-                            loaded_recipe_history_head_ = saved.value().history_head;
-                            observed_catalog_revision_ =
-                                std::max(observed_catalog_revision_, saved.value().revision);
+                            state_.saved_develop_ = job.params;
+                            state_.loaded_recipe_history_head_ = saved.value().history_head;
+                            host_.observed_revision(
+                                std::max(observed_catalog_revision_, saved.value().revision));
                             assets_.updateAsset(saved.value().asset);
                             if (job.history_coalesce_key &&
-                                history_coalesce_key_ == job.history_coalesce_key)
+                                state_.history_coalesce_key_ == job.history_coalesce_key)
                             {
-                                history_coalesce_id_ = saved.value().history_id;
+                                state_.history_coalesce_id_ = saved.value().history_id;
                             }
-                            if (pending_save_)
+                            if (state_.pending_save_)
                             {
-                                pending_save_->previous = job.params;
-                                if (pending_save_->expected_history_head)
-                                    pending_save_->expected_history_head =
+                                state_.pending_save_->previous = job.params;
+                                if (state_.pending_save_->expected_history_head)
+                                    state_.pending_save_->expected_history_head =
                                         saved.value().history_head;
                                 if (job.history_coalesce_key &&
-                                    pending_save_->history_coalesce_key ==
+                                    state_.pending_save_->history_coalesce_key ==
                                         job.history_coalesce_key &&
                                     saved.value().history_id)
                                 {
-                                    pending_save_->coalesce_history_id = saved.value().history_id;
+                                    state_.pending_save_->coalesce_history_id =
+                                        saved.value().history_id;
                                 }
                             }
                             emit selectionChanged();
                             emit editChanged();
                             if (job.history_write == RecipeHistoryWrite::kAppendIfNew)
                             {
-                                active_history_id_ = 0;
-                                active_history_seq_ = 0;
+                                state_.active_history_id_ = 0;
+                                state_.active_history_seq_ = 0;
                                 reload_recipe_history();
                             }
                             else
@@ -683,20 +693,20 @@ void StudioPresenter::kick_develop_work()
                             }
                         }
                     }
-                    if (!develop_preview_owner_.accepts(revision, job.asset_id,
-                                                        utf8_from_qstring(selected_asset_id_)))
+                    if (!state_.develop_preview_owner_.accepts(
+                            revision, job.asset_id, utf8_from_qstring(selected_asset_id_)))
                     {
-                        if (job.comparison_before && comparison_active_ &&
+                        if (job.comparison_before && state_.comparison_active_ &&
                             comparison_before_url_.isEmpty())
                         {
-                            comparison_before_requested_ = true;
+                            state_.comparison_before_requested_ = true;
                         }
                         kick_develop_work();
                         return;
                     }
                     if (job.save && !job.refresh_preview)
                     {
-                        preview_loading_ = false;
+                        host_.preview_loading(false);
                         emit previewChanged();
                         kick_develop_work();
                         return;
@@ -707,15 +717,15 @@ void StudioPresenter::kick_develop_work()
                     const bool settle_preview =
                         job.settle_preview && !(job.prefer_cached_settled_preview && preview &&
                                                 !preview.value().cache_path.empty());
-                    preview_loading_ = settle_preview;
+                    host_.preview_loading(settle_preview);
                     if (!preview)
                     {
                         if (preview.error().code == ErrorCode::kCancelled)
                         {
-                            if (job.comparison_before && comparison_active_ &&
+                            if (job.comparison_before && state_.comparison_active_ &&
                                 comparison_before_url_.isEmpty())
                             {
-                                comparison_before_requested_ = true;
+                                state_.comparison_before_requested_ = true;
                             }
                             kick_develop_work();
                             return;
@@ -727,7 +737,7 @@ void StudioPresenter::kick_develop_work()
                         }
                         else
                         {
-                            setError(qstring_from_utf8(preview.error().message));
+                            emit errorOccurred(qstring_from_utf8(preview.error().message));
                         }
                         if (job.comparison_before && clear_comparison())
                         {
@@ -742,15 +752,15 @@ void StudioPresenter::kick_develop_work()
                         assets_.markOriginalMissing(job.asset_id);
                         emit selectionChanged();
                     }
-                    if (job.ignore_crop && crop_tool_active_)
+                    if (job.ignore_crop && state_.crop_tool_active_)
                     {
-                        crop_guide_ready_ = true;
+                        state_.crop_guide_ready_ = true;
                     }
                     if (job.comparison_before)
                     {
-                        if (comparison_active_)
+                        if (state_.comparison_active_)
                         {
-                            show_comparison_before_result(preview.value(), revision);
+                            host_.publish_before(preview.value(), revision);
                             if (comparison_before_url_.isEmpty() && clear_comparison())
                             {
                                 emit editChanged();
@@ -760,10 +770,10 @@ void StudioPresenter::kick_develop_work()
                         kick_develop_work();
                         return;
                     }
-                    show_preview_result(preview.value(), revision, job.interactive);
-                    displayed_develop_ = job.ignore_edits ?
-                                             std::optional<DevelopParams>{} :
-                                             std::optional<DevelopParams>{job.params};
+                    host_.publish_preview(preview.value(), revision, job.interactive);
+                    inspect_.observeDisplayedDevelop(job.ignore_edits ?
+                                                         std::optional<DevelopParams>{} :
+                                                         std::optional<DevelopParams>{job.params});
                     if (job.interactive &&
                         job.intent_started_at != std::chrono::steady_clock::time_point{})
                     {
@@ -778,7 +788,7 @@ void StudioPresenter::kick_develop_work()
                     emit previewChanged();
                     if (settle_preview)
                     {
-                        pending_preview_ = PendingDevelopWork{
+                        state_.pending_preview_ = PendingDevelopWork{
                             .save = false,
                             .interactive = false,
                             .params = job.params,
@@ -801,16 +811,17 @@ void StudioPresenter::kick_develop_work()
                             .expected_source = {},
                         };
                     }
-                    if (comparison_active_ && comparison_before_url_.isEmpty())
+                    if (state_.comparison_active_ && comparison_before_url_.isEmpty())
                     {
-                        comparison_before_requested_ = true;
+                        state_.comparison_before_requested_ = true;
                     }
                     kick_develop_work();
                 },
                 Qt::QueuedConnection);
-            if (recovery_due && service_ != nullptr)
+            if (recovery_due && host_.develop_service() != nullptr)
             {
-                auto synchronized = service_->sync_recovery(std::string_view{job.asset_id});
+                auto synchronized =
+                    host_.recovery_service()->sync_recovery(std::string_view{job.asset_id});
                 if (!synchronized)
                 {
                     const auto failure = qstring_from_utf8(synchronized.error().message);
@@ -818,10 +829,11 @@ void StudioPresenter::kick_develop_work()
                         this,
                         [this, failure]
                         {
-                            setError(QCoreApplication::translate(
-                                         "StudioPresenter",
-                                         "Edit was saved, but recovery synchronization failed: ") +
-                                     failure);
+                            emit errorOccurred(
+                                QCoreApplication::translate(
+                                    "StudioPresenter",
+                                    "Edit was saved, but recovery synchronization failed: ") +
+                                failure);
                         },
                         Qt::QueuedConnection);
                 }

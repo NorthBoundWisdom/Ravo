@@ -13,7 +13,9 @@
 #include "ravo/adapters/text_file.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/json.h"
-#include "ravo/services/catalog_service.h"
+#include "ravo/services/ingest_service.h"
+#include "ravo/services/import_service.h"
+#include "ravo/domain/catalog_repository.h"
 
 namespace ravo
 {
@@ -634,7 +636,7 @@ Result<void> clear_ingest_resume_checkpoint(const std::string_view database_path
     return {};
 }
 
-Result<ImportBatchResult> CatalogService::execute_ingest(
+Result<ImportBatchResult> IngestService::execute_ingest(
     const IngestRequest &request,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress)
 {
@@ -644,7 +646,7 @@ Result<ImportBatchResult> CatalogService::execute_ingest(
     return detailed.value().import;
 }
 
-Result<IngestBatchResult> CatalogService::execute_ingest_detailed(
+Result<IngestBatchResult> IngestService::execute_ingest_detailed(
     const IngestRequest &request,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress)
 {
@@ -724,7 +726,7 @@ Result<IngestBatchResult> CatalogService::execute_ingest_detailed(
     if (!connected)
         return connected.error();
 
-    auto catalog_snapshot = CatalogService::snapshot();
+    auto catalog_snapshot = this->repository_->snapshot();
     if (!catalog_snapshot)
         return catalog_snapshot.error();
     const auto &database_path = catalog_snapshot.value().database_path;
@@ -812,12 +814,12 @@ Result<IngestBatchResult> CatalogService::execute_ingest_detailed(
         relative_by_absolute.emplace(object.absolute_path, object.relative_path);
 
     const IngestSourceUri source = remaining.source;
-    ingest_source_liveness_ = [source]() -> Result<void>
+    import_service_.ingest_source_liveness_ = [source]() -> Result<void>
     { return ensure_ingest_source_connected(source); };
-    ingest_report_remaining_on_stop_ = true;
+    import_service_.ingest_report_remaining_on_stop_ = true;
 
     const bool resume_requested = request.resume_batch_id.has_value();
-    auto batch = execute_import(
+    auto batch = import_service_.execute_import(
         import_request.value(),
         [&](std::size_t done, std::size_t total, const ImportItemResult *item)
         {
@@ -843,8 +845,8 @@ Result<IngestBatchResult> CatalogService::execute_ingest_detailed(
             if (progress)
                 progress(done + pre_skipped.items.size(), total + pre_skipped.items.size(), item);
         });
-    ingest_source_liveness_ = {};
-    ingest_report_remaining_on_stop_ = false;
+    import_service_.ingest_source_liveness_ = {};
+    import_service_.ingest_report_remaining_on_stop_ = false;
     if (!batch)
         return batch.error();
 
@@ -898,7 +900,7 @@ Result<IngestBatchResult> CatalogService::execute_ingest_detailed(
     return detailed;
 }
 
-Result<NativeIngestPlatformSupport> CatalogService::probe_ingest_native_support() const
+Result<NativeIngestPlatformSupport> IngestService::probe_ingest_native_support() const
 {
     return probe_native_ingest_support();
 }

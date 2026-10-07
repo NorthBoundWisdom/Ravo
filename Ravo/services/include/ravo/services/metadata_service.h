@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,16 +16,17 @@ namespace ravo
 {
 
 class CatalogService;
+class CatalogRepository;
+class EngineFacade;
+class RecoveryService;
 
 class MetadataService
 {
 public:
-    explicit MetadataService(CatalogService &catalog) noexcept;
-
     MetadataService(const MetadataService &) = delete;
     MetadataService &operator=(const MetadataService &) = delete;
-    MetadataService(MetadataService &&) noexcept = default;
-    MetadataService &operator=(MetadataService &&) noexcept = default;
+    MetadataService(MetadataService &&) = delete;
+    MetadataService &operator=(MetadataService &&) = delete;
 
     [[nodiscard]] Result<AssetRecord> set_tags(std::string_view asset_id,
                                                const std::vector<std::string> &tags);
@@ -58,8 +60,19 @@ public:
                                     const WritableMetadataPatch &patch,
                                     std::optional<std::int64_t> expected_revision = std::nullopt);
 
+    [[nodiscard]] Result<AssetRecord>
+    refresh_capture_metadata(std::string_view asset_id, const CancellationToken &cancellation);
+
 private:
-    CatalogService *catalog_ = nullptr;
+    friend class CatalogService;
+    // Borrowed owner slots stay valid until this capability is destroyed. The
+    // composition owner is immovable; reset slots make post-close calls fail.
+    MetadataService(const std::unique_ptr<CatalogRepository> &repository,
+                    const EngineFacade *const &engine, RecoveryService &recovery_service) noexcept;
+
+    const std::unique_ptr<CatalogRepository> &repository_;
+    const EngineFacade *const &engine_;
+    RecoveryService &recovery_service_;
 };
 
 } // namespace ravo

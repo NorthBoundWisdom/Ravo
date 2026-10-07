@@ -67,293 +67,9 @@ void StudioPresenter::completePendingLibrarySelection()
         setBrowseMode(QStringLiteral("loupe"));
 }
 
-namespace
-{
-
-QVariantList facet_values(const std::vector<LibraryFacetEntry> &entries)
-{
-    QVariantList values;
-    values.reserve(static_cast<qsizetype>(entries.size()));
-    for (const auto &entry : entries)
-    {
-        QVariantMap value{{QStringLiteral("key"), qstring_from_utf8(entry.key)},
-                          {QStringLiteral("label"), qstring_from_utf8(entry.label)},
-                          {QStringLiteral("count"), QVariant::fromValue<qulonglong>(entry.count)}};
-        if (entry.camera_make)
-            value.insert(QStringLiteral("cameraMake"), qstring_from_utf8(*entry.camera_make));
-        if (entry.camera_model)
-            value.insert(QStringLiteral("cameraModel"), qstring_from_utf8(*entry.camera_model));
-        if (entry.focal_length_mm)
-            value.insert(QStringLiteral("focalLengthMm"), *entry.focal_length_mm);
-        if (entry.lens_make)
-            value.insert(QStringLiteral("lensMake"), qstring_from_utf8(*entry.lens_make));
-        if (entry.lens_model)
-            value.insert(QStringLiteral("lensModel"), qstring_from_utf8(*entry.lens_model));
-        if (entry.captured_local_date)
-            value.insert(QStringLiteral("captureDate"),
-                         qstring_from_utf8(*entry.captured_local_date));
-        values.push_back(value);
-    }
-    return values;
-}
-
-} // namespace
-
-QVariantList StudioPresenter::cameraFacets() const
-{
-    return facet_values(capture_facets_.cameras);
-}
-
-QVariantList StudioPresenter::lensFacets() const
-{
-    return facet_values(capture_facets_.lenses);
-}
-
-QVariantList StudioPresenter::lensNameFacets() const
-{
-    return facet_values(capture_facets_.lens_names);
-}
-
-QVariantList StudioPresenter::captureDateFacets() const
-{
-    return facet_values(capture_facets_.capture_dates);
-}
-
-QVariantList StudioPresenter::countryFacets() const
-{
-    return facet_values(location_facets_.countries);
-}
-
-QVariantList StudioPresenter::provinceStateFacets() const
-{
-    return facet_values(location_facets_.province_states);
-}
-
-QVariantList StudioPresenter::cityFacets() const
-{
-    return facet_values(location_facets_.cities);
-}
-
-QVariantList StudioPresenter::sublocationFacets() const
-{
-    return facet_values(location_facets_.sublocations);
-}
-
-bool StudioPresenter::facetCountsScoped() const noexcept
-{
-    return capture_facets_.scoped && location_facets_.scoped;
-}
-
-void StudioPresenter::applyFacets(LibraryCaptureFacets capture, LibraryLocationFacets location)
-{
-    if (capture_facets_ == capture && location_facets_ == location)
-        return;
-    capture_facets_ = std::move(capture);
-    location_facets_ = std::move(location);
-    emit facetsChanged();
-}
-
-QString StudioPresenter::ratingFilterMode() const
-{
-    return rating_mode_name(query_.rating_mode);
-}
-
-int StudioPresenter::ratingFilterValue() const noexcept
-{
-    return query_.rating_value;
-}
-
-QStringList StudioPresenter::colorFilters() const
-{
-    QStringList labels;
-    labels.reserve(static_cast<qsizetype>(query_.color_labels.size()));
-    for (const auto label : query_.color_labels)
-    {
-        labels.push_back(qstring_from_utf8(color_label_name(label)));
-    }
-    return labels;
-}
-
-QString StudioPresenter::rejectFilter() const
-{
-    return reject_filter_name(query_.reject_filter);
-}
-
-QString StudioPresenter::pickFilter() const
-{
-    switch (query_.pick_filter)
-    {
-    case PickFilter::kExclude:
-        return QStringLiteral("exclude");
-    case PickFilter::kOnly:
-        return QStringLiteral("only");
-    case PickFilter::kInclude:
-        return QStringLiteral("include");
-    }
-    return QStringLiteral("include");
-}
-
-QString StudioPresenter::cullFlagFilter() const
-{
-    switch (query_.cull_flag_filter)
-    {
-    case CullFlagFilter::kPicked:
-        return QStringLiteral("picked");
-    case CullFlagFilter::kRejected:
-        return QStringLiteral("rejected");
-    case CullFlagFilter::kUnreviewed:
-        return QStringLiteral("unreviewed");
-    case CullFlagFilter::kAny:
-        return QStringLiteral("any");
-    }
-    return QStringLiteral("any");
-}
-
 QString StudioPresenter::cullSuggestionFilter() const
 {
     return cull_suggestion_filter_;
-}
-
-QString StudioPresenter::filterText() const
-{
-    return qstring_from_utf8(query_.text);
-}
-
-QString StudioPresenter::mediaFilter() const
-{
-    if (query_.media_types.empty())
-        return QStringLiteral("any");
-    const std::string_view type = query_.media_types.front();
-    return type == kMediaTypeRaw  ? QStringLiteral("raw") :
-           type == kMediaTypeJpeg ? QStringLiteral("jpeg") :
-           type == kMediaTypePng  ? QStringLiteral("png") :
-           type == kMediaTypeTiff ? QStringLiteral("tiff") :
-                                    qstring_from_utf8(type);
-}
-
-QString StudioPresenter::editFilter() const
-{
-    switch (query_.edit_filter)
-    {
-    case EditFilter::kEdited:
-        return QStringLiteral("edited");
-    case EditFilter::kUnedited:
-        return QStringLiteral("unedited");
-    case EditFilter::kAny:
-        return QStringLiteral("any");
-    }
-    return QStringLiteral("any");
-}
-
-QString StudioPresenter::cameraFilter() const
-{
-    if (!query_.camera_make_equals && !query_.camera_model_equals)
-        return {};
-    QString label;
-    if (query_.camera_make_equals && !query_.camera_make_equals->empty())
-        label = qstring_from_utf8(*query_.camera_make_equals);
-    if (query_.camera_model_equals && !query_.camera_model_equals->empty())
-    {
-        if (!label.isEmpty())
-            label.append(QLatin1Char(' '));
-        label.append(qstring_from_utf8(*query_.camera_model_equals));
-    }
-    return label;
-}
-
-QString StudioPresenter::cameraMakeFilter() const
-{
-    if (!query_.camera_make_equals)
-        return {};
-    return qstring_from_utf8(*query_.camera_make_equals);
-}
-
-QString StudioPresenter::cameraModelFilter() const
-{
-    if (!query_.camera_model_equals)
-        return {};
-    return qstring_from_utf8(*query_.camera_model_equals);
-}
-
-QString StudioPresenter::lensFilter() const
-{
-    if (!query_.focal_length_mm_equals)
-        return {};
-    return QString::number(*query_.focal_length_mm_equals, 'g', 15);
-}
-
-QString StudioPresenter::lensMakeFilter() const
-{
-    if (!query_.lens_make_equals)
-        return {};
-    return qstring_from_utf8(*query_.lens_make_equals);
-}
-
-QString StudioPresenter::lensModelFilter() const
-{
-    if (!query_.lens_model_equals)
-        return {};
-    return qstring_from_utf8(*query_.lens_model_equals);
-}
-
-QString StudioPresenter::captureDateFilter() const
-{
-    if (!query_.captured_local_date)
-        return {};
-    return qstring_from_utf8(*query_.captured_local_date);
-}
-
-QString StudioPresenter::countryFilter() const
-{
-    if (!query_.country_equals)
-        return {};
-    return qstring_from_utf8(*query_.country_equals);
-}
-
-QString StudioPresenter::provinceStateFilter() const
-{
-    if (!query_.province_state_equals)
-        return {};
-    return qstring_from_utf8(*query_.province_state_equals);
-}
-
-QString StudioPresenter::cityFilter() const
-{
-    if (!query_.city_equals)
-        return {};
-    return qstring_from_utf8(*query_.city_equals);
-}
-
-QString StudioPresenter::sublocationFilter() const
-{
-    if (!query_.sublocation_equals)
-        return {};
-    return qstring_from_utf8(*query_.sublocation_equals);
-}
-
-QString StudioPresenter::locationFilter() const
-{
-    QStringList parts;
-    if (query_.country_equals && !query_.country_equals->empty())
-        parts.push_back(qstring_from_utf8(*query_.country_equals));
-    if (query_.province_state_equals && !query_.province_state_equals->empty())
-        parts.push_back(qstring_from_utf8(*query_.province_state_equals));
-    if (query_.city_equals && !query_.city_equals->empty())
-        parts.push_back(qstring_from_utf8(*query_.city_equals));
-    if (query_.sublocation_equals && !query_.sublocation_equals->empty())
-        parts.push_back(qstring_from_utf8(*query_.sublocation_equals));
-    return parts.join(QLatin1Char('/'));
-}
-
-QString StudioPresenter::sortField() const
-{
-    return sort_field_name(query_.sort_field);
-}
-
-QString StudioPresenter::sortDirection() const
-{
-    return query_.sort_direction == SortDirection::kAscending ? QStringLiteral("asc") :
-                                                                QStringLiteral("desc");
 }
 
 int StudioPresenter::visibleCount() const
@@ -363,24 +79,24 @@ int StudioPresenter::visibleCount() const
 
 bool StudioPresenter::filtersActive() const noexcept
 {
-    return query_.rating_mode != RatingFilterMode::kAny || !query_.color_labels.empty() ||
-           query_.reject_filter != RejectFilter::kInclude ||
-           query_.pick_filter != PickFilter::kInclude ||
-           query_.cull_flag_filter != CullFlagFilter::kAny ||
-           cull_suggestion_filter_ != QStringLiteral("none") || !query_.tag.empty() ||
-           !query_.text.empty() || !query_.media_types.empty() ||
-           query_.edit_filter != EditFilter::kAny || !query_.camera.empty() ||
-           query_.camera_make_equals || query_.camera_model_equals || query_.lens_make_equals ||
-           query_.lens_model_equals || query_.focal_length_mm_equals ||
-           query_.captured_local_date || query_.country_equals || query_.province_state_equals ||
-           query_.city_equals || query_.sublocation_equals || query_.iso.minimum ||
-           query_.iso.maximum || query_.aperture.minimum || query_.aperture.maximum ||
-           query_.focal_length_mm.minimum || query_.focal_length_mm.maximum ||
-           query_.shutter_s.minimum || query_.shutter_s.maximum || query_.aspect_ratio.minimum ||
-           query_.aspect_ratio.maximum ||
+    const auto &query = library_.query();
+    return query.rating_mode != RatingFilterMode::kAny || !query.color_labels.empty() ||
+           query.reject_filter != RejectFilter::kInclude ||
+           query.pick_filter != PickFilter::kInclude ||
+           query.cull_flag_filter != CullFlagFilter::kAny ||
+           cull_suggestion_filter_ != QStringLiteral("none") || !query.tag.empty() ||
+           !query.text.empty() || !query.media_types.empty() ||
+           query.edit_filter != EditFilter::kAny || !query.camera.empty() ||
+           query.camera_make_equals || query.camera_model_equals || query.lens_make_equals ||
+           query.lens_model_equals || query.focal_length_mm_equals || query.captured_local_date ||
+           query.country_equals || query.province_state_equals || query.city_equals ||
+           query.sublocation_equals || query.iso.minimum || query.iso.maximum ||
+           query.aperture.minimum || query.aperture.maximum || query.focal_length_mm.minimum ||
+           query.focal_length_mm.maximum || query.shutter_s.minimum || query.shutter_s.maximum ||
+           query.aspect_ratio.minimum || query.aspect_ratio.maximum ||
            (!last_import_selected_ &&
-            (query_.imported_after_unix_ms || query_.imported_before_unix_ms)) ||
-           query_.captured_after_unix_s || query_.captured_before_unix_s;
+            (query.imported_after_unix_ms || query.imported_before_unix_ms)) ||
+           query.captured_after_unix_s || query.captured_before_unix_s;
 }
 
 bool StudioPresenter::selectedHasEdits() const noexcept
@@ -530,11 +246,6 @@ QString StudioPresenter::selectedCaptureSummary() const
     return parts.join(QStringLiteral(" · "));
 }
 
-QString StudioPresenter::tagFilter() const
-{
-    return qstring_from_utf8(query_.tag);
-}
-
 QUrl StudioPresenter::selectedThumbnailUrl() const
 {
     const int row = assets_.indexOf(selected_asset_id_);
@@ -547,12 +258,12 @@ QUrl StudioPresenter::selectedThumbnailUrl() const
 
 QString StudioPresenter::selectedLibrarySetId() const
 {
-    return qstring_from_utf8(query_.collection_id);
+    return qstring_from_utf8(library_.query().collection_id);
 }
 
 QString StudioPresenter::selectedFolderUri() const
 {
-    return qstring_from_utf8(query_.folder_uri);
+    return qstring_from_utf8(library_.query().folder_uri);
 }
 
 bool StudioPresenter::lastImportAvailable() const noexcept

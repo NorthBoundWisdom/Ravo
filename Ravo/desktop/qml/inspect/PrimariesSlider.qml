@@ -18,7 +18,7 @@ CustomSlider {
     resetValue: modelData.reset
     delayedCommit: true
     enabled: panel.hasSelection
-    value: panel.hasPresenter ? panel.presenter.editPrimaries[modelData.key] : modelData.reset
+    value: panel.hasPresenter ? panel.presenter.develop.editPrimaries[modelData.key] : modelData.reset
     onValueEdited: function (value) {
         if (panel.liveReady && panel.commands)
             panel.commands.previewDevelopNumber(modelData.field, value);

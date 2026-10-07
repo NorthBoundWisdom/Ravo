@@ -203,7 +203,7 @@ bool StudioPresenter::importReady() const
                         import_ingest_transport_ == QLatin1String("mtp");
     return import_page_open_ && !native && !import_preflight_active_ && !import_work_active_ &&
            import_workspace_->scan && import_workspace_->scan->catalogRevision().has_value() &&
-           import_candidates_.selectedCount() > 0 &&
+           import_workspace_->candidates.selectedCount() > 0 &&
            import_workspace_->draft.mode != QLatin1String("move") &&
            (import_workspace_->draft.mode == QLatin1String("add") ||
             import_workspace_->draft.destination_valid);
@@ -297,17 +297,17 @@ bool StudioPresenter::importRecursive() const noexcept
 
 ImportCandidateListModel *StudioPresenter::importCandidates() noexcept
 {
-    return &import_candidates_;
+    return &import_workspace_->candidates;
 }
 
 FilesystemBrowserModel *StudioPresenter::importSourceFolders() noexcept
 {
-    return &import_source_folders_;
+    return &import_workspace_->source_folders;
 }
 
 FilesystemBrowserModel *StudioPresenter::importDestinationFolders() noexcept
 {
-    return &import_destination_folders_;
+    return &import_workspace_->destination_folders;
 }
 
 void StudioPresenter::openImportPage()
@@ -336,13 +336,13 @@ void StudioPresenter::openImportPage()
     }
     validateImportDestination();
     refreshImportNativeSupport();
-    import_source_folders_.loadUserDirectory();
-    import_destination_folders_.loadUserDirectory();
+    import_workspace_->source_folders.loadUserDirectory();
+    import_workspace_->destination_folders.loadUserDirectory();
     refreshImportSources();
     if (!import_workspace_->draft.source_root.isEmpty())
-        import_source_folders_.revealFolder(import_workspace_->draft.source_root);
+        import_workspace_->source_folders.revealFolder(import_workspace_->draft.source_root);
     if (!import_workspace_->draft.destination.isEmpty())
-        import_destination_folders_.revealFolder(import_workspace_->draft.destination);
+        import_workspace_->destination_folders.revealFolder(import_workspace_->draft.destination);
     emit importPageChanged();
     if (!import_workspace_->draft.source_root.isEmpty())
         rescanImportSource();
@@ -366,7 +366,7 @@ void StudioPresenter::closeImportPage()
     import_context_path_.clear();
     if (import_workspace_->thumbnails)
         import_workspace_->thumbnails->resetSourceSession();
-    import_candidates_.setCandidates({});
+    import_workspace_->candidates.setCandidates({});
     emit importPageChanged();
 }
 
@@ -385,8 +385,8 @@ void StudioPresenter::refreshImportSources()
                 {
                     if (!import_page_open_ || generation != import_roots_generation_)
                         return;
-                    import_source_folders_.updateMountedRoots(roots);
-                    import_destination_folders_.updateMountedRoots(std::move(roots));
+                    import_workspace_->source_folders.updateMountedRoots(roots);
+                    import_workspace_->destination_folders.updateMountedRoots(std::move(roots));
                 },
                 Qt::QueuedConnection);
         });
@@ -397,8 +397,8 @@ void StudioPresenter::refreshImportSources()
 QString StudioPresenter::importContextPath() const
 {
     if (!import_page_open_ || import_work_active_ || import_preflight_active_ ||
-        import_context_generation_ != import_candidates_.generation() ||
-        import_candidates_.sourcePath(import_context_row_) != import_context_path_)
+        import_context_generation_ != import_workspace_->candidates.generation() ||
+        import_workspace_->candidates.sourcePath(import_context_row_) != import_context_path_)
         return {};
     return import_context_path_;
 }
@@ -406,8 +406,8 @@ QString StudioPresenter::importContextPath() const
 bool StudioPresenter::setImportContextRow(const int row)
 {
     import_context_row_ = row;
-    import_context_generation_ = import_candidates_.generation();
-    import_context_path_ = import_candidates_.sourcePath(row);
+    import_context_generation_ = import_workspace_->candidates.generation();
+    import_context_path_ = import_workspace_->candidates.sourcePath(row);
     emit importContextChanged();
     return !importContextPath().isEmpty();
 }
@@ -426,7 +426,7 @@ void StudioPresenter::setImportSourceRoot(const QString &path)
     }
     import_workspace_->draft.source_root = next;
     refreshImportSources();
-    import_source_folders_.revealFolder(next);
+    import_workspace_->source_folders.revealFolder(next);
     emit importPageChanged();
     rescanImportSource();
 }
@@ -441,13 +441,13 @@ void StudioPresenter::setImportDestination(const QString &path)
         if (import_workspace_->destination_preview)
             import_workspace_->destination_preview->invalidateCacheKey();
         if (!import_workspace_->draft.destination_error.isEmpty())
-            import_destination_folders_.loadUserDirectory();
-        import_destination_folders_.revealFolder(next);
+            import_workspace_->destination_folders.loadUserDirectory();
+        import_workspace_->destination_folders.revealFolder(next);
         validateImportDestination();
         return;
     }
     import_workspace_->draft.destination = next;
-    import_destination_folders_.revealFolder(next);
+    import_workspace_->destination_folders.revealFolder(next);
     validateImportDestination();
     emit importPageChanged();
 }
@@ -665,7 +665,7 @@ void StudioPresenter::publishImportItem(const ImportItemResult &item, const int 
 
 void StudioPresenter::startPlannedImport()
 {
-    const QStringList selected = import_candidates_.selectedPaths();
+    const QStringList selected = import_workspace_->candidates.selectedPaths();
     if (!import_page_open_ || import_work_active_ || import_preflight_active_ || selected.isEmpty())
         return;
     if (!(import_workspace_->scan && import_workspace_->scan->catalogRevision()))
@@ -726,10 +726,10 @@ void StudioPresenter::startPlannedImport()
     setStatus(QCoreApplication::translate("ImportPage", "Checking destination…"));
     setError({});
     emit importPageChanged();
-    import_worker_->executor().post(
+    import_workspace_->worker->executor().post(
         [this, generation, request = std::move(request)]() mutable
         {
-            auto *service = import_worker_->service();
+            auto *service = import_workspace_->worker->service();
             auto ready = service == nullptr ?
                              Result<void>{make_error(ErrorCode::kIo, "Catalog session is closed")} :
                              service->import().preflight_import(request);
@@ -829,10 +829,10 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
         ingest.cancellation = request.cancellation;
         if (!import_resume_batch_id_.isEmpty())
             ingest.resume_batch_id = utf8_from_qstring(import_resume_batch_id_);
-        import_worker_->executor().post(
+        import_workspace_->worker->executor().post(
             [this, generation, ingest = std::move(ingest)]() mutable
             {
-                auto *service = import_worker_->service();
+                auto *service = import_workspace_->worker->service();
                 auto detailed =
                     service == nullptr ?
                         Result<IngestBatchResult>{
@@ -875,7 +875,7 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
                             last_import_count_ = 0U;
                             last_import_after_unix_ms_.reset();
                             last_import_before_unix_ms_.reset();
-                            query_ = import_query_snapshot_;
+                            library_.replaceQuery(import_query_snapshot_);
                             import_ingest_report_ = {};
                             setError(qstring_from_utf8(detailed.error().message));
                             setStatus(
@@ -900,10 +900,10 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
             TaskPriority::kForeground);
         return;
     }
-    import_worker_->executor().post(
+    import_workspace_->worker->executor().post(
         [this, generation, request = std::move(request)]() mutable
         {
-            auto *service = import_worker_->service();
+            auto *service = import_workspace_->worker->service();
             auto batch =
                 service == nullptr ?
                     Result<ImportBatchResult>{
@@ -945,7 +945,7 @@ void StudioPresenter::beginPlannedImport(ImportRequest request)
                         last_import_count_ = 0U;
                         last_import_after_unix_ms_.reset();
                         last_import_before_unix_ms_.reset();
-                        query_ = import_query_snapshot_;
+                        library_.replaceQuery(import_query_snapshot_);
                         setError(qstring_from_utf8(batch.error().message));
                         setStatus(QCoreApplication::translate("StudioPresenter", "Import failed."));
                         reloadVisibleAssets();
@@ -974,14 +974,14 @@ void StudioPresenter::startNextImportPreview()
     const auto policy = pending_import_preview_policy_;
     const auto token = import_preview_operation_.token();
     const auto generation = import_preview_generation_;
-    import_worker_->executor().post(
+    import_workspace_->worker->executor().post(
         [this, asset_id, policy, token, generation]
         {
-            auto *service = import_worker_->service();
+            auto *service = import_workspace_->worker->service();
             auto preview =
                 service == nullptr ?
                     Result<PreviewResult>{make_error(ErrorCode::kIo, "Catalog session is closed")} :
-                    service->build_import_preview(asset_id, policy, token);
+                    service->preview().build_import_preview(asset_id, policy, token);
             QMetaObject::invokeMethod(
                 this,
                 [this, generation, preview = std::move(preview)]
@@ -1026,8 +1026,8 @@ void StudioPresenter::requestFilesystemListing(FilesystemBrowserModel *browser, 
                 this,
                 [this, browser, path, generation, listed = std::move(listed)]() mutable
                 {
-                    if (browser != &import_source_folders_ &&
-                        browser != &import_destination_folders_)
+                    if (browser != &import_workspace_->source_folders &&
+                        browser != &import_workspace_->destination_folders)
                         return;
                     browser->applyChildren(path, generation, std::move(listed));
                 },
