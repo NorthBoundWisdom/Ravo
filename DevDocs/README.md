@@ -59,7 +59,7 @@ cancellation generations are specified in
 [ARCHITECTURE.md](ARCHITECTURE.md), with lifecycle and regression coverage in
 [TESTING.md](TESTING.md). Historical migration records do not form a current
 implementation checklist; current product execution stays in [TODO.md](TODO.md).
-Remaining architecture-refactor qualification gates are in
+Remaining architecture-refactor source-plan inputs and qualification gates are in
 [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md) within that queue.
 
 Burst Compare availability and stack/selection lifetimes are specified in

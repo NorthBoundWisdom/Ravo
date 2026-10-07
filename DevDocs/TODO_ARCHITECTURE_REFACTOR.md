@@ -5,6 +5,17 @@ Current owners and invariants belong in [ARCHITECTURE.md](ARCHITECTURE.md);
 validation policy belongs in [TESTING.md](TESTING.md). No schema, rendering
 algorithm, public JSON, dependency or new product capability change is admitted.
 
+## Source-plan reconciliation input
+
+- Reconcile the source RF-00..RF-11 / B00..B20 plan against committed `main`,
+  the ownership contracts and this residual queue without reopening completed
+  migrations. The source wiki currently redirects to authentication and no
+  callable authenticated document/browser reader is available. Obtain a readable
+  source-plan export or authorized read interface before claiming that full
+  source-plan reconciliation is verified. This input dependency is separate from
+  the external qualification waivers below; available local code/test evidence
+  does not prove the contents of an unread plan.
+
 ## Qualification gaps and acceptance gates
 
 The 2026-10-08 authorization waives waiting for the external gates below during
