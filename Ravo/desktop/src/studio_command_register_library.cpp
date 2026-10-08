@@ -41,7 +41,13 @@ void StudioCommandController::registerLibraryCommands(const command_registration
         [this](const QVariant &argument, const QString &)
         { presenter_.importLightroomCatalog(argument.toString()); });
     add(command::kLibraryCancelOperation, Condition::kCatalogOperation, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.cancelCatalogOperation(); });
+        [this](const QVariant &, const QString &)
+        {
+            if (presenter_.imports()->importInteractionBlocked())
+                presenter_.imports()->closeImportPage();
+            else
+                presenter_.cancelCatalogOperation();
+        });
     add(
         command::kLibrarySetTagFilter, Condition::kCatalogOpen, [](const QVariant &)
         { return QString{}; }, [this](const QVariant &argument, const QString &)

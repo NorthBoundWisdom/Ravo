@@ -10,7 +10,7 @@ Rectangle {
     required property var presenter
     signal chooseRequested
     color: Theme.railSurfaceColor
-    enabled: !presenter.imports.importWorkActive && !presenter.imports.importPreflightActive
+    enabled: !presenter.imports.importWorkActive && !presenter.imports.importPreflightActive && !presenter.imports.importInteractionBlocked
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Fonts.standardMargin

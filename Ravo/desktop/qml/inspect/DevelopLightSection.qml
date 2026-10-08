@@ -17,7 +17,6 @@ DevelopSection {
             panel: sectionRoot.panel
             operation: "exposure"
             Layout.fillWidth: true
-            visible: panel.showAdvancedInstances && !panel.localEditing
         }
         CustomSlider {
             objectName: "lightExposureSlider"

@@ -71,7 +71,10 @@ TEST(StudioImportWorkspace, DestinationPreviewTracksSelectionAndOrganizationWith
             for (int row = 0; row < tree->rowCount(); ++row)
                 if (tree->data(tree->index(row, 0), FilesystemBrowserModel::PathRole) == month_path)
                     return tree->data(tree->index(row, 0), FilesystemBrowserModel::WillCreateRole)
-                        .toBool();
+                               .toBool() &&
+                           tree->data(tree->index(row, 0),
+                                      FilesystemBrowserModel::PlannedPhotoCountRole)
+                                   .toULongLong() == 2;
             return false;
         }));
     EXPECT_FALSE(QDir(month_path).exists());
@@ -80,8 +83,13 @@ TEST(StudioImportWorkspace, DestinationPreviewTracksSelectionAndOrganizationWith
     EXPECT_FALSE(presenter.imports()->importDestinationPreviewActive());
     EXPECT_TRUE(presenter.imports()->importDestinationPreview().empty());
     for (int row = 0; row < tree->rowCount(); ++row)
+    {
         EXPECT_FALSE(
             tree->data(tree->index(row, 0), FilesystemBrowserModel::WillCreateRole).toBool());
+        EXPECT_EQ(tree->data(tree->index(row, 0), FilesystemBrowserModel::PlannedPhotoCountRole)
+                      .toULongLong(),
+                  0U);
+    }
     EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).empty());
     presenter.imports()->openImportPage();
     presenter.imports()->setImportDestination(destination);

@@ -23,6 +23,7 @@ ListView {
     Connections {
         target: root.folderModel
         function onFolderRevealed(row) {
+            root.forceLayout();
             root.positionViewAtIndex(row, ListView.Contain);
         }
     }
@@ -37,6 +38,7 @@ ListView {
         required property bool listingPending
         required property bool selected
         required property bool willCreate
+        required property double plannedPhotoCount
         required property string errorText
         required property int index
 
@@ -102,6 +104,13 @@ ListView {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.chooseFolder(folderRow.path)
                 }
+            }
+            CustomLabel {
+                objectName: "importFolderPlannedCount"
+                visible: folderRow.plannedPhotoCount > 0
+                text: folderRow.plannedPhotoCount
+                color: Theme.placeholderTextColor
+                Layout.alignment: Qt.AlignVCenter
             }
         }
     }

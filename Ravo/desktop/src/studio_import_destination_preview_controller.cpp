@@ -16,7 +16,7 @@ StudioImportDestinationPreviewController::StudioImportDestinationPreviewControll
     , host_(std::move(host))
 {
     timer_.setSingleShot(true);
-    timer_.setInterval(250);
+    timer_.setInterval(0); // Coalesce one UI turn; a blocking preview needs no typing delay.
     connect(&timer_, &QTimer::timeout, this, &StudioImportDestinationPreviewController::start);
 }
 
@@ -32,6 +32,10 @@ void StudioImportDestinationPreviewController::shutdown()
     stopped_ = true;
     timer_.stop();
     operation_.cancel("destination_preview_shutdown");
+    active_ = false;
+    folders_.clear();
+    tree_folders_.clear();
+    emit changed();
 }
 
 void StudioImportDestinationPreviewController::invalidateCacheKey()

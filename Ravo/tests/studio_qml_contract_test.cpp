@@ -1920,6 +1920,8 @@ TEST(StudioQmlContract, ExposureAndColorBalanceInstanceChrome)
 {
     const auto source = combined_develop_qml_source();
     ASSERT_FALSE(source.isEmpty());
+    EXPECT_FALSE(source.contains(QStringLiteral("Advanced operation instances")));
+    EXPECT_FALSE(source.contains(QStringLiteral("showAdvancedInstances")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exposureInstanceChrome\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceRgbInstanceChrome\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("operation: \"exposure\"")));

@@ -91,6 +91,12 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     if (settings_open && condition != Condition::kAlways)
         return {false, tr_command(QStringLiteral("Close Settings to use this command."))};
     const auto workspace = active_command_workspace(presenter);
+    if (workspace == CommandWorkspace::kImport && presenter.imports()->importInteractionBlocked() &&
+        command_id != QLatin1String(command::kLibraryCancelOperation) &&
+        command_id != QLatin1String(command::kWindowClose) &&
+        command_id != QLatin1String(command::kWindowQuit) &&
+        command_id != QLatin1String(command::kWindowDismiss))
+        return {false, tr_command(QStringLiteral("Wait for library work to finish."))};
     if (!command_id.isEmpty() &&
         !workspace_supports(command_workspace_support(command_id), workspace))
     {
@@ -244,7 +250,8 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
                    State{false,
                          tr_command(QStringLiteral("The selected originals cannot be deleted."))};
     case Condition::kCatalogOperation:
-        return presenter.catalogOperationActive() || presenter.imports()->importWorkActive() ?
+        return presenter.catalogOperationActive() || presenter.imports()->importWorkActive() ||
+                       presenter.imports()->importInteractionBlocked() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("No catalog operation is running."))};
     }

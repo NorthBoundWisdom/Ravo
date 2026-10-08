@@ -15,6 +15,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QImage>
 #include <QList>
 #include <QMetaObject>
 #include <QRegularExpression>
@@ -67,6 +68,12 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
         inspect_.seedViewport(static_cast<int>(width), static_cast<int>(height));
     }
     inspect_.setPreviewLoading(!asset_id.isEmpty());
+    if (browse_mode_ != QLatin1String("grid") && browse_mode_ != QLatin1String("survey"))
+    {
+        const auto thumbnail = selectedThumbnailUrl();
+        if (thumbnail.isLocalFile())
+            inspect_.observeNavigatorThumbnail(QImage(thumbnail.toLocalFile()));
+    }
     develop_presenter_->selectionInvalidated();
     develop_presenter_->load_develop_for_selection();
     publish_selection();

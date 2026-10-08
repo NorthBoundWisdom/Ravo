@@ -322,7 +322,7 @@ Rectangle {
                 y: navigator.imageY
                 width: navigator.imageW
                 height: navigator.imageH
-                fillMode: Image.Stretch
+                fillMode: Image.PreserveAspectFit
                 retainWhileLoading: true
                 asynchronous: true
                 cache: false
@@ -338,7 +338,7 @@ Rectangle {
                 y: navigator.imageY
                 width: navigator.imageW
                 height: navigator.imageH
-                fillMode: Image.Stretch
+                fillMode: Image.PreserveAspectFit
                 retainWhileLoading: true
                 asynchronous: true
                 cache: false

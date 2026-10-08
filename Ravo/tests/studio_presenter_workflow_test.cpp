@@ -558,6 +558,8 @@ TEST(StudioPresenterTest, ImportIngestTransportCopyReportsFilesystemCard)
     EXPECT_EQ(presenter.imports()->importNativeSupport().value(QStringLiteral("ptpUsb")).toString(),
               QStringLiteral("unsupported"));
 
+    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }, 30000))
+        << presenter.errorText().toStdString();
     presenter.imports()->startPlannedImport();
     ASSERT_TRUE(wait_until(
         [&]

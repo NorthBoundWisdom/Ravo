@@ -4,13 +4,19 @@ Closed Lightroom Classic catalog import, source preservation and conversion
 limits are defined in [ADR-0164](adr/0164-lightroom-catalog-reader.md), with
 usage in [Ravo/README.md](../Ravo/README.md).
 
+Metadata-only import folder planning, provisional v2 counts and independent
+worker ownership are specified in [ARCHITECTURE.md](ARCHITECTURE.md), with
+service/CLI/scheduling contracts in [TESTING.md](TESTING.md).
+
 Studio Light's Sigmoid baseline policy is recorded in
 [MIGRATION.md](MIGRATION.md); recipe preservation and 30% viewport zoom are
 specified in [ARCHITECTURE.md](ARCHITECTURE.md) and validated by
 [TESTING.md](TESTING.md).
 
-Library view/selection resume, thumbnail/navigator stability, standard controls,
-pinned Develop tools, local mask geometry/coverage feedback, curve gesture ownership
+Library view/selection resume, thumbnail/navigator stability, photo switching
+without stretching, standard controls,
+pinned Develop tools, directly visible global operation-instance controls,
+local mask geometry/coverage feedback, curve gesture ownership
 and stable-identity page location are owned by
 [ARCHITECTURE.md](ARCHITECTURE.md), with startup/service/CLI contracts in
 [TESTING.md](TESTING.md) and current behavior in [Ravo/README.md](../Ravo/README.md).
@@ -59,7 +65,10 @@ culling, retouching, and colour work that remains reviewable, reversible,
 private by default, and reproducible enough to audit.
 
 Import destination-tree preview ownership is in [ARCHITECTURE.md](ARCHITECTURE.md),
-with overlay lifecycle and QML presentation coverage in [TESTING.md](TESTING.md).
+including inline counts, asynchronous branch reveal after listings settle, and
+remembered destination/organization choices without importing, with overlay lifecycle
+and QML presentation coverage in [TESTING.md](TESTING.md). Those authorities also
+specify cancellable blocking during planning and bounded metadata reuse.
 Color Harmonizer's inverse dt-UCS exception semantics and optimized
 Clang coverage are recorded in [ARCHITECTURE.md](ARCHITECTURE.md) and
 [TESTING.md](TESTING.md).

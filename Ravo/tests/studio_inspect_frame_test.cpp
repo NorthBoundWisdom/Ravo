@@ -150,6 +150,42 @@ TEST(StudioInspectFrame, NavigatorExtentIgnoresPreviewRoundingAndResetsForGeomet
     EXPECT_EQ(inspect.navigatorViewportHeight(), 0);
 }
 
+TEST(StudioInspectFrame, PendingThumbnailCorrectsBothViewportsWithoutReplacingPublishedFrame)
+{
+    studio_test_support::ensure_qt_core();
+    FrameOwner owner;
+    auto &inspect = owner.inspect;
+    for (const auto size : {QSize{200, 320}, QSize{320, 200}, QSize{320, 320}})
+    {
+        inspect.clear_displayed_preview();
+        inspect.seedViewport(1600, 1067);
+        inspect.setPreviewLoading(true);
+        const QImage thumbnail(size, QImage::Format_RGB888);
+        inspect.observeNavigatorThumbnail(thumbnail);
+        const double expected_aspect = static_cast<double>(size.width()) / size.height();
+        EXPECT_NEAR(static_cast<double>(inspect.previewViewportWidth()) /
+                        inspect.previewViewportHeight(),
+                    expected_aspect, 0.002);
+        EXPECT_NEAR(static_cast<double>(inspect.navigatorViewportWidth()) /
+                        inspect.navigatorViewportHeight(),
+                    expected_aspect, 0.002);
+        EXPECT_TRUE(inspect.previewImage().isNull());
+        EXPECT_TRUE(inspect.previewUrl().isEmpty());
+        EXPECT_TRUE(inspect.previewLoading());
+    }
+    auto preview = frame_preview();
+    ASSERT_TRUE(inspect.show_preview_result(preview, 42, false));
+    const auto image = inspect.previewImage();
+    const auto url = inspect.previewUrl();
+    inspect.observeNavigatorThumbnail(QImage(200, 320, QImage::Format_RGB888));
+    EXPECT_EQ(inspect.previewViewportWidth(), 2);
+    EXPECT_EQ(inspect.previewViewportHeight(), 2);
+    EXPECT_EQ(inspect.navigatorViewportWidth(), inspect.navigatorViewportHeight());
+    EXPECT_EQ(inspect.previewImage(), image);
+    EXPECT_EQ(inspect.previewUrl(), url);
+    EXPECT_EQ(inspect.frameRevision(), 42U);
+}
+
 TEST(StudioInspectFrame, MonitorConversionFailureRetainsFrameAndReportsError)
 {
     studio_test_support::ensure_qt_core();

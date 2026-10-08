@@ -14,6 +14,16 @@ The same decision admits Update Folder Location for online roots; replacement
 identity checks and the cancellable atomic catalog transaction remain required.
 Studio's former Fill view is replaced by a 30% long-edge viewport view; Fit,
 Actual and transient custom zoom retain their existing owners.
+Studio also removes the Advanced operation instances menu and visibility switch.
+Global Exposure and Color Balance RGB instance controls are always shown in
+their sections; local edits use the ADR-0158 mask workspace. ADR-0145 recipe
+serialization, evaluation and CLI inspection remain supported.
+
+2026-10-08 import presentation decision: destination folder projection is a
+metadata-only plan, independent of the full source hash scan. The v2 preview
+contract reports provisional selected-path counts; content deduplication and
+transfer admission remain with formal import preflight. Primary planned folders
+appear inline in the destination tree without creating directories.
 
 ADR-0163 (2026-10-01) admits user-requested exposure-bracket HDR and planar
 panorama as independent Ravo workflows, superseding only ADR-0153's unselected

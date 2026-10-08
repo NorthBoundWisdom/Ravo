@@ -162,6 +162,8 @@ QVariant FilesystemBrowserModel::data(const QModelIndex &index, const int role) 
         return row.listing_pending;
     case WillCreateRole:
         return row.will_create;
+    case PlannedPhotoCountRole:
+        return static_cast<qulonglong>(row.planned_photo_count);
     default:
         return {};
     }
@@ -177,7 +179,8 @@ QHash<int, QByteArray> FilesystemBrowserModel::roleNames() const
             {SelectedRole, "selected"},
             {ErrorRole, "errorText"},
             {ListingPendingRole, "listingPending"},
-            {WillCreateRole, "willCreate"}};
+            {WillCreateRole, "willCreate"},
+            {PlannedPhotoCountRole, "plannedPhotoCount"}};
 }
 
 QString FilesystemBrowserModel::selectedPath() const
@@ -191,6 +194,7 @@ void FilesystemBrowserModel::resetWithRoots(std::vector<FilesystemFolderEntry> r
     all_nodes_.clear();
     mounted_roots_.clear();
     reveal_path_.clear();
+    preview_reveal_path_.clear();
     preview_folders_.clear();
     preview_branches_.clear();
     collapsed_preview_branches_.clear();
@@ -350,8 +354,34 @@ void FilesystemBrowserModel::setPreviewFolders(std::vector<ImportDestinationFold
         }
     }
     preview_folders_ = std::move(folders);
+    preview_reveal_path_.clear();
+    // Reveal the first planned branch's leaf, not just the selected destination.
+    // The root may still be awaiting an ancestor listing; retain the intent until
+    // the overlay becomes visible. This never selects a virtual directory.
+    auto branch = std::find_if(preview_folders_.begin(), preview_folders_.end(),
+                               [](const ImportDestinationFolder &folder)
+                               { return !folder.second_copy && folder.will_create; });
+    if (branch == preview_folders_.end())
+        branch = preview_folders_.begin();
+    std::size_t preview_depth = 0;
+    for (; branch != preview_folders_.end(); ++branch)
+    {
+        const auto &folder = *branch;
+        if (folder.second_copy)
+            continue;
+        if (!preview_reveal_path_.isEmpty() && folder.depth <= preview_depth)
+            break;
+        preview_reveal_path_ = generic_path(qstring_from_utf8(folder.path));
+        preview_depth = folder.depth;
+    }
+    const auto collapsed = collapsed_preview_branches_;
+    for (const auto &path : collapsed)
+        if (preview_reveal_path_.startsWith(path.endsWith('/') ? path : path + '/'))
+            collapsed_preview_branches_.remove(path);
     if (preview_folders_.empty())
         collapsed_preview_branches_.clear();
+    if (!destination.isEmpty() && !preview_folders_.empty())
+        revealFolder(destination);
     rebuild_visible();
     request_preview_listings();
 }
@@ -499,9 +529,15 @@ void FilesystemBrowserModel::rebuild_visible()
     preview_branches_.clear();
     for (const auto &folder : preview_folders_)
     {
-        if (folder.second_copy || folder.depth == 0)
+        if (folder.second_copy)
             continue;
         const auto path = generic_path(qstring_from_utf8(folder.path));
+        const auto existing = std::find_if(merged.begin(), merged.end(),
+                                           [&](const Node &node) { return node.path == path; });
+        if (existing != merged.end())
+            existing->planned_photo_count = folder.photo_count;
+        if (folder.depth == 0)
+            continue;
         const auto parent_path = generic_path(QDir(path).filePath(QStringLiteral("..")));
         const auto parent = std::find_if(merged.begin(), merged.end(), [&](const Node &node)
                                          { return node.path == parent_path; });
@@ -521,6 +557,7 @@ void FilesystemBrowserModel::rebuild_visible()
         node.collapsed = false;
         node.loaded = true;
         node.will_create = folder.will_create;
+        node.planned_photo_count = folder.photo_count;
         auto position = parent + 1;
         while (position != merged.end() && position->depth >= depth)
         {
@@ -566,6 +603,20 @@ void FilesystemBrowserModel::request_preview_listings()
         rebuild_visible();
     for (const auto &[path, generation] : requests)
         emit directoryListingRequested(path, generation);
+    // Late real-directory listings reset the rows again. Consume the one-shot
+    // scroll intent only after the destination and all planned branches settle.
+    if (!reveal_path_.isEmpty() ||
+        std::any_of(all_nodes_.begin(), all_nodes_.end(), [&](const Node &node)
+                    { return preview_branches_.contains(node.path) && node.listing_pending; }))
+        return;
+    if (!preview_reveal_path_.isEmpty())
+        for (int row = 0; row < rowCount(); ++row)
+            if (visible_[static_cast<std::size_t>(row)].path == preview_reveal_path_)
+            {
+                preview_reveal_path_.clear();
+                emit folderRevealed(row);
+                break;
+            }
 }
 
 int FilesystemBrowserModel::index_of_path(const QString &path) const

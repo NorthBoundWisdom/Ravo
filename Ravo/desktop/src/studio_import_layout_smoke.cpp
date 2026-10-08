@@ -37,6 +37,14 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         window ? window->findChild<QQuickItem *>(QStringLiteral("importWorkspace")) : nullptr;
     if (!workspace)
         return false;
+    const auto *planning = workspace->findChild<QObject *>(QStringLiteral("importPlanningDialog"));
+    if (!planning || !planning->property("modal").toBool() ||
+        !workspace->findChild<QObject *>(QStringLiteral("importPlanningCancel")))
+    {
+        LOG_ERROR(logger(),
+                  "Import planning must provide modal progress with explicit cancellation");
+        return false;
+    }
     auto *presenter = qobject_cast<StudioPresenter *>(
         engine.rootContext()->contextProperty(QStringLiteral("studio")).value<QObject *>());
     if (!presenter)
@@ -71,21 +79,8 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             return false;
         }
     }
-    auto *preview_section =
-        workspace->findChild<QQuickItem *>(QStringLiteral("importDestinationPreviewSection"));
-    auto *preview_tree =
-        workspace->findChild<QQuickItem *>(QStringLiteral("importDestinationPreviewTree"));
-    if (!preview_section || !preview_tree ||
-        !QQmlProperty::write(preview_section, QStringLiteral("visible"), true) ||
-        !QQmlProperty::write(
-            preview_tree, QStringLiteral("model"),
-            QVariantList{
-                QVariantMap{{QStringLiteral("name"), QStringLiteral("2026")},
-                            {QStringLiteral("path"), directory.filePath(QStringLiteral("2026"))},
-                            {QStringLiteral("depth"), 1},
-                            {QStringLiteral("photoCount"), 123},
-                            {QStringLiteral("willCreate"), true},
-                            {QStringLiteral("secondCopy"), false}}}))
+    if (workspace->findChild<QQuickItem *>(QStringLiteral("importDestinationPreviewSection")) ||
+        workspace->findChild<QQuickItem *>(QStringLiteral("importDestinationPreviewTree")))
         return false;
     qreal standard_tree_height = 0;
     for (const auto &size : std::array<QSize, 4>{QSize{1440, 900}, QSize{1440, 1100},
@@ -895,15 +890,36 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             }
             if (size.height() == 1100)
             {
+                // Cancel the preceding import fixture's planner before supplying
+                // a controlled overlay; its late result must not replace this plan.
+                presenter->imports()->closeImportPage();
                 auto *model = presenter->imports()->importDestinationFolders();
+                QTemporaryDir preview_directory;
+                if (!preview_directory.isValid())
+                    return false;
+                const auto home = preview_directory.filePath("Home");
+                const auto pictures = home + "/Pictures";
+                if (!QDir().mkpath(pictures + "/2026/03"))
+                    return false;
+                // Many Home siblings put Pictures outside the initial viewport.
+                // Deferred real listings must not reset the final preview scroll.
+                for (int sibling = 0; sibling < 60; ++sibling)
+                    if (!QDir().mkpath(
+                            home +
+                            QStringLiteral("/Folder%1").arg(sibling, 2, 10, QLatin1Char('0'))))
+                        return false;
+                model->resetWithRoots({{home, "Home", true}});
                 model->setPreviewFolders(
-                    {{directory.filePath("2026").toStdString(), "2026", 1, 1, false, false},
-                     {directory.filePath("2026/10").toStdString(), "10", 2, 1, true, false}});
+                    {{pictures.toStdString(), "Pictures", 0, 1, false, false},
+                     {(pictures + "/2026").toStdString(), "2026", 1, 1, false, false},
+                     {(pictures + "/2026/10").toStdString(), "10", 2, 1, true, false}},
+                    pictures);
                 QEventLoop preview_layout;
-                QTimer::singleShot(80, &preview_layout, &QEventLoop::quit);
+                QTimer::singleShot(250, &preview_layout, &QEventLoop::quit);
                 preview_layout.exec();
                 QQuickItem *year_label = nullptr;
                 QQuickItem *month_label = nullptr;
+                int planned_counts = 0;
                 const auto find_labels = [&](auto &&visit, QQuickItem *item) -> void
                 {
                     if (item->objectName() == QLatin1String("importFolderName"))
@@ -913,15 +929,21 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                         if (item->property("text").toString() == QLatin1String("10"))
                             month_label = item;
                     }
+                    if (item->objectName() == QLatin1String("importFolderPlannedCount") &&
+                        item->isVisible() &&
+                        item->property("text").toString() == QLatin1String("1"))
+                        ++planned_counts;
                     for (auto *child : item->childItems())
                         visit(visit, child);
                 };
                 find_labels(find_labels, tree);
-                if (!year_label || !month_label ||
+                if (!year_label || !month_label || planned_counts != 3 ||
                     year_label->property("color") == month_label->property("color") ||
                     QQmlProperty::read(year_label, "font.italic").toBool() ||
                     !QQmlProperty::read(month_label, "font.italic").toBool() ||
-                    QDir(directory.filePath("2026/10")).exists())
+                    !tree->boundingRect().contains(
+                        month_label->mapRectToItem(tree, month_label->boundingRect())) ||
+                    QDir(pictures + "/2026/10").exists())
                 {
                     LOG_ERROR(
                         logger(),
@@ -932,6 +954,9 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                     return false;
                 }
                 model->setPreviewFolders({});
+                model->resetWithRoots({{directory.path(), "Pictures", true}});
+                model->selectFolder(directory.path());
+                presenter->imports()->importCandidates()->setCandidates({candidate});
                 auto *section =
                     workspace->findChild<QQuickItem *>(QStringLiteral("importDestinationSection"));
                 if (!section || !section->parentItem())
@@ -1667,6 +1692,52 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         LOG_ERROR(logger(), "Gallery navigator displayed a frame outside the Grid thumbnail path");
         return false;
     }
+    // Exercise the production Images with an original-size rectangle that does
+    // not match the cached photo. Retained pixels and loading placeholders must
+    // keep their own aspect while selection geometry is being replaced.
+    auto *navigation_image =
+        navigator->findChild<QQuickItem *>(QStringLiteral("navigatorLiveImage"));
+    auto *placeholder = window->findChild<QQuickItem *>(QStringLiteral("previewPlaceholderImage"));
+    const auto thumbnail_url = presenter->selectedThumbnailUrl();
+    const QImage selected_thumbnail(thumbnail_url.toLocalFile());
+    if (!navigation_image || !placeholder || selected_thumbnail.isNull())
+        return false;
+    // The placeholder is normally inactive in Grid. Supply the real selected
+    // resource explicitly so this geometry test need not race a full render.
+    placeholder->setProperty("source", thumbnail_url);
+    if (!wait_ready(
+            [&]
+            {
+                return placeholder->property("status").toInt() == 1 &&
+                       navigation_image->property("status").toInt() == 1 &&
+                       held_navigation->property("status").toInt() == 1;
+            }))
+        return false;
+    presenter->inspect()->clear_displayed_preview();
+    const double pixel_aspect =
+        static_cast<double>(selected_thumbnail.width()) / selected_thumbnail.height();
+    for (const auto size : {QSize{1600, 1000}, QSize{1000, 1600}, QSize{1000, 1000}})
+    {
+        presenter->inspect()->seedViewport(size.width(), size.height());
+        presenter->inspect()->notifyPreviewChanged();
+        if (!wait_ready(
+                [&]
+                {
+                    for (auto *item : {navigation_image, held_navigation, placeholder})
+                    {
+                        const auto width = item->property("paintedWidth").toDouble();
+                        const auto height = item->property("paintedHeight").toDouble();
+                        if (height <= 0 || std::abs(width / height - pixel_aspect) > 0.001)
+                            return false;
+                    }
+                    return true;
+                }))
+        {
+            LOG_ERROR(logger(), "Selection geometry stretched retained or placeholder pixels");
+            return false;
+        }
+    }
+    placeholder->setProperty("source", QUrl{});
     return true;
 }
 } // namespace ravo

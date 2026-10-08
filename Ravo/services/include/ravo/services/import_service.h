@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <memory>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -77,6 +78,9 @@ private:
         RecoveryService &recovery, std::function<void()> &before_publication,
         const std::function<Result<void>(std::string_view, std::string_view)> &checkpoint) noexcept;
     [[nodiscard]] Result<CatalogSnapshot> library_snapshot() const;
+    [[nodiscard]] Result<ImportCandidate>
+    inspect_destination_candidate(std::string_view path, std::string_view source_root,
+                                  const CancellationToken &cancellation);
     [[nodiscard]] Result<ImportScanResult> scan_import_candidates_impl(
         const std::vector<std::string> &inputs, std::string_view source_root, bool recursive,
         const CancellationToken &cancellation,
@@ -99,6 +103,8 @@ private:
         &testing_import_checkpoint_;
     std::function<Result<void>()> ingest_source_liveness_;
     bool ingest_report_remaining_on_stop_ = false;
+    // Serial service owner only. Metadata is provisional; import never uses this cache.
+    std::map<std::string, ImportCandidate, std::less<>> destination_preview_candidates_;
 };
 
 } // namespace ravo

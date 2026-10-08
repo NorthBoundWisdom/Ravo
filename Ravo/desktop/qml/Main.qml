@@ -883,12 +883,13 @@ ApplicationWindow {
 
                                     Image {
                                         id: previewPlaceholderImage
+                                        objectName: "previewPlaceholderImage"
                                         anchors.fill: parent
                                         asynchronous: true
                                         cache: true
                                         source: window.previewPlaceholderReady ? studio.selectedThumbnailUrl : ""
                                         visible: window.previewPlaceholderReady
-                                        fillMode: Image.Stretch
+                                        fillMode: Image.PreserveAspectFit
                                         smooth: true
                                         antialiasing: true
                                     }

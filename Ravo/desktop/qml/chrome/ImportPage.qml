@@ -10,7 +10,7 @@ Rectangle {
     property var commands
     signal closeRequested
     readonly property bool compact: width < 1000
-    readonly property bool locked: presenter.imports.importWorkActive || presenter.imports.importPreflightActive
+    readonly property bool locked: presenter.imports.importWorkActive || presenter.imports.importPreflightActive || presenter.imports.importInteractionBlocked
     readonly property string candidateKeyboardHelp: qsTr("Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks")
     color: Theme.windowColor
     focus: visible
@@ -254,5 +254,38 @@ Rectangle {
     onVisibleChanged: if (!visible) {
         sourceDrawer.close();
         destinationDrawer.close();
+    }
+
+    Popup {
+        objectName: "importPlanningDialog"
+        anchors.centerIn: Overlay.overlay
+        modal: true
+        focus: true
+        visible: root.visible && root.presenter.imports.importInteractionBlocked
+        closePolicy: Popup.NoAutoClose
+        padding: Fonts.standardMargin
+        background: Rectangle {
+            color: Theme.railSurfaceColor
+            border.color: Theme.dividerColor
+            border.width: ControlState.borderThin
+            radius: ControlState.radiusSmall
+        }
+        contentItem: ColumnLayout {
+            spacing: Fonts.size12
+            Keys.onEscapePressed: root.closeRequested()
+            BusyIndicator {
+                Layout.alignment: Qt.AlignHCenter
+                running: true
+            }
+            CustomLabel {
+                text: qsTr("Planning destination…")
+            }
+            CustomButton {
+                objectName: "importPlanningCancel"
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr("Cancel")
+                onClicked: root.closeRequested()
+            }
+        }
     }
 }

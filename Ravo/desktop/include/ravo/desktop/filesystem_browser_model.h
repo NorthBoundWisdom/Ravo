@@ -48,6 +48,7 @@ public:
         ErrorRole,
         ListingPendingRole,
         WillCreateRole,
+        PlannedPhotoCountRole,
     };
 
     explicit FilesystemBrowserModel(QObject *parent = nullptr);
@@ -87,6 +88,7 @@ private:
         bool listing_pending = false;
         QString error;
         bool will_create = false;
+        std::uint64_t planned_photo_count = 0;
     };
 
     void rebuild_visible();
@@ -101,6 +103,7 @@ private:
     QStringList mounted_roots_;
     QString selected_path_;
     QString reveal_path_;
+    QString preview_reveal_path_;
     quint64 next_listing_generation_ = 0;
 };
 

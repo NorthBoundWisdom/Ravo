@@ -32,6 +32,9 @@ and their separate scroll offsets, as well as the fixed toolbar position.
 The same smoke requires toolbar labels to fit their standard buttons and opens
 the shared mask-creation menu with all five actions. Locale smoke repeats these
 checks with every packaged translation.
+`StudioQmlContract.ExposureAndColorBalanceInstanceChrome` requires the global
+instance controls and rejects the retired Advanced menu and visibility flag
+in the Develop stack.
 
 `LocalAdjustmentWorkspaceTest` checks geometric guides for gradient, circle,
 ellipse, path and brush masks after photo rotation, and retains those guides when
@@ -56,6 +59,15 @@ visibility and retained gutter geometry, then verifies clearing the source remov
 the retained frame.
 `StudioInspectFrame.NavigatorExtentIgnoresPreviewRoundingAndResetsForGeometry`
 checks thumbnail/settled size rounding, real aspect changes, reselection and clear.
+`StudioInspectFrame.PendingThumbnailCorrectsBothViewportsWithoutReplacingPublishedFrame`
+requires pending portrait/landscape/square thumbnails to correct both viewport
+aspects without replacing a published preview. The real-catalog
+`StudioPipelinePriority.ReselectCroppedPhotoUsesThumbnailAspectBeforeFullPreview`
+blocks full-preview work during rapid reselection and requires the cached cropped
+thumbnail's aspect immediately, followed by the final cropped frame.
+Production QML smoke checks decoded `paintedWidth`/`paintedHeight` on both
+navigator Images and the main loading placeholder against the selected photo
+while the destination geometry changes between landscape, portrait and square.
 Production smoke also watches both navigator and viewport-border scene geometry
 through four Gallery exposure commands and requires no movement.
 At every preview publication in that loop it also requires the navigator to
@@ -225,10 +237,13 @@ thumbnail completion without rescan loops, and source-byte preservation,
 source persistence before import, source ancestor selection/reveal after page
 reopen and cross-catalog restart, unavailable saved-source removal and explicit
 errors without automatic scanning of another folder, invalid source
-preferences and failed-write preservation, successful destination persistence,
+preferences and failed-write preservation, destination and organization persistence
+without importing, organization value validation and failed-write preservation,
 restart/cross-catalog restore, unavailable
 destinations, settings-write failures that preserve committed photos and the
-prior destination, conflict-before-import with Gallery error feedback, asynchronous ancestor reveal,
+prior destination, conflict-before-import with Gallery error feedback while
+retaining the chosen valid destination, asynchronous ancestor reveal
+after all planned-branch model resets,
 superseded reveal cancellation, and visible directory-listing errors. Folder
 contracts cover Home and mounted-volume roots in both panels, volume refresh
 without losing expanded children or selection, removal/reinsertion with late
@@ -244,14 +259,34 @@ selection across folder changes/page reentry, late recursive-result rejection,
 and the Home recursion guard for normalized and symlink paths. The
 destination-preview tests check single/date/month/hierarchy and second-copy
 counts against actual import, no early directory/media/catalog publication,
-selection/organization replacement, close cancellation, and stale/corrupt/conflict
-errors. CLI subprocess tests verify the versioned `catalog import-plan` JSON.
+selection/organization replacement, close cancellation, and stale/corrupt/directory
+blocker errors. Metadata-only preview accepts an unverified content hash and
+existing output file while formal preflight rejects them; CLI subprocess tests
+verify provisional v2 counts followed by actual content-deduplicated import.
+A blocked import-worker test requires destination planning to finish and close
+cleanly on its independent session. CLI subprocess tests verify the versioned
+`catalog import-plan` JSON.
 Filesystem model tests cover ordered month overlays, existing-year/month deduplication,
 collapse/expand, virtual-folder selection rejection, late listings, plan replacement,
-second-copy exclusion and explicit listing errors without retry loops. Presenter
+second-copy exclusion and explicit listing errors without retry loops.
+Service cache coverage distinguishes provisional same-size/time metadata reuse
+from formal byte admission, invalidates changed timestamps, refreshes current
+catalog membership, and rejects cancelled/closed requests. The opt-in
+`CatalogServiceTest.DestinationPreviewPerformanceProbe` takes an explicit
+`RAVO_IMPORT_PREVIEW_SOURCE` and records cold month, warm month and warm date
+planning times without importing or creating planned directories.
+Desktop worker-gate coverage holds the destination planner, verifies immediate
+interaction blocking and rejected early import/commands, exercises command
+cancellation, and reopens without accepting late results. Production QML loads
+the modal planning/cancel controls alongside the real destination tree.
+Deferred
+Home/ancestor listing coverage requires the planned month to be revealed without
+selecting it, with correct counts on both real and future directories; clearing
+the plan removes the counts and virtual rows. Presenter
 coverage checks that the month plan appears in the destination tree and disappears
 on page close while the directory remains absent on disk. Production QML smoke
-checks the gray, italic month label alongside the normally styled existing year.
+checks the gray, italic month label alongside the normally styled existing year,
+their inline planned counts, and the month's position inside the tree viewport.
 `StudioGpuPreviewTest` verifies that delayed delivery retains the original pixels
 after surface reuse at 639×960 and 1066×1600, and checks cancellation, invalid
 surface and dimension failures. With `RAVO_TEST_GPU_RAW` set to an explicit RAW
@@ -275,7 +310,9 @@ The smoke also transitions the menu bar between zero and visible client-area
 height and checks that Import starts immediately below it, with no stale
 automatic top inset. Native system-menu objects and commands remain present.
 The smoke checks equal-width destination mode segments, Move disabled, matching
-source/destination tree surfaces, adaptive tree growth and collapse/Add sizing,
+source/destination tree surfaces, inline month/count styling and final scroll
+visibility with dozens of Home siblings and deferred ancestor listings, absence
+of a separate preview list, adaptive tree growth and collapse/Add sizing,
 and a real checkbox indicator of at least 24 pixels within a 32-pixel hit area.
 Enumeration callbacks are tested before classification and for cancellation
 without publication. Catalog-independent PNG/RAW thumbnail decode must match

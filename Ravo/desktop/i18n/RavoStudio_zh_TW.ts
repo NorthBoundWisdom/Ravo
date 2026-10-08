@@ -278,10 +278,6 @@ Diff: %6</source>
             <translation>亮度／顏色範圍</translation>
         </message>
         <message>
-            <source>Advanced operation instances</source>
-            <translation>進階調整實例</translation>
-        </message>
-        <message>
             <source>Show / hide mask adjustments</source>
             <translation>顯示／隱藏蒙版調整</translation>
         </message>
@@ -3718,24 +3714,12 @@ Diff: %6</source>
             <translation>按月 (YYYY/MM)</translation>
         </message>
         <message>
-            <source>Destination preview</source>
-            <translation>目標資料夾預覽</translation>
-        </message>
-        <message>
             <source>Folders are created only when you import.</source>
             <translation>僅在匯入時建立資料夾。</translation>
         </message>
         <message>
             <source>Planning destination…</source>
             <translation>正在規劃目標資料夾…</translation>
-        </message>
-        <message>
-            <source>Will create</source>
-            <translation>將建立</translation>
-        </message>
-        <message>
-            <source>%1 photos</source>
-            <translation>%1 張相片</translation>
         </message>
         <message>
             <source>Rename template</source>

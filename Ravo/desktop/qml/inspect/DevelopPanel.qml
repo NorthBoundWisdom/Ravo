@@ -4,7 +4,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
-import "../chrome" as Chrome
 
 ColumnLayout {
     id: root
@@ -17,7 +16,6 @@ ColumnLayout {
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
     readonly property bool localEditing: hasPresenter && presenter.develop.localEditing === true
     readonly property bool cropPinned: hasPresenter && presenter.develop.cropToolActive
-    property bool showAdvancedInstances: false
     spacing: Fonts.smallSpacing
 
     function openLut3dDialog() {
@@ -32,24 +30,6 @@ ColumnLayout {
         onFileAccepted: function (filePath) {
             if (root.commands)
                 root.commands.setDevelopText("lut3dFile", filePath);
-        }
-    }
-
-    CustomButton {
-        Layout.alignment: Qt.AlignRight
-        Layout.rightMargin: Fonts.standardMargin
-        visible: root.workspace === "edit"
-        text: "⋯"
-        onClicked: globalMenu.popup()
-        Chrome.StudioContextMenu {
-            id: globalMenu
-            fitToContent: true
-            Chrome.StudioContextMenuItem {
-                text: qsTr("Advanced operation instances")
-                checkable: true
-                checked: root.showAdvancedInstances
-                onTriggered: root.showAdvancedInstances = checked
-            }
         }
     }
 

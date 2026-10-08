@@ -79,6 +79,12 @@ first load, an empty source or a decode failure still shows its explicit placeho
 The navigator uses a separate stable extent owned by Inspect, seeded for the
 selected asset and updated with the existing preview rounding tolerance. CPU,
 retained and GPU images plus the viewport border share one inset rectangle.
+Before a full frame exists, the selected browse thumbnail also corrects the
+main viewport's aspect; catalog dimensions describe the uncropped original.
+Loupe/Develop selection consults the cached thumbnail before publishing the
+selection. Navigator Images and the main loading placeholder preserve their
+decoded pixels' aspect while asynchronous replacement and geometry updates
+overlap, fitting within the rectangle instead of stretching retained pixels.
 Exposure and preview-resolution changes do not move that rectangle; a new
 selection, real aspect change or preview clearing updates it.
 In Grid mode the navigator consumes the selected model thumbnail URL, including
@@ -302,11 +308,14 @@ locale-specific translation memories are repository assets; CMake derives its
 complete catalog set from the same manifest, validates it, and compiles it to
 build-local QM files, which are the only files deployed with
 Studio. Typed desktop settings are the UI language, assistant
-endpoint/model/key, window size/position/maximized state, and the most recent
-successful managed-import destination root and last selected import source root.
-Source selection is persisted immediately, even when the import draft is closed
-without importing. Both paths are global desktop preferences, independent of
-catalog identity; reopening restores the source scan and asynchronously expands,
+endpoint/model/key, window size/position/maximized state, last selected valid
+import destination root, last selected import source root, and
+import organization (`single`, `hierarchy`, `date`, or `month`). Source and
+organization choices are persisted immediately; destination selection is saved
+after asynchronous directory/writability validation, even without importing.
+Invalid or unavailable destinations do not replace the saved valid path.
+These are global desktop preferences, independent of catalog identity;
+reopening restores the source scan and asynchronously expands,
 selects, and scrolls its ancestor chain through the C++ folder model. Listing
 trees start at Home and add ready, readable mounted volumes, including storage
 cards. Storage discovery runs on the filesystem worker on page entry and source
@@ -327,19 +336,51 @@ Repeated destination selection does not reset a healthy tree. Listing
 uses a separate presenter-owned serial filesystem worker, joined before model
 destruction, so image render/decode cannot block disclosure requests. Loading
 state and errors are model roles; Qt disclosure buttons only forward intents.
-Destination previews run on the import executor using the exact import
-preflight planner, with a separate cancellation source, debounce timer and
-generation. `ravo-import-destination-preview/v1` exposes primary/second-copy
-folder paths, create flags and descendant-inclusive photo counts through Studio
-and `catalog import-plan`. Preview creates no folders or media and never replaces
-the final import preflight; stale results clear on draft replacement or close.
+Destination previews use the shared import path planner on a separate serial
+catalog/Engine session, with their own cancellation source, event-turn coalescing timer and
+generation. Planning starts after source enumeration, independently of the full
+source hash scan and thumbnails. `ravo-import-destination-preview/v2` exposes
+primary/second-copy folder paths, create flags and descendant-inclusive provisional
+photo counts through Studio and `catalog import-plan`. Metadata inspection reads
+RAW identification or raster headers/capture tags, without unpacking RAW pixels,
+decoding embedded thumbnails, hashing file content or preflighting output files.
+Source file identities and catalog revision are checked before publication;
+metadata errors and destination-directory blockers remain explicit errors.
+Known catalog URI duplicates are excluded when requested; content duplicates are
+removed as source classification updates selection. Preview creates no folders
+or media and never replaces final import preflight, which rechecks content hashes,
+sidecars, duplicate identities and output conflicts. Stale results clear on draft
+replacement or close. Both worker sessions are drained and replaced on catalog
+switch and cancelled/joined before workspace destruction.
+The serial import service retains at most 8,192 successful preview candidate
+metadata records, reusing only matching canonical path, size and modification time.
+Each reuse checks current catalog membership and request-relative hierarchy;
+changed/missing sources fail or are inspected again. Catalog close clears the cache.
+Formal scan/preflight/import never consume it and still verify actual bytes.
+Within one plan, destination parent canonicalization is shared by photos in the
+same directory; output-file conflicts remain owned by formal preflight.
+The C++ import workspace exposes a blocking interaction state from destination
+validation/source enumeration through destination-preview publication. A modal
+QML progress view disables draft/grid actions, and command availability rejects
+all commands except cancellation, dismissal and window close/quit. The UI thread
+keeps processing events; closing Import cancels both scan and preview generations.
+Import admission checks the same blocking state and rejects planning errors.
 The desktop filesystem model overlays primary planned folders into its disposable
 visible tree, merging by normalized path with real directory listings. Planned
 branches expand initially and remain collapsible; new directories expose a
 `willCreate` role for gray, italic presentation and cannot become a destination
 selection. Existing folders retain normal styling. The overlay never enters the
-filesystem listing owner or issues listings for nonexistent folders. Second-copy
-plans remain in the separate destination preview. Cancellation, replacement and
+filesystem listing owner or issues listings for nonexistent folders. Every planned
+directory exposes its descendant-inclusive `plannedPhotoCount`, including existing
+destinations. Publishing a plan reveals the destination through asynchronous
+ancestor listings and scrolls to the first new branch's leaf (or an existing planned
+branch when no folders are new), without selecting a virtual folder. This reveal
+is consumed once after real planned-branch listings settle, so subsequent model
+resets cannot undo the scroll. QML flushes pending view layout before positioning;
+completed reveals do not override later user scrolling or collapse intents.
+Planning progress and errors are displayed above the destination tree, with no
+separate preview list. Second-copy plans remain available through the shared
+service/CLI preview contract. Cancellation, replacement and
 page close clear the overlay with the planner's published state. Listing
 and ingest recursion are constrained separately from the checkbox preference:
 the home directory (including aliases) is always scanned non-recursively, while
@@ -931,8 +972,9 @@ remain session state and use the existing task owner.
 
 The source/photos/destination workspace defaults to Copy on every entry.
 New photographs start checked, rename and second-copy sections start collapsed,
-and narrow windows use side drawers. The last selected source and successful
-primary destination roots are durable desktop preferences; Add, preview, and naming options stay in
+and narrow windows use side drawers. The last selected source, valid primary
+destination and organization are durable desktop preferences saved without an
+import; Add, preview, and naming options stay in
 the session. A folder selection restores its ancestors asynchronously.
 
 `scan_import_candidates` owns full-file SHA-256 duplicate classification independently
@@ -1105,7 +1147,11 @@ the stored recipe on a read. The next accepted save persists recipe v4. Source
 pixels, originals and history entries remain unchanged by this projection.
 
 Desktop C++ owns Global/Local(ID), component/point cursors, drawing and bounded
-gesture tokens. QML recreates the adjustment controls when the scope changes
+gesture tokens. Studio exposes local edits through that mask workspace. Global
+Exposure and Color Balance RGB sections show their instance controls directly,
+without an Advanced visibility switch or overflow menu. Ordered ADR-0145
+instances remain owned by the shared recipe/Engine contract.
+QML recreates the adjustment controls when the scope changes
 and cancels deferred view commits on destruction. Each completed gesture or
 slider commit uses the existing revision-bound catalog transaction, history
 and preview owners. Incomplete spatial-mask creation is ephemeral; Done
@@ -2039,8 +2085,9 @@ dispatch on the existing executor, and owns companion preflight and export
 result presentation. The command registry retains all command policy; transient
 form values remain distinct from active service options. Companion confirmation
 is bound to the originating catalog/listing/selection. Import's existing workspace
-owns draft, controllers, candidate/folder models and `StudioImportWorker`; its
-worker remains a separate catalog/Engine owner thread. Shutdown retains the
+owns draft, controllers, candidate/folder models and `StudioImportWorker` sessions;
+import/scan and destination planning each retain a serial catalog/Engine owner
+thread. Shutdown retains the
 original foreground-to-import-session handoff order and destroys dependents first.
 
 `CancellationGeneration` in foundation owns only an owner-thread cancellation

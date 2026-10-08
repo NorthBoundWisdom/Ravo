@@ -134,7 +134,8 @@ void StudioPresenter::publishImportItem(const ImportItemResult &item, const int 
 void StudioImportWorkspace::startPlannedImport()
 {
     const QStringList selected = candidates.selectedPaths();
-    if (!import_page_open_ || import_work_active_ || import_preflight_active_ || selected.isEmpty())
+    if (!import_page_open_ || import_work_active_ || import_preflight_active_ ||
+        selected.isEmpty() || importInteractionBlocked())
         return;
     if (!(scan && scan->catalogRevision()))
     {

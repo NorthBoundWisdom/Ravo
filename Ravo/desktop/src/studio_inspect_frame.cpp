@@ -353,10 +353,16 @@ bool StudioInspectPresenter::update_navigator_extent(const QSize &size)
 
 void StudioInspectPresenter::observeNavigatorThumbnail(const QImage &image)
 {
-    // The navigator prefers a published preview over the browse thumbnail.
-    // Seed cropped-photo geometry from the thumbnail only until that preview exists.
-    if (preview_url_.isEmpty() && gpu_preview_generation_ == 0 && !image.isNull() &&
-        update_navigator_extent(image.size()))
+    // Until a full frame exists, the browse thumbnail owns the displayed aspect
+    // in both views. Catalog dimensions describe the original, before crop/rotate.
+    if (!preview_url_.isEmpty() || gpu_preview_generation_ != 0 || image.isNull())
+        return;
+    const QSize current(preview_viewport_width_, preview_viewport_height_);
+    const auto next = stable_preview_viewport_size(current, image.size(), true);
+    const bool navigator_changed = update_navigator_extent(image.size());
+    preview_viewport_width_ = next.width();
+    preview_viewport_height_ = next.height();
+    if (navigator_changed || next != current)
         emit previewChanged();
 }
 

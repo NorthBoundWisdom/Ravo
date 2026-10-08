@@ -1037,7 +1037,9 @@ struct ImportDestinationFolder
 
 struct ImportDestinationPreview
 {
-    std::string schema{"ravo-import-destination-preview/v1"};
+    // Provisional folder counts from metadata; content duplicates and transfer
+    // admission are deliberately deferred to the full import preflight.
+    std::string schema{"ravo-import-destination-preview/v2"};
     std::int64_t catalog_revision = 0;
     std::size_t photo_count = 0;
     std::vector<ImportDestinationFolder> folders;

@@ -3,6 +3,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -22,6 +23,7 @@ namespace ravo
 struct NativeIngestPlatformSupport;
 struct IngestBatchResult;
 class StudioImportWorker;
+class PreviewCache;
 class StudioImportScanController;
 class StudioImportThumbnailController;
 class StudioImportDestinationPreviewController;
@@ -46,6 +48,7 @@ class StudioImportWorkspace final : public QObject
     Q_PROPERTY(int importScanTotal READ importScanTotal NOTIFY importPageChanged)
     Q_PROPERTY(bool importPreflightActive READ importPreflightActive NOTIFY importPageChanged)
     Q_PROPERTY(bool importReady READ importReady NOTIFY importPageChanged)
+    Q_PROPERTY(bool importInteractionBlocked READ importInteractionBlocked NOTIFY importPageChanged)
     Q_PROPERTY(QString importDestinationError READ importDestinationError NOTIFY importPageChanged)
     Q_PROPERTY(QVariantList importDestinationPreview READ importDestinationPreview NOTIFY
                    importDestinationPreviewChanged)
@@ -124,6 +127,9 @@ public:
     [[nodiscard]] bool galleryPlaceholders() const noexcept;
     [[nodiscard]] const bool &workActiveState() const noexcept;
     [[nodiscard]] StudioImportWorker &importWorker() noexcept;
+    [[nodiscard]] Result<void>
+    openImportWorkers(const std::string &catalog, std::shared_ptr<PreviewCache> cache,
+                      std::shared_ptr<std::mutex> recovery_publication_mutex);
     [[nodiscard]] QString contextDebugInfo() const;
     [[nodiscard]] bool importPageOpen() const noexcept;
     [[nodiscard]] bool importScanActive() const noexcept;
@@ -143,6 +149,7 @@ public:
     [[nodiscard]] QString importResumeBatchId() const;
     [[nodiscard]] QString importDestination() const;
     [[nodiscard]] bool importReady() const;
+    [[nodiscard]] bool importInteractionBlocked() const;
     [[nodiscard]] QUrl importDestinationFolderUrl() const;
     [[nodiscard]] QUrl importSourceFolderUrl() const;
     [[nodiscard]] QUrl importSecondCopyFolderUrl() const;
@@ -220,6 +227,7 @@ private:
     Context context_;
     Host host_;
     std::unique_ptr<StudioImportWorker> worker;
+    std::unique_ptr<StudioImportWorker> destination_preview_worker;
     ImportCandidateListModel candidates;
     FilesystemBrowserModel source_folders;
     FilesystemBrowserModel destination_folders;

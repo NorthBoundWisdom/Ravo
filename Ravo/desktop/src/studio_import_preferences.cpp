@@ -13,6 +13,12 @@ namespace
 {
 constexpr auto kDestination = "desktop/import/lastDestination";
 constexpr auto kSource = "desktop/import/lastSource";
+constexpr auto kOrganization = "desktop/import/lastOrganization";
+bool valid_organization(const QString &value)
+{
+    return value == QLatin1String("single") || value == QLatin1String("hierarchy") ||
+           value == QLatin1String("date") || value == QLatin1String("month");
+}
 TaskError settings_error()
 {
     return make_error(ErrorCode::kIo, "Unable to access import folder preferences",
@@ -51,14 +57,11 @@ Result<QString> load_path(const char *key, const std::string &kind)
     return QDir::cleanPath(path);
 }
 
-Result<void> remember_path(const char *key, const std::string &kind, const QString &path)
+Result<void> remember_value(const char *key, const QString &value)
 {
-    if (path.isEmpty() || path.contains(QChar::Null) || !QDir::isAbsolutePath(path))
-        return make_error(ErrorCode::kValidation, "Import " + kind + " must be an absolute path",
-                          {{"reason", "invalid_import_" + kind + "_preference"}});
     QSettings settings;
     const auto previous = settings.value(QLatin1String(key));
-    settings.setValue(QLatin1String(key), QDir::cleanPath(path));
+    settings.setValue(QLatin1String(key), value);
     settings.sync();
     if (settings.status() != QSettings::NoError)
     {
@@ -70,6 +73,13 @@ Result<void> remember_path(const char *key, const std::string &kind, const QStri
         return settings_error();
     }
     return {};
+}
+Result<void> remember_path(const char *key, const std::string &kind, const QString &path)
+{
+    if (path.isEmpty() || path.contains(QChar::Null) || !QDir::isAbsolutePath(path))
+        return make_error(ErrorCode::kValidation, "Import " + kind + " must be an absolute path",
+                          {{"reason", "invalid_import_" + kind + "_preference"}});
+    return remember_value(key, QDir::cleanPath(path));
 }
 } // namespace
 
@@ -91,5 +101,32 @@ Result<QString> StudioImportPreferences::loadLastDestination() const
 Result<void> StudioImportPreferences::rememberDestination(const QString &path) const
 {
     return remember_path(kDestination, "destination", path);
+}
+
+Result<QString> StudioImportPreferences::loadLastOrganization() const
+{
+    QSettings settings;
+    settings.sync();
+    if (settings.status() != QSettings::NoError)
+        return settings_error();
+    if (!settings.contains(QLatin1String(kOrganization)))
+        return QStringLiteral("single");
+    const auto stored = settings.value(QLatin1String(kOrganization));
+    if (stored.metaType().id() == QMetaType::QString && valid_organization(stored.toString()))
+        return stored.toString();
+    settings.remove(QLatin1String(kOrganization));
+    settings.sync();
+    if (settings.status() != QSettings::NoError)
+        return settings_error();
+    return make_error(ErrorCode::kValidation, "Invalid saved import organization was removed",
+                      {{"reason", "invalid_import_organization_preference"}});
+}
+
+Result<void> StudioImportPreferences::rememberOrganization(const QString &organization) const
+{
+    if (!valid_organization(organization))
+        return make_error(ErrorCode::kValidation, "Invalid import organization",
+                          {{"reason", "invalid_import_organization_preference"}});
+    return remember_value(kOrganization, organization);
 }
 } // namespace ravo

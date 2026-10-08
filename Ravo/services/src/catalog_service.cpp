@@ -333,6 +333,7 @@ Result<void> CatalogService::close()
     recovery_.reset();
     engine_ = nullptr;
     preview_capability_->clear_working_cache();
+    import_capability_->destination_preview_candidates_.clear();
     if (recovery_error)
     {
         if (!closed)

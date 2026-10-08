@@ -133,9 +133,19 @@ bool StudioImportWorkspace::importReady() const
     const bool native = import_ingest_transport_ == QLatin1String("ptp-usb") ||
                         import_ingest_transport_ == QLatin1String("mtp");
     return import_page_open_ && !native && !import_preflight_active_ && !import_work_active_ &&
-           scan && scan->catalogRevision().has_value() && candidates.selectedCount() > 0 &&
-           draft.mode != QLatin1String("move") &&
-           (draft.mode == QLatin1String("add") || draft.destination_valid);
+           !importInteractionBlocked() && scan && scan->catalogRevision().has_value() &&
+           candidates.selectedCount() > 0 && draft.mode != QLatin1String("move") &&
+           (draft.mode == QLatin1String("add") ||
+            (draft.destination_valid && importDestinationPreviewError().isEmpty()));
+}
+
+bool StudioImportWorkspace::importInteractionBlocked() const
+{
+    if (!import_page_open_ || draft.mode == QLatin1String("add") || draft.source_root.isEmpty() ||
+        draft.destination.isEmpty() || !draft.destination_error.isEmpty())
+        return false;
+    return importDestinationPreviewActive() || !draft.destination_valid ||
+           (scan && scan->active() && !scan->catalogRevision());
 }
 
 QUrl StudioImportWorkspace::importDestinationFolderUrl() const
@@ -180,6 +190,12 @@ void StudioImportWorkspace::validateImportDestination()
                     if (path != draft.destination || !import_page_open_)
                         return;
                     draft.destination_valid = available;
+                    if (available)
+                    {
+                        const auto remembered = StudioImportPreferences{}.rememberDestination(path);
+                        if (!remembered)
+                            setError(qstring_from_utf8(remembered.error().message));
+                    }
                     draft.destination_error =
                         available ?
                             QString{} :
@@ -267,6 +283,10 @@ void StudioImportWorkspace::openImportPage()
         draft.destination.clear();
         setError(qstring_from_utf8(destination.error().message));
     }
+    const auto organization = StudioImportPreferences{}.loadLastOrganization();
+    draft.organization = organization ? organization.value() : QStringLiteral("single");
+    if (!organization)
+        setError(qstring_from_utf8(organization.error().message));
     validateImportDestination();
     refreshImportNativeSupport();
     source_folders.loadUserDirectory();
@@ -428,6 +448,9 @@ void StudioImportWorkspace::setImportOrganization(const QString &organization)
         return;
     if (draft.organization == organization)
         return;
+    const auto remembered = StudioImportPreferences{}.rememberOrganization(organization);
+    if (!remembered)
+        setError(qstring_from_utf8(remembered.error().message));
     draft.organization = organization;
     emit importPageChanged();
 }

@@ -278,10 +278,6 @@ Differenz: %6</translation>
             <translation>Luminanz- / Farbbereich</translation>
         </message>
         <message>
-            <source>Advanced operation instances</source>
-            <translation>Erweiterte Bearbeitungsinstanzen</translation>
-        </message>
-        <message>
             <source>Show / hide mask adjustments</source>
             <translation>Maskenanpassungen ein-/ausblenden</translation>
         </message>
@@ -3718,24 +3714,12 @@ Differenz: %6</translation>
             <translation>Nach Monat (JJJJ/MM)</translation>
         </message>
         <message>
-            <source>Destination preview</source>
-            <translation>Zielvorschau</translation>
-        </message>
-        <message>
             <source>Folders are created only when you import.</source>
             <translation>Ordner werden erst beim Import erstellt.</translation>
         </message>
         <message>
             <source>Planning destination…</source>
             <translation>Ziel wird geplant…</translation>
-        </message>
-        <message>
-            <source>Will create</source>
-            <translation>Wird erstellt</translation>
-        </message>
-        <message>
-            <source>%1 photos</source>
-            <translation>%1 Fotos</translation>
         </message>
         <message>
             <source>Rename template</source>

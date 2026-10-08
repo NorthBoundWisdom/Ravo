@@ -1274,7 +1274,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                 }
                 else
                 {
-                    auto ready = import_workspace_->importWorker().open(
+                    auto ready = import_workspace_->openImportWorkers(
                         path, built.value().cache, built.value().recovery_publication_mutex);
                     if (!ready)
                         failure = catalog_error_text(ready.error());
@@ -1396,7 +1396,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                 }
                 else
                 {
-                    auto ready = import_workspace_->importWorker().open(
+                    auto ready = import_workspace_->openImportWorkers(
                         path, built.value().cache, built.value().recovery_publication_mutex);
                     if (!ready)
                         failure = catalog_error_text(ready.error());

@@ -205,8 +205,7 @@ ImportService::inspect_import_candidate(const std::string_view path,
     const auto source_path = utf8_path(candidate.source_path);
     if (is_raw_extension(source_path))
     {
-        auto inspected = engine_->inspect_with_embedded_preview(candidate.source_path,
-                                                                kThumbnailMaxEdge, cancellation);
+        auto inspected = engine_->inspect(candidate.source_path, cancellation);
         if (!inspected)
         {
             candidate.supported = false;
@@ -214,9 +213,9 @@ ImportService::inspect_import_candidate(const std::string_view path,
             return candidate;
         }
         candidate.media_type = std::string(kMediaTypeRaw);
-        candidate.width = inspected.value().inspection.width;
-        candidate.height = inspected.value().inspection.height;
-        candidate.captured_unix_s = inspected.value().inspection.captured_unix_s;
+        candidate.width = inspected.value().width;
+        candidate.height = inspected.value().height;
+        candidate.captured_unix_s = inspected.value().captured_unix_s;
         auto companion = adjacent_jpeg(candidate.source_path);
         if (!companion)
         {
@@ -245,6 +244,58 @@ ImportService::inspect_import_candidate(const std::string_view path,
                 local.substr(0U, 4U) + '/' + local.substr(5U, 2U) + '/' + local.substr(8U, 2U);
     }
     return candidate;
+}
+
+Result<ImportCandidate>
+ImportService::inspect_destination_candidate(const std::string_view path,
+                                             const std::string_view source_root,
+                                             const CancellationToken &cancellation)
+{
+    if (auto active = cancellation.check(); !active)
+        return active.error();
+    auto identity = read_file_identity(path);
+    if (!identity)
+        return identity.error();
+    auto cached = destination_preview_candidates_.find(path);
+    const bool reuse = cached != destination_preview_candidates_.end() &&
+                       cached->second.size_bytes == identity.value().size_bytes &&
+                       cached->second.mtime_unix_ms == identity.value().mtime_unix_ms;
+    // Enumeration and source-root normalization already produced canonical paths.
+    // Avoid resolving both paths again for every relative hierarchy calculation.
+    auto inspected = reuse ? Result<ImportCandidate>{cached->second} :
+                             inspect_import_candidate(path, {}, cancellation);
+    if (!inspected)
+        return inspected.error();
+    auto &candidate = inspected.value();
+    if (candidate.error)
+        return inspected;
+    auto after = read_file_identity(path);
+    if (!after)
+        return after.error();
+    if (after.value().size_bytes != candidate.size_bytes ||
+        after.value().mtime_unix_ms != candidate.mtime_unix_ms)
+        return make_error(
+            ErrorCode::kConflict, "Source changed during destination preview",
+            {{"path", std::string(path)}, {"reason", "import_content_source_changed"}});
+    if (!reuse && (cached != destination_preview_candidates_.end() ||
+                   destination_preview_candidates_.size() < 8192))
+        destination_preview_candidates_.insert_or_assign(std::string(path), candidate);
+    // Catalog membership and relative hierarchy are request state, never cached state.
+    if (reuse)
+    {
+        auto location = normalize_local_input(path);
+        if (!location)
+            return location.error();
+        auto existing = repository_->find_asset_by_uri(location.value().uri);
+        if (!existing)
+            return existing.error();
+        candidate.duplicate = existing.value().has_value();
+    }
+    const auto relative =
+        utf8_path(candidate.source_path).lexically_relative(utf8_path(source_root));
+    candidate.relative_path =
+        is_safe_relative_path(relative) ? path_text(relative) : candidate.display_name;
+    return inspected;
 }
 
 Result<RasterBuffer>
@@ -430,7 +481,7 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
     if (!paths)
         return paths.error();
     std::map<std::string, ImportCandidate> checked;
-    if (request.skip_existing)
+    if (request.skip_existing && !destination_preview)
     {
         // Import revalidates source hashes, duplicate identities and destinations
         // at publication. Unrelated photo edits must not invalidate this planning pass.
@@ -513,10 +564,27 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
         std::string path;
         std::optional<AssetRecord> already_imported;
     };
+    std::map<std::filesystem::path, std::filesystem::path> preview_output_parents;
     const auto preflight_output =
         [&](const std::string_view source,
             const std::filesystem::path &output) -> Result<PreflightedOutput>
     {
+        // Folder projection needs each parent once, irrespective of the number
+        // of photos. Existing output-file symlinks/conflicts belong to preflight.
+        if (destination_preview)
+        {
+            const auto parent = output.parent_path();
+            auto found = preview_output_parents.find(parent);
+            if (found == preview_output_parents.end())
+            {
+                auto normalized = normalize_local_input(path_text(parent));
+                if (!normalized)
+                    return normalized.error();
+                found = preview_output_parents.emplace(parent, utf8_path(normalized.value().path))
+                            .first;
+            }
+            return PreflightedOutput{path_text(found->second / output.filename()), std::nullopt};
+        }
         auto normalized_source = normalize_local_input(source);
         if (!normalized_source)
             return normalized_source.error();
@@ -580,7 +648,7 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
     for (std::size_t index = 0U; index < paths.value().size(); ++index)
     {
         const auto &source = paths.value()[index];
-        if (request.skip_existing && checked.at(source).duplicate)
+        if (request.skip_existing && !destination_preview && checked.at(source).duplicate)
         {
             PlannedImport duplicate;
             duplicate.candidate = checked.at(source);
@@ -599,15 +667,33 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
             plan.push_back(std::move(duplicate));
             continue;
         }
-        auto candidate = inspect_import_candidate(source, source_root, request.cancellation);
+        auto candidate =
+            destination_preview ?
+                inspect_destination_candidate(source, source_root, request.cancellation) :
+                inspect_import_candidate(source, source_root, request.cancellation);
         if (!candidate)
             return candidate.error();
         PlannedImport item;
         item.candidate = std::move(candidate).value();
-        if (request.skip_existing)
+        if (destination_preview)
+        {
+            if (item.candidate.error)
+                return *item.candidate.error;
+            auto identity = read_file_identity(item.candidate.source_path);
+            if (!identity)
+                return identity.error();
+            if (identity.value().size_bytes != item.candidate.size_bytes ||
+                identity.value().mtime_unix_ms != item.candidate.mtime_unix_ms)
+                return make_error(ErrorCode::kConflict, "Source changed during destination preview",
+                                  {{"path", item.candidate.source_path},
+                                   {"reason", "import_content_source_changed"}});
+        }
+        if (destination_preview && request.skip_existing && item.candidate.duplicate)
+            continue;
+        if (request.skip_existing && !destination_preview)
             item.candidate.content_sha256 = checked.at(source).content_sha256;
         item.import_path = item.candidate.source_path;
-        if (request.include_xmp_sidecars)
+        if (request.include_xmp_sidecars && !destination_preview)
         {
             auto sidecar = adjacent_xmp(item.candidate.source_path);
             if (!sidecar)
@@ -621,7 +707,7 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
                 item.source_sidecar_identity = std::move(identity).value();
             }
         }
-        if (is_raw_extension(utf8_path(item.candidate.source_path)))
+        if (!destination_preview && is_raw_extension(utf8_path(item.candidate.source_path)))
         {
             auto jpeg = adjacent_jpeg(item.candidate.source_path);
             if (!jpeg)

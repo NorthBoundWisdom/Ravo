@@ -32,6 +32,17 @@ public:
                 release.wait();
             });
     }
+    static bool blockPreview(StudioPresenter &presenter,
+                             std::shared_ptr<std::promise<void>> entered,
+                             std::shared_future<void> release)
+    {
+        return presenter.executor_.post(
+            [entered, release]
+            {
+                entered->set_value();
+                release.wait();
+            });
+    }
     static Result<Recipe> recipe(StudioPresenter &presenter, const std::string &asset)
     {
         return presenter.executor_.submit(
@@ -87,6 +98,120 @@ bool ready(StudioPresenter &presenter)
     return !presenter.inspect()->previewLoading() && !presenter.inspect()->previewImage().isNull();
 }
 } // namespace
+
+TEST(StudioPipelinePriority, DestinationFoldersProceedWhileImportWorkerIsBlocked)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    const auto destination = directory.filePath("destination");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    ASSERT_TRUE(write_photo(source + "/next.png", 0));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source);
+    presenter.imports()->setImportDestination(destination);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importScanActive() &&
+                   !presenter.imports()->importDestinationPreviewActive();
+        }));
+    // Declare after presenter: a failed assertion releases the worker before
+    // presenter destruction joins it.
+    ImportGate gate;
+    ASSERT_TRUE(
+        testing::StudioPipelineTestControl::blockImport(presenter, gate.entered, gate.released));
+    ASSERT_EQ(gate.started.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    presenter.imports()->setImportOrganization(QStringLiteral("month"));
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importDestinationPreviewActive() &&
+                   presenter.imports()->importDestinationPreview().size() == 3;
+        }))
+        << presenter.imports()->importDestinationPreviewError().toStdString();
+    EXPECT_EQ(
+        presenter.imports()->importDestinationPreview().back().toMap().value("photoCount").toUInt(),
+        1U);
+    EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).empty());
+    presenter.imports()->setImportOrganization(QStringLiteral("date"));
+    presenter.imports()->closeImportPage();
+    EXPECT_TRUE(presenter.imports()->importDestinationPreview().empty());
+    gate.open();
+    EXPECT_TRUE(wait_until([&] { return !presenter.imports()->importDestinationPreviewActive(); }));
+    EXPECT_TRUE(presenter.imports()->importDestinationPreview().empty());
+}
+
+TEST(StudioPipelinePriority, ReselectCroppedPhotoUsesThumbnailAspectBeforeFullPreview)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    const auto first = directory.filePath("first.png");
+    const auto second = directory.filePath("second.png");
+    ASSERT_TRUE(write_photo(first, 0));
+    ASSERT_TRUE(write_photo(second, 80));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.imports()->importFilePaths({first, second});
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.imports()->importWorkActive() && presenter.visibleCount() == 2; }));
+    const auto cropped = presenter.assets()->assetIdAt(0);
+    const auto landscape = presenter.assets()->assetIdAt(1);
+    presenter.selectAsset(cropped);
+    presenter.setBrowseMode("develop");
+    ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
+    presenter.develop()->setCropToolActive(true);
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.develop()->cropGuideReady() && ready(presenter); }));
+    presenter.develop()->setCropRect(0, 0, 0.5, 1);
+    ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
+    presenter.develop()->setCropToolActive(false);
+    ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
+    ASSERT_EQ(presenter.inspect()->previewImage().size(), QSize(320, 400));
+    presenter.setBrowseMode("grid");
+    presenter.ensureThumbnail(cropped);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            const QImage thumbnail(presenter.selectedThumbnailUrl().toLocalFile());
+            return !thumbnail.isNull() && thumbnail.width() < thumbnail.height() &&
+                   !presenter.previewWorkActive();
+        }));
+    presenter.selectAsset(landscape);
+    presenter.setBrowseMode("loupe");
+    ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
+    ImportGate gate;
+    ASSERT_TRUE(
+        testing::StudioPipelineTestControl::blockPreview(presenter, gate.entered, gate.released));
+    ASSERT_EQ(gate.started.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    for (const auto &id : {cropped, landscape, cropped})
+    {
+        presenter.selectAsset(id);
+        EXPECT_TRUE(presenter.inspect()->previewLoading());
+        EXPECT_TRUE(presenter.inspect()->previewUrl().isEmpty());
+        const QImage thumbnail(presenter.selectedThumbnailUrl().toLocalFile());
+        ASSERT_FALSE(thumbnail.isNull());
+        EXPECT_EQ(thumbnail.width() < thumbnail.height(), id == cropped);
+        const double aspect = static_cast<double>(thumbnail.width()) / thumbnail.height();
+        EXPECT_NEAR(static_cast<double>(presenter.inspect()->previewViewportWidth()) /
+                        presenter.inspect()->previewViewportHeight(),
+                    aspect, 0.002);
+        EXPECT_NEAR(static_cast<double>(presenter.inspect()->navigatorViewportWidth()) /
+                        presenter.inspect()->navigatorViewportHeight(),
+                    aspect, 0.002);
+    }
+    gate.open();
+    ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
+    EXPECT_EQ(presenter.selectedAssetId(), cropped);
+    EXPECT_EQ(presenter.inspect()->previewImage().size(), QSize(320, 400));
+}
 
 TEST(StudioPipelinePriority, ColdPreviewAndRotationProceedWhileImportPreflightIsBlocked)
 {

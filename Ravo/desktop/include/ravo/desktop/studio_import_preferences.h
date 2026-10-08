@@ -13,5 +13,7 @@ public:
     [[nodiscard]] Result<void> rememberSource(const QString &path) const;
     [[nodiscard]] Result<QString> loadLastDestination() const;
     [[nodiscard]] Result<void> rememberDestination(const QString &path) const;
+    [[nodiscard]] Result<QString> loadLastOrganization() const;
+    [[nodiscard]] Result<void> rememberOrganization(const QString &organization) const;
 };
 } // namespace ravo

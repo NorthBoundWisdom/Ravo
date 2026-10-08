@@ -157,13 +157,26 @@ Current implementation status:
   Import or using **Check again** refreshes volumes without losing expanded
   folders; the refresh button is available before choosing a source. External
   picker paths remain reachable as additional folder roots.
-  Folder expansion is independent of image decoding. The destination preview
-  shows the exact planned folder hierarchy, photo counts including descendants,
-  and folders that will be created, including a configured second copy. It
+  Folder expansion is independent of image decoding. The destination tree
+  shows the planned primary folder hierarchy, provisional photo counts including descendants,
+  and folders that will be created. It
   updates with photo selection and organization settings without creating files.
-  The destination folder tree also shows planned primary folders in place:
+  Planning reads metadata on its own worker as soon as paths are enumerated;
+  it does not wait for source hashing or thumbnail decoding. Background content
+  deduplication updates selection and counts, and formal import checks output conflicts.
+  Planned primary folders appear in place, without a separate preview list:
   missing year/month directories are gray and italic, existing directories keep
   their normal appearance, and preview folders cannot be chosen as destinations.
+  Both existing and future folders show their planned photo counts. The tree
+  expands and scrolls to a planned branch when the preview arrives, including
+  when ancestor folders are still loading; positioning waits for real planned-branch
+  listings so later row resets cannot undo it. Planning status and errors appear
+  immediately above the tree; directories are created only by the actual import.
+  While validation, source enumeration or destination planning is pending, a
+  modal progress view blocks other Import actions and early import; Cancel and
+  window dismissal remain available. Metadata from unchanged files is reused
+  across organization/selection changes in a bounded cache; formal import still
+  verifies actual source bytes and destination conflicts.
   `catalog import-plan --catalog <path> --input <path> --mode copy --destination <folder>`
   exposes the same versioned JSON preview; formal import rechecks all conflicts.
   Clicking a collapsed folder selects and expands it; the separate arrow toggles
@@ -171,9 +184,10 @@ Current implementation status:
   switching folders; the home directory itself is always scanned only at its
   top level, even when the option is checked. Unavailable
   sources remain visible with an error instead of silently switching folders.
-  The import destination root is remembered globally after the first successful
-  photo in a managed batch and restored after restart, including the directory
-  tree and picker. Failed batches and cancelled drafts preserve the prior root.
+  The valid import destination root and organization (including `YYYY/MM`) are
+  remembered globally when chosen, even without importing, and restored on page
+  reopen and restart, including the directory tree and picker. Unavailable paths
+  and failed settings writes preserve the prior saved choice and report errors.
   Disconnected destinations remain visible and block Copy until resolved.
   Rename and second-copy controls start collapsed, and narrow windows use side
   drawers. Schema v17 adds a rebuildable content-hash index; old assets are
@@ -206,7 +220,10 @@ Current implementation status:
   grid/filmstrip delegates, remain one-at-a-time on the background owner, and
   never prefill a whole loaded page. Loupe and Develop show the selected
   verified browse thumbnail as a loading-only visual until the exact preview
-  arrives; that placeholder never becomes an edit, scope, export, or machine
+  arrives. The loading image and navigator preserve the thumbnail's aspect,
+  including during cropped/rotated photo selection and asynchronous replacement;
+  the cached thumbnail also seeds the pending main viewport geometry. That
+  placeholder never becomes an edit, scope, export, or machine
   result. The 10,000-row SQLite traversal pins stable
   ordering, materialized-row bounds, elapsed query metrics, and query-plan
   indexes. Studio import enumerates deterministically and dispatches one
@@ -431,8 +448,10 @@ Current implementation status:
   response, optional camera exposure-bias/highlight-preservation compensation,
   and deflicker percentile-to-EV analysis. Canonical per-operation masks retain
   the ADR-0109 contract; Studio uses the shared mask workspace (ADR-0158).
-  ADR-0145 global Exposure and Color Balance RGB instances remain available
-  through advanced controls and CLI recipe inspection. RAW deflicker owns an
+  ADR-0145 global Exposure and Color Balance RGB instances remain supported
+  by the shared recipe and CLI inspection. Studio shows their global instance
+  controls directly, without an Advanced visibility switch; local edits use
+  the mask workspace. RAW deflicker owns an
   immutable 65,536-bin snapshot from decoded sensor data before repair, resize, or demosaic;
   private pinned Exiv2 supplies value-only metadata without crossing the engine
   boundary. Memory, cancellation, missing-tag, metadata-read-failure, and raster

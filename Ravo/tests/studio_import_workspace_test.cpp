@@ -20,6 +20,7 @@
 #include "ravo/desktop/studio_import_workspace.h"
 #include "studio_import_worker.h"
 #include "ravo/desktop/studio_command_controller.h"
+#include "studio_command_ids.h"
 #include "studio_test_support.h"
 #include "ravo/foundation/log.h"
 
@@ -52,6 +53,12 @@ public:
     static bool blockImportWorker(StudioPresenter &presenter, std::shared_future<void> release)
     {
         return presenter.import_workspace_->worker->executor().post([release] { release.wait(); });
+    }
+    static bool blockDestinationPreview(StudioPresenter &presenter,
+                                        std::shared_future<void> release)
+    {
+        return presenter.import_workspace_->destination_preview_worker->executor().post(
+            [release] { release.wait(); });
     }
 };
 } // namespace testing
@@ -108,6 +115,60 @@ TEST(StudioImportWorkspace, RejectedDestinationDispatchReportsClosedFilesystemOw
     EXPECT_EQ(presenter.errorText(), imports->importDestinationError());
     EXPECT_FALSE(imports->importReady());
     EXPECT_FALSE(imports->importDestinationPreviewActive());
+}
+
+TEST(StudioImportWorkspace, DestinationPlanningBlocksImportAndCommandsButCanBeCancelled)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    const auto destination = directory.filePath("destination");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    ASSERT_TRUE(photo(source + "/photo.png", Qt::red));
+    ASSERT_TRUE(StudioImportPreferences{}.rememberSource(source));
+    ASSERT_TRUE(StudioImportPreferences{}.rememberDestination(destination));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    WorkerGate gate;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockDestinationPreview(
+        presenter, gate.promise.get_future().share()));
+    StudioCommandController commands(presenter);
+    presenter.imports()->openImportPage();
+    EXPECT_TRUE(presenter.imports()->importInteractionBlocked());
+    EXPECT_FALSE(presenter.imports()->importReady());
+    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importDestinationPreviewActive(); }));
+    EXPECT_FALSE(commands.executeCommand(QLatin1String(command::kPhotoSelectAll))
+                     .value("accepted")
+                     .toBool());
+    EXPECT_FALSE(commands.executeCommand(QLatin1String(command::kWindowSettings))
+                     .value("accepted")
+                     .toBool());
+    presenter.imports()->startPlannedImport();
+    EXPECT_TRUE(presenter.imports()->importPageOpen());
+    EXPECT_FALSE(presenter.imports()->importPreflightActive());
+    EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kLibraryCancelOperation))
+                    .value("accepted")
+                    .toBool());
+    EXPECT_FALSE(presenter.imports()->importPageOpen());
+    EXPECT_FALSE(presenter.imports()->importInteractionBlocked());
+    gate.release();
+    presenter.imports()->openImportPage();
+    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }));
+    EXPECT_FALSE(presenter.imports()->importInteractionBlocked());
+    EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kPhotoSelectAll))
+                    .value("accepted")
+                    .toBool());
+    EXPECT_EQ(presenter.imports()
+                  ->importDestinationPreview()
+                  .front()
+                  .toMap()
+                  .value("photoCount")
+                  .toUInt(),
+              1U);
+    EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty());
 }
 
 TEST(StudioImportWorkspace, RejectedFolderDispatchClearsPendingAndReportsClosedOwner)
@@ -445,6 +506,99 @@ TEST(StudioImportWorkspace, SourceSelectionPersistsWithoutImportAndRevealsAfterR
     restarted.imports()->closeImportPage();
 }
 
+TEST(StudioImportWorkspace, DestinationAndOrganizationPersistBeforeImportAcrossReopenAndRestart)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto destination = directory.filePath("Pictures");
+    ASSERT_TRUE(QDir().mkpath(destination));
+    const auto expect_restored = [&](StudioPresenter &presenter)
+    {
+        EXPECT_EQ(presenter.imports()->importDestination(), destination);
+        EXPECT_EQ(presenter.imports()->importOrganization(), QStringLiteral("month"));
+        EXPECT_EQ(presenter.imports()->importDestinationFolderUrl().toLocalFile(), destination);
+        auto *tree = presenter.imports()->importDestinationFolders();
+        EXPECT_TRUE(wait_until(
+            [&]
+            {
+                for (int row = 0; row < tree->rowCount(); ++row)
+                    if (tree->data(tree->index(row, 0), FilesystemBrowserModel::SelectedRole)
+                            .toBool())
+                        return tree->data(tree->index(row, 0), FilesystemBrowserModel::PathRole) ==
+                               destination;
+                return false;
+            }));
+    };
+    {
+        StudioPresenter presenter;
+        presenter.createCatalogFromPath(directory.filePath("first.sqlite"));
+        ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+        presenter.imports()->openImportPage();
+        presenter.imports()->setImportDestination(destination);
+        presenter.imports()->setImportOrganization(QStringLiteral("month"));
+        ASSERT_TRUE(wait_until(
+            [&]
+            { return StudioImportPreferences{}.loadLastDestination().value() == destination; }));
+        EXPECT_EQ(StudioImportPreferences{}.loadLastOrganization().value(),
+                  QStringLiteral("month"));
+        presenter.imports()->closeImportPage();
+        presenter.imports()->openImportPage();
+        expect_restored(presenter);
+        presenter.imports()->setImportDestination(directory.filePath("missing"));
+        ASSERT_TRUE(
+            wait_until([&] { return !presenter.imports()->importDestinationError().isEmpty(); }));
+        presenter.imports()->closeImportPage();
+    }
+    StudioPresenter restarted;
+    restarted.createCatalogFromPath(directory.filePath("second.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return restarted.catalogOpen() && !restarted.busy(); }));
+    restarted.imports()->openImportPage();
+    expect_restored(restarted);
+    EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty());
+}
+
+TEST(StudioImportWorkspace, OrganizationPreferenceRejectsMalformedValuesAndFailedWrites)
+{
+    ensure_qt_core();
+    StudioImportPreferences preferences;
+    QSettings settings;
+    settings.remove(QStringLiteral("desktop/import/lastOrganization"));
+    settings.sync();
+    EXPECT_EQ(preferences.loadLastOrganization().value(), QStringLiteral("single"));
+    for (const auto &organization : {"single", "hierarchy", "date", "month"})
+    {
+        ASSERT_TRUE(preferences.rememberOrganization(QLatin1String(organization)));
+        EXPECT_EQ(preferences.loadLastOrganization().value(), QLatin1String(organization));
+    }
+    EXPECT_FALSE(preferences.rememberOrganization(QStringLiteral("unknown")));
+    EXPECT_EQ(preferences.loadLastOrganization().value(), QStringLiteral("month"));
+    for (const QVariant &invalid : {QVariant{42}, QVariant{QStringLiteral("unknown")}})
+    {
+        settings.setValue(QStringLiteral("desktop/import/lastOrganization"), invalid);
+        settings.sync();
+        const auto loaded = preferences.loadLastOrganization();
+        ASSERT_FALSE(loaded);
+        EXPECT_EQ(loaded.error().context.at("reason"), "invalid_import_organization_preference");
+        EXPECT_EQ(preferences.loadLastOrganization().value(), QStringLiteral("single"));
+    }
+    ASSERT_TRUE(preferences.rememberOrganization(QStringLiteral("month")));
+    QTemporaryDir directory;
+    {
+        const auto settings_directory = QFileInfo(QSettings{}.fileName()).absolutePath();
+        const auto saved = directory.filePath("saved-settings");
+        ASSERT_TRUE(QDir().rename(settings_directory, saved));
+        BlockedSettingsDirectory restore{settings_directory, saved};
+        QFile blocker(settings_directory);
+        ASSERT_TRUE(blocker.open(QIODevice::WriteOnly));
+        blocker.close();
+        const auto remembered = preferences.rememberOrganization(QStringLiteral("date"));
+        ASSERT_FALSE(remembered);
+        EXPECT_EQ(remembered.error().context.at("reason"), "import_preferences_io_failed");
+    }
+    EXPECT_EQ(preferences.loadLastOrganization().value(), QStringLiteral("month"));
+}
+
 TEST(StudioImportWorkspace, SourcePreferenceWriteFailureRetainsPreviousPath)
 {
     ensure_qt_core();
@@ -737,7 +891,7 @@ TEST(StudioImportWorkspace, CancelPreflightAndReplaceCatalogRejectLateResults)
     EXPECT_EQ(presenter.visibleCount(), 0);
 }
 
-TEST(StudioImportWorkspace, DestinationConflictReturnsToGalleryAndDoesNotRememberDraft)
+TEST(StudioImportWorkspace, DestinationConflictReturnsToGalleryAndRemembersSelectedFolder)
 {
     ensure_qt_core();
     init_logging("ravo-import-tests");
@@ -768,7 +922,9 @@ TEST(StudioImportWorkspace, DestinationConflictReturnsToGalleryAndDoesNotRemembe
     EXPECT_FALSE(presenter.imports()->importWorkActive());
     EXPECT_FALSE(presenter.errorText().isEmpty());
     EXPECT_EQ(presenter.visibleCount(), 0);
-    EXPECT_EQ(StudioImportPreferences{}.loadLastDestination().value(), previous);
+    // A valid folder choice is durable even when the later import preflight
+    // rejects an existing output file. Import success no longer owns this choice.
+    EXPECT_EQ(StudioImportPreferences{}.loadLastDestination().value(), destination);
 }
 TEST(StudioImportWorkspace, PublishesCompletePlaceholdersAndDecodesInRowOrderOutsideCatalogQueue)
 {
@@ -870,6 +1026,15 @@ TEST(StudioImportWorkspace, ImportStartsWithPendingClassificationAndNoThumbnails
     presenter.imports()->setImportDestination(destination);
     ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }));
     EXPECT_TRUE(presenter.imports()->importScanActive());
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importDestinationPreviewActive() &&
+                   !presenter.imports()->importDestinationPreview().empty();
+        }))
+        << presenter.imports()->importDestinationPreviewError().toStdString();
+    EXPECT_TRUE(presenter.imports()->importScanActive());
+    EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).empty());
     presenter.imports()->startPlannedImport();
     EXPECT_FALSE(presenter.imports()->importPageOpen());
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("grid"));

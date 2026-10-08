@@ -22,6 +22,7 @@ StudioImportWorkspace::StudioImportWorkspace(Context context, Host host, QObject
     , context_(context)
     , host_(std::move(host))
     , worker(std::make_unique<StudioImportWorker>())
+    , destination_preview_worker(std::make_unique<StudioImportWorker>())
     , candidates(this)
     , source_folders(this)
     , destination_folders(this)
@@ -82,12 +83,12 @@ StudioImportWorkspace::StudioImportWorkspace(Context context, Host host, QObject
     destination_preview = std::make_unique<StudioImportDestinationPreviewController>(
         StudioImportDestinationPreviewController::Host{
             this,
-            &worker->executor(),
-            [this]() -> CatalogService * { return worker->service(); },
+            &destination_preview_worker->executor(),
+            [this]() -> CatalogService * { return destination_preview_worker->service(); },
             [this] { return import_page_open_; },
             [this]
             {
-                return import_page_open_ && scan && !scan->active() && !import_work_active_ &&
+                return import_page_open_ && scan && !import_work_active_ &&
                        !import_preflight_active_ && scan->catalogRevision() &&
                        draft.mode != QLatin1String("add") && !draft.destination.isEmpty() &&
                        draft.destination_error.isEmpty() && candidates.selectedCount() > 0;
@@ -121,6 +122,7 @@ StudioImportWorkspace::StudioImportWorkspace(Context context, Host host, QObject
                 destination_folders.setPreviewFolders(destination_preview->treeFolders(),
                                                       importDestination());
                 emit importDestinationPreviewChanged();
+                emit importPageChanged();
             });
 }
 
@@ -148,6 +150,18 @@ void StudioImportWorkspace::shutdown()
 void StudioImportWorkspace::shutdownWorker()
 {
     worker->shutdown();
+    destination_preview_worker->shutdown();
+}
+Result<void>
+StudioImportWorkspace::openImportWorkers(const std::string &catalog,
+                                         std::shared_ptr<PreviewCache> cache,
+                                         std::shared_ptr<std::mutex> recovery_publication_mutex)
+{
+    auto opened = worker->open(catalog, cache, recovery_publication_mutex);
+    if (!opened)
+        return opened.error();
+    return destination_preview_worker->open(catalog, std::move(cache),
+                                            std::move(recovery_publication_mutex));
 }
 void StudioImportWorkspace::cancelImport(std::string reason)
 {

@@ -110,6 +110,8 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
     presenter.imports()->setImportFilenameTemplate(QStringLiteral("shoot-{sequence}{ext}"));
     presenter.imports()->setImportSecondCopyDestination(second_copy);
     presenter.imports()->setImportPreviewPolicy(QStringLiteral("standard"));
+    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }, 30000))
+        << presenter.errorText().toStdString();
     presenter.imports()->startPlannedImport();
     ASSERT_TRUE(wait_until([&] { return !presenter.imports()->importPageOpen(); }, 30000))
         << presenter.errorText().toStdString();

@@ -278,10 +278,6 @@ Diff: %6</source>
             <translation>輝度範囲 / カラー範囲</translation>
         </message>
         <message>
-            <source>Advanced operation instances</source>
-            <translation>詳細な調整インスタンス</translation>
-        </message>
-        <message>
             <source>Show / hide mask adjustments</source>
             <translation>マスクの調整を表示 / 非表示</translation>
         </message>
@@ -3718,24 +3714,12 @@ Diff: %6</source>
             <translation>月別 (YYYY/MM)</translation>
         </message>
         <message>
-            <source>Destination preview</source>
-            <translation>保存先のプレビュー</translation>
-        </message>
-        <message>
             <source>Folders are created only when you import.</source>
             <translation>フォルダーは読み込み時にのみ作成されます。</translation>
         </message>
         <message>
             <source>Planning destination…</source>
             <translation>保存先を計画中…</translation>
-        </message>
-        <message>
-            <source>Will create</source>
-            <translation>作成予定</translation>
-        </message>
-        <message>
-            <source>%1 photos</source>
-            <translation>%1 枚の写真</translation>
         </message>
         <message>
             <source>Rename template</source>

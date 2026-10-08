@@ -1,3 +1,5 @@
+#include <array>
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QTemporaryDir>
@@ -40,6 +42,11 @@ TEST(FilesystemBrowserModelTest,
     for (int row = 0; row < names.size(); ++row)
         EXPECT_EQ(model.data(model.index(row, 0), FilesystemBrowserModel::DisplayNameRole),
                   names[row]);
+    const std::array<qulonglong, 7> counts{3, 2, 1, 1, 1, 1, 0};
+    for (int row = 0; row < names.size(); ++row)
+        EXPECT_EQ(model.data(model.index(row, 0), FilesystemBrowserModel::PlannedPhotoCountRole)
+                      .toULongLong(),
+                  counts[static_cast<std::size_t>(row)]);
     EXPECT_FALSE(model.data(model.index(1, 0), FilesystemBrowserModel::WillCreateRole).toBool());
     EXPECT_FALSE(model.data(model.index(2, 0), FilesystemBrowserModel::WillCreateRole).toBool());
     EXPECT_TRUE(model.data(model.index(3, 0), FilesystemBrowserModel::WillCreateRole).toBool());
@@ -63,11 +70,75 @@ TEST(FilesystemBrowserModelTest,
     EXPECT_FALSE(QDir(root + "/2026/10").exists());
     EXPECT_FALSE(QDir(root + "/2027").exists());
     model.setPreviewFolders({});
+    for (int row = 0; row < model.rowCount(); ++row)
+        EXPECT_EQ(model.data(model.index(row, 0), FilesystemBrowserModel::PlannedPhotoCountRole)
+                      .toULongLong(),
+                  0U);
     model.activateFolder(root);
     ASSERT_EQ(model.rowCount(), 4);
     model.activateFolder(root + "/2026");
     EXPECT_EQ(model.rowCount(), 4);
     EXPECT_EQ(model.data(model.index(2, 0), FilesystemBrowserModel::DisplayNameRole), "09");
+}
+
+TEST(FilesystemBrowserModelTest, PreviewRevealsNestedDestinationAfterDeferredAncestorListings)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto root = directory.path();
+    const auto destination = root + "/Pictures";
+    ASSERT_TRUE(QDir().mkpath(destination + "/2026/03"));
+    FilesystemBrowserModel model;
+    model.resetWithRoots({{root, "Home", true}});
+    std::vector<std::pair<QString, quint64>> requests;
+    QObject::connect(&model, &FilesystemBrowserModel::directoryListingRequested, &model,
+                     [&](const QString &path, const quint64 generation)
+                     { requests.emplace_back(path, generation); });
+    QString revealed;
+    bool preview_revealed_after_last_reset = false;
+    QObject::connect(&model, &QAbstractItemModel::modelReset, &model,
+                     [&] { preview_revealed_after_last_reset = false; });
+    QObject::connect(
+        &model, &FilesystemBrowserModel::folderRevealed, &model,
+        [&](const int row)
+        {
+            revealed = model.data(model.index(row, 0), FilesystemBrowserModel::PathRole).toString();
+            preview_revealed_after_last_reset =
+                model.data(model.index(row, 0), FilesystemBrowserModel::WillCreateRole).toBool();
+        });
+    const auto month = destination + "/2026/10";
+    model.setPreviewFolders({{destination.toStdString(), "Pictures", 0, 2, false, false},
+                             {(destination + "/2026").toStdString(), "2026", 1, 2, false, false},
+                             {month.toStdString(), "10", 2, 2, true, false}},
+                            destination);
+    // Publishing the plan must itself reveal its destination through the Home
+    // tree. Neither the QML view nor a synchronous preloaded root is an oracle.
+    for (std::size_t request = 0; request < 3; ++request)
+    {
+        ASSERT_GT(requests.size(), request);
+        const auto [path, generation] = requests[request];
+        model.applyChildren(path, generation, list_filesystem_folders(path));
+    }
+    ASSERT_EQ(requests.size(), 3U);
+    EXPECT_EQ(revealed, month);
+    EXPECT_TRUE(preview_revealed_after_last_reset);
+    EXPECT_EQ(model.selectedPath(), destination);
+    ASSERT_EQ(model.rowCount(), 5);
+    EXPECT_EQ(model.data(model.index(4, 0), FilesystemBrowserModel::PathRole), month);
+    EXPECT_TRUE(model.data(model.index(4, 0), FilesystemBrowserModel::WillCreateRole).toBool());
+    EXPECT_EQ(
+        model.data(model.index(4, 0), FilesystemBrowserModel::PlannedPhotoCountRole).toULongLong(),
+        2U);
+    EXPECT_FALSE(QDir(month).exists());
+    revealed.clear();
+    model.toggleCollapsed(destination + "/2026");
+    EXPECT_TRUE(revealed.isEmpty()); // A completed reveal never fights later user scrolling.
+    model.setPreviewFolders({});
+    for (int row = 0; row < model.rowCount(); ++row)
+        EXPECT_FALSE(
+            model.data(model.index(row, 0), FilesystemBrowserModel::WillCreateRole).toBool());
+    EXPECT_FALSE(QDir(month).exists());
 }
 
 TEST(FilesystemBrowserModelTest, PreviewSurvivesLateListingsAndClearsAfterReplacementOrFailure)

@@ -58,8 +58,9 @@ TEST(CliImportScan, SubprocessScanCopyAndRescanShareContentPolicy)
     ASSERT_TRUE(plan);
     const auto *planned = plan.value().find("data");
     ASSERT_NE(planned, nullptr);
-    EXPECT_EQ(*planned->find("schema")->string_if(), "ravo-import-destination-preview/v1");
-    EXPECT_EQ(planned->find("photo_count")->number_if()->text, "1");
+    EXPECT_EQ(*planned->find("schema")->string_if(), "ravo-import-destination-preview/v2");
+    // Folder projection counts selected paths; full import performs content deduplication.
+    EXPECT_EQ(planned->find("photo_count")->number_if()->text, "2");
     ASSERT_EQ(planned->find("folders")->array_if()->size(), 2U);
     EXPECT_TRUE(*planned->find("folders")->array_if()->back().find("will_create")->boolean_if());
     EXPECT_FALSE(QFile::exists(destination + "/source"));
