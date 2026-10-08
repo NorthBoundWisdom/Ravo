@@ -113,6 +113,12 @@ AppDir payload. CI uses pinned appimagetool 1.9.1 and type2 runtime 20251108
 assets with fixed SHA256 checks. The DEB installs the private payload under
 `/opt/RavoStudio` and owns launchers for `ravo_studio` and `ravo` under
 `/usr/bin`; neither format falls back to the former AppDir tar archive.
+Both executables declare `$ORIGIN/../lib` first in their Linux runtime search
+paths because FreeCM copies the build programs into the payload's `bin`
+directory. Direct CLI, catalog and offscreen checks must resolve bundled Qt
+without the AppRun/DEB launcher's environment or a build-host SDK. The package
+checker uses `readelf` to reject missing, SDK-first or incorrectly anchored
+private library paths before executing either program.
 The Linux runtime list includes the ICU libraries from the configured runtime
 prefixes, preserving versioned SONAME links alongside Qt. Package verification
 uses `readelf` to check ICU `DT_NEEDED` entries throughout the shipped ELF

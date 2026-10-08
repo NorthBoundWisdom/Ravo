@@ -127,7 +127,8 @@ Immediate photo click-to-1:1 and view restoration are specified in
 and input tests in architecture and testing above.
 Three-platform package evidence belongs in [Packaging.md](Packaging.md) (includes packaged-runtime checker + `package_rehearsal`).
 That document also owns Linux ICU runtime bundling and the package-local
-SONAME verification gate; build-host libraries cannot substitute for payload files.
+SONAME and origin-relative executable search-path verification gates;
+build-host libraries cannot substitute for payload files.
 
 The import workspace, exact-content classification with visible disabled duplicate
 photos, remembered source/destination paths in Home and mounted-volume folder

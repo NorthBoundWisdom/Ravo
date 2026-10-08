@@ -666,6 +666,12 @@ elseif(WIN32)
     COMMENT "Creating ${RAVO_PACKAGE_ARCHIVE}"
     VERBATIM)
 elseif(UNIX)
+  # FreeCM copies the build executables into usr/bin for both Linux formats.
+  # Keep their private runtime directory first even when launched directly,
+  # without AppRun/DEB launcher environment or the build host's Qt SDK.
+  set_target_properties(ravo ravo_studio PROPERTIES
+    BUILD_RPATH "$ORIGIN/../lib"
+    INSTALL_RPATH "$ORIGIN/../lib")
   set(RAVO_PACKAGE_ARTIFACT_STEM
     "RavoStudio-${PROJECT_VERSION}-${RAVO_PACKAGE_ARCHITECTURE}-Linux")
   set(RAVO_PACKAGE_DIST_NAME "${RAVO_PACKAGE_ARTIFACT_STEM}.AppDir")

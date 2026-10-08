@@ -83,6 +83,44 @@ class LinuxIcuPayloadTests(unittest.TestCase):
             self.assertEqual({Path(p).name for p in output.read_text().split(";")}, set(names))
 
 
+class LinuxPrivateRunpathTests(unittest.TestCase):
+    def test_sdk_only_runpath_is_rejected_even_on_a_build_host(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dynamic = " (RUNPATH) Library runpath: [/developer/Qt/lib]\n"
+            with mock.patch.object(cpr.subprocess, "run", return_value=mock.Mock(stdout=dynamic)):
+                with self.assertRaisesRegex(RuntimeError, "Private library RUNPATH must be first"):
+                    cpr.check_linux_private_runpaths([root / "bin/ravo"], root / "lib")
+
+    def test_private_libraries_precede_the_build_sdk_for_both_programs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binaries = [root / "bin/ravo", root / "bin/ravo_studio"]
+            for tag, origin in [("RUNPATH", "$ORIGIN"), ("RPATH", "${ORIGIN}")]:
+                with self.subTest(tag=tag, origin=origin):
+                    dynamic = f" ({tag}) Library runpath: [{origin}/../lib:/developer/Qt/lib]\n"
+                    with mock.patch.object(cpr.subprocess, "run", return_value=mock.Mock(stdout=dynamic)):
+                        self.assertEqual(cpr.check_linux_private_runpaths(binaries, root / "lib"),
+                                         ["ravo", "ravo_studio"])
+
+    def test_missing_or_wrong_origin_directory_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for dynamic in ["", " (RUNPATH) Library runpath: [$ORIGIN/../other]\n",
+                            " (RUNPATH) Library runpath: [/developer/Qt/lib:$ORIGIN/../lib]\n",
+                            " (RPATH) Library rpath: [$ORIGIN/../lib]\n"
+                            " (RUNPATH) Library runpath: [/developer/Qt/lib]\n"]:
+                with self.subTest(dynamic=dynamic):
+                    with mock.patch.object(cpr.subprocess, "run", return_value=mock.Mock(stdout=dynamic)):
+                        with self.assertRaises(RuntimeError):
+                            cpr.check_linux_private_runpaths([root / "bin/ravo"], root / "lib")
+
+    def test_readelf_failure_is_not_hidden(self) -> None:
+        with mock.patch.object(cpr.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "readelf")):
+            with self.assertRaises(subprocess.CalledProcessError):
+                cpr.check_linux_private_runpaths([Path("broken")], Path("lib"))
+
+
 def _write_fake_cli(path: Path, exit_code: int = 0) -> None:
     path.write_text(
         "#!/bin/sh\n"

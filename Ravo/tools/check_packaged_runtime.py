@@ -272,6 +272,35 @@ def check_linux_icu_payload(root: Path, library_dir: Path) -> list[str]:
     return sorted(needed)
 
 
+def check_linux_private_runpaths(binaries: list[Path], library_dir: Path) -> list[str]:
+    """Require direct program launches to search the package's libraries first.
+
+    Launchers set LD_LIBRARY_PATH, but payload/catalog checks also execute the
+    binaries directly. An SDK-only RUNPATH can pass on a build runner and fail
+    on every clean recipient host.
+    """
+    checked: list[str] = []
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    for binary in binaries:
+        result = subprocess.run(
+            ["readelf", "--dynamic", "--wide", str(binary)],
+            capture_output=True, text=True, check=True, timeout=30, env=env,
+        )
+        paths = re.findall(r"\(RUNPATH\)[^\n]*\[([^\]]*)\]", result.stdout)
+        if not paths:
+            paths = re.findall(r"\(RPATH\)[^\n]*\[([^\]]*)\]", result.stdout)
+        first = paths[0].split(":")[0] if paths else ""
+        if not first.startswith(("$ORIGIN/", "${ORIGIN}/")):
+            raise RuntimeError(f"Private library RUNPATH must be first: {binary} ({first!r})")
+        resolved = Path(first.replace("${ORIGIN}", str(binary.parent))
+                        .replace("$ORIGIN", str(binary.parent))).resolve()
+        if resolved != library_dir.resolve():
+            raise RuntimeError(f"RUNPATH does not resolve to private libraries: {binary} ({first!r})")
+        checked.append(binary.name)
+    return checked
+
+
 def _path_looks_like_dev_qt(entry: str) -> bool:
     lowered = entry.replace("\\", "/").lower()
     markers = (
@@ -924,6 +953,16 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 record("studio_payload", Status.PASS, str(studio))
                 print(f"studio={studio}")
+
+        if artifact.name.endswith(".AppImage") or artifact.suffix.lower() == ".deb":
+            try:
+                binaries = [cli] + ([studio] if studio is not None else [])
+                checked = check_linux_private_runpaths(binaries, cli.parent.parent / "lib")
+                record("linux_private_runpaths", Status.PASS, ", ".join(checked))
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                record("linux_private_runpaths", Status.FAIL, str(exc))
+                print(f"ERROR: Linux private library search check failed: {exc}", file=sys.stderr)
+                return 1
 
         smoke_home = work / "smoke-home"
         smoke_home.mkdir(parents=True, exist_ok=True)
