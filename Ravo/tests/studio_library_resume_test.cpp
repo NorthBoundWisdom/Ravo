@@ -63,11 +63,17 @@ protected:
         QSettings{}.remove("desktop/library-resume/v1");
         ASSERT_TRUE(directory.isValid());
     }
-    void open(StudioPresenter &presenter, const QString &catalog)
+    ::testing::AssertionResult open(StudioPresenter &presenter, const QString &catalog,
+                                    const int timeout_ms = 15000)
     {
         presenter.openCatalogFromPath(catalog);
-        ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
-        ASSERT_TRUE(presenter.catalogOpen()) << presenter.errorText().toStdString();
+        if (!wait_until([&] { return !presenter.busy(); }, timeout_ms))
+            return ::testing::AssertionFailure()
+                   << "Catalog open did not finish: " << presenter.statusText().toStdString()
+                   << " error=" << presenter.errorText().toStdString();
+        if (!presenter.catalogOpen())
+            return ::testing::AssertionFailure() << presenter.errorText().toStdString();
+        return ::testing::AssertionSuccess();
     }
     QTemporaryDir directory;
 };
@@ -80,7 +86,9 @@ TEST_F(StudioLibraryResumeTest, StartupRestoresLoupePastFirstPageAfterOrderChang
     const auto selected = QString::fromStdString(records[350].id);
     {
         StudioPresenter presenter;
-        open(presenter, catalog);
+        // This fixture opens 400 real files on a shared CI runner. Its gate is
+        // stable resume identity/paging, not the small-fixture 15-second budget.
+        ASSERT_TRUE(open(presenter, catalog, 30000));
         presenter.library()->setSort("name", "asc");
         presenter.selectFolder(QString::fromStdString(uri_parent(records[350].normalized_uri)));
         ASSERT_TRUE(wait_until(
@@ -112,7 +120,7 @@ TEST_F(StudioLibraryResumeTest, StartupRestoresLoupePastFirstPageAfterOrderChang
                          finished = true;
                      });
     startup.start();
-    ASSERT_TRUE(wait_until([&] { return finished; }));
+    ASSERT_TRUE(wait_until([&] { return finished; }, 30000));
     EXPECT_EQ(presenter.libraryTotal(), 401);
     EXPECT_LE(presenter.assets()->loadedCount(), int(kLibraryPageDefaultSize));
 }
@@ -127,17 +135,17 @@ TEST_F(StudioLibraryResumeTest, GridAndSelectionAreIndependentForEachLibrary)
     ASSERT_EQ(second.size(), 3U);
     {
         StudioPresenter presenter;
-        open(presenter, a);
+        ASSERT_TRUE(open(presenter, a));
         presenter.selectAsset(QString::fromStdString(first[1].id));
         presenter.setBrowseMode("loupe");
         const auto empty = directory.filePath("new.sqlite");
         presenter.createCatalogFromPath(empty);
         ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
         EXPECT_EQ(presenter.browseMode(), "grid");
-        open(presenter, b);
+        ASSERT_TRUE(open(presenter, b));
         presenter.selectAsset(QString::fromStdString(second[0].id));
         presenter.setBrowseMode("grid");
-        open(presenter, a);
+        ASSERT_TRUE(open(presenter, a));
         EXPECT_EQ(presenter.browseMode(), "loupe");
         EXPECT_EQ(presenter.selectedAssetId(), QString::fromStdString(first[1].id));
     }
@@ -160,7 +168,7 @@ TEST_F(StudioLibraryResumeTest, DeletedBookmarkSelectsFirstAndEmptyLibraryReturn
     ASSERT_EQ(records.size(), 2U);
     {
         StudioPresenter presenter;
-        open(presenter, catalog);
+        ASSERT_TRUE(open(presenter, catalog));
         presenter.selectAsset(QString::fromStdString(records[0].id));
         presenter.setBrowseMode("loupe");
     }
@@ -171,7 +179,7 @@ TEST_F(StudioLibraryResumeTest, DeletedBookmarkSelectsFirstAndEmptyLibraryReturn
     }
     {
         StudioPresenter presenter;
-        open(presenter, catalog);
+        ASSERT_TRUE(open(presenter, catalog));
         EXPECT_EQ(presenter.selectedAssetId(), QString::fromStdString(records[1].id));
         EXPECT_EQ(presenter.browseMode(), "loupe");
         EXPECT_TRUE(presenter.errorText().isEmpty());
@@ -182,7 +190,7 @@ TEST_F(StudioLibraryResumeTest, DeletedBookmarkSelectsFirstAndEmptyLibraryReturn
         ASSERT_TRUE(repository.value()->remove_asset(records[1].id));
     }
     StudioPresenter presenter;
-    open(presenter, catalog);
+    ASSERT_TRUE(open(presenter, catalog));
     EXPECT_TRUE(presenter.selectedAssetId().isEmpty());
     EXPECT_EQ(presenter.browseMode(), "grid");
     EXPECT_TRUE(presenter.errorText().isEmpty());
@@ -198,7 +206,7 @@ TEST_F(StudioLibraryResumeTest, LastImportScopeRestoresAndCanReturnToAllPhotos)
     ASSERT_TRUE(image.save(photo));
     {
         StudioPresenter presenter;
-        open(presenter, catalog);
+        ASSERT_TRUE(open(presenter, catalog));
         presenter.imports()->importFilePaths({photo});
         ASSERT_TRUE(wait_until(
             [&]
@@ -212,7 +220,7 @@ TEST_F(StudioLibraryResumeTest, LastImportScopeRestoresAndCanReturnToAllPhotos)
         presenter.setBrowseMode("loupe");
     }
     StudioPresenter presenter;
-    open(presenter, catalog);
+    ASSERT_TRUE(open(presenter, catalog));
     EXPECT_TRUE(presenter.lastImportSelected());
     EXPECT_EQ(presenter.lastImportCount(), 1);
     EXPECT_EQ(presenter.libraryTotal(), 1);
@@ -228,7 +236,7 @@ TEST_F(StudioLibraryResumeTest, CorruptBookmarkFailsWithoutReplacingItOrOpeningD
     ASSERT_EQ(seed_library(catalog, directory.filePath("photos"), 1).size(), 1U);
     {
         StudioPresenter presenter;
-        open(presenter, catalog);
+        ASSERT_TRUE(open(presenter, catalog));
     }
     QSettings settings;
     settings.beginGroup("desktop/library-resume/v1/catalogs");

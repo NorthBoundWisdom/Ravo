@@ -475,6 +475,9 @@ tested sort/filter combinations with bounded materialization and reject mixed
 cursor/anchor requests. A real `catalog locate` subprocess verifies the versioned
 row/page result, missing identity, and unchanged catalog revision. Existing startup
 error and owner-destruction contracts still apply. Tests isolate QSettings.
+Catalog-open setup failures terminate the resume case before later commands.
+The 400-file resume fixture uses a bounded 30-second open/startup deadline on
+shared runners; its identity, ordering and sparse-page assertions are unchanged.
 Desktop tests use the shared Qt bootstrap to set an organization and isolate
 both user and system settings scopes before constructing settings owners. Display
 tests use that bootstrap as well; an unset organization is a real QSettings error
