@@ -9,7 +9,7 @@ ColumnLayout {
     id: groupRoot
     required property var panel
     Layout.fillWidth: true
-    Expander {
+    DevelopExpander {
         Layout.fillWidth: true
         title: qsTr("Color · Advanced")
         expanded: false

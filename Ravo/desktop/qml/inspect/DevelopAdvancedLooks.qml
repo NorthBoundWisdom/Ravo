@@ -198,7 +198,7 @@ ColumnLayout {
         onClicked: if (panel.commands)
             panel.commands.resetControl("lut3d")
     }
-    Expander {
+    DevelopExpander {
         Layout.fillWidth: true
         title: qsTr("Color Balance RGB · more")
         expanded: false

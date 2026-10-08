@@ -35,7 +35,7 @@ DevelopSection {
             onResetRequested: if (panel.commands)
                 panel.commands.resetControl("texture")
         }
-        Expander {
+        DevelopExpander {
             Layout.fillWidth: true
             title: qsTr("Texture · more")
             expanded: false

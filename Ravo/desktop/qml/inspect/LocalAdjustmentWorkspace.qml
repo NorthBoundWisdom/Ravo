@@ -138,7 +138,7 @@ ColumnLayout {
         wrapMode: Text.WordWrap
         opacity: 0.75
     }
-    Expander {
+    DevelopExpander {
         objectName: "localMaskSettings"
         Layout.fillWidth: true
         visible: root.panel.localEditing

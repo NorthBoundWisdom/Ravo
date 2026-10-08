@@ -238,6 +238,7 @@ qt_add_qml_module(ravo_studio
     qml/inspect/LocalAdjustmentWorkspace.qml
     qml/inspect/LocalMaskOverlay.qml
     qml/inspect/DevelopSection.qml
+    qml/inspect/DevelopExpander.qml
     qml/inspect/CurveOptionButton.qml
     qml/inspect/MixerSlider.qml
     qml/inspect/PrimariesSlider.qml
