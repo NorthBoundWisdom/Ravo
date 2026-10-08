@@ -12,9 +12,9 @@ namespace ravo::photo_merge_internal
 Matrix multiply(const Matrix &a, const Matrix &b)
 {
     Matrix out{};
-    for (int y = 0; y < 3; ++y)
-        for (int x = 0; x < 3; ++x)
-            for (int k = 0; k < 3; ++k)
+    for (std::size_t y = 0; y < 3; ++y)
+        for (std::size_t x = 0; x < 3; ++x)
+            for (std::size_t k = 0; k < 3; ++k)
                 out[y * 3 + x] += a[y * 3 + k] * b[k * 3 + x];
     return out;
 }
@@ -67,7 +67,14 @@ Result<FeatureSet> find_features(const LinearWorkingBuffer &image,
     FeatureSet result;
     result.scale_x = double(image.width) / w;
     result.scale_y = double(image.height) / h;
-    std::vector<float> gray(std::size_t(w) * h);
+    std::vector<float> gray(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
+    // Sampling loops keep both coordinates within the positive image extent,
+    // including the FAST and BRIEF offsets protected by the 18-pixel margin.
+    const auto gray_index = [w](const int x, const int y)
+    {
+        return static_cast<std::size_t>(y) * static_cast<std::size_t>(w) +
+               static_cast<std::size_t>(x);
+    };
     for (int y = 0; y < h; ++y)
     {
         if (auto active = cancellation.check(); !active)
@@ -76,7 +83,7 @@ Result<FeatureSet> find_features(const LinearWorkingBuffer &image,
         {
             std::array<float, 3> rgb{};
             (void)sample(image, {x * result.scale_x, y * result.scale_y}, rgb);
-            gray[std::size_t(y) * w + x] = std::log1p(
+            gray[gray_index(x, y)] = std::log1p(
                 std::max(0.F, .2126F * rgb[0] + .7152F * rgb[1] + .0722F * rgb[2]) * 32.F);
         }
     }
@@ -102,15 +109,15 @@ Result<FeatureSet> find_features(const LinearWorkingBuffer &image,
             return active.error();
         for (int x = 18; x < w - 18; ++x)
         {
-            const float center = gray[std::size_t(y) * w + x];
+            const float center = gray[gray_index(x, y)];
             float best = 0;
-            for (int start = 0; start < 16; ++start)
+            for (std::size_t start = 0; start < 16; ++start)
             {
                 float bright = 1, dark = 1;
-                for (int k = 0; k < 9; ++k)
+                for (std::size_t k = 0; k < 9; ++k)
                 {
-                    const int q = (start + k) % 16;
-                    const float diff = gray[std::size_t(y + cy[q]) * w + x + cx[q]] - center;
+                    const auto q = (start + k) % 16;
+                    const float diff = gray[gray_index(x + cx[q], y + cy[q])] - center;
                     bright = std::min(bright, diff);
                     dark = std::min(dark, -diff);
                 }
@@ -147,8 +154,8 @@ Result<FeatureSet> find_features(const LinearWorkingBuffer &image,
         for (std::size_t bit = 0; bit < pairs.size(); ++bit)
         {
             const auto &p = pairs[bit];
-            if (gray[std::size_t(corner.y + p[1]) * w + corner.x + p[0]] <
-                gray[std::size_t(corner.y + p[3]) * w + corner.x + p[2]])
+            if (gray[gray_index(corner.x + p[0], corner.y + p[1])] <
+                gray[gray_index(corner.x + p[2], corner.y + p[3])])
                 feature.descriptor[bit / 64] |= std::uint64_t(1) << (bit % 64);
         }
         result.features.push_back(feature);
@@ -201,7 +208,7 @@ std::optional<Matrix> fit(const std::vector<Correspondence> &points,
             }
     }
     Matrix m{};
-    for (int i = 0; i < 8; ++i)
+    for (std::size_t i = 0; i < 8; ++i)
         m[i] = system[i][8];
     m[2] *= 1200;
     m[5] *= 1200;
@@ -315,12 +322,13 @@ Result<PhotoMergeAlignment> register_pair(const FeatureSet &source, const Featur
         maxx = std::max(maxx, points[i].a.x);
         maxy = std::max(maxy, points[i].a.y);
     }
-    if (maxx - minx < 24 || maxy - miny < 24 || residual / best.size() > 2.5)
+    const double mean_residual = residual / static_cast<double>(best.size());
+    if (maxx - minx < 24 || maxy - miny < 24 || mean_residual > 2.5)
         return failure();
     const Matrix to_small{1 / source.scale_x, 0, 0, 0, 1 / source.scale_y, 0, 0, 0, 1};
     const Matrix to_full{reference.scale_x, 0, 0, 0, reference.scale_y, 0, 0, 0, 1};
-    return PhotoMergeAlignment{
-        multiply(to_full, multiply(*m, to_small)), static_cast<std::uint32_t>(best.size()),
-        residual / best.size() * std::max(reference.scale_x, reference.scale_y)};
+    return PhotoMergeAlignment{multiply(to_full, multiply(*m, to_small)),
+                               static_cast<std::uint32_t>(best.size()),
+                               mean_residual * std::max(reference.scale_x, reference.scale_y)};
 }
 } // namespace ravo::photo_merge_internal

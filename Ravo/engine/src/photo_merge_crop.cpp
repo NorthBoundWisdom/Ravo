@@ -51,8 +51,8 @@ Result<CroppedMergeImage> crop_valid_rectangle(const LinearWorkingBuffer &image,
     {
         if (auto active = cancellation.check(); !active)
             return active.error();
-        const auto begin = image.rgb.begin() + (std::size_t(y + by) * image.width + bx) * 3;
-        std::copy_n(begin, std::size_t(bw) * 3, output.rgb.begin() + std::size_t(y) * bw * 3);
+        const auto begin = image.rgb.data() + (std::size_t(y + by) * image.width + bx) * 3;
+        std::copy_n(begin, std::size_t(bw) * 3, output.rgb.data() + std::size_t(y) * bw * 3);
     }
     return CroppedMergeImage{std::move(output), bx, by};
 }

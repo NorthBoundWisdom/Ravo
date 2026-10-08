@@ -18,8 +18,8 @@ Result<std::vector<int>> seam(const LinearWorkingBuffer &canvas, const std::vect
     const int columns = int(vertical ? canvas.width : canvas.height);
     const auto pixel = [&](int row, int col)
     {
-        return vertical ? std::size_t(row) * canvas.width + col :
-                          std::size_t(col) * canvas.width + row;
+        return vertical ? std::size_t(row) * canvas.width + static_cast<std::size_t>(col) :
+                          std::size_t(col) * canvas.width + static_cast<std::size_t>(row);
     };
     int first = rows, last = -1, left = columns, right = -1;
     for (int row = 0; row < rows; ++row)
@@ -43,8 +43,9 @@ Result<std::vector<int>> seam(const LinearWorkingBuffer &canvas, const std::vect
                           {{"reason", "panorama_no_overlap"}});
     const int width = right - left + 1;
     const float infinity = std::numeric_limits<float>::infinity();
-    std::vector<float> previous(width, infinity), current(width, infinity);
-    std::vector<std::int8_t> parents(std::size_t(last - first + 1) * width, 0);
+    const auto width_size = static_cast<std::size_t>(width);
+    std::vector<float> previous(width_size, infinity), current(width_size, infinity);
+    std::vector<std::int8_t> parents(std::size_t(last - first + 1) * width_size, 0);
     for (int row = first; row <= last; ++row)
     {
         if (auto active = cancellation.check(); !active)
@@ -60,19 +61,21 @@ Result<std::vector<int>> seam(const LinearWorkingBuffer &canvas, const std::vect
                 cost += std::abs(canvas.rgb[p * 3 + c] - added[p * 3 + c]);
             // Encourage a seam away from the overlapping edge to leave room
             // for feathering. The dynamic path avoids high-disagreement pixels.
-            cost += .01F / (1 + std::min(col - left, right - col));
+            cost += .01F / static_cast<float>(1 + std::min(col - left, right - col));
             const int index = col - left;
             if (row == first)
             {
-                current[index] = cost;
+                current[static_cast<std::size_t>(index)] = cost;
                 continue;
             }
             int best = index;
             for (int k = std::max(0, index - 1); k <= std::min(width - 1, index + 1); ++k)
-                if (previous[k] < previous[best])
+                if (previous[static_cast<std::size_t>(k)] <
+                    previous[static_cast<std::size_t>(best)])
                     best = k;
-            current[index] = cost + previous[best];
-            parents[std::size_t(row - first) * width + index] =
+            current[static_cast<std::size_t>(index)] =
+                cost + previous[static_cast<std::size_t>(best)];
+            parents[std::size_t(row - first) * width_size + static_cast<std::size_t>(index)] =
                 static_cast<std::int8_t>(best - index);
         }
         previous.swap(current);
@@ -82,11 +85,11 @@ Result<std::vector<int>> seam(const LinearWorkingBuffer &canvas, const std::vect
         return make_error(ErrorCode::kValidation, "No continuous panorama seam",
                           {{"reason", "panorama_seam_failed"}});
     int col = int(best - previous.begin());
-    std::vector<int> path(rows, -1);
+    std::vector<int> path(static_cast<std::size_t>(rows), -1);
     for (int row = last; row >= first; --row)
     {
-        path[row] = col + left;
-        col += parents[std::size_t(row - first) * width + col];
+        path[static_cast<std::size_t>(row)] = col + left;
+        col += parents[std::size_t(row - first) * width_size + static_cast<std::size_t>(col)];
     }
     return path;
 }
@@ -187,7 +190,7 @@ Result<PhotoMergeImage> stitch_panorama(const std::span<const LinearWorkingBuffe
                     continue;
                 const auto p = std::size_t(y) * width + x;
                 new_mask[p] = 1;
-                std::copy(color.begin(), color.end(), added.begin() + p * 3);
+                std::copy(color.begin(), color.end(), added.data() + p * 3);
             }
         }
         const Point center = project(m, {f.width / 2.0, f.height / 2.0});
@@ -252,7 +255,7 @@ Result<PhotoMergeImage> stitch_panorama(const std::span<const LinearWorkingBuffe
                         return make_error(ErrorCode::kValidation,
                                           "Panorama overlap is outside its seam",
                                           {{"reason", "panorama_seam_failed"}});
-                    const float distance = float(vertical ? x : y) - cut;
+                    const float distance = float(vertical ? x : y) - static_cast<float>(cut);
                     alpha = std::clamp(.5F + (dominant ? distance : -distance) / 32.F, 0.F, 1.F);
                 }
                 for (unsigned c = 0; c < 3; ++c)
