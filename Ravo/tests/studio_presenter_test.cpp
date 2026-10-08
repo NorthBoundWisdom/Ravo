@@ -47,6 +47,7 @@
 #include "ravo/services/catalog_service.h"
 
 #include "ravo/desktop/preview_request_owner.h"
+#include "ravo/desktop/studio_display_presentation.h"
 #include "ravo/desktop/folder_list_model.h"
 #include "ravo/desktop/library_set_list_model.h"
 #include "ravo/desktop/studio_command_controller.h"
@@ -711,7 +712,10 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
             9U;
     ASSERT_GT(runs, 0U);
 
+    StudioDisplayPresentation display;
     StudioPresenter presenter;
+    ASSERT_TRUE(display.valid());
+    presenter.bindDisplayPresentation(&display);
     presenter.openCatalogFromPath(QString::fromUtf8(catalog_path));
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000))
         << presenter.errorText().toStdString();
@@ -773,22 +777,18 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
         if (run >= 2U)
             elapsed_us.push_back(*published_us);
     }
-    std::sort(elapsed_us.begin(), elapsed_us.end());
-    const std::size_t p90_index = (elapsed_us.size() * 9U - 1U) / 10U;
-    const auto median_us = elapsed_us[elapsed_us.size() / 2U];
-    const auto p90_us = elapsed_us[p90_index];
-    std::cerr << "studio_interactive_runs=" << runs
-              << " intent_to_publish_min_us=" << elapsed_us.front()
-              << " intent_to_publish_median_us=" << median_us
-              << " intent_to_publish_p90_us=" << p90_us
-              << " intent_to_publish_max_us=" << elapsed_us.back() << '\n';
+    const auto stats = interactive_perf_report::summarize(elapsed_us);
+    std::cerr << "studio_interactive_runs=" << runs << " intent_to_publish_min_us=" << stats.min
+              << " intent_to_publish_median_us=" << stats.p50
+              << " intent_to_publish_p90_us=" << stats.p90
+              << " intent_to_publish_max_us=" << stats.max << '\n';
     {
         interactive_perf_report::CaseMeta meta;
-        meta.case_id = "develop_intent_to_publish";
+        meta.case_id = "develop_intent_to_publish_with_display";
         meta.path = "gallery_viewer_develop";
         meta.unit = "us";
         meta.cache_state = "warm";
-        meta.source_kind = "raw";
+        meta.source_kind = presenter.selectedMediaType().toStdString();
         meta.warmups = 2;
         meta.recorded_samples = runs;
         meta.asset_id = asset_id;
@@ -797,7 +797,7 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
     }
     if (const char *budget = std::getenv("RAVO_INTERACTIVE_PERF_P90_BUDGET_MS"))
     {
-        EXPECT_LE(p90_us, std::stoll(budget) * 1000);
+        EXPECT_LE(stats.p90, std::stoll(budget) * 1000);
     }
 }
 

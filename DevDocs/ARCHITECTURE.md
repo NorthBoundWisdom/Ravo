@@ -606,6 +606,19 @@ ops, other RGB kernels, and export stay on CPU. IOSurface layout/lock/allocation
 failures are structured and publish no replacement snapshot. Failures are
 fail-closed. Recipe, Catalog, CLI, and QML do not hold device objects.
 `catalog probe --json` reports `gpu_backend`.
+
+Display ICC conversion belongs to `services/display_presentation.cpp`. RGB8
+buffers below 512 KiB remain serial; larger conversions use at most eight
+scope-owned workers (including the caller), capped by hardware concurrency and
+row count. They share a read-only LittleCMS transform with `NOCACHE`, write
+disjoint rows and check cancellation before each row. All workers join before
+the transform, profiles or output can be destroyed; thread-start and allocation
+failures are explicit and no partial output is published. `NOOPTIMIZE` remains
+enabled to preserve the serial evaluator's exact pixels, including LUT profiles.
+This reduces synchronous presentation latency without changing the recipe,
+Engine GPU path, export, or thread ownership outside a conversion call. Thread
+startup is paid per large conversion; no persistent pool or global cache is added.
+
 For an ordinary commit whose parameters are not
 already displayed, Studio first saves
 atomically, publishes that 960px memory preview, then queues the same

@@ -7,7 +7,10 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <new>
 #include <string>
+#include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -280,6 +283,7 @@ copy_display_icc_bytes(const CGDirectDisplayID display)
 transform_icc_rgb8(const std::vector<std::uint8_t> &source_rgb8, std::uint32_t width,
                    std::uint32_t height, const ColorProfileState &source_profile,
                    const ColorProfileState &monitor_profile, const CancellationToken &cancellation)
+try
 {
     const std::size_t expected =
         static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 3U;
@@ -318,17 +322,49 @@ transform_icc_rgb8(const std::vector<std::uint8_t> &source_rgb8, std::uint32_t w
     output.height = height;
     output.rgb8.resize(expected);
     output.color_profile = monitor_profile;
-    for (std::uint32_t y = 0; y < height; ++y)
+    if (auto active = cancellation.check(); !active)
+        return active.error();
+    // NOCACHE makes the transform read-only during evaluation. Each worker owns
+    // disjoint complete rows; retain NOOPTIMIZE and the exact RGB8 evaluator.
+    // Small thumbnails stay serial. Scope-owned workers always join before the
+    // transform, profiles or output are destroyed, including thread-start errors.
+    const auto workers =
+        expected < 512U * 1024U ?
+            1U :
+            std::min({8U, std::max(1U, std::thread::hardware_concurrency()), height});
+    const auto rows = [&](const unsigned worker) noexcept
     {
-        auto cancelled = cancellation.check();
-        if (!cancelled)
+        for (std::uint32_t y = worker; y < height; y += workers)
         {
-            return cancelled.error();
+            if (cancellation.is_cancellation_requested())
+                return;
+            const std::size_t row = static_cast<std::size_t>(y) * width * 3U;
+            cmsDoTransform(transform.get(), source_rgb8.data() + row, output.rgb8.data() + row,
+                           width);
         }
-        const std::size_t row = static_cast<std::size_t>(y) * width * 3U;
-        cmsDoTransform(transform.get(), source_rgb8.data() + row, output.rgb8.data() + row, width);
+    };
+    try
+    {
+        std::vector<std::jthread> threads;
+        threads.reserve(workers - 1U);
+        for (unsigned worker = 1U; worker < workers; ++worker)
+            threads.emplace_back(rows, worker);
+        rows(0U);
     }
+    catch (const std::system_error &error)
+    {
+        return make_error(
+            ErrorCode::kIo, "Unable to start display conversion worker",
+            {{"reason", "display_worker_start_failed"}, {"detail", error.code().message()}});
+    }
+    if (auto active = cancellation.check(); !active)
+        return active.error();
     return output;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Display conversion allocation failed",
+                      {{"reason", "allocation_failed"}});
 }
 
 [[nodiscard]] Result<DisplayPresentationRgb8>

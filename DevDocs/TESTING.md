@@ -1716,6 +1716,18 @@ with the 1600px settled display pixels;
 without explicit fixture variables and leave recipe and preview-record state
 unchanged.
 
+`MeasuresExposureIntentThroughImagePublication` binds the system monitor
+presentation owner and reports `develop_intent_to_publish_with_display`, with
+the selected asset's actual media type. It includes ICC conversion and owned
+surface publication, but not QML binding cost or native frame swap. It must not
+be compared as equivalent to older unbound `develop_intent_to_publish` reports.
+`DisplayPresentationColorTest` compares parallel ICC output byte-for-byte with
+the original serial, unoptimized LittleCMS evaluator over sRGB, Display P3,
+Adobe RGB and ProPhoto RGB, plus a real BToA LUT fixture, odd rows, cancellation
+and repeated calls after cancellation. Small images exercise the serial branch.
+Run these through `ravo_contract_tests`; display/history/export preservation
+remains covered by `DisplayPresentationTest` in `ravo_catalog_tests`.
+
 `RAVO_TRACE_PREVIEW_PRESENTATION=1` enables a read-only Studio trace that joins
 the presenter's interactive intent timestamp to the next native
 `QQuickWindow::frameSwapped` after owned-image publication. It records both

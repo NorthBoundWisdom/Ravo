@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -13,6 +14,7 @@
 #include <vector>
 
 #include <QFile>
+#include <QColorSpace>
 #include <QXmlStreamReader>
 #include <gtest/gtest.h>
 #include <lcms2.h>
@@ -23,6 +25,7 @@
 #include "ravo/foundation/color.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/services/display_presentation.h"
 
 namespace ravo
 {
@@ -628,7 +631,8 @@ TEST(OutputColorTest, RenderExportApisShareRecipeStageAndKeepPreviewRgb8)
 
 TEST(OutputColorTest, EveryFrozenSchemaFivePayloadMapsToSrgbPerceptual)
 {
-    const auto tests_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen";
+    const auto tests_root =
+        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen";
     std::set<std::string> distinct_payloads;
     std::size_t entries = 0;
     for (const auto &directory : std::filesystem::directory_iterator(tests_root))
@@ -882,8 +886,10 @@ TEST(OutputColorTest, XyzLabSoftproofAndGamutWarningUseOwnedResultState)
 TEST(OutputColorTest, FrozenNopAndMire1HaveSrgbWideAndFileIccReferences)
 {
     const auto repository = std::filesystem::path(RAVO_REPOSITORY_ROOT);
-    const auto xmp_path = repository / "Ravo" / "tests" / "fixtures" / "frozen" / "0000-nop" / "nop.xmp";
-    const auto raw_path = repository / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
+    const auto xmp_path =
+        repository / "Ravo" / "tests" / "fixtures" / "frozen" / "0000-nop" / "nop.xmp";
+    const auto raw_path =
+        repository / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
     QFile xmp(QString::fromStdString(xmp_path.string()));
     ASSERT_TRUE(xmp.open(QIODevice::ReadOnly));
     const auto xmp_bytes = xmp.readAll();
@@ -1036,6 +1042,148 @@ TEST(OutputColorTest, UnboundedCancellationAndNonFiniteInputNeverPublishPixels)
     auto corrupt_png = engine.value().encode_png(corrupt_image);
     ASSERT_FALSE(corrupt_png);
     EXPECT_EQ(corrupt_png.error().code, ErrorCode::kValidation);
+}
+
+TEST(DisplayPresentationColorTest, ParallelIccMatchesSerialReferenceExactly)
+{
+    // Include saturated cube faces, near-black values, neutral ramps and dense
+    // interior samples. The reference explicitly retains the old evaluator.
+    constexpr std::uint32_t edge = 65U;
+    std::vector<std::uint8_t> pixels(edge * edge * edge * 3U);
+    for (std::uint32_t r = 0; r < edge; ++r)
+        for (std::uint32_t g = 0; g < edge; ++g)
+            for (std::uint32_t b = 0; b < edge; ++b)
+            {
+                const auto offset = ((r * edge + g) * edge + b) * 3U;
+                pixels[offset] = static_cast<std::uint8_t>(r * 255U / (edge - 1U));
+                pixels[offset + 1U] = static_cast<std::uint8_t>(g * 255U / (edge - 1U));
+                pixels[offset + 2U] = static_cast<std::uint8_t>(b * 255U / (edge - 1U));
+            }
+    const std::array spaces{QColorSpace::SRgb, QColorSpace::DisplayP3, QColorSpace::AdobeRgb,
+                            QColorSpace::ProPhotoRgb};
+    for (const auto source_space : spaces)
+        for (const auto monitor_space : spaces)
+        {
+            SCOPED_TRACE(static_cast<int>(source_space));
+            SCOPED_TRACE(static_cast<int>(monitor_space));
+            const auto profile = [](const QColorSpace::NamedColorSpace space)
+            {
+                ColorProfileState state;
+                state.kind = ColorProfileKind::kIcc;
+                state.model = ColorModel::kRgb;
+                const auto bytes = QColorSpace(space).iccProfile();
+                state.icc_bytes.assign(bytes.cbegin(), bytes.cend());
+                return state;
+            };
+            const auto source = profile(source_space);
+            DisplayPresentationState display;
+            display.valid = true;
+            display.monitor_profile = profile(monitor_space);
+            display.profile_fingerprint = color_profile_fingerprint(display.monitor_profile);
+            using Profile = std::unique_ptr<void, decltype(&cmsCloseProfile)>;
+            Profile input(
+                cmsOpenProfileFromMem(source.icc_bytes.data(),
+                                      static_cast<cmsUInt32Number>(source.icc_bytes.size())),
+                cmsCloseProfile);
+            Profile output(cmsOpenProfileFromMem(display.monitor_profile.icc_bytes.data(),
+                                                 static_cast<cmsUInt32Number>(
+                                                     display.monitor_profile.icc_bytes.size())),
+                           cmsCloseProfile);
+            ASSERT_NE(input, nullptr);
+            ASSERT_NE(output, nullptr);
+            using Transform = std::unique_ptr<void, decltype(&cmsDeleteTransform)>;
+            Transform reference(cmsCreateTransform(input.get(), TYPE_RGB_8, output.get(),
+                                                   TYPE_RGB_8, INTENT_RELATIVE_COLORIMETRIC,
+                                                   cmsFLAGS_NOCACHE | cmsFLAGS_NOOPTIMIZE |
+                                                       cmsFLAGS_BLACKPOINTCOMPENSATION),
+                                cmsDeleteTransform);
+            ASSERT_NE(reference, nullptr);
+            std::vector<std::uint8_t> expected(pixels.size());
+            cmsDoTransform(reference.get(), pixels.data(), expected.data(),
+                           static_cast<cmsUInt32Number>(pixels.size() / 3U));
+            auto actual = apply_display_presentation_rgb8(pixels, edge * edge, edge, source,
+                                                          display, CancellationToken{});
+            ASSERT_TRUE(actual) << actual.error().message;
+            int max_delta = 0;
+            for (std::size_t index = 0; index < expected.size(); ++index)
+                max_delta = std::max(max_delta, std::abs(static_cast<int>(expected[index]) -
+                                                         actual.value().rgb8[index]));
+            EXPECT_EQ(max_delta, 0);
+            EXPECT_EQ(actual.value().color_profile, display.monitor_profile);
+        }
+}
+
+TEST(DisplayPresentationColorTest, LutRowsCancellationAndSubsequentConversionStayExact)
+{
+    using Profile = std::unique_ptr<void, decltype(&cmsCloseProfile)>;
+    Profile input(cmsCreate_sRGBProfile(), cmsCloseProfile);
+    ASSERT_NE(input, nullptr);
+    ColorProfileState source;
+    source.icc_bytes = profile_bytes(input.get());
+    // Both paths must consume the serialized ICC, including its matrix/tag
+    // quantization, rather than compare it with the pre-serialization profile.
+    input.reset(cmsOpenProfileFromMem(source.icc_bytes.data(),
+                                      static_cast<cmsUInt32Number>(source.icc_bytes.size())));
+    ASSERT_NE(input, nullptr);
+    DisplayPresentationState display;
+    display.valid = true;
+    display.monitor_profile.icc_bytes = rgb_output_lut_profile();
+    ASSERT_FALSE(display.monitor_profile.icc_bytes.empty()) << output_lut_profile_error;
+    display.profile_fingerprint = color_profile_fingerprint(display.monitor_profile);
+    Profile output(cmsOpenProfileFromMem(
+                       display.monitor_profile.icc_bytes.data(),
+                       static_cast<cmsUInt32Number>(display.monitor_profile.icc_bytes.size())),
+                   cmsCloseProfile);
+    ASSERT_NE(output, nullptr);
+    using Transform = std::unique_ptr<void, decltype(&cmsDeleteTransform)>;
+    Transform reference(cmsCreateTransform(input.get(), TYPE_RGB_8, output.get(), TYPE_RGB_8,
+                                           INTENT_RELATIVE_COLORIMETRIC,
+                                           cmsFLAGS_NOCACHE | cmsFLAGS_NOOPTIMIZE |
+                                               cmsFLAGS_BLACKPOINTCOMPENSATION),
+                        cmsDeleteTransform);
+    ASSERT_NE(reference, nullptr);
+    // Odd rows and widths exercise partition tails; the small cases stay serial.
+    for (const auto dimensions : {std::pair{19U, 1U}, std::pair{1U, 19U}, std::pair{1025U, 513U}})
+    {
+        const auto [width, height] = dimensions;
+        std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 3U);
+        std::uint32_t seed = 17U;
+        for (auto &value : pixels)
+        {
+            seed = 1664525U * seed + 1013904223U;
+            value = static_cast<std::uint8_t>(seed >> 24U);
+        }
+        const auto original = pixels;
+        std::vector<std::uint8_t> expected(pixels.size());
+        cmsDoTransform(reference.get(), pixels.data(), expected.data(), width * height);
+        CancellationSource cancelled;
+        ASSERT_TRUE(cancelled.cancel("display-test"));
+        auto rejected = apply_display_presentation_rgb8(pixels, width, height, source, display,
+                                                        cancelled.token());
+        ASSERT_FALSE(rejected);
+        EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+        // A deadline can expire during setup or row processing; neither may
+        // publish partial pixels or leave workers using destroyed ICC handles.
+        auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                          std::chrono::milliseconds(1));
+        if (height > 32U)
+        {
+            auto timed = apply_display_presentation_rgb8(pixels, width, height, source, display,
+                                                         deadline.token());
+            if (!timed)
+                EXPECT_EQ(timed.error().code, ErrorCode::kCancelled);
+            else
+                EXPECT_EQ(timed.value().rgb8, expected);
+        }
+        for (int repeat = 0; repeat < 3; ++repeat)
+        {
+            auto actual = apply_display_presentation_rgb8(pixels, width, height, source, display,
+                                                          CancellationToken{});
+            ASSERT_TRUE(actual) << actual.error().message;
+            EXPECT_EQ(actual.value().rgb8, expected);
+            EXPECT_EQ(pixels, original);
+        }
+    }
 }
 
 } // namespace
