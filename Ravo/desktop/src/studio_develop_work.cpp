@@ -345,6 +345,7 @@ void StudioDevelopPresenter::preview_develop(DevelopParams params)
         .request_revision = request_revision,
         .intent_started_at = intent_started_at,
         .expected_source = {},
+        .expected_history_head = {},
     };
     kick_develop_work();
     // Start the pixel job before notifying the broad inspector property set. QML may reevaluate
@@ -457,6 +458,7 @@ void StudioDevelopPresenter::enqueue_preview()
         .request_revision = request_revision,
         .intent_started_at = std::chrono::steady_clock::now(),
         .expected_source = {},
+        .expected_history_head = {},
     };
     kick_develop_work();
 }
@@ -511,6 +513,7 @@ void StudioDevelopPresenter::kick_develop_work()
             .request_revision = {},
             .intent_started_at = std::chrono::steady_clock::now(),
             .expected_source = {},
+            .expected_history_head = {},
         };
     }
     else
@@ -552,6 +555,7 @@ void StudioDevelopPresenter::kick_develop_work()
                             .discard_history_after_seq = job.discard_history_after_seq,
                             .coalesce_history_id = job.coalesce_history_id,
                             .defer_recovery_publication = true,
+                            .expected_revision = {},
                             .expected_base = job.previous,
                             .expected_source = job.expected_source,
                             .expected_history_head = job.expected_history_head,
@@ -817,6 +821,7 @@ void StudioDevelopPresenter::kick_develop_work()
                             .request_revision = {},
                             .intent_started_at = job.intent_started_at,
                             .expected_source = {},
+                            .expected_history_head = {},
                         };
                     }
                     if (state_.comparison_active_ && inspect_.comparisonBeforeUrl().isEmpty())
