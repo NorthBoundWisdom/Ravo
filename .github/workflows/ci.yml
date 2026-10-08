@@ -52,7 +52,7 @@ jobs:
 
       - name: Test packaged-runtime checker
         working-directory: Ravo/tools
-        run: python -m unittest test_check_packaged_runtime.py
+        run: python -m unittest test_check_packaged_runtime.py test_packaged_native_smoke.py
 
       - name: Test packaged evidence JSON serializer
         working-directory: Ravo/tools
@@ -79,7 +79,7 @@ jobs:
           python Ravo/tools/check_fixture_classification_ledger.py
 
   build:
-    name: ${{ matrix.preset }}
+    name: ${{ matrix.preset }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -118,6 +118,17 @@ jobs:
             host_packages: cmake
             build_type: Release
             smoke_labels: "ravo-desktop-smoke|ravo-contract|ravo-catalog"
+          # Additional release architectures run the full Release suite natively.
+          - os: macos-15-intel
+            preset: mac_clang_release
+            platform: mac
+            host_packages: brew
+            build_type: Release
+          - os: ubuntu-24.04-arm
+            preset: linux_clang_release
+            platform: linux
+            host_packages: cmake
+            build_type: Release
     defaults:
       run:
         shell: bash
@@ -198,7 +209,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: logs-${{ matrix.preset }}-${{ runner.os }}
+          name: logs-${{ matrix.preset }}-${{ runner.os }}-${{ runner.arch }}
           path: |
             build/${{ matrix.preset }}/CMakeCache.txt
             build/${{ matrix.preset }}/CMakeFiles/CMakeConfigureLog.yaml
@@ -206,7 +217,7 @@ jobs:
           if-no-files-found: ignore
 
   package:
-    name: Package ${{ matrix.preset }}
+    name: Package ${{ matrix.preset }} (${{ matrix.os }})
     if: >-
       startsWith(github.ref, 'refs/tags/') ||
       (github.event_name == 'workflow_dispatch' && inputs.package_rehearsal)
@@ -223,23 +234,43 @@ jobs:
             preset: mac_clang_release
             platform: mac
             host_packages: brew
-            artifact_name: RavoStudio-macOS
-            artifact_path: build/mac_clang_release/dist/*.dmg
+            artifact_name: RavoStudio-macOS-arm64
+            artifact_path: build/mac_clang_release/dist/*-arm64-macOS.dmg
+          - os: macos-15-intel
+            preset: mac_clang_release
+            platform: mac
+            host_packages: brew
+            artifact_name: RavoStudio-macOS-x86_64
+            artifact_path: build/mac_clang_release/dist/*-x86_64-macOS.dmg
           - os: ubuntu-24.04
             preset: linux_clang_release
             platform: linux
             host_packages: cmake
-            artifact_name: RavoStudio-Linux
+            artifact_name: RavoStudio-Linux-x86_64
+            appimage_arch: x86_64
+            appimage_tool_sha256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+            appimage_runtime_sha256: 2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
             artifact_path: |
-              build/linux_clang_release/dist/*.AppImage
-              build/linux_clang_release/package/*.deb
+              build/linux_clang_release/dist/*-x86_64-Linux.AppImage
+              build/linux_clang_release/package/*-x86_64-Linux.deb
+          - os: ubuntu-24.04-arm
+            preset: linux_clang_release
+            platform: linux
+            host_packages: cmake
+            artifact_name: RavoStudio-Linux-aarch64
+            appimage_arch: aarch64
+            appimage_tool_sha256: f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158
+            appimage_runtime_sha256: 00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444
+            artifact_path: |
+              build/linux_clang_release/dist/*-aarch64-Linux.AppImage
+              build/linux_clang_release/package/*-aarch64-Linux.deb
           - os: windows-2022
             preset: win_msvc_release
             platform: win
             host_packages: cmake-png
             runtime_dll: zlib.dll
-            artifact_name: RavoStudio-Windows
-            artifact_path: build/win_msvc_release/package/*.zip
+            artifact_name: RavoStudio-Windows-x86_64
+            artifact_path: build/win_msvc_release/package/*-x86_64-Windows.zip
     defaults:
       run:
         shell: bash
@@ -268,34 +299,38 @@ jobs:
 
       - name: Install pinned AppImage tools
         if: runner.os == 'Linux'
+        env:
+          APPIMAGE_ARCH: ${{ matrix.appimage_arch }}
+          APPIMAGE_TOOL_SHA256: ${{ matrix.appimage_tool_sha256 }}
+          APPIMAGE_RUNTIME_SHA256: ${{ matrix.appimage_runtime_sha256 }}
         run: |
           set -euo pipefail
           tool_dir="${RUNNER_TEMP}/ravo-appimage-tools"
           rm -rf "${tool_dir}"
           mkdir -p "${tool_dir}/bin"
           curl --fail --location --retry 3 \
-            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage \
-            --output "${tool_dir}/appimagetool-x86_64.AppImage"
-          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  ${tool_dir}/appimagetool-x86_64.AppImage" | sha256sum --check
-          chmod +x "${tool_dir}/appimagetool-x86_64.AppImage"
+            "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-${APPIMAGE_ARCH}.AppImage" \
+            --output "${tool_dir}/appimagetool.AppImage"
+          echo "${APPIMAGE_TOOL_SHA256}  ${tool_dir}/appimagetool.AppImage" | sha256sum --check
+          chmod +x "${tool_dir}/appimagetool.AppImage"
           (
             cd "${tool_dir}"
-            ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null
+            ./appimagetool.AppImage --appimage-extract >/dev/null
           )
           mv "${tool_dir}/squashfs-root" "${tool_dir}/appimagetool-root"
           curl --fail --location --retry 3 \
-            https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 \
-            --output "${tool_dir}/runtime-x86_64"
-          echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  ${tool_dir}/runtime-x86_64" | sha256sum --check
+            "https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-${APPIMAGE_ARCH}" \
+            --output "${tool_dir}/runtime"
+          echo "${APPIMAGE_RUNTIME_SHA256}  ${tool_dir}/runtime" | sha256sum --check
           cat > "${tool_dir}/bin/appimagetool" <<EOF
           #!/usr/bin/env bash
           set -euo pipefail
           exec "${tool_dir}/appimagetool-root/AppRun" \
-            --runtime-file "${tool_dir}/runtime-x86_64" "\$@"
+            --runtime-file "${tool_dir}/runtime" "\$@"
           EOF
           chmod +x "${tool_dir}/bin/appimagetool"
           echo "${tool_dir}/bin" >> "$GITHUB_PATH"
-          echo "ARCH=x86_64" >> "$GITHUB_ENV"
+          echo "ARCH=${APPIMAGE_ARCH}" >> "$GITHUB_ENV"
 
       - name: Configure Ravo Linux package
         if: runner.os == 'Linux'
@@ -388,7 +423,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: packaged-runtime-evidence-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: packaged-runtime-evidence-${{ matrix.preset }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/ravo-packaged-evidence/*.evidence.json
             ${{ runner.temp }}/ravo-packaged-evidence/*.meta.json
@@ -407,18 +442,108 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: package-logs-${{ matrix.preset }}-${{ runner.os }}
+          name: package-logs-${{ matrix.preset }}-${{ runner.os }}-${{ runner.arch }}
           path: |
             build/${{ matrix.preset }}/CMakeCache.txt
             build/${{ matrix.preset }}/CMakeFiles/CMakeConfigureLog.yaml
             build/${{ matrix.preset }}/package/*.json
           if-no-files-found: ignore
 
+  package-smoke:
+    name: Clean package startup (${{ matrix.artifact }})
+    needs: package
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            artifact: RavoStudio-macOS-arm64
+            count: 1
+          - os: macos-15-intel
+            artifact: RavoStudio-macOS-x86_64
+            count: 1
+          - os: ubuntu-24.04
+            artifact: RavoStudio-Linux-x86_64
+            count: 2
+          - os: ubuntu-24.04-arm
+            artifact: RavoStudio-Linux-aarch64
+            count: 2
+          - os: windows-2022
+            artifact: RavoStudio-Windows-x86_64
+            count: 1
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Separate runner: no ci-bootstrap, Qt SDK, source-root or compiler cache.
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          sparse-checkout: Ravo/tools
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Linux desktop runtime and virtual display
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth dbus-x11 binutils libfuse2t64 \
+            libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
+
+      - name: Download final packages
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/downloaded-packages
+
+      - name: Launch every final package on a fresh runner
+        run: |
+          set -euo pipefail
+          artifacts=()
+          while IFS= read -r -d '' file; do artifacts+=("${file}"); done < <(
+            find "${RUNNER_TEMP}/downloaded-packages" -type f \
+              \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' \) -print0
+          )
+          test "${#artifacts[@]}" -eq "${{ matrix.count }}"
+          status=0
+          for artifact in "${artifacts[@]}"; do
+            base="$(basename "${artifact}")"
+            command=(python Ravo/tools/check_packaged_runtime.py "${artifact}"
+              --workdir "${RUNNER_TEMP}/clean-startup/${base}"
+              --repo-root "${GITHUB_WORKSPACE}"
+              --require-native-smoke
+              --evidence-json "${RUNNER_TEMP}/native-evidence/${base}.evidence.json"
+              --source-sha "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}"
+              --run-attempt "${GITHUB_RUN_ATTEMPT}")
+            if [[ "${RUNNER_OS}" == Linux ]]; then
+              command=(xvfb-run -a -s '-screen 0 1280x1024x24' dbus-run-session -- "${command[@]}")
+            fi
+            "${command[@]}" || status=1
+          done
+          exit "${status}"
+
+      - name: Upload clean startup evidence and loader logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: clean-startup-${{ matrix.artifact }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/native-evidence/*.json
+            ${{ runner.temp }}/clean-startup/*/native-*.log
+          if-no-files-found: error
+          retention-days: 14
+
   release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/')
     # Rehearsal package runs never create/update tags or GitHub Releases.
-    needs: package
+    needs: [package, package-smoke]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -433,9 +558,11 @@ jobs:
           set -euo pipefail
           gh run download "${GITHUB_RUN_ID}" \
             --dir release-assets \
-            --name RavoStudio-macOS \
-            --name RavoStudio-Windows \
-            --name RavoStudio-Linux
+            --name RavoStudio-macOS-arm64 \
+            --name RavoStudio-macOS-x86_64 \
+            --name RavoStudio-Windows-x86_64 \
+            --name RavoStudio-Linux-x86_64 \
+            --name RavoStudio-Linux-aarch64
 
       - name: Create GitHub Release
         run: |
@@ -445,11 +572,22 @@ jobs:
               \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' \) \
               -print0
           )
-          if [[ "${#assets[@]}" -ne 4 ]]; then
-            printf 'expected exactly 4 release assets, found %s\n' "${#assets[@]}" >&2
+          if [[ "${#assets[@]}" -ne 7 ]]; then
+            printf 'expected exactly 7 release assets, found %s\n' "${#assets[@]}" >&2
             printf '%s\n' "${assets[@]}" >&2
             exit 1
           fi
+          # Count alone cannot distinguish a missing architecture/format from duplicates.
+          shopt -s nullglob
+          for suffix in arm64-macOS.dmg x86_64-macOS.dmg x86_64-Windows.zip \
+                        x86_64-Linux.AppImage x86_64-Linux.deb \
+                        aarch64-Linux.AppImage aarch64-Linux.deb; do
+            matches=(release-assets/*/RavoStudio-*-${suffix})
+            if [[ "${#matches[@]}" -ne 1 ]]; then
+              echo "Expected exactly one release asset for ${suffix}" >&2
+              exit 1
+            fi
+          done
           gh release create "${GITHUB_REF_NAME}" "${assets[@]}" \
             --verify-tag \
             --title "Ravo ${GITHUB_REF_NAME}" \

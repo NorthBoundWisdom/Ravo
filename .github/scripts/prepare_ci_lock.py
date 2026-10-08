@@ -24,6 +24,14 @@ PENV_PATH = "$penv{PATH}"
 PACKAGE_RUNTIME_SEARCH_PATHS_KEY = "RAVO_PACKAGE_RUNTIME_SEARCH_PATHS"
 
 
+def package_architecture(platform: str, runner_arch: str) -> str:
+    if runner_arch == "X64" and platform in VALID_PLATFORMS:
+        return "x86_64"
+    if runner_arch == "ARM64" and platform in ("mac", "linux"):
+        return "aarch64" if platform == "linux" else "arm64"
+    raise ValueError(f"unsupported CI platform/architecture: {platform}/{runner_arch}")
+
+
 def repo_root_from_script() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -83,6 +91,7 @@ def apply_ci_lock(
     lock: dict[str, Any],
     *,
     platform: str,
+    runner_arch: str,
     prefix_path: str,
     path_env: str,
     additional_runtime_paths: list[str] | None = None,
@@ -104,6 +113,14 @@ def apply_ci_lock(
     if not isinstance(platform_map, dict):
         raise ValueError(f"cmakeCacheVariables.{platform} must be an object")
     updated_platform = dict(platform_map)
+    architecture = package_architecture(platform, runner_arch)
+    updated_platform["RAVO_PACKAGE_ARCHITECTURE"] = architecture
+    if platform == "linux":
+        updated_platform["RAVO_PACKAGE_DEB_ARCHITECTURE"] = (
+            "arm64" if runner_arch == "ARM64" else "amd64"
+        )
+    if platform == "mac":
+        updated_platform["CMAKE_OSX_ARCHITECTURES"] = architecture
     updated_platform["CMAKE_PREFIX_PATH"] = prefix_path
     updated_platform[PACKAGE_RUNTIME_SEARCH_PATHS_KEY] = package_runtime_search_paths(
         prefix_path,
@@ -126,11 +143,21 @@ def assert_ci_lock(
     lock: dict[str, Any],
     *,
     platform: str,
+    runner_arch: str,
     prefix_path: str,
     path_env: str,
     additional_runtime_paths: list[str] | None = None,
 ) -> None:
     platform_map = lock["cmakeCacheVariables"][platform]
+    architecture = package_architecture(platform, runner_arch)
+    if platform_map.get("RAVO_PACKAGE_ARCHITECTURE") != architecture:
+        raise ValueError("CI package architecture does not match the runner")
+    if platform == "mac" and platform_map.get("CMAKE_OSX_ARCHITECTURES") != architecture:
+        raise ValueError("CI macOS compiler architecture does not match the runner")
+    if platform == "linux" and platform_map.get("RAVO_PACKAGE_DEB_ARCHITECTURE") != (
+        "arm64" if runner_arch == "ARM64" else "amd64"
+    ):
+        raise ValueError("CI Debian architecture does not match the runner")
     encoded = json.dumps(platform_map)
     if USER_PLACEHOLDER in encoded:
         raise ValueError(f"CI lock still contains {USER_PLACEHOLDER!r} in {platform} cache")
@@ -170,12 +197,14 @@ def self_check(repo_root: Path) -> None:
         linux_lock = apply_ci_lock(
             init_lock,
             platform="linux",
+            runner_arch="X64",
             prefix_path=linux_prefix,
             path_env=linux_path,
         )
         assert_ci_lock(
             linux_lock,
             platform="linux",
+            runner_arch="X64",
             prefix_path=linux_prefix,
             path_env=linux_path,
         )
@@ -199,6 +228,7 @@ def self_check(repo_root: Path) -> None:
         win_lock = apply_ci_lock(
             init_lock,
             platform="win",
+            runner_arch="X64",
             prefix_path=win_prefix,
             path_env=win_path,
             additional_runtime_paths=win_runtime_paths,
@@ -206,12 +236,46 @@ def self_check(repo_root: Path) -> None:
         assert_ci_lock(
             win_lock,
             platform="win",
+            runner_arch="X64",
             prefix_path=win_prefix,
             path_env=win_path,
             additional_runtime_paths=win_runtime_paths,
         )
         if workspace_lock == active.resolve():
             raise ValueError("self-check must not write the workspace active lock")
+        original = json.dumps(init_lock, sort_keys=True)
+        for platform, runner_arch, expected, deb in (
+            ("mac", "ARM64", "arm64", None),
+            ("mac", "X64", "x86_64", None),
+            ("linux", "ARM64", "aarch64", "arm64"),
+            ("linux", "X64", "x86_64", "amd64"),
+            ("win", "X64", "x86_64", None),
+        ):
+            args = dict(
+                platform=platform, runner_arch=runner_arch,
+                prefix_path="/ci/qt", path_env="/ci/qt/bin",
+            )
+            rewritten = apply_ci_lock(init_lock, **args)
+            assert_ci_lock(rewritten, **args)
+            cache = rewritten["cmakeCacheVariables"][platform]
+            assert cache["RAVO_PACKAGE_ARCHITECTURE"] == expected
+            if deb:
+                assert cache["RAVO_PACKAGE_DEB_ARCHITECTURE"] == deb
+            cache["RAVO_PACKAGE_ARCHITECTURE"] = "wrong"
+            try:
+                assert_ci_lock(rewritten, **args)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("mismatched architecture was accepted")
+        assert json.dumps(init_lock, sort_keys=True) == original
+        for platform, arch in (("win", "ARM64"), ("linux", "X86")):
+            try:
+                package_architecture(platform, arch)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("unsupported architecture was accepted")
     print("prepare_ci_lock self-check passed")
 
 
@@ -247,6 +311,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--platform",
         choices=VALID_PLATFORMS,
         help="FreeCM cmakeCacheVariables platform key",
+    )
+    parser.add_argument(
+        "--runner-arch", choices=("X64", "ARM64"),
+        help="GitHub runner.arch; required when rewriting the CI lock",
     )
     parser.add_argument(
         "--prefix-path",
@@ -300,9 +368,9 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("--check-preset requires --preset and --path-entry")
         check_generated_preset_path(repo_root, preset=args.preset, required_entries=args.path_entry)
         return 0
-    if args.platform is None or not args.prefix_path or not args.path_entry:
+    if args.platform is None or args.runner_arch is None or not args.prefix_path or not args.path_entry:
         raise SystemExit(
-            "--platform, --prefix-path, and --path-entry are required unless --self-check is set"
+            "--platform, --runner-arch, --prefix-path, and --path-entry are required for rewriting"
         )
     lock_path = (args.lock or repo_root / "source_roots.lock.jsonc").resolve()
     if not lock_path.is_file():
@@ -315,6 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     lock = apply_ci_lock(
         load_jsonc(lock_path),
         platform=args.platform,
+        runner_arch=args.runner_arch,
         prefix_path=prefix_path,
         path_env=path_env,
         additional_runtime_paths=args.runtime_search_path,
@@ -322,6 +391,7 @@ def main(argv: list[str] | None = None) -> int:
     assert_ci_lock(
         lock,
         platform=args.platform,
+        runner_arch=args.runner_arch,
         prefix_path=prefix_path,
         path_env=path_env,
         additional_runtime_paths=args.runtime_search_path,

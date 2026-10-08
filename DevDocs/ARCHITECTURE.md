@@ -80,6 +80,15 @@ and retains the photo name while pixels are unavailable.
 
 ## Core conclusion
 
+Packaged native-startup qualification belongs to the desktop C++ composition
+root. `--startup-smoke` constructs the ordinary owners and production QML,
+isolates preferences, and runs a bounded UI-thread event loop until the main
+window emits its first frame. It accepts native cocoa/windows/xcb plugins only,
+returns a versioned `ravo.native_startup` success marker, and destroys owners
+normally on success or timeout. The package checker owns subprocess deadlines,
+clean environment, install/purge lifecycle and evidence; it does not automate
+the UI. The separate offscreen interaction suite retains its existing scope.
+
 Ravo is one local photo-management and non-destructive editing product: create
 or open an SQLite catalog, import JPEG/PNG/TIFF/RAW by reference, browse and
 review, develop, recover/backup, and export. The `ravo` CLI and Ravo Studio are

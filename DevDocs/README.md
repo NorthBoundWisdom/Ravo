@@ -147,7 +147,7 @@ authorities; native dependency ownership is in
 | Document | Scope |
 | --- | --- |
 | [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM source roots, local integration, refresh, and publication order |
-| [Packaging.md](Packaging.md) | Release packaging ownership, artifacts, and validation |
+| [Packaging.md](Packaging.md) | Five platform/architecture combinations, seven release artifacts, and fresh-runner native startup gates |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Tracked third-party attribution and licence notices packaged with Ravo |
 
 The following remain separate owners and are not folded into `DevDocs/`:

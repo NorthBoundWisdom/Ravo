@@ -197,6 +197,8 @@ def unpack(artifact: Path, dest: Path) -> Path:
         # Prefer explicit type-2 extraction into an isolated AppDir.
         copied = dest / artifact.name
         shutil.copy2(artifact, copied)
+        # Workflow artifact downloads do not preserve executable permission bits.
+        copied.chmod(copied.stat().st_mode | stat.S_IXUSR)
         extract_dir = dest / "appdir"
         extract_dir.mkdir(parents=True, exist_ok=True)
         try:
@@ -298,11 +300,8 @@ def cleaned_env(*, home: Path | None = None, allow_offscreen: bool = True) -> di
     """
     env = os.environ.copy()
     for key in list(env):
-        if key.startswith(("QT_", "QML", "QSG_")):
+        if key.startswith(("QT_", "QML", "QSG_", "LD_", "DYLD_")):
             env.pop(key, None)
-    for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH", "DYLD_FALLBACK_LIBRARY_PATH",
-                "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "QML_IMPORT_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
-        env.pop(key, None)
     # Minimal PATH: known system dirs only (do not inherit a filtered developer PATH).
     if os.name == "nt":
         system_root = env.get("SystemRoot") or env.get("WINDIR") or r"C:\Windows"
@@ -782,6 +781,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("artifact", type=Path)
     parser.add_argument("--workdir", type=Path, default=None)
     parser.add_argument("--require-smoke", action="store_true")
+    parser.add_argument("--require-native-smoke", action="store_true",
+                        help="Require native plugin startup; DEB is installed/purged with sudo. Use a disposable host.")
     parser.add_argument("--repo-root", type=Path, default=None,
                         help="Reject workdirs inside this build/source tree")
     parser.add_argument("--evidence-json", type=Path, default=None)
@@ -794,8 +795,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-id", default=None, help="CI run id for evidence pairing")
     parser.add_argument("--run-attempt", default=None, help="CI run attempt for evidence pairing")
     args = parser.parse_args(argv)
+    if args.require_native_smoke:
+        args.require_smoke = True
     artifact = args.artifact.resolve()
     results: dict[str, str] = {}
+    if args.require_native_smoke:
+        # Evidence must stay fail-closed even if an unexpected exception prevents
+        # reaching native startup after all ordinary smoke stages have passed.
+        results["native_display_session"] = Status.FAIL.value
     residuals: list[str] = []
     digest = ""
     artifact_basename = args.artifact_basename or args.artifact.name
@@ -835,6 +842,7 @@ def main(argv: list[str] | None = None) -> int:
             reason=reason,
             status_override=("FAIL" if early_fail else status_override),
         )
+        payload["require_native_smoke"] = bool(args.require_native_smoke)
         if early_fail:
             payload.pop("digest_sha256", None)
             if reason is None and "reason" not in payload:
@@ -957,7 +965,7 @@ def main(argv: list[str] | None = None) -> int:
                         env=env,
                         capture_output=True,
                         text=True,
-                        timeout=120,
+                        timeout=360,
                         check=False,
                     )
                     print(f"studio_smoke_exit={proc.returncode}")
@@ -990,9 +998,26 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 record(name, Status.UNTESTED, "cli unavailable")
 
-        record("native_display_session", Status.UNTESTED,
-               "offscreen smoke != native packaged plugins/session")
-        if artifact.suffix.lower() == ".deb":
+        if args.require_native_smoke:
+            from packaged_native_smoke import run_native_smoke
+
+            native_home = work / "native-home"
+            try:
+                native_home.mkdir()
+                run_native_smoke(artifact, studio, cli, work,
+                                 cleaned_env(home=native_home, allow_offscreen=False))
+                record("native_display_session", Status.PASS, "native Qt plugin; software rendering")
+                if artifact.suffix.lower() == ".deb":
+                    record("dpkg_install_launcher", Status.PASS)
+                if artifact.name.endswith(".AppImage"):
+                    record("appimage_fuse_direct_launch", Status.PASS)
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                record("native_display_session", Status.FAIL, str(exc))
+                return 1
+        else:
+            record("native_display_session", Status.UNTESTED,
+                   "offscreen smoke != native packaged plugins/session")
+        if artifact.suffix.lower() == ".deb" and not args.require_native_smoke:
             record("dpkg_install_launcher", Status.UNTESTED, "unpack != install")
         if ".AppImage" in artifact.name:
             # Extract path is exercised by unpack(); FUSE direct launch remains separate.
@@ -1000,7 +1025,8 @@ def main(argv: list[str] | None = None) -> int:
                 record("appimage_extract_payload", Status.PASS, "via --appimage-extract")
             else:
                 record("appimage_extract_payload", Status.FAIL, "unpack did not PASS")
-            record("appimage_fuse_direct_launch", Status.UNTESTED, "no FUSE host evidence")
+            if not args.require_native_smoke:
+                record("appimage_fuse_direct_launch", Status.UNTESTED, "no FUSE host evidence")
 
         # Fail closed: --require-smoke forbids any FAIL and forbids missing required PASS.
         required = (

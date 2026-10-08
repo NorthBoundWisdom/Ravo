@@ -1,5 +1,15 @@
 # Ravo Testing Strategy
 
+Release artifacts also run on fresh CI runners without the build bootstrap or
+Qt SDK. `ravo_studio --startup-smoke -platform cocoa|windows|xcb` loads the
+production root, presents a native frame within 15 seconds, emits
+`ravo.native_startup` v1 JSON, and exits through ordinary owner destruction.
+It rejects offscreen; the existing offscreen `--smoke` interaction suite remains
+separate and required. [Packaging.md](Packaging.md) owns the runner matrix,
+package install/launch lifecycle, evidence and remaining host qualifications.
+The Python checker tests cover loader environment isolation, first-frame
+evidence, timeout/nonzero failure, direct AppImage execution and DEB cleanup.
+
 `StudioCommands.GalleryExposureRefreshesGridThumbnailPixels` exercises the
 Gallery exposure commands against real thumbnails with an injected monitor
 profile. It requires model notifications, darker pixels after −1 EV, restored

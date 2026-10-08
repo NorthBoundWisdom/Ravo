@@ -11,6 +11,7 @@
 #include <QColor>
 #include <QColorSpace>
 #include <QCoreApplication>
+#include <QEventLoop>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
@@ -31,6 +32,7 @@
 #include <QSurfaceFormat>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QUrl>
 #include <QtLogging>
 
@@ -332,17 +334,20 @@ QStringList studio_ui_font_families(const QFont &system_font, const QString &lan
 int main(int argc, char *argv[])
 {
     bool requested_smoke = false;
+    bool requested_startup_smoke = false;
     for (int index = 1; index < argc; ++index)
     {
-        if (std::string_view(argv[index]) == "--smoke")
+        const std::string_view argument(argv[index]);
+        if (argument == "--smoke" || argument == "--startup-smoke")
         {
             requested_smoke = true;
-            break;
+            requested_startup_smoke = requested_startup_smoke || argument == "--startup-smoke";
         }
     }
     if (requested_smoke)
     {
-        qputenv("QT_QPA_PLATFORM", "offscreen");
+        if (!requested_startup_smoke)
+            qputenv("QT_QPA_PLATFORM", "offscreen");
         qputenv("QSG_RHI_BACKEND", "software");
         qputenv("QT_QUICK_BACKEND", "software");
         // Windows can otherwise surface a Qt fatal through an interactive crash
@@ -381,6 +386,13 @@ int main(int argc, char *argv[])
     ravo::init_logging("RavoStudio");
     const auto logging_lifetime = qScopeGuard([] { ravo::shutdown_logging(); });
     QGuiApplication application(argc, argv);
+    if (requested_startup_smoke && QGuiApplication::platformName() != QStringLiteral("cocoa") &&
+        QGuiApplication::platformName() != QStringLiteral("windows") &&
+        QGuiApplication::platformName() != QStringLiteral("xcb"))
+    {
+        LOG_ERROR(ravo::logger(), "Startup smoke requires a native cocoa/windows/xcb platform");
+        return EXIT_FAILURE;
+    }
     QGuiApplication::setApplicationName(QStringLiteral("Ravo Studio"));
     QGuiApplication::setOrganizationName(QStringLiteral("Ravo"));
     // Every smoke entry point (including POST_BUILD and direct --smoke) must
@@ -426,7 +438,7 @@ int main(int argc, char *argv[])
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
     const QStringList arguments = QCoreApplication::arguments();
-    const bool smoke = arguments.contains(QStringLiteral("--smoke"));
+    const bool smoke = requested_smoke;
     QString catalog_path;
     QString requested_language;
     for (int index = 1; index < arguments.size(); ++index)
@@ -606,6 +618,42 @@ int main(int argc, char *argv[])
     if (smoke)
         LOG_INFO(ravo::logger(), "Ravo Studio smoke loading root QML");
     engine.loadFromModule("Ravo.Studio", "Main");
+    if (requested_startup_smoke)
+    {
+        auto *window = engine.rootObjects().isEmpty() ?
+                           nullptr :
+                           qobject_cast<QQuickWindow *>(engine.rootObjects().front());
+        if (!window)
+            return EXIT_FAILURE;
+        // Exercise the real native window and renderer without the offscreen
+        // interaction suite's focus assumptions. All owners retain normal RAII
+        // teardown, including worker cancellation after this bounded event loop.
+        QEventLoop startup_loop;
+        QTimer deadline;
+        deadline.setSingleShot(true);
+        bool presented = false;
+        QObject::connect(
+            window, &QQuickWindow::frameSwapped, &startup_loop,
+            [&]
+            {
+                presented = true;
+                startup_loop.quit();
+            },
+            Qt::QueuedConnection);
+        QObject::connect(&deadline, &QTimer::timeout, &startup_loop, &QEventLoop::quit);
+        deadline.start(15000);
+        window->show();
+        window->requestUpdate();
+        startup_loop.exec();
+        window->hide();
+        if (!presented)
+        {
+            LOG_ERROR(ravo::logger(), "Startup smoke timed out before the first native frame");
+            return EXIT_FAILURE;
+        }
+        std::puts("{\"type\":\"ravo.native_startup\",\"version\":1,\"first_frame\":true}");
+        return EXIT_SUCCESS;
+    }
     if (smoke)
     {
         const bool loaded = smoke_startup_splash(engine) && smoke_export_options(engine) &&

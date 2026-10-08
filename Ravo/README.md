@@ -911,8 +911,11 @@ cmake --preset mac_clang_release
 cmake --build build/mac_clang_release --target RavoPackage
 ```
 
-The same target produces a Windows ZIP with `win_msvc_release` and a Linux
-AppDir tar.gz with `linux_clang_release`. `RavoPackage` includes Ravo Studio,
+The same target produces a Windows ZIP with `win_msvc_release` and Linux
+AppImage/DEB packages with `linux_clang_release`. The release workflow covers
+macOS ARM64/Intel, Linux x86_64/ARM64 and Windows x86_64, and requires each
+final package to start on a fresh CI runner before publication.
+`RavoPackage` includes Ravo Studio,
 the `ravo` CLI, Qt/QML runtime dependencies, and the license. Output paths and
 CI artifact ownership are documented in [Packaging](../DevDocs/Packaging.md).
 

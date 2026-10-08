@@ -118,16 +118,59 @@ existing unpack tools.
 ## GitHub Actions
 
 Every branch push and pull request runs the configure/build/test matrix:
-macOS/Linux Debug full, Windows Release full, plus macOS/Linux Release smoke
-(`-L ravo-desktop-smoke|ravo-contract|ravo-catalog`). Package and Publish GitHub
-Release jobs remain tag-gated. A tag push runs that gate first, then starts
+macOS ARM64/Linux x86_64 Debug full, Windows x86_64 Release full, plus
+macOS ARM64/Linux x86_64 Release smoke
+(`-L ravo-desktop-smoke|ravo-contract|ravo-catalog`). macOS Intel and Linux
+ARM64 run the full Release suite on native runners. Packaging runs for tags or
+manual rehearsals; publication remains tag-gated. A tag push runs that gate first, then starts
 Release package jobs for macOS, Windows, and Linux; each package job runs
 `check_packaged_runtime.py` on the real artifact before upload. Each package entry prepares the same pinned source roots and host
 dependencies, configures the release preset, calls `RavoPackage`, and uploads
-only the expected platform artifact. After all three package jobs succeed, the
-single release job downloads those artifacts from the current run, requires
-exactly one DMG, ZIP, AppImage, and DEB, and creates the GitHub Release for the
-existing tag with generated notes and all four files attached. Missing output, an
+only the expected platform artifact. Five package jobs produce seven assets:
+
+| Runner | Package architecture | Formats |
+| --- | --- | --- |
+| `macos-15` | `arm64` | DMG |
+| `macos-15-intel` | `x86_64` | DMG |
+| `ubuntu-24.04` | `x86_64` (DEB `amd64`) | AppImage, DEB |
+| `ubuntu-24.04-arm` | `aarch64` (DEB `arm64`) | AppImage, DEB |
+| `windows-2022` | `x86_64` | ZIP |
+
+The CI lock writer derives package/DEB architecture from `runner.arch` and
+sets `CMAKE_OSX_ARCHITECTURES` explicitly. The committed lock remains a local
+setup example, not the CI architecture authority. Qt, ccache, seed caches,
+workflow artifacts and evidence names are separated by architecture. Linux
+ARM64 installs the native `linux_arm64` / `linux_gcc_arm64` Qt kit and pinned
+aarch64 AppImage tools with SHA256 validation.
+
+After packaging, `package-smoke` downloads the final artifacts onto fresh
+runners without running bootstrap, installing a Qt SDK, or restoring build
+caches. Each artifact must pass the existing catalog/offscreen checks plus
+`check_packaged_runtime.py --require-native-smoke`. The native check starts the
+packaged CLI and Studio with a fresh home and minimal system PATH, strips Qt
+and loader overrides, and explicitly selects `cocoa`, `windows`, or `xcb`.
+Studio's `--startup-smoke` rejects non-native plugins, loads production QML,
+shows the main window, and requires a first frame within 15 seconds. It emits
+`ravo.native_startup` JSON v1 with `first_frame=true` and exits through normal
+owner teardown. The runner requires this marker plus exit zero. The separate
+offscreen `--smoke` retains the full interaction/layout checks.
+
+Linux uses Xvfb/DBus and declared system desktop runtime packages, not Qt
+development kits. DMG/ZIP programs start from their extracted payload outside
+the checkout; AppImage starts the final executable through FUSE; DEB is
+installed with `dpkg --install` and starts `/usr/bin/ravo` and
+`/usr/bin/ravo_studio`. The DEB check refuses an existing Ravo installation and
+purges its own package in `finally`, including startup failure. This option is
+for disposable hosts. Each process has a timeout; nonzero exit, missing
+display/plugin/library, install or cleanup failure blocks publication. JSON
+evidence and native loader logs upload even on failure. Job cancellation
+discards the disposable runner. Software rendering tests native startup, not
+GPU hardware or all desktop use.
+
+The release job waits for every package and clean-startup job, downloads the
+same run's artifacts, requires exactly one file for each architecture/format
+above, and creates the GitHub Release for the existing tag with generated
+notes and all seven files attached. Missing output, an
 existing Release for the tag, or any GitHub API failure is a hard workflow
 failure; the workflow does not overwrite an existing release.
 
@@ -169,11 +212,13 @@ GitHub Actions owns release qualification on the exact SHA:
 same SHA static/build/test
 → same SHA package
 → same SHA packaged runtime verification
+→ fresh-runner native startup for every final artifact
 → release
 ```
 
 Every push to `main` still receives the normal CI matrix (Static checks plus
-macOS/Linux Debug full, Windows Release full, and macOS/Linux Release smoke).
+macOS ARM64/Linux x86_64 Debug full, Windows/macOS Intel/Linux ARM64 Release
+full, and macOS ARM64/Linux x86_64 Release smoke).
 That matrix is post-push verification, not a ruleset-required merge gate.
 
 Do not create a release from a failed, cancelled, incomplete, or superseded
@@ -269,11 +314,15 @@ runtime PATH is minimal system dirs; Qt/DYLD inject vars are scrubbed; evidence 
 on failure. Opt-in `workflow_dispatch` `package_rehearsal` (commit `af61a522`) runs Package jobs
 without creating tags or GitHub Releases and uploads per-artifact evidence JSON.
 
-Explicit non-claims (recorded as UNTESTED residuals by the tool):
+Without `--require-native-smoke`, the checker records these UNTESTED residuals:
 - native display / installed desktop session (offscreen smoke != native plugins)
 - Debian `dpkg` install and `/usr/bin` launcher success (unpack != install)
 - AppImage FUSE direct launch (extract-via-`--appimage-extract` is a separate PASS when unpack succeeds)
 - host package rehearsal evidence until a rehearsal/tag run uploads digests for the same SHA
+
+The clean-startup job requires the first three checks to pass; configuring a
+job is not host execution evidence. New architectures remain unqualified until
+a rehearsal/tag run supplies successful evidence for the exact source SHA.
 
 `Ravo/tools/test_check_packaged_runtime.py` covers identity resolution, versioned CLI envelope
 acceptance/rejection, exact asset membership, probe IHDR integrity, DMG top-level absolute symlink
@@ -308,7 +357,7 @@ a native desktop session. Linux DEB launchers
 under `/usr/bin` exec `/opt/RavoStudio/bin/...` and are valid only after
 `dpkg -i`. A Linux payload may still `RUNPATH` the packaging host's Qt prefix
 for transitive ICU; that is a host-kit leftover, not a build-tree dependency.
-Linux `appimagetool` may be a PATH command or the seeded
-`appimagetool-x86_64.AppImage` plus `runtime-x86_64`. Live-control workspace
+Linux `appimagetool` is a PATH wrapper around the checksum-verified native
+`appimagetool-<arch>.AppImage` and `runtime-<arch>` in CI. Live-control workspace
 discovery treats an unreadable ancestor marker as absent so a packaged
 executable outside a Ravo checkout can start.
