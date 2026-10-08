@@ -168,7 +168,15 @@ owner teardown. The runner requires this marker plus exit zero. The separate
 offscreen `--smoke` retains the full interaction/layout checks.
 
 Linux uses Xvfb/DBus and declared system desktop runtime packages, not Qt
-development kits. DMG/ZIP programs start from their extracted payload outside
+development kits. `configs/package_linux.json.in` declares the system EGL/GL,
+font, DBus, GLib, X11 and complete XCB runtime dependencies for DEB installation.
+The fresh Ubuntu runners install the same runtime libraries for both DEB and
+AppImage checks; AppImage users need these host libraries as well. The list
+covers the shipped Qt XCB plugin's ELF dependencies, including shape, randr,
+sync and xfixes, as described in the
+[Qt 6.11 Linux requirements](https://doc.qt.io/qt-6.11/linux-requirements.html).
+Missing system libraries remain startup failures rather than selecting another
+platform plugin. DMG/ZIP programs start from their extracted payload outside
 the checkout; AppImage starts the final executable through FUSE; DEB is
 installed with `dpkg --install` and starts `/usr/bin/ravo` and
 `/usr/bin/ravo_studio`. The DEB check refuses an existing Ravo installation and
