@@ -138,6 +138,10 @@ void expect_frozen_d50_cbrt_reference(const FrozenD50Triplet &actual,
 
 [[nodiscard]] FrozenD50Triplet frozen_dt_ucs_xyy_to_xyz_d65(const FrozenD50Triplet xyy) noexcept
 {
+#if defined(__clang__)
+    // Preserve the scalar division domain when x86 SIMD lanes are introduced.
+#pragma STDC FENV_ACCESS ON
+#endif
     const bool zero_denominator = xyy[1] == 0.0F;
     return {zero_denominator ? 0.0F : xyy[2] * xyy[0] / xyy[1], zero_denominator ? 0.0F : xyy[2],
             zero_denominator ? 0.0F : xyy[2] * (1.0F - xyy[0] - xyy[1]) / xyy[1]};
@@ -221,6 +225,10 @@ frozen_dt_ucs_xyy_to_jch_oracle(const FrozenD50Triplet xyy, const float white_li
 [[nodiscard]] FrozenD50Triplet frozen_dt_ucs_jch_to_xyy(const FrozenD50Triplet jch,
                                                         const float white_lightness) noexcept
 {
+#if defined(__clang__)
+    // Keep unused SIMD lanes from adding exceptions absent in this scalar oracle.
+#pragma STDC FENV_ACCESS ON
+#endif
     constexpr float lightness_upper_limit = 2.09885F;
     const float raw_lightness = jch[0] * white_lightness;
     const float lightness =

@@ -1327,6 +1327,11 @@ full Ravo suite for changes to these worker or repository boundaries
   and prove it detects drift. All nine predefined rules and custom node counts
   two through four also match canonical dispatch. An O3 assembly check verifies
   contraction-disabled production contains no FMA.
+  `HarmonyGeometryTest.FullTablesMatchIndependentOracleAndReferenceInvariants`
+  also checks that extended negative swatch channels and full table construction
+  raise no `FE_INVALID`. The production inverse dt-UCS transforms and independent
+  oracle preserve scalar exception semantics under optimized Clang, including
+  unused SIMD lanes on macOS x86_64 Release.
 - Engine negatives cover dimensions, RGB length/overflow, missing/non-RGB/
   matrixless/non-finite/singular profiles, every non-finite input class,
   non-finite geometry/output, wrong ID/schema, mask state, invalid canonical

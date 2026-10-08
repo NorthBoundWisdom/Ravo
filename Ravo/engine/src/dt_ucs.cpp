@@ -81,6 +81,10 @@ Triplet xyz_d65_to_xyy(const Triplet xyz) noexcept
 
 Triplet xyy_to_xyz_d65(const Triplet xyy) noexcept
 {
+#if defined(__clang__)
+    // The two chromaticity divisions must not gain unused 0/0 SIMD lanes.
+#pragma STDC FENV_ACCESS ON
+#endif
     const bool zero_denominator = xyy[1] == 0.0F;
     return {zero_denominator ? 0.0F : xyy[2] * xyy[0] / xyy[1], zero_denominator ? 0.0F : xyy[2],
             zero_denominator ? 0.0F : xyy[2] * (1.0F - xyy[0] - xyy[1]) / xyy[1]};
@@ -130,6 +134,11 @@ Triplet xyy_to_jch(const Triplet xyy, const float white_lightness) noexcept
 
 Triplet jch_to_xyy(const Triplet jch, const float white_lightness) noexcept
 {
+#if defined(__clang__)
+    // Preserve scalar exception semantics: x86 vectorization must not add 0/0
+    // divisions in unused lanes when lowering the two-component UV transform.
+#pragma STDC FENV_ACCESS ON
+#endif
     constexpr float lightness_upper_limit = 2.09885F;
     const float raw_lightness = jch[0] * white_lightness;
     const float lightness =

@@ -1724,6 +1724,10 @@ FMA, reassociation, fallback profile, clamp beyond the frozen negative input
 clip, or non-finite repair. Production and the independent scalar oracle match
 bit-for-bit on each host; libm-dependent Color Harmonizer output references
 also retain a recorded 1e-5 cross-platform tolerance.
+The inverse dt-UCS JCH→xyY and xyY→XYZ transforms preserve floating-point
+exception semantics locally under Clang, so x86 SIMD padding cannot add `0/0`
+divisions in unused lanes of their two-component calculations. This changes
+neither the source-order arithmetic nor the lookup table values.
 
 For positive smoothing, `LinearWorkingBuffer` supplies one immutable canonical
 ROI scale: current pixel density over original input density. RAW/raster

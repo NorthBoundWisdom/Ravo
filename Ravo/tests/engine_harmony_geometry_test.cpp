@@ -98,6 +98,16 @@ TEST(HarmonyGeometryTest, FullTablesMatchIndependentOracleAndReferenceInvariants
     // takes the toe and must not evaluate powf on the discarded branch.
     const float white_lightness = frozen_dt_ucs_y_to_lightness(1.0F);
     constexpr FrozenD50Triplet extended_jch{0.65F, 2.0F, 0.0F};
+    // Clang's optimized x86 lowering must not add 0/0 in padding SIMD lanes
+    // of either two-component inverse transform, before the transfer curve.
+    std::feclearexcept(FE_ALL_EXCEPT);
+    const auto extended_xyy = dt_ucs::jch_to_xyy(extended_jch, white_lightness);
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+    std::feclearexcept(FE_ALL_EXCEPT);
+    const auto extended_xyz = dt_ucs::xyy_to_xyz_d65(extended_xyy);
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+    expect_dt_ucs_local_oracle(extended_xyz, frozen_dt_ucs_xyy_to_xyz_d65(frozen_dt_ucs_jch_to_xyy(
+                                                 extended_jch, white_lightness)));
     const auto extended_linear = frozen_harmony_xyz_d65_to_linear_rec709(
         frozen_dt_ucs_xyy_to_xyz_d65(frozen_dt_ucs_jch_to_xyy(extended_jch, white_lightness)));
     ASSERT_TRUE(

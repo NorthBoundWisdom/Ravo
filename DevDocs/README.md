@@ -60,6 +60,9 @@ private by default, and reproducible enough to audit.
 
 Import destination-tree preview ownership is in [ARCHITECTURE.md](ARCHITECTURE.md),
 with overlay lifecycle and QML presentation coverage in [TESTING.md](TESTING.md).
+Color Harmonizer's inverse dt-UCS exception semantics and optimized
+Clang coverage are recorded in [ARCHITECTURE.md](ARCHITECTURE.md) and
+[TESTING.md](TESTING.md).
 The asynchronous GPU preview handoff and its owned-pixel lifetime are specified
 in those same architecture and testing authorities.
 Library thumbnail-progress visibility and stable rail geometry are also recorded
