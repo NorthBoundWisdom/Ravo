@@ -314,6 +314,8 @@ source/destination tree surfaces, inline month/count styling and final scroll
 visibility with dozens of Home siblings and deferred ancestor listings, absence
 of a separate preview list, adaptive tree growth and collapse/Add sizing,
 and a real checkbox indicator of at least 24 pixels within a 32-pixel hit area.
+The preview fixture waits for the model's final leaf reveal with a bounded
+deadline before inspecting delegates; a fixed delay is not listing completion.
 Enumeration callbacks are tested before classification and for cancellation
 without publication. Catalog-independent PNG/RAW thumbnail decode must match
 Catalog pixels and preserve source hashes and structured corrupt/missing/cancel

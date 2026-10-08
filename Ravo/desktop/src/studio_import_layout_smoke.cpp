@@ -909,13 +909,40 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                             QStringLiteral("/Folder%1").arg(sibling, 2, 10, QLatin1Char('0'))))
                         return false;
                 model->resetWithRoots({{home, "Home", true}});
+                const auto month = pictures + "/2026/10";
+                bool preview_revealed = false;
+                const auto reveal_connection = QObject::connect(
+                    model, &FilesystemBrowserModel::folderRevealed, model,
+                    [&](const int row)
+                    {
+                        preview_revealed =
+                            model->data(model->index(row, 0), FilesystemBrowserModel::PathRole)
+                                .toString() == month;
+                    });
                 model->setPreviewFolders(
                     {{pictures.toStdString(), "Pictures", 0, 1, false, false},
                      {(pictures + "/2026").toStdString(), "2026", 1, 1, false, false},
                      {(pictures + "/2026/10").toStdString(), "10", 2, 1, true, false}},
                     pictures);
+                // Three real directory listings run on the filesystem worker.
+                // Observe their final reveal instead of sampling an intermediate
+                // reset after a fixed delay on a busy CI host.
+                QElapsedTimer preview_deadline;
+                preview_deadline.start();
+                while (!preview_revealed && preview_deadline.elapsed() < 10000)
+                {
+                    QEventLoop listing;
+                    QTimer::singleShot(20, &listing, &QEventLoop::quit);
+                    listing.exec();
+                }
+                QObject::disconnect(reveal_connection);
+                if (!preview_revealed)
+                {
+                    LOG_ERROR(logger(), "Destination tree preview did not finish its reveal");
+                    return false;
+                }
                 QEventLoop preview_layout;
-                QTimer::singleShot(250, &preview_layout, &QEventLoop::quit);
+                QTimer::singleShot(30, &preview_layout, &QEventLoop::quit);
                 preview_layout.exec();
                 QQuickItem *year_label = nullptr;
                 QQuickItem *month_label = nullptr;
