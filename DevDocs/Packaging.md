@@ -189,10 +189,13 @@ GPU hardware or all desktop use.
 
 The release job waits for every package and clean-startup job, downloads the
 same run's artifacts, requires exactly one file for each architecture/format
-above, and creates the GitHub Release for the existing tag with generated
-notes and all seven files attached. Missing output, an
+above with the tag's exact version, and creates the GitHub Release for the
+existing tag with generated notes and all seven files attached. Missing output, an
 existing Release for the tag, or any GitHub API failure is a hard workflow
 failure; the workflow does not overwrite an existing release.
+The inventory searches downloaded artifacts recursively: Linux preserves
+`dist/` and `package/` beneath its artifact root, unlike the single-file DMG/ZIP
+artifacts. Directory depth does not change filename or uniqueness checks.
 
 
 ## Main history safety and release qualification

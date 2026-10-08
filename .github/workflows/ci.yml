@@ -581,11 +581,16 @@ jobs:
             exit 1
           fi
           # Count alone cannot distinguish a missing architecture/format from duplicates.
-          shopt -s nullglob
           for suffix in arm64-macOS.dmg x86_64-macOS.dmg x86_64-Windows.zip \
                         x86_64-Linux.AppImage x86_64-Linux.deb \
                         aarch64-Linux.AppImage aarch64-Linux.deb; do
-            matches=(release-assets/*/RavoStudio-*-${suffix})
+            matches=()
+            # Linux artifacts retain dist/ and package/ below their artifact root.
+            for asset in "${assets[@]}"; do
+              if [[ "${asset##*/}" == "RavoStudio-${GITHUB_REF_NAME#v}-${suffix}" ]]; then
+                matches+=("${asset}")
+              fi
+            done
             if [[ "${#matches[@]}" -ne 1 ]]; then
               echo "Expected exactly one release asset for ${suffix}" >&2
               exit 1
