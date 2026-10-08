@@ -4,6 +4,12 @@ Ravo has one release packaging graph for local FreeCM Package actions and
 GitHub Actions. Configure remains explicit; packaging never initializes source
 roots or configures a build tree as a hidden side effect.
 
+CI Qt installation uses Python 3.14: earlier `zipfile` detection can mistake
+Qt 6.11.2 Linux ARM64 7z archives for ZIP files and abort aqt extraction with
+`Bad offset for central directory` (aqtinstall issue #1042). The shared bootstrap
+owns this requirement for both build and package jobs; installation errors remain
+fatal.
+
 ## Ownership and lifecycle
 
 - Ravo CMake owns the `ravo_studio` and `ravo` payload, generated package JSON,
