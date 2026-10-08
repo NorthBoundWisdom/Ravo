@@ -498,16 +498,16 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
         },
         30000));
     RecordProperty("warm_reopen_first_thumbnail_ms", timer.elapsed());
-    ASSERT_TRUE(wait_until(
-        [&]
+    const auto reopened_ready = [&]
+    {
+        for (int row = 0; row < 200; ++row)
         {
-            for (int row = 0; row < 200; ++row)
-                if (reopened.assets()->thumbnailState("ast_folder_" + std::to_string(row)) !=
-                    "ready")
-                    return false;
-            return true;
-        },
-        30000));
+            if (reopened.assets()->thumbnailState("ast_folder_" + std::to_string(row)) != "ready")
+                return false;
+        }
+        return true;
+    };
+    ASSERT_TRUE(wait_until(reopened_ready, 30000));
     RecordProperty("warm_reopen_all_thumbnails_ms", timer.elapsed());
     const auto reopened_url = [&]
     {
@@ -552,6 +552,11 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
         },
         30000));
     EXPECT_EQ(reopened_url(), alternate_url);
+
+    // The repaired first row can finish before the remaining 199 publications.
+    // Drain the full monitor-change batch before this fixture owns publish.lock;
+    // otherwise it can race its own presenter rather than the intended conflict.
+    ASSERT_TRUE(wait_until(reopened_ready, 30000));
 
     // A replaced source preview invalidates the output; a contended publisher
     // must report a conflict and never publish the old monitor-corrected image.

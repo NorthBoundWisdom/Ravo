@@ -90,7 +90,9 @@ publish monitor-corrected pixels without a transient error, preserve original
 bytes, classify an unavailable original as photo-level missing state, and stop
 after one repair if its output is evicted again. Existing presentation contracts
 also cover listing replacement, owner destruction, cache corruption, and output
-publication conflicts.
+publication conflicts. The 200-row folder/cache fixture drains the full
+monitor-change batch before taking the publication lock, so it tests an
+intentional competing publisher rather than racing its own remaining rows.
 `PagedThumbnailUsesPresentationAndEvictionRecovery` loads a cached thumbnail
 past the initial 200-row page, evicts its input at display dispatch, and requires
 recovered monitor-corrected pixels with unchanged originals. The production QML
