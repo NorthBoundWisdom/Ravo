@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
+import "../chrome" as Chrome
 
 Rectangle {
     id: root
@@ -268,6 +269,7 @@ Rectangle {
 
         Item {
             id: navigator
+            objectName: "libraryNavigator"
             Layout.fillWidth: true
             Layout.leftMargin: Fonts.size8
             Layout.rightMargin: Fonts.size8
@@ -278,44 +280,27 @@ Rectangle {
             clip: true
 
             readonly property bool hasSelectedPhoto: root.presenter && root.presenter.selectedAssetId.length > 0
-            readonly property bool gpuLive: root.presenter && root.presenter.inspect.gpuPreviewGeneration > 0
+            readonly property bool gridMode: root.presenter && root.presenter.browseMode === "grid"
+            readonly property bool gpuLive: !gridMode && root.presenter && root.presenter.inspect.gpuPreviewGeneration > 0
             readonly property url liveSource: {
-                if (!root.presenter || navigator.gpuLive)
+                if (!root.presenter)
+                    return "";
+                if (navigator.gridMode)
+                    return root.presenter.selectedThumbnailUrl;
+                if (navigator.gpuLive)
                     return "";
                 if (root.presenter.inspect.previewUrl.toString().length)
                     return root.presenter.inspect.previewUrl;
                 return root.presenter.selectedThumbnailUrl;
             }
             property url heldSource: ""
-            readonly property Item shownImage: navigator.gpuLive ? navGpu : (navImage.status === Image.Ready ? navImage : navHeldImage)
-            function contentX(item) {
-                if (!item)
-                    return 0;
-                if (item === navGpu)
-                    return item.x;
-                return (item.width - item.paintedWidth) / 2;
-            }
-            function contentY(item) {
-                if (!item)
-                    return 0;
-                if (item === navGpu)
-                    return item.y;
-                return (item.height - item.paintedHeight) / 2;
-            }
-            function contentW(item) {
-                if (!item)
-                    return 0;
-                if (item === navGpu)
-                    return item.width;
-                return item.paintedWidth;
-            }
-            function contentH(item) {
-                if (!item)
-                    return 0;
-                if (item === navGpu)
-                    return item.height;
-                return item.paintedHeight;
-            }
+            readonly property real sourceW: root.presenter ? root.presenter.inspect.navigatorViewportWidth : 0
+            readonly property real sourceH: root.presenter ? root.presenter.inspect.navigatorViewportHeight : 0
+            readonly property real imageScale: sourceW > 0 && sourceH > 0 ? Math.min(Math.max(0, width - 2) / sourceW, Math.max(0, height - 2) / sourceH) : 0
+            readonly property real imageW: sourceW * imageScale
+            readonly property real imageH: sourceH * imageScale
+            readonly property real imageX: (width - imageW) / 2
+            readonly property real imageY: (height - imageH) / 2
 
             onHasSelectedPhotoChanged: {
                 if (!hasSelectedPhoto)
@@ -332,40 +317,50 @@ Rectangle {
 
             Image {
                 id: navHeldImage
-                anchors.fill: parent
-                anchors.margins: 1
-                fillMode: Image.PreserveAspectFit
+                objectName: "navigatorHeldImage"
+                x: navigator.imageX
+                y: navigator.imageY
+                width: navigator.imageW
+                height: navigator.imageH
+                fillMode: Image.Stretch
+                retainWhileLoading: true
                 asynchronous: true
                 cache: false
                 source: navigator.heldSource
-                visible: !navigator.gpuLive && navigator.heldSource.toString().length > 0 && navImage.status !== Image.Ready
+                visible: !navigator.gridMode && !navigator.gpuLive && navigator.heldSource.toString().length > 0 && navImage.status !== Image.Ready
             }
 
             Image {
                 id: navImage
-                anchors.fill: parent
-                anchors.margins: 1
-                fillMode: Image.PreserveAspectFit
+                objectName: "navigatorLiveImage"
+                property bool hasReadyImage: false
+                x: navigator.imageX
+                y: navigator.imageY
+                width: navigator.imageW
+                height: navigator.imageH
+                fillMode: Image.Stretch
+                retainWhileLoading: true
                 asynchronous: true
                 cache: false
                 source: navigator.liveSource
-                visible: !navigator.gpuLive && status === Image.Ready
+                visible: !navigator.gpuLive && (status === Image.Ready || (navigator.gridMode && hasReadyImage && status === Image.Loading))
                 onStatusChanged: {
-                    if (status === Image.Ready)
+                    if (status === Image.Ready) {
+                        hasReadyImage = true;
                         navigator.heldSource = source;
+                    } else if (status === Image.Null || status === Image.Error) {
+                        hasReadyImage = false;
+                    }
                 }
             }
 
             StudioGpuPreviewItem {
                 id: navGpu
                 visible: navigator.gpuLive
-                readonly property real srcW: Math.max(1, root.presenter ? root.presenter.inspect.gpuPreviewWidth : 1)
-                readonly property real srcH: Math.max(1, root.presenter ? root.presenter.inspect.gpuPreviewHeight : 1)
-                readonly property real fit: Math.min((parent.width - 2) / srcW, (parent.height - 2) / srcH)
-                width: srcW * fit
-                height: srcH * fit
-                x: (parent.width - width) / 2
-                y: (parent.height - height) / 2
+                x: navigator.imageX
+                y: navigator.imageY
+                width: navigator.imageW
+                height: navigator.imageH
                 generation: root.presenter ? root.presenter.inspect.gpuPreviewGeneration : 0
                 nativeSurface: root.presenter ? root.presenter.inspect.gpuPreviewNativeSurface : 0
                 sourceWidth: root.presenter ? root.presenter.inspect.gpuPreviewWidth : 0
@@ -383,10 +378,11 @@ Rectangle {
 
             Rectangle {
                 id: viewBox
-                readonly property real imgX: navigator.contentX(navigator.shownImage)
-                readonly property real imgY: navigator.contentY(navigator.shownImage)
-                readonly property real imgW: navigator.contentW(navigator.shownImage)
-                readonly property real imgH: navigator.contentH(navigator.shownImage)
+                objectName: "navigatorViewBox"
+                readonly property real imgX: navigator.imageX
+                readonly property real imgY: navigator.imageY
+                readonly property real imgW: navigator.imageW
+                readonly property real imgH: navigator.imageH
                 visible: viewBox.imgW > 1 && viewBox.imgH > 1
                 x: viewBox.imgX + root.viewRectX * viewBox.imgW
                 y: viewBox.imgY + root.viewRectY * viewBox.imgH
@@ -403,10 +399,10 @@ Rectangle {
                 enabled: viewBox.visible && root.presenter && root.presenter.browseMode !== "grid"
                 cursorShape: enabled ? Qt.OpenHandCursor : Qt.ArrowCursor
                 function seekTo(px, py) {
-                    const imgX = navigator.contentX(navigator.shownImage);
-                    const imgY = navigator.contentY(navigator.shownImage);
-                    const imgW = navigator.contentW(navigator.shownImage);
-                    const imgH = navigator.contentH(navigator.shownImage);
+                    const imgX = navigator.imageX;
+                    const imgY = navigator.imageY;
+                    const imgW = navigator.imageW;
+                    const imgH = navigator.imageH;
                     const fx = imgW > 0 ? (px - imgX) / imgW : 0;
                     const fy = imgH > 0 ? (py - imgY) / imgH : 0;
                     root.viewportSeeked(fx - root.viewRectW / 2, fy - root.viewRectH / 2);
@@ -695,8 +691,9 @@ Rectangle {
                         }
                     }
 
-                    Menu {
+                    Chrome.StudioContextMenu {
                         id: setMenu
+                        fitToContent: true
                         Action {
                             text: qsTr("Add selected photos")
                             enabled: root.presenter && root.presenter.selectedCount > 0 && setRow.kind === "manual"

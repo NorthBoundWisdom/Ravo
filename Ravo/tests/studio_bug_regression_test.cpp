@@ -223,6 +223,7 @@ TEST(StudioCommands, GalleryExposureRefreshesGridThumbnailPixels)
     source.fill(QColor(100, 120, 140));
     ASSERT_TRUE(source.save(photo, "PNG"));
     int thumbnail_notifications = 0;
+    int empty_thumbnail_notifications = 0;
     StudioDisplayPresentation display;
     ASSERT_TRUE(display.injectSyntheticMatrixForTesting());
     StudioPresenter presenter;
@@ -254,10 +255,20 @@ TEST(StudioCommands, GalleryExposureRefreshesGridThumbnailPixels)
     const QImage original(original_url.toLocalFile());
     ASSERT_FALSE(original.isNull());
     QObject::connect(presenter.assets(), &QAbstractItemModel::dataChanged, &presenter,
-                     [&](const QModelIndex &, const QModelIndex &, const QList<int> &roles)
+                     [model = presenter.assets(), id, &thumbnail_notifications,
+                      &empty_thumbnail_notifications](const QModelIndex &, const QModelIndex &,
+                                                      const QList<int> &roles)
                      {
                          if (roles.contains(AssetListModel::ThumbnailUrlRole))
+                         {
                              ++thumbnail_notifications;
+                             if (model
+                                     ->data(model->index(model->indexOf(id), 0),
+                                            AssetListModel::ThumbnailUrlRole)
+                                     .toUrl()
+                                     .isEmpty())
+                                 ++empty_thumbnail_notifications;
+                         }
                      });
     const auto action = commands.ids().value(QStringLiteral("photoAdjustExposure")).toString();
     ASSERT_TRUE(commands.executeCommand(action, -1.0, QStringLiteral("control"))
@@ -296,6 +307,7 @@ TEST(StudioCommands, GalleryExposureRefreshesGridThumbnailPixels)
     ASSERT_FALSE(latest.isNull());
     EXPECT_GT(latest.pixelColor(10, 10).red(), original.pixelColor(10, 10).red());
     EXPECT_DOUBLE_EQ(presenter.develop()->editExposure(), 1.0);
+    EXPECT_EQ(empty_thumbnail_notifications, 0);
     EXPECT_EQ(presenter.browseMode(), QStringLiteral("grid"));
 }
 

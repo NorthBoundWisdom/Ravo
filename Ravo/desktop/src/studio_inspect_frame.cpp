@@ -203,6 +203,8 @@ void StudioInspectPresenter::seedViewport(int width, int height)
 {
     preview_viewport_width_ = width;
     preview_viewport_height_ = height;
+    navigator_viewport_width_ = width;
+    navigator_viewport_height_ = height;
 }
 void StudioInspectPresenter::setPreviewLoading(bool loading)
 {
@@ -328,6 +330,36 @@ int StudioInspectPresenter::previewViewportHeight() const noexcept
     return preview_viewport_height_;
 }
 
+int StudioInspectPresenter::navigatorViewportWidth() const noexcept
+{
+    return navigator_viewport_width_;
+}
+
+int StudioInspectPresenter::navigatorViewportHeight() const noexcept
+{
+    return navigator_viewport_height_;
+}
+
+bool StudioInspectPresenter::update_navigator_extent(const QSize &size)
+{
+    const QSize current(navigator_viewport_width_, navigator_viewport_height_);
+    const auto next = stable_preview_viewport_size(current, size, true);
+    if (next == current)
+        return false;
+    navigator_viewport_width_ = next.width();
+    navigator_viewport_height_ = next.height();
+    return true;
+}
+
+void StudioInspectPresenter::observeNavigatorThumbnail(const QImage &image)
+{
+    // The navigator prefers a published preview over the browse thumbnail.
+    // Seed cropped-photo geometry from the thumbnail only until that preview exists.
+    if (preview_url_.isEmpty() && gpu_preview_generation_ == 0 && !image.isNull() &&
+        update_navigator_extent(image.size()))
+        emit previewChanged();
+}
+
 QImage StudioInspectPresenter::previewImage() const
 {
     const QMutexLocker lock(&preview_image_mutex_);
@@ -361,6 +393,8 @@ void StudioInspectPresenter::clear_displayed_preview()
     comparison_before_output_profile_ = {};
     preview_viewport_width_ = 0;
     preview_viewport_height_ = 0;
+    navigator_viewport_width_ = 0;
+    navigator_viewport_height_ = 0;
     observeFrameLayout({});
     live_preview_revision_ = 0;
     live_preview_width_ = 0;
@@ -486,6 +520,9 @@ bool StudioInspectPresenter::show_preview_result(const PreviewResult &preview,
                                      presented.size(), preserve_viewport_extent);
     preview_viewport_width_ = viewport_size.width();
     preview_viewport_height_ = viewport_size.height();
+    // Navigator geometry is independent of render resolution and CPU/GPU
+    // transport. Reuse the existing rounding tolerance, including settled frames.
+    update_navigator_extent(presented.size());
     live_preview_revision_ = revision;
     live_preview_width_ = static_cast<std::uint32_t>(std::max(0, presented.width()));
     live_preview_height_ = static_cast<std::uint32_t>(std::max(0, presented.height()));

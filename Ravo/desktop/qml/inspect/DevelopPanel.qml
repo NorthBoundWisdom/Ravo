@@ -4,12 +4,15 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
+import "../chrome" as Chrome
 
 ColumnLayout {
     id: root
     property var presenter
     property var commands
+    required property Flickable scrollViewport
     property bool liveReady: false
+    property string workspace: "edit"
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
     readonly property bool localEditing: hasPresenter && presenter.develop.localEditing === true
@@ -32,16 +35,22 @@ ColumnLayout {
         }
     }
 
-    CustomLabel {
-        Layout.leftMargin: Fonts.standardMargin
-        Layout.topMargin: Fonts.size8
-        text: qsTr("Develop")
-        font.bold: true
-    }
-
-    LocalAdjustmentWorkspace {
-        panel: root
-        Layout.fillWidth: true
+    CustomButton {
+        Layout.alignment: Qt.AlignRight
+        Layout.rightMargin: Fonts.standardMargin
+        visible: root.workspace === "edit"
+        text: "⋯"
+        onClicked: globalMenu.popup()
+        Chrome.StudioContextMenu {
+            id: globalMenu
+            fitToContent: true
+            Chrome.StudioContextMenuItem {
+                text: qsTr("Advanced operation instances")
+                checkable: true
+                checked: root.showAdvancedInstances
+                onTriggered: root.showAdvancedInstances = checked
+            }
+        }
     }
 
     Repeater {
@@ -50,6 +59,7 @@ ColumnLayout {
             required property var modelData
             enabled: modelData === (root.hasPresenter && root.presenter.develop.activeLocalId !== undefined ? root.presenter.develop.activeLocalId : "")
             panel: root
+            visible: root.workspace === "edit" || (root.workspace === "local" && root.localEditing)
             Layout.fillWidth: true
         }
     }

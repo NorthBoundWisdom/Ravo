@@ -157,6 +157,7 @@ endif()
 
 add_executable(ravo_studio ${RAVO_STUDIO_SOURCES})
 target_sources(ravo_studio PRIVATE src/studio_import_layout_smoke.cpp)
+target_sources(ravo_studio PRIVATE src/studio_curve_gesture_smoke.cpp)
 target_sources(ravo_studio PRIVATE src/studio_photo_merge_layout_smoke.cpp)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 find_package(Qt6 6.11 REQUIRED COMPONENTS GuiPrivate)

@@ -402,10 +402,6 @@ Diff: %6</source>
             <translation>分離遮罩</translation>
         </message>
         <message>
-            <source>Develop</source>
-            <translation>編輯</translation>
-        </message>
-        <message>
             <source>White Balance</source>
             <translation>白平衡</translation>
         </message>
@@ -2728,6 +2724,10 @@ Diff: %6</source>
         <message>
             <source>Crop</source>
             <translation>裁剪</translation>
+        </message>
+        <message>
+            <source>Local adjustments</source>
+            <translation>局部操作</translation>
         </message>
         <message>
             <source>Canvas</source>

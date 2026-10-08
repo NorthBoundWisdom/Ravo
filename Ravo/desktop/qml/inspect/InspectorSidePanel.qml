@@ -1,3 +1,5 @@
+pragma Translator: DevelopPanel
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -11,6 +13,40 @@ Rectangle {
     readonly property bool developOpen: hasPresenter && presenter.browseMode === "develop"
     property bool liveReady: false
     readonly property bool metadataEditing: photoInfo.metadataEditing
+    readonly property real minimumToolWidth: toolBar.implicitWidth + 2 * Fonts.standardMargin
+    property bool localWorkspaceOpen: false
+    property string pendingTool: ""
+    readonly property string selectedAsset: hasPresenter ? presenter.selectedAssetId : ""
+    onSelectedAssetChanged: {
+        pendingTool = "";
+        localWorkspaceOpen = false;
+    }
+    readonly property string activeTool: developPanel.cropPinned ? "crop" : developPanel.localEditing || localWorkspaceOpen ? "local" : "edit"
+
+    function selectTool(tool) {
+        if (developPanel.localEditing && tool !== "local") {
+            pendingTool = tool;
+            const result = commands.localAdjustment("done", {});
+            if (!result || !result.ok)
+                pendingTool = "";
+            return;
+        }
+        pendingTool = "";
+        localWorkspaceOpen = tool === "local";
+        commands.run(commands.ids.editCropTool, tool === "crop");
+        developScroller.contentY = 0;
+    }
+
+    Connections {
+        target: root.hasPresenter ? root.presenter.develop : null
+        function onEditingScopeChanged() {
+            if (!developPanel.localEditing && root.pendingTool.length > 0)
+                Qt.callLater(function () {
+                    if (!developPanel.localEditing && root.pendingTool.length > 0)
+                        root.selectTool(root.pendingTool);
+                });
+        }
+    }
 
     Component.onCompleted: liveReady = true
 
@@ -29,6 +65,44 @@ Rectangle {
             commands: root.commands
         }
 
+        RowLayout {
+            id: toolBar
+            objectName: "developToolBar"
+            visible: root.developOpen
+            Layout.fillWidth: true
+            Layout.margins: Fonts.standardMargin
+            spacing: Fonts.smallSpacing
+
+            Repeater {
+                model: [
+                    {
+                        tool: "edit",
+                        label: qsTr("Edit")
+                    },
+                    {
+                        tool: "crop",
+                        label: qsTr("Crop")
+                    },
+                    {
+                        tool: "local",
+                        label: qsTr("Local adjustments")
+                    }
+                ]
+                delegate: SegmentedButton {
+                    required property var modelData
+                    objectName: "developTool_" + modelData.tool
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: implicitWidth
+                    Layout.minimumWidth: implicitWidth
+                    text: modelData.label
+                    borderWidth: Fonts.size1
+                    selected: root.activeTool === modelData.tool
+                    enabled: developPanel.hasSelection && !root.presenter.develop.localDonePending
+                    onClicked: root.selectTool(modelData.tool)
+                }
+            }
+        }
+
         Flickable {
             objectName: "pinnedCropPanel"
             visible: root.developOpen && developPanel.cropPinned
@@ -39,6 +113,7 @@ Rectangle {
             flickableDirection: Flickable.VerticalFlick
             contentWidth: width
             contentHeight: cropControls.implicitHeight + 2 * Fonts.standardMargin
+            ScrollBar.vertical: ScrollBar {}
             DevelopCropControls {
                 id: cropControls
                 x: Fonts.standardMargin
@@ -50,6 +125,29 @@ Rectangle {
         }
 
         Flickable {
+            id: localScroller
+            objectName: "pinnedLocalPanel"
+            visible: root.developOpen && root.activeTool === "local"
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(contentHeight, Math.max(0, root.height - y) * 0.5)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.VerticalFlick
+            contentWidth: width
+            contentHeight: localControls.implicitHeight + 2 * Fonts.standardMargin
+            ScrollBar.vertical: ScrollBar {}
+
+            LocalAdjustmentWorkspace {
+                id: localControls
+                x: Fonts.standardMargin
+                y: Fonts.standardMargin
+                width: localScroller.width - 2 * Fonts.standardMargin
+                panel: developPanel
+            }
+        }
+
+        Flickable {
+            id: developScroller
             objectName: "developPanelScroller"
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -58,6 +156,7 @@ Rectangle {
             flickableDirection: Flickable.VerticalFlick
             contentWidth: width
             contentHeight: column.implicitHeight
+            ScrollBar.vertical: ScrollBar {}
 
             ColumnLayout {
                 id: column
@@ -74,6 +173,8 @@ Rectangle {
 
                 DevelopPanel {
                     id: developPanel
+                    scrollViewport: developScroller
+                    workspace: root.activeTool
                     visible: root.developOpen
                     Layout.fillWidth: true
                     presenter: root.presenter

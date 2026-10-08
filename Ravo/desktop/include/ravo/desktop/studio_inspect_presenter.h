@@ -34,6 +34,8 @@ class StudioInspectPresenter final : public QObject
     Q_PROPERTY(QUrl previewUrl READ previewUrl NOTIFY previewChanged)
     Q_PROPERTY(int previewViewportWidth READ previewViewportWidth NOTIFY previewChanged)
     Q_PROPERTY(int previewViewportHeight READ previewViewportHeight NOTIFY previewChanged)
+    Q_PROPERTY(int navigatorViewportWidth READ navigatorViewportWidth NOTIFY previewChanged)
+    Q_PROPERTY(int navigatorViewportHeight READ navigatorViewportHeight NOTIFY previewChanged)
     Q_PROPERTY(QUrl inspectRoiUrl READ inspectRoiUrl NOTIFY inspectRoiChanged)
     Q_PROPERTY(double inspectRoiX READ inspectRoiX NOTIFY inspectRoiChanged)
     Q_PROPERTY(double inspectRoiY READ inspectRoiY NOTIFY inspectRoiChanged)
@@ -84,6 +86,7 @@ public:
     explicit StudioInspectPresenter(Context context, Host host, QObject *parent = nullptr);
     void notifyPreviewChanged();
     void seedViewport(int width, int height);
+    void observeNavigatorThumbnail(const QImage &image);
     void setPreviewLoading(bool loading);
     void clearDecodedImages();
     void clearComparisonImages();
@@ -159,6 +162,8 @@ public:
     [[nodiscard]] QUrl comparisonBeforeUrl() const;
     Q_INVOKABLE void setZoomMode(const QString &mode);
     [[nodiscard]] int previewViewportWidth() const noexcept;
+    [[nodiscard]] int navigatorViewportWidth() const noexcept;
+    [[nodiscard]] int navigatorViewportHeight() const noexcept;
     Q_INVOKABLE void toggleActualSize();
     [[nodiscard]] double inspectRoiY() const noexcept;
     Q_INVOKABLE void setZoomFactor(double factor);
@@ -200,6 +205,9 @@ private:
     ColorProfileState comparison_before_output_profile_;
     int preview_viewport_width_ = 0;
     int preview_viewport_height_ = 0;
+    int navigator_viewport_width_ = 0;
+    int navigator_viewport_height_ = 0;
+    bool update_navigator_extent(const QSize &size);
     std::uint64_t live_preview_revision_ = 0;
     std::uint32_t live_preview_width_ = 0;
     std::uint32_t live_preview_height_ = 0;

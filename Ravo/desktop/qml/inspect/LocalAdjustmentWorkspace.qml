@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
+import "../chrome" as Chrome
 
 ColumnLayout {
     id: root
@@ -16,7 +17,7 @@ ColumnLayout {
         Layout.fillWidth: true
         CustomLabel {
             Layout.fillWidth: true
-            text: root.panel.localEditing ? qsTr("Editing mask") : qsTr("Global")
+            text: root.panel.localEditing ? qsTr("Editing mask") : qsTr("Local adjustments")
             font.bold: true
         }
         CustomButton {
@@ -32,52 +33,40 @@ ColumnLayout {
             enabled: root.panel.hasSelection && !root.panel.presenter.develop.localDonePending
             onClicked: root.panel.commands.localAdjustment("done", {})
         }
-        CustomButton {
-            text: "⋯"
-            visible: !root.panel.localEditing
-            onClicked: globalMenu.popup()
-        }
     }
-    Menu {
+    Chrome.StudioContextMenu {
         id: createMenu
-        MenuItem {
+        objectName: "localCreateMenu"
+        fitToContent: true
+        Chrome.StudioContextMenuItem {
             text: qsTr("Brush")
             onTriggered: root.panel.commands.localAdjustment("create", {
                 kind: 8
             })
         }
-        MenuItem {
+        Chrome.StudioContextMenuItem {
             text: qsTr("Linear gradient")
             onTriggered: root.panel.commands.localAdjustment("create", {
                 kind: 2
             })
         }
-        MenuItem {
+        Chrome.StudioContextMenuItem {
             text: qsTr("Radial gradient")
             onTriggered: root.panel.commands.localAdjustment("create", {
                 kind: 4
             })
         }
-        MenuItem {
+        Chrome.StudioContextMenuItem {
             text: qsTr("Path")
             onTriggered: root.panel.commands.localAdjustment("create", {
                 kind: 7
             })
         }
-        MenuItem {
+        Chrome.StudioContextMenuItem {
             text: qsTr("Luminance / color range")
             onTriggered: root.panel.commands.localAdjustment("create", {
                 kind: 5
             })
-        }
-    }
-    Menu {
-        id: globalMenu
-        MenuItem {
-            text: qsTr("Advanced operation instances")
-            checkable: true
-            checked: root.panel.showAdvancedInstances
-            onTriggered: root.panel.showAdvancedInstances = checked
         }
     }
     Repeater {
@@ -109,30 +98,31 @@ ColumnLayout {
                 text: "⋯"
                 onClicked: maskMenu.popup()
             }
-            Menu {
+            Chrome.StudioContextMenu {
                 id: maskMenu
-                MenuItem {
+                fitToContent: true
+                Chrome.StudioContextMenuItem {
                     text: qsTr("Rename")
                     onTriggered: {
                         renameDialog.maskId = maskRow.modelData.id;
-                        renameText.text = maskRow.modelData.name;
+                        renameDialog.initialText = maskRow.modelData.name;
                         renameDialog.open();
                     }
                 }
-                MenuItem {
+                Chrome.StudioContextMenuItem {
                     text: qsTr("Duplicate")
                     onTriggered: root.panel.commands.localAdjustment("duplicate", {
                         id: maskRow.modelData.id
                     })
                 }
-                MenuItem {
+                Chrome.StudioContextMenuItem {
                     text: qsTr("Invert mask")
                     onTriggered: root.panel.commands.localAdjustment("invert", {
                         id: maskRow.modelData.id
                     })
                 }
-                MenuSeparator {}
-                MenuItem {
+                Chrome.StudioContextMenuSeparator {}
+                Chrome.StudioContextMenuItem {
                     text: qsTr("Delete")
                     onTriggered: root.panel.commands.localAdjustment("delete", {
                         id: maskRow.modelData.id
@@ -149,6 +139,7 @@ ColumnLayout {
         opacity: 0.75
     }
     Expander {
+        objectName: "localMaskSettings"
         Layout.fillWidth: true
         visible: root.panel.localEditing
         title: qsTr("Mask settings")
@@ -198,8 +189,9 @@ ColumnLayout {
             }
         }
     }
-    Menu {
+    Chrome.StudioContextMenu {
         id: componentMenu
+        fitToContent: true
         property int combine: 1
         function add(kind) {
             root.panel.commands.localAdjustment("component", {
@@ -208,36 +200,33 @@ ColumnLayout {
                 combine: combine
             });
         }
-        MenuItem {
+        Chrome.StudioContextMenuItem {
             text: qsTr("Brush")
             onTriggered: componentMenu.add(8)
         }
-        MenuItem {
+        Chrome.StudioContextMenuItem {
             text: qsTr("Linear gradient")
             onTriggered: componentMenu.add(2)
         }
-        MenuItem {
+        Chrome.StudioContextMenuItem {
             text: qsTr("Radial gradient")
             onTriggered: componentMenu.add(4)
         }
-        MenuItem {
+        Chrome.StudioContextMenuItem {
             text: qsTr("Luminance / color range")
             onTriggered: componentMenu.add(5)
         }
     }
-    Dialog {
+    QmlInputDialogPage {
         id: renameDialog
+        objectName: "localRenameDialog"
         property string maskId
-        title: qsTr("Rename mask")
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        onAccepted: root.panel.commands.localAdjustment("rename", {
-            id: maskId,
-            name: renameText.text
-        })
-        TextField {
-            id: renameText
-            selectByMouse: true
+        dialogTitle: qsTr("Rename mask")
+        onTextSubmitted: function (text) {
+            root.panel.commands.localAdjustment("rename", {
+                id: maskId,
+                name: text
+            });
         }
     }
 }

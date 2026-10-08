@@ -1,8 +1,10 @@
 #include "studio_import_layout_smoke.h"
 
 #include <array>
+#include <memory>
 #include <QEventLoop>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlProperty>
 #include <QQuickItem>
@@ -1289,7 +1291,107 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         if (!wait_ready([&] { return slider->property("value").toDouble() == 0.0; }))
             return false;
     }
-    presenter->develop()->setCropToolActive(true);
+    auto *tool_bar = window->findChild<QQuickItem *>(QStringLiteral("developToolBar"));
+    auto *edit_tool =
+        find_visual(find_visual, window->contentItem(), QStringLiteral("developTool_edit"));
+    auto *crop_tool =
+        find_visual(find_visual, window->contentItem(), QStringLiteral("developTool_crop"));
+    auto *local_tool =
+        find_visual(find_visual, window->contentItem(), QStringLiteral("developTool_local"));
+    auto *tool_scroll = window->findChild<QQuickItem *>(QStringLiteral("developPanelScroller"));
+    if (!tool_bar || !edit_tool || !crop_tool || !local_tool || !tool_scroll ||
+        !edit_tool->property("selected").toBool())
+    {
+        LOG_ERROR(logger(), "Develop toolbar or initial edit selection is missing");
+        return false;
+    }
+    QCoreApplication::processEvents();
+    for (auto *tool : {edit_tool, crop_tool, local_tool})
+    {
+        if (tool->width() + .1 < tool->implicitWidth())
+        {
+            LOG_ERROR(logger(), "Develop tool label does not fit its standard button");
+            return false;
+        }
+    }
+    if (tool_bar->x() + tool_bar->width() > tool_bar->parentItem()->width() + .1)
+    {
+        LOG_ERROR(logger(), "Develop toolbar exceeds the inspector width");
+        return false;
+    }
+    const auto toolbar_position = tool_bar->mapToScene(QPointF{});
+    tool_scroll->setProperty("contentY", 200.0);
+    QCoreApplication::processEvents();
+    if (tool_bar->mapToScene(QPointF{}) != toolbar_position ||
+        !QMetaObject::invokeMethod(local_tool, "clicked") ||
+        !wait_ready([&] { return local_tool->property("selected").toBool(); }))
+    {
+        LOG_ERROR(logger(), "Develop toolbar moved during scrolling or local navigation failed");
+        return false;
+    }
+    auto *new_mask =
+        find_visual(find_visual, window->contentItem(), QStringLiteral("createLocalMask"));
+    auto *tool_commands = qobject_cast<StudioCommandController *>(
+        engine.rootContext()->contextProperty(QStringLiteral("studioCommands")).value<QObject *>());
+    auto *create_menu = window->findChild<QObject *>(QStringLiteral("localCreateMenu"));
+    if (!new_mask || !create_menu || !QMetaObject::invokeMethod(new_mask, "clicked") ||
+        !wait_ready([&] { return create_menu->property("opened").toBool(); }) ||
+        create_menu->property("count").toInt() != 5 ||
+        !QMetaObject::invokeMethod(create_menu, "close"))
+    {
+        LOG_ERROR(logger(), "Standard mask creation menu failed to open with its five actions");
+        return false;
+    }
+    if (!new_mask || !new_mask->isVisible() || !tool_commands ||
+        !tool_commands->localAdjustment(QStringLiteral("create"), {{QStringLiteral("kind"), 8}})
+             .value(QStringLiteral("ok"))
+             .toBool() ||
+        !presenter->develop()->localEditing())
+        return false;
+    auto *local_panel = window->findChild<QQuickItem *>(QStringLiteral("pinnedLocalPanel"));
+    auto *mask_settings = window->findChild<QQuickItem *>(QStringLiteral("localMaskSettings"));
+    if (!local_panel || !mask_settings || !local_panel->isVisible())
+        return false;
+    mask_settings->setProperty("expanded", true);
+    if (!wait_ready(
+            [&]
+            {
+                return local_panel->property("contentHeight").toDouble() >
+                           local_panel->height() + 40 &&
+                       tool_scroll->property("contentHeight").toDouble() >
+                           tool_scroll->height() + 80;
+            }))
+    {
+        LOG_ERROR(logger(), "Local tools and adjustments must have independent bounded viewports");
+        return false;
+    }
+    const auto local_position = local_panel->mapToScene(QPointF{});
+    const auto adjustment_position = tool_scroll->mapToScene(QPointF{});
+    tool_scroll->setProperty("contentY", 80.0);
+    local_panel->setProperty("contentY", 40.0);
+    QCoreApplication::processEvents();
+    if (local_panel->mapToScene(QPointF{}) != local_position ||
+        tool_scroll->mapToScene(QPointF{}) != adjustment_position ||
+        tool_bar->mapToScene(QPointF{}) != toolbar_position ||
+        std::abs(local_panel->property("contentY").toDouble() - 40.0) > .1 ||
+        std::abs(tool_scroll->property("contentY").toDouble() - 80.0) > .1)
+    {
+        LOG_ERROR(logger(), "Scrolling local tools moved the pinned workspace or adjustments");
+        return false;
+    }
+    mask_settings->setProperty("expanded", false);
+    if (!QMetaObject::invokeMethod(crop_tool, "clicked") ||
+        !wait_ready(
+            [&]
+            {
+                return !presenter->develop()->localEditing() &&
+                       presenter->develop()->cropToolActive() &&
+                       crop_tool->property("selected").toBool();
+            }))
+    {
+        LOG_ERROR(logger(), "Develop local workspace or crop navigation failed");
+        return false;
+    }
     auto *pinned = window->findChild<QQuickItem *>(QStringLiteral("pinnedCropPanel"));
     auto *develop_scroll = window->findChild<QQuickItem *>(QStringLiteral("developPanelScroller"));
     auto *plane = window->findChild<QQuickItem *>(QStringLiteral("photoInspectPlane"));
@@ -1339,7 +1441,14 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             }))
         return false;
     presenter->inspect()->setZoomMode(QStringLiteral("fit"));
-    presenter->develop()->setCropToolActive(false);
+    if (!QMetaObject::invokeMethod(edit_tool, "clicked") ||
+        !wait_ready(
+            [&]
+            {
+                return !presenter->develop()->cropToolActive() &&
+                       edit_tool->property("selected").toBool();
+            }))
+        return false;
     if (pinned->isVisible() || !wait_ready([&] { return !presenter->inspect()->previewLoading(); }))
         return false;
     presenter->setBrowseMode(QStringLiteral("loupe"));
@@ -1396,6 +1505,139 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     {
         LOG_ERROR(logger(), "Metadata dialog save failed: {}",
                   presenter->errorText().toStdString());
+        return false;
+    }
+    // A real ThumbnailCell must keep its bands/labels while an edited image
+    // is decoded asynchronously. No screenshots or separate renderer are used.
+    const auto first_thumbnail = directory.filePath(QStringLiteral("thumbnail-first.png"));
+    const auto next_thumbnail = directory.filePath(QStringLiteral("thumbnail-next.png"));
+    QImage thumbnail_image(320, 200, QImage::Format_RGB888);
+    thumbnail_image.fill(Qt::darkRed);
+    if (!thumbnail_image.save(first_thumbnail))
+        return false;
+    thumbnail_image.fill(Qt::darkGreen);
+    if (!thumbnail_image.save(next_thumbnail))
+        return false;
+    QQmlComponent cell_component(
+        &engine, QUrl(QStringLiteral("qrc:/qt/qml/Ravo/Studio/qml/gallery/ThumbnailCell.qml")));
+    std::unique_ptr<QObject> cell_object(cell_component.createWithInitialProperties(
+        {{QStringLiteral("width"), 260},
+         {QStringLiteral("height"), 240},
+         {QStringLiteral("displayName"), QStringLiteral("reload.png")},
+         {QStringLiteral("thumbnailUrl"), QUrl::fromLocalFile(first_thumbnail)}}));
+    auto *cell = qobject_cast<QQuickItem *>(cell_object.get());
+    if (!cell)
+        return false;
+    cell->setParentItem(window->contentItem());
+    auto *cell_photo = cell->findChild<QQuickItem *>(QStringLiteral("thumbnailPhoto"));
+    auto *cell_chrome = cell->findChild<QQuickItem *>(QStringLiteral("thumbnailChrome"));
+    if (!cell_photo || !cell_chrome ||
+        !wait_ready(
+            [&]
+            { return cell_photo->property("status").toInt() == 1 && cell_chrome->isVisible(); }))
+        return false;
+    int chrome_hides = 0;
+    QObject reload_observer;
+    const auto chrome_connection =
+        QObject::connect(cell_chrome, &QQuickItem::visibleChanged, &reload_observer,
+                         [&]
+                         {
+                             if (!cell_chrome->isVisible())
+                                 ++chrome_hides;
+                         });
+    const auto gutter = cell_chrome->property("gutterY").toDouble();
+    cell->setProperty("thumbnailUrl", QUrl::fromLocalFile(next_thumbnail));
+    if (cell_photo->property("status").toInt() != 2 ||
+        !cell_photo->property("retainWhileLoading").toBool() || !cell_chrome->isVisible() ||
+        cell_chrome->property("gutterY").toDouble() != gutter ||
+        !wait_ready([&] { return cell_photo->property("status").toInt() == 1; }) ||
+        chrome_hides != 0)
+    {
+        LOG_ERROR(logger(), "Thumbnail reload hid its chrome or changed its retained geometry");
+        return false;
+    }
+    QObject::disconnect(chrome_connection);
+    cell->setProperty("thumbnailUrl", QUrl{});
+    if (!wait_ready(
+            [&]
+            {
+                return !cell_photo->property("hasReadyImage").toBool() && !cell_chrome->isVisible();
+            }))
+        return false;
+    presenter->setBrowseMode(QStringLiteral("grid"));
+    if (!wait_ready(
+            [&]
+            { return !presenter->inspect()->previewLoading() && !presenter->previewWorkActive(); }))
+        return false;
+    QEventLoop navigator_layout;
+    QTimer::singleShot(30, &navigator_layout, &QEventLoop::quit);
+    navigator_layout.exec();
+    auto *navigator = window->findChild<QQuickItem *>(QStringLiteral("libraryNavigator"));
+    auto *view_box = window->findChild<QQuickItem *>(QStringLiteral("navigatorViewBox"));
+    auto *exposure_commands = qobject_cast<StudioCommandController *>(
+        engine.rootContext()->contextProperty(QStringLiteral("studioCommands")).value<QObject *>());
+    if (!navigator || !view_box || !exposure_commands || !view_box->isVisible())
+        return false;
+    const auto scene_rect = [](QQuickItem *item)
+    { return QRectF(item->mapToScene(QPointF{}), QSizeF(item->width(), item->height())); };
+    const auto navigator_rect = scene_rect(navigator);
+    const auto viewport_rect = scene_rect(view_box);
+    bool moved = false;
+    bool wrong_navigator_frame = false;
+    QObject geometry_observer;
+    auto *held_navigation =
+        navigator->findChild<QQuickItem *>(QStringLiteral("navigatorHeldImage"));
+    if (!held_navigation)
+        return false;
+    QObject::connect(held_navigation, &QQuickItem::visibleChanged, &geometry_observer,
+                     [&] { wrong_navigator_frame |= held_navigation->isVisible(); });
+    const auto check_navigator_frame = [&]
+    {
+        wrong_navigator_frame |=
+            held_navigation->isVisible() || navigator->property("gpuLive").toBool() ||
+            navigator->property("liveSource").toUrl() != presenter->selectedThumbnailUrl();
+    };
+    QObject::connect(presenter->inspect(), &StudioInspectPresenter::previewChanged,
+                     &geometry_observer,
+                     [check_navigator_frame, &geometry_observer]
+                     {
+                         QMetaObject::invokeMethod(&geometry_observer, check_navigator_frame,
+                                                   Qt::QueuedConnection);
+                     });
+    check_navigator_frame();
+    const auto check_geometry = [&]
+    { moved |= scene_rect(navigator) != navigator_rect || scene_rect(view_box) != viewport_rect; };
+    for (auto *item : {navigator, view_box})
+    {
+        QObject::connect(item, &QQuickItem::xChanged, &geometry_observer, check_geometry);
+        QObject::connect(item, &QQuickItem::yChanged, &geometry_observer, check_geometry);
+        QObject::connect(item, &QQuickItem::widthChanged, &geometry_observer, check_geometry);
+        QObject::connect(item, &QQuickItem::heightChanged, &geometry_observer, check_geometry);
+    }
+    for (const double delta : {1.0, -1.0, 1.0 / 3.0, -1.0 / 3.0})
+    {
+        const auto result = exposure_commands->executeCommand(
+            exposure_commands->ids().value(QStringLiteral("photoAdjustExposure")).toString(), delta,
+            QStringLiteral("control"));
+        if (!result.value(QStringLiteral("accepted")).toBool() ||
+            !wait_ready(
+                [&]
+                {
+                    return !presenter->inspect()->previewLoading() &&
+                           !presenter->previewWorkActive();
+                }))
+            return false;
+        check_geometry();
+        check_navigator_frame();
+    }
+    if (moved)
+    {
+        LOG_ERROR(logger(), "Quick exposure moved the navigator frame or viewport border");
+        return false;
+    }
+    if (wrong_navigator_frame)
+    {
+        LOG_ERROR(logger(), "Gallery navigator displayed a frame outside the Grid thumbnail path");
         return false;
     }
     return true;

@@ -292,7 +292,14 @@ void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const
             return;
         }
     }
-    assets_.setThumbnail(asset_id, {}, QStringLiteral("presenting"));
+    const int row = assets_.indexOf(qstring_from_utf8(asset_id));
+    auto previous_url =
+        row < 0 ? QUrl{} :
+                  assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
+    // Incoming listing URLs are unconverted source pixels, not a prior display frame.
+    if (previous_url == QUrl::fromLocalFile(base_path))
+        previous_url = QUrl{};
+    assets_.setThumbnail(asset_id, previous_url, QStringLiteral("presenting"));
     pending_thumbnail_presentations_[asset_id] =
         [this, asset_id, base_path, display, root, generation, revision, cancellation, thumb_state]
     {
@@ -382,7 +389,9 @@ void StudioPresenter::refresh_scopes_from_thumbnail(const QString &asset_id)
     const auto base = thumbnail_base_paths_.find(id);
     if (base != thumbnail_base_paths_.end() && QFileInfo::exists(base->second))
     {
-        inspect_.refresh_scopes(QImage(base->second));
+        const QImage image(base->second);
+        inspect_.observeNavigatorThumbnail(image);
+        inspect_.refresh_scopes(image);
         return;
     }
     const int row = assets_.indexOf(asset_id);
@@ -397,7 +406,9 @@ void StudioPresenter::refresh_scopes_from_thumbnail(const QString &asset_id)
         inspect_.clear_scopes();
         return;
     }
-    inspect_.refresh_scopes(QImage(url.toLocalFile()));
+    const QImage image(url.toLocalFile());
+    inspect_.observeNavigatorThumbnail(image);
+    inspect_.refresh_scopes(image);
 }
 
 void StudioPresenter::ensureThumbnail(const QString &asset_id)

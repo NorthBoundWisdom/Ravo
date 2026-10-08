@@ -3,6 +3,7 @@ import GeoControls 1.0
 
 Item {
     id: root
+    required property Flickable scrollViewport
     property var points: []
     property var samples: []
     property var histogramRed: []
@@ -27,6 +28,16 @@ Item {
         })
     signal curveEdited(var points)
     signal curveCommitted(var points)
+
+    Binding {
+        id: scrollLock
+        target: root.scrollViewport
+        property: "interactive"
+        value: false
+        when: root.scrollViewport !== null && curvePointer.enabled && curvePointer.visible && curvePointer.pressed
+        restoreMode: Binding.RestoreBindingOrValue
+    }
+    Component.onDestruction: scrollLock.when = false
 
     implicitHeight: Math.max(Fonts.size200, Math.min(Fonts.size300, width * 0.72))
     clip: true
@@ -364,14 +375,32 @@ Item {
     }
 
     MouseArea {
+        id: curvePointer
         z: 3
         anchors.fill: parent
         enabled: root.editorEnabled
         acceptedButtons: Qt.LeftButton
+        preventStealing: true
         hoverEnabled: true
+        onWheel: function (wheel) {
+            wheel.accepted = pressed;
+        }
         property int activeIndex: -1
         property bool dragging: false
         cursorShape: dragging ? Qt.ClosedHandCursor : root.hoverIndex >= 0 ? Qt.OpenHandCursor : Qt.CrossCursor
+
+        function cancelDrag() {
+            dragging = false;
+            activeIndex = -1;
+            root.pointerInside = false;
+            root.hoverIndex = -1;
+            root.pendingPoints = [];
+            canvas.requestPaint();
+        }
+        onEnabledChanged: if (!enabled)
+            cancelDrag()
+        onVisibleChanged: if (!visible)
+            cancelDrag()
 
         onEntered: {
             root.pointerInside = true;
@@ -385,6 +414,8 @@ Item {
         }
 
         onPressed: function (mouse) {
+            if (root.scrollViewport)
+                root.scrollViewport.cancelFlick();
             root.forceActiveFocus();
             root.pointerInside = true;
             root.hoverPoint = root.fromCanvas(mouse.x, mouse.y);
@@ -453,14 +484,7 @@ Item {
             root.hoverIndex = containsMouse ? root.hitIndex(mouseX, mouseY) : -1;
             canvas.requestPaint();
         }
-        onCanceled: {
-            dragging = false;
-            activeIndex = -1;
-            root.pointerInside = false;
-            root.hoverIndex = -1;
-            root.pendingPoints = [];
-            canvas.requestPaint();
-        }
+        onCanceled: cancelDrag()
         onDoubleClicked: function (mouse) {
             const index = root.hitIndex(mouse.x, mouse.y);
             if (index <= 0 || index >= root.points.length - 1)

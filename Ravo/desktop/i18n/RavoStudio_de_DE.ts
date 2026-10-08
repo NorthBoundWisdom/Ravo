@@ -402,10 +402,6 @@ Differenz: %6</translation>
             <translation>Maske trennen</translation>
         </message>
         <message>
-            <source>Develop</source>
-            <translation>Entwickeln</translation>
-        </message>
-        <message>
             <source>White Balance</source>
             <translation>Weißabgleich</translation>
         </message>
@@ -2728,6 +2724,10 @@ Differenz: %6</translation>
         <message>
             <source>Crop</source>
             <translation>Zuschneiden</translation>
+        </message>
+        <message>
+            <source>Local adjustments</source>
+            <translation>Lokale Anpassungen</translation>
         </message>
         <message>
             <source>Canvas</source>

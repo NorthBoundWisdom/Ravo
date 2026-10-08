@@ -173,6 +173,7 @@ DevelopSection {
 
         ToneCurveEditor {
             id: curveEditor
+            scrollViewport: panel.scrollViewport
             objectName: "curveEditor"
             Layout.fillWidth: true
             Layout.preferredHeight: Math.max(Fonts.size200, Math.min(Fonts.size300, width * 0.72))

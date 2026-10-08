@@ -402,10 +402,6 @@ Diff: %6</source>
             <translation>마스크 분리</translation>
         </message>
         <message>
-            <source>Develop</source>
-            <translation>현상</translation>
-        </message>
-        <message>
             <source>White Balance</source>
             <translation>화이트 밸런스</translation>
         </message>
@@ -2728,6 +2724,10 @@ Diff: %6</source>
         <message>
             <source>Crop</source>
             <translation>자르기</translation>
+        </message>
+        <message>
+            <source>Local adjustments</source>
+            <translation>부분 조정</translation>
         </message>
         <message>
             <source>Canvas</source>

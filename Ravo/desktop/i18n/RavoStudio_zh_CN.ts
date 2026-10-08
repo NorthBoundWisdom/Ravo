@@ -246,10 +246,6 @@ Diff: %6</source>
             <translation>重置此部分</translation>
         </message>
         <message>
-            <source>Develop</source>
-            <translation>编辑</translation>
-        </message>
-        <message>
             <source>Geometry</source>
             <translation>几何</translation>
         </message>
@@ -2732,6 +2728,10 @@ Diff: %6</source>
         <message>
             <source>Crop</source>
             <translation>裁剪</translation>
+        </message>
+        <message>
+            <source>Local adjustments</source>
+            <translation>局部操作</translation>
         </message>
         <message>
             <source>Canvas</source>

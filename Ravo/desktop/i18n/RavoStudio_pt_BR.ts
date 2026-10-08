@@ -402,10 +402,6 @@ Diferença: %6</translation>
             <translation>Desanexar máscara</translation>
         </message>
         <message>
-            <source>Develop</source>
-            <translation>Revelação</translation>
-        </message>
-        <message>
             <source>White Balance</source>
             <translation>Balanço de branco</translation>
         </message>
@@ -2728,6 +2724,10 @@ Diferença: %6</translation>
         <message>
             <source>Crop</source>
             <translation>Cortar</translation>
+        </message>
+        <message>
+            <source>Local adjustments</source>
+            <translation>Ajustes locais</translation>
         </message>
         <message>
             <source>Canvas</source>

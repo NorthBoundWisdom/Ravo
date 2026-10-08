@@ -298,7 +298,7 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(
         color_slider_source.contains(QStringLiteral("signal valueCommitted(double value)")));
     EXPECT_TRUE(color_slider_source.contains(QStringLiteral("property Gradient trackGradient")));
-    EXPECT_TRUE(color_slider_source.contains(QStringLiteral("pauseAncestorFlickable")));
+    EXPECT_TRUE(color_slider_source.contains(QStringLiteral("CustomSlider {")));
 
     auto curve_editor_path = QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML);
     curve_editor_path.replace(QStringLiteral("DevelopPanel.qml"),

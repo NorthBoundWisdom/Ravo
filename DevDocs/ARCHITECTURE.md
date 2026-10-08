@@ -66,6 +66,20 @@ its cached thumbnail and pending display generation. The old pixels may remain
 visible until replacement; a queued browse request uses the saved recipe after
 foreground preview work settles. Saves for another catalog and late thumbnail
 results cannot replace the current catalog's presentation.
+During ordinary refresh, monitor conversion retains the previous presented URL.
+ThumbnailCell retains its decoded image and chrome through asynchronous replacement;
+first load, an empty source or a decode failure still shows its explicit placeholder.
+The navigator uses a separate stable extent owned by Inspect, seeded for the
+selected asset and updated with the existing preview rounding tolerance. CPU,
+retained and GPU images plus the viewport border share one inset rectangle.
+Exposure and preview-resolution changes do not move that rectangle; a new
+selection, real aspect change or preview clearing updates it.
+In Grid mode the navigator consumes the selected model thumbnail URL, including
+its monitor presentation, exactly like the Grid cell. It never switches to the
+interactive GPU or full preview during a Gallery exposure edit. Other viewing
+modes retain the live preview path. Grid uses the live Image's retained pixmap
+while decoding its replacement; it never exposes the separately decoded held
+image, which may still contain an earlier revision.
 If the service cache evicts a source PNG between listing/generation and display
 preparation, the presenter clears that stale base and requests one browse rebuild
 through the same demand owner without a global error. Recovery is scoped to the
@@ -1197,6 +1211,22 @@ sample positions or per-pixel lookup math. Exact scalar/LUT sample equality is
 covered for every interpolation mode. QML draws the plot and histogram; C++
 owns points and commits. Histogram bins come from the engine-owned display
 RGB8 histogram plus Rec.709 luma.
+The inspector's Edit, Crop and Local adjustments tool strip sits below scopes,
+outside the scrolling controls. QML owns only the visible workspace and pending
+navigation intent. Crop activation and completing a local edit route through the
+existing command controller; navigation out of a local edit waits for its C++
+editing scope to close. Selection changes discard pending navigation. Local mask
+controls appear only in the local workspace, in a pinned Flickable below the
+tool strip with its own scrollbar. Its height is bounded to half the remaining
+sidebar space, leaving a separate scrolling viewport for adjustment parameters.
+Crop controls likewise retain their pinned, independently scrolling viewport.
+The adjustment stack follows the actual global/local editing scope.
+
+The curve editor receives its owning inspector Flickable explicitly. A pressed
+curve gesture keeps the mouse grab, stops pending flick motion and temporarily
+disables that Flickable through a restoring QML Binding. Release, cancellation,
+disable/hide and editor destruction restore the prior scroll state. Wheel events
+are consumed only during the drag; ordinary scrolling remains available otherwise.
 
 The lightweight P1 global controls do not stand in for the later full-module
 migration queue. The raster/old-recipe core Contrast path plus Saturation and
@@ -2050,6 +2080,11 @@ Ravo Studio owns:
 QML sends only intents to desktop-owned C++ presenters and observes immutable,
 revisioned view state. Visible controls use GeoControls (buttons, labels, list
 items, segmented switches, status bar, edit-panel lamps, and file dialog).
+In-panel menus share `StudioContextMenu`/`StudioContextMenuItem`; the native
+application menu bar remains separate. Mask renaming uses GeoControls'
+`QmlInputDialogPage`. Color sliders delegate input, gesture ownership and commit
+timing to `CustomSlider`, retaining only parameter-specific display scaling.
+Develop tool buttons use `SegmentedButton` and reserve their intrinsic label width.
 Develop section lamps bind identity/active/bypass to presenter state; a bypass
 keeps stored parameters and writes `operation.enabled = false`. Gallery/`Image`
 consumes controlled preview resources only and never opens an original directly.

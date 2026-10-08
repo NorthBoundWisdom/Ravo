@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
+import "../chrome" as Chrome
 
 Rectangle {
     id: root
@@ -139,30 +140,18 @@ Rectangle {
         }
     }
 
-    component ScopeModeItem: MenuItem {
+    component ScopeModeItem: Chrome.StudioContextMenuItem {
         id: item
         required property string modeId
-        implicitHeight: Math.max(Fonts.listItemHeight, Fonts.size24)
-        leftPadding: Fonts.size12
-        rightPadding: Fonts.size12
-        readonly property bool current: root.hasPresenter ? root.presenter.inspect.scopeMode === modeId : modeId === "parade"
-        contentItem: Text {
-            text: (item.current ? "\u2713  " : "    ") + item.text
-            font: Fonts.standardFont
-            color: item.enabled ? Theme.textColor : Theme.disabledTextColor
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle {
-            color: item.highlighted ? Theme.buttonHoveredColor : Theme.popupSurfaceColor
-        }
+        checkable: true
+        checked: root.hasPresenter ? root.presenter.inspect.scopeMode === modeId : modeId === "parade"
         onTriggered: {
             if (root.commands)
                 root.commands.run(root.commands.ids.viewSetScopeMode, item.modeId);
         }
     }
 
-    Item {
+    CustomButton {
         id: scopeModeButton
         z: 4
         width: Fonts.scaledUiSize(24)
@@ -172,48 +161,15 @@ Rectangle {
         anchors.leftMargin: Fonts.size2
         anchors.topMargin: Fonts.size2
         enabled: root.hasPresenter
-        opacity: enabled ? 1 : 0.45
         Accessible.name: qsTr("Scope type")
+        tooltipText: qsTr("Scope type")
+        text: "\u25BC"
+        defaultPadding: 0
+        onClicked: scopeModeMenu.popup()
 
-        Rectangle {
-            anchors.fill: parent
-            radius: width / 2
-            color: Qt.rgba(0, 0, 0, 0.5)
-        }
-
-        Text {
-            anchors.centerIn: parent
-            text: "\u25BC"
-            font.pixelSize: Fonts.size16
-            color: "#f4f4f4"
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: scopeModeMenu.popup()
-        }
-
-        Menu {
+        Chrome.StudioContextMenu {
             id: scopeModeMenu
-            y: scopeModeButton.height
-            modal: true
-            dim: false
-            padding: Fonts.size4
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-            palette.window: Theme.popupSurfaceColor
-            palette.windowText: Theme.textColor
-            palette.text: Theme.textColor
-            palette.highlight: Theme.buttonHoveredColor
-            palette.highlightedText: Theme.textColor
-            background: Rectangle {
-                implicitWidth: 180
-                color: Theme.popupSurfaceColor
-                border.color: Theme.dividerColor
-                border.width: 1
-                radius: 4
-            }
+            fitToContent: true
             ScopeModeItem {
                 text: qsTr("Histogram")
                 modeId: "histogram"

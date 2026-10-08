@@ -110,6 +110,46 @@ TEST(StudioInspectFrame, FailedPreparationRetainsPublishedPixelsAndResourceIdent
               (std::vector<std::uint8_t>{40, 80, 120, 160, 200, 240, 20, 60, 100, 140, 180, 220}));
 }
 
+TEST(StudioInspectFrame, NavigatorExtentIgnoresPreviewRoundingAndResetsForGeometry)
+{
+    studio_test_support::ensure_qt_core();
+    FrameOwner owner;
+    auto &inspect = owner.inspect;
+    inspect.seedViewport(6000, 4000);
+    std::uint64_t revision = 20;
+    for (const auto size : {QSize{320, 213}, QSize{1600, 1067}, QSize{960, 640}})
+    {
+        auto preview = frame_preview();
+        preview.width = static_cast<std::uint32_t>(size.width());
+        preview.height = static_cast<std::uint32_t>(size.height());
+        preview.rgb.assign(static_cast<std::size_t>(preview.width) * preview.height * 3, 120);
+        ASSERT_TRUE(inspect.show_preview_result(preview, revision++, false));
+        EXPECT_EQ(inspect.navigatorViewportWidth(), 6000);
+        EXPECT_EQ(inspect.navigatorViewportHeight(), 4000);
+        EXPECT_EQ(inspect.previewViewportWidth(), size.width());
+        EXPECT_EQ(inspect.previewViewportHeight(), size.height());
+    }
+    auto square = frame_preview();
+    // A previously cropped Gallery photo gets its aspect from the browse
+    // thumbnail before the first exposure edit requests a full preview.
+    inspect.clear_displayed_preview();
+    inspect.seedViewport(6000, 4000);
+    const QImage thumbnail(320, 320, QImage::Format_RGB888);
+    inspect.observeNavigatorThumbnail(thumbnail);
+    EXPECT_EQ(inspect.navigatorViewportWidth(), inspect.navigatorViewportHeight());
+    square.width = 640;
+    square.height = 640;
+    square.rgb.assign(640U * 640U * 3U, 120);
+    ASSERT_TRUE(inspect.show_preview_result(square, revision++, false));
+    EXPECT_EQ(inspect.navigatorViewportWidth(), inspect.navigatorViewportHeight());
+    inspect.seedViewport(4000, 6000);
+    EXPECT_EQ(inspect.navigatorViewportWidth(), 4000);
+    EXPECT_EQ(inspect.navigatorViewportHeight(), 6000);
+    inspect.clear_displayed_preview();
+    EXPECT_EQ(inspect.navigatorViewportWidth(), 0);
+    EXPECT_EQ(inspect.navigatorViewportHeight(), 0);
+}
+
 TEST(StudioInspectFrame, MonitorConversionFailureRetainsFrameAndReportsError)
 {
     studio_test_support::ensure_qt_core();

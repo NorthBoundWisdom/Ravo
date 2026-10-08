@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
+import "../chrome" as Chrome
 
 Item {
     id: root
@@ -92,22 +93,10 @@ Item {
         defaultPadding: 0
     }
 
-    component FilterMenuItem: MenuItem {
+    component FilterMenuItem: Chrome.StudioContextMenuItem {
         id: item
         implicitHeight: visible ? Math.max(Fonts.listItemHeight, Fonts.size24) : 0
         height: implicitHeight
-        leftPadding: Fonts.size12
-        rightPadding: Fonts.size12
-        contentItem: Text {
-            text: item.text
-            font: Fonts.standardFont
-            color: item.enabled ? Theme.textColor : Theme.disabledTextColor
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle {
-            color: item.highlighted ? Theme.buttonHoveredColor : Theme.popupSurfaceColor
-        }
     }
 
     RowLayout {
@@ -270,25 +259,9 @@ Item {
                     defaultPadding: 0
                     onClicked: addFilterMenu.popup()
 
-                    Menu {
+                    Chrome.StudioContextMenu {
                         id: addFilterMenu
-                        y: addFilterButton.height + Fonts.size2
-                        modal: true
-                        dim: false
-                        padding: Fonts.size4
-                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-                        palette.window: Theme.popupSurfaceColor
-                        palette.windowText: Theme.textColor
-                        palette.text: Theme.textColor
-                        palette.highlight: Theme.buttonHoveredColor
-                        palette.highlightedText: Theme.textColor
-                        background: Rectangle {
-                            implicitWidth: 180
-                            color: Theme.popupSurfaceColor
-                            border.color: Theme.dividerColor
-                            border.width: 1
-                            radius: 4
-                        }
+                        fitToContent: true
 
                         FilterMenuItem {
                             text: qsTr("Type")

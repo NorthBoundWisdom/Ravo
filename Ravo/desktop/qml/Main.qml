@@ -1242,7 +1242,7 @@ ApplicationWindow {
             InspectorSidePanel {
                 id: inspectorSidePanel
                 SplitView.preferredWidth: 320
-                SplitView.minimumWidth: 260
+                SplitView.minimumWidth: Math.max(260, inspectorSidePanel.minimumToolWidth)
                 presenter: studio
                 commands: studioActions
             }

@@ -246,10 +246,6 @@ Diff: %6</translation>
             <translation>Reset this section</translation>
         </message>
         <message>
-            <source>Develop</source>
-            <translation>Develop</translation>
-        </message>
-        <message>
             <source>Geometry</source>
             <translation>Geometry</translation>
         </message>
@@ -2732,6 +2728,10 @@ Diff: %6</translation>
         <message>
             <source>Crop</source>
             <translation>Crop</translation>
+        </message>
+        <message>
+            <source>Local adjustments</source>
+            <translation>Local adjustments</translation>
         </message>
         <message>
             <source>Canvas</source>

@@ -100,9 +100,17 @@ Item {
             anchors.margins: 4
             fillMode: Image.PreserveAspectFit
             asynchronous: true
+            retainWhileLoading: true
+            property bool hasReadyImage: false
+            onStatusChanged: {
+                if (status === Image.Ready)
+                    hasReadyImage = true;
+                else if (status === Image.Null || status === Image.Error)
+                    hasReadyImage = false;
+            }
             cache: true
             source: root.thumbnailUrl
-            visible: root.thumbnailUrl.toString().length > 0
+            visible: hasReadyImage && root.thumbnailUrl.toString().length > 0
             opacity: root.rejected ? 0.80 : 1
         }
 
@@ -125,7 +133,7 @@ Item {
 
         CustomLabel {
             anchors.centerIn: parent
-            visible: photo.status !== Image.Ready
+            visible: !photo.hasReadyImage
             text: {
                 if (photo.status === Image.Error || root.thumbnailState === "failed")
                     return qsTr("Failed");
@@ -143,7 +151,7 @@ Item {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: root.compact ? 18 : 26
-            visible: root.displayName.length > 0 && photo.status !== Image.Ready && !root.showInformationOverlay
+            visible: root.displayName.length > 0 && !photo.hasReadyImage && !root.showInformationOverlay
             color: "#aa000000"
             CustomLabel {
                 anchors.centerIn: parent
@@ -171,8 +179,9 @@ Item {
 
         Item {
             id: chrome
+            objectName: "thumbnailChrome"
             anchors.fill: photo
-            visible: photo.visible && photo.status === Image.Ready
+            visible: photo.visible && photo.hasReadyImage
 
             readonly property real gutterX: (photo.paintedWidth > 0) ? Math.max(0, (width - photo.paintedWidth) / 2) : 0
             readonly property real gutterY: (photo.paintedHeight > 0) ? Math.max(0, (height - photo.paintedHeight) / 2) : 0

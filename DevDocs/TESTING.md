@@ -10,11 +10,40 @@ package install/launch lifecycle, evidence and remaining host qualifications.
 The Python checker tests cover loader environment isolation, first-frame
 evidence, timeout/nonzero failure, direct AppImage execution and DEB cleanup.
 
+Studio's production-QML smoke checks that the Develop tool strip remains fixed
+while the inspector scrolls, exposes mask creation in the local workspace, and
+completes a staged mask before entering Crop. It checks Crop and Edit selection
+against presenter state and verifies the pinned crop controls remain available.
+Expanding mask settings must overflow the bounded local-tools viewport; scrolling
+it and the adjustment stack independently must preserve both viewport positions
+and their separate scroll offsets, as well as the fixed toolbar position.
+The same smoke requires toolbar labels to fit their standard buttons and opens
+the shared mask-creation menu with all five actions. Locale smoke repeats these
+checks with every packaged translation.
+
+Studio's curve gesture smoke sends pointer and wheel events to the production
+ToneCurveEditor inside a real Flickable. It checks changed point coordinates with
+unchanged scroll position, one commit on release outside the plot, resumed wheel
+scrolling, cancellation without commit, preservation of an initially disabled
+scroll owner, and restoration when the editor is destroyed mid-press.
+
 `StudioCommands.GalleryExposureRefreshesGridThumbnailPixels` exercises the
 Gallery exposure commands against real thumbnails with an injected monitor
 profile. It requires model notifications, darker pixels after −1 EV, restored
 pixels after +1 EV, bounded thumbnail dimensions and the latest pixels after
 rapid repeated edits, without leaving Grid or manually requesting another thumbnail.
+The same test rejects transient empty model URLs during refresh. Production QML
+smoke reloads a real ThumbnailCell asynchronously and requires uninterrupted chrome
+visibility and retained gutter geometry, then verifies clearing the source removes
+the retained frame.
+`StudioInspectFrame.NavigatorExtentIgnoresPreviewRoundingAndResetsForGeometry`
+checks thumbnail/settled size rounding, real aspect changes, reselection and clear.
+Production smoke also watches both navigator and viewport-border scene geometry
+through four Gallery exposure commands and requires no movement.
+At every preview publication in that loop it also requires the navigator to
+use the selected Grid thumbnail URL and keep its GPU presentation disabled.
+The separately decoded navigator hold image must never become visible in Grid,
+including during asynchronous replacement.
 
 `StudioCommands.WritableMetadataAcceptsEveryDomainFieldAndRejectsInvalidInput`
 checks all fourteen writable fields through command dispatch, including clearing,

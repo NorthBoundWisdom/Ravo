@@ -25,6 +25,7 @@
 #include <QQuickWindow>
 #include <QScopeGuard>
 #include "studio_import_layout_smoke.h"
+#include "studio_curve_gesture_smoke.h"
 #include "studio_photo_merge_layout_smoke.h"
 #include <QQuickStyle>
 #include <QString>
@@ -658,7 +659,7 @@ int main(int argc, char *argv[])
     {
         const bool loaded = smoke_startup_splash(engine) && smoke_export_options(engine) &&
                             ravo::smoke_photo_merge_dialog(engine, command_controller) &&
-                            ravo::smoke_import_layout(engine);
+                            ravo::smoke_import_layout(engine) && ravo::smoke_curve_gesture(engine);
         if (!loaded)
             LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
         else

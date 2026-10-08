@@ -402,10 +402,6 @@ Diff: %6</source>
             <translation>マスクの取り外し</translation>
         </message>
         <message>
-            <source>Develop</source>
-            <translation>現像</translation>
-        </message>
-        <message>
             <source>White Balance</source>
             <translation>ホワイト バランス</translation>
         </message>
@@ -2728,6 +2724,10 @@ Diff: %6</source>
         <message>
             <source>Crop</source>
             <translation>クロップ</translation>
+        </message>
+        <message>
+            <source>Local adjustments</source>
+            <translation>部分補正</translation>
         </message>
         <message>
             <source>Canvas</source>
