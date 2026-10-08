@@ -61,7 +61,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
           StudioInspectPresenter::Host{
               [this] { return service_ ? &service_->preview() : nullptr; },
               [this] { return develop_presenter_->state().develop_; },
-              [this] { return develop_presenter_->state().mask_overlay_visible_; },
+              [this] { return develop_presenter_->maskOverlayActive(); },
               [this] { static_cast<void>(develop_presenter_->clear_comparison()); }},
           this)
 {

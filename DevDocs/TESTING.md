@@ -12,7 +12,7 @@ evidence, timeout/nonzero failure, direct AppImage execution and DEB cleanup.
 
 Studio's production-QML smoke checks that the Develop tool strip remains fixed
 while the inspector scrolls, exposes mask creation in the local workspace, and
-completes a staged mask before entering Crop. It checks Crop and Edit selection
+draws gradient geometry and completes mask editing before entering Crop. It checks Crop and Edit selection
 against presenter state and verifies the pinned crop controls remain available.
 Expanding mask settings must overflow the bounded local-tools viewport; scrolling
 it and the adjustment stack independently must preserve both viewport positions
@@ -20,6 +20,12 @@ and their separate scroll offsets, as well as the fixed toolbar position.
 The same smoke requires toolbar labels to fit their standard buttons and opens
 the shared mask-creation menu with all five actions. Locale smoke repeats these
 checks with every packaged translation.
+
+`LocalAdjustmentWorkspaceTest` checks geometric guides for gradient, circle,
+ellipse, path and brush masks after photo rotation, and retains those guides when
+coverage is disabled. Parameter-preview assertions require uncolored published
+pixels, unchanged guide coordinates and overlay preference, timed restoration,
+and the existing save/reopen invariants.
 
 Studio's curve gesture smoke sends pointer and wheel events to the production
 ToneCurveEditor inside a real Flickable. It checks changed point coordinates with

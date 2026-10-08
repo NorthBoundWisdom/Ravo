@@ -261,6 +261,12 @@ bool StudioDevelopPresenter::maskOverlayVisible() const noexcept
     return state_.mask_overlay_visible_;
 }
 
+bool StudioDevelopPresenter::maskOverlayActive() const noexcept
+{
+    return state_.mask_overlay_visible_ && !state_.before_after_ &&
+           !(localEditing() && local_overlay_suppressed_);
+}
+
 QString StudioDevelopPresenter::maskOverlayTarget() const
 {
     return state_.mask_overlay_target_;
@@ -268,6 +274,9 @@ QString StudioDevelopPresenter::maskOverlayTarget() const
 
 void StudioDevelopPresenter::setMaskOverlay(const QString &target, const bool visible)
 {
+    const bool was_suppressed = local_overlay_suppressed_;
+    local_overlay_resume_timer_.stop();
+    local_overlay_suppressed_ = false;
     QString normalized = QStringLiteral("color_harmonizer");
     if (target == QLatin1String("graduatednd"))
         normalized = QStringLiteral("graduatednd");
@@ -300,7 +309,7 @@ void StudioDevelopPresenter::setMaskOverlay(const QString &target, const bool vi
     const bool assist_cleared = !visible && state_.mask_parametric_assist_active_;
     if (assist_cleared)
         state_.mask_parametric_assist_active_ = false;
-    if (!changed && !comparison_changed && !place_cleared && !assist_cleared)
+    if (!changed && !comparison_changed && !place_cleared && !assist_cleared && !was_suppressed)
     {
         return;
     }

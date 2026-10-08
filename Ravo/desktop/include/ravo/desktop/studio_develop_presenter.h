@@ -12,6 +12,7 @@
 #include <QMutex>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
@@ -54,6 +55,7 @@ class StudioDevelopPresenter final : public QObject
     Q_PROPERTY(bool localDonePending READ localDonePending NOTIFY editChanged)
     Q_PROPERTY(bool maskDrawingActive READ maskDrawingActive NOTIFY editChanged)
     Q_PROPERTY(QVariantList localMaskHandles READ localMaskHandles NOTIFY editChanged)
+    Q_PROPERTY(QVariantList localMaskGeometry READ localMaskGeometry NOTIFY editChanged)
     Q_PROPERTY(bool whiteBalancePickActive READ whiteBalancePickActive NOTIFY editChanged)
     Q_PROPERTY(bool maskPlaceActive READ maskPlaceActive NOTIFY editChanged)
     Q_PROPERTY(bool maskPlaceGeometryAllowed READ maskPlaceGeometryAllowed NOTIFY editChanged)
@@ -148,6 +150,7 @@ class StudioDevelopPresenter final : public QObject
     Q_PROPERTY(QVariantMap editColorReconstruction READ editColorReconstruction NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorZones READ editColorZones NOTIFY editChanged)
     Q_PROPERTY(bool maskOverlayVisible READ maskOverlayVisible NOTIFY frameProjectionChanged)
+    Q_PROPERTY(bool maskOverlayActive READ maskOverlayActive NOTIFY frameProjectionChanged)
     Q_PROPERTY(QString maskOverlayTarget READ maskOverlayTarget NOTIFY frameProjectionChanged)
     Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editMonochromeFilter READ editMonochromeFilter NOTIFY editChanged)
@@ -486,6 +489,7 @@ public:
     [[nodiscard]] bool localDonePending() const noexcept;
     [[nodiscard]] bool maskDrawingActive() const noexcept;
     [[nodiscard]] QVariantList localMaskHandles() const;
+    [[nodiscard]] QVariantList localMaskGeometry() const;
     [[nodiscard]] Result<bool> applyLocalAdjustmentCommand(const QString &action,
                                                            const QVariantMap &arguments);
     [[nodiscard]] QVariantList exposureInstances() const;
@@ -510,6 +514,7 @@ public:
     Q_INVOKABLE void reorderColorBalanceRgbInstance(int from, int to);
     Q_INVOKABLE void setDevelopText(const QString &name, const QString &value);
     [[nodiscard]] bool maskOverlayVisible() const noexcept;
+    [[nodiscard]] bool maskOverlayActive() const noexcept;
     [[nodiscard]] QString maskOverlayTarget() const;
     Q_INVOKABLE void setMaskOverlay(const QString &target, bool visible);
     [[nodiscard]] bool maskPlaceActive() const noexcept;
@@ -668,6 +673,8 @@ private:
     StudioDevelopPresenter(Context context, Host host, QObject *parent);
     using CopiedDevelopParameters = State::CopiedDevelopParameters;
     State state_;
+    QTimer local_overlay_resume_timer_;
+    bool local_overlay_suppressed_ = false;
     Host host_;
     bool stopped_ = false;
     const QString &selected_asset_id_;

@@ -233,7 +233,7 @@ void StudioDevelopPresenter::commit_develop(DevelopParams params, const bool pus
         host_.refresh_roi();
     }
     const bool crop_guides = state_.crop_tool_active_ && !state_.before_after_;
-    const bool overlay = state_.mask_overlay_visible_ && !state_.before_after_;
+    const bool overlay = maskOverlayActive() && !state_.before_after_;
     const bool needs_first_preview =
         refresh_preview && !crop_guides && !overlay && !state_.before_after_ &&
         (!inspect_.displayedDevelop().has_value() || *inspect_.displayedDevelop() != params);
@@ -272,7 +272,7 @@ void StudioDevelopPresenter::commit_develop(DevelopParams params, const bool pus
 [[nodiscard]] std::optional<std::string>
 StudioDevelopPresenter::current_overlay_mask_id(const DevelopParams &params) const
 {
-    if (!state_.mask_overlay_visible_ || state_.before_after_)
+    if (!maskOverlayActive() || state_.before_after_)
     {
         return std::nullopt;
     }
@@ -437,11 +437,10 @@ void StudioDevelopPresenter::enqueue_preview()
     const auto request_revision = state_.develop_preview_owner_.supersede("preview_superseded");
     const bool crop_guides = state_.crop_tool_active_ && !state_.before_after_;
     const bool progressive_develop = browse_mode_ == QLatin1String("develop") &&
-                                     !state_.mask_overlay_visible_ && !crop_guides &&
-                                     !state_.before_after_;
+                                     !maskOverlayActive() && !crop_guides && !state_.before_after_;
     host_.refresh_roi();
     state_.pending_preview_ = PendingDevelopWork{
-        .interactive = state_.mask_overlay_visible_ || crop_guides || progressive_develop,
+        .interactive = maskOverlayActive() || crop_guides || progressive_develop,
         .params = state_.develop_,
         .pushed_undo = false,
         .history_write = RecipeHistoryWrite::kUnchanged,

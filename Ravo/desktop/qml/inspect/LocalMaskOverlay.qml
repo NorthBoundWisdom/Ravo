@@ -8,6 +8,38 @@ Item {
     property string gestureScope: ""
     property string gestureAsset: ""
     clip: true
+    readonly property var geometry: presenter.develop.localMaskGeometry
+    onGeometryChanged: geometryCanvas.requestPaint()
+    onWidthChanged: geometryCanvas.requestPaint()
+    onHeightChanged: geometryCanvas.requestPaint()
+
+    Canvas {
+        id: geometryCanvas
+        objectName: "localMaskGeometry"
+        anchors.fill: parent
+        onPaint: {
+            const ctx = getContext("2d");
+            ctx.reset();
+            for (const stroke of root.geometry) {
+                const points = stroke.points;
+                if (points.length < 2)
+                    continue;
+                ctx.beginPath();
+                ctx.moveTo(points[0].x * width, points[0].y * height);
+                for (let i = 1; i < points.length; ++i)
+                    ctx.lineTo(points[i].x * width, points[i].y * height);
+                if (stroke.closed)
+                    ctx.closePath();
+                ctx.setLineDash(stroke.dashed ? [5, 4] : []);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "#b0202020";
+                ctx.stroke();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = "#f5f5f5";
+                ctx.stroke();
+            }
+        }
+    }
 
     function sendGesture(action, x, y, handle) {
         let argument = {

@@ -1,6 +1,7 @@
 #include "ravo/desktop/studio_develop_presenter.h"
 #include <utility>
 #include <QCoreApplication>
+#include <QGuiApplication>
 #include "studio_qt.h"
 namespace ravo
 {
@@ -21,6 +22,24 @@ StudioDevelopPresenter::StudioDevelopPresenter(Context context, Host host, QObje
 {
     connect(this, &StudioDevelopPresenter::editChanged, this,
             &StudioDevelopPresenter::sync_local_edit_scope);
+    local_overlay_resume_timer_.setSingleShot(true);
+    connect(&local_overlay_resume_timer_, &QTimer::timeout, this,
+            [this]
+            {
+                if (stopped_ || !localEditing())
+                    return;
+                const bool pointer_down =
+                    qobject_cast<QGuiApplication *>(QCoreApplication::instance()) &&
+                    QGuiApplication::mouseButtons() != Qt::NoButton;
+                if (pointer_down || inspect_.previewLoading() || state_.develop_job_in_flight_)
+                {
+                    local_overlay_resume_timer_.start(200);
+                    return;
+                }
+                local_overlay_suppressed_ = false;
+                enqueue_preview();
+                emit previewChanged();
+            });
 }
 
 const StudioDevelopPresenter::State &StudioDevelopPresenter::state() const noexcept
@@ -33,12 +52,15 @@ void StudioDevelopPresenter::shutdown()
     if (stopped_)
         return;
     stopped_ = true;
+    local_overlay_resume_timer_.stop();
     state_.develop_preview_owner_.cancel("window_closed");
     state_.perspective_analysis_owner_.cancel("window_closed");
 }
 
 void StudioDevelopPresenter::selectionInvalidated()
 {
+    local_overlay_resume_timer_.stop();
+    local_overlay_suppressed_ = false;
     state_.before_after_ = false;
     state_.crop_tool_active_ = false;
     static_cast<void>(state_.develop_preview_owner_.supersede("selection_changed"));

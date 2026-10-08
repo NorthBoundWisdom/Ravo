@@ -1,6 +1,7 @@
 #include "ravo/desktop/studio_develop_presenter.h"
 
 #include <cmath>
+#include <algorithm>
 #include <numbers>
 #include <QUuid>
 #include "ravo/recipe/develop_mask.h"
@@ -19,10 +20,142 @@ bool StudioDevelopPresenter::maskDrawingActive() const noexcept
            kind == "linear_gradient";
 }
 
+QVariantList StudioDevelopPresenter::localMaskGeometry() const
+{
+    QVariantList strokes;
+    if (!localEditing() || (state_.local_creation_before_ && state_.mask_gesture_points_.empty()))
+        return strokes;
+    double width = 0, height = 0;
+    if (!working_source_size(width, height))
+        return strokes;
+    const auto mapping = prepare_mask_geometry(state_.develop_, static_cast<std::uint32_t>(width),
+                                               static_cast<std::uint32_t>(height));
+    if (!mapping)
+        return strokes;
+    const auto &local = state_.local_projection_;
+    if (!local.local_mask_id)
+        return strokes;
+    auto node = std::find_if(local.masks.begin(), local.masks.end(),
+                             [&](const auto &mask) { return mask.id == *local.local_mask_id; });
+    if (node == local.masks.end())
+        return strokes;
+    if (const auto *group = std::get_if<MaskGroup>(&node->payload))
+    {
+        if (local.local_mask_child_index < 0 ||
+            static_cast<std::size_t>(local.local_mask_child_index) >= group->children.size())
+            return strokes;
+        const auto id =
+            group->children[static_cast<std::size_t>(local.local_mask_child_index)].mask_id;
+        node = std::find_if(local.masks.begin(), local.masks.end(),
+                            [&](const auto &mask) { return mask.id == id; });
+        if (node == local.masks.end())
+            return strokes;
+    }
+    // Geometry guides are presentation paths, not an alternative alpha evaluator.
+    // Project every sample through the Engine mapping, including crop and rotation.
+    const auto append = [&](const std::vector<MaskPoint> &points, bool closed, bool dashed)
+    {
+        QVariantList projected;
+        for (const auto &point : points)
+        {
+            const auto mapped = map_mask_point(mapping.value(), point, false);
+            if (!mapped)
+                return;
+            projected.push_back(QVariantMap{{"x", mapped.value().x}, {"y", mapped.value().y}});
+        }
+        if (projected.size() >= 2)
+            strokes.push_back(
+                QVariantMap{{"points", projected}, {"closed", closed}, {"dashed", dashed}});
+    };
+    const double sx = std::max(1.0, width / height), sy = std::max(1.0, height / width);
+    const auto ellipse =
+        [&](double cx, double cy, double rx, double ry, double degrees, bool dashed)
+    {
+        std::vector<MaskPoint> points;
+        const double angle = degrees * std::numbers::pi / 180.0;
+        for (int i = 0; i < 128; ++i)
+        {
+            const double t = 2 * std::numbers::pi * i / 128;
+            const double x = rx * std::cos(t), y = ry * std::sin(t);
+            points.push_back({cx + (x * std::cos(angle) - y * std::sin(angle)) / sx,
+                              cy + (x * std::sin(angle) + y * std::cos(angle)) / sy});
+        }
+        append(points, true, dashed);
+    };
+    if (const auto *gradient = std::get_if<LinearGradientMask>(&node->payload))
+    {
+        const double angle = gradient->rotation_degrees * std::numbers::pi / 180.0;
+        const double reach = gradient->transition * std::hypot(sx, sy);
+        for (const double offset : {-reach, 0.0, reach})
+        {
+            const double cx = gradient->anchor_x + offset * std::sin(angle) / sx;
+            const double cy = gradient->anchor_y + offset * std::cos(angle) / sy;
+            const double length = 2 * std::hypot(sx, sy);
+            append({{cx - length * std::cos(angle) / sx, cy + length * std::sin(angle) / sy},
+                    {cx + length * std::cos(angle) / sx, cy - length * std::sin(angle) / sy}},
+                   false, offset != 0);
+        }
+    }
+    else if (const auto *circle = std::get_if<CircleMask>(&node->payload))
+    {
+        ellipse(circle->center_x, circle->center_y, circle->radius, circle->radius, 0, false);
+        if (circle->feather > 0)
+            ellipse(circle->center_x, circle->center_y, circle->radius + circle->feather,
+                    circle->radius + circle->feather, 0, true);
+    }
+    else if (const auto *radial = std::get_if<EllipseMask>(&node->payload))
+    {
+        ellipse(radial->center_x, radial->center_y, radial->radius_x, radial->radius_y,
+                radial->rotation_degrees, false);
+        if (radial->feather > 0)
+            ellipse(radial->center_x, radial->center_y, radial->radius_x + radial->feather,
+                    radial->radius_y + radial->feather, radial->rotation_degrees, true);
+    }
+    const auto path = [&](const auto &points, bool closed)
+    {
+        if (points.size() < 2)
+            return;
+        std::vector<MaskPoint> samples;
+        const auto segments = closed ? points.size() : points.size() - 1;
+        for (std::size_t i = 0; i < segments; ++i)
+        {
+            const auto &a = points[i];
+            const auto &b = points[(i + 1) % points.size()];
+            for (int step = 0; step <= 16; ++step)
+            {
+                const double t = step / 16.0, u = 1 - t;
+                samples.push_back({u * u * u * a.x + 3 * u * u * t * a.ctrl2_x +
+                                       3 * u * t * t * b.ctrl1_x + t * t * t * b.x,
+                                   u * u * u * a.y + 3 * u * u * t * a.ctrl2_y +
+                                       3 * u * t * t * b.ctrl1_y + t * t * t * b.y});
+            }
+        }
+        append(samples, closed, false);
+    };
+    if (const auto *outline = std::get_if<PathMask>(&node->payload))
+        path(outline->points, true);
+    else if (const auto *brush = std::get_if<BrushMask>(&node->payload))
+    {
+        path(brush->points, false);
+        if (!brush->points.empty())
+        {
+            const auto index = std::min(
+                static_cast<std::size_t>(std::max(std::int64_t{0}, local.local_mask_point_index)),
+                brush->points.size() - 1);
+            const auto &point = brush->points[index];
+            ellipse(point.x, point.y, point.radius, point.radius, 0, false);
+            if (point.hardness > 0 && point.hardness < 1)
+                ellipse(point.x, point.y, point.radius * point.hardness,
+                        point.radius * point.hardness, 0, true);
+        }
+    }
+    return strokes;
+}
+
 QVariantList StudioDevelopPresenter::localMaskHandles() const
 {
     QVariantList handles;
-    if (!localEditing() || !state_.mask_overlay_visible_)
+    if (!localEditing() || (state_.local_creation_before_ && state_.mask_gesture_points_.empty()))
         return handles;
     double width = 0, height = 0;
     if (!working_source_size(width, height))

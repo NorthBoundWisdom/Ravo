@@ -1343,7 +1343,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         return false;
     }
     if (!new_mask || !new_mask->isVisible() || !tool_commands ||
-        !tool_commands->localAdjustment(QStringLiteral("create"), {{QStringLiteral("kind"), 8}})
+        !tool_commands->localAdjustment(QStringLiteral("create"), {{QStringLiteral("kind"), 2}})
              .value(QStringLiteral("ok"))
              .toBool() ||
         !presenter->develop()->localEditing())
@@ -1351,6 +1351,33 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     auto *local_panel = window->findChild<QQuickItem *>(QStringLiteral("pinnedLocalPanel"));
     auto *mask_settings = window->findChild<QQuickItem *>(QStringLiteral("localMaskSettings"));
     if (!local_panel || !mask_settings || !local_panel->isVisible())
+        return false;
+    QVariantMap mask_gesture{{"id", presenter->develop()->activeLocalId()},
+                             {"asset", presenter->selectedAssetId()},
+                             {"x", 0.3},
+                             {"y", 0.3},
+                             {"handle", "draw"}};
+    const auto mask_begin =
+        tool_commands->localAdjustment(QStringLiteral("gesture_begin"), mask_gesture);
+    if (!mask_begin.value("ok").toBool())
+        return false;
+    mask_gesture.remove("handle");
+    mask_gesture.insert("token", mask_begin.value("token"));
+    mask_gesture.insert("x", 0.7);
+    mask_gesture.insert("y", 0.7);
+    if (!tool_commands->localAdjustment(QStringLiteral("gesture_end"), mask_gesture)
+             .value("ok")
+             .toBool() ||
+        !wait_ready(
+            [&]
+            {
+                return !presenter->inspect()->previewLoading() &&
+                       presenter->develop()->localMaskGeometry().size() == 3;
+            }))
+        return false;
+    auto *mask_geometry =
+        find_visual(find_visual, window->contentItem(), QStringLiteral("localMaskGeometry"));
+    if (!mask_geometry || !mask_geometry->isVisible())
         return false;
     mask_settings->setProperty("expanded", true);
     if (!wait_ready(

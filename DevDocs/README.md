@@ -6,7 +6,7 @@ specified in [ARCHITECTURE.md](ARCHITECTURE.md) and validated by
 [TESTING.md](TESTING.md).
 
 Library view/selection resume, thumbnail/navigator stability, standard controls,
-pinned Develop tools, curve gesture ownership
+pinned Develop tools, local mask geometry/coverage feedback, curve gesture ownership
 and stable-identity page location are owned by
 [ARCHITECTURE.md](ARCHITECTURE.md), with startup/service/CLI contracts in
 [TESTING.md](TESTING.md) and current behavior in [Ravo/README.md](../Ravo/README.md).

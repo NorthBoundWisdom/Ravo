@@ -512,6 +512,8 @@ JsonValue StudioLiveSessionController::snapshot() const
               JsonValue::number(std::to_string(
                   presenter_.develop()->state().local_projection_.local_mask_point_index))},
              {"drawing", presenter_.develop()->maskDrawingActive()},
+             {"overlay_requested", presenter_.develop()->maskOverlayVisible()},
+             {"overlay_active", presenter_.develop()->maskOverlayActive()},
              {"gesture_token",
               utf8_from_qstring(presenter_.develop()->state().mask_gesture_token_)}}},
         {"selection", std::move(selection)},

@@ -1105,6 +1105,20 @@ invalidates gesture tokens and rejects late results. Shared mask roots remain
 read-only; duplication produces independent owned graphs. Selective copying
 retains unselected local masks and clones selected groups into the destination.
 
+The desktop presenter projects selected mask-component guides through Engine's
+photo-content mapping. Gradient center/transition lines, radial inner/feather
+outlines, cubic path outlines and brush trajectories/current-point radius guides
+are view geometry only; they do not evaluate mask alpha. Range masks have no
+spatial outline. QML strokes the projected paths and keeps handles visible even
+when colored coverage is disabled.
+Local photographic parameter intents temporarily suppress colored coverage while
+preserving the user's overlay preference. A presenter-owned timer restores it
+after 900 ms without edits, waiting while a pointer is held or preview work is
+pending. Mask geometry edits, mask selection and explicit overlay toggles reset
+suppression; scope/selection/window teardown stops the timer. Pending results
+still use the current effective overlay state at publication. Live-session
+`editing_scope` v1 adds `overlay_requested` and `overlay_active` observations.
+
 Canonical recipes, operation descriptors, `RenderRequest`/`RenderResult`, and
 the explicit colour contract are shared by preview, Develop, CLI render, and
 export. Editing UI maps the versioned schema only and owns neither a second

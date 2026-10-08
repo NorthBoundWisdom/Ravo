@@ -35,7 +35,10 @@ Color, Effects and Detail panels then edit that mask's independent parameters.
 **Done** returns to Global. Masks can be reselected, renamed, duplicated,
 inverted, hidden and deleted from one list. Spatial tools draw on the photo;
 gradient/radial handles use the same Engine coordinate mapping through crop,
-rotation, Perspective and Canvas. Shape settings live in the mask workspace,
+rotation, Perspective and Canvas. Geometric guides remain visible without colored
+coverage. Adjusting local photographic parameters temporarily hides coverage to
+show the result, then restores the user's overlay preference after a short pause.
+Shape settings live in the mask workspace,
 and technical RAW/profile/geometry/output controls remain global. Recipe v4
 persists complete local groups; old masks preserve their rendering and order.
 

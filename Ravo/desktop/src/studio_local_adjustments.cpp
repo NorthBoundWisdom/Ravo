@@ -56,6 +56,8 @@ QVariantMap StudioDevelopPresenter::editLocalMask() const
 
 void StudioDevelopPresenter::clear_local_edit_scope()
 {
+    local_overlay_resume_timer_.stop();
+    local_overlay_suppressed_ = false;
     const bool changed = localEditing();
     state_.active_local_id_.clear();
     state_.local_projection_ = {};
@@ -136,6 +138,26 @@ bool StudioDevelopPresenter::mutate_scoped_develop(DevelopParams next, const Dev
         state_.local_projection_.local_mask_child_index != next.local_mask_child_index ||
         state_.local_projection_.local_mask_point_index != next.local_mask_point_index ||
         state_.local_projection_.color_checker_patch != next.color_checker_patch;
+    const bool mask_edit = state_.local_projection_.masks != next.masks || cursor_changed ||
+                           state_.mask_gesture_updating_;
+    if (!mask_edit && state_.mask_overlay_visible_ &&
+        (next != state_.local_projection_ || local_overlay_suppressed_) &&
+        (edit == DevelopEdit::Preview || edit == DevelopEdit::Commit))
+    {
+        const bool newly_suppressed = !local_overlay_suppressed_;
+        local_overlay_suppressed_ = true;
+        local_overlay_resume_timer_.start(900);
+        if (newly_suppressed)
+        {
+            host_.restore_preview_base();
+            emit previewChanged();
+        }
+    }
+    else if (mask_edit)
+    {
+        local_overlay_resume_timer_.stop();
+        local_overlay_suppressed_ = false;
+    }
     state_.local_projection_ = std::move(next);
     if (history_coalesce_key)
         *history_coalesce_key =
@@ -252,6 +274,8 @@ Result<bool> StudioDevelopPresenter::applyLocalAdjustmentCommand(const QString &
             return local.error();
         break_history_coalescing();
         state_.active_local_id_ = id;
+        local_overlay_resume_timer_.stop();
+        local_overlay_suppressed_ = false;
         state_.local_projection_ = std::move(local).value();
         state_.local_done_pending_ = false;
         state_.crop_tool_active_ = false;
