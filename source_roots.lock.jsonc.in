@@ -56,15 +56,15 @@
   "dependencies": {
     "Exiv2": {
       "remote": "https://github.com/Exiv2/exiv2.git",
-      "commit": "c69c2e9fca21cab6d16c6fd58eb70ab0b697c06b"
+      "commit": "60d59d6796a2cde2fe58a6e5cd0ef0040085965a"
     },
     "LibJpegTurbo": {
       "remote": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
-      "commit": "03c9a9d795c08ab06d625e5fc3bf0ae8b26f9652"
+      "commit": "43ea809765004508d8da72ebe562cf570c6a62b2"
     },
     "LibRaw": {
       "remote": "https://github.com/LibRaw/LibRaw.git",
-      "commit": "0694b5ac18ac19dfe6a18e11104ad190682222bd"
+      "commit": "4f0144031c4adfadf7e053937826c49ed80cfa89"
     },
     "RawSpeed": {
       "remote": "https://github.com/darktable-org/rawspeed.git",
@@ -80,11 +80,11 @@
     },
     "LibTIFF": {
       "remote": "https://gitlab.com/libtiff/libtiff.git",
-      "commit": "0962d91b19f172eba97caf2ee31995a39d99768b"
+      "commit": "d23249978a7a99ea2e0752a476611914501577de"
     },
     "LittleCMS": {
       "remote": "https://github.com/mm2/Little-CMS.git",
-      "commit": "a0b0d7a69b13b461bdbd9cff9f7f1d59ccd1858c"
+      "commit": "15c24e7ded91184c38c46c096804fa7272765737"
     }
   }
 }
