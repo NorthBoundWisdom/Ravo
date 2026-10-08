@@ -543,9 +543,9 @@ TEST(EngineFacadeTest, GpuPreviewDefaultRawBaselineReportsBackend)
     ASSERT_TRUE(recipe) << recipe.error().message;
     EXPECT_NE(std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
                            [](const OperationInstance &operation)
-                           { return operation.id == kRapidRawBasicToneOperationId; }),
+                           { return operation.id == "ravo.display.sigmoid"; }),
               recipe.value().operations.end());
-    EXPECT_NE(std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
+    EXPECT_EQ(std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == kRapidRawToneControlsOperationId; }),
               recipe.value().operations.end());
@@ -639,15 +639,14 @@ TEST(EngineFacadeTest, GpuPreviewSharpenMatchesCpuGoldWhenAvailable)
     ASSERT_TRUE(passes) << passes.error().message;
     ASSERT_TRUE(passes.value().has_value());
     bool has_sharpen = false;
-    bool has_rapidraw_basic_tone = false;
+    bool has_sigmoid = false;
     for (const auto &pass : *passes.value())
     {
         has_sharpen = has_sharpen || pass.kind == GpuRgbPass::Kind::kSharpen;
-        has_rapidraw_basic_tone =
-            has_rapidraw_basic_tone || pass.kind == GpuRgbPass::Kind::kRapidRawBasicTone;
+        has_sigmoid = has_sigmoid || pass.kind == GpuRgbPass::Kind::kSigmoid;
     }
     EXPECT_TRUE(has_sharpen);
-    EXPECT_TRUE(has_rapidraw_basic_tone);
+    EXPECT_TRUE(has_sigmoid);
     auto gpu = GpuAdapter::try_create();
     ASSERT_TRUE(gpu) << gpu.error().message;
     auto gpu_image =
@@ -668,6 +667,8 @@ TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
     ASSERT_TRUE(engine) << engine.error().message;
     const auto input = make_preview_working(32, 32);
     DevelopParams develop = develop_raw_import_baseline();
+    // Retain explicit RapidRAW-stack GPU coverage after the baseline becomes Sigmoid.
+    ASSERT_TRUE(apply_develop_field(develop, "toneMapperIndex", 0.0));
     develop.raw_highlights = 0.0;
     develop.rapidraw_ev_shift = 0.32;
     develop.rapidraw_exposure = 0.47;

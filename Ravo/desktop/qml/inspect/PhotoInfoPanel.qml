@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
@@ -8,24 +9,11 @@ ColumnLayout {
     property var commands
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
+    readonly property bool metadataEditing: metadataDialog.visible
     spacing: Fonts.smallSpacing
 
     function infoRow(label, value) {
         return label + ": " + (value && value.length ? value : "—");
-    }
-
-    component MetaField: CustomTextField {
-        Layout.fillWidth: true
-        Layout.leftMargin: Fonts.standardMargin
-        Layout.rightMargin: Fonts.standardMargin
-        Layout.preferredHeight: Fonts.inputFieldHeight
-        Layout.maximumHeight: Fonts.inputFieldHeight
-        showEmptyIndicator: false
-        showClipIndicator: false
-        alignRightWhenFocused: false
-        leftPadding: Fonts.size6
-        rightPadding: Fonts.size6
-        enabled: root.hasSelection
     }
 
     CustomLabel {
@@ -96,99 +84,208 @@ ColumnLayout {
 
     CustomLabel {
         Layout.leftMargin: Fonts.standardMargin
-        Layout.topMargin: Fonts.size8
-        text: qsTr("Tags & Metadata")
+        text: qsTr("Exposure")
         font.bold: true
     }
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.rightMargin: Fonts.standardMargin
+        enabled: root.hasSelection && root.presenter.selectedCount === 1 && !root.presenter.busy && root.presenter.develop.canAdjustExposure
+        Repeater {
+            model: [
+                {
+                    text: qsTr("−1 EV"),
+                    delta: -1
+                },
+                {
+                    text: qsTr("−⅓ EV"),
+                    delta: -1 / 3
+                },
+                {
+                    text: qsTr("+⅓ EV"),
+                    delta: 1 / 3
+                },
+                {
+                    text: qsTr("+1 EV"),
+                    delta: 1
+                }
+            ]
+            CustomButton {
+                required property var modelData
+                Layout.fillWidth: true
+                text: modelData.text
+                onClicked: if (root.commands)
+                    root.commands.run(root.commands.ids.photoAdjustExposure, modelData.delta)
+            }
+        }
+    }
+    CustomButton {
+        objectName: "editMetadataButton"
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.rightMargin: Fonts.standardMargin
+        text: qsTr("Edit Metadata...")
+        enabled: root.hasSelection && root.commands && !root.presenter.busy
+        onClicked: {
+            metadataDialog.context = root.presenter.metadataEditContext();
+            metadataDialog.changes = ({});
+            metadataDialog.rows = metadataDialog.fields.map(function (field) {
+                return {
+                    key: field.key,
+                    label: field.label,
+                    value: field.value
+                };
+            });
+            metadataDialog.openDialog();
+        }
+    }
 
-    MetaField {
-        placeholderText: qsTr("keywords, comma separated; use | for hierarchy")
-        text: root.hasPresenter ? root.presenter.selectedTags : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setTags(text)
-    }
-    MetaField {
-        placeholderText: qsTr("Title")
-        text: root.hasPresenter ? root.presenter.selectedTitle : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("title", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Headline")
-        text: root.hasPresenter ? root.presenter.selectedHeadline : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("headline", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Description")
-        text: root.hasPresenter ? root.presenter.selectedDescription : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("description", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Creator")
-        text: root.hasPresenter ? root.presenter.selectedCreator : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("creator", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Copyright")
-        text: root.hasPresenter ? root.presenter.selectedCopyright : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("copyright", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Credit")
-        text: root.hasPresenter ? root.presenter.selectedCredit : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("credit", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Source")
-        text: root.hasPresenter ? root.presenter.selectedSource : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("source", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Instructions")
-        text: root.hasPresenter ? root.presenter.selectedInstructions : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("instructions", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Usage Terms")
-        text: root.hasPresenter ? root.presenter.selectedUsageTerms : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("usage_terms", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Job ID")
-        text: root.hasPresenter ? root.presenter.selectedJobId : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("job_id", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Country")
-        text: root.hasPresenter ? root.presenter.selectedCountry : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("country", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Province / State")
-        text: root.hasPresenter ? root.presenter.selectedProvinceState : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("province_state", text)
-    }
-    MetaField {
-        placeholderText: qsTr("City")
-        text: root.hasPresenter ? root.presenter.selectedCity : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("city", text)
-    }
-    MetaField {
-        placeholderText: qsTr("Sublocation")
-        text: root.hasPresenter ? root.presenter.selectedSublocation : ""
-        onEditingFinished: if (root.commands)
-            root.commands.setMetadata("sublocation", text)
+    DialogShell {
+        id: metadataDialog
+        objectName: "metadataEditDialog"
+        titleText: qsTr("Edit Metadata...") + (context.assets && context.assets.length > 1 ? " (" + context.assets.length + ")" : "")
+        width: parent ? Math.min(Fonts.scaledUiSize(720), parent.width - 2 * Fonts.standardMargin) : Fonts.messageDialogWidth
+        bodyFillHeight: false
+        property var context: ({})
+        property var rows: []
+        property var changes: ({})
+        readonly property var fields: [
+            {
+                key: "title",
+                label: qsTr("Title"),
+                value: root.hasPresenter ? root.presenter.selectedTitle : ""
+            },
+            {
+                key: "headline",
+                label: qsTr("Headline"),
+                value: root.hasPresenter ? root.presenter.selectedHeadline : ""
+            },
+            {
+                key: "description",
+                label: qsTr("Description"),
+                value: root.hasPresenter ? root.presenter.selectedDescription : ""
+            },
+            {
+                key: "creator",
+                label: qsTr("Creator"),
+                value: root.hasPresenter ? root.presenter.selectedCreator : ""
+            },
+            {
+                key: "copyright",
+                label: qsTr("Copyright"),
+                value: root.hasPresenter ? root.presenter.selectedCopyright : ""
+            },
+            {
+                key: "credit",
+                label: qsTr("Credit"),
+                value: root.hasPresenter ? root.presenter.selectedCredit : ""
+            },
+            {
+                key: "source",
+                label: qsTr("Source"),
+                value: root.hasPresenter ? root.presenter.selectedSource : ""
+            },
+            {
+                key: "instructions",
+                label: qsTr("Instructions"),
+                value: root.hasPresenter ? root.presenter.selectedInstructions : ""
+            },
+            {
+                key: "usage_terms",
+                label: qsTr("Usage Terms"),
+                value: root.hasPresenter ? root.presenter.selectedUsageTerms : ""
+            },
+            {
+                key: "job_id",
+                label: qsTr("Job ID"),
+                value: root.hasPresenter ? root.presenter.selectedJobId : ""
+            },
+            {
+                key: "country",
+                label: qsTr("Country"),
+                value: root.hasPresenter ? root.presenter.selectedCountry : ""
+            },
+            {
+                key: "province_state",
+                label: qsTr("Province / State"),
+                value: root.hasPresenter ? root.presenter.selectedProvinceState : ""
+            },
+            {
+                key: "city",
+                label: qsTr("City"),
+                value: root.hasPresenter ? root.presenter.selectedCity : ""
+            },
+            {
+                key: "sublocation",
+                label: qsTr("Sublocation"),
+                value: root.hasPresenter ? root.presenter.selectedSublocation : ""
+            }
+        ]
+        bodyItem: ScrollView {
+            id: metadataScroll
+            clip: true
+            contentWidth: availableWidth
+            implicitHeight: Math.min(metadataRows.implicitHeight, metadataDialog.parent ? metadataDialog.parent.height * 0.65 : Fonts.scaledUiSize(480))
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ColumnLayout {
+                id: metadataRows
+                objectName: "metadataEditRows"
+                width: metadataScroll.availableWidth
+                spacing: Fonts.smallSpacing
+                Repeater {
+                    model: metadataDialog.rows
+                    RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: Fonts.standardMargin
+                        CustomLabel {
+                            Layout.preferredWidth: Math.min(Fonts.scaledUiSize(150), metadataRows.width * 0.3)
+                            wrapMode: Text.WordWrap
+                            text: modelData.label
+                        }
+                        CustomTextField {
+                            objectName: "metadataEditValue_" + modelData.key
+                            Layout.fillWidth: true
+                            showEmptyIndicator: false
+                            showClipIndicator: false
+                            alignRightWhenFocused: false
+                            text: modelData.value
+                            Accessible.name: modelData.label
+                            onTextChanged: {
+                                if (!metadataDialog.visible)
+                                    return;
+                                const changes = Object.assign({}, metadataDialog.changes);
+                                if (text === modelData.value)
+                                    delete changes[modelData.key];
+                                else
+                                    changes[modelData.key] = text;
+                                metadataDialog.changes = changes;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        footerItem: RowLayout {
+            Item {
+                Layout.fillWidth: true
+            }
+            CustomButton {
+                objectName: "metadataEditCancel"
+                text: qsTr("Cancel")
+                onClicked: metadataDialog.close()
+            }
+            CustomButton {
+                objectName: "metadataEditSave"
+                text: qsTr("Save")
+                enabled: root.hasSelection && root.commands && Object.keys(metadataDialog.changes).length > 0
+                onClicked: {
+                    const result = root.commands.setMetadataFields(metadataDialog.changes, metadataDialog.context);
+                    if (result && result.accepted)
+                        metadataDialog.close();
+                }
+            }
+        }
     }
 }

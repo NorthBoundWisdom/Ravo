@@ -470,10 +470,6 @@ Diff: %6</source>
             <translation>노출</translation>
         </message>
         <message>
-            <source>EV Shift</source>
-            <translation>EV 시프트</translation>
-        </message>
-        <message>
             <source>Compensate exposure bias</source>
             <translation>노출 편향 보정</translation>
         </message>
@@ -2865,6 +2861,10 @@ Diff: %6</source>
             <source>Mask %1</source>
             <translation>마스크 %1</translation>
         </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>수동 노출이 설정된 준비된 사진 한 장을 선택하세요.</translation>
+        </message>
     </context>
     <context>
         <name>DevelopPresetPanel</name>
@@ -3470,6 +3470,10 @@ Diff: %6</source>
             <translation>이 폴더에서 사진 가져오기...</translation>
         </message>
         <message>
+            <source>Synchronize Folder...</source>
+            <translation>폴더 동기화…</translation>
+        </message>
+        <message>
             <source>Update Folder Location...</source>
             <translation>폴더 위치 업데이트...</translation>
         </message>
@@ -3789,10 +3793,6 @@ Diff: %6</source>
             <translation>별 %1개</translation>
         </message>
         <message>
-            <source>Search photos</source>
-            <translation>사진 검색</translation>
-        </message>
-        <message>
             <source>Any type</source>
             <translation>모든 유형</translation>
         </message>
@@ -3813,30 +3813,6 @@ Diff: %6</source>
             <translation>TIFF</translation>
         </message>
         <message>
-            <source>Any edits</source>
-            <translation>모든 편집 상태</translation>
-        </message>
-        <message>
-            <source>Edited</source>
-            <translation>편집됨</translation>
-        </message>
-        <message>
-            <source>Unedited</source>
-            <translation>편집 안 함</translation>
-        </message>
-        <message>
-            <source>Include</source>
-            <translation>포함</translation>
-        </message>
-        <message>
-            <source>Exclude</source>
-            <translation>제외</translation>
-        </message>
-        <message>
-            <source>Only</source>
-            <translation>만</translation>
-        </message>
-        <message>
             <source>Any review</source>
             <translation>모든 리뷰</translation>
         </message>
@@ -3849,80 +3825,12 @@ Diff: %6</source>
             <translation>검토되지 않음</translation>
         </message>
         <message>
-            <source>No suggestion</source>
-            <translation>제안 없음</translation>
-        </message>
-        <message>
-            <source>Exact byte duplicate</source>
-            <translation>정확한 바이트 중복</translation>
-        </message>
-        <message>
-            <source>Near duplicate (heuristic)</source>
-            <translation>거의 중복됨(휴리스틱)</translation>
-        </message>
-        <message>
-            <source>Burst</source>
-            <translation>버스트</translation>
-        </message>
-        <message>
-            <source>Camera make</source>
-            <translation>카메라 제조사</translation>
-        </message>
-        <message>
-            <source>Camera model</source>
-            <translation>카메라 모델</translation>
-        </message>
-        <message>
-            <source>%1 photos</source>
-            <translation>%1 사진</translation>
-        </message>
-        <message>
-            <source>Focal mm</source>
-            <translation>초점 mm</translation>
-        </message>
-        <message>
-            <source>Lens make</source>
-            <translation>렌즈 제조사</translation>
-        </message>
-        <message>
-            <source>Lens model</source>
-            <translation>렌즈 모델</translation>
-        </message>
-        <message>
-            <source>YYYY:MM:DD</source>
-            <translation>YYYY:MM:DD</translation>
-        </message>
-        <message>
-            <source>Country</source>
-            <translation>국가</translation>
-        </message>
-        <message>
-            <source>State</source>
-            <translation>상태</translation>
-        </message>
-        <message>
-            <source>City</source>
-            <translation>도시</translation>
-        </message>
-        <message>
-            <source>Sublocation</source>
-            <translation>하위 위치</translation>
-        </message>
-        <message>
             <source>Add filter</source>
             <translation>필터 추가</translation>
         </message>
         <message>
-            <source>Search</source>
-            <translation>검색</translation>
-        </message>
-        <message>
             <source>Type</source>
             <translation>유형</translation>
-        </message>
-        <message>
-            <source>Edits</source>
-            <translation>편집</translation>
         </message>
         <message>
             <source>Color</source>
@@ -3933,24 +3841,8 @@ Diff: %6</source>
             <translation>거부됨</translation>
         </message>
         <message>
-            <source>Camera</source>
-            <translation>카메라</translation>
-        </message>
-        <message>
-            <source>Lens</source>
-            <translation>렌즈</translation>
-        </message>
-        <message>
-            <source>Lens name</source>
-            <translation>렌즈명</translation>
-        </message>
-        <message>
-            <source>Capture date</source>
-            <translation>캡처 날짜</translation>
-        </message>
-        <message>
-            <source>Location</source>
-            <translation>위치</translation>
+            <source>Flag</source>
+            <translation>플래그</translation>
         </message>
         <message>
             <source>Import time</source>
@@ -4058,10 +3950,6 @@ Diff: %6</source>
         <message>
             <source>Fit</source>
             <translation>맞춤</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>채우기</translation>
         </message>
         <message>
             <source>1:1</source>
@@ -4544,12 +4432,24 @@ Diff: %6</source>
             <translation>촬영</translation>
         </message>
         <message>
-            <source>Tags &amp; Metadata</source>
-            <translation>태그 &amp; 메타데이터</translation>
+            <source>Exposure</source>
+            <translation>노출</translation>
         </message>
         <message>
-            <source>keywords, comma separated; use | for hierarchy</source>
-            <translation>키워드, 쉼표로 구분; 사용 | 계층 구조에 대한</translation>
+            <source>−1 EV</source>
+            <translation>−1 EV</translation>
+        </message>
+        <message>
+            <source>−⅓ EV</source>
+            <translation>−⅓ EV</translation>
+        </message>
+        <message>
+            <source>+⅓ EV</source>
+            <translation>+⅓ EV</translation>
+        </message>
+        <message>
+            <source>+1 EV</source>
+            <translation>+1 EV</translation>
         </message>
         <message>
             <source>Credit</source>
@@ -4586,6 +4486,18 @@ Diff: %6</source>
         <message>
             <source>Sublocation</source>
             <translation>하위 위치</translation>
+        </message>
+        <message>
+            <source>Edit Metadata...</source>
+            <translation>메타데이터 편집…</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>취소</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>저장</translation>
         </message>
         <message>
             <source>Title</source>
@@ -4735,6 +4647,13 @@ Diff: %6</source>
         <message>
             <source>Copy</source>
             <translation>복사</translation>
+        </message>
+    </context>
+    <context>
+        <name>QCocoaMenuItem</name>
+        <message>
+            <source>Setting</source>
+            <translation>설정</translation>
         </message>
     </context>
     <context>
@@ -4982,6 +4901,22 @@ Diff: %6</source>
         <message>
             <source>Unknown writable metadata field.</source>
             <translation>알 수 없는 쓰기 가능 메타데이터 필드입니다.</translation>
+        </message>
+        <message>
+            <source>Metadata name and value must be text.</source>
+            <translation>메타데이터 이름과 값은 텍스트여야 합니다.</translation>
+        </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>수동 노출이 설정된 준비된 사진 한 장을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Exposure step must be 1 or 1/3 EV.</source>
+            <translation>노출 단계는 1 또는 1/3 EV여야 합니다.</translation>
+        </message>
+        <message>
+            <source>The metadata selection or library changed. Reopen the editor.</source>
+            <translation>메타데이터 선택 또는 라이브러리가 변경되었습니다. 편집기를 다시 여세요.</translation>
         </message>
         <message>
             <source>A non-negative integer history ID is required.</source>
@@ -5262,10 +5197,6 @@ Diff: %6</source>
         <message>
             <source>Fit</source>
             <translation>맞춤</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>채우기</translation>
         </message>
         <message>
             <source>Actual Size</source>

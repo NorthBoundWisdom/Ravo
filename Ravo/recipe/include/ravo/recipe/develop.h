@@ -541,8 +541,7 @@ struct DevelopParams
 [[nodiscard]] inline DevelopParams develop_raw_import_baseline() noexcept
 {
     DevelopParams params;
-    params.rapidraw_basic_tone_enabled = true;
-    params.rapidraw_tone_controls_enabled = true;
+    params.sigmoid_enabled = true;
     params.sharpen = SharpenParams{}.amount;
     params.raw_highlights = 1.0;
     params.raw_highlights_clip = 1.0;

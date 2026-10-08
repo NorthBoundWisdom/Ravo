@@ -10,6 +10,7 @@ Rectangle {
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool developOpen: hasPresenter && presenter.browseMode === "develop"
     property bool liveReady: false
+    readonly property bool metadataEditing: photoInfo.metadataEditing
 
     Component.onCompleted: liveReady = true
 
@@ -64,6 +65,7 @@ Rectangle {
                 spacing: Fonts.smallSpacing
 
                 PhotoInfoPanel {
+                    id: photoInfo
                     visible: !root.developOpen
                     Layout.fillWidth: true
                     presenter: root.presenter

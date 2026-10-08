@@ -20,7 +20,7 @@ Item {
 
     function run(id, argument, source) {
         if (root.controller)
-            root.controller.executeCommand(id, argument === undefined ? null : argument, source === undefined ? "control" : source);
+            return root.controller.executeCommand(id, argument === undefined ? null : argument, source === undefined ? "control" : source);
     }
     function trigger(actionId, source) {
         if (root.controller)
@@ -48,10 +48,16 @@ Item {
             root.presenter.ensureLibraryRow(row);
             return;
         }
-        root.run(root.ids.photoSelect, {"row": Number(row), "modifiers": Number(modifiers)});
+        root.run(root.ids.photoSelect, {
+            "row": Number(row),
+            "modifiers": Number(modifiers)
+        });
     }
     function handlePhotoRowDoubleClick(row, assetId) {
-        root.run(root.ids.photoSelect, {"row": Number(row), "openLoupe": true});
+        root.run(root.ids.photoSelect, {
+            "row": Number(row),
+            "openLoupe": true
+        });
     }
     function handlePhotoDoubleClick(assetId) {
         root.run(root.ids.photoSelect, assetId);
@@ -78,10 +84,19 @@ Item {
     function setTags(value) {
         root.run(root.ids.photoSetTags, value);
     }
-    function setMetadata(name, value) {
-        root.run(root.ids.photoSetMetadata, {
+    function setMetadata(name, value, context) {
+        const argument = {
             "name": name,
             "value": value
+        };
+        if (context !== undefined)
+            argument.context = context;
+        return root.run(root.ids.photoSetMetadata, argument);
+    }
+    function setMetadataFields(fields, context) {
+        return root.run(root.ids.photoSetMetadata, {
+            "fields": fields,
+            "context": context
         });
     }
     function createSnapshot(label) {
@@ -293,7 +308,7 @@ Item {
     property alias loupe: loupeAction
     property alias develop: developAction
     property alias fit: fitAction
-    property alias fill: fillAction
+    property alias thirtyPercent: thirtyPercentAction
     property alias actualSize: actualSizeAction
     property alias beforeAfter: beforeAfterAction
     property alias comparison: comparisonAction
@@ -396,8 +411,8 @@ Item {
         actionId: root.ids.viewFit || ""
     }
     RegisteredAction {
-        id: fillAction
-        actionId: root.ids.viewFill || ""
+        id: thirtyPercentAction
+        actionId: root.ids.viewThirtyPercent || ""
     }
     RegisteredAction {
         id: actualSizeAction
@@ -463,8 +478,14 @@ Item {
         id: editInAction
         actionId: root.ids.photoEditIn || ""
     }
-    RegisteredAction { id: mergeHdrAction; actionId: root.ids.photoMergeHdr || "" }
-    RegisteredAction { id: panoramaAction; actionId: root.ids.photoPanorama || "" }
+    RegisteredAction {
+        id: mergeHdrAction
+        actionId: root.ids.photoMergeHdr || ""
+    }
+    RegisteredAction {
+        id: panoramaAction
+        actionId: root.ids.photoPanorama || ""
+    }
     RegisteredAction {
         id: offlineEditAction
         actionId: root.ids.photoOfflineEdit || ""

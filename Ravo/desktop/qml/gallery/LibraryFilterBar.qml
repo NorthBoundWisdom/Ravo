@@ -15,36 +15,6 @@ Item {
     property var extraFilters: []
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
 
-    function matchingFacetCount(entries, predicate) {
-        for (let i = 0; i < entries.length; ++i) {
-            if (predicate(entries[i]))
-                return entries[i].count;
-        }
-        return 0;
-    }
-
-    readonly property int cameraFacetCount: !root.hasPresenter || root.presenter.library.cameraFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.library.cameraFacets, function (entry) {
-        return (entry.cameraMake || "") === root.presenter.library.cameraMakeFilter && (entry.cameraModel || "") === root.presenter.library.cameraModelFilter;
-    })
-    readonly property int lensFacetCount: !root.hasPresenter || root.presenter.library.lensFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.library.lensFacets, function (entry) {
-        return Math.abs(entry.focalLengthMm - Number(root.presenter.library.lensFilter)) < 0.000000001;
-    })
-    readonly property int lensNameFacetCount: !root.hasPresenter || (root.presenter.library.lensMakeFilter.length === 0 && root.presenter.library.lensModelFilter.length === 0) ? -1 : root.matchingFacetCount(root.presenter.library.lensNameFacets, function (entry) {
-        return (entry.lensMake || "") === root.presenter.library.lensMakeFilter && (entry.lensModel || "") === root.presenter.library.lensModelFilter;
-    })
-    readonly property int captureDateFacetCount: !root.hasPresenter || root.presenter.library.captureDateFilter.length === 0 ? -1 : root.matchingFacetCount(root.presenter.library.captureDateFacets, function (entry) {
-        return entry.captureDate === root.presenter.library.captureDateFilter;
-    })
-    readonly property int locationFacetCount: !root.hasPresenter || root.presenter.library.locationFilter.length === 0 ? -1 : root.presenter.library.sublocationFilter.length > 0 ? root.matchingFacetCount(root.presenter.library.sublocationFacets, function (entry) {
-        return entry.key === root.presenter.library.sublocationFilter;
-    }) : root.presenter.library.cityFilter.length > 0 ? root.matchingFacetCount(root.presenter.library.cityFacets, function (entry) {
-        return entry.key === root.presenter.library.cityFilter;
-    }) : root.presenter.library.provinceStateFilter.length > 0 ? root.matchingFacetCount(root.presenter.library.provinceStateFacets, function (entry) {
-        return entry.key === root.presenter.library.provinceStateFilter;
-    }) : root.matchingFacetCount(root.presenter.library.countryFacets, function (entry) {
-        return entry.key === root.presenter.library.countryFilter;
-    })
-
     implicitHeight: Math.max(Fonts.toolbarHeight, Fonts.inputFieldHeight + Fonts.size12)
 
     function extraOpen(id) {
@@ -52,37 +22,18 @@ Item {
             return true;
         if (!root.hasPresenter)
             return false;
-        if (id === "search")
-            return root.presenter.library.filterText.length > 0;
         if (id === "type")
             return root.presenter.library.mediaFilter !== "any";
-        if (id === "edits")
-            return root.presenter.library.editFilter !== "any";
         if (id === "color")
             return root.presenter.library.colorFilters.length > 0;
-        if (id === "rejected")
-            return root.presenter.library.rejectFilter !== "include";
         if (id === "cullFlag")
             return root.presenter.library.cullFlagFilter !== "any";
-        if (id === "cullSuggestion")
-            return root.presenter.cullSuggestionFilter !== "none";
-        if (id === "camera")
-            return root.presenter.library.cameraFilter.length > 0;
-        if (id === "lens")
-            return root.presenter.library.lensFilter.length > 0;
-        if (id === "lensName")
-            return root.presenter.library.lensMakeFilter.length > 0 || root.presenter.library.lensModelFilter.length > 0;
-        if (id === "captureDate")
-            return root.presenter.library.captureDateFilter.length > 0;
-        if (id === "location")
-            return root.presenter.library.locationFilter.length > 0;
         return false;
     }
 
     function addExtra(id) {
-        if (root.extraFilters.indexOf(id) >= 0)
-            return;
-        root.extraFilters = root.extraFilters.concat([id]);
+        if (root.extraFilters.indexOf(id) < 0)
+            root.extraFilters = root.extraFilters.concat([id]);
     }
 
     function removeExtra(id) {
@@ -91,28 +42,10 @@ Item {
         });
         if (!root.commands)
             return;
-        if (id === "search")
-            root.commands.setTextFilter("");
-        else if (id === "type")
+        if (id === "type")
             root.commands.setMediaFilter("any");
-        else if (id === "edits")
-            root.commands.setEditFilter("any");
-        else if (id === "rejected")
-            root.commands.run(root.commands.ids.librarySetRejectFilter, "include");
         else if (id === "cullFlag" && root.hasPresenter)
             root.presenter.library.setCullFlagFilter("any");
-        else if (id === "cullSuggestion" && root.hasPresenter)
-            root.presenter.setCullSuggestionFilter("none");
-        else if (id === "camera")
-            root.commands.setCameraFacetFilter("", "");
-        else if (id === "lens")
-            root.commands.setLensFacetFilter("");
-        else if (id === "lensName")
-            root.commands.setLensNameFacetFilter("", "");
-        else if (id === "captureDate")
-            root.commands.setCaptureDateFacetFilter("");
-        else if (id === "location")
-            root.commands.setLocationFacetFilter("", "", "", "");
         else if (id === "color" && root.hasPresenter) {
             const colors = root.presenter.library.colorFilters.slice();
             for (let i = 0; i < colors.length; ++i)
@@ -255,27 +188,6 @@ Item {
                 }
 
                 RowLayout {
-                    visible: root.extraOpen("search")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomTextField {
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 150
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("Search photos")
-                        text: root.hasPresenter ? root.presenter.library.filterText : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setTextFilter(text)
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("search")
-                    }
-                }
-
-                RowLayout {
                     visible: root.extraOpen("type")
                     spacing: Fonts.size2
                     Layout.alignment: Qt.AlignVCenter
@@ -291,25 +203,6 @@ Item {
                     }
                     FilterCloseButton {
                         onClicked: root.removeExtra("type")
-                    }
-                }
-
-                RowLayout {
-                    visible: root.extraOpen("edits")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomComboBox {
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 115
-                        model: [qsTr("Any edits"), qsTr("Edited"), qsTr("Unedited")]
-                        currentIndex: root.hasPresenter && root.presenter.library.editFilter === "edited" ? 1 : root.hasPresenter && root.presenter.library.editFilter === "unedited" ? 2 : 0
-                        onActivated: function (index) {
-                            if (root.commands)
-                                root.commands.setEditFilter(index === 1 ? "edited" : (index === 2 ? "unedited" : "any"));
-                        }
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("edits")
                     }
                 }
 
@@ -341,25 +234,6 @@ Item {
                 }
 
                 RowLayout {
-                    visible: root.extraOpen("rejected")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomComboBox {
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 120
-                        model: [qsTr("Include"), qsTr("Exclude"), qsTr("Only")]
-                        currentIndex: root.hasPresenter && root.presenter.library.rejectFilter === "exclude" ? 1 : root.hasPresenter && root.presenter.library.rejectFilter === "only" ? 2 : 0
-                        onActivated: function (index) {
-                            if (root.commands)
-                                root.commands.run(root.commands.ids.librarySetRejectFilter, index === 1 ? "exclude" : (index === 2 ? "only" : "include"));
-                        }
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("rejected")
-                    }
-                }
-
-                RowLayout {
                     objectName: "cullFlagFilterChips"
                     visible: root.extraOpen("cullFlag")
                     spacing: Fonts.size2
@@ -382,244 +256,13 @@ Item {
                     }
                 }
 
-                RowLayout {
-                    objectName: "cullSuggestionFilterChips"
-                    visible: root.extraOpen("cullSuggestion")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomComboBox {
-                        objectName: "cullSuggestionFilterCombo"
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 170
-                        model: [qsTr("No suggestion"), qsTr("Exact byte duplicate"), qsTr("Near duplicate (heuristic)"), qsTr("Burst")]
-                        currentIndex: root.hasPresenter && root.presenter.cullSuggestionFilter === "exact_duplicate" ? 1 : root.hasPresenter && root.presenter.cullSuggestionFilter === "near_duplicate" ? 2 : root.hasPresenter && root.presenter.cullSuggestionFilter === "burst" ? 3 : 0
-                        onActivated: function (index) {
-                            if (!root.hasPresenter)
-                                return;
-                            const mode = index === 1 ? "exact_duplicate" : index === 2 ? "near_duplicate" : index === 3 ? "burst" : "none";
-                            root.presenter.setCullSuggestionFilter(mode);
-                        }
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("cullSuggestion")
-                    }
-                }
-
-                RowLayout {
-                    visible: root.extraOpen("camera")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomTextField {
-                        id: cameraMakeField
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 110
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("Camera make")
-                        text: root.hasPresenter ? root.presenter.library.cameraMakeFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setCameraFacetFilter(text, cameraModelField.text)
-                    }
-                    CustomTextField {
-                        id: cameraModelField
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 130
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("Camera model")
-                        text: root.hasPresenter ? root.presenter.library.cameraModelFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setCameraFacetFilter(cameraMakeField.text, text)
-                    }
-                    Text {
-                        visible: root.cameraFacetCount >= 0
-                        text: qsTr("%1 photos").arg(root.cameraFacetCount)
-                        color: Theme.midColor
-                        font: Fonts.standardFont
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("camera")
-                    }
-                }
-
-                RowLayout {
-                    visible: root.extraOpen("lens")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomTextField {
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 100
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("Focal mm")
-                        text: root.hasPresenter ? root.presenter.library.lensFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setLensFacetFilter(text)
-                    }
-                    Text {
-                        visible: root.lensFacetCount >= 0
-                        text: qsTr("%1 photos").arg(root.lensFacetCount)
-                        color: Theme.midColor
-                        font: Fonts.standardFont
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("lens")
-                    }
-                }
-
-                RowLayout {
-                    visible: root.extraOpen("lensName")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomTextField {
-                        id: lensMakeField
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 110
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("Lens make")
-                        text: root.hasPresenter ? root.presenter.library.lensMakeFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setLensNameFacetFilter(text, lensModelField.text)
-                    }
-                    CustomTextField {
-                        id: lensModelField
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 150
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("Lens model")
-                        text: root.hasPresenter ? root.presenter.library.lensModelFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setLensNameFacetFilter(lensMakeField.text, text)
-                    }
-                    Text {
-                        visible: root.lensNameFacetCount >= 0
-                        text: qsTr("%1 photos").arg(root.lensNameFacetCount)
-                        color: Theme.midColor
-                        font: Fonts.standardFont
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("lensName")
-                    }
-                }
-
-                RowLayout {
-                    visible: root.extraOpen("captureDate")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomTextField {
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 130
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("YYYY:MM:DD")
-                        text: root.hasPresenter ? root.presenter.library.captureDateFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setCaptureDateFacetFilter(text)
-                    }
-                    Text {
-                        visible: root.captureDateFacetCount >= 0
-                        text: qsTr("%1 photos").arg(root.captureDateFacetCount)
-                        color: Theme.midColor
-                        font: Fonts.standardFont
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("captureDate")
-                    }
-                }
-
-                RowLayout {
-                    visible: root.extraOpen("location")
-                    spacing: Fonts.size2
-                    Layout.alignment: Qt.AlignVCenter
-                    CustomTextField {
-                        id: locationCountryField
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 90
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("Country")
-                        text: root.hasPresenter ? root.presenter.library.countryFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setLocationFacetFilter(text, locationProvinceField.text, locationCityField.text, locationSublocationField.text)
-                    }
-                    CustomTextField {
-                        id: locationProvinceField
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 90
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("State")
-                        text: root.hasPresenter ? root.presenter.library.provinceStateFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setLocationFacetFilter(locationCountryField.text, text, locationCityField.text, locationSublocationField.text)
-                    }
-                    CustomTextField {
-                        id: locationCityField
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 90
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("City")
-                        text: root.hasPresenter ? root.presenter.library.cityFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setLocationFacetFilter(locationCountryField.text, locationProvinceField.text, text, locationSublocationField.text)
-                    }
-                    CustomTextField {
-                        id: locationSublocationField
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.preferredWidth: 100
-                        Layout.preferredHeight: Fonts.inputFieldHeight
-                        showEmptyIndicator: false
-                        showClipIndicator: false
-                        alignRightWhenFocused: false
-                        placeholderText: qsTr("Sublocation")
-                        text: root.hasPresenter ? root.presenter.library.sublocationFilter : ""
-                        onEditingFinished: if (root.commands)
-                            root.commands.setLocationFacetFilter(locationCountryField.text, locationProvinceField.text, locationCityField.text, text)
-                    }
-                    Text {
-                        visible: root.locationFacetCount >= 0
-                        text: qsTr("%1 photos").arg(root.locationFacetCount)
-                        color: Theme.midColor
-                        font: Fonts.standardFont
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-                    FilterCloseButton {
-                        onClicked: root.removeExtra("location")
-                    }
-                }
-
                 CustomButton {
                     id: addFilterButton
                     Layout.alignment: Qt.AlignVCenter
                     display: AbstractButton.IconOnly
                     icon.source: "qrc:/GeoControls/icons/Plus.svg"
                     tooltipText: qsTr("Add filter")
-                    enabled: !root.extraOpen("search") || !root.extraOpen("type") || !root.extraOpen("edits") || !root.extraOpen("color") || !root.extraOpen("rejected") || !root.extraOpen("cullFlag") || !root.extraOpen("cullSuggestion") || !root.extraOpen("camera") || !root.extraOpen("lens") || !root.extraOpen("lensName") || !root.extraOpen("captureDate") || !root.extraOpen("location")
+                    enabled: !root.extraOpen("type") || !root.extraOpen("color") || !root.extraOpen("cullFlag")
                     implicitWidth: Fonts.iconButtonSize
                     implicitHeight: Fonts.iconButtonSize
                     Layout.preferredWidth: implicitWidth
@@ -646,55 +289,22 @@ Item {
                             border.width: 1
                             radius: 4
                         }
-                        FilterMenuItem {
-                            text: qsTr("Search")
-                            visible: !root.extraOpen("search")
-                            onTriggered: root.addExtra("search")
-                        }
+
                         FilterMenuItem {
                             text: qsTr("Type")
                             visible: !root.extraOpen("type")
                             onTriggered: root.addExtra("type")
                         }
+
                         FilterMenuItem {
-                            text: qsTr("Edits")
-                            visible: !root.extraOpen("edits")
-                            onTriggered: root.addExtra("edits")
+                            text: qsTr("Flag")
+                            visible: !root.extraOpen("cullFlag")
+                            onTriggered: root.addExtra("cullFlag")
                         }
                         FilterMenuItem {
                             text: qsTr("Color")
                             visible: !root.extraOpen("color")
                             onTriggered: root.addExtra("color")
-                        }
-                        FilterMenuItem {
-                            text: qsTr("Rejected")
-                            visible: !root.extraOpen("rejected")
-                            onTriggered: root.addExtra("rejected")
-                        }
-                        FilterMenuItem {
-                            text: qsTr("Camera")
-                            visible: !root.extraOpen("camera")
-                            onTriggered: root.addExtra("camera")
-                        }
-                        FilterMenuItem {
-                            text: qsTr("Lens")
-                            visible: !root.extraOpen("lens")
-                            onTriggered: root.addExtra("lens")
-                        }
-                        FilterMenuItem {
-                            text: qsTr("Lens name")
-                            visible: !root.extraOpen("lensName")
-                            onTriggered: root.addExtra("lensName")
-                        }
-                        FilterMenuItem {
-                            text: qsTr("Capture date")
-                            visible: !root.extraOpen("captureDate")
-                            onTriggered: root.addExtra("captureDate")
-                        }
-                        FilterMenuItem {
-                            text: qsTr("Location")
-                            visible: !root.extraOpen("location")
-                            onTriggered: root.addExtra("location")
                         }
                     }
                 }

@@ -257,9 +257,9 @@ void StudioInspectPresenter::setZoomMode(const QString &mode)
 {
     QString normalized = QStringLiteral("fit");
     double factor = zoom_factor_;
-    if (mode == QStringLiteral("fill"))
+    if (mode == QStringLiteral("30percent"))
     {
-        normalized = QStringLiteral("fill");
+        normalized = QStringLiteral("30percent");
     }
     else if (mode == QStringLiteral("actual") || mode == QStringLiteral("100"))
     {

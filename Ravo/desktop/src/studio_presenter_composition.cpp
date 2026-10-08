@@ -106,6 +106,11 @@ StudioPresenter::StudioPresenter(QObject *parent)
     develop_host.reload_library = [this] { reloadVisibleAssets(); };
     develop_host.request_selection_preview = [this] { requestPreviewForSelection(); };
     develop_host.kick_thumbnails = [this] { kickThumbnailDemand(); };
+    develop_host.publish_saved_asset = [this](const AssetRecord &asset)
+    {
+        assets_.updateAsset(asset);
+        invalidate_thumbnail(asset.id);
+    };
     develop_host.cancel_thumbnails = [this](std::string reason)
     { static_cast<void>(thumbnail_work_.cancel(std::move(reason))); };
     develop_host.zoom_mode = [this](QString mode) { inspect_.setZoomMode(mode); };

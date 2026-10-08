@@ -150,6 +150,26 @@ TEST_F(CatalogServiceTest, StableFolderIdentityRelinksMissingRootAndSurvivesReop
     auto reopened_develop = develop_from_recipe(reopened_recipe.value());
     ASSERT_TRUE(reopened_develop) << reopened_develop.error().message;
     EXPECT_NEAR(reopened_develop.value().exposure_ev, edited.exposure_ev, 1e-12);
+    // Update Location also supports an online source and never moves originals.
+    ASSERT_TRUE(std::filesystem::create_directory(original));
+    for (const auto *name : {"first.png", "second.png"})
+    {
+        ASSERT_TRUE(std::filesystem::copy_file(replacement / name, original / name));
+        std::filesystem::last_write_time(original / name,
+                                         std::filesystem::last_write_time(replacement / name));
+    }
+    auto online = service->library().relink_folder(folder_id, original.string());
+    ASSERT_TRUE(online) << online.error().message;
+    EXPECT_EQ(online.value().folder_id, folder_id);
+    EXPECT_EQ(file_sha256((replacement / "first.png").string()), first_hash);
+    EXPECT_EQ(file_sha256((original / "first.png").string()), first_hash);
+    EXPECT_EQ(file_sha256((replacement / "second.png").string()), second_hash);
+    EXPECT_EQ(file_sha256((original / "second.png").string()), second_hash);
+    auto unchanged_recipe = service->develop().load_recipe(imported.value().front().asset->id);
+    ASSERT_TRUE(unchanged_recipe);
+    auto unchanged_develop = develop_from_recipe(unchanged_recipe.value());
+    ASSERT_TRUE(unchanged_develop);
+    EXPECT_NEAR(unchanged_develop.value().exposure_ev, edited.exposure_ev, 1e-12);
 }
 
 TEST_F(CatalogServiceTest, FolderRelinkRejectsCancellationAndIdentityMismatchWithoutMutation)

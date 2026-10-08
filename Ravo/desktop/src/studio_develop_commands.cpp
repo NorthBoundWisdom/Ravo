@@ -37,6 +37,31 @@
 namespace ravo
 {
 
+bool StudioDevelopPresenter::canAdjustExposure() const
+{
+    return state_.develop_loaded_ && host_.selected_assets().size() == 1 &&
+           state_.develop_.exposure_mode == kExposureModeManual && !state_.mask_gesture_before_ &&
+           !state_.local_creation_before_;
+}
+
+void StudioDevelopPresenter::adjustGlobalExposure(const double delta)
+{
+    if (!canAdjustExposure())
+    {
+        emit errorOccurred(QCoreApplication::translate(
+            "DevelopPanel", "Select one ready photo with manual exposure."));
+        return;
+    }
+    auto next = state_.develop_;
+    const auto changed = apply_develop_field_strict(next, "exposure", next.exposure_ev + delta);
+    if (!changed)
+    {
+        emit errorOccurred(qstring_from_utf8(changed.error().message));
+        return;
+    }
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::string("exposure"));
+}
+
 void StudioDevelopPresenter::setDevelopNumber(const QString &name, const double value)
 {
     DevelopParams next = edit_develop();

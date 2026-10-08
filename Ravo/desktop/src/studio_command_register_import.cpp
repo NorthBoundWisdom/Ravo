@@ -27,6 +27,15 @@ void StudioCommandController::registerImportCommands(const command_registration:
     add(command::kLibraryImportFolderPath, Condition::kCatalogReady, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.imports()->importFolderFromPath(argument.toString()); });
+    add(command::kLibrarySyncFolder, Condition::kCatalogReady, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        {
+            auto *imports = presenter_.imports();
+            imports->openImportPage();
+            imports->setImportMode(QStringLiteral("add"));
+            imports->setImportSourceRoot(argument.toString());
+            imports->setImportRecursive(true);
+        });
     add(command::kPresetImport, Condition::kReadySelection, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kPresetImport, argument); });

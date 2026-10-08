@@ -893,12 +893,12 @@ TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
     QFile bar(QStringLiteral(RAVO_STUDIO_LIBRARY_FILTER_BAR_QML));
     ASSERT_TRUE(bar.open(QIODevice::ReadOnly | QIODevice::Text)) << bar.errorString().toStdString();
     const auto source = QString::fromUtf8(bar.readAll());
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Search photos\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setTextFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Search photos\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("setTextFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("setMediaFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setEditFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("setEditFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.mediaFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.editFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("presenter.library.editFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Capture time\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"File size\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("setRatingExact")));
@@ -922,21 +922,21 @@ TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetLensNameFilter")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetCaptureDateFilter")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetLocationFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Camera\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Lens\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Lens name\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Capture date\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Location\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setCameraFacetFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setLensFacetFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setLensNameFacetFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.lensNameFacets")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setCaptureDateFacetFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setLocationFacetFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.cameraFacets")));
-    EXPECT_TRUE(source.contains(QStringLiteral("presenter.library.countryFacets")));
-    EXPECT_TRUE(source.contains(QStringLiteral("matchingFacetCount")));
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"%1 photos\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Camera\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Lens\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Lens name\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Capture date\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Location\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("setCameraFacetFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("setLensFacetFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("setLensNameFacetFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("presenter.library.lensNameFacets")));
+    EXPECT_FALSE(source.contains(QStringLiteral("setCaptureDateFacetFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("setLocationFacetFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("presenter.library.cameraFacets")));
+    EXPECT_FALSE(source.contains(QStringLiteral("presenter.library.countryFacets")));
+    EXPECT_FALSE(source.contains(QStringLiteral("matchingFacetCount")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"%1 photos\")")));
 }
 
 TEST(StudioQmlContract, RecipeStyleUsesExplicitSaveAndApplyFileCommands)
@@ -1137,17 +1137,17 @@ TEST(StudioQmlContract, PhotoInfoPanelExposesIptcExtensionFields)
         << panel.errorString().toStdString();
     const auto source = QString::fromUtf8(panel.readAll());
     EXPECT_TRUE(source.contains(QStringLiteral("selectedHeadline")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"headline\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("key: \"headline\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("selectedDescription")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"description\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("key: \"description\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("selectedCredit")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"credit\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("key: \"credit\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("selectedSource")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"source\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("key: \"source\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("selectedInstructions")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"instructions\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("key: \"instructions\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("selectedUsageTerms")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"usage_terms\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("key: \"usage_terms\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("selectedJobId")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setMetadata(\"job_id\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("key: \"job_id\"")));
 }

@@ -470,10 +470,6 @@ Diff: %6</source>
             <translation>露出</translation>
         </message>
         <message>
-            <source>EV Shift</source>
-            <translation>EVシフト</translation>
-        </message>
-        <message>
             <source>Compensate exposure bias</source>
             <translation>露出バイアスの補正</translation>
         </message>
@@ -2865,6 +2861,10 @@ Diff: %6</source>
             <source>Mask %1</source>
             <translation>マスク %1</translation>
         </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>手動露出の準備ができた写真を1枚選択してください。</translation>
+        </message>
     </context>
     <context>
         <name>DevelopPresetPanel</name>
@@ -3470,6 +3470,10 @@ Diff: %6</source>
             <translation>このフォルダーから写真をインポート...</translation>
         </message>
         <message>
+            <source>Synchronize Folder...</source>
+            <translation>フォルダーを同期…</translation>
+        </message>
+        <message>
             <source>Update Folder Location...</source>
             <translation>フォルダーの場所を更新...</translation>
         </message>
@@ -3789,10 +3793,6 @@ Diff: %6</source>
             <translation>%1 スター</translation>
         </message>
         <message>
-            <source>Search photos</source>
-            <translation>写真の検索</translation>
-        </message>
-        <message>
             <source>Any type</source>
             <translation>任意のタイプ</translation>
         </message>
@@ -3813,30 +3813,6 @@ Diff: %6</source>
             <translation>LibraryFilterBar::TIFF</translation>
         </message>
         <message>
-            <source>Any edits</source>
-            <translation>編集内容</translation>
-        </message>
-        <message>
-            <source>Edited</source>
-            <translation>LibraryFilterBar::編集済み</translation>
-        </message>
-        <message>
-            <source>Unedited</source>
-            <translation>未編集</translation>
-        </message>
-        <message>
-            <source>Include</source>
-            <translation>含める</translation>
-        </message>
-        <message>
-            <source>Exclude</source>
-            <translation>除外</translation>
-        </message>
-        <message>
-            <source>Only</source>
-            <translation>のみ</translation>
-        </message>
-        <message>
             <source>Any review</source>
             <translation>あらゆるレビュー</translation>
         </message>
@@ -3849,80 +3825,12 @@ Diff: %6</source>
             <translation>未レビュー</translation>
         </message>
         <message>
-            <source>No suggestion</source>
-            <translation>提案なし</translation>
-        </message>
-        <message>
-            <source>Exact byte duplicate</source>
-            <translation>正確なバイトの重複</translation>
-        </message>
-        <message>
-            <source>Near duplicate (heuristic)</source>
-            <translation>ほぼ重複 (ヒューリスティック)</translation>
-        </message>
-        <message>
-            <source>Burst</source>
-            <translation>バースト</translation>
-        </message>
-        <message>
-            <source>Camera make</source>
-            <translation>カメラのメーカー</translation>
-        </message>
-        <message>
-            <source>Camera model</source>
-            <translation>カメラのモデル</translation>
-        </message>
-        <message>
-            <source>%1 photos</source>
-            <translation>%1 枚の写真</translation>
-        </message>
-        <message>
-            <source>Focal mm</source>
-            <translation>焦点mm</translation>
-        </message>
-        <message>
-            <source>Lens make</source>
-            <translation>レンズメーカー</translation>
-        </message>
-        <message>
-            <source>Lens model</source>
-            <translation>レンズモデル</translation>
-        </message>
-        <message>
-            <source>YYYY:MM:DD</source>
-            <translation>YYYY:MM:DD</translation>
-        </message>
-        <message>
-            <source>Country</source>
-            <translation>国</translation>
-        </message>
-        <message>
-            <source>State</source>
-            <translation>州</translation>
-        </message>
-        <message>
-            <source>City</source>
-            <translation>市</translation>
-        </message>
-        <message>
-            <source>Sublocation</source>
-            <translation>サブロケーション</translation>
-        </message>
-        <message>
             <source>Add filter</source>
             <translation>フィルターを追加</translation>
         </message>
         <message>
-            <source>Search</source>
-            <translation>検索</translation>
-        </message>
-        <message>
             <source>Type</source>
             <translation>LibraryFilterBar::Type</translation>
-        </message>
-        <message>
-            <source>Edits</source>
-            <translation>編集</translation>
         </message>
         <message>
             <source>Color</source>
@@ -3933,24 +3841,8 @@ Diff: %6</source>
             <translation>拒否</translation>
         </message>
         <message>
-            <source>Camera</source>
-            <translation>カメラ</translation>
-        </message>
-        <message>
-            <source>Lens</source>
-            <translation>レンズ</translation>
-        </message>
-        <message>
-            <source>Lens name</source>
-            <translation>レンズ名</translation>
-        </message>
-        <message>
-            <source>Capture date</source>
-            <translation>撮影日</translation>
-        </message>
-        <message>
-            <source>Location</source>
-            <translation>場所</translation>
+            <source>Flag</source>
+            <translation>フラグ</translation>
         </message>
         <message>
             <source>Import time</source>
@@ -4058,10 +3950,6 @@ Diff: %6</source>
         <message>
             <source>Fit</source>
             <translation>LibrarySidePanel::Fit</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>LibrarySidePanel::Fill</translation>
         </message>
         <message>
             <source>1:1</source>
@@ -4544,12 +4432,24 @@ Diff: %6</source>
             <translation>キャプチャ</translation>
         </message>
         <message>
-            <source>Tags &amp; Metadata</source>
-            <translation>タグとメタデータ</translation>
+            <source>Exposure</source>
+            <translation>露出</translation>
         </message>
         <message>
-            <source>keywords, comma separated; use | for hierarchy</source>
-            <translation>キーワード、カンマ区切り。使用する |階層用</translation>
+            <source>−1 EV</source>
+            <translation>−1 EV</translation>
+        </message>
+        <message>
+            <source>−⅓ EV</source>
+            <translation>−⅓ EV</translation>
+        </message>
+        <message>
+            <source>+⅓ EV</source>
+            <translation>+⅓ EV</translation>
+        </message>
+        <message>
+            <source>+1 EV</source>
+            <translation>+1 EV</translation>
         </message>
         <message>
             <source>Credit</source>
@@ -4586,6 +4486,18 @@ Diff: %6</source>
         <message>
             <source>Sublocation</source>
             <translation>サブロケーション</translation>
+        </message>
+        <message>
+            <source>Edit Metadata...</source>
+            <translation>メタデータを編集…</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>キャンセル</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>保存</translation>
         </message>
         <message>
             <source>Title</source>
@@ -4735,6 +4647,13 @@ Diff: %6</source>
         <message>
             <source>Copy</source>
             <translation>コピー</translation>
+        </message>
+    </context>
+    <context>
+        <name>QCocoaMenuItem</name>
+        <message>
+            <source>Setting</source>
+            <translation>設定</translation>
         </message>
     </context>
     <context>
@@ -4982,6 +4901,22 @@ Diff: %6</source>
         <message>
             <source>Unknown writable metadata field.</source>
             <translation>不明な書き込み可能なメタデータ フィールド。</translation>
+        </message>
+        <message>
+            <source>Metadata name and value must be text.</source>
+            <translation>メタデータの名前と値はテキストである必要があります。</translation>
+        </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>手動露出の準備ができた写真を1枚選択してください。</translation>
+        </message>
+        <message>
+            <source>Exposure step must be 1 or 1/3 EV.</source>
+            <translation>露出の変更幅は 1 または 1/3 EV にしてください。</translation>
+        </message>
+        <message>
+            <source>The metadata selection or library changed. Reopen the editor.</source>
+            <translation>メタデータの選択またはライブラリが変更されました。エディターを開き直してください。</translation>
         </message>
         <message>
             <source>A non-negative integer history ID is required.</source>
@@ -5262,10 +5197,6 @@ Diff: %6</source>
         <message>
             <source>Fit</source>
             <translation>StudioCommands::Fit</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>StudioCommands::Fill</translation>
         </message>
         <message>
             <source>Actual Size</source>

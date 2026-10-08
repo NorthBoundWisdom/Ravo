@@ -243,11 +243,11 @@ DevelopSection {
             property real draftFillB: 0.5
             property real draftFillBrightness: 0.0
 
-            Label {
+            CustomLabel {
                 text: qsTr("Retouch")
                 font.weight: Font.DemiBold
             }
-            ComboBox {
+            CustomComboBox {
                 id: retouchMode
                 Layout.fillWidth: true
                 enabled: panel.hasSelection
@@ -349,7 +349,7 @@ DevelopSection {
                     retouchEditor.draftSourceY = value;
                 }
             }
-            ComboBox {
+            CustomComboBox {
                 Layout.fillWidth: true
                 visible: retouchEditor.draftMode === 2
                 enabled: panel.hasSelection
@@ -372,7 +372,7 @@ DevelopSection {
                     retouchEditor.draftBlurRadius = value;
                 }
             }
-            ComboBox {
+            CustomComboBox {
                 Layout.fillWidth: true
                 visible: retouchEditor.draftMode === 3
                 enabled: panel.hasSelection
@@ -437,7 +437,7 @@ DevelopSection {
                     retouchEditor.draftFillBrightness = value;
                 }
             }
-            Button {
+            CustomButton {
                 Layout.fillWidth: true
                 text: qsTr("Add retouch region")
                 enabled: panel.hasSelection && panel.commands
@@ -459,7 +459,7 @@ DevelopSection {
                     "fillBrightness": retouchEditor.draftFillBrightness
                 })
             }
-            Label {
+            CustomLabel {
                 text: qsTr("Regions: %1").arg(panel.hasPresenter ? panel.presenter.develop.editRetouch.regionCount : 0)
                 opacity: 0.72
             }
@@ -468,12 +468,12 @@ DevelopSection {
                 delegate: RowLayout {
                     required property var modelData
                     Layout.fillWidth: true
-                    Label {
+                    CustomLabel {
                         Layout.fillWidth: true
                         text: modelData.mode + " · " + modelData.maskKind
                         elide: Text.ElideRight
                     }
-                    Button {
+                    CustomButton {
                         text: qsTr("Remove")
                         enabled: panel.hasSelection && panel.commands
                         onClicked: panel.commands.removeRetouchRegion(modelData.index)

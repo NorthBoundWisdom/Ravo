@@ -729,7 +729,8 @@ Result<void> validate_metadata_field(const std::string_view name, const std::str
 
 Result<WritableMetadataPatch>
 writable_metadata_patch_for_field(const std::string_view name,
-                                  const std::optional<std::string> &value)
+                                  const std::optional<std::string> &value,
+                                  WritableMetadataPatch patch)
 {
     if (value)
     {
@@ -745,7 +746,6 @@ writable_metadata_patch_for_field(const std::string_view name,
         return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
                           {{"field", std::string(name)}});
     }
-    WritableMetadataPatch patch;
     if (name == "title")
     {
         patch.update_title = true;

@@ -61,6 +61,11 @@ belongs to cancelled display work and returns to pending when there is no
 replacement preview. Visible grid cells forward fresh pending/unloaded demand
 on state and visibility changes. Decode and display work remain on their
 existing owner-managed executors with cancellation and generation checks.
+Successful Develop saves publish the asset back to that owner and invalidate
+its cached thumbnail and pending display generation. The old pixels may remain
+visible until replacement; a queued browse request uses the saved recipe after
+foreground preview work settles. Saves for another catalog and late thumbnail
+results cannot replace the current catalog's presentation.
 If the service cache evicts a source PNG between listing/generation and display
 preparation, the presenter clears that stale base and requests one browse rebuild
 through the same demand owner without a global error. Recovery is scoped to the
@@ -323,8 +328,10 @@ filters belong to desktop resume preferences. Catalog, service, recipe, export,
 task, and engine values stay in typed owning contracts. No old configuration
 key is read (ADR-0066/0081/0115).
 
-Loupe photo clicks immediately toggle Actual/1:1 and the previous Fit, Fill or
-custom view through the C++ zoom command. The QML inspect controller borrows the
+Loupe photo clicks immediately toggle Actual/1:1 and the previous Fit, 30% or
+custom view through the C++ zoom command. The 30% view maps the viewport long
+edge to 30% of the photo long edge, without a native-pixel zoom cap; layout and
+zoom animation share the same QML geometry function. The QML inspect controller borrows the
 presenter explicitly, accepts visible GPU surfaces without waiting for a hidden
 CPU Image, and separates clicks from drags. A rapid second click completes the
 current animation and restores the preceding view rather than opening the grid
@@ -617,7 +624,7 @@ Flickable geometry or clamp the user's same-photo pan.
 Develop comparison is desktop-owned transient presentation state. The toolbar
 Left/Right view retains one immutable, non-persistent baseline image for the
 current asset while the ordinary preview resource remains the live edited
-image. Both panes share the existing Flickable transform, so Fit/Fill/Actual,
+image. Both panes share the existing Flickable transform, so Fit/30%/Actual,
 zoom, and pan stay synchronized without another renderer. Baseline work uses
 the same cancellable CatalogService preview path with `ignore_edits=true`, does
 not publish a preview record, loses stale results by request/asset revision,
@@ -763,13 +770,27 @@ without owning retention policy (ADR-0101).
 of their direct containing folder; hierarchy-only ancestors remain synthetic
 presentation rows. CatalogService derives explicit missing state from a live
 read-only directory check. A relink names the stable ID and an existing
-replacement directory, requires the old root to be missing, maps every asset
+replacement directory, permits either an online or missing old root, maps every asset
 by its existing basename, and validates stored size, modification time, and
 content fingerprint. It rejects path and catalog conflicts before mutation.
 The SQLite adapter then rechecks the old folder URI and exact asset set and
 updates the folder URI, asset URIs, recovery generations, and catalog revision
 in one cancellable transaction. Rollback preserves the prior catalog and no
-original is ever written (ADR-0101).
+original is ever written (ADR-0101, online-root admission on 2026-10-08).
+Studio Synchronize Folder opens the existing Add-mode recursive import preflight;
+duplicate exclusion, cancellation and publication remain Import-owned. It does
+not remove absent catalog entries or copy/move source files.
+
+The inspector exposes only an Edit Metadata button. Its scrollable popup lists
+all writable fields and snapshots their values into a transient draft. Save
+accumulates only changed fields into one patch for its captured selection. Desktop
+C++ issues a `ravo-studio-metadata-edit/v1` context (catalog path, revision and
+asset IDs), validates it at dispatch and passes that revision into the existing
+transaction. Cancel has no write; selection/library changes reject Save; late
+results from a closed library do not update the new view. The entire field patch
+is validated before one atomic service transaction; focus loss never saves.
+Gallery exposure steps use the existing
+Develop commit/history owner for one ready manual-exposure photo.
 
 ### Import
 
@@ -1229,25 +1250,23 @@ names and `basic.cl` kernel text are cleanup owners for D0.4/S4/S14, not runtime
 exposure owners. [ADR-0024](adr/0024-exposure-analysis-and-metadata-contract.md)
 freezes these boundaries.
 
-`ravo.display.rapidraw-basic` v1 is the sole display transform for new RAW
-baselines. It applies the attributed RapidRAW Basic RAW sRGB response, then
-decodes the result back to linear sRGB so the output-profile owner performs
-the single final display encoding. Explicit stored `ravo.display.sigmoid` v1
-recipes retain their per-channel or RGB-ratio generalized log-logistic
-response and are never silently reinterpreted. A restricted imported
+`ravo.display.sigmoid` v1 is the sole display transform for synthesized RAW
+baselines. Explicit stored Sigmoid and RapidRAW recipes retain their response
+and are never silently reinterpreted. RapidRAW Basic applies its attributed RAW
+sRGB response and decodes back to linear sRGB; the output-profile owner still
+performs the single final display encoding. A restricted imported
 display-sRGB point curve may follow either transform before output-profile
 encoding. Sigmoid-only Studio and CRS Contrast map logarithmically around the
 1.5 default to a +100 endpoint of 3.25.
-New baselines also carry identity-present `ravo.core.rapidraw-tone-controls`
-v1, which owns RapidRAW's exact UI units and ordered EV Shift, filmic Exposure,
+Stored `ravo.core.rapidraw-tone-controls` v1 owns RapidRAW's exact UI units and ordered EV Shift, filmic Exposure,
 Contrast, Highlights, Shadows, Whites, and Blacks equations. Shadows/Blacks use
 the canonical-scale 3.5-pixel Gaussian tonal reference. Its CPU path owns two
 bounded RGB blur planes; QRhi snapshots the current RGB buffer before the
 neighbourhood shader and uses a dedicated uniform buffer. Basic-only recipes
 created before this operation remain Basic-only after reopen.
-Studio exposes an explicit RapidRAW/Sigmoid selector for RAW recipes. Selecting
-RapidRAW authors both new operation identities; selecting Sigmoid removes the
-RapidRAW pair instead of retaining two competing display owners.
+Studio Light presents one exposure control and common tonal controls; the
+RapidRAW/Sigmoid selector and RapidRAW-specific sliders are removed. Explicit
+RapidRAW operations remain readable and editable through the shared recipe API.
 `ravo.core.contrast` serves
 display-referred raster input and old recipes. Highlights/shadows/whites/blacks
 are scene controls before the transform; the narrower Whites/Blacks envelopes
@@ -1329,7 +1348,7 @@ still camera RGB, then white balance and Input Color run. WarpRectilinear is
 parsed and inspect-visible so the file's lens geometry is not hidden, but the
 default colour decode does not apply it. darktable keeps DNG warp for the lens
 module (off by default); RapidRAW uses optional lensfun. Ravo import uses
-as-shot white balance, the camera matrix, RapidRAW Basic tone, and default Lab USM. The private adapter
+as-shot white balance, the camera matrix, Sigmoid tone, and default Lab USM. The private adapter
 owns all parsed values, applies DNG's `[0, 1]` clip after each executed
 List2/List3 opcode, and preserves repeated operations. Known malformed or
 unknown mandatory operations fail before publication; unknown optional

@@ -12,127 +12,15 @@ DevelopSection {
     ColumnLayout {
         Layout.fillWidth: true
         width: parent.width
-        CustomComboBox {
-            Layout.fillWidth: true
-            model: ["RapidRAW", "Sigmoid"]
-            visible: panel.hasPresenter && (panel.presenter.develop.editRapidRawBasicToneEnabled || panel.presenter.develop.editSigmoidEnabled)
-            enabled: panel.hasSelection
-            currentIndex: panel.hasPresenter ? panel.presenter.develop.editToneMapperIndex : 0
-            onActivated: if (panel.commands)
-                panel.commands.setDevelopNumber("toneMapperIndex", currentIndex)
-        }
-        CustomSlider {
-            Layout.fillWidth: true
-            // RapidRAW exposes this as a separate technical control. Keep the
-            // source name verbatim so it cannot be mistaken for filmic Exposure.
-            title: qsTr("EV Shift")
-            from: -5
-            to: 5
-            stepSize: 0.01
-            validatorDecimals: 2
-            showReset: true
-            resetValue: 0
-            delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.develop.editRapidRawBasicToneEnabled
-            enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.develop.editRapidRawEvShift : 0
-            onValueEdited: function (value) {
-                if (panel.liveReady && panel.commands)
-                    panel.commands.previewDevelopNumber("rapidrawEvShift", value);
-            }
-            onValueCommitted: function (value) {
-                if (panel.commands)
-                    panel.commands.setDevelopNumber("rapidrawEvShift", value);
-            }
-            onResetRequested: if (panel.commands)
-                panel.commands.resetControl("rapidrawEvShift")
-        }
-        CustomSlider {
-            Layout.fillWidth: true
-            title: qsTr("Exposure")
-            from: -5
-            to: 5
-            stepSize: 0.01
-            validatorDecimals: 2
-            showReset: true
-            resetValue: 0
-            delayedCommit: true
-            visible: panel.hasPresenter && panel.presenter.develop.editRapidRawBasicToneEnabled
-            enabled: panel.hasSelection
-            value: panel.hasPresenter ? panel.presenter.develop.editRapidRawExposure : 0
-            onValueEdited: function (value) {
-                if (panel.liveReady && panel.commands)
-                    panel.commands.previewDevelopNumber("rapidrawExposure", value);
-            }
-            onValueCommitted: function (value) {
-                if (panel.commands)
-                    panel.commands.setDevelopNumber("rapidrawExposure", value);
-            }
-            onResetRequested: if (panel.commands)
-                panel.commands.resetControl("rapidrawExposure")
-        }
-        Repeater {
-            model: [
-                {
-                    title: qsTr("Contrast"),
-                    field: "rapidrawContrast",
-                    property: "editRapidRawContrast"
-                },
-                {
-                    title: qsTr("Highlights"),
-                    field: "rapidrawHighlights",
-                    property: "editRapidRawHighlights"
-                },
-                {
-                    title: qsTr("Shadows"),
-                    field: "rapidrawShadows",
-                    property: "editRapidRawShadows"
-                },
-                {
-                    title: qsTr("Whites"),
-                    field: "rapidrawWhites",
-                    property: "editRapidRawWhites"
-                },
-                {
-                    title: qsTr("Blacks"),
-                    field: "rapidrawBlacks",
-                    property: "editRapidRawBlacks"
-                }
-            ]
-            delegate: CustomSlider {
-                required property var modelData
-                Layout.fillWidth: true
-                title: modelData.title
-                from: -100
-                to: 100
-                stepSize: 1
-                validatorDecimals: 0
-                showReset: true
-                resetValue: 0
-                delayedCommit: true
-                visible: panel.hasPresenter && panel.presenter.develop.editRapidRawBasicToneEnabled
-                enabled: panel.hasSelection
-                value: panel.hasPresenter ? panel.presenter.develop[modelData.property] : 0
-                onValueEdited: function (value) {
-                    if (panel.liveReady && panel.commands)
-                        panel.commands.previewDevelopNumber(modelData.field, value);
-                }
-                onValueCommitted: function (value) {
-                    if (panel.commands)
-                        panel.commands.setDevelopNumber(modelData.field, value);
-                }
-                onResetRequested: if (panel.commands)
-                    panel.commands.resetControl(modelData.field)
-            }
-        }
         DevelopInstanceChrome {
             objectName: "exposureInstanceChrome"
             panel: sectionRoot.panel
             operation: "exposure"
             Layout.fillWidth: true
-            visible: panel.showAdvancedInstances && !panel.localEditing && (!panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled)
+            visible: panel.showAdvancedInstances && !panel.localEditing
         }
         CustomSlider {
+            objectName: "lightExposureSlider"
             Layout.fillWidth: true
             title: qsTr("Exposure")
             from: -3
@@ -142,7 +30,7 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: (!panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled) && (!panel.hasPresenter || panel.presenter.develop.editExposureParams.modeIndex === 0)
+            visible: !panel.hasPresenter || panel.presenter.develop.editExposureParams.modeIndex === 0
             enabled: panel.hasSelection
             value: panel.hasPresenter ? panel.presenter.develop.editExposureParams.exposureEv : 0
             onValueEdited: function (value) {
@@ -188,7 +76,7 @@ DevelopSection {
             showReset: true
             resetValue: 0
             delayedCommit: true
-            visible: panel.hasPresenter && !panel.presenter.develop.editSigmoidEnabled && !panel.presenter.develop.editRapidRawBasicToneEnabled
+            visible: panel.hasPresenter && !panel.presenter.develop.editSigmoidEnabled
             enabled: panel.hasSelection
             value: panel.hasPresenter ? panel.presenter.develop.editContrast : 0
             onValueEdited: function (value) {
@@ -204,8 +92,8 @@ DevelopSection {
         }
         CustomSlider {
             Layout.fillWidth: true
+            objectName: "lightHighlightsSlider"
             title: qsTr("Highlights")
-            visible: !panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
@@ -226,8 +114,8 @@ DevelopSection {
         }
         CustomSlider {
             Layout.fillWidth: true
+            objectName: "lightShadowsSlider"
             title: qsTr("Shadows")
-            visible: !panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
@@ -248,8 +136,8 @@ DevelopSection {
         }
         CustomSlider {
             Layout.fillWidth: true
+            objectName: "lightWhitesSlider"
             title: qsTr("Whites")
-            visible: !panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled
             from: -1
             to: 1
             showReset: true
@@ -270,8 +158,8 @@ DevelopSection {
         }
         CustomSlider {
             Layout.fillWidth: true
+            objectName: "lightBlacksSlider"
             title: qsTr("Blacks")
-            visible: !panel.hasPresenter || !panel.presenter.develop.editRapidRawBasicToneEnabled
             from: -0.1
             to: 0.1
             stepSize: 0.001

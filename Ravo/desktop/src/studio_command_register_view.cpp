@@ -190,29 +190,80 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         { presenter_.setAssetTags(argument.toString()); });
     add(
         command::kPhotoSetMetadata, Condition::kSelection,
-        [](const QVariant &argument)
+        [this](const QVariant &argument)
         {
+            if (argument.toMap().contains(QStringLiteral("fields")))
+            {
+                const auto payload = argument.toMap();
+                for (auto it = payload.cbegin(); it != payload.cend(); ++it)
+                    if (it.key() != QStringLiteral("fields") &&
+                        it.key() != QStringLiteral("context"))
+                        return tr_command(QStringLiteral("Unknown command argument field: %1."))
+                            .arg(it.key());
+                const auto error = required_fields(
+                    argument, {QStringLiteral("fields"), QStringLiteral("context")});
+                if (!error.isEmpty())
+                    return error;
+                const auto context_error = presenter_.metadataEditContextError(
+                    payload.value(QStringLiteral("context")).toMap());
+                if (!context_error.isEmpty())
+                    return context_error;
+                const auto patch =
+                    presenter_.metadataPatch(payload.value(QStringLiteral("fields")).toMap());
+                return patch ? QString{} : QString::fromStdString(patch.error().message);
+            }
             const auto error =
                 required_fields(argument, {QStringLiteral("name"), QStringLiteral("value")});
             if (!error.isEmpty())
                 return error;
-            static const QSet<QString> names{
-                QStringLiteral("title"),   QStringLiteral("description"),
-                QStringLiteral("creator"), QStringLiteral("copyright"),
-                QStringLiteral("country"), QStringLiteral("province_state"),
-                QStringLiteral("city"),    QStringLiteral("sublocation")};
-            return names.contains(argument.toMap().value(QStringLiteral("name")).toString()) ?
-                       QString{} :
-                       QStringLiteral("Unknown writable metadata field.");
+            const auto fields = argument.toMap();
+            if (fields.contains(QStringLiteral("context")))
+            {
+                const auto context = fields.value(QStringLiteral("context")).toMap();
+                const auto context_error = presenter_.metadataEditContextError(context);
+                if (!context_error.isEmpty())
+                    return context_error;
+            }
+            const auto name = fields.value(QStringLiteral("name"));
+            const auto value = fields.value(QStringLiteral("value"));
+            if (name.metaType().id() != QMetaType::QString ||
+                value.metaType().id() != QMetaType::QString)
+                return QStringLiteral("Metadata name and value must be text.");
+            const auto patch = writable_metadata_patch_for_field(name.toString().toStdString(),
+                                                                 value.toString().toStdString());
+            return patch ? QString{} : QString::fromStdString(patch.error().message);
         },
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
+            if (fields.contains(QStringLiteral("fields")))
+            {
+                presenter_.setMetadataFields(fields.value(QStringLiteral("fields")).toMap(),
+                                             fields.value(QStringLiteral("context")).toMap());
+                return;
+            }
             presenter_.setMetadataField(fields.value(QStringLiteral("name")).toString(),
-                                        fields.value(QStringLiteral("value")).toString());
+                                        fields.value(QStringLiteral("value")).toString(),
+                                        fields.value(QStringLiteral("context")).toMap());
         });
     add(command::kPhotoRefreshMetadata, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.refreshSelectedMetadata(); });
+    add(
+        command::kPhotoAdjustExposure, Condition::kReadySelection,
+        [this](const QVariant &argument)
+        {
+            const auto error = finite_number(argument, QStringLiteral("Exposure delta"));
+            if (!error.isEmpty())
+                return error;
+            if (!presenter_.develop()->canAdjustExposure())
+                return QStringLiteral("Select one ready photo with manual exposure.");
+            const auto delta = argument.toDouble();
+            return std::abs(delta) == 1.0 || std::abs(delta) == 1.0 / 3.0 ?
+                       QString{} :
+                       QStringLiteral("Exposure step must be 1 or 1/3 EV.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.develop()->adjustGlobalExposure(argument.toDouble()); });
     add(
         command::kPhotoCreateSnapshot, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -619,9 +670,9 @@ void StudioCommandController::registerViewCommands(const command_registration::H
     add(command::kViewFit, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
         { presenter_.inspect()->setZoomMode(QStringLiteral("fit")); });
-    add(command::kViewFill, Condition::kNonGrid, no_argument,
+    add(command::kViewThirtyPercent, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
-        { presenter_.inspect()->setZoomMode(QStringLiteral("fill")); });
+        { presenter_.inspect()->setZoomMode(QStringLiteral("30percent")); });
     add(command::kViewActual, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
         { presenter_.inspect()->setZoomMode(QStringLiteral("actual")); });
@@ -638,7 +689,7 @@ void StudioCommandController::registerViewCommands(const command_registration::H
         command::kViewSetZoomMode, Condition::kNonGrid,
         [](const QVariant &argument)
         {
-            static const QSet<QString> values{QStringLiteral("fit"), QStringLiteral("fill"),
+            static const QSet<QString> values{QStringLiteral("fit"), QStringLiteral("30percent"),
                                               QStringLiteral("actual")};
             return one_of(argument, values, QStringLiteral("zoom mode"));
         },

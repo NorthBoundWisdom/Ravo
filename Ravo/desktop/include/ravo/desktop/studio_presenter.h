@@ -366,7 +366,10 @@ public:
 
     Q_INVOKABLE void setThumbnailSize(int size);
     Q_INVOKABLE void setAssetTags(const QString &text);
-    Q_INVOKABLE void setMetadataField(const QString &name, const QString &value);
+    Q_INVOKABLE QVariantMap metadataEditContext() const;
+    Q_INVOKABLE void setMetadataField(const QString &name, const QString &value,
+                                      const QVariantMap &context = {});
+    void setMetadataFields(const QVariantMap &fields, const QVariantMap &context);
     Q_INVOKABLE void refreshSelectedMetadata();
 
     [[nodiscard]] QString selectedPhotoDebugInfo() const;
@@ -475,6 +478,7 @@ private:
     void reapply_display_presentation_to_cached_thumbnails();
 
     void clear_thumbnail_presentation_cache();
+    void invalidate_thumbnail(const std::string &asset_id);
     void startNextThumbnailPresentation();
     void remember_thumbnail_base(const std::string &asset_id, const QString &base_path,
                                  const ColorProfileState &source_profile,
@@ -500,6 +504,8 @@ private:
     void publish_selection();
     void activate_primary(const QString &asset_id, bool reload_preview);
     [[nodiscard]] std::vector<std::string> selected_asset_ids() const;
+    [[nodiscard]] QString metadataEditContextError(const QVariantMap &context) const;
+    [[nodiscard]] static Result<WritableMetadataPatch> metadataPatch(const QVariantMap &fields);
 
     SerialExecutor executor_;
     SerialExecutor thumbnail_presentation_executor_;

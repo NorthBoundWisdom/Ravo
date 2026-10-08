@@ -354,7 +354,7 @@ samples:
 
 - import publication, first placeholder/thumbnail, viewport completion, and
   exact browse preview;
-- adjacent select/revisit, Fit/Fill/Actual Size, and 1:1 ROI;
+- adjacent select/revisit, Fit/30%/Actual Size, and 1:1 ROI;
 - first interactive Develop frame, rapid-burst latest frame, settled save, and
   reopen;
 - presentation transform and native frame swap separately from owned-image

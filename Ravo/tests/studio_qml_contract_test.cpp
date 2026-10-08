@@ -76,7 +76,7 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     ASSERT_GT(light_end, light_begin);
     const auto light = source.mid(light_begin, light_end - light_begin);
 
-    EXPECT_TRUE(light.contains(QStringLiteral("title: qsTr(\"EV Shift\")")));
+    EXPECT_TRUE(light.contains(QStringLiteral("title: qsTr(\"Exposure\")")));
     EXPECT_FALSE(light.contains(QStringLiteral("Exposure (EV Shift)")));
 
     const auto rapidraw_ev = light.indexOf(QStringLiteral("rapidrawEvShift"));
@@ -111,11 +111,11 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     const auto gamma = light.indexOf(QStringLiteral("previewDevelopNumber(\"gamma\""));
     const auto rgb_levels = light.indexOf(QStringLiteral("qsTr(\"RGB levels\")"));
 
-    ASSERT_GE(tone_mapper, 0);
-    ASSERT_GE(rapidraw_ev, 0);
-    ASSERT_GE(rapidraw_exposure, 0);
-    ASSERT_GE(rapidraw_contrast, 0);
-    ASSERT_GE(rapidraw_blacks, 0);
+    ASSERT_EQ(tone_mapper, -1);
+    ASSERT_EQ(rapidraw_ev, -1);
+    ASSERT_EQ(rapidraw_exposure, -1);
+    ASSERT_EQ(rapidraw_contrast, -1);
+    ASSERT_EQ(rapidraw_blacks, -1);
     ASSERT_GE(exposure, 0);
     ASSERT_EQ(exposure_mask, -1);
     ASSERT_GE(sigmoid_contrast, 0);
@@ -137,11 +137,6 @@ TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
     ASSERT_GE(gamma, 0);
     ASSERT_GE(rgb_levels, 0);
 
-    EXPECT_LT(tone_mapper, rapidraw_ev);
-    EXPECT_LT(rapidraw_ev, rapidraw_exposure);
-    EXPECT_LT(rapidraw_exposure, rapidraw_contrast);
-    EXPECT_LT(rapidraw_contrast, rapidraw_blacks);
-    EXPECT_LT(rapidraw_blacks, exposure);
     EXPECT_LT(exposure, sigmoid_contrast);
     EXPECT_LT(exposure, sigmoid_contrast);
     EXPECT_LT(exposure, raster_contrast);
@@ -517,7 +512,7 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(library_source.contains(QStringLiteral("id: zoomModeBar")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("Layout.preferredWidth: 1")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fit\")")));
-    EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fill\")")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("\"30%\"")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"1:1\")")));
     EXPECT_TRUE(
         library_source.contains(QStringLiteral("Layout.preferredWidth: ControlState.borderThin")));
@@ -1072,6 +1067,10 @@ TEST(StudioLocalization, EveryManifestCatalogActivates)
         ASSERT_TRUE(manager.initialize(language))
             << language.toStdString() << ": " << manager.lastError().toStdString();
         EXPECT_EQ(manager.language(), language);
+        const auto settings_title = QCoreApplication::translate("StudioCommands", "Settings...");
+        const auto native_prefix = QCoreApplication::translate("QCocoaMenuItem", "Setting");
+        EXPECT_TRUE(settings_title.startsWith(native_prefix, Qt::CaseInsensitive))
+            << language.toStdString() << ": " << settings_title.toStdString();
     }
 }
 
@@ -1833,15 +1832,15 @@ TEST(StudioQmlContract, LibraryFilterBarExposesCullReviewAndSuggestionChips)
     ASSERT_TRUE(bar.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto source = QString::fromUtf8(bar.readAll());
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"cullFlagFilterChips\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"cullSuggestionFilterChips\"")));
+    EXPECT_FALSE(source.contains(QStringLiteral("objectName: \"cullSuggestionFilterChips\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("setCullFlagFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setCullSuggestionFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("setCullSuggestionFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("unreviewed")));
-    EXPECT_TRUE(source.contains(QStringLiteral("near_duplicate")));
-    EXPECT_TRUE(source.contains(QStringLiteral("burst")));
-    EXPECT_TRUE(source.contains(QStringLiteral("Exact byte duplicate")));
-    EXPECT_TRUE(source.contains(QStringLiteral("Near duplicate (heuristic)")));
-    EXPECT_TRUE(source.contains(QStringLiteral("exact_duplicate")));
+    EXPECT_FALSE(source.contains(QStringLiteral("near_duplicate")));
+    EXPECT_FALSE(source.contains(QStringLiteral("burst")));
+    EXPECT_FALSE(source.contains(QStringLiteral("Exact byte duplicate")));
+    EXPECT_FALSE(source.contains(QStringLiteral("Near duplicate (heuristic)")));
+    EXPECT_FALSE(source.contains(QStringLiteral("exact_duplicate")));
 }
 
 TEST(StudioCommands, CullReviewPickRejectUnflagShortcutsWireToAdr0150)
@@ -1944,7 +1943,7 @@ TEST(StudioQmlContract, ExposureAndColorBalanceInstanceChrome)
 TEST(StudioQmlContract, Local01MaskPlaceUsesPhotoPlaneNotInspectRoi)
 {
     // Live Studio contract: mask authoring clicks normalize against photoPlane
-    // under Fit/Fill/1:1. inspectRoiImage is a display overlay only and must not
+    // under Fit/30%/1:1. inspectRoiImage is a display overlay only and must not
     // redefine placeMask coordinates for the selected instance.
     QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
     ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -1977,14 +1976,14 @@ TEST(StudioQmlContract, Local01MaskPlaceUsesPhotoPlaneNotInspectRoi)
     EXPECT_FALSE(place_snip.contains(QStringLiteral("inspectRoiX")));
     EXPECT_FALSE(place_snip.contains(QStringLiteral("inspectRoiY")));
 
-    // Fit/Fill/1:1 chrome remains available for preview scale without changing
+    // Fit/30%/1:1 chrome remains available for preview scale without changing
     // the photoPlane-normalized authoring path above.
     QFile library(QStringLiteral(RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML));
     ASSERT_TRUE(library.open(QIODevice::ReadOnly | QIODevice::Text))
         << library.errorString().toStdString();
     const auto library_source = QString::fromUtf8(library.readAll());
     EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fit\")")));
-    EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fill\")")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("\"30%\"")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"1:1\")")));
 }
 

@@ -382,10 +382,6 @@ Diff: %6</source>
             <translation>曝光</translation>
         </message>
         <message>
-            <source>EV Shift</source>
-            <translation>EV 偏移</translation>
-        </message>
-        <message>
             <source>Compensate exposure bias</source>
             <translation>补偿曝光偏置</translation>
         </message>
@@ -2865,6 +2861,10 @@ Diff: %6</source>
             <source>Mask %1</source>
             <translation>蒙版 %1</translation>
         </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>请选择一张已就绪且使用手动曝光的照片。</translation>
+        </message>
     </context>
     <context>
         <name>DevelopPresetPanel</name>
@@ -3470,6 +3470,10 @@ Diff: %6</source>
             <translation>从此文件夹导入照片...</translation>
         </message>
         <message>
+            <source>Synchronize Folder...</source>
+            <translation>同步文件夹…</translation>
+        </message>
+        <message>
             <source>Update Folder Location...</source>
             <translation>更新文件夹位置...</translation>
         </message>
@@ -3789,10 +3793,6 @@ Diff: %6</source>
             <translation>%1 星</translation>
         </message>
         <message>
-            <source>Search photos</source>
-            <translation>搜索照片</translation>
-        </message>
-        <message>
             <source>Any type</source>
             <translation>任意类型</translation>
         </message>
@@ -3813,30 +3813,6 @@ Diff: %6</source>
             <translation>TIFF</translation>
         </message>
         <message>
-            <source>Any edits</source>
-            <translation>任意编辑状态</translation>
-        </message>
-        <message>
-            <source>Edited</source>
-            <translation>已编辑</translation>
-        </message>
-        <message>
-            <source>Unedited</source>
-            <translation>未编辑</translation>
-        </message>
-        <message>
-            <source>Include</source>
-            <translation>包含</translation>
-        </message>
-        <message>
-            <source>Exclude</source>
-            <translation>排除</translation>
-        </message>
-        <message>
-            <source>Only</source>
-            <translation>仅</translation>
-        </message>
-        <message>
             <source>Any review</source>
             <translation>任意审核状态</translation>
         </message>
@@ -3849,80 +3825,12 @@ Diff: %6</source>
             <translation>未审核</translation>
         </message>
         <message>
-            <source>No suggestion</source>
-            <translation>没有建议</translation>
-        </message>
-        <message>
-            <source>Exact byte duplicate</source>
-            <translation>精确的字节重复</translation>
-        </message>
-        <message>
-            <source>Near duplicate (heuristic)</source>
-            <translation>接近重复（启发式）</translation>
-        </message>
-        <message>
-            <source>Burst</source>
-            <translation>连拍</translation>
-        </message>
-        <message>
-            <source>Camera make</source>
-            <translation>相机品牌</translation>
-        </message>
-        <message>
-            <source>Camera model</source>
-            <translation>相机型号</translation>
-        </message>
-        <message>
-            <source>%1 photos</source>
-            <translation>%1 张照片</translation>
-        </message>
-        <message>
-            <source>Focal mm</source>
-            <translation>焦距mm</translation>
-        </message>
-        <message>
-            <source>Lens make</source>
-            <translation>镜头品牌</translation>
-        </message>
-        <message>
-            <source>Lens model</source>
-            <translation>镜头型号</translation>
-        </message>
-        <message>
-            <source>YYYY:MM:DD</source>
-            <translation>年:月:日</translation>
-        </message>
-        <message>
-            <source>Country</source>
-            <translation>国家</translation>
-        </message>
-        <message>
-            <source>State</source>
-            <translation>状态</translation>
-        </message>
-        <message>
-            <source>City</source>
-            <translation>城市</translation>
-        </message>
-        <message>
-            <source>Sublocation</source>
-            <translation>详细地点</translation>
-        </message>
-        <message>
             <source>Add filter</source>
             <translation>添加筛选器</translation>
         </message>
         <message>
-            <source>Search</source>
-            <translation>搜索</translation>
-        </message>
-        <message>
             <source>Type</source>
             <translation>类型</translation>
-        </message>
-        <message>
-            <source>Edits</source>
-            <translation>编辑</translation>
         </message>
         <message>
             <source>Color</source>
@@ -3933,24 +3841,8 @@ Diff: %6</source>
             <translation>已拒绝</translation>
         </message>
         <message>
-            <source>Camera</source>
-            <translation>相机</translation>
-        </message>
-        <message>
-            <source>Lens</source>
-            <translation>镜头</translation>
-        </message>
-        <message>
-            <source>Lens name</source>
-            <translation>镜头名称</translation>
-        </message>
-        <message>
-            <source>Capture date</source>
-            <translation>拍摄日期</translation>
-        </message>
-        <message>
-            <source>Location</source>
-            <translation>地点</translation>
+            <source>Flag</source>
+            <translation>旗标</translation>
         </message>
         <message>
             <source>Import time</source>
@@ -4058,10 +3950,6 @@ Diff: %6</source>
         <message>
             <source>Fit</source>
             <translation>适合</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>填充</translation>
         </message>
         <message>
             <source>1:1</source>
@@ -4544,12 +4432,24 @@ Diff: %6</source>
             <translation>拍摄信息</translation>
         </message>
         <message>
-            <source>Tags &amp; Metadata</source>
-            <translation>标签和元数据</translation>
+            <source>Exposure</source>
+            <translation>曝光</translation>
         </message>
         <message>
-            <source>keywords, comma separated; use | for hierarchy</source>
-            <translation>关键字，以逗号分隔；使用 | 表示层级</translation>
+            <source>−1 EV</source>
+            <translation>−1 EV</translation>
+        </message>
+        <message>
+            <source>−⅓ EV</source>
+            <translation>−⅓ EV</translation>
+        </message>
+        <message>
+            <source>+⅓ EV</source>
+            <translation>+⅓ EV</translation>
+        </message>
+        <message>
+            <source>+1 EV</source>
+            <translation>+1 EV</translation>
         </message>
         <message>
             <source>Credit</source>
@@ -4586,6 +4486,18 @@ Diff: %6</source>
         <message>
             <source>Sublocation</source>
             <translation>详细地点</translation>
+        </message>
+        <message>
+            <source>Edit Metadata...</source>
+            <translation>编辑元数据…</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>保存</translation>
         </message>
         <message>
             <source>Title</source>
@@ -4735,6 +4647,13 @@ Diff: %6</source>
         <message>
             <source>Copy</source>
             <translation>复制</translation>
+        </message>
+    </context>
+    <context>
+        <name>QCocoaMenuItem</name>
+        <message>
+            <source>Setting</source>
+            <translation>设置</translation>
         </message>
     </context>
     <context>
@@ -4982,6 +4901,22 @@ Diff: %6</source>
         <message>
             <source>Unknown writable metadata field.</source>
             <translation>未知的可写元数据字段。</translation>
+        </message>
+        <message>
+            <source>Metadata name and value must be text.</source>
+            <translation>元数据名称和值必须是文本。</translation>
+        </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>请选择一张已就绪且使用手动曝光的照片。</translation>
+        </message>
+        <message>
+            <source>Exposure step must be 1 or 1/3 EV.</source>
+            <translation>曝光步长必须为 1 或 1/3 EV。</translation>
+        </message>
+        <message>
+            <source>The metadata selection or library changed. Reopen the editor.</source>
+            <translation>照片选择或图库已更改，请重新打开元数据编辑器。</translation>
         </message>
         <message>
             <source>A non-negative integer history ID is required.</source>
@@ -5338,10 +5273,6 @@ Diff: %6</source>
         <message>
             <source>Fit</source>
             <translation>适合</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>填充</translation>
         </message>
         <message>
             <source>Actual Size</source>

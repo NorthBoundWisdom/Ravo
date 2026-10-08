@@ -439,6 +439,7 @@ add_executable(ravo_desktop_command_tests
   studio_qml_test_support.cpp
   studio_test_support.cpp
   studio_command_test.cpp
+  studio_bug_regression_test.cpp
   studio_presenter_test.cpp
   studio_local_adjustment_test.cpp
   studio_presenter_workflow_test.cpp

@@ -470,10 +470,6 @@ Differenz: %6</translation>
             <translation>Belichtung</translation>
         </message>
         <message>
-            <source>EV Shift</source>
-            <translation>EV-Verschiebung</translation>
-        </message>
-        <message>
             <source>Compensate exposure bias</source>
             <translation>Belichtungsabweichung ausgleichen</translation>
         </message>
@@ -2865,6 +2861,10 @@ Differenz: %6</translation>
             <source>Mask %1</source>
             <translation>Maske %1</translation>
         </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>Wählen Sie ein bereites Foto mit manueller Belichtung aus.</translation>
+        </message>
     </context>
     <context>
         <name>DevelopPresetPanel</name>
@@ -3470,6 +3470,10 @@ Differenz: %6</translation>
             <translation>Fotos aus diesem Ordner importieren...</translation>
         </message>
         <message>
+            <source>Synchronize Folder...</source>
+            <translation>Ordner synchronisieren…</translation>
+        </message>
+        <message>
             <source>Update Folder Location...</source>
             <translation>Ordnerspeicherort aktualisieren...</translation>
         </message>
@@ -3789,10 +3793,6 @@ Differenz: %6</translation>
             <translation>%1 Stern</translation>
         </message>
         <message>
-            <source>Search photos</source>
-            <translation>Fotos suchen</translation>
-        </message>
-        <message>
             <source>Any type</source>
             <translation>Jeder Typ</translation>
         </message>
@@ -3813,30 +3813,6 @@ Differenz: %6</translation>
             <translation>TIFF</translation>
         </message>
         <message>
-            <source>Any edits</source>
-            <translation>Beliebige Bearbeitungen</translation>
-        </message>
-        <message>
-            <source>Edited</source>
-            <translation>Bearbeitet</translation>
-        </message>
-        <message>
-            <source>Unedited</source>
-            <translation>Unbearbeitet</translation>
-        </message>
-        <message>
-            <source>Include</source>
-            <translation>Einschließen</translation>
-        </message>
-        <message>
-            <source>Exclude</source>
-            <translation>Ausschließen</translation>
-        </message>
-        <message>
-            <source>Only</source>
-            <translation>Nur</translation>
-        </message>
-        <message>
             <source>Any review</source>
             <translation>Irgendeine Rezension</translation>
         </message>
@@ -3849,80 +3825,12 @@ Differenz: %6</translation>
             <translation>Nicht rezensiert</translation>
         </message>
         <message>
-            <source>No suggestion</source>
-            <translation>Kein Vorschlag</translation>
-        </message>
-        <message>
-            <source>Exact byte duplicate</source>
-            <translation>Exaktes Byte-Duplikat</translation>
-        </message>
-        <message>
-            <source>Near duplicate (heuristic)</source>
-            <translation>Beinahe-Duplikat (heuristisch)</translation>
-        </message>
-        <message>
-            <source>Burst</source>
-            <translation>Platzen</translation>
-        </message>
-        <message>
-            <source>Camera make</source>
-            <translation>Kameramarke</translation>
-        </message>
-        <message>
-            <source>Camera model</source>
-            <translation>Kameramodell</translation>
-        </message>
-        <message>
-            <source>%1 photos</source>
-            <translation>%1 Fotos</translation>
-        </message>
-        <message>
-            <source>Focal mm</source>
-            <translation>Brennweite mm</translation>
-        </message>
-        <message>
-            <source>Lens make</source>
-            <translation>Objektivhersteller</translation>
-        </message>
-        <message>
-            <source>Lens model</source>
-            <translation>Linsenmodell</translation>
-        </message>
-        <message>
-            <source>YYYY:MM:DD</source>
-            <translation>JJJJ:MM:TT</translation>
-        </message>
-        <message>
-            <source>Country</source>
-            <translation>Land</translation>
-        </message>
-        <message>
-            <source>State</source>
-            <translation>Staat</translation>
-        </message>
-        <message>
-            <source>City</source>
-            <translation>Stadt</translation>
-        </message>
-        <message>
-            <source>Sublocation</source>
-            <translation>Unterstandort</translation>
-        </message>
-        <message>
             <source>Add filter</source>
             <translation>Filter hinzufügen</translation>
         </message>
         <message>
-            <source>Search</source>
-            <translation>Suchen</translation>
-        </message>
-        <message>
             <source>Type</source>
             <translation>Typ</translation>
-        </message>
-        <message>
-            <source>Edits</source>
-            <translation>Bearbeitungen</translation>
         </message>
         <message>
             <source>Color</source>
@@ -3933,24 +3841,8 @@ Differenz: %6</translation>
             <translation>Abgelehnt</translation>
         </message>
         <message>
-            <source>Camera</source>
-            <translation>Kamera</translation>
-        </message>
-        <message>
-            <source>Lens</source>
-            <translation>Objektiv</translation>
-        </message>
-        <message>
-            <source>Lens name</source>
-            <translation>Objektivname</translation>
-        </message>
-        <message>
-            <source>Capture date</source>
-            <translation>Aufnahmedatum</translation>
-        </message>
-        <message>
-            <source>Location</source>
-            <translation>Standort</translation>
+            <source>Flag</source>
+            <translation>Markierung</translation>
         </message>
         <message>
             <source>Import time</source>
@@ -4058,10 +3950,6 @@ Differenz: %6</translation>
         <message>
             <source>Fit</source>
             <translation>Einpassen</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>Füllen</translation>
         </message>
         <message>
             <source>1:1</source>
@@ -4544,12 +4432,24 @@ Differenz: %6</translation>
             <translation>Aufnahme</translation>
         </message>
         <message>
-            <source>Tags &amp; Metadata</source>
-            <translation>Tags und Metadaten</translation>
+            <source>Exposure</source>
+            <translation>Belichtung</translation>
         </message>
         <message>
-            <source>keywords, comma separated; use | for hierarchy</source>
-            <translation>Schlüsselwörter, durch Kommas getrennt; verwenden | für Hierarchie</translation>
+            <source>−1 EV</source>
+            <translation>−1 EV</translation>
+        </message>
+        <message>
+            <source>−⅓ EV</source>
+            <translation>−⅓ EV</translation>
+        </message>
+        <message>
+            <source>+⅓ EV</source>
+            <translation>+⅓ EV</translation>
+        </message>
+        <message>
+            <source>+1 EV</source>
+            <translation>+1 EV</translation>
         </message>
         <message>
             <source>Credit</source>
@@ -4586,6 +4486,18 @@ Differenz: %6</translation>
         <message>
             <source>Sublocation</source>
             <translation>Unterstandort</translation>
+        </message>
+        <message>
+            <source>Edit Metadata...</source>
+            <translation>Metadaten bearbeiten…</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Abbrechen</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>Speichern</translation>
         </message>
         <message>
             <source>Title</source>
@@ -4735,6 +4647,13 @@ Differenz: %6</translation>
         <message>
             <source>Copy</source>
             <translation>Kopieren</translation>
+        </message>
+    </context>
+    <context>
+        <name>QCocoaMenuItem</name>
+        <message>
+            <source>Setting</source>
+            <translation>Einstellungen</translation>
         </message>
     </context>
     <context>
@@ -4982,6 +4901,22 @@ Differenz: %6</translation>
         <message>
             <source>Unknown writable metadata field.</source>
             <translation>Unbekanntes beschreibbares Metadatenfeld.</translation>
+        </message>
+        <message>
+            <source>Metadata name and value must be text.</source>
+            <translation>Name und Wert der Metadaten müssen Text sein.</translation>
+        </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>Wählen Sie ein bereites Foto mit manueller Belichtung aus.</translation>
+        </message>
+        <message>
+            <source>Exposure step must be 1 or 1/3 EV.</source>
+            <translation>Die Belichtungsstufe muss 1 oder 1/3 EV betragen.</translation>
+        </message>
+        <message>
+            <source>The metadata selection or library changed. Reopen the editor.</source>
+            <translation>Die Metadatenauswahl oder Bibliothek wurde geändert. Öffnen Sie den Editor erneut.</translation>
         </message>
         <message>
             <source>A non-negative integer history ID is required.</source>
@@ -5262,10 +5197,6 @@ Differenz: %6</translation>
         <message>
             <source>Fit</source>
             <translation>Einpassen</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>Füllen</translation>
         </message>
         <message>
             <source>Actual Size</source>

@@ -1,5 +1,14 @@
 # Ravo
 
+Studio's filter bar exposes rating, colour, file type and pick/reject/unflagged
+filters. The Photo inspector edits metadata through an explicit dialog and
+provides −1, −⅓, +⅓ and +1 EV buttons for one selected manual-exposure photo.
+Synchronize Folder opens Add-mode preflight to review new files; known files
+remain excluded. Update Folder Location validates an existing replacement
+directory even when the previous directory is still online, without moving files.
+The 30% view replaces Fill: the viewport long edge shows 30% of the photo long
+edge and may exceed native-pixel scale.
+
 The photo context menu offers **Export Companion JPEG...** for selected RAW
 assets. This copies the same-directory, same-stem JPEG unchanged, including its
 metadata, without applying Develop parameters. Studio checks the whole selection
@@ -170,7 +179,7 @@ Current implementation status:
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
   images like the grid, shows number/rating/flags in its letterbox, and maps
   vertical or horizontal wheel gestures to bounded horizontal scrolling;
-  collapsible folder tree; left Import/Export; Fit/Fill/1:1; validated
+  collapsible folder tree; left Import/Export; Fit/30%/1:1; validated
   filename/metadata/camera text, media, edit/review/folder/tag/capture/numeric
   filtering and stable import/capture/name/rating/size sorting; additive
   Cmd/Ctrl click and range Shift selection; plus RGB
@@ -180,7 +189,7 @@ Current implementation status:
   scope instead of rebuilding all five diagnostics on every slider event.
   Photo navigation uses bounded Flickable pan plus a normalized left
   navigator; hovering the inspect photo shows a magnifier and a click animates
-  to 1:1 while restoring the last Fit/Fill/custom view (ADR-0076). Active-photo,
+  to 1:1 while restoring the last Fit/30%/custom view (ADR-0076). Active-photo,
   browse-mode, and zoom changes recenter, while review edits on the same photo
   preserve the current pan (ADR-0060). `I` toggles session-owned information:
   one compact panel per Gallery tile and a larger wrapping active-photo panel
@@ -257,7 +266,7 @@ Current implementation status:
   Shift+C/Shift+V copies/pastes edits, Z/Shift+Z undoes/redoes, brackets rotate,
   R reveals the original, apostrophe creates a virtual copy, and G/Shift+G
   stacks/unstacks. Plain Z no longer undoes edits; Shift+V no longer flips
-  vertically. Fit/Fill and Flip Vertical remain available in menus. Plain F
+  vertically. Fit/30% and Flip Vertical remain available in menus. Plain F
   is unassigned because Studio does not provide Lightroom's screen-mode command.
   Photo keys yield to text fields, modal dialogs, and the command palette;
   Import retains its own candidate navigation. This is not a complete Lightroom
@@ -760,19 +769,12 @@ Current implementation status:
   authors bounded circle regions; imported canonical path/brush regions remain
   reproducible. The old GTK IOP and exclusive OpenCL kernel are removed, while
   shared DWT/heal/bilateral and historic mask/order consumers remain.
-- New RAW preview/export uses `ravo.display.rapidraw-basic` v1 as its sole
-  display transform, adapted from the pinned RapidRAW source under AGPLv3.
-  `ravo.core.rapidraw-tone-controls` v1 gives Studio and CLI the matching EV
-  Shift, Exposure, Contrast, Highlights, Shadows, Whites, and Blacks response
-  in RapidRAW's native slider units. Shadows and Blacks use its 1080px-short-edge
-  scale-aware 3.5-pixel separable tonal blur. `EV Shift` and `Exposure` remain
-  visibly distinct controls, matching RapidRAW's linear `exposure` and filmic
-  `brightness` fields respectively; history does not collapse their labels.
-  The Light tone-mapper selector lets an existing
-  Sigmoid recipe opt into this pair explicitly; merely reopening an old recipe
-  never changes it.
-  Existing recipes with `ravo.display.sigmoid` v1 keep their prior
-  contrast/skew/hue-preservation response. The default baseline is not marked
+- RAW preview/export without a stored recipe uses `ravo.display.sigmoid` v1.
+  Studio Light exposes one Exposure control plus contrast, highlights, shadows,
+  whites and blacks, without a tone-mapper selector or RapidRAW-specific sliders.
+  Explicit saved RapidRAW and Sigmoid recipes retain their original response
+  on reopen; the shared recipe API still supports both operation families.
+  The default baseline is not marked
   as a user edit. The RAW baseline runs
   opposed highlight reconstruction before demosaic and also enables
   `ravo.detail.sharpen` at amount 0.5, radius 2, and threshold 0.5. Gallery embedded-JPEG

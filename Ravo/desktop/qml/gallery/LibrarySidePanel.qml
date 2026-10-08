@@ -438,11 +438,11 @@ Rectangle {
                 border.color: Theme.midColor
                 border.width: ControlState.borderThin
                 enabled: root.presenter && root.presenter.browseMode !== "grid" && root.presenter.inspect.previewUrl.toString().length > 0
-                readonly property int currentIndex: root.presenter && root.presenter.inspect.zoomMode === "fill" ? 1 : (root.presenter && root.presenter.inspect.zoomMode === "actual" ? 2 : 0)
+                readonly property int currentIndex: root.presenter && root.presenter.inspect.zoomMode === "30percent" ? 1 : (root.presenter && root.presenter.inspect.zoomMode === "actual" ? 2 : 0)
                 function activate(index) {
                     if (!root.presenter || !root.commands)
                         return;
-                    root.commands.run(root.commands.ids.viewSetZoomMode, index === 1 ? "fill" : (index === 2 ? "actual" : "fit"));
+                    root.commands.run(root.commands.ids.viewSetZoomMode, index === 1 ? "30percent" : (index === 2 ? "actual" : "fit"));
                 }
 
                 Item {
@@ -475,7 +475,7 @@ Rectangle {
                             Layout.fillHeight: true
                             Layout.preferredWidth: 1
                             Layout.minimumWidth: 0
-                            text: qsTr("Fill")
+                            text: "30%"
                             selected: zoomModeBar.currentIndex === 1
                             onClicked: zoomModeBar.activate(1)
                         }
@@ -500,7 +500,8 @@ Rectangle {
             }
             CustomLabel {
                 Layout.alignment: Qt.AlignVCenter
-                visible: root.presenter && root.presenter.browseMode !== "grid" && root.presenter.inspect.previewLoading
+                visible: root.presenter && root.presenter.browseMode !== "grid"
+                opacity: root.presenter && root.presenter.inspect.previewLoading ? 1 : 0
                 text: qsTr("Loading…")
                 color: Theme.placeholderTextColor
             }

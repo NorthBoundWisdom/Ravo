@@ -382,10 +382,6 @@ Diff: %6</translation>
             <translation>Exposure</translation>
         </message>
         <message>
-            <source>EV Shift</source>
-            <translation>EV Shift</translation>
-        </message>
-        <message>
             <source>Compensate exposure bias</source>
             <translation>Compensate exposure bias</translation>
         </message>
@@ -2865,6 +2861,10 @@ Diff: %6</translation>
             <source>Mask %1</source>
             <translation>Mask %1</translation>
         </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>Select one ready photo with manual exposure.</translation>
+        </message>
     </context>
     <context>
         <name>DevelopPresetPanel</name>
@@ -3470,6 +3470,10 @@ Diff: %6</translation>
             <translation>Import Photos from This Folder...</translation>
         </message>
         <message>
+            <source>Synchronize Folder...</source>
+            <translation>Synchronize Folder...</translation>
+        </message>
+        <message>
             <source>Update Folder Location...</source>
             <translation>Update Folder Location...</translation>
         </message>
@@ -3789,10 +3793,6 @@ Diff: %6</translation>
             <translation>%1 star</translation>
         </message>
         <message>
-            <source>Search photos</source>
-            <translation>Search photos</translation>
-        </message>
-        <message>
             <source>Any type</source>
             <translation>Any type</translation>
         </message>
@@ -3813,30 +3813,6 @@ Diff: %6</translation>
             <translation>TIFF</translation>
         </message>
         <message>
-            <source>Any edits</source>
-            <translation>Any edits</translation>
-        </message>
-        <message>
-            <source>Edited</source>
-            <translation>Edited</translation>
-        </message>
-        <message>
-            <source>Unedited</source>
-            <translation>Unedited</translation>
-        </message>
-        <message>
-            <source>Include</source>
-            <translation>Include</translation>
-        </message>
-        <message>
-            <source>Exclude</source>
-            <translation>Exclude</translation>
-        </message>
-        <message>
-            <source>Only</source>
-            <translation>Only</translation>
-        </message>
-        <message>
             <source>Any review</source>
             <translation>Any review</translation>
         </message>
@@ -3849,80 +3825,12 @@ Diff: %6</translation>
             <translation>Unreviewed</translation>
         </message>
         <message>
-            <source>No suggestion</source>
-            <translation>No suggestion</translation>
-        </message>
-        <message>
-            <source>Exact byte duplicate</source>
-            <translation>Exact byte duplicate</translation>
-        </message>
-        <message>
-            <source>Near duplicate (heuristic)</source>
-            <translation>Near duplicate (heuristic)</translation>
-        </message>
-        <message>
-            <source>Burst</source>
-            <translation>Burst</translation>
-        </message>
-        <message>
-            <source>Camera make</source>
-            <translation>Camera make</translation>
-        </message>
-        <message>
-            <source>Camera model</source>
-            <translation>Camera model</translation>
-        </message>
-        <message>
-            <source>%1 photos</source>
-            <translation>%1 photos</translation>
-        </message>
-        <message>
-            <source>Focal mm</source>
-            <translation>Focal mm</translation>
-        </message>
-        <message>
-            <source>Lens make</source>
-            <translation>Lens make</translation>
-        </message>
-        <message>
-            <source>Lens model</source>
-            <translation>Lens model</translation>
-        </message>
-        <message>
-            <source>YYYY:MM:DD</source>
-            <translation>YYYY:MM:DD</translation>
-        </message>
-        <message>
-            <source>Country</source>
-            <translation>Country</translation>
-        </message>
-        <message>
-            <source>State</source>
-            <translation>State</translation>
-        </message>
-        <message>
-            <source>City</source>
-            <translation>City</translation>
-        </message>
-        <message>
-            <source>Sublocation</source>
-            <translation>Sublocation</translation>
-        </message>
-        <message>
             <source>Add filter</source>
             <translation>Add filter</translation>
         </message>
         <message>
-            <source>Search</source>
-            <translation>Search</translation>
-        </message>
-        <message>
             <source>Type</source>
             <translation>Type</translation>
-        </message>
-        <message>
-            <source>Edits</source>
-            <translation>Edits</translation>
         </message>
         <message>
             <source>Color</source>
@@ -3933,24 +3841,8 @@ Diff: %6</translation>
             <translation>Rejected</translation>
         </message>
         <message>
-            <source>Camera</source>
-            <translation>Camera</translation>
-        </message>
-        <message>
-            <source>Lens</source>
-            <translation>Lens</translation>
-        </message>
-        <message>
-            <source>Lens name</source>
-            <translation>Lens name</translation>
-        </message>
-        <message>
-            <source>Capture date</source>
-            <translation>Capture date</translation>
-        </message>
-        <message>
-            <source>Location</source>
-            <translation>Location</translation>
+            <source>Flag</source>
+            <translation>Flag</translation>
         </message>
         <message>
             <source>Import time</source>
@@ -4058,10 +3950,6 @@ Diff: %6</translation>
         <message>
             <source>Fit</source>
             <translation>Fit</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>Fill</translation>
         </message>
         <message>
             <source>1:1</source>
@@ -4544,12 +4432,24 @@ Diff: %6</translation>
             <translation>Capture</translation>
         </message>
         <message>
-            <source>Tags &amp; Metadata</source>
-            <translation>Tags &amp; Metadata</translation>
+            <source>Exposure</source>
+            <translation>Exposure</translation>
         </message>
         <message>
-            <source>keywords, comma separated; use | for hierarchy</source>
-            <translation>keywords, comma separated; use | for hierarchy</translation>
+            <source>−1 EV</source>
+            <translation>−1 EV</translation>
+        </message>
+        <message>
+            <source>−⅓ EV</source>
+            <translation>−⅓ EV</translation>
+        </message>
+        <message>
+            <source>+⅓ EV</source>
+            <translation>+⅓ EV</translation>
+        </message>
+        <message>
+            <source>+1 EV</source>
+            <translation>+1 EV</translation>
         </message>
         <message>
             <source>Credit</source>
@@ -4586,6 +4486,18 @@ Diff: %6</translation>
         <message>
             <source>Sublocation</source>
             <translation>Sublocation</translation>
+        </message>
+        <message>
+            <source>Edit Metadata...</source>
+            <translation>Edit Metadata...</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>Save</translation>
         </message>
         <message>
             <source>Title</source>
@@ -4735,6 +4647,13 @@ Diff: %6</translation>
         <message>
             <source>Copy</source>
             <translation>Copy</translation>
+        </message>
+    </context>
+    <context>
+        <name>QCocoaMenuItem</name>
+        <message>
+            <source>Setting</source>
+            <translation>Setting</translation>
         </message>
     </context>
     <context>
@@ -4982,6 +4901,22 @@ Diff: %6</translation>
         <message>
             <source>Unknown writable metadata field.</source>
             <translation>Unknown writable metadata field.</translation>
+        </message>
+        <message>
+            <source>Metadata name and value must be text.</source>
+            <translation>Metadata name and value must be text.</translation>
+        </message>
+        <message>
+            <source>Select one ready photo with manual exposure.</source>
+            <translation>Select one ready photo with manual exposure.</translation>
+        </message>
+        <message>
+            <source>Exposure step must be 1 or 1/3 EV.</source>
+            <translation>Exposure step must be 1 or 1/3 EV.</translation>
+        </message>
+        <message>
+            <source>The metadata selection or library changed. Reopen the editor.</source>
+            <translation>The metadata selection or library changed. Reopen the editor.</translation>
         </message>
         <message>
             <source>A non-negative integer history ID is required.</source>
@@ -5338,10 +5273,6 @@ Diff: %6</translation>
         <message>
             <source>Fit</source>
             <translation>Fit</translation>
-        </message>
-        <message>
-            <source>Fill</source>
-            <translation>Fill</translation>
         </message>
         <message>
             <source>Actual Size</source>

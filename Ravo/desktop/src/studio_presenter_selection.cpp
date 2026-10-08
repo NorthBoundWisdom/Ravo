@@ -799,13 +799,63 @@ void StudioPresenter::setAssetTags(const QString &text)
         });
 }
 
-void StudioPresenter::setMetadataField(const QString &name, const QString &value)
+QVariantMap StudioPresenter::metadataEditContext() const
 {
-    const auto field = utf8_from_qstring(name);
-    const auto text = utf8_from_qstring(value);
-    const std::optional<std::string> field_value =
-        text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
-    auto patch = writable_metadata_patch_for_field(field, field_value);
+    QVariantList ids;
+    for (const auto &id : selected_asset_ids())
+        ids.push_back(qstring_from_utf8(id));
+    return {{QStringLiteral("schema"), QStringLiteral("ravo-studio-metadata-edit/v1")},
+            {QStringLiteral("catalog"), catalog_path_},
+            {QStringLiteral("revision"), QString::number(observed_catalog_revision_)},
+            {QStringLiteral("assets"), ids}};
+}
+
+QString StudioPresenter::metadataEditContextError(const QVariantMap &context) const
+{
+    if (context != metadataEditContext() || catalog_path_.isEmpty() || selected_ids_.empty() ||
+        observed_catalog_revision_ < 0)
+        return QStringLiteral("The metadata selection or library changed. Reopen the editor.");
+    return {};
+}
+
+void StudioPresenter::setMetadataField(const QString &name, const QString &value,
+                                       const QVariantMap &context)
+{
+    setMetadataFields({{name, value}}, context);
+}
+
+Result<WritableMetadataPatch> StudioPresenter::metadataPatch(const QVariantMap &fields)
+{
+    if (fields.isEmpty())
+        return make_error(ErrorCode::kInvalidArgument, "Writable metadata patch is empty");
+    WritableMetadataPatch patch;
+    for (auto it = fields.cbegin(); it != fields.cend(); ++it)
+    {
+        if (it.value().metaType().id() != QMetaType::QString)
+            return make_error(ErrorCode::kInvalidArgument, "Metadata name and value must be text.");
+        const auto value = utf8_from_qstring(it.value().toString());
+        auto next = writable_metadata_patch_for_field(
+            utf8_from_qstring(it.key()),
+            value.empty() ? std::nullopt : std::optional<std::string>{value}, std::move(patch));
+        if (!next)
+            return next.error();
+        patch = std::move(next).value();
+    }
+    return patch;
+}
+
+void StudioPresenter::setMetadataFields(const QVariantMap &fields, const QVariantMap &context)
+{
+    if (!context.isEmpty())
+    {
+        const auto error = metadataEditContextError(context);
+        if (!error.isEmpty())
+        {
+            setError(error);
+            return;
+        }
+    }
+    auto patch = metadataPatch(fields);
     if (!patch)
     {
         setError(qstring_from_utf8(patch.error().message));
@@ -817,39 +867,59 @@ void StudioPresenter::setMetadataField(const QString &name, const QString &value
     }
     const auto ids = selected_asset_ids();
     const auto metadata_patch = patch.value();
+    const auto catalog = catalog_path_;
+    const std::optional<std::int64_t> expected_revision =
+        context.isEmpty() ? std::nullopt : std::optional<std::int64_t>{observed_catalog_revision_};
     executor_.post(
-        [this, ids, metadata_patch]()
+        [this, ids, metadata_patch, catalog, expected_revision]()
         {
+            if (shutdown_.token().is_cancellation_requested())
+                return;
             TaskError error = make_error(ErrorCode::kIo, "Catalog session is closed");
             std::vector<AssetRecord> updated;
+            std::optional<std::int64_t> committed_revision;
             bool ok = false;
             if (service_ != nullptr)
             {
-                std::optional<std::int64_t> revision;
+                auto revision = expected_revision;
                 auto snapshot = service_->library().snapshot();
-                if (snapshot)
-                    revision = snapshot.value().revision;
-                auto mutated = service_->metadata().set_writable_metadata_selection(
-                    ids, metadata_patch, revision);
-                if (!mutated)
-                {
-                    error = mutated.error();
-                }
+                if (!snapshot)
+                    error = snapshot.error();
+                else if (QFileInfo(qstring_from_utf8(snapshot.value().database_path))
+                             .canonicalFilePath() != QFileInfo(catalog).canonicalFilePath())
+                    error = make_error(ErrorCode::kConflict, "Metadata library changed");
                 else
                 {
-                    ok = true;
-                    updated = std::move(mutated).value().assets;
+                    if (!revision)
+                        revision = snapshot.value().revision;
+                    auto mutated = service_->metadata().set_writable_metadata_selection(
+                        ids, metadata_patch, revision);
+                    if (!mutated)
+                    {
+                        error = mutated.error();
+                    }
+                    else
+                    {
+                        ok = true;
+                        committed_revision = mutated.value().revision;
+                        updated = std::move(mutated).value().assets;
+                    }
                 }
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, ok, error = std::move(error), updated = std::move(updated)]() mutable
+                [this, ok, catalog, committed_revision, error = std::move(error),
+                 updated = std::move(updated)]() mutable
                 {
+                    if (catalog_path_ != catalog || shutdown_.token().is_cancellation_requested())
+                        return;
                     if (!ok)
                     {
                         setError(qstring_from_utf8(error.message));
                         return;
                     }
+                    observed_catalog_revision_ =
+                        std::max(observed_catalog_revision_, *committed_revision);
                     for (const auto &asset : updated)
                     {
                         assets_.updateAsset(asset);

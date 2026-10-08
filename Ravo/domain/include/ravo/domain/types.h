@@ -1465,8 +1465,10 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata);
 [[nodiscard]] Result<std::string> normalize_tag_name(std::string_view name);
 [[nodiscard]] Result<std::vector<std::string>> parse_tag_list(std::string_view text);
 [[nodiscard]] Result<void> validate_metadata_field(std::string_view name, std::string_view value);
+// Accumulate a validated field into an owned patch before one atomic selection write.
 [[nodiscard]] Result<WritableMetadataPatch>
-writable_metadata_patch_for_field(std::string_view name, const std::optional<std::string> &value);
+writable_metadata_patch_for_field(std::string_view name, const std::optional<std::string> &value,
+                                  WritableMetadataPatch patch = {});
 [[nodiscard]] WritableMetadataPatch writable_metadata_patch_all(const WritableMetadata &metadata);
 void apply_writable_metadata_patch(WritableMetadata &metadata,
                                    const WritableMetadataPatch &patch) noexcept;

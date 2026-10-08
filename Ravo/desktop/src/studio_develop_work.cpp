@@ -533,8 +533,9 @@ void StudioDevelopPresenter::kick_develop_work()
                               *job.request_revision :
                               state_.develop_preview_owner_.supersede("queued_preview_started");
     const auto cancellation = state_.develop_preview_owner_.begin();
+    const auto catalog = catalog_path_;
     executor_.post(
-        [this, job, revision, cancellation]()
+        [this, job, revision, cancellation, catalog]()
         {
             Result<RecipeSaveResult> saved =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -598,7 +599,7 @@ void StudioDevelopPresenter::kick_develop_work()
             const bool recovery_due = job.save && save_ok;
             QMetaObject::invokeMethod(
                 this,
-                [this, job, revision, saved = std::move(saved),
+                [this, job, revision, catalog, saved = std::move(saved),
                  preview = std::move(preview)]() mutable
                 {
                     state_.develop_job_in_flight_ = false;
@@ -642,6 +643,8 @@ void StudioDevelopPresenter::kick_develop_work()
                             kick_develop_work();
                             return;
                         }
+                        if (catalog_path_ == catalog)
+                            host_.publish_saved_asset(saved.value().asset);
                         if (selected_matches)
                         {
                             if (job.coalesce_history_id && saved.value().history_id &&
@@ -658,7 +661,6 @@ void StudioDevelopPresenter::kick_develop_work()
                             state_.loaded_recipe_history_head_ = saved.value().history_head;
                             host_.observed_revision(
                                 std::max(observed_catalog_revision_, saved.value().revision));
-                            assets_.updateAsset(saved.value().asset);
                             if (job.history_coalesce_key &&
                                 state_.history_coalesce_key_ == job.history_coalesce_key)
                             {

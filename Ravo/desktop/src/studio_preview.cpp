@@ -209,6 +209,39 @@ void StudioPresenter::startNextThumbnailPresentation()
     }
 }
 
+void StudioPresenter::invalidate_thumbnail(const std::string &asset_id)
+{
+    // Both render and monitor-presentation results from the previous recipe
+    // must lose publication rights before a replacement browse request starts.
+    thumbnail_requests_.erase(asset_id);
+    pending_thumbnail_presentations_.erase(asset_id);
+    thumbnail_presentation_revisions_.erase(asset_id);
+    thumbnail_base_paths_.erase(asset_id);
+    thumbnail_base_profiles_.erase(asset_id);
+    thumbnail_repair_attempts_.erase(asset_id);
+    const auto id = qstring_from_utf8(asset_id);
+    const int row = assets_.indexOf(id);
+    if (row < 0)
+        return;
+    const auto old_url =
+        assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
+    assets_.setThumbnail(asset_id, old_url, QStringLiteral("pending"));
+    emit thumbnailsChanged();
+    // Let the save callback finish queuing its settled foreground preview.
+    // The existing demand owner then prioritizes that preview and coalesces
+    // repeated edits instead of starting another rendering path.
+    const auto catalog = catalog_path_;
+    const auto generation = library_query_generation_;
+    QMetaObject::invokeMethod(
+        this,
+        [this, id, catalog, generation]
+        {
+            if (catalog_path_ == catalog && library_query_generation_ == generation)
+                ensureThumbnail(id);
+        },
+        Qt::QueuedConnection);
+}
+
 void StudioPresenter::remember_thumbnail_base(const std::string &asset_id, const QString &base_path,
                                               const ColorProfileState &source_profile,
                                               const QString &thumb_state)

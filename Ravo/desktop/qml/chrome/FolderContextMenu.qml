@@ -36,8 +36,13 @@ StudioContextMenu {
         onTriggered: root.commands.run(root.commands.ids.libraryRevealFolder, root.folderUri)
     }
     StudioContextMenuItem {
+        displayText: qsTr("Synchronize Folder...")
+        enabled: !root.isAllPhotographs && !root.missing && root.localPath.length > 0 && root.commands && root.presenter && !root.presenter.busy && !root.presenter.imports.importWorkActive
+        onTriggered: root.commands.run(root.commands.ids.librarySyncFolder, root.localPath)
+    }
+    StudioContextMenuItem {
         displayText: qsTr("Update Folder Location...")
-        enabled: root.missing && root.folderId.length > 0 && root.commands && root.presenter && !root.presenter.busy
+        enabled: !root.isAllPhotographs && root.folderId.length > 0 && root.commands && root.presenter && !root.presenter.busy && !root.presenter.imports.importWorkActive
         onTriggered: root.commands.run(root.commands.ids.libraryFolderRelink, root.folderId)
     }
     StudioContextMenuSeparator {}

@@ -296,14 +296,14 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
         checked = presenter_.collapseStacks();
     }
     else if (found->id == QLatin1String(command::kViewFit) ||
-             found->id == QLatin1String(command::kViewFill) ||
+             found->id == QLatin1String(command::kViewThirtyPercent) ||
              found->id == QLatin1String(command::kViewActual))
     {
         checkable = true;
         checked = (found->id == QLatin1String(command::kViewFit) &&
                    presenter_.inspect()->zoomMode() == QLatin1String("fit")) ||
-                  (found->id == QLatin1String(command::kViewFill) &&
-                   presenter_.inspect()->zoomMode() == QLatin1String("fill")) ||
+                  (found->id == QLatin1String(command::kViewThirtyPercent) &&
+                   presenter_.inspect()->zoomMode() == QLatin1String("30percent")) ||
                   (found->id == QLatin1String(command::kViewActual) &&
                    presenter_.inspect()->zoomMode() == QLatin1String("actual"));
     }

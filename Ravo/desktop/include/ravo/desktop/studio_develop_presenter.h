@@ -86,6 +86,7 @@ class StudioDevelopPresenter final : public QObject
     Q_PROPERTY(QVariantMap editWhitesMask READ editWhitesMask NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editBlacksMask READ editBlacksMask NOTIFY editChanged)
     Q_PROPERTY(double editExposure READ editExposure NOTIFY editChanged)
+    Q_PROPERTY(bool canAdjustExposure READ canAdjustExposure NOTIFY editChanged)
     Q_PROPERTY(double editContrast READ editContrast NOTIFY editChanged)
     Q_PROPERTY(double editHighlights READ editHighlights NOTIFY editChanged)
     Q_PROPERTY(double editShadows READ editShadows NOTIFY editChanged)
@@ -352,6 +353,8 @@ public:
     [[nodiscard]] QVariantMap editWhitesMask() const;
     [[nodiscard]] QVariantMap editBlacksMask() const;
     [[nodiscard]] double editExposure() const noexcept;
+    [[nodiscard]] bool canAdjustExposure() const;
+    void adjustGlobalExposure(double delta);
     [[nodiscard]] double editContrast() const noexcept;
     [[nodiscard]] double editHighlights() const noexcept;
     [[nodiscard]] double editShadows() const noexcept;
@@ -640,6 +643,7 @@ private:
         std::function<void()> reload_library;
         std::function<void()> request_selection_preview;
         std::function<void()> kick_thumbnails;
+        std::function<void(const AssetRecord &)> publish_saved_asset;
         std::function<void(std::string)> cancel_thumbnails;
         std::function<void(QString)> zoom_mode;
         std::function<bool(const PreviewResult &, std::uint64_t, bool)> publish_preview;

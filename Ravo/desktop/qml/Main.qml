@@ -355,7 +355,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible || dialogCoordinator.photoMergeDialogVisible
+        value: inspectorSidePanel.metadataEditing || removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible || dialogCoordinator.photoMergeDialogVisible
     }
 
     StudioCommandShortcuts {
@@ -832,24 +832,12 @@ ApplicationWindow {
                                 width: {
                                     if (inspectZoom.inspectStageLockW >= 0)
                                         return inspectZoom.inspectStageLockW;
-                                    if (studio.inspect.zoomMode === "fit")
-                                        return scroller.width;
-                                    if (studio.inspect.zoomMode === "fill")
-                                        return Math.max(scroller.width, previewStage.sourceW * (scroller.height / previewStage.sourceH));
-                                    if (studio.inspect.zoomMode === "actual")
-                                        return previewStage.sourceW;
-                                    return Math.max(1, previewStage.sourceW * studio.inspect.zoomFactor);
+                                    return inspectZoom.photoStageSize(studio.inspect.zoomMode, studio.inspect.zoomFactor, previewStage.sourceW, previewStage.sourceH, scroller.width, scroller.height).w;
                                 }
                                 height: {
                                     if (inspectZoom.inspectStageLockH >= 0)
                                         return inspectZoom.inspectStageLockH;
-                                    if (studio.inspect.zoomMode === "fit")
-                                        return scroller.height;
-                                    if (studio.inspect.zoomMode === "fill")
-                                        return Math.max(scroller.height, previewStage.sourceH * (scroller.width / previewStage.sourceW));
-                                    if (studio.inspect.zoomMode === "actual")
-                                        return previewStage.sourceH;
-                                    return Math.max(1, previewStage.sourceH * studio.inspect.zoomFactor);
+                                    return inspectZoom.photoStageSize(studio.inspect.zoomMode, studio.inspect.zoomFactor, previewStage.sourceW, previewStage.sourceH, scroller.width, scroller.height).h;
                                 }
                                 transform: Scale {
                                     origin.x: inspectZoom.inspectAnimOriginX
@@ -872,7 +860,7 @@ ApplicationWindow {
                                 readonly property real containScale: Math.min(width / sourceW, height / sourceH)
                                 readonly property bool cropWorkspace: studio.develop.cropToolActive && studio.inspect.cropPreviewLayout.widthScale !== undefined
                                 // Halve the diagonal-fit surround toward the contained photo.
-                                readonly property real cropFitExtent: cropWorkspace ? (Math.min(width, height) + Math.min(width / studio.inspect.cropPreviewLayout.widthScale, height / studio.inspect.cropPreviewLayout.heightScale)) / 2 : 0
+                                readonly property real cropFitExtent: !cropWorkspace ? 0 : studio.inspect.zoomMode === "30percent" ? Math.max(scroller.width, scroller.height) / (0.3 * Math.max(studio.inspect.cropPreviewLayout.widthScale, studio.inspect.cropPreviewLayout.heightScale)) : (Math.min(width, height) + Math.min(width / studio.inspect.cropPreviewLayout.widthScale, height / studio.inspect.cropPreviewLayout.heightScale)) / 2
                                 readonly property real baseW: cropWorkspace ? cropFitExtent * studio.inspect.cropPreviewLayout.widthScale : sourceW * containScale
                                 readonly property real baseH: cropWorkspace ? cropFitExtent * studio.inspect.cropPreviewLayout.heightScale : sourceH * containScale
                                 readonly property real rotateScale: 1
@@ -1252,6 +1240,7 @@ ApplicationWindow {
             }
 
             InspectorSidePanel {
+                id: inspectorSidePanel
                 SplitView.preferredWidth: 320
                 SplitView.minimumWidth: 260
                 presenter: studio

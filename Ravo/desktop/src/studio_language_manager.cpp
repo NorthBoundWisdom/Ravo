@@ -27,6 +27,12 @@ namespace
 constexpr auto kLanguageSettingKey = "desktop/language";
 constexpr auto kManifestPath = ":/ravo/studio/i18n/locales.json";
 
+// Qt Quick's native macOS menu items use QCocoaMenuItem's translated text
+// heuristic for the application-menu Settings role. Keep its prefix in our
+// deployed catalog so it follows Studio's language, including live switches.
+[[maybe_unused]] constexpr auto kNativeSettingsPrefix =
+    QT_TRANSLATE_NOOP("QCocoaMenuItem", "Setting");
+
 bool alias_matches(const QString &normalized, const QString &alias)
 {
     if (alias.endsWith(QLatin1String("_*")))
@@ -45,7 +51,8 @@ StudioLanguageManager::StudioLanguageManager(QObject *parent)
 }
 
 StudioLanguageManager::StudioLanguageManager(QStringList translation_directories, QObject *parent)
-    : QObject(parent), translation_directories_override_(std::move(translation_directories))
+    : QObject(parent)
+    , translation_directories_override_(std::move(translation_directories))
 {
 }
 
@@ -155,8 +162,7 @@ bool StudioLanguageManager::loadManifest()
     }
 
     const QJsonObject root = document.object();
-    if (root.value(QStringLiteral("schema")).toString() !=
-        QLatin1String("ravo-studio-locales/v1"))
+    if (root.value(QStringLiteral("schema")).toString() != QLatin1String("ravo-studio-locales/v1"))
     {
         setError(QCoreApplication::translate("StudioLanguageManager",
                                              "The language manifest version is unsupported."));
@@ -183,8 +189,8 @@ bool StudioLanguageManager::loadManifest()
             QFileInfo(item.catalog).fileName() != item.catalog ||
             !item.catalog.endsWith(QLatin1String(".ts")) || codes.contains(item.code))
         {
-            setError(QCoreApplication::translate("StudioLanguageManager",
-                                                 "The language manifest contains an invalid locale."));
+            setError(QCoreApplication::translate(
+                "StudioLanguageManager", "The language manifest contains an invalid locale."));
             return false;
         }
         codes.insert(item.code);
@@ -192,8 +198,8 @@ bool StudioLanguageManager::loadManifest()
         const QString canonical = item.code.toLower();
         if (exact_aliases.contains(canonical))
         {
-            setError(QCoreApplication::translate("StudioLanguageManager",
-                                                 "The language manifest contains conflicting aliases."));
+            setError(QCoreApplication::translate(
+                "StudioLanguageManager", "The language manifest contains conflicting aliases."));
             return false;
         }
         exact_aliases.insert(canonical);
@@ -202,7 +208,8 @@ bool StudioLanguageManager::loadManifest()
             if (alias.isEmpty() || exact_aliases.contains(alias))
             {
                 setError(QCoreApplication::translate(
-                    "StudioLanguageManager", "The language manifest contains conflicting aliases."));
+                    "StudioLanguageManager",
+                    "The language manifest contains conflicting aliases."));
                 return false;
             }
             exact_aliases.insert(alias);
@@ -257,8 +264,8 @@ bool StudioLanguageManager::activate(const QString &requested_language, const bo
     if (selected != source_language_)
     {
         candidate = std::make_unique<QTranslator>();
-        const QString file_name = QFileInfo(selected_definition->catalog).completeBaseName() +
-                                  QStringLiteral(".qm");
+        const QString file_name =
+            QFileInfo(selected_definition->catalog).completeBaseName() + QStringLiteral(".qm");
         QStringList attempted_paths;
         bool loaded = false;
         for (const auto &directory : translationDirectories())
@@ -269,9 +276,10 @@ bool StudioLanguageManager::activate(const QString &requested_language, const bo
                 continue;
             if (!candidate->load(file_path))
             {
-                setError(QCoreApplication::translate(
-                             "StudioLanguageManager", "Unable to load translation package for %1: %2")
-                             .arg(selected, file_path));
+                setError(
+                    QCoreApplication::translate("StudioLanguageManager",
+                                                "Unable to load translation package for %1: %2")
+                        .arg(selected, file_path));
                 return false;
             }
             loaded = true;
@@ -279,16 +287,16 @@ bool StudioLanguageManager::activate(const QString &requested_language, const bo
         }
         if (!loaded)
         {
-            setError(QCoreApplication::translate(
-                         "StudioLanguageManager",
-                         "Translation package for %1 is missing. Searched: %2")
-                         .arg(selected, attempted_paths.join(QStringLiteral(", "))));
+            setError(
+                QCoreApplication::translate("StudioLanguageManager",
+                                            "Translation package for %1 is missing. Searched: %2")
+                    .arg(selected, attempted_paths.join(QStringLiteral(", "))));
             return false;
         }
         if (!QCoreApplication::installTranslator(candidate.get()))
         {
-            setError(QCoreApplication::translate(
-                         "StudioLanguageManager", "Unable to install translation package for %1.")
+            setError(QCoreApplication::translate("StudioLanguageManager",
+                                                 "Unable to install translation package for %1.")
                          .arg(selected));
             return false;
         }

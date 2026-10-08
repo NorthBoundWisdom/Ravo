@@ -83,16 +83,22 @@ QtObject {
     function unlockedPhotoStageSize(mode, factor) {
         const srcW = previewStage ? Math.max(1, previewStage.sourceW) : 1;
         const srcH = previewStage ? Math.max(1, previewStage.sourceH) : 1;
+        return photoStageSize(mode, factor, srcW, srcH, scroller.width, scroller.height);
+    }
+
+    function photoStageSize(mode, factor, srcW, srcH, viewportW, viewportH) {
         if (mode === "fit")
             return {
-                "w": scroller.width,
-                "h": scroller.height
+                "w": viewportW,
+                "h": viewportH
             };
-        if (mode === "fill")
+        if (mode === "30percent") {
+            const scale = Math.max(viewportW, viewportH) / (0.3 * Math.max(srcW, srcH));
             return {
-                "w": Math.max(scroller.width, srcW * (scroller.height / srcH)),
-                "h": Math.max(scroller.height, srcH * (scroller.width / srcW))
+                "w": Math.max(viewportW, srcW * scale),
+                "h": Math.max(viewportH, srcH * scale)
             };
+        }
         if (mode === "actual")
             return {
                 "w": srcW,

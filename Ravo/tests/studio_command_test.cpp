@@ -989,8 +989,8 @@ TEST(StudioPresenterTest, ZoomModesAndFactorBoundsHaveOneDeterministicOwner)
     StudioPresenter presenter;
     EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fit"));
     EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 1.0);
-    presenter.inspect()->setZoomMode(QStringLiteral("fill"));
-    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fill"));
+    presenter.inspect()->setZoomMode(QStringLiteral("30percent"));
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("30percent"));
     presenter.inspect()->setZoomMode(QStringLiteral("100"));
     EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("actual"));
     EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 1.0);
@@ -1003,11 +1003,11 @@ TEST(StudioPresenterTest, ZoomModesAndFactorBoundsHaveOneDeterministicOwner)
     EXPECT_DOUBLE_EQ(presenter.inspect()->zoomFactor(), 8.0);
     presenter.inspect()->setZoomMode(QStringLiteral("future"));
     EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fit"));
-    presenter.inspect()->setZoomMode(QStringLiteral("fill"));
+    presenter.inspect()->setZoomMode(QStringLiteral("30percent"));
     presenter.inspect()->toggleActualSize();
     EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("actual"));
     presenter.inspect()->toggleActualSize();
-    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("fill"));
+    EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("30percent"));
     presenter.inspect()->setZoomFactor(2.0);
     presenter.inspect()->toggleActualSize();
     EXPECT_EQ(presenter.inspect()->zoomMode(), QStringLiteral("actual"));

@@ -1,5 +1,20 @@
 # Ravo Testing Strategy
 
+`StudioCommands.GalleryExposureRefreshesGridThumbnailPixels` exercises the
+Gallery exposure commands against real thumbnails with an injected monitor
+profile. It requires model notifications, darker pixels after −1 EV, restored
+pixels after +1 EV, bounded thumbnail dimensions and the latest pixels after
+rapid repeated edits, without leaving Grid or manually requesting another thumbnail.
+
+`StudioCommands.WritableMetadataAcceptsEveryDomainFieldAndRejectsInvalidInput`
+checks all fourteen writable fields through command dispatch, including clearing,
+multi-field patches, unchanged-field preservation and whole-patch rejection for
+invalid input. Catalog IPTC contracts cover transactions and reopen.
+Localization contracts check the native Settings-role prefix and command dispatch
+after each supported language switch. Production Studio smoke checks live Light
+slider values and the 30% long-edge viewport ratio in landscape and portrait
+windows, plus return from 1:1. Native trackpad gestures require host evidence.
+
 `StudioDisplayPresentationTest` covers thumbnail cache loss before catalog open
 and deterministic eviction between listing and display dispatch. Recovery must
 publish monitor-corrected pixels without a transient error, preserve original
@@ -314,11 +329,10 @@ Engine GPU adapter tests require `create_phase1` to succeed whether or not a
 device exists, honor cancellation before dispatch, and reject size-mismatched
 opt-in copies. When QRhi reports a compute backend, identity copies are
 bit-exact and Exposure affine RGB, unmasked light controls, Lab USM Sharpen,
-RapidRAW global tone controls, and the active display mapper (RapidRAW Basic
-for new RAW, Sigmoid for stored legacy recipes) are RMSE-gated against the CPU gold.
+RapidRAW global tone controls, and the active display mapper (Sigmoid for
+synthesized RAW baselines, RapidRAW Basic for explicit stored recipes) are RMSE-gated against the CPU gold.
 `render_interactive_linear_working` reports `gpu_backend` when those GPU RGB
-passes ran, including the default RAW baseline that keeps Sharpen and RapidRAW
-Basic tone on the GPU. `render_linear_working` and export stay on CPU even when a
+passes ran, including the default RAW baseline that keeps Sharpen and Sigmoid on the GPU. `render_linear_working` and export stay on CPU even when a
 compute backend exists. Recipes without those ops stay on CPU. A later smaller
 upload must not over-read a grow-only SSBO. Retained-source RGB apply matches
 the uploaded path. Interactive skip-download on Metal publishes a non-zero
@@ -992,8 +1006,7 @@ full Ravo suite for changes to these worker or repository boundaries
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
 - RAW preview contract v12 validates complete decode, explicit input/output
-  profiles, default opposed highlight reconstruction, and default RapidRAW
-  Basic tone; the raster baseline must not receive a second display transform.
+  profiles, default opposed highlight reconstruction, and default Sigmoid tone; the raster baseline must not receive a second display transform.
   Synthetic DNG black-level tests cover uniform and unequal 2×2 pedestals,
   exact zero-signal and illuminated CFA values, and source-byte preservation.
   RapidRAW tone requires strict schema validation, fixed normalization and
@@ -1072,7 +1085,7 @@ full Ravo suite for changes to these worker or repository boundaries
   mouse clicks to the photo surface: Actual must be immediate and the second
   click must restore Fit while staying in Loupe. Dynamic QML tests separately
   cover native-GPU readiness with the CPU Image empty, comparison, grid and crop
-  exclusions; presenter tests retain Fill and custom-factor restoration.
+  exclusions; presenter tests retain 30% and custom-factor restoration.
 - Gallery-grid scrolling uses browse thumbnails only; it must not queue a
   1600px processed preview for the selected grid item. Opening a catalog with
   existing cache must not rerun an `ensureThumbnail` work queue for every image.

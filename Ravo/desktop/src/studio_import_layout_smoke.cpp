@@ -1221,7 +1221,74 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         LOG_ERROR(logger(), "Second photo click must restore Fit without leaving Loupe");
         return false;
     }
+    auto *zoom_plane = window->findChild<QQuickItem *>(QStringLiteral("photoInspectPlane"));
+    if (!zoom_plane)
+        return false;
+    for (const auto size : {QSize{1440, 900}, QSize{900, 1200}})
+    {
+        window->resize(size);
+        presenter->inspect()->setZoomMode(QStringLiteral("30percent"));
+        if (!wait_ready(
+                [&]
+                {
+                    const double visible_fraction =
+                        std::max(scroller->width(), scroller->height()) /
+                        std::max(zoom_plane->width(), zoom_plane->height());
+                    return std::abs(visible_fraction - 0.3) < 0.001;
+                }))
+        {
+            LOG_ERROR(logger(), "30% zoom must preserve the long-edge viewport fraction");
+            return false;
+        }
+        presenter->inspect()->toggleActualSize();
+        presenter->inspect()->toggleActualSize();
+        if (presenter->inspect()->zoomMode() != QStringLiteral("30percent"))
+            return false;
+    }
+    window->resize(1440, 900);
+    presenter->inspect()->setZoomMode(QStringLiteral("fit"));
     presenter->setBrowseMode(QStringLiteral("develop"));
+    // Verify real slider bindings, including value changes after construction.
+    // A QML source check cannot catch an undefined Repeater property lookup.
+    const std::array tone_controls{std::pair{"exposure", "lightExposureSlider"},
+                                   std::pair{"highlights", "lightHighlightsSlider"},
+                                   std::pair{"shadows", "lightShadowsSlider"},
+                                   std::pair{"whites", "lightWhitesSlider"},
+                                   std::pair{"blacks", "lightBlacksSlider"}};
+    const auto find_visual = [](const auto &self, QQuickItem *item,
+                                const QString &name) -> QQuickItem *
+    {
+        if (item->objectName() == name)
+            return item;
+        for (auto *child : item->childItems())
+            if (auto *found = self(self, child, name))
+                return found;
+        return nullptr;
+    };
+    for (const auto &[field, name] : tone_controls)
+    {
+        QObject *slider = nullptr;
+        if (!wait_ready(
+                [&]
+                {
+                    slider =
+                        find_visual(find_visual, window->contentItem(), QString::fromLatin1(name));
+                    return slider && slider->property("value").isValid();
+                }))
+        {
+            LOG_ERROR(logger(), "Light slider was not constructed: {}", name);
+            return false;
+        }
+        presenter->develop()->setDevelopNumber(QString::fromLatin1(field), 0.017);
+        if (!wait_ready([&] { return slider->property("value").toDouble() == 0.017; }))
+        {
+            LOG_ERROR(logger(), "Light slider failed to follow its presenter: {}", name);
+            return false;
+        }
+        presenter->develop()->setDevelopNumber(QString::fromLatin1(field), 0.0);
+        if (!wait_ready([&] { return slider->property("value").toDouble() == 0.0; }))
+            return false;
+    }
     presenter->develop()->setCropToolActive(true);
     auto *pinned = window->findChild<QQuickItem *>(QStringLiteral("pinnedCropPanel"));
     auto *develop_scroll = window->findChild<QQuickItem *>(QStringLiteral("developPanelScroller"));
@@ -1262,9 +1329,75 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
     develop_scroll->setProperty("contentY", 200.0);
     if (std::abs(pinned->y() - pinned_y) > .1)
         return false;
+    presenter->inspect()->setZoomMode(QStringLiteral("30percent"));
+    if (!wait_ready(
+            [&]
+            {
+                return std::abs(std::max(scroller->width(), scroller->height()) /
+                                    std::max(plane->width(), plane->height()) -
+                                0.3) < 0.001;
+            }))
+        return false;
+    presenter->inspect()->setZoomMode(QStringLiteral("fit"));
     presenter->develop()->setCropToolActive(false);
     if (pinned->isVisible() || !wait_ready([&] { return !presenter->inspect()->previewLoading(); }))
         return false;
+    presenter->setBrowseMode(QStringLiteral("loupe"));
+    auto *metadata_button =
+        find_visual(find_visual, window->contentItem(), QStringLiteral("editMetadataButton"));
+    if (!metadata_button || !QMetaObject::invokeMethod(metadata_button, "clicked"))
+        return false;
+    QQuickItem *metadata_value = nullptr;
+    QQuickItem *metadata_save = nullptr;
+    if (!wait_ready(
+            [&]
+            {
+                metadata_value = find_visual(find_visual, window->contentItem(),
+                                             QStringLiteral("metadataEditValue_title"));
+                metadata_save = find_visual(find_visual, window->contentItem(),
+                                            QStringLiteral("metadataEditSave"));
+                return metadata_value && metadata_save && metadata_value->isVisible();
+            }))
+        return false;
+    const auto original_title = presenter->selectedTitle();
+    metadata_value->setProperty("text", QStringLiteral("Cancelled metadata"));
+    QMetaObject::invokeMethod(metadata_value, "textEdited");
+    auto *metadata_cancel =
+        find_visual(find_visual, window->contentItem(), QStringLiteral("metadataEditCancel"));
+    if (!metadata_cancel || !QMetaObject::invokeMethod(metadata_cancel, "clicked") ||
+        !wait_ready([&] { return !metadata_value->isVisible(); }) ||
+        presenter->selectedTitle() != original_title)
+        return false;
+    if (!QMetaObject::invokeMethod(metadata_button, "clicked") ||
+        !wait_ready(
+            [&]
+            {
+                metadata_value = find_visual(find_visual, window->contentItem(),
+                                             QStringLiteral("metadataEditValue_title"));
+                return metadata_value && metadata_value->isVisible();
+            }))
+        return false;
+    metadata_value->setProperty("text", QStringLiteral("Metadata smoke"));
+    QMetaObject::invokeMethod(metadata_value, "textEdited");
+    auto *description_value = find_visual(find_visual, window->contentItem(),
+                                          QStringLiteral("metadataEditValue_description"));
+    if (!description_value)
+        return false;
+    description_value->setProperty("text", QStringLiteral("List editor description"));
+    QMetaObject::invokeMethod(description_value, "textEdited");
+    if (!QMetaObject::invokeMethod(metadata_save, "clicked") ||
+        !wait_ready(
+            [&]
+            {
+                return presenter->selectedTitle() == QStringLiteral("Metadata smoke") &&
+                       presenter->selectedDescription() ==
+                           QStringLiteral("List editor description");
+            }))
+    {
+        LOG_ERROR(logger(), "Metadata dialog save failed: {}",
+                  presenter->errorText().toStdString());
+        return false;
+    }
     return true;
 }
 } // namespace ravo

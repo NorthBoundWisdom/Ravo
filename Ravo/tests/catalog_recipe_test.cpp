@@ -586,7 +586,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto baseline = service->develop().load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_EQ(baseline.value().operations.size(), 7U);
+    ASSERT_EQ(baseline.value().operations.size(), 6U);
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == "ravo.color.temperature"; }),
@@ -597,9 +597,9 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
               baseline.value().operations.end());
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
-                           { return operation.id == kRapidRawBasicToneOperationId; }),
+                           { return operation.id == "ravo.display.sigmoid"; }),
               baseline.value().operations.end());
-    EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
+    EXPECT_EQ(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == kRapidRawToneControlsOperationId; }),
               baseline.value().operations.end());
@@ -617,9 +617,9 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
               baseline.value().operations.end());
     auto baseline_params = develop_from_recipe(baseline.value());
     ASSERT_TRUE(baseline_params) << baseline_params.error().message;
-    EXPECT_FALSE(baseline_params.value().sigmoid_enabled);
-    EXPECT_TRUE(baseline_params.value().rapidraw_basic_tone_enabled);
-    EXPECT_TRUE(baseline_params.value().rapidraw_tone_controls_enabled);
+    EXPECT_TRUE(baseline_params.value().sigmoid_enabled);
+    EXPECT_FALSE(baseline_params.value().rapidraw_basic_tone_enabled);
+    EXPECT_FALSE(baseline_params.value().rapidraw_tone_controls_enabled);
     EXPECT_NEAR(baseline_params.value().sharpen, SharpenParams{}.amount, 1e-9);
     EXPECT_NEAR(baseline_params.value().sharpen_radius, SharpenParams{}.radius, 1e-9);
     EXPECT_NEAR(baseline_params.value().sharpen_threshold, SharpenParams{}.threshold, 1e-9);
@@ -675,6 +675,10 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
               prior_parsed.value().operations.end());
 
     auto adjusted = baseline_params.value();
+    // Explicitly stored RapidRAW recipes retain their original rendering.
+    adjusted.sigmoid_enabled = false;
+    adjusted.rapidraw_basic_tone_enabled = true;
+    adjusted.rapidraw_tone_controls_enabled = true;
     adjusted.rapidraw_exposure = -0.35;
     adjusted.rapidraw_contrast = 18.0;
     adjusted.rapidraw_highlights = -24.0;
@@ -746,9 +750,9 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     ASSERT_TRUE(reset_recipe) << reset_recipe.error().message;
     auto reset_params = develop_from_recipe(reset_recipe.value());
     ASSERT_TRUE(reset_params) << reset_params.error().message;
-    EXPECT_FALSE(reset_params.value().sigmoid_enabled);
-    EXPECT_TRUE(reset_params.value().rapidraw_basic_tone_enabled);
-    EXPECT_TRUE(reset_params.value().rapidraw_tone_controls_enabled);
+    EXPECT_TRUE(reset_params.value().sigmoid_enabled);
+    EXPECT_FALSE(reset_params.value().rapidraw_basic_tone_enabled);
+    EXPECT_FALSE(reset_params.value().rapidraw_tone_controls_enabled);
     EXPECT_NEAR(reset_params.value().sharpen, SharpenParams{}.amount, 1e-9);
     EXPECT_DOUBLE_EQ(reset_params.value().raw_highlights, 1.0);
 }
@@ -1277,8 +1281,8 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     auto stored_params = develop_from_recipe(stored.value());
     ASSERT_TRUE(stored_params) << stored_params.error().message;
     EXPECT_NEAR(stored_params.value().exposure_ev, 0.0, 1e-9);
-    EXPECT_FALSE(stored_params.value().sigmoid_enabled);
-    EXPECT_TRUE(stored_params.value().rapidraw_basic_tone_enabled);
+    EXPECT_TRUE(stored_params.value().sigmoid_enabled);
+    EXPECT_FALSE(stored_params.value().rapidraw_basic_tone_enabled);
 
     live.exposure_ev = -0.5;
     auto second = service->preview().request_preview(request, live);

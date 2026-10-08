@@ -399,9 +399,9 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     }
     else if (name == "toneMapperIndex")
     {
-        params.rapidraw_basic_tone_enabled = true;
-        params.rapidraw_tone_controls_enabled = true;
-        params.sigmoid_enabled = false;
+        params.rapidraw_basic_tone_enabled = false;
+        params.rapidraw_tone_controls_enabled = false;
+        params.sigmoid_enabled = true;
     }
     else if (name == "vibrance")
     {

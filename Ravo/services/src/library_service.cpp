@@ -630,24 +630,6 @@ LibraryService::relink_folder(const std::string_view folder_id,
         return make_error(ErrorCode::kNotFound, "Folder identity does not exist",
                           {{"folder_id", std::string(folder_id)}});
 
-    auto old_location = normalize_local_input(folder.value()->uri);
-    if (!old_location)
-        return old_location.error();
-    std::error_code old_error;
-    const bool old_is_directory =
-        std::filesystem::is_directory(path_from_utf8(old_location.value().path), old_error);
-    if (old_error && old_error != std::errc::no_such_file_or_directory)
-        return make_error(ErrorCode::kIo, "Unable to inspect the cataloged folder",
-                          {{"reason", "folder_root_inspect_failed"},
-                           {"folder_id", std::string(folder_id)},
-                           {"uri", folder.value()->uri},
-                           {"detail", old_error.message()}});
-    if (old_is_directory)
-        return make_error(ErrorCode::kConflict, "Folder is still available at its catalog path",
-                          {{"reason", "folder_root_not_missing"},
-                           {"folder_id", std::string(folder_id)},
-                           {"uri", folder.value()->uri}});
-
     auto replacement = normalize_local_input(replacement_directory);
     if (!replacement)
         return replacement.error();
