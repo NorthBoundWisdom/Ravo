@@ -1,6 +1,7 @@
 #include "ravo/services/display_presentation.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -33,6 +34,21 @@ namespace
 {
 
 constexpr std::size_t kMaxIccBytes = 8U * 1024U * 1024U;
+
+// Apple CI's libc++ does not expose jthread. Own the same bounded worker set
+// explicitly: partial thread creation must join before any captured ICC state
+// or output buffer can be destroyed. No thread is detached or reused.
+struct DisplayConversionWorkers final
+{
+    std::array<std::thread, 7> threads;
+
+    ~DisplayConversionWorkers()
+    {
+        for (auto &thread : threads)
+            if (thread.joinable())
+                thread.join();
+    }
+};
 
 class CmsContext final
 {
@@ -345,10 +361,9 @@ try
     };
     try
     {
-        std::vector<std::jthread> threads;
-        threads.reserve(workers - 1U);
+        DisplayConversionWorkers owned;
         for (unsigned worker = 1U; worker < workers; ++worker)
-            threads.emplace_back(rows, worker);
+            owned.threads[worker - 1U] = std::thread(rows, worker);
         rows(0U);
     }
     catch (const std::system_error &error)

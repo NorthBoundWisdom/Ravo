@@ -16,6 +16,10 @@ namespace ravo
 namespace
 {
 using namespace studio_test_support;
+// Opening 205 on-disk fixtures competes with parallel CI processes on Windows.
+// This is setup, not the paging latency contract: selection waits below retain
+// their ordinary timeout and all unloaded-row/selection assertions stay intact.
+constexpr int kCatalogOpenTimeoutMs = 60000;
 void make_paged_catalog(const QTemporaryDir &root)
 {
     auto repository =
@@ -57,10 +61,11 @@ TEST(StudioLibraryPaging, NextAcrossUnloadedPagePreservesSelectionUntilResolved)
     presenter.openCatalogFromPath(root.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until(
         [&]
-        {
-            return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205;
-        }))
-        << presenter.errorText().toStdString();
+        { return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205; },
+        kCatalogOpenTimeoutMs))
+        << "open=" << presenter.catalogOpen() << " busy=" << presenter.busy()
+        << " visible=" << presenter.visibleCount()
+        << " error=" << presenter.errorText().toStdString();
     ASSERT_FALSE(presenter.assets()->rowLoaded(200));
     presenter.selectAsset(presenter.assets()->assetIdAt(199));
     const auto previous = presenter.selectedAssetId();
@@ -85,10 +90,11 @@ TEST(StudioLibraryPaging, PlaceholderClickAndRepeatedNextUseLatestBoundRow)
     presenter.openCatalogFromPath(root.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until(
         [&]
-        {
-            return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205;
-        }))
-        << presenter.errorText().toStdString();
+        { return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205; },
+        kCatalogOpenTimeoutMs))
+        << "open=" << presenter.catalogOpen() << " busy=" << presenter.busy()
+        << " visible=" << presenter.visibleCount()
+        << " error=" << presenter.errorText().toStdString();
     presenter.selectAsset(presenter.assets()->assetIdAt(199));
     presenter.selectNext();
     presenter.selectNext();
@@ -117,10 +123,11 @@ TEST(StudioLibraryPaging, PlaceholderCommandWaitsForMetadataBeforeSelecting)
     presenter.openCatalogFromPath(root.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until(
         [&]
-        {
-            return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205;
-        }))
-        << presenter.errorText().toStdString();
+        { return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205; },
+        kCatalogOpenTimeoutMs))
+        << "open=" << presenter.catalogOpen() << " busy=" << presenter.busy()
+        << " visible=" << presenter.visibleCount()
+        << " error=" << presenter.errorText().toStdString();
     ASSERT_FALSE(presenter.assets()->rowLoaded(204));
     const auto previous = presenter.selectedAssetId();
     const auto result = commands.executeCommand("studio.photo.select",
@@ -144,10 +151,11 @@ TEST(StudioLibraryPaging, NewSelectionAndQueryInvalidateQueuedRowSelection)
     presenter.openCatalogFromPath(root.filePath("library.sqlite"));
     ASSERT_TRUE(wait_until(
         [&]
-        {
-            return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205;
-        }))
-        << presenter.errorText().toStdString();
+        { return presenter.catalogOpen() && !presenter.busy() && presenter.visibleCount() == 205; },
+        kCatalogOpenTimeoutMs))
+        << "open=" << presenter.catalogOpen() << " busy=" << presenter.busy()
+        << " visible=" << presenter.visibleCount()
+        << " error=" << presenter.errorText().toStdString();
     presenter.selectLibraryRow(204);
     presenter.selectAsset(presenter.assets()->assetIdAt(0));
     ASSERT_TRUE(wait_until([&] { return presenter.assets()->rowLoaded(204); }));

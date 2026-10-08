@@ -1,5 +1,10 @@
 # Ravo Testing Strategy
 
+`StudioLibraryPaging` allows 60 seconds for opening its 205-file test catalog
+under parallel Windows CI load. This is a setup budget, not a performance claim;
+page-resolution waits and unloaded-row/selection assertions retain their original
+contracts. Open failures report catalog-open, busy, visible-count and error state.
+
 Release artifacts also run on fresh CI runners without the build bootstrap or
 Qt SDK. `ravo_studio --startup-smoke -platform cocoa|windows|xcb` loads the
 production root, presents a native frame within 15 seconds, emits

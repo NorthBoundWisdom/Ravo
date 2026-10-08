@@ -612,7 +612,10 @@ buffers below 512 KiB remain serial; larger conversions use at most eight
 scope-owned workers (including the caller), capped by hardware concurrency and
 row count. They share a read-only LittleCMS transform with `NOCACHE`, write
 disjoint rows and check cancellation before each row. All workers join before
-the transform, profiles or output can be destroyed; thread-start and allocation
+the transform, profiles or output can be destroyed, using a scope-owned fixed
+array of `std::thread` so the contract also builds on Apple's CI libc++ without
+`std::jthread`. Partial worker creation still joins every started thread.
+Thread-start and allocation
 failures are explicit and no partial output is published. `NOOPTIMIZE` remains
 enabled to preserve the serial evaluator's exact pixels, including LUT profiles.
 This reduces synchronous presentation latency without changing the recipe,
