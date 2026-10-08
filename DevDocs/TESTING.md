@@ -5,6 +5,13 @@ under parallel Windows CI load. This is a setup budget, not a performance claim;
 page-resolution waits and unloaded-row/selection assertions retain their original
 contracts. Open failures report catalog-open, busy, visible-count and error state.
 
+Lightroom import contracts construct SQLite catalogs with the vendor table
+relationships and verify source hashes, metadata after reopen, missing files,
+active journals, invalid references, cancellation and destination conflict in
+`catalog_lightroom_test.cpp`. This is synthetic structural coverage, not vendor
+release certification. Real private catalogs, large-catalog memory/disk pressure
+and platform-specific volume remapping require separate evidence (ADR-0164).
+
 Release artifacts also run on fresh CI runners without the build bootstrap or
 Qt SDK. `ravo_studio --startup-smoke -platform cocoa|windows|xcb` loads the
 production root, presents a native frame within 15 seconds, emits

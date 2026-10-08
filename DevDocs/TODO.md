@@ -740,8 +740,10 @@ Do not implement these while the WIP freeze is active.
   offline-edit proxies.
 - **META-01:** add only a target cohort's required IPTC Extension/contact/scene/
   subject fields, controlled vocabularies, privacy, facets, and XMP authority.
-- **CONVERT-01:** real Lightroom/Capture One readers require read-only,
-  versioned, reportable, resumable, packaged conversion into a new destination.
+- **CONVERT-01:** extend ADR-0164's closed Lightroom reader with licensed real
+  catalog/version coverage, volume remapping, virtual copies, richer metadata,
+  collections, Develop conversion and resumable destination checkpoints.
+  Capture One still requires a read-only, versioned, reportable packaged reader.
 - **DELIVERY-01:** advanced overlays, fonts, templates, printing, and publishing
   need separate delivery ownership and must not mutate Develop.
 - **SPECIALIZE-01:** ADR-0153's tethered probe is a deferred unsupported state,

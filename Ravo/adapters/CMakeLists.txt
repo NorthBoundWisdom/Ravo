@@ -15,6 +15,7 @@ target_sources(ravo_adapters
     src/legacy_xmp_color.cpp
     src/legacy_xmp_effects.cpp
     src/legacy_xmp_geometry.cpp
+    src/sqlite_lightroom_catalog.cpp
     src/png_encoder.cpp
     src/qt_raster_decoder.cpp
     src/qt_raster_common.cpp

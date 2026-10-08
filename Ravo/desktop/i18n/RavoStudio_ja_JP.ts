@@ -4119,6 +4119,14 @@ Diff: %6</source>
             <translation>ファイルがありません</translation>
         </message>
         <message>
+            <source>Import Lightroom Catalog into an Empty Library</source>
+            <translation>Lightroom カタログを空のライブラリに読み込む</translation>
+        </message>
+        <message>
+            <source>Lightroom catalog (*.lrcat)</source>
+            <translation>Lightroom カタログ (*.lrcat)</translation>
+        </message>
+        <message>
             <source>Create or open a library to import photos.</source>
             <translation>写真をインポートするためのライブラリを作成するか開いてください。</translation>
         </message>
@@ -5077,6 +5085,10 @@ Diff: %6</source>
         <message>
             <source>Open Library...</source>
             <translation>ライブラリを開く...</translation>
+        </message>
+        <message>
+            <source>Import Lightroom Catalog...</source>
+            <translation>Lightroom カタログを読み込む...</translation>
         </message>
         <message>
             <source>Export Selected...</source>
@@ -6553,6 +6565,30 @@ Diff: %6</source>
         <message>
             <source>Photo merge executor is unavailable.</source>
             <translation>写真合成の実行器を使用できません。</translation>
+        </message>
+        <message>
+            <source>Choose a Lightroom catalog.</source>
+            <translation>Lightroom カタログを選択してください。</translation>
+        </message>
+        <message>
+            <source>Importing Lightroom catalog…</source>
+            <translation>Lightroom カタログを読み込み中…</translation>
+        </message>
+        <message>
+            <source>Lightroom: %1 imported, %2 skipped, %3 unsupported, %4 failed. %5 fields were not converted.</source>
+            <translation>Lightroom：読み込み %1 件、スキップ %2 件、未対応 %3 件、失敗 %4 件。%5 個のフィールドは変換されませんでした。</translation>
+        </message>
+        <message>
+            <source>Lightroom adjustments, history, collections and custom metadata may not be converted. Original photos and the Lightroom catalog are unchanged.</source>
+            <translation>Lightroom の調整、履歴、コレクション、カスタムメタデータは変換されない場合があります。元の写真と Lightroom カタログは変更されません。</translation>
+        </message>
+        <message>
+            <source>Lightroom import cancelled. Already imported photos remain in this library.</source>
+            <translation>Lightroom の読み込みをキャンセルしました。読み込み済みの写真はこのライブラリに残ります。</translation>
+        </message>
+        <message>
+            <source>Catalog executor is unavailable.</source>
+            <translation>カタログのタスク実行機能を利用できません。</translation>
         </message>
     </context>
     <context>

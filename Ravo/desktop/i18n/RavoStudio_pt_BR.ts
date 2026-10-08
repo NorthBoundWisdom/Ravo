@@ -4119,6 +4119,14 @@ Diferença: %6</translation>
             <translation>Arquivo ausente</translation>
         </message>
         <message>
+            <source>Import Lightroom Catalog into an Empty Library</source>
+            <translation>Importar catálogo do Lightroom para uma biblioteca vazia</translation>
+        </message>
+        <message>
+            <source>Lightroom catalog (*.lrcat)</source>
+            <translation>Catálogo do Lightroom (*.lrcat)</translation>
+        </message>
+        <message>
             <source>Create or open a library to import photos.</source>
             <translation>Crie ou abra uma biblioteca para importar fotos.</translation>
         </message>
@@ -5077,6 +5085,10 @@ Diferença: %6</translation>
         <message>
             <source>Open Library...</source>
             <translation>Abrir biblioteca...</translation>
+        </message>
+        <message>
+            <source>Import Lightroom Catalog...</source>
+            <translation>Importar catálogo do Lightroom...</translation>
         </message>
         <message>
             <source>Export Selected...</source>
@@ -6553,6 +6565,30 @@ Diferença: %6</translation>
         <message>
             <source>Photo merge executor is unavailable.</source>
             <translation>O executor de mesclagem de fotos não está disponível.</translation>
+        </message>
+        <message>
+            <source>Choose a Lightroom catalog.</source>
+            <translation>Selecione um catálogo do Lightroom.</translation>
+        </message>
+        <message>
+            <source>Importing Lightroom catalog…</source>
+            <translation>Importando catálogo do Lightroom…</translation>
+        </message>
+        <message>
+            <source>Lightroom: %1 imported, %2 skipped, %3 unsupported, %4 failed. %5 fields were not converted.</source>
+            <translation>Lightroom: %1 importados, %2 ignorados, %3 não compatíveis, %4 com falha. %5 campos não foram convertidos.</translation>
+        </message>
+        <message>
+            <source>Lightroom adjustments, history, collections and custom metadata may not be converted. Original photos and the Lightroom catalog are unchanged.</source>
+            <translation>Ajustes, histórico, coleções e metadados personalizados do Lightroom podem não ser convertidos. As fotos originais e o catálogo do Lightroom permanecem inalterados.</translation>
+        </message>
+        <message>
+            <source>Lightroom import cancelled. Already imported photos remain in this library.</source>
+            <translation>Importação do Lightroom cancelada. As fotos já importadas permanecem nesta biblioteca.</translation>
+        </message>
+        <message>
+            <source>Catalog executor is unavailable.</source>
+            <translation>O executor de tarefas do catálogo está indisponível.</translation>
         </message>
     </context>
     <context>

@@ -4119,6 +4119,14 @@ Diff: %6</source>
             <translation>文件缺失</translation>
         </message>
         <message>
+            <source>Import Lightroom Catalog into an Empty Library</source>
+            <translation>将 Lightroom 目录导入空图库</translation>
+        </message>
+        <message>
+            <source>Lightroom catalog (*.lrcat)</source>
+            <translation>Lightroom 目录 (*.lrcat)</translation>
+        </message>
+        <message>
             <source>Create or open a library to import photos.</source>
             <translation>创建或打开图库以导入照片。</translation>
         </message>
@@ -5057,6 +5065,10 @@ Diff: %6</source>
         <message>
             <source>Open Library...</source>
             <translation>打开图库…</translation>
+        </message>
+        <message>
+            <source>Import Lightroom Catalog...</source>
+            <translation>导入 Lightroom 目录...</translation>
         </message>
         <message>
             <source>Export Selected...</source>
@@ -6553,6 +6565,30 @@ Diff: %6</source>
         <message>
             <source>Photo merge executor is unavailable.</source>
             <translation>照片合并执行器不可用。</translation>
+        </message>
+        <message>
+            <source>Choose a Lightroom catalog.</source>
+            <translation>请选择 Lightroom 目录。</translation>
+        </message>
+        <message>
+            <source>Importing Lightroom catalog…</source>
+            <translation>正在导入 Lightroom 目录…</translation>
+        </message>
+        <message>
+            <source>Lightroom: %1 imported, %2 skipped, %3 unsupported, %4 failed. %5 fields were not converted.</source>
+            <translation>Lightroom：已导入 %1 项，跳过 %2 项，不支持 %3 项，失败 %4 项。%5 个字段未转换。</translation>
+        </message>
+        <message>
+            <source>Lightroom adjustments, history, collections and custom metadata may not be converted. Original photos and the Lightroom catalog are unchanged.</source>
+            <translation>Lightroom 调整、历史记录、集合和自定义元数据可能无法转换。原照片和 Lightroom 目录保持不变。</translation>
+        </message>
+        <message>
+            <source>Lightroom import cancelled. Already imported photos remain in this library.</source>
+            <translation>Lightroom 导入已取消。已导入的照片保留在此图库中。</translation>
+        </message>
+        <message>
+            <source>Catalog executor is unavailable.</source>
+            <translation>图库任务执行器不可用。</translation>
         </message>
     </context>
     <context>

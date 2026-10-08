@@ -1,5 +1,12 @@
 # Ravo Architecture
 
+Lightroom catalog conversion (ADR-0164) uses a bounded, read-only private SQLite
+snapshot in adapters. Owned domain photo values feed ConversionService's existing
+Add/review/keyword path into an empty destination. Studio dispatches the same
+service on the catalog executor and CLI returns a versioned per-item report.
+Source catalogs are never live Ravo stores; unsupported adjustments remain
+explicit omissions. Cancellation retains completed destination items.
+
 Filmstrip delegates demand metadata for visible sparse rows before thumbnails.
 Selection of an unloaded row is owned by desktop C++: one latest pending intent
 binds row, listing generation and originating selection, resolves the ID after

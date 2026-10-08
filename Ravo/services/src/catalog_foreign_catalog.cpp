@@ -24,6 +24,7 @@
 #include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/legacy_xmp.h"
 #include "ravo/adapters/text_file.h"
+#include "ravo/adapters/lightroom_catalog.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/json.h"
 #include "ravo/recipe/develop.h"
@@ -48,21 +49,11 @@ ConversionService::ConversionService(const std::unique_ptr<CatalogRepository> &r
 namespace
 {
 
-struct ForeignCatalogFixtureItem
-{
-    std::string foreign_id;
-    std::string original_path;
-    std::optional<int> rating;
-    std::optional<ColorLabel> color_label;
-    std::optional<bool> rejected;
-    WritableMetadata metadata;
-    std::vector<std::string> keywords;
-    std::optional<std::string> crs_xmp_path;
-    std::vector<std::string> unsupported_adjusts;
-};
+using ForeignCatalogFixtureItem = ForeignCatalogPhoto;
 
 struct ForeignCatalogFixture
 {
+    bool native_lightroom = false;
     ForeignCatalogSourceKind source_kind = ForeignCatalogSourceKind::kLightroomClassic;
     std::optional<std::string> source_product_version;
     std::string source_path;
@@ -363,7 +354,8 @@ fingerprint_original(const std::string_view path)
 
 [[nodiscard]] Result<ForeignCatalogFixture>
 load_foreign_catalog_fixture(const std::string_view source_path,
-                             const std::optional<ForeignCatalogSourceKind> expected_kind)
+                             const std::optional<ForeignCatalogSourceKind> expected_kind,
+                             const CancellationToken &cancellation)
 {
     auto location = normalize_local_input(source_path);
     if (!location)
@@ -393,11 +385,18 @@ load_foreign_catalog_fixture(const std::string_view source_path,
     }
     if (has_extension_lower(path, ".lrcat") || looks_like_sqlite(location.value().path))
     {
-        return make_error(ErrorCode::kUnsupported,
-                          "Vendor Lightroom catalogs are not a packaged conversion source",
-                          {{"path", location.value().path},
-                           {"reason", "unsupported_source_schema"},
-                           {"detail", "lightroom_lrcat_reader_not_packaged"}});
+        if (expected_kind && *expected_kind != ForeignCatalogSourceKind::kLightroomClassic)
+            return make_error(ErrorCode::kInvalidArgument, "Source kind does not match Lightroom",
+                              {{"reason", "foreign_catalog_source_kind_mismatch"}});
+        auto photos = read_lightroom_catalog(location.value().path, cancellation);
+        if (!photos)
+            return photos.error();
+        ForeignCatalogFixture catalog;
+        catalog.native_lightroom = true;
+        catalog.source_path = location.value().path;
+        catalog.source_root = path_text(path.parent_path());
+        catalog.items = std::move(photos).value();
+        return catalog;
     }
 
     auto text = read_utf8_text_file(location.value().path);
@@ -551,7 +550,8 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
     if (!cancelled)
         return cancelled.error();
 
-    auto fixture = load_foreign_catalog_fixture(request.source_path, request.source_kind);
+    auto fixture = load_foreign_catalog_fixture(request.source_path, request.source_kind,
+                                                request.cancellation);
     if (!fixture)
         return fixture.error();
 
@@ -582,6 +582,8 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
     }
 
     ForeignCatalogConversionReport report;
+    if (fixture.value().native_lightroom)
+        report.schema = "ravo.lightroom-catalog-conversion/v1";
     report.source_kind = fixture.value().source_kind;
     report.source_product_version = fixture.value().source_product_version;
     report.source_path = fixture.value().source_path;
@@ -589,6 +591,8 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
 
     for (const auto &item : fixture.value().items)
     {
+        if (item.skip_reason)
+            continue;
         auto path = resolve_fixture_path(fixture.value().source_root, item.original_path);
         if (!path)
             continue;
@@ -617,6 +621,15 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             continue;
         }
 
+        if (item.skip_reason)
+        {
+            row.status = ForeignCatalogItemStatus::kUnsupported;
+            row.original_path = item.original_path;
+            row.reasons.push_back(*item.skip_reason);
+            count_item(report, row);
+            report.items.push_back(std::move(row));
+            continue;
+        }
         auto original = resolve_fixture_path(fixture.value().source_root, item.original_path);
         if (!original)
         {

@@ -70,6 +70,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/studio_import_workspace.h
     src/studio_import_preferences.cpp
     src/studio_recovery.cpp
+    src/studio_lightroom.cpp
     src/studio_preview.cpp
     src/studio_preview_handoff.cpp
     src/studio_develop.cpp

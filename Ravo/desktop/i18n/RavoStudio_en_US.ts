@@ -4119,6 +4119,14 @@ Diff: %6</translation>
             <translation>Missing file</translation>
         </message>
         <message>
+            <source>Import Lightroom Catalog into an Empty Library</source>
+            <translation>Import Lightroom Catalog into an Empty Library</translation>
+        </message>
+        <message>
+            <source>Lightroom catalog (*.lrcat)</source>
+            <translation>Lightroom catalog (*.lrcat)</translation>
+        </message>
+        <message>
             <source>Create or open a library to import photos.</source>
             <translation>Create or open a library to import photos.</translation>
         </message>
@@ -5057,6 +5065,10 @@ Diff: %6</translation>
         <message>
             <source>Open Library...</source>
             <translation>Open Library...</translation>
+        </message>
+        <message>
+            <source>Import Lightroom Catalog...</source>
+            <translation>Import Lightroom Catalog...</translation>
         </message>
         <message>
             <source>Export Selected...</source>
@@ -6553,6 +6565,30 @@ Diff: %6</translation>
         <message>
             <source>Photo merge executor is unavailable.</source>
             <translation>Photo merge executor is unavailable.</translation>
+        </message>
+        <message>
+            <source>Choose a Lightroom catalog.</source>
+            <translation>Choose a Lightroom catalog.</translation>
+        </message>
+        <message>
+            <source>Importing Lightroom catalog…</source>
+            <translation>Importing Lightroom catalog…</translation>
+        </message>
+        <message>
+            <source>Lightroom: %1 imported, %2 skipped, %3 unsupported, %4 failed. %5 fields were not converted.</source>
+            <translation>Lightroom: %1 imported, %2 skipped, %3 unsupported, %4 failed. %5 fields were not converted.</translation>
+        </message>
+        <message>
+            <source>Lightroom adjustments, history, collections and custom metadata may not be converted. Original photos and the Lightroom catalog are unchanged.</source>
+            <translation>Lightroom adjustments, history, collections and custom metadata may not be converted. Original photos and the Lightroom catalog are unchanged.</translation>
+        </message>
+        <message>
+            <source>Lightroom import cancelled. Already imported photos remain in this library.</source>
+            <translation>Lightroom import cancelled. Already imported photos remain in this library.</translation>
+        </message>
+        <message>
+            <source>Catalog executor is unavailable.</source>
+            <translation>Catalog executor is unavailable.</translation>
         </message>
     </context>
     <context>

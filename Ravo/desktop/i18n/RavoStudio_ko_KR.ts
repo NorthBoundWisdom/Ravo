@@ -4119,6 +4119,14 @@ Diff: %6</source>
             <translation>파일 없음</translation>
         </message>
         <message>
+            <source>Import Lightroom Catalog into an Empty Library</source>
+            <translation>Lightroom 카탈로그를 빈 라이브러리로 가져오기</translation>
+        </message>
+        <message>
+            <source>Lightroom catalog (*.lrcat)</source>
+            <translation>Lightroom 카탈로그 (*.lrcat)</translation>
+        </message>
+        <message>
             <source>Create or open a library to import photos.</source>
             <translation>사진을 가져오려면 라이브러리를 만들거나 여세요.</translation>
         </message>
@@ -5077,6 +5085,10 @@ Diff: %6</source>
         <message>
             <source>Open Library...</source>
             <translation>라이브러리 열기...</translation>
+        </message>
+        <message>
+            <source>Import Lightroom Catalog...</source>
+            <translation>Lightroom 카탈로그 가져오기...</translation>
         </message>
         <message>
             <source>Export Selected...</source>
@@ -6553,6 +6565,30 @@ Diff: %6</source>
         <message>
             <source>Photo merge executor is unavailable.</source>
             <translation>사진 병합 실행기를 사용할 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Choose a Lightroom catalog.</source>
+            <translation>Lightroom 카탈로그를 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Importing Lightroom catalog…</source>
+            <translation>Lightroom 카탈로그 가져오는 중…</translation>
+        </message>
+        <message>
+            <source>Lightroom: %1 imported, %2 skipped, %3 unsupported, %4 failed. %5 fields were not converted.</source>
+            <translation>Lightroom: %1개 가져옴, %2개 건너뜀, %3개 미지원, %4개 실패. %5개 필드가 변환되지 않았습니다.</translation>
+        </message>
+        <message>
+            <source>Lightroom adjustments, history, collections and custom metadata may not be converted. Original photos and the Lightroom catalog are unchanged.</source>
+            <translation>Lightroom 조정, 기록, 컬렉션 및 사용자 지정 메타데이터는 변환되지 않을 수 있습니다. 원본 사진과 Lightroom 카탈로그는 변경되지 않습니다.</translation>
+        </message>
+        <message>
+            <source>Lightroom import cancelled. Already imported photos remain in this library.</source>
+            <translation>Lightroom 가져오기가 취소되었습니다. 이미 가져온 사진은 이 라이브러리에 남습니다.</translation>
+        </message>
+        <message>
+            <source>Catalog executor is unavailable.</source>
+            <translation>카탈로그 작업 실행기를 사용할 수 없습니다.</translation>
         </message>
     </context>
     <context>

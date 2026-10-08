@@ -14,10 +14,8 @@
 namespace ravo
 {
 
-// Fixture-backed foreign catalog conversion (ADR-0131). First Ready tranche
-// reads ravo.foreign-catalog.fixture/v1 documents only. Vendor .lrcat / Capture
-// One session binaries fail closed — no Adobe/Phase One runtime in the default
-// package.
+// Foreign catalog conversion (ADR-0131/0164). Closed Lightroom SQLite catalogs
+// and fixture/v1 documents are supported. Capture One binaries remain unsupported.
 inline constexpr std::string_view kForeignCatalogFixtureContractVersion =
     "ravo.foreign-catalog.fixture/v1";
 inline constexpr std::int64_t kForeignCatalogFixtureSchemaVersion = 1;

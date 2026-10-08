@@ -163,6 +163,7 @@ add_executable(ravo_catalog_tests
   catalog_cull_assistance_test.cpp
   catalog_cull_review_test.cpp
   catalog_foreign_catalog_test.cpp
+  catalog_lightroom_test.cpp
   catalog_facet_scope_test.cpp
   export_pro_export_test.cpp
   jpeg_adapter_test.cpp
@@ -439,6 +440,7 @@ add_executable(ravo_desktop_command_tests
   studio_qml_test_support.cpp
   studio_test_support.cpp
   studio_command_test.cpp
+  studio_lightroom_test.cpp
   studio_bug_regression_test.cpp
   studio_presenter_test.cpp
   studio_local_adjustment_test.cpp

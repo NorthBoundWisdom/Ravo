@@ -1,5 +1,9 @@
 # Ravo developer documentation
 
+Closed Lightroom Classic catalog import, source preservation and conversion
+limits are defined in [ADR-0164](adr/0164-lightroom-catalog-reader.md), with
+usage in [Ravo/README.md](../Ravo/README.md).
+
 Studio Light's Sigmoid baseline policy is recorded in
 [MIGRATION.md](MIGRATION.md); recipe preservation and 30% viewport zoom are
 specified in [ARCHITECTURE.md](ARCHITECTURE.md) and validated by

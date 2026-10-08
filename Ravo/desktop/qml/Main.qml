@@ -376,6 +376,8 @@ ApplicationWindow {
                 openCreateLibraryDialog();
             else if (id === ids.libraryOpen)
                 openOpenLibraryDialog();
+            else if (id === ids.libraryImportLightroom)
+                lightroomDialog.openDialog();
             else if (id === ids.libraryImportFiles)
                 openImportDialog();
             else if (id === ids.libraryImportFolder)
@@ -1431,6 +1433,16 @@ ApplicationWindow {
         nameFilters: ["Ravo catalog (*.sqlite)"]
         onFileAccepted: function (filePath) {
             studioActions.run(studioActions.ids.libraryOpenPath, filePath);
+        }
+    }
+
+    QmlFileDialogPage {
+        id: lightroomDialog
+        dialogTitle: qsTr("Import Lightroom Catalog into an Empty Library")
+        dialogMode: "open"
+        nameFilters: [qsTr("Lightroom catalog (*.lrcat)")]
+        onFileAccepted: function (filePath) {
+            studioActions.run(studioActions.ids.libraryImportLightroomPath, filePath);
         }
     }
 

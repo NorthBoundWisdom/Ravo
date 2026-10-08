@@ -128,6 +128,8 @@ QStringList command_ids()
             QLatin1String(command::kLibraryCreatePath),
             QLatin1String(command::kLibraryOpen),
             QLatin1String(command::kLibraryOpenPath),
+            QLatin1String(command::kLibraryImportLightroom),
+            QLatin1String(command::kLibraryImportLightroomPath),
             QLatin1String(command::kLibraryImportFiles),
             QLatin1String(command::kLibraryImportPaths),
             QLatin1String(command::kLibraryImportFolder),
@@ -336,6 +338,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Import...")), file,
         {QStringLiteral("files"), QStringLiteral("photos")}, QStringLiteral("file.transfer"), 10,
         true, {key(primary_key(QStringLiteral("I"), true))});
+    add(command::kLibraryImportLightroom, command::kLibraryImportLightroom,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Import Lightroom Catalog...")), file,
+        {QStringLiteral("Lightroom"), QStringLiteral("lrcat")}, QStringLiteral("file.transfer"), 20,
+        true, {});
     add(command::kLibraryExport, command::kLibraryExport,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Export Selected...")), file,
         {QStringLiteral("save"), QStringLiteral("render")}, QStringLiteral("file.transfer"), 30,

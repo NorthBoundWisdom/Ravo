@@ -34,6 +34,12 @@ void StudioCommandController::registerLibraryCommands(const command_registration
         [this](const QVariant &, const QString &) { presenter_.rebuildSelectedPreviews(); });
     add(command::kLibraryPreviewRebuildAll, Condition::kCatalogReady, no_argument,
         [this](const QVariant &, const QString &) { presenter_.rebuildAllPreviews(); });
+    add(command::kLibraryImportLightroom, Condition::kCatalogReady, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryImportLightroom, argument); });
+    add(command::kLibraryImportLightroomPath, Condition::kCatalogReady, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.importLightroomCatalog(argument.toString()); });
     add(command::kLibraryCancelOperation, Condition::kCatalogOperation, no_argument,
         [this](const QVariant &, const QString &) { presenter_.cancelCatalogOperation(); });
     add(

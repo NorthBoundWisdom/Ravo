@@ -278,6 +278,7 @@ public:
     [[nodiscard]] QString selectedUri() const;
 
     Q_INVOKABLE void createCatalog(const QUrl &file_url);
+    Q_INVOKABLE void importLightroomCatalog(const QString &path);
     Q_INVOKABLE void openCatalog(const QUrl &file_url);
 
     Q_INVOKABLE void createCatalogFromPath(const QString &path);

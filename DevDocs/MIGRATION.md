@@ -1,5 +1,10 @@
 # Ravo Migration Policy
 
+2026-10-08: ADR-0164 admits closed Lightroom Classic SQLite catalog import via
+the native adapter/shared conversion service. This supersedes the real-Lightroom
+reader deferral only; Capture One, Lightroom Develop translation, virtual copies
+and resumable conversion remain outside this tranche.
+
 2026-10-08 product decision: synthesized RAW baselines use Sigmoid; Studio Light
 removes the RapidRAW selector and dedicated controls while retaining common EV
 and tonal controls. Explicit stored recipes are unchanged. The previous RapidRAW
