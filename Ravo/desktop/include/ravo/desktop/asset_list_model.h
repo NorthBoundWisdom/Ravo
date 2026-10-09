@@ -49,6 +49,7 @@ public:
         StackCountRole,
         StackPickRole,
         StackPositionRole,
+        VideoDurationRole,
     };
 
     explicit AssetListModel(QObject *parent = nullptr);
@@ -78,6 +79,7 @@ public:
     [[nodiscard]] QString assetIdAt(int row) const;
     [[nodiscard]] bool rowLoaded(int row) const noexcept;
     [[nodiscard]] int loadedCount() const noexcept;
+    [[nodiscard]] bool selectedContainsVideo() const noexcept;
 
 private:
     struct Page

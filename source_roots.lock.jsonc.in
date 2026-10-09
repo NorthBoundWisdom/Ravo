@@ -44,6 +44,7 @@
   },
   "depsMode": "pinned",
   "depsManualPath": {
+    "FFmpeg": "",
     "Exiv2": "",
     "LibJpegTurbo": "",
     "LibRaw": "",
@@ -54,6 +55,10 @@
     "LittleCMS": ""
   },
   "dependencies": {
+    "FFmpeg": {
+      "remote": "https://github.com/FFmpeg/FFmpeg.git",
+      "commit": "3a0867c2bfda4a4d4309ca1a8cbdc6175e67f587"
+    },
     "Exiv2": {
       "remote": "https://github.com/Exiv2/exiv2.git",
       "commit": "60d59d6796a2cde2fe58a6e5cd0ef0040085965a"

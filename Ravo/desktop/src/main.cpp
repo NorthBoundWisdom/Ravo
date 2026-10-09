@@ -54,6 +54,11 @@
 void qml_register_types_GeoControls();
 void qml_register_types_GeoControls_AppShell();
 
+namespace ravo
+{
+[[nodiscard]] bool smoke_video_playback(const QString &input);
+}
+
 namespace
 {
 
@@ -448,6 +453,13 @@ int main(int argc, char *argv[])
     // a thumbnail task after the event loop has stopped.
     ravo::init_logging("RavoStudio");
     const auto logging_lifetime = qScopeGuard([] { ravo::shutdown_logging(); });
+    // Video parsing and playback share the selected Qt kit's pinned FFmpeg runtime.
+    if (qEnvironmentVariableIsSet("QT_MEDIA_BACKEND") && qgetenv("QT_MEDIA_BACKEND") != "ffmpeg")
+    {
+        fprintf(stderr, "Ravo video requires QT_MEDIA_BACKEND=ffmpeg\n");
+        return 1;
+    }
+    qputenv("QT_MEDIA_BACKEND", "ffmpeg");
     QGuiApplication application(argc, argv);
     if (requested_startup_smoke && QGuiApplication::platformName() != QStringLiteral("cocoa") &&
         QGuiApplication::platformName() != QStringLiteral("windows") &&
@@ -503,10 +515,16 @@ int main(int argc, char *argv[])
     const QStringList arguments = QCoreApplication::arguments();
     const bool smoke = requested_smoke;
     QString catalog_path;
+    QString video_smoke_input;
     QString requested_language;
     for (int index = 1; index < arguments.size(); ++index)
     {
         const QString &argument = arguments.at(index);
+        if (argument == QLatin1String("--video-smoke-input") && index + 1 < arguments.size())
+        {
+            video_smoke_input = arguments.at(++index);
+            continue;
+        }
         if (argument == QLatin1String("--catalog") && index + 1 < arguments.size())
         {
             catalog_path = arguments.at(++index);
@@ -560,6 +578,15 @@ int main(int argc, char *argv[])
     apply_ui_font();
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &application,
                      apply_ui_font);
+    if (!video_smoke_input.isEmpty())
+    {
+        if (!smoke)
+        {
+            LOG_ERROR(ravo::logger(), "--video-smoke-input requires --smoke");
+            return 1;
+        }
+        return ravo::smoke_video_playback(video_smoke_input) ? 0 : 1;
+    }
     ravo::StudioPresenter presenter;
     if (smoke)
     {

@@ -141,7 +141,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
     export_presenter_.reset(new StudioExportPresenter(
         catalog_path_, selected_asset_id_, busy_, library_query_generation_, executor_,
         shutdown_.token(), [this] { return service_ ? &service_->exports() : nullptr; },
-        [this] { return selected_asset_ids(); }, this));
+        [this] { return selected_asset_ids(); }, [this] { return selectionHasVideo(); }, this));
     connect(export_presenter_.get(), &StudioExportPresenter::busyRequested, this,
             &StudioPresenter::setBusy);
     connect(export_presenter_.get(), &StudioExportPresenter::errorOccurred, this,
@@ -158,6 +158,28 @@ StudioPresenter::StudioPresenter(QObject *parent)
     connect(&inspect_, &StudioInspectPresenter::errorOccurred, this, &StudioPresenter::setError);
     connect(this, &StudioPresenter::selectionChanged, &inspect_,
             [this] { inspect_.observeSelection(selected_asset_id_); });
+    video_presenter_ = std::make_unique<StudioVideoPresenter>(
+        [this](PreviewResult result)
+        {
+            if (qstring_from_utf8(result.asset_id) == selected_asset_id_ &&
+                browse_mode_ == QLatin1String("loupe"))
+                static_cast<void>(
+                    inspect_.show_preview_result(result, result.request_revision, true));
+        },
+        this);
+    connect(this, &StudioPresenter::selectionChanged, video_presenter_.get(),
+            [this]
+            {
+                video_presenter_->observeAsset(browse_mode_ == QLatin1String("loupe") ?
+                                                   assets_.assetById(selected_asset_id_) :
+                                                   std::nullopt);
+            });
+    connect(this, &StudioPresenter::browseModeChanged, video_presenter_.get(),
+            [this]
+            {
+                if (browse_mode_ != QLatin1String("loupe"))
+                    video_presenter_->leaveView();
+            });
     initializeLibraryResume();
     connect(&inspect_, &StudioInspectPresenter::previewChanged, develop_presenter_.get(),
             &StudioDevelopPresenter::sync_local_edit_scope, Qt::QueuedConnection);

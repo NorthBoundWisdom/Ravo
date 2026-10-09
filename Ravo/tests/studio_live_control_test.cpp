@@ -798,9 +798,11 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     const auto destination_source = QString::fromUtf8(destination.readAll());
     EXPECT_TRUE(destination_source.contains(QStringLiteral("objectName: \"importTransferMode\"")));
     EXPECT_TRUE(destination_source.contains(
-        QStringLiteral("objectName: \"importTransferModeSegment\" + index")));
+        QStringLiteral("objectName: \"importTransferModeSegment\" + segment.index")));
     EXPECT_TRUE(destination_source.contains(QStringLiteral("width: parent.width / 3")));
-    EXPECT_TRUE(destination_source.contains(QStringLiteral("enabled: index < 2")));
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("importMoveUnavailableReason")));
+    EXPECT_TRUE(destination_source.contains(
+        QStringLiteral("enabled: segment.unavailableReason.length === 0")));
     EXPECT_TRUE(destination_source.contains(QStringLiteral("anchors.top: transferModes.bottom")));
     EXPECT_TRUE(destination_source.contains(
         QStringLiteral("objectName: \"importDestinationTreeSurface\"")));

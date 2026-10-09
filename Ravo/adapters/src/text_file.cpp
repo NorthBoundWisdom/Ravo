@@ -2,6 +2,8 @@
 
 #include <limits>
 #include <span>
+#include <chrono>
+#include <algorithm>
 
 #include <QtCore/QCryptographicHash>
 #include <QtCore/QFile>
@@ -172,8 +174,9 @@ std::string sha256_utf8_hex(const std::string_view text)
     return QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex().toStdString();
 }
 
-Result<std::string> sha256_file_hex(const std::string_view path_utf8,
-                                    const CancellationToken &cancellation)
+Result<std::string>
+sha256_file_hex(const std::string_view path_utf8, const CancellationToken &cancellation,
+                const std::function<void(std::uint64_t, std::uint64_t)> &progress)
 {
     auto active = cancellation.check();
     if (!active)
@@ -190,6 +193,11 @@ Result<std::string> sha256_file_hex(const std::string_view path_utf8,
                            {"qt_error", file.errorString().toUtf8().toStdString()}});
     }
     QCryptographicHash hash(QCryptographicHash::Sha256);
+    std::uint64_t completed = 0;
+    const auto total = static_cast<std::uint64_t>(std::max<qint64>(0, file.size()));
+    auto next_progress = std::chrono::steady_clock::now();
+    if (progress)
+        progress(0, total);
     while (!file.atEnd())
     {
         active = cancellation.check();
@@ -204,7 +212,19 @@ Result<std::string> sha256_file_hex(const std::string_view path_utf8,
                                {"qt_error", file.errorString().toUtf8().toStdString()}});
         }
         hash.addData(chunk);
+        completed += static_cast<std::uint64_t>(chunk.size());
+        const auto now = std::chrono::steady_clock::now();
+        if (progress && now >= next_progress)
+        {
+            progress(completed, total);
+            next_progress = now + std::chrono::milliseconds(100);
+        }
     }
+    active = cancellation.check();
+    if (!active)
+        return active.error();
+    if (progress)
+        progress(completed, total);
     active = cancellation.check();
     if (!active)
         return active.error();

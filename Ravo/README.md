@@ -76,6 +76,37 @@ set of business logic or algorithms.
 
 Current implementation status:
 
+- Video library support (ADR-0165) accepts MOV/MP4/M4V H.264, HEVC and standard ProRes with
+  AAC/supported PCM or no audio. Ordinary folders support Add/Copy/Move with
+  unchanged original bytes; explicit ingest transports still reject Move.
+  Videos have independent metadata, poster thumbnails and a duration badge.
+  A supported AAC/PCM track can coexist with unsupported supplemental audio
+  such as APAC; playback selects supported audio and preserves every original
+  track. Videos with audio but no supported track reject explicitly. Nonfatal
+  cover/channel/auxiliary-audio diagnostics appear in `video-info` warnings and
+  playback explanations instead of repeated import-console warnings.
+  Loupe provides paused-on-open playback, pause, seek, volume and mute;
+  leaving Loupe releases the playback source. HLG/PQ previews map to SDR sRGB
+  through the shared CPU colour path and monitor ICC presentation.
+  Compatible Dolby Vision uses its independently decodable base layer and
+  reports that limitation; other profiles, mirrored transforms and unsupported
+  containers/codecs fail explicitly. Untagged SDR is interpreted as BT.709;
+  SDR iPhone videos with BT.601/SMPTE 170M YCbCr and P3 D65 primaries are
+  supported: matrix, transfer and gamut are interpreted separately for posters
+  and playback, with explicit matrix identity in `video-info`.
+  ProRes uses its decoded frame header when stream-level colour tags are absent.
+  ProRes RAW remains unsupported.
+  HDR requires explicit BT.2020 primaries/matrix. Live Photo photos and MOVs
+  are independent assets. Video photo editing and rendered-image export are
+  unavailable; original-byte export remains supported.
+  `catalog video-info --asset-id <id> --catalog <path> --json` reads metadata.
+  `catalog video-frame --asset-id <id> --time-us <microseconds> --max-edge 512 --output <absent.png> --catalog <path> --json`
+  publishes an immutable SDR PNG. `studio state` includes
+  `ravo.studio.video/v1`. `studio video --action play|pause|seek|volume|mute`
+  requires the observed `--asset-id`, `--expect-session-revision`,
+  `--expect-selection-revision` and `--expect-video-generation`; seek uses
+  `--value <milliseconds>`, volume `--value <0..1>`, mute `--value true|false`.
+
 - Foundation/recipe/engine/adapters/CLI/test scaffolding and versioned
   JSON/error contracts are complete.
 - `ravo inspect` reads the first LibRaw-supported 16-bit Bayer or X-Trans RAW
@@ -139,13 +170,23 @@ Current implementation status:
   first supported path eligible.
   Folder enumeration publishes the complete named placeholder list before
   content/metadata checks. Visible thumbnails load one at a time in grid order
-  on an independent worker with a bounded pixel cache; loading them does not
+  on an independent worker with a bounded pixel cache. The status bar shows
+  total photos, videos, bytes, duplicates and unavailable files during scanning;
+  the footer separately shows checked photo/video counts and bytes. Totals include
+  duplicates/unavailable files and update from current file identities.
+  Import execution reports checking/planning/copying/verification/import stages,
+  current-file hash bytes and activity before the first item completes, so
+  safety revalidation does not appear stuck at zero imported files.
+  `studio state --json` exposes the same `ravo.studio.import/v1` state, with
+  separate stage progress and completed-item counts.
+  Loading thumbnails does not
   block scanning or import. Import becomes available after enumeration; the service
   revalidates duplicates and source hashes during preflight. Command/Control+A highlights all eligible import
   photos even when the folder tree has focus, while text fields retain native
   text selection.
-  The destination rail holds equally sized Copy/Add/Move segments (Move stays
-  disabled). Both folder trees have themed inset backgrounds and scrollbars;
+  The destination rail holds equally sized Copy/Add/Move segments. Ordinary
+  folder import supports all three; explicit ingest transports keep Move disabled
+  with a hover explanation. Both folder trees have themed inset backgrounds and scrollbars;
   the destination tree fills remaining panel height. Import checkboxes have
   larger, scale-aware indicators and hit areas.
   New photos start selected

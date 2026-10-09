@@ -38,7 +38,8 @@ StudioExportPresenter::StudioExportPresenter(
     const QString &catalog, const QString &selection, const bool &busy,
     const std::uint64_t &listing_generation, SerialExecutor &executor, CancellationToken shutdown,
     std::function<ExportService *()> service,
-    std::function<std::vector<std::string>()> selected_assets, QObject *parent)
+    std::function<std::vector<std::string>()> selected_assets,
+    std::function<bool()> selection_has_video, QObject *parent)
     : QObject(parent)
     , catalog_path_(catalog)
     , selected_asset_id_(selection)
@@ -48,12 +49,19 @@ StudioExportPresenter::StudioExportPresenter(
     , shutdown_(std::move(shutdown))
     , service_(std::move(service))
     , selected_assets_(std::move(selected_assets))
+    , selection_has_video_(std::move(selection_has_video))
 {
 }
 
 QVariantList StudioExportPresenter::exportFormatChoices() const
 {
-    return studio_export_format_choices();
+    const auto choices = studio_export_format_choices();
+    if (!selection_has_video_())
+        return choices;
+    for (const auto &item : choices)
+        if (item.toMap().value(QStringLiteral("id")).toString() == QLatin1String("original"))
+            return {item};
+    qFatal("Export format owner omitted original-copy support");
 }
 
 QVariantList StudioExportPresenter::jpegSubsamplingChoices() const
@@ -99,6 +107,8 @@ QVariantList StudioExportPresenter::exportRenderingIntentChoices() const
 QVariantMap StudioExportPresenter::exportDefaultOptions() const
 {
     auto defaults = studio_export_default_options();
+    if (selection_has_video_())
+        defaults.insert(QStringLiteral("format"), QStringLiteral("original"));
     // Suggested form values are not active export constraints. Original size
     // remains the default until the user explicitly chooses a resize mode.
     defaults.insert(QStringLiteral("sizing"),

@@ -35,6 +35,10 @@ using namespace sqlite_internal;
 namespace
 {
 
+constexpr const char *kSchemaV18Video =
+    "CREATE TABLE asset_video(asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+    "info_json TEXT NOT NULL CHECK(typeof(info_json) = 'text' AND length(info_json) <= 16384))";
+
 constexpr const char *kSchemaV17Content[] = {
     "CREATE TABLE IF NOT EXISTS asset_content_hash ("
     "asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
@@ -549,6 +553,10 @@ SqliteCatalogRepository::create(const std::string_view database_path)
         if (!created)
             return impl->abort_transaction(created.error());
     }
+    const auto video_table =
+        impl->exec(QString::fromUtf8(kSchemaV18Video), "create_video_metadata");
+    if (!video_table)
+        return impl->abort_transaction(video_table.error());
     impl->snapshot.catalog_id = generate_catalog_id();
     impl->snapshot.database_path = impl->database_path;
     impl->snapshot.schema_version = kCatalogSchemaVersion;
@@ -1115,6 +1123,14 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                     return impl->abort_transaction(created.error());
             }
             version = 17;
+        }
+        if (version == 17)
+        {
+            const auto created =
+                impl->exec(QString::fromUtf8(kSchemaV18Video), "migrate_v18_video");
+            if (!created)
+                return impl->abort_transaction(created.error());
+            version = 18;
         }
         if (version != kCatalogSchemaVersion)
         {

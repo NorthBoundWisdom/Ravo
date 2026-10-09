@@ -14,6 +14,9 @@
 
 namespace ravo
 {
+// Owned canonical builtin sRGB ICC state for CPU media presentation/encoding.
+// The immutable profile is created once; callers receive an owning value.
+[[nodiscard]] Result<ColorProfileState> make_srgb_color_profile();
 
 // ADR-0144: on-screen monitor ICC presentation. Never mutates recipe, history,
 // catalog revision, settled preview authority, or export profile.

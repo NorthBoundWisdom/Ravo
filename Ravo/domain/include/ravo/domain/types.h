@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -13,11 +14,13 @@
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/color.h"
 #include "ravo/foundation/error.h"
+#include "ravo/foundation/json.h"
+#include "ravo/domain/video.h"
 
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 17;
+inline constexpr std::int64_t kCatalogSchemaVersion = 18;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 3;
@@ -782,6 +785,7 @@ struct AssetRecord
     int stack_position = 0;
     int stack_count = 0;
     bool stack_pick = false;
+    std::optional<VideoInfo> video;
 };
 
 struct AssetVersionMutation
@@ -1006,6 +1010,29 @@ struct ImportItemResult
     bool preview_pending = false;
 };
 
+enum class ImportWorkPhase
+{
+    kEnumerating,
+    kChecking,
+    kPlanning,
+    kCopying,
+    kVerifying,
+    kImporting
+};
+
+struct ImportWorkProgress
+{
+    ImportWorkPhase phase = ImportWorkPhase::kEnumerating;
+    std::size_t completed = 0;
+    std::size_t total = 0;
+    std::string current_path;
+    std::uint64_t file_bytes_completed = 0;
+    std::uint64_t file_bytes_total = 0;
+};
+using ImportWorkProgressCallback = std::function<void(const ImportWorkProgress &)>;
+[[nodiscard]] std::string_view import_work_phase_name(ImportWorkPhase phase) noexcept;
+[[nodiscard]] JsonValue import_work_progress_json(const ImportWorkProgress &progress);
+
 struct ImportRequest
 {
     std::vector<std::string> inputs;
@@ -1023,6 +1050,9 @@ struct ImportRequest
     std::optional<std::int64_t> expected_catalog_revision;
     std::vector<std::pair<std::string, std::string>> expected_content_hashes;
     CancellationToken cancellation{};
+    // Synchronous observations on the service owner thread; copy before crossing
+    // threads. Stage counts are separate from committed ImportItemResult counts.
+    ImportWorkProgressCallback work_progress;
 };
 
 struct ImportDestinationFolder

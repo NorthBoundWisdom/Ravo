@@ -60,6 +60,9 @@ Result<Recipe> DevelopService::load_baseline_recipe(const std::string_view asset
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", std::string(asset_id)}});
     }
+    if (is_video_media_type(asset.value()->media_type))
+        return make_error(ErrorCode::kUnsupported, "Video does not support photo Develop",
+                          {{"reason", "video_photo_operation_unsupported"}});
     auto location = normalize_local_input(asset.value()->normalized_uri);
     if (!location)
     {
@@ -209,6 +212,9 @@ Result<RecipeSaveResult> DevelopService::save_recipe_with_history(const std::str
     {
         return location.error();
     }
+    if (is_video_media_type(asset.value()->media_type))
+        return make_error(ErrorCode::kUnsupported, "Video does not support photo Develop",
+                          {{"reason", "video_photo_operation_unsupported"}});
     Recipe stored = recipe;
     stored.asset = {asset.value()->id, location.value().path, asset.value()->content_fingerprint};
     auto valid = engine_->validate(stored);

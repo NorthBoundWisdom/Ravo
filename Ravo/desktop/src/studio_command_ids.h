@@ -4,6 +4,11 @@ namespace ravo
 {
 namespace command
 {
+inline constexpr auto kVideoPlay = "studio.video.play";
+inline constexpr auto kVideoPause = "studio.video.pause";
+inline constexpr auto kVideoSeek = "studio.video.seek";
+inline constexpr auto kVideoVolume = "studio.video.volume";
+inline constexpr auto kVideoMute = "studio.video.mute";
 inline constexpr auto kLibraryCreate = "studio.library.create";
 inline constexpr auto kLibraryCreatePath = "studio.library.create_path";
 inline constexpr auto kLibraryOpen = "studio.library.open";

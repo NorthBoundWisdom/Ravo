@@ -150,6 +150,7 @@ struct IngestRequest
     // enumerated objects from the transport snapshot.
     std::vector<std::string> selected_paths;
     CancellationToken cancellation{};
+    ImportWorkProgressCallback work_progress;
 };
 
 struct IngestResumeCheckpoint

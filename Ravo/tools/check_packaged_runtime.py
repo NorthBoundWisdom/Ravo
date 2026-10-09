@@ -805,6 +805,74 @@ def run_catalog_workflow_stages(cli: Path, env: dict[str, str], work: Path,
 
 
 
+def run_video_workflow_stages(cli: Path, studio: Path | None, env: dict[str, str],
+                              work: Path, record) -> None:
+    """Exercise the packaged FFmpeg decoder and actual Qt playback with owned pixels."""
+    stages = ("video_import_decode", "video_frame_artifact", "video_playback")
+    fixture_root = Path(__file__).resolve().parents[1] / "tests/fixtures/video"
+    names = ("sdr_audio.mp4", "hlg.mp4", "pq.mp4")
+    if any(not (fixture_root / name).is_file() for name in names):
+        for stage in stages:
+            record(stage, Status.UNTESTED, "synthetic video fixture corpus unavailable")
+        return
+    root = work / "video-contract"
+    root.mkdir(parents=True, exist_ok=True)
+    catalog = root / "library.sqlite"
+    completed: set[str] = set()
+    try:
+        created = _run_cli(cli, ["catalog", "create", "--path", str(catalog), "--json"], env)
+        if created.returncode or parse_cli_success_envelope(created) is None:
+            raise ValueError("video catalog create failed")
+        imported_assets = []
+        for name in names:
+            source = root / name
+            shutil.copyfile(fixture_root / name, source)
+            digest = sha256_file(source)
+            imported = _run_cli(cli, ["catalog", "import", "--catalog", str(catalog),
+                "--input", str(source), "--json"], env, timeout=180)
+            data = parse_cli_success_envelope(imported)
+            if imported.returncode or not data or data.get("imported") != 1 or data.get("failed") != 0:
+                raise ValueError(f"video import failed: {name}: {imported.stdout[:240]}")
+            asset = data["items"][0]["asset"]
+            if "video" not in asset or sha256_file(source) != digest:
+                raise ValueError("video metadata missing or source changed")
+            imported_assets.append((asset["id"], source, digest))
+        record(stages[0], Status.PASS, "H.264/AAC, HEVC HLG/PQ; source bytes unchanged")
+        completed.add(stages[0])
+        for index, (asset_id, source, digest) in enumerate(imported_assets):
+            output = root / f"frame-{index}.png"
+            extracted = _run_cli(cli, ["catalog", "video-frame", "--catalog", str(catalog),
+                "--asset-id", asset_id, "--time-us", "500000", "--max-edge", "64",
+                "--output", str(output), "--json"], env, timeout=180)
+            data = parse_cli_success_envelope(extracted)
+            if extracted.returncode or not data or data.get("schema") != "ravo.video_frame/v1":
+                raise ValueError(f"video frame failed: {extracted.stdout[:240]}")
+            require_probe_artifact(data, output)
+            if sha256_file(source) != digest:
+                raise ValueError("video frame changed source bytes")
+        record(stages[1], Status.PASS, "verified immutable SDR PNG artifacts")
+        completed.add(stages[1])
+        if studio is None:
+            record(stages[2], Status.UNTESTED, "Studio unavailable")
+            return
+        played = subprocess.run([str(studio), "--smoke", "--video-smoke-input", str(root / "hlg.mp4")],
+            env=env, capture_output=True, text=True, timeout=60)
+        reports = [json.loads(line) for line in played.stdout.splitlines() if line.startswith("{")]
+        if played.returncode or not any(report.get("schema") == "ravo.video_playback_smoke/v1"
+                and report.get("frames", 0) > 0 for report in reports):
+            raise ValueError(f"video playback failed: {(played.stderr or played.stdout)[-600:]}")
+        for _, source, digest in imported_assets:
+            if sha256_file(source) != digest:
+                raise ValueError("video playback changed source bytes")
+        record(stages[2], Status.PASS, "Qt backend decoded owned frames; audible output untested")
+    except (OSError, ValueError, KeyError, IndexError, subprocess.TimeoutExpired) as exc:
+        for stage in stages:
+            # Preserve stages already proven by their own contract.
+            if stage in completed:
+                continue
+            record(stage, Status.FAIL, str(exc))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("artifact", type=Path)
@@ -1028,12 +1096,14 @@ def main(argv: list[str] | None = None) -> int:
 
         if cli is not None:
             run_catalog_workflow_stages(cli, env, work, record)
+            run_video_workflow_stages(cli, studio, env, work, record)
         else:
             for name in (
                 "catalog_create_open",
                 "catalog_synthetic_import",
                 "catalog_probe_or_render",
                 "catalog_reopen_hash",
+                "video_import_decode", "video_frame_artifact", "video_playback",
             ):
                 record(name, Status.UNTESTED, "cli unavailable")
 
@@ -1078,6 +1148,7 @@ def main(argv: list[str] | None = None) -> int:
             "catalog_synthetic_import",
             "catalog_probe_or_render",
             "catalog_reopen_hash",
+            "video_import_decode", "video_frame_artifact", "video_playback",
         )
         if args.require_smoke:
             for name in required:

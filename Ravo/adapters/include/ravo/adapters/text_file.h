@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -28,7 +29,8 @@ namespace ravo
                                                        std::span<const std::uint8_t> bytes);
 
 [[nodiscard]] std::string sha256_utf8_hex(std::string_view text);
-[[nodiscard]] Result<std::string> sha256_file_hex(std::string_view path_utf8,
-                                                  const CancellationToken &cancellation = {});
+[[nodiscard]] Result<std::string>
+sha256_file_hex(std::string_view path_utf8, const CancellationToken &cancellation = {},
+                const std::function<void(std::uint64_t, std::uint64_t)> &progress = {});
 
 } // namespace ravo

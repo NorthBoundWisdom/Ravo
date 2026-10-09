@@ -14,10 +14,12 @@ namespace ravo
 {
 namespace
 {
-Result<std::string> stable_hash(const std::string &path, const FileIdentity &before,
-                                const CancellationToken &cancellation)
+Result<std::string>
+stable_hash(const std::string &path, const FileIdentity &before,
+            const CancellationToken &cancellation,
+            const std::function<void(std::uint64_t, std::uint64_t)> &progress = {})
 {
-    auto digest = sha256_file_hex(path, cancellation);
+    auto digest = sha256_file_hex(path, cancellation, progress);
     if (!digest)
         return digest.error();
     auto after = read_file_identity(path);
@@ -46,7 +48,7 @@ Result<ImportScanResult> ImportService::scan_import_candidates_impl(
     const bool recursive, const CancellationToken &cancellation,
     const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress,
     const std::function<void(const std::vector<std::string> &)> &enumerated,
-    const bool require_stable_revision)
+    const bool require_stable_revision, const ImportWorkProgressCallback &work_progress)
 {
     if (!repository_)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -65,6 +67,17 @@ Result<ImportScanResult> ImportService::scan_import_candidates_impl(
         return active.error();
     ImportScanResult result;
     result.catalog_revision = initial.value().revision;
+    const auto hash_source = [&](const std::string &path, const FileIdentity &identity)
+    {
+        return stable_hash(path, identity, cancellation,
+                           [&](std::uint64_t completed, std::uint64_t total)
+                           {
+                               if (work_progress)
+                                   work_progress({ImportWorkPhase::kChecking,
+                                                  result.candidates.size(), paths.value().size(),
+                                                  path, completed, total});
+                           });
+    };
     std::set<std::uint64_t> indexed_sizes;
     std::set<std::string> batch_hashes;
     const auto index_size = [&](const std::uint64_t size) -> Result<void>
@@ -106,8 +119,7 @@ Result<ImportScanResult> ImportService::scan_import_candidates_impl(
                     // change or an unproven identity still fails explicitly.
                     if (identity.value().size_bytes == source.size_bytes && source.sha256)
                     {
-                        auto digest =
-                            stable_hash(location.value().path, identity.value(), cancellation);
+                        auto digest = hash_source(location.value().path, identity.value());
                         if (!digest)
                             return digest.error();
                         if (digest.value() == *source.sha256)
@@ -121,7 +133,7 @@ Result<ImportScanResult> ImportService::scan_import_candidates_impl(
                 }
                 if (source.sha256)
                     continue;
-                auto digest = stable_hash(location.value().path, identity.value(), cancellation);
+                auto digest = hash_source(location.value().path, identity.value());
                 if (!digest)
                     return digest.error();
                 auto saved = repository_->cache_import_content(source, digest.value());
@@ -134,6 +146,9 @@ Result<ImportScanResult> ImportService::scan_import_candidates_impl(
     };
     for (const auto &path : paths.value())
     {
+        if (work_progress)
+            work_progress(
+                {ImportWorkPhase::kChecking, result.candidates.size(), paths.value().size(), path});
         auto active = cancellation.check();
         if (!active)
             return active.error();
@@ -157,6 +172,11 @@ Result<ImportScanResult> ImportService::scan_import_candidates_impl(
             if (!location)
                 return location.error();
             candidate.source_path = location.value().path;
+            auto identity = read_file_identity(path);
+            if (!identity)
+                return identity.error();
+            candidate.size_bytes = identity.value().size_bytes;
+            candidate.mtime_unix_ms = identity.value().mtime_unix_ms;
             auto existing = repository_->find_asset_by_uri(location.value().uri);
             if (!existing)
                 return existing.error();
@@ -167,12 +187,7 @@ Result<ImportScanResult> ImportService::scan_import_candidates_impl(
                 candidate.duplicate_asset_id = existing.value()->id;
                 return {};
             }
-            auto identity = read_file_identity(path);
-            if (!identity)
-                return identity.error();
-            candidate.size_bytes = identity.value().size_bytes;
-            candidate.mtime_unix_ms = identity.value().mtime_unix_ms;
-            auto digest = stable_hash(path, identity.value(), cancellation);
+            auto digest = hash_source(path, identity.value());
             if (!digest)
                 return digest.error();
             candidate.content_sha256 = std::move(digest).value();
@@ -228,7 +243,12 @@ Result<ImportScanResult> ImportService::scan_import_candidates_impl(
         result.candidates.push_back(std::move(candidate));
         if (progress)
             progress(result.candidates.size(), paths.value().size(), result.candidates.back());
+        if (work_progress)
+            work_progress(
+                {ImportWorkPhase::kChecking, result.candidates.size(), paths.value().size(), path});
     }
+    if (auto active = cancellation.check(); !active)
+        return active.error();
     auto current = repository_->snapshot();
     if (!current)
         return current.error();

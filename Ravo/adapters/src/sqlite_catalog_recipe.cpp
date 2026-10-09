@@ -672,6 +672,23 @@ Result<void> SqliteCatalogRepository::commit_imported_asset(
     {
         return impl_->abort_transaction(inserted.error());
     }
+    if (is_video_media_type(asset.media_type) != asset.video.has_value())
+        return impl_->abort_transaction(make_error(ErrorCode::kValidation,
+                                                   "Video asset metadata is inconsistent",
+                                                   {{"reason", "invalid_video_asset"}}));
+    if (asset.video)
+    {
+        const auto value = video_info_json(*asset.video);
+        auto valid = parse_video_info(value);
+        if (!valid)
+            return impl_->abort_transaction(valid.error());
+        QSqlQuery video(impl_->database);
+        video.prepare(QStringLiteral("INSERT INTO asset_video(asset_id, info_json) VALUES (?, ?)"));
+        video.addBindValue(qstring_from_utf8(asset.id));
+        video.addBindValue(qstring_from_utf8(serialize_json(value)));
+        if (!video.exec())
+            return impl_->abort_transaction(map_sql_error(video, "write_video_metadata"));
+    }
     if (sha256)
     {
         const auto cached = cache_import_content(

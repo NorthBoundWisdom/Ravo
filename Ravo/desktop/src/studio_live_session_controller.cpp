@@ -18,7 +18,9 @@
 #include <QJsonDocument>
 
 #include "ravo/desktop/studio_command_controller.h"
+#include "studio_command_ids.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/foundation/parse_number.h"
 #include "ravo/recipe/recipe.h"
 
 #include "studio_qt.h"
@@ -99,9 +101,8 @@ template <typename Integer>
         return make_error(ErrorCode::kValidation, "Live Develop value must be numeric",
                           {{"name", std::string(name)}});
     }
-    char *end = nullptr;
-    const double parsed = std::strtod(number->text.c_str(), &end);
-    if (end != number->text.c_str() + number->text.size() || !std::isfinite(parsed))
+    double parsed = 0.;
+    if (!parse_ascii_double(number->text, parsed))
     {
         return make_error(ErrorCode::kValidation, "Live Develop value must be finite",
                           {{"name", std::string(name)}});
@@ -279,6 +280,7 @@ Result<void> StudioLiveSessionController::start()
     connect(&presenter_, &StudioPresenter::libraryWorkChanged, this, changed);
     connect(presenter_.imports(), &StudioImportWorkspace::libraryWorkChanged, this, changed);
     connect(&presenter_, &StudioPresenter::selectionChanged, this, changed);
+    connect(presenter_.video(), &StudioVideoPresenter::changed, this, changed);
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
     connect(presenter_.develop(), &StudioDevelopPresenter::editChanged, this, changed);
     connect(presenter_.inspect(), &StudioInspectPresenter::previewChanged, this, changed);
@@ -306,12 +308,37 @@ const std::filesystem::path &StudioLiveSessionController::descriptorPath() const
 
 void StudioLiveSessionController::refresh()
 {
-    ++session_revision_;
     std::string selection = utf8_from_qstring(presenter_.selected_asset_id_);
     for (const auto &id : presenter_.selected_asset_ids())
     {
         selection.push_back('\n');
         selection.append(id);
+    }
+    // Playback timestamps/pixels are volatile observations, not new control
+    // intents. Keep state revisions usable while a video is advancing, and
+    // still invalidate every selection, catalog, mode or control-state change.
+    if (presenter_.video()->available())
+    {
+        auto video = *presenter_.video()->jsonSnapshot().object_if();
+        video.erase("position_ms");
+        const auto identity = serialize_json(JsonValue::Object{
+            {"video", JsonValue{std::move(video)}},
+            {"selection", selection},
+            {"catalog", utf8_from_qstring(presenter_.catalog_path_)},
+            {"catalog_revision",
+             JsonValue::number(std::to_string(presenter_.observed_catalog_revision_))},
+            {"mode", utf8_from_qstring(presenter_.browse_mode_)},
+            {"busy", presenter_.busy_}});
+        if (identity != video_control_identity_)
+        {
+            ++session_revision_;
+            video_control_identity_ = identity;
+        }
+    }
+    else
+    {
+        ++session_revision_;
+        video_control_identity_.clear();
     }
     if (selection != selection_identity_)
     {
@@ -444,7 +471,9 @@ JsonValue StudioLiveSessionController::snapshot() const
         {"revision", JsonValue::number(std::to_string(recipe_revision_))},
         {"saved", saved},
         {"saved_revision", JsonValue::number(std::to_string(saved_recipe_revision_))},
-        {"state", !selected                                      ? "none" :
+        {"state", !selected ? "none" :
+                  presenter_.selectedMediaType().startsWith(QLatin1String("video/")) ?
+                              "not_applicable" :
                   !recipe_error_.empty()                         ? "error" :
                   !presenter_.develop()->state().develop_loaded_ ? "loading" :
                   pending                                        ? "pending" :
@@ -494,6 +523,8 @@ JsonValue StudioLiveSessionController::snapshot() const
         {"error", utf8_from_qstring(presenter_.error_text_)},
         {"executable_path", descriptor_.executable_path},
         {"preview", std::move(preview)},
+        {"video", presenter_.video()->jsonSnapshot()},
+        {"import", presenter_.imports()->jsonSnapshot()},
         {"process_id", JsonValue::number(std::to_string(descriptor_.process_id))},
         {"protocol", descriptor_.protocol},
         {"recipe", std::move(recipe)},
@@ -533,6 +564,81 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
                               "Studio state request does not accept parameters");
         return snapshot();
     }
+    if (request.method == "video")
+    {
+        auto params = require_object(request.params, "params");
+        if (!params)
+            return params.error();
+        auto known = reject_unknown(*params.value(),
+                                    {"asset_id", "action", "value", "expected_session_revision",
+                                     "expected_selection_revision", "expected_video_generation"},
+                                    "params");
+        if (!known)
+            return known.error();
+        auto asset = string_field(*params.value(), "asset_id", 256);
+        auto action = string_field(*params.value(), "action", 32);
+        auto session = integer_field<std::uint64_t>(*params.value(), "expected_session_revision");
+        auto selection =
+            integer_field<std::uint64_t>(*params.value(), "expected_selection_revision");
+        auto generation =
+            integer_field<std::uint64_t>(*params.value(), "expected_video_generation");
+        if (!asset || !action || !session || !selection || !generation)
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Video request requires target, action and revisions",
+                              {{"reason", "invalid_video_request"}});
+        if (asset.value() != utf8_from_qstring(presenter_.selected_asset_id_) ||
+            session.value() != session_revision_ || selection.value() != selection_revision_ ||
+            generation.value() != presenter_.video()->snapshot().value("generation").toULongLong())
+            return make_error(ErrorCode::kConflict, "Video request is stale",
+                              {{"reason", "stale_video_request"}});
+        const auto found = params.value()->find("value");
+        QVariant value;
+        if (found != params.value()->end())
+        {
+            if (const auto *boolean = found->second.boolean_if())
+                value = *boolean;
+            else
+            {
+                auto number = number_value(found->second, "value");
+                if (!number)
+                    return number.error();
+                value = number.value();
+            }
+        }
+        const char *id = nullptr;
+        if (action.value() == "play")
+            id = command::kVideoPlay;
+        else if (action.value() == "pause")
+            id = command::kVideoPause;
+        else if (action.value() == "seek")
+            id = command::kVideoSeek;
+        else if (action.value() == "volume")
+            id = command::kVideoVolume;
+        else if (action.value() == "mute")
+            id = command::kVideoMute;
+        else
+            return make_error(ErrorCode::kInvalidArgument, "Unknown video action",
+                              {{"reason", "invalid_video_action"}});
+        const auto dispatched =
+            commands_.executeCommand(QLatin1String(id), value, QStringLiteral("control"));
+        if (!dispatched.value("accepted").toBool())
+            return make_error(
+                dispatched.value("code").toString() == QLatin1String("invalid_argument") ?
+                    ErrorCode::kInvalidArgument :
+                    ErrorCode::kConflict,
+                utf8_from_qstring(dispatched.value("message").toString()),
+                {{"reason", "video_command_rejected"},
+                 {"command_code", utf8_from_qstring(dispatched.value("code").toString())}});
+        auto state = snapshot();
+        auto response = *state.object_if();
+        response.emplace("mutation",
+                         JsonValue::Object{{"accepted", true}, {"action", action.value()}});
+        return JsonValue{std::move(response)};
+    }
+    if ((request.method == "mask" || request.method == "develop") &&
+        presenter_.selectedMediaType().startsWith(QLatin1String("video/")))
+        return make_error(ErrorCode::kUnsupported, "Video does not support photo editing",
+                          {{"reason", "video_photo_operation_unsupported"}});
     if (request.method == "mask")
     {
         auto params = require_object(request.params, "params");

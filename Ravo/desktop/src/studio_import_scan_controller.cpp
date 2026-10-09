@@ -19,7 +19,9 @@ namespace
     ImportCandidate candidate;
     candidate.source_path = path;
     const QString qpath = qstring_from_utf8(path);
-    candidate.display_name = utf8_from_qstring(QFileInfo(qpath).fileName());
+    const QFileInfo file(qpath);
+    candidate.display_name = utf8_from_qstring(file.fileName());
+    candidate.size_bytes = static_cast<std::uint64_t>(std::max<qint64>(0, file.size()));
     if (!source_root.empty())
     {
         const QString relative = QDir(qstring_from_utf8(source_root)).relativeFilePath(qpath);
@@ -184,13 +186,17 @@ void StudioImportScanController::startRescan()
                     return snapshot.error();
                 return service->import().scan_import_candidates(
                     {root}, root, recursive, token, publish,
-                    [self, root, generation,
+                    [self, root, generation, token,
                      revision = snapshot.value().revision](const std::vector<std::string> &paths)
                     {
                         std::vector<ImportCandidate> placeholders;
                         placeholders.reserve(paths.size());
                         for (const auto &path : paths)
+                        {
+                            if (token.is_cancellation_requested())
+                                return;
                             placeholders.push_back(placeholder_candidate(path, root));
+                        }
                         if (!self || self->host_.callback_receiver == nullptr)
                             return;
                         QMetaObject::invokeMethod(

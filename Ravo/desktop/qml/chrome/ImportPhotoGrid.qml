@@ -55,7 +55,7 @@ Rectangle {
     CustomLabel {
         anchors.centerIn: parent
         visible: !root.presenter.imports.importScanActive && candidateGrid.count === 0
-        text: root.presenter.imports.importSourceRoot.length ? qsTr("No supported photos found") : qsTr("Choose a source folder")
+        text: root.presenter.imports.importSourceRoot.length ? qsTr("No supported photos or videos found") : qsTr("Choose a source folder")
         color: Theme.placeholderTextColor
     }
 
@@ -138,7 +138,7 @@ Rectangle {
                     CustomLabel {
                         anchors.centerIn: parent
                         width: parent.width - 8
-                        text: displayName
+                        text: (candidateDelegate.mediaType.indexOf("video/") === 0 ? "▶ " : "") + displayName
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideMiddle
                     }

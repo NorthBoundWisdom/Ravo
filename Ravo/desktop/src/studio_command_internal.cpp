@@ -35,6 +35,12 @@ QString tr_command(const QString &source)
 }
 
 [[maybe_unused]] const char *const kStudioCommandTranslationSources[] = {
+    QT_TRANSLATE_NOOP("StudioCommands", "Select a video in Loupe first."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Video is not ready."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Video is not playing."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Video position is outside the duration."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Video volume must be between 0 and 1."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Video mute state must be boolean."),
     QT_TRANSLATE_NOOP("StudioCommands", "This command takes no argument."),
     QT_TRANSLATE_NOOP("StudioCommands", "A non-empty string is required."),
     QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required."),
@@ -239,6 +245,11 @@ QStringList command_ids()
             QLatin1String(command::kViewGrid),
             QLatin1String(command::kViewLoupe),
             QLatin1String(command::kViewDevelop),
+            QLatin1String(command::kVideoPlay),
+            QLatin1String(command::kVideoPause),
+            QLatin1String(command::kVideoSeek),
+            QLatin1String(command::kVideoVolume),
+            QLatin1String(command::kVideoMute),
             QLatin1String(command::kViewSurvey),
             QLatin1String(command::kViewBurstCompare),
             QLatin1String(command::kViewBurstComparePrevious),
@@ -452,6 +463,21 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Gallery")), view,
         {QStringLiteral("grid"), QStringLiteral("library")}, QStringLiteral("view.mode"), 10, true,
         {key(QStringLiteral("G"), true), key(primary_key(QStringLiteral("1"), false, true))});
+    add(command::kVideoPlay, command::kVideoPlay,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Play Video")), view, {}, {}, 0, true,
+        {});
+    add(command::kVideoPause, command::kVideoPause,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Pause Video")), view, {}, {}, 0,
+        true, {});
+    add(command::kVideoSeek, command::kVideoSeek,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Seek Video")), view, {}, {}, 0,
+        false, {});
+    add(command::kVideoVolume, command::kVideoVolume,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Video Volume")), view, {}, {}, 0,
+        false, {});
+    add(command::kVideoMute, command::kVideoMute,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Mute Video")), view, {}, {}, 0,
+        false, {});
     add(command::kViewLoupe, command::kViewLoupe,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Loupe")), view,
         {QStringLiteral("photo"), QStringLiteral("viewer")}, QStringLiteral("view.mode"), 20, true,

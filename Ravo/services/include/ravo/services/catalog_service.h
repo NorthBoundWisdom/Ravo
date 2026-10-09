@@ -33,6 +33,7 @@
 #include "ravo/services/ingest_transport.h"
 #include "ravo/services/photo_merge.h"
 #include "ravo/services/develop_types.h"
+#include "ravo/services/video.h"
 
 namespace ravo
 {
@@ -85,7 +86,8 @@ public:
     CatalogService(const EngineFacade &engine, std::unique_ptr<CatalogRepository> repository,
                    std::unique_ptr<RasterDecoder> raster, std::shared_ptr<PreviewCache> cache,
                    std::unique_ptr<RecoveryStore> recovery,
-                   std::shared_ptr<std::mutex> recovery_publication_mutex = {});
+                   std::shared_ptr<std::mutex> recovery_publication_mutex = {},
+                   std::unique_ptr<VideoDecoder> video = {});
 
     CatalogService(const CatalogService &) = delete;
     CatalogService &operator=(const CatalogService &) = delete;
@@ -128,11 +130,17 @@ public:
     [[nodiscard]] const OfflineEditService &offline() const noexcept;
 
     Result<void> close();
+    [[nodiscard]] Result<VideoInfo> video_info(std::string_view asset_id,
+                                               const CancellationToken &cancellation = {}) const;
+    [[nodiscard]] Result<VideoPreview>
+    video_frame(std::string_view asset_id, std::int64_t time_us, std::uint32_t max_edge,
+                const CancellationToken &cancellation = {}) const;
 
 private:
     const EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;
     std::unique_ptr<RasterDecoder> raster_;
+    std::unique_ptr<VideoDecoder> video_;
     std::shared_ptr<PreviewCache> cache_;
     std::unique_ptr<RecoveryStore> recovery_;
     std::shared_ptr<std::mutex> recovery_publication_mutex_;

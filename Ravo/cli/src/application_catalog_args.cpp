@@ -612,6 +612,17 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.compare_step = std::string(value);
         }
+        else if (option == "--time-us")
+        {
+            if (result.video_time_us)
+                return make_error(ErrorCode::kInvalidArgument, "--time-us was specified twice");
+            auto time = parse_uint64_flag(value, option);
+            if (!time)
+                return time.error();
+            if (time.value() > static_cast<std::uint64_t>(INT64_MAX))
+                return make_error(ErrorCode::kInvalidArgument, "Video time is too large");
+            result.video_time_us = static_cast<std::int64_t>(time.value());
+        }
         else if (option == "--max-edge")
         {
             auto dimension = parse_dimension(value, option);

@@ -1,5 +1,6 @@
 #include "ravo/services/import_service.h"
 #include "ravo/services/import_thumbnail.h"
+#include "ravo/services/video.h"
 
 #include <algorithm>
 #include <array>
@@ -203,6 +204,27 @@ ImportService::inspect_import_candidate(const std::string_view path,
     candidate.duplicate = existing.value().has_value();
 
     const auto source_path = utf8_path(candidate.source_path);
+    if (is_video_path(candidate.source_path))
+    {
+        auto info = video_ ? video_->probe(candidate.source_path, cancellation) :
+                             Result<VideoInfo>{
+                                 make_error(ErrorCode::kUnsupported, "Video decoder is unavailable",
+                                            {{"reason", "video_decoder_unavailable"}})};
+        if (!info)
+        {
+            if (info.error().code == ErrorCode::kCancelled)
+                return info.error();
+            candidate.supported = false;
+            candidate.error = info.error();
+            return candidate;
+        }
+        candidate.media_type = info.value().container == "mov" ? "video/quicktime" : "video/mp4";
+        const bool swapped = info.value().rotation == 90 || info.value().rotation == 270;
+        candidate.width = swapped ? info.value().height : info.value().width;
+        candidate.height = swapped ? info.value().width : info.value().height;
+        candidate.captured_unix_s = info.value().captured_unix_s;
+        return candidate;
+    }
     if (is_raw_extension(source_path))
     {
         auto inspected = engine_->inspect(candidate.source_path, cancellation);
@@ -274,6 +296,16 @@ Result<ImportCandidate> ImportService::inspect_destination_candidate(
         candidate.mtime_unix_ms = identity.value().mtime_unix_ms;
         if (needs_capture_date)
         {
+            if (is_video_path(path))
+            {
+                auto inspected = inspect_import_candidate(path, source_root, cancellation);
+                if (!inspected)
+                    return inspected.error();
+                if (inspected.value().error)
+                    return *inspected.value().error;
+                candidate.captured_unix_s = inspected.value().captured_unix_s;
+                return candidate;
+            }
             // Folder projection needs a date, not RAW identification, dimensions,
             // companion discovery or thumbnail pixels. Use the shared EXIF reader.
             if (!engine_)
@@ -333,19 +365,37 @@ ImportService::decode_import_candidate_thumbnail(const std::string_view path,
 {
     if (raster_ == nullptr || engine_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
-    return decode_import_thumbnail(*engine_, *raster_, path, cancellation);
+    return decode_import_thumbnail(*engine_, *raster_, path, cancellation, video_.get());
 }
 
 Result<RasterBuffer> decode_import_thumbnail(const EngineFacade &engine,
                                              const RasterDecoder &raster,
                                              const std::string_view path,
-                                             const CancellationToken &cancellation)
+                                             const CancellationToken &cancellation,
+                                             const VideoDecoder *video)
 {
     if (auto active = cancellation.check(); !active)
         return active.error();
     auto location = normalize_local_input(path);
     if (!location)
         return location.error();
+    if (is_video_path(path))
+    {
+        if (!video)
+            return make_error(ErrorCode::kUnsupported, "Video decoder is unavailable",
+                              {{"reason", "video_decoder_unavailable"}});
+        auto decoded = decode_video_preview(*video, path, 0, kThumbnailMaxEdge, cancellation);
+        if (!decoded)
+            return decoded.error();
+        RasterBuffer result;
+        result.width = decoded.value().image.width;
+        result.height = decoded.value().image.height;
+        result.source_width = decoded.value().image.source_width;
+        result.source_height = decoded.value().image.source_height;
+        result.srgb = std::move(decoded.value().image.rgb);
+        result.color_profile = decoded.value().image.color_profile;
+        return result;
+    }
     const auto raster_from_decoded = [](DecodedRaster value) -> RasterBuffer
     {
         RasterBuffer result;
@@ -477,10 +527,23 @@ Result<ImportDestinationPreview> ImportService::preview_import_destinations(
 
 Result<ImportBatchResult> ImportService::execute_import_impl(
     const ImportRequest &request,
-    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
+    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &item_progress,
     const bool preflight_only, ImportDestinationPreview *const destination_preview,
     const std::function<void(const ImportDestinationPreview &)> &destination_progress)
 {
+    const auto report_work = [&](ImportWorkPhase phase, std::size_t completed, std::size_t total,
+                                 std::string_view path = {})
+    {
+        if (request.work_progress)
+            request.work_progress({phase, completed, total, std::string(path)});
+    };
+    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> progress =
+        [&](std::size_t completed, std::size_t total, const ImportItemResult *item)
+    {
+        report_work(ImportWorkPhase::kImporting, completed, total, item ? item->input_path : "");
+        if (item_progress)
+            item_progress(completed, total, item);
+    };
     auto snapshot_before = library_snapshot();
     if (!snapshot_before)
         return snapshot_before.error();
@@ -508,6 +571,7 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
             return valid_template.error();
     }
 
+    report_work(ImportWorkPhase::kEnumerating, 0, 0);
     auto paths = enumerate_import_inputs(request.inputs, request.cancellation, request.recursive);
     if (!paths)
         return paths.error();
@@ -516,9 +580,9 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
     {
         // Import revalidates source hashes, duplicate identities and destinations
         // at publication. Unrelated photo edits must not invalidate this planning pass.
-        auto scan =
-            scan_import_candidates_impl(request.inputs, request.source_root.value_or(""),
-                                        request.recursive, request.cancellation, {}, {}, false);
+        auto scan = scan_import_candidates_impl(request.inputs, request.source_root.value_or(""),
+                                                request.recursive, request.cancellation, {}, {},
+                                                false, request.work_progress);
         if (!scan)
             return scan.error();
         for (auto &candidate : scan.value().candidates)
@@ -738,6 +802,9 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
     for (std::size_t index = 0U; index < paths.value().size(); ++index)
     {
         const auto &source = paths.value()[index];
+        if (auto active = request.cancellation.check(); !active)
+            return active.error();
+        report_work(ImportWorkPhase::kPlanning, index, paths.value().size(), source);
         if (request.skip_existing && !destination_preview && checked.at(source).duplicate)
         {
             PlannedImport duplicate;
@@ -936,6 +1003,9 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
             plan.push_back(std::move(item));
     }
 
+    report_work(ImportWorkPhase::kPlanning, paths.value().size(), paths.value().size());
+    if (auto active = request.cancellation.check(); !active)
+        return active.error();
     ImportBatchResult batch;
     batch.mode = request.mode;
     batch.preview = request.preview;
@@ -968,6 +1038,8 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
     batch.items.reserve(plan.size());
     for (std::size_t index = 0; index < plan.size(); ++index)
     {
+        report_work(ImportWorkPhase::kImporting, index, plan.size(),
+                    plan[index].candidate.source_path);
         auto active = request.cancellation.check();
         if (!active)
         {
@@ -1090,6 +1162,7 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
         const auto publish_copy = [&](const std::string_view source,
                                       const std::string_view output) -> Result<void>
         {
+            report_work(ImportWorkPhase::kCopying, index, plan.size(), source);
             auto parent = ensure_parent(output);
             if (!parent)
                 return parent.error();
@@ -1161,6 +1234,8 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
             }
             if (!transfer_error && planned.second_copy_path)
             {
+                report_work(ImportWorkPhase::kVerifying, index, plan.size(),
+                            planned.candidate.source_path);
                 for (const auto &pair :
                      std::array<std::pair<std::string_view, std::string_view>, 2U>{
                          std::pair<std::string_view, std::string_view>{

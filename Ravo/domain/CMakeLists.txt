@@ -6,6 +6,7 @@ target_sources(ravo_domain
     src/export_preset_job.cpp
     src/library_types.cpp
     src/types.cpp
+    src/video.cpp
     src/uri.cpp)
 
 target_include_directories(ravo_domain

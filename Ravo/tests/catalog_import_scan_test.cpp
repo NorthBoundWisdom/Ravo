@@ -1,4 +1,5 @@
 #include <chrono>
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -177,6 +178,15 @@ TEST_F(CatalogServiceTest, ImportScanFindsRenamedCatalogAndBatchContentWithoutPu
     EXPECT_EQ(service->library().snapshot().value().revision, revision);
     EXPECT_EQ(file_sha256((input / "a.png").string()), original_hash);
     EXPECT_EQ(file_sha256((destination / "a.png").string()), original_hash);
+    auto catalog_path = service->import().scan_import_candidates({(destination / "a.png").string()},
+                                                                 destination.string(), false, {});
+    ASSERT_TRUE(catalog_path);
+    ASSERT_EQ(catalog_path.value().candidates.size(), 1U);
+    const auto &known = catalog_path.value().candidates.front();
+    EXPECT_TRUE(known.duplicate);
+    EXPECT_EQ(known.duplicate_reason, "catalog_path");
+    EXPECT_EQ(known.size_bytes, std::filesystem::file_size(destination / "a.png"));
+    EXPECT_GT(known.size_bytes, 0U);
     service.reset();
     ASSERT_TRUE(open_service(false));
     std::filesystem::remove(destination / "a.png");
@@ -184,6 +194,103 @@ TEST_F(CatalogServiceTest, ImportScanFindsRenamedCatalogAndBatchContentWithoutPu
         service->import().scan_import_candidates({input.string()}, input.string(), true, {});
     ASSERT_TRUE(offline) << offline.error().message;
     EXPECT_EQ(offline.value().duplicates, 2U);
+}
+
+TEST_F(CatalogServiceTest, ImportWorkProgressReportsChecksBeforePublicationAndRetainsItemCounts)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source = root / "progress.png";
+    const auto destination = root / "progress-destination";
+    ASSERT_TRUE(write_photo(source, Qt::red));
+    std::filesystem::create_directories(destination);
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.skip_existing = true;
+    request.defer_previews = true;
+    std::vector<ImportWorkProgress> events;
+    request.work_progress = [&](const ImportWorkProgress &progress)
+    {
+        events.push_back(progress);
+        EXPECT_LE(progress.completed, progress.total);
+        if (progress.phase == ImportWorkPhase::kChecking)
+        {
+            EXPECT_TRUE(service->library().list_assets().value().empty());
+            EXPECT_TRUE(std::filesystem::is_empty(destination));
+        }
+    };
+    ASSERT_TRUE(service->import().preflight_import(request));
+    EXPECT_TRUE(service->library().list_assets().value().empty());
+    EXPECT_TRUE(std::filesystem::is_empty(destination));
+    EXPECT_TRUE(std::any_of(events.begin(), events.end(),
+                            [](const auto &event)
+                            {
+                                return event.phase == ImportWorkPhase::kChecking &&
+                                       event.file_bytes_completed > 0 &&
+                                       event.file_bytes_completed == event.file_bytes_total;
+                            }));
+    EXPECT_EQ(events.back().phase, ImportWorkPhase::kPlanning);
+    events.clear();
+    std::size_t item_callbacks = 0;
+    auto imported = service->import().execute_import(
+        request,
+        [&](std::size_t completed, std::size_t total, const ImportItemResult *item)
+        {
+            ++item_callbacks;
+            EXPECT_EQ(completed, 1U);
+            EXPECT_EQ(total, 1U);
+            ASSERT_NE(item, nullptr);
+            EXPECT_EQ(item->status, ImportItemStatus::kImported);
+        });
+    ASSERT_TRUE(imported) << imported.error().message;
+    EXPECT_EQ(imported.value().imported, 1U);
+    EXPECT_EQ(item_callbacks, 1U);
+    EXPECT_TRUE(std::any_of(events.begin(), events.end(), [](const auto &event)
+                            { return event.phase == ImportWorkPhase::kCopying; }));
+    EXPECT_EQ(events.back().phase, ImportWorkPhase::kImporting);
+    EXPECT_EQ(events.back().completed, 1U);
+    const auto json = import_work_progress_json(events.back());
+    EXPECT_EQ(*json.find("schema")->string_if(), "ravo.import_progress/v1");
+    EXPECT_EQ(*json.find("phase")->string_if(), "importing");
+    EXPECT_EQ(json.find("completed")->number_if()->text, "1");
+    EXPECT_EQ(file_sha256(source.string()), file_sha256((destination / "progress.png").string()));
+}
+
+TEST_F(CatalogServiceTest, ImportWorkCancellationDuringHashLeavesNoPublishedOutput)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source = root / "large.png";
+    QFile file(QString::fromStdString(source.string()));
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(file.resize(4 * 1024 * 1024));
+    file.close();
+    const auto destination = root / "cancel-destination";
+    std::filesystem::create_directories(destination);
+    CancellationSource cancellation;
+    ImportRequest request;
+    request.inputs = {source.string()};
+    request.mode = ImportTransferMode::kCopy;
+    request.destination_directory = destination.string();
+    request.skip_existing = true;
+    request.cancellation = cancellation.token();
+    bool observed_partial = false;
+    request.work_progress = [&](const ImportWorkProgress &progress)
+    {
+        if (progress.phase == ImportWorkPhase::kChecking && progress.file_bytes_completed > 0 &&
+            progress.file_bytes_completed < progress.file_bytes_total)
+        {
+            observed_partial = true;
+            EXPECT_TRUE(cancellation.cancel("progress_test_cancel"));
+        }
+    };
+    auto imported = service->import().execute_import(request);
+    ASSERT_FALSE(imported);
+    EXPECT_EQ(imported.error().code, ErrorCode::kCancelled);
+    EXPECT_TRUE(observed_partial);
+    EXPECT_TRUE(service->library().list_assets().value().empty());
+    EXPECT_TRUE(std::filesystem::is_empty(destination));
+    EXPECT_EQ(std::filesystem::file_size(source), 4U * 1024U * 1024U);
 }
 
 TEST_F(CatalogServiceTest, ImportScanSameSizeAndMtimeDoNotMeanSameContent)
@@ -330,7 +437,7 @@ TEST_F(CatalogServiceTest, ImportContentIndexMigratesV16AndBackfillsWithoutRevis
     ASSERT_TRUE(item);
     const auto revision = service->library().snapshot().value().revision;
     service.reset();
-    // v16 is the complete current schema without the derived v17 table.
+    // Remove post-v16 tables before exercising the complete upgrade path.
     const auto connection = QStringLiteral("import-scan-v16");
     {
         auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
@@ -338,12 +445,13 @@ TEST_F(CatalogServiceTest, ImportContentIndexMigratesV16AndBackfillsWithoutRevis
         ASSERT_TRUE(db.open());
         QSqlQuery sql(db);
         ASSERT_TRUE(sql.exec("DROP TABLE asset_content_hash"));
+        ASSERT_TRUE(sql.exec("DROP TABLE asset_video"));
         ASSERT_TRUE(sql.exec("UPDATE schema_info SET schema_version = 16"));
         db.close();
     }
     QSqlDatabase::removeDatabase(connection);
     ASSERT_TRUE(open_service(false));
-    EXPECT_EQ(service->library().snapshot().value().schema_version, 17);
+    EXPECT_EQ(service->library().snapshot().value().schema_version, kCatalogSchemaVersion);
     auto scan =
         service->import().scan_import_candidates({duplicate.string()}, root.string(), false, {});
     ASSERT_TRUE(scan) << scan.error().message;

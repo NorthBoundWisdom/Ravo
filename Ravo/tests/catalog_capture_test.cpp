@@ -1011,6 +1011,8 @@ TEST_F(CatalogServiceTest, V6RecoveryMigrationFailureRollsBackTheV5Catalog)
         }
         ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE asset_recovery_state")))
             << query.lastError().text().toStdString();
+        ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE asset_video")))
+            << query.lastError().text().toStdString();
         ASSERT_TRUE(query.exec(QStringLiteral(
             "UPDATE schema_info SET schema_version = 5, migrated_unix_ms = 1 WHERE id = 1")))
             << query.lastError().text().toStdString();

@@ -251,6 +251,14 @@ LibraryService::create_asset_version(const std::string_view source_asset_id,
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto source = repository_->find_asset_by_id(source_asset_id);
+    if (!source)
+        return source.error();
+    if (!source.value())
+        return make_error(ErrorCode::kNotFound, "Asset does not exist");
+    if (is_video_media_type(source.value()->media_type))
+        return make_error(ErrorCode::kUnsupported, "Video does not support photo versions",
+                          {{"reason", "video_photo_operation_unsupported"}});
     auto created = repository_->create_asset_version(source_asset_id, expected_revision);
     if (!created)
         return created.error();

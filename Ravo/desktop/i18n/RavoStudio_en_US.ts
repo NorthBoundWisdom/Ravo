@@ -3566,10 +3566,6 @@ Diff: %6</translation>
             <translation>Back</translation>
         </message>
         <message>
-            <source>Import Photos</source>
-            <translation>Import Photos</translation>
-        </message>
-        <message>
             <source>Add</source>
             <translation>Add</translation>
         </message>
@@ -3582,44 +3578,52 @@ Diff: %6</translation>
             <translation>Move</translation>
         </message>
         <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>Ingest transports are Copy-only; Move and camera delete stay rejected.</translation>
-        </message>
-        <message>
             <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
             <translation>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</translation>
+        </message>
+        <message>
+            <source>Import Photos and Videos</source>
+            <translation>Import Photos and Videos</translation>
         </message>
         <message>
             <source>Source</source>
             <translation>Source</translation>
         </message>
         <message>
-            <source>New Photos</source>
-            <translation>New Photos</translation>
+            <source>New Files</source>
+            <translation>New Files</translation>
+        </message>
+        <message>
+            <source>Totals include duplicates and unavailable files. Sizes reflect the current scan.</source>
+            <translation>Totals include duplicates and unavailable files. Sizes reflect the current scan.</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 videos · %3</source>
+            <translation>Selected: %1 photos · %2 videos · %3</translation>
+        </message>
+        <message>
+            <source>Import %1 files</source>
+            <translation>Import %1 files</translation>
         </message>
         <message>
             <source>Thumbnail size</source>
             <translation>Thumbnail size</translation>
         </message>
         <message>
+            <source>Total: %1 photos · %2 videos · %3</source>
+            <translation>Total: %1 photos · %2 videos · %3</translation>
+        </message>
+        <message>
+            <source>Duplicates: %1 · Unavailable: %2</source>
+            <translation>Duplicates: %1 · Unavailable: %2</translation>
+        </message>
+        <message>
             <source>Checking %1 of %2…</source>
             <translation>Checking %1 of %2…</translation>
         </message>
         <message>
-            <source>Duplicate photos: %1</source>
-            <translation>Duplicate photos: %1</translation>
-        </message>
-        <message>
-            <source>Selected: %1 photos · %2 MB</source>
-            <translation>Selected: %1 photos · %2 MB</translation>
-        </message>
-        <message>
             <source>Checking destination…</source>
             <translation>Checking destination…</translation>
-        </message>
-        <message>
-            <source>Import %1 photos</source>
-            <translation>Import %1 photos</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3638,12 +3642,12 @@ Diff: %6</translation>
             <translation>Uncheck All</translation>
         </message>
         <message>
-            <source>No supported photos found</source>
-            <translation>No supported photos found</translation>
-        </message>
-        <message>
             <source>Choose a source folder</source>
             <translation>Choose a source folder</translation>
+        </message>
+        <message>
+            <source>No supported photos or videos found</source>
+            <translation>No supported photos or videos found</translation>
         </message>
         <message>
             <source>Import candidates</source>
@@ -3910,14 +3914,6 @@ Diff: %6</translation>
         <message>
             <source>Library</source>
             <translation>Library</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>Import</translation>
-        </message>
-        <message>
-            <source>Scanning…</source>
-            <translation>Scanning…</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -5139,6 +5135,18 @@ Diff: %6</translation>
             <translation>Import Preset...</translation>
         </message>
         <message>
+            <source>Play Video</source>
+            <translation>Play Video</translation>
+        </message>
+        <message>
+            <source>Pause Video</source>
+            <translation>Pause Video</translation>
+        </message>
+        <message>
+            <source>Seek Video</source>
+            <translation>Seek Video</translation>
+        </message>
+        <message>
             <source>Survey</source>
             <translation>Survey</translation>
         </message>
@@ -5213,6 +5221,30 @@ Diff: %6</translation>
         <message>
             <source>No modified parameters to copy.</source>
             <translation>No modified parameters to copy.</translation>
+        </message>
+        <message>
+            <source>Select a video in Loupe first.</source>
+            <translation>Select a video in Loupe first.</translation>
+        </message>
+        <message>
+            <source>Video is not ready.</source>
+            <translation>Video is not ready.</translation>
+        </message>
+        <message>
+            <source>Video is not playing.</source>
+            <translation>Video is not playing.</translation>
+        </message>
+        <message>
+            <source>Video position is outside the duration.</source>
+            <translation>Video position is outside the duration.</translation>
+        </message>
+        <message>
+            <source>Video volume must be between 0 and 1.</source>
+            <translation>Video volume must be between 0 and 1.</translation>
+        </message>
+        <message>
+            <source>Video mute state must be boolean.</source>
+            <translation>Video mute state must be boolean.</translation>
         </message>
         <message>
             <source>No photos to select.</source>
@@ -5554,6 +5586,14 @@ Diff: %6</translation>
             <source>Copy Path</source>
             <translation>Copy Path</translation>
         </message>
+        <message>
+            <source>Mute Video</source>
+            <translation>Mute Video</translation>
+        </message>
+        <message>
+            <source>Video Volume</source>
+            <translation>Video Volume</translation>
+        </message>
     </context>
     <context>
         <name>StudioExport</name>
@@ -5672,6 +5712,33 @@ Diff: %6</translation>
         <message>
             <source>Export path suffix does not match the selected format</source>
             <translation>Export path suffix does not match the selected format</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioImportWorkspace</name>
+        <message>
+            <source>Finding files</source>
+            <translation>Finding files</translation>
+        </message>
+        <message>
+            <source>Checking files</source>
+            <translation>Checking files</translation>
+        </message>
+        <message>
+            <source>Planning destinations</source>
+            <translation>Planning destinations</translation>
+        </message>
+        <message>
+            <source>Copying files</source>
+            <translation>Copying files</translation>
+        </message>
+        <message>
+            <source>Verifying copies</source>
+            <translation>Verifying copies</translation>
+        </message>
+        <message>
+            <source>Importing files</source>
+            <translation>Importing files</translation>
         </message>
     </context>
     <context>
@@ -5878,6 +5945,10 @@ Diff: %6</translation>
             <translation>Choose an import destination.</translation>
         </message>
         <message>
+            <source>Camera and card ingest preserves source originals. Use Copy instead of Move.</source>
+            <translation>Camera and card ingest preserves source originals. Use Copy instead of Move.</translation>
+        </message>
+        <message>
             <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
             <translation>Destination unavailable. Reconnect the drive or choose another folder.</translation>
         </message>
@@ -5888,10 +5959,6 @@ Diff: %6</translation>
         <message>
             <source>Scan the source folder again.</source>
             <translation>Scan the source folder again.</translation>
-        </message>
-        <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>Ingest transports are Copy-only; Move and camera delete stay rejected.</translation>
         </message>
         <message>
             <source>Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the ptp-stub fixture.</source>
@@ -6632,6 +6699,33 @@ Diff: %6</translation>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>Catalog executor is unavailable.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioVideoPresenter</name>
+        <message>
+            <source>Video does not support photo editing.</source>
+            <translation>Video does not support photo editing.</translation>
+        </message>
+        <message>
+            <source>Video has no playable audio track matching the imported codec.</source>
+            <translation>Video has no playable audio track matching the imported codec.</translation>
+        </message>
+        <message>
+            <source>Audio output is unavailable. Mute the video to play without sound.</source>
+            <translation>Audio output is unavailable. Mute the video to play without sound.</translation>
+        </message>
+        <message>
+            <source>Playing the supported audio track. Additional audio tracks are unsupported; originals are preserved.</source>
+            <translation>Playing the supported audio track. Additional audio tracks are unsupported; originals are preserved.</translation>
+        </message>
+        <message>
+            <source>Unrecognized embedded cover skipped; the preview uses a video frame.</source>
+            <translation>Unrecognized embedded cover skipped; the preview uses a video frame.</translation>
+        </message>
+        <message>
+            <source>Extra channel descriptions ignored; audio uses the declared channel count.</source>
+            <translation>Extra channel descriptions ignored; audio uses the declared channel count.</translation>
         </message>
     </context>
     <context>

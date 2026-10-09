@@ -183,7 +183,8 @@ void drop_raw_companion_jpegs(std::vector<std::string> &files)
     {
         return false;
     }
-    return raster.contains(extension_lower(path)) || is_raw_extension(path);
+    return raster.contains(extension_lower(path)) || is_raw_extension(path) ||
+           is_video_path(path_utf8(path));
 }
 
 [[nodiscard]] Result<std::vector<std::string>>

@@ -554,6 +554,18 @@ void StudioPresenter::startThumbnailRequest(std::string id)
 
 void StudioPresenter::requestPreviewForSelection()
 {
+    if (selectedMediaType().startsWith(QLatin1String("video/")))
+    {
+        inspect_.setPreviewLoading(false);
+        inspect_.notifyPreviewChanged();
+        if (browse_mode_ == QLatin1String("loupe"))
+        {
+            video_presenter_->observeAsset(assets_.assetById(selected_asset_id_));
+            video_presenter_->requestPoster();
+        }
+        if (browse_mode_ != QLatin1String("survey"))
+            return;
+    }
     if (browse_mode_ == QLatin1String("grid"))
     {
         inspect_.setPreviewLoading(false);

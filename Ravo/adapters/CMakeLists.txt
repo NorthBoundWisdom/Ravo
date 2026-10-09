@@ -3,6 +3,7 @@ add_library(ravo_adapters STATIC)
 target_sources(ravo_adapters
   PRIVATE
     src/camera_noise_profile.cpp
+    src/ffmpeg_video_decoder.cpp
     src/export_metadata_encoder.cpp
     src/filesystem_recovery_store.cpp
     src/filesystem_preview_cache.cpp
@@ -45,6 +46,8 @@ target_compile_definitions(ravo_adapters PRIVATE
 target_include_directories(ravo_adapters PRIVATE
   $<TARGET_PROPERTY:ravo_libjpeg_turbo,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:ravo_libtiff,INTERFACE_INCLUDE_DIRECTORIES>)
+target_include_directories(ravo_adapters SYSTEM BEFORE PRIVATE
+  "${RAVO_FFMPEG_SOURCE_ROOT}" "${CMAKE_BINARY_DIR}/_deps/ffmpeg-headers")
 target_include_directories(ravo_adapters
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -56,6 +59,10 @@ target_link_libraries(ravo_adapters
     Qt6::Core
     Qt6::Gui
     Qt6::Sql
+    ravo_ffmpeg_avformat
+    ravo_ffmpeg_avcodec
+    ravo_ffmpeg_avutil
+    ravo_ffmpeg_swscale
     PNG::PNG
     ZLIB::ZLIB
     ravo_libjpeg_turbo

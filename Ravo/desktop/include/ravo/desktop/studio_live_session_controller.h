@@ -52,6 +52,7 @@ private:
     std::string baseline_recipe_json_;
     std::string recipe_error_;
     std::string preview_identity_;
+    std::string video_control_identity_;
 };
 
 } // namespace ravo

@@ -43,13 +43,16 @@
 
 namespace ravo::cli_internal
 {
+Result<JsonValue> run_catalog_video_command(const EngineFacade &, CatalogService &,
+                                            std::string_view, const CatalogCliArguments &);
 
 bool catalog_output_flag_is_allowed(const std::string_view subcommand) noexcept
 {
     // Actual --output consumers today. Keep this list equal to runtime readers of flags.output.
-    return subcommand == "export" || subcommand == "export-preset-save" || subcommand == "probe" ||
-           subcommand == "preview" || subcommand == "backup-restore" ||
-           subcommand == "dng-convert" || subcommand == "hdr-merge" || subcommand == "panorama";
+    return subcommand == "video-frame" || subcommand == "export" ||
+           subcommand == "export-preset-save" || subcommand == "probe" || subcommand == "preview" ||
+           subcommand == "backup-restore" || subcommand == "dng-convert" ||
+           subcommand == "hdr-merge" || subcommand == "panorama";
 }
 
 [[nodiscard]] Result<std::vector<std::string>>
@@ -94,7 +97,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(
             ErrorCode::kInvalidArgument,
-            "Usage: ravo catalog <create|import|import-scan|import-plan|list|locate|facets|preview|probe|recipe|develop|develop-apply|"
+            "Usage: ravo catalog <create|import|import-scan|import-plan|list|locate|facets|preview|probe|video-info|video-frame|recipe|develop|develop-apply|"
             "fields|rate|"
             "export|export-batch|companion-check|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
@@ -109,6 +112,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return flags.error();
     }
+    if (flags.value().video_time_us && subcommand != "video-frame")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--time-us is only valid for catalog video-frame");
     if (subcommand == "fields")
     {
         return develop_fields_json();
@@ -530,6 +536,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return session.error();
     }
     auto &service = *session.value();
+    if (subcommand == "video-info" || subcommand == "video-frame")
+        return run_catalog_video_command(engine, service, subcommand, flags.value());
     if (subcommand == "hdr-merge" || subcommand == "panorama")
         return run_catalog_merge_command(service, subcommand, flags.value());
 

@@ -27,9 +27,9 @@ struct RecipeSaveOptions
     // mutations cannot land against a superseded catalog head (COR-01).
     std::optional<std::int64_t> expected_revision;
     // Interactive edits compare the observed photo, not unrelated catalog insertions.
-    std::optional<DevelopParams> expected_base;
-    std::optional<AssetDescriptor> expected_source;
-    std::optional<std::int64_t> expected_history_head;
+    std::optional<DevelopParams> expected_base{};
+    std::optional<AssetDescriptor> expected_source{};
+    std::optional<std::int64_t> expected_history_head{};
 };
 
 struct RecipeSaveResult

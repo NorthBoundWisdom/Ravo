@@ -8,12 +8,17 @@
 #include "studio_qt.h"
 #include <algorithm>
 #include <utility>
+#include <chrono>
+#include <array>
+#include <exception>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMetaObject>
+#include <QPointer>
+#include <QLocale>
 #include "ravo/desktop/studio_presenter.h"
 
 namespace ravo
@@ -153,15 +158,9 @@ void StudioImportWorkspace::startPlannedImport()
         setError(QCoreApplication::translate("ImportPage", "No second copy selected"));
         return;
     }
-    if ((import_ingest_transport_ == QLatin1String("filesystem-card") ||
-         import_ingest_transport_ == QLatin1String("ptp-stub") ||
-         import_ingest_transport_ == QLatin1String("ptp-usb") ||
-         import_ingest_transport_ == QLatin1String("mtp")) &&
-        draft.mode == QLatin1String("move"))
+    if (draft.mode == QLatin1String("move") && !importMoveUnavailableReason().isEmpty())
     {
-        setError(QCoreApplication::translate(
-            "StudioPresenter",
-            "Ingest transports are Copy-only; Move and camera delete stay rejected."));
+        setError(importMoveUnavailableReason());
         return;
     }
     if (import_ingest_transport_ == QLatin1String("ptp-usb") ||
@@ -196,6 +195,7 @@ void StudioImportWorkspace::startPlannedImport()
         thumbnails->clearPending();
     }
     setImportWork(0, static_cast<int>(request.inputs.size()), true);
+    request.work_progress = progressObserver(import_generation_, request.cancellation);
     host_.enter_gallery();
     setStatus(QCoreApplication::translate("ImportPage", "Checking destination…"));
     setError({});
@@ -257,6 +257,7 @@ void StudioImportWorkspace::beginPlannedImport(ImportRequest request)
         thumbnails->clearPending();
     import_operation_ = CancellationSource{};
     request.cancellation = import_operation_.token();
+    request.work_progress = progressObserver(generation, request.cancellation);
     pending_import_paths_ = request.inputs;
     import_query_snapshot_ = host_.current_query();
     pending_import_preview_policy_ = request.preview;
@@ -300,6 +301,7 @@ void StudioImportWorkspace::beginPlannedImport(ImportRequest request)
         ingest.expected_content_hashes = request.expected_content_hashes;
         ingest.selected_paths = request.inputs;
         ingest.cancellation = request.cancellation;
+        ingest.work_progress = request.work_progress;
         if (!import_resume_batch_id_.isEmpty())
             ingest.resume_batch_id = utf8_from_qstring(import_resume_batch_id_);
         worker->executor().post(
@@ -488,10 +490,138 @@ void StudioImportWorkspace::setImportWork(const int completed, const int total, 
     {
         return;
     }
+    if (active && !import_work_active_)
+        import_work_progress_ = {};
     import_work_active_ = active;
     import_work_completed_ = clamped_completed;
     import_work_total_ = clamped_total;
+    if (import_work_progress_.phase == ImportWorkPhase::kImporting)
+    {
+        import_work_progress_.completed = static_cast<std::size_t>(clamped_completed);
+        import_work_progress_.total = static_cast<std::size_t>(clamped_total);
+    }
     emit libraryWorkChanged();
+    ++import_progress_revision_;
+    emit importProgressChanged();
+}
+
+ImportWorkProgressCallback StudioImportWorkspace::progressObserver(const std::uint64_t generation,
+                                                                   CancellationToken token)
+{
+    QPointer<StudioImportWorkspace> self(this);
+    return [self, generation, token, last = std::chrono::steady_clock::time_point::min(),
+            seen = std::array<bool, 6>{}](const ImportWorkProgress &progress) mutable
+    {
+        if (!self || token.is_cancellation_requested())
+            return;
+        const auto now = std::chrono::steady_clock::now();
+        const bool terminal = progress.total > 0 && progress.completed == progress.total;
+        const auto phase_index = static_cast<std::size_t>(progress.phase);
+        const bool first = !seen.at(phase_index);
+        seen.at(phase_index) = true;
+        if (!first && !terminal && last != std::chrono::steady_clock::time_point::min() &&
+            now - last < std::chrono::milliseconds(100))
+            return;
+        last = now;
+        QMetaObject::invokeMethod(
+            self,
+            [self, generation, token, progress]
+            {
+                if (!self || generation != self->import_generation_ || !self->import_work_active_ ||
+                    token.is_cancellation_requested())
+                    return;
+                self->import_work_progress_ = progress;
+                ++self->import_progress_revision_;
+                emit self->importProgressChanged();
+                self->setStatus(self->importWorkTitle() + " " + self->importWorkCountText());
+            },
+            Qt::QueuedConnection);
+    };
+}
+
+QString StudioImportWorkspace::importWorkTitle() const
+{
+    switch (import_work_progress_.phase)
+    {
+    case ImportWorkPhase::kEnumerating:
+        return tr("Finding files");
+    case ImportWorkPhase::kChecking:
+        return tr("Checking files");
+    case ImportWorkPhase::kPlanning:
+        return tr("Planning destinations");
+    case ImportWorkPhase::kCopying:
+        return tr("Copying files");
+    case ImportWorkPhase::kVerifying:
+        return tr("Verifying copies");
+    case ImportWorkPhase::kImporting:
+        return tr("Importing files");
+    }
+    std::terminate();
+}
+
+QString StudioImportWorkspace::importWorkCountText() const
+{
+    if (import_work_progress_.total > 0)
+        return QStringLiteral("%1 / %2")
+            .arg(import_work_progress_.completed)
+            .arg(import_work_progress_.total);
+    return import_work_total_ > 0 ?
+               QStringLiteral("%1 / %2").arg(import_work_completed_).arg(import_work_total_) :
+               QString{};
+}
+
+QString StudioImportWorkspace::importWorkDetailText() const
+{
+    const auto &progress = import_work_progress_;
+    auto name = QFileInfo(qstring_from_utf8(progress.current_path)).fileName();
+    if (progress.file_bytes_total > 0)
+        name += QStringLiteral(" · %1 / %2")
+                    .arg(QLocale().formattedDataSize(
+                        static_cast<qint64>(progress.file_bytes_completed), 1))
+                    .arg(QLocale().formattedDataSize(static_cast<qint64>(progress.file_bytes_total),
+                                                     1));
+    return name;
+}
+
+double StudioImportWorkspace::importWorkFraction() const
+{
+    const auto &progress = import_work_progress_;
+    if (progress.total == 0)
+        return import_work_total_ > 0 ?
+                   static_cast<double>(import_work_completed_) / import_work_total_ :
+                   0.;
+    const double file = progress.file_bytes_total > 0 ?
+                            std::clamp(static_cast<double>(progress.file_bytes_completed) /
+                                           static_cast<double>(progress.file_bytes_total),
+                                       0., 1.) :
+                            0.;
+    return std::clamp((static_cast<double>(progress.completed) + file) /
+                          static_cast<double>(progress.total),
+                      0., 1.);
+}
+
+JsonValue StudioImportWorkspace::jsonSnapshot() const
+{
+    return JsonValue::Object{
+        {"schema", "ravo.studio.import/v1"},
+        {"active", import_work_active_},
+        {"generation", JsonValue::number(std::to_string(import_generation_))},
+        {"progress_revision", JsonValue::number(std::to_string(import_progress_revision_))},
+        {"progress", import_work_progress_json(import_work_progress_)},
+        {"items_completed", JsonValue::number(std::to_string(import_work_completed_))},
+        {"items_total", JsonValue::number(std::to_string(import_work_total_))},
+        {"candidates",
+         JsonValue::Object{
+             {"photos", JsonValue::number(std::to_string(candidates.photoCount()))},
+             {"videos", JsonValue::number(std::to_string(candidates.videoCount()))},
+             {"bytes", JsonValue::number(std::to_string(candidates.totalBytes()))},
+             {"selected_photos",
+              JsonValue::number(std::to_string(candidates.selectedPhotoCount()))},
+             {"selected_videos",
+              JsonValue::number(std::to_string(candidates.selectedVideoCount()))},
+             {"selected_bytes", JsonValue::number(std::to_string(candidates.selectedBytes()))},
+             {"duplicates", JsonValue::number(std::to_string(candidates.duplicateCount()))},
+             {"unavailable", JsonValue::number(std::to_string(candidates.unavailableCount()))}}}};
 }
 
 void StudioImportWorkspace::importFolder(const QUrl &folder_url)
@@ -603,6 +733,10 @@ void StudioImportWorkspace::startNextImportItem()
         return;
     }
     const auto path = pending_import_paths_[import_next_index_];
+    import_work_progress_ = {ImportWorkPhase::kImporting, import_next_index_,
+                             pending_import_paths_.size(), path};
+    ++import_progress_revision_;
+    emit importProgressChanged();
     const auto generation = import_generation_;
     const auto cancellation = import_operation_.token();
     const auto policy =

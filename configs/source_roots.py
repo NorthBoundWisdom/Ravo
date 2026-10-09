@@ -51,6 +51,12 @@ def dev_mode_from_lock_data(lock_data: object, *, path_label: object) -> bool:
 
 DEPENDENCY_ROOT_SPECS: tuple[DependencyRootSpec, ...] = (
     DependencyRootSpec(
+        dependency_name="FFmpeg",
+        repo_name="FFmpeg",
+        env_key="FFMPEG_SOURCE_ROOT",
+        required_relative_paths=("configure", "libavformat/avformat.h", "libavcodec/avcodec.h"),
+    ),
+    DependencyRootSpec(
         dependency_name="Exiv2",
         repo_name="exiv2",
         env_key="EXIV2_SOURCE_ROOT",

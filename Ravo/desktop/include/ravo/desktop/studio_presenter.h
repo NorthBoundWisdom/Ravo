@@ -35,6 +35,7 @@
 #include "ravo/desktop/studio_inspect_presenter.h"
 #include "ravo/desktop/studio_develop_presenter.h"
 #include "ravo/desktop/studio_export_presenter.h"
+#include "ravo/desktop/studio_video_presenter.h"
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/domain/types.h"
@@ -67,6 +68,7 @@ class StudioPresenter final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(StudioImportWorkspace *imports READ imports CONSTANT)
+    Q_PROPERTY(StudioVideoPresenter *video READ video CONSTANT)
     Q_PROPERTY(StudioExportPresenter *exports READ exports CONSTANT)
     Q_PROPERTY(StudioDevelopPresenter *develop READ develop CONSTANT)
     Q_PROPERTY(StudioInspectPresenter *inspect READ inspect CONSTANT)
@@ -157,6 +159,14 @@ public:
     {
         return import_workspace_.get();
     }
+    [[nodiscard]] StudioVideoPresenter *video() noexcept
+    {
+        return video_presenter_.get();
+    }
+    [[nodiscard]] const StudioVideoPresenter *video() const noexcept
+    {
+        return video_presenter_.get();
+    }
     [[nodiscard]] const StudioImportWorkspace *imports() const noexcept
     {
         return import_workspace_.get();
@@ -222,6 +232,10 @@ public:
     [[nodiscard]] QString selectedAssetId() const;
     [[nodiscard]] int selectedIndex() const;
     [[nodiscard]] int selectedCount() const noexcept;
+    [[nodiscard]] bool selectionHasVideo() const noexcept
+    {
+        return assets_.selectedContainsVideo();
+    }
     Q_INVOKABLE bool isAssetSelected(const QString &asset_id) const;
     [[nodiscard]] int selectedRating() const;
     [[nodiscard]] QString selectedColorLabel() const;
@@ -610,6 +624,7 @@ private:
     // Borrowed session/view slots and executors outlive the edit owner.
     StudioInspectPresenter inspect_;
     std::unique_ptr<StudioImportWorkspace> import_workspace_;
+    std::unique_ptr<StudioVideoPresenter> video_presenter_;
     std::unique_ptr<StudioDevelopPresenter> develop_presenter_;
     std::unique_ptr<StudioExportPresenter> export_presenter_;
 };

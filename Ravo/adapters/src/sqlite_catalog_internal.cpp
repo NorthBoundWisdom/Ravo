@@ -571,6 +571,36 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
         placeholders.push_back(QStringLiteral("?"));
     const auto in_clause = placeholders.join(QLatin1Char(','));
 
+    QSqlQuery videos(database);
+    videos.prepare(
+        QStringLiteral("SELECT asset_id, info_json FROM asset_video WHERE asset_id IN (") +
+        in_clause + QStringLiteral(")"));
+    for (const auto &asset : assets)
+        videos.addBindValue(qstring_from_utf8(asset.id));
+    if (!videos.exec())
+        return map_sql_error(videos, "read_video_metadata");
+    while (videos.next())
+    {
+        if (videos.value(1).metaType().id() != QMetaType::QString)
+            return make_error(ErrorCode::kValidation, "Video metadata is not text",
+                              {{"reason", "invalid_video_info"}});
+        auto json = parse_json(utf8_from_qstring(videos.value(1).toString()));
+        if (!json)
+            return json.error();
+        auto info = parse_video_info(json.value());
+        if (!info)
+            return info.error();
+        const auto found = by_id.find(utf8_from_qstring(videos.value(0).toString()));
+        if (found == by_id.end() || !is_video_media_type(found->second->media_type))
+            return make_error(ErrorCode::kValidation, "Video metadata owner is inconsistent",
+                              {{"reason", "invalid_video_asset"}});
+        found->second->video = std::move(info).value();
+    }
+    for (const auto &asset : assets)
+        if (is_video_media_type(asset.media_type) != asset.video.has_value())
+            return make_error(ErrorCode::kValidation, "Video asset metadata is missing",
+                              {{"reason", "invalid_video_asset"}});
+
     QSqlQuery tags(database);
     tags.prepare(QStringLiteral("SELECT asset_id, name FROM asset_tag WHERE asset_id IN (") +
                  in_clause + QStringLiteral(") ORDER BY name ASC"));

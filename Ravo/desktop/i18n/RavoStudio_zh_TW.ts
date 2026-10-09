@@ -3566,10 +3566,6 @@ Diff: %6</source>
             <translation>返回</translation>
         </message>
         <message>
-            <source>Import Photos</source>
-            <translation>匯入相片</translation>
-        </message>
-        <message>
             <source>Add</source>
             <translation>新增</translation>
         </message>
@@ -3582,44 +3578,52 @@ Diff: %6</source>
             <translation>移動</translation>
         </message>
         <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>攝取傳輸僅限複製；移動和相機刪除仍被拒絕。</translation>
-        </message>
-        <message>
             <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
             <translation>方向鍵導覽 · Shift 選取範圍 · Ctrl/⌘ 保留選取 · 空白鍵勾選</translation>
+        </message>
+        <message>
+            <source>Import Photos and Videos</source>
+            <translation>匯入相片和影片</translation>
         </message>
         <message>
             <source>Source</source>
             <translation>來源</translation>
         </message>
         <message>
-            <source>New Photos</source>
-            <translation>新照片</translation>
+            <source>New Files</source>
+            <translation>新檔案</translation>
+        </message>
+        <message>
+            <source>Totals include duplicates and unavailable files. Sizes reflect the current scan.</source>
+            <translation>總計包含重複和無法使用的檔案。容量以目前掃描結果為準。</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 videos · %3</source>
+            <translation>已勾選：%1 張相片 · %2 部影片 · %3</translation>
+        </message>
+        <message>
+            <source>Import %1 files</source>
+            <translation>匯入 %1 個檔案</translation>
         </message>
         <message>
             <source>Thumbnail size</source>
             <translation>縮圖大小</translation>
         </message>
         <message>
+            <source>Total: %1 photos · %2 videos · %3</source>
+            <translation>總計：%1 張相片 · %2 部影片 · %3</translation>
+        </message>
+        <message>
+            <source>Duplicates: %1 · Unavailable: %2</source>
+            <translation>重複：%1 · 無法使用：%2</translation>
+        </message>
+        <message>
             <source>Checking %1 of %2…</source>
             <translation>正在檢查 %1 / %2…</translation>
         </message>
         <message>
-            <source>Duplicate photos: %1</source>
-            <translation>重複照片：%1</translation>
-        </message>
-        <message>
-            <source>Selected: %1 photos · %2 MB</source>
-            <translation>已選取 %1 張照片 · %2 MB</translation>
-        </message>
-        <message>
             <source>Checking destination…</source>
             <translation>正在檢查目標位置…</translation>
-        </message>
-        <message>
-            <source>Import %1 photos</source>
-            <translation>匯入 %1 張照片</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3638,12 +3642,12 @@ Diff: %6</source>
             <translation>全部取消</translation>
         </message>
         <message>
-            <source>No supported photos found</source>
-            <translation>找不到支援的照片</translation>
-        </message>
-        <message>
             <source>Choose a source folder</source>
             <translation>選擇來源資料夾</translation>
+        </message>
+        <message>
+            <source>No supported photos or videos found</source>
+            <translation>找不到支援的相片或影片</translation>
         </message>
         <message>
             <source>Import candidates</source>
@@ -3910,14 +3914,6 @@ Diff: %6</source>
         <message>
             <source>Library</source>
             <translation>相片庫</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>匯入</translation>
-        </message>
-        <message>
-            <source>Scanning…</source>
-            <translation>正在掃描…</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -5199,6 +5195,18 @@ Diff: %6</source>
             <translation>相片庫</translation>
         </message>
         <message>
+            <source>Play Video</source>
+            <translation>播放影片</translation>
+        </message>
+        <message>
+            <source>Pause Video</source>
+            <translation>暫停影片</translation>
+        </message>
+        <message>
+            <source>Seek Video</source>
+            <translation>定位影片</translation>
+        </message>
+        <message>
             <source>Loupe</source>
             <translation>放大查看</translation>
         </message>
@@ -5357,6 +5365,30 @@ Diff: %6</source>
         <message>
             <source>No modified parameters to copy.</source>
             <translation>沒有可複製的已修改參數。</translation>
+        </message>
+        <message>
+            <source>Select a video in Loupe first.</source>
+            <translation>請先在放大檢視中選擇影片。</translation>
+        </message>
+        <message>
+            <source>Video is not ready.</source>
+            <translation>影片尚未就緒。</translation>
+        </message>
+        <message>
+            <source>Video is not playing.</source>
+            <translation>影片未在播放。</translation>
+        </message>
+        <message>
+            <source>Video position is outside the duration.</source>
+            <translation>影片位置超出時長範圍。</translation>
+        </message>
+        <message>
+            <source>Video volume must be between 0 and 1.</source>
+            <translation>影片音量必須介於 0 和 1 之間。</translation>
+        </message>
+        <message>
+            <source>Video mute state must be boolean.</source>
+            <translation>影片靜音狀態必須為布林值。</translation>
         </message>
         <message>
             <source>Copy parameters first.</source>
@@ -5554,6 +5586,14 @@ Diff: %6</source>
             <source>Copy Path</source>
             <translation>複製路徑</translation>
         </message>
+        <message>
+            <source>Mute Video</source>
+            <translation>影片靜音</translation>
+        </message>
+        <message>
+            <source>Video Volume</source>
+            <translation>影片音量</translation>
+        </message>
     </context>
     <context>
         <name>StudioExport</name>
@@ -5672,6 +5712,33 @@ Diff: %6</source>
         <message>
             <source>Export path suffix does not match the selected format</source>
             <translation>檔案副檔名與所選匯出格式不匹配。</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioImportWorkspace</name>
+        <message>
+            <source>Finding files</source>
+            <translation>正在尋找檔案</translation>
+        </message>
+        <message>
+            <source>Checking files</source>
+            <translation>正在檢查檔案</translation>
+        </message>
+        <message>
+            <source>Planning destinations</source>
+            <translation>正在規劃目的地</translation>
+        </message>
+        <message>
+            <source>Copying files</source>
+            <translation>正在複製檔案</translation>
+        </message>
+        <message>
+            <source>Verifying copies</source>
+            <translation>正在驗證副本</translation>
+        </message>
+        <message>
+            <source>Importing files</source>
+            <translation>正在匯入檔案</translation>
         </message>
     </context>
     <context>
@@ -6062,6 +6129,10 @@ Diff: %6</source>
             <translation>請選擇匯入目的地。</translation>
         </message>
         <message>
+            <source>Camera and card ingest preserves source originals. Use Copy instead of Move.</source>
+            <translation>從相機或記憶卡匯入時會保留來源檔案，因此不支援移動。請使用「複製」。</translation>
+        </message>
+        <message>
             <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
             <translation>目標位置無法使用。請重新連接磁碟或選擇其他資料夾。</translation>
         </message>
@@ -6072,10 +6143,6 @@ Diff: %6</source>
         <message>
             <source>Scan the source folder again.</source>
             <translation>請重新掃描來源資料夾。</translation>
-        </message>
-        <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>攝取傳輸僅限複製；移動和相機刪除仍被拒絕。</translation>
         </message>
         <message>
             <source>Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the ptp-stub fixture.</source>
@@ -6632,6 +6699,33 @@ Diff: %6</source>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>圖庫工作執行器無法使用。</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioVideoPresenter</name>
+        <message>
+            <source>Video does not support photo editing.</source>
+            <translation>影片不支援照片編輯。</translation>
+        </message>
+        <message>
+            <source>Video has no playable audio track matching the imported codec.</source>
+            <translation>影片中沒有與匯入編解碼器相符的可播放音軌。</translation>
+        </message>
+        <message>
+            <source>Audio output is unavailable. Mute the video to play without sound.</source>
+            <translation>音訊輸出無法使用。請將影片靜音後播放。</translation>
+        </message>
+        <message>
+            <source>Playing the supported audio track. Additional audio tracks are unsupported; originals are preserved.</source>
+            <translation>正在播放支援的音軌。附加音軌暫不支援；原始檔案完整保留。</translation>
+        </message>
+        <message>
+            <source>Unrecognized embedded cover skipped; the preview uses a video frame.</source>
+            <translation>已略過無法辨識的內嵌封面；預覽使用影片影格。</translation>
+        </message>
+        <message>
+            <source>Extra channel descriptions ignored; audio uses the declared channel count.</source>
+            <translation>已忽略多餘的聲道描述；音訊使用宣告的聲道數。</translation>
         </message>
     </context>
     <context>

@@ -1,5 +1,11 @@
 # Ravo Migration Policy
 
+2026-10-09: explicitly requested video library/playback work is admitted by
+[ADR-0165](adr/0165-video-library-and-playback.md): independent video assets,
+source-preserving import, SDR poster/playback presentation and original-copy
+export. Video Develop/transcoding, Live Photo association and native HDR output
+remain outside this boundary. No leftover application or OpenCL owner is restored.
+
 2026-10-08: ADR-0164 admits closed Lightroom Classic SQLite catalog import via
 the native adapter/shared conversion service. This supersedes the real-Lightroom
 reader deferral only; Capture One, Lightroom Develop translation, virtual copies

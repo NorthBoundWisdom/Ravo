@@ -19,6 +19,7 @@ set(QT_SKIP_AUTO_QML_PLUGIN_INCLUSION ON)
 find_package(Qt6 6.11 REQUIRED COMPONENTS
   Core
   Gui
+  Multimedia
   Sql
   Network
   Qml
@@ -86,6 +87,7 @@ ravo_require_migration_source_root(
 # classic libjpeg archive; no host-selected JPEG fallback or dependency install
 # surface enters the Ravo graph.
 include(ExternalProject)
+include(cmake/RavoVideoDependencies.cmake)
 set(_ravo_libjpeg_turbo_prefix
   "${CMAKE_BINARY_DIR}/_deps/ravo-libjpeg-turbo")
 set(_ravo_libjpeg_turbo_install
@@ -575,6 +577,8 @@ install(
 
 install(
   FILES "${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_SOURCE_DIR}/DevDocs/THIRD_PARTY_NOTICES.md"
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/Ravo")
+install(FILES "${RAVO_FFMPEG_SOURCE_ROOT}/COPYING.LGPLv2.1"
   DESTINATION "${CMAKE_INSTALL_DATADIR}/Ravo")
 
 if(WIN32)

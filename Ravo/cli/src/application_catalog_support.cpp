@@ -32,6 +32,7 @@
 #include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/legacy_xmp.h"
 #include "ravo/adapters/qt_raster_decoder.h"
+#include "ravo/adapters/ffmpeg_video_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/adapters/text_file.h"
 #include "ravo/control/live_control.h"
@@ -102,7 +103,8 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     }
     auto service = std::make_unique<CatalogService>(
         engine, std::move(repository).value(), std::make_unique<QtRasterDecoder>(),
-        std::move(cache).value(), std::move(recovery).value());
+        std::move(cache).value(), std::move(recovery).value(), std::shared_ptr<std::mutex>{},
+        std::make_unique<FfmpegVideoDecoder>());
     auto resumed = service->recovery().sync_recovery(std::nullopt);
     if (!resumed)
     {
@@ -189,7 +191,7 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
                           JsonValue::number(std::to_string(*asset.capture.shutter_s)) :
                           JsonValue{nullptr}},
     };
-    return JsonValue::Object{
+    JsonValue::Object result{
         {"capture", std::move(capture)},
         {"color_label", std::string(color_label_name(asset.review.color_label))},
         {"has_edits", asset.has_edits},
@@ -209,6 +211,9 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"uri", asset.normalized_uri},
         {"version_ordinal", JsonValue::number(std::to_string(asset.version_ordinal))},
     };
+    if (asset.video)
+        result.emplace("video", video_info_json(*asset.video));
+    return result;
 }
 
 [[nodiscard]] JsonValue recovery_state_to_json(const AssetRecoveryState &state)

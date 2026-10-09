@@ -259,7 +259,9 @@ template <typename Integer>
         snapshot.state.synchronized_generation > snapshot.state.generation ||
         snapshot.catalog_revision < 0 || snapshot.asset.normalized_uri.empty() ||
         snapshot.asset.normalized_uri.size() > kUriMaximumBytes ||
-        snapshot.asset.media_type.empty() || !snapshot.asset.media_type.starts_with("image/") ||
+        snapshot.asset.media_type.empty() ||
+        (!snapshot.asset.media_type.starts_with("image/") &&
+         !is_video_media_type(snapshot.asset.media_type)) ||
         (snapshot.asset.import_state != kImportStateImported &&
          snapshot.asset.import_state != kImportStateFailed &&
          snapshot.asset.import_state != kImportStateMissing) ||
@@ -390,6 +392,8 @@ template <typename Integer>
         {"tags", std::move(tags)},
         {"width", optional_integer_json(snapshot.asset.width)},
     };
+    if (snapshot.asset.video)
+        asset.emplace("video", video_info_json(*snapshot.asset.video));
     return JsonValue{JsonValue::Object{
         {"asset", std::move(asset)},
         {"catalog_id", snapshot.catalog_id},
@@ -398,7 +402,8 @@ template <typename Integer>
         {"history", std::move(history)},
         {"recipe_json", optional_string_json(snapshot.recipe_json)},
         {"schema", "ravo-asset-recovery"},
-        {"version", JsonValue::number(std::to_string(kRecoverySidecarSchemaVersion))},
+        {"version", JsonValue::number(
+                        std::to_string(snapshot.asset.video ? 2 : kRecoverySidecarSchemaVersion))},
     }};
 }
 
@@ -845,7 +850,9 @@ struct VerifiedAsset
 
 [[nodiscard]] Result<VerifiedAsset> validate_recovery_asset(const JsonValue::Object &object)
 {
-    auto keys = expect_exact_keys(object,
+    auto core = object;
+    core.erase("video");
+    auto keys = expect_exact_keys(core,
                                   {"capture",
                                    "color_label",
                                    "content_fingerprint",
@@ -927,7 +934,8 @@ struct VerifiedAsset
         return rejected.error();
     if (!picked)
         return picked.error();
-    if (!safe_asset_id(id.value()) || !media_type.value().starts_with("image/") ||
+    if (!safe_asset_id(id.value()) ||
+        (!media_type.value().starts_with("image/") && !is_video_media_type(media_type.value())) ||
         (import_state.value() != kImportStateImported &&
          import_state.value() != kImportStateFailed &&
          import_state.value() != kImportStateMissing) ||
@@ -935,6 +943,19 @@ struct VerifiedAsset
         return recovery_error(ErrorCode::kValidation, "Recovery asset state is invalid",
                               "invalid_recovery_asset");
     auto rating_valid = validate_rating(rating.value());
+    const auto video = object.find("video");
+    if (is_video_media_type(media_type.value()) != (video != object.end()))
+        return recovery_error(ErrorCode::kValidation, "Recovery video metadata is inconsistent",
+                              "invalid_recovery_asset");
+    if (video != object.end())
+    {
+        auto parsed = parse_video_info(video->second);
+        if (!parsed)
+            return parsed.error();
+        if (has_edits.value())
+            return recovery_error(ErrorCode::kValidation, "Video cannot have a photo recipe",
+                                  "invalid_recovery_asset");
+    }
     if (!rating_valid)
         return rating_valid.error();
     auto parsed_label = parse_color_label(color_label.value());
@@ -1126,11 +1147,11 @@ struct VerifiedDocument
         return recovery_error(ErrorCode::kValidation,
                               "Recovery sidecar schema identifier is invalid",
                               "invalid_recovery_schema");
-    if (version.value() > kRecoverySidecarSchemaVersion)
+    if (version.value() > 2)
         return recovery_error(ErrorCode::kUnsupported,
                               "Recovery sidecar version is newer than this Ravo",
                               "newer_recovery_sidecar_version");
-    if (version.value() != kRecoverySidecarSchemaVersion)
+    if (version.value() != (asset.value()->contains("video") ? 2 : kRecoverySidecarSchemaVersion))
         return recovery_error(ErrorCode::kValidation, "Recovery sidecar version is invalid",
                               "invalid_recovery_sidecar_version");
     auto verified_asset = validate_recovery_asset(*asset.value());

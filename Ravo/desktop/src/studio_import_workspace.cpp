@@ -94,9 +94,18 @@ QString StudioImportWorkspace::importIngestTransport() const
     return import_ingest_transport_;
 }
 
+QString StudioImportWorkspace::importMoveUnavailableReason() const
+{
+    if (import_ingest_transport_ == QLatin1String("folder"))
+        return {};
+    return QCoreApplication::translate(
+        "StudioPresenter",
+        "Camera and card ingest preserves source originals. Use Copy instead of Move.");
+}
+
 QString StudioImportWorkspace::importIngestSourceUri() const
 {
-    if (draft.source_root.isEmpty())
+    if (draft.source_root.isEmpty() || import_ingest_transport_ == QLatin1String("folder"))
         return {};
     const auto root = utf8_from_qstring(draft.source_root);
     if (import_ingest_transport_ == QLatin1String("ptp-stub"))
@@ -135,7 +144,7 @@ bool StudioImportWorkspace::importReady() const
     return import_page_open_ && !native && !import_preflight_active_ && !import_work_active_ &&
            !importInteractionBlocked() && !importDestinationPreviewActive() && scan &&
            scan->catalogRevision().has_value() && candidates.selectedCount() > 0 &&
-           draft.mode != QLatin1String("move") &&
+           (draft.mode != QLatin1String("move") || importMoveUnavailableReason().isEmpty()) &&
            (draft.mode == QLatin1String("add") ||
             (draft.destination_valid && importDestinationPreviewError().isEmpty() &&
              (!draft.second_copy_enabled || !draft.second_copy_destination.isEmpty())));
@@ -546,6 +555,11 @@ void StudioImportWorkspace::setImportMode(const QString &mode)
     if (mode != QLatin1String("add") && mode != QLatin1String("copy") &&
         mode != QLatin1String("move"))
         return;
+    if (mode == QLatin1String("move") && !importMoveUnavailableReason().isEmpty())
+    {
+        setError(importMoveUnavailableReason());
+        return;
+    }
     if (draft.mode == mode)
         return;
     draft.mode = mode;
@@ -598,16 +612,19 @@ void StudioImportWorkspace::setImportIngestTransport(const QString &transport)
     if (import_work_active_ || import_preflight_active_)
         return;
     const QString next = transport.trimmed();
-    if (next != QLatin1String("filesystem-card") && next != QLatin1String("ptp-stub") &&
-        next != QLatin1String("ptp-usb") && next != QLatin1String("mtp"))
+    if (next != QLatin1String("folder") && next != QLatin1String("filesystem-card") &&
+        next != QLatin1String("ptp-stub") && next != QLatin1String("ptp-usb") &&
+        next != QLatin1String("mtp"))
         return;
     if (import_ingest_transport_ == next)
         return;
     import_ingest_transport_ = next;
-    if ((next == QLatin1String("ptp-stub") || next == QLatin1String("ptp-usb") ||
-         next == QLatin1String("mtp")) &&
-        draft.mode != QLatin1String("copy"))
+    if ((draft.mode == QLatin1String("move") && !importMoveUnavailableReason().isEmpty()) ||
+        ((next == QLatin1String("ptp-stub") || next == QLatin1String("ptp-usb") ||
+          next == QLatin1String("mtp")) &&
+         draft.mode != QLatin1String("copy")))
         draft.mode = QStringLiteral("copy");
+    import_resume_batch_id_.clear();
     refreshImportNativeSupport();
     emit importPageChanged();
 }

@@ -1,5 +1,54 @@
 # Ravo Testing Strategy
 
+Video contracts use the generated CC0 corpus in `Ravo/tests/fixtures/video`;
+`Ravo/tools/generate_video_fixtures.py` owns its media and hash manifest.
+`VideoDecoderTest` covers H.264/AAC, HEVC HLG/PQ, display matrices, timestamps,
+cancellation, corrupt/missing input and plane bounds. `VideoColorTest` checks
+finite monotonic SDR mapping. `VideoCatalogTest` covers atomic metadata/import,
+schema 17→18 migration, transaction injection, Move/source hashes, duplicate
+import, recipe rejection, source change, original copy, reopen and backup/restore.
+
+Synthetic auxiliary-audio MOV fixtures cover AAC alongside an unknown `apac`
+entry, type-1 cover metadata, and excess stereo channel descriptions. They are
+not APAC-encoded camera samples. Decoder tests require stable diagnostics,
+unchanged originals, working frame decode, no repeated known-warning output,
+and explicit rejection when no supported audio track exists. Corrupt-container
+errors must still reach both stderr and structured failures, including concurrent
+probes. The full-range gray fixture checks midtone values and avoids deprecated
+YUVJ format warnings by supplying an explicit range to swscale.
+`ImportCandidateListModel.MixedMediaTotalsTrackBatchesChecksFailuresAndReset`
+checks complete versus checked media counts/bytes across scan batches,
+duplicates, unsupported candidates, MIME updates, selection and source reset.
+The production QML smoke checks complete versus checked summaries and capacity
+units while changing checks, including every manifest locale.
+
+`CatalogServiceTest.ImportWork*` checks hash observations before publication,
+unchanged completion callback semantics, and cancellation during a partial
+hash with no catalog/output publication. `StudioImportRoundtrip.ProgressIsObservableBeforeItemsCompleteAndThroughRealCli`
+checks preflight visibility and reads versioned progress/candidate state through
+the real CLI and local control server. Existing import conflict, cancellation,
+transaction, duplicate and destruction contracts remain required.
+
+P3 D65/BT.601 fixtures exercise full and limited range, SMPTE 170M and BT.470BG
+aliases, and a rejected YCgCo matrix. Tests check recovered nonlinear RGB code
+values, an independent Qt P3-to-sRGB transform, catalog metadata/preview reopen,
+strict unknown-matrix rejection and old v1 metadata without a matrix. Muted Qt
+playback must match owned poster pixels for both ranges and resolve old metadata
+from the source before playback. ProRes fixtures require frame-header colour
+resolution, zero-time decode, seek and owned Qt playback matching the poster.
+Native 4:2:2 checks require full-height chroma and reject short buffers. P016
+checks require complete interleaved 16-bit UV and preserve expected RGB values.
+Original fixtures are owned by the generator.
+
+`StudioVideoTest` uses the production C++ controller and real CLI subprocesses
+for play/pause/seek/volume/mute, owned-pixel comparison with the shared HDR
+renderer, view release and cancellation during close. No UI automation or
+screenshots are an oracle. `--smoke --video-smoke-input <file>` exercises the
+shipped Qt backend and frame path with bounded time and muted output, returning
+`ravo.video_playback_smoke/v1`. The packaged-runtime checker requires video
+import, verified immutable frame and playback stages; audible output and
+real-corpus quality remain separate native acceptance.
+
 `StudioLibraryPaging` allows 60 seconds for opening its 205-file test catalog
 under parallel Windows CI load. This is a setup budget, not a performance claim;
 page-resolution waits and unloaded-row/selection assertions retain their original
@@ -354,11 +403,23 @@ Import grid/action/panel bounds are exercised at
 The smoke also transitions the menu bar between zero and visible client-area
 height and checks that Import starts immediately below it, with no stale
 automatic top inset. Native system-menu objects and commands remain present.
-The smoke checks equal-width destination mode segments, Move disabled, matching
-source/destination tree surfaces, inline month/count styling and final scroll
+The smoke checks equal-width destination mode segments and C++-owned Move
+availability, matching source/destination tree surfaces, inline month/count styling and final scroll
 visibility with dozens of Home siblings and deferred ancestor listings, absence
 of a separate preview list, adaptive tree growth and collapse/Add sizing,
 and a real checkbox indicator of at least 24 pixels within a 32-pixel hit area.
+`StudioImportRoundtrip.FolderMovePreservesDestinationBytesAndReopensCatalog`
+covers ordinary folder Move through the workspace, spaces in paths, exact
+primary/second-copy media and XMP bytes, source removal and catalog reopen.
+`StudioImportWorkspace.MoveCancelAndConflictPreserveSourceAndCatalog` gates
+the worker to check cancelled preflight and destination conflict without source
+deletion or catalog publication. `MoveCleanupFailureSurfacesWarningAndKeepsCommittedAsset`
+changes XMP at publication and requires retained source bytes, a committed asset
+and visible cleanup error. `StudioControls.DisabledImportMoveShowsReasonOnHoverAndCannotBeClicked`
+loads the production destination panel and sends window mouse events to verify
+the disabled Move tooltip, click rejection, hover exit, re-enabling for folder
+import and tooltip destruction. The ingest-policy roundtrip covers rejection
+and return to ordinary folder import for every accepted transport.
 The preview fixture waits for the model's final leaf reveal with a bounded
 deadline before inspecting delegates; a fixed delay is not listing completion.
 Enumeration callbacks are tested before classification and for cancellation

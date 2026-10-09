@@ -3566,10 +3566,6 @@ Diff: %6</source>
             <translation>뒤로</translation>
         </message>
         <message>
-            <source>Import Photos</source>
-            <translation>사진 가져오기</translation>
-        </message>
-        <message>
             <source>Add</source>
             <translation>추가</translation>
         </message>
@@ -3582,44 +3578,52 @@ Diff: %6</source>
             <translation>이동</translation>
         </message>
         <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>수집 전송은 복사 전용입니다. 이동 및 카메라 삭제는 계속 거부됩니다.</translation>
-        </message>
-        <message>
             <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
             <translation>화살표로 이동 · Shift로 범위 선택 · Ctrl/⌘로 선택 유지 · 스페이스로 체크</translation>
+        </message>
+        <message>
+            <source>Import Photos and Videos</source>
+            <translation>사진 및 동영상 가져오기</translation>
         </message>
         <message>
             <source>Source</source>
             <translation>소스</translation>
         </message>
         <message>
-            <source>New Photos</source>
-            <translation>새 사진</translation>
+            <source>New Files</source>
+            <translation>새 파일</translation>
+        </message>
+        <message>
+            <source>Totals include duplicates and unavailable files. Sizes reflect the current scan.</source>
+            <translation>합계에는 중복 파일과 사용할 수 없는 파일이 포함됩니다. 크기는 현재 스캔 결과를 기준으로 합니다.</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 videos · %3</source>
+            <translation>선택됨: 사진 %1개 · 동영상 %2개 · %3</translation>
+        </message>
+        <message>
+            <source>Import %1 files</source>
+            <translation>파일 %1개 가져오기</translation>
         </message>
         <message>
             <source>Thumbnail size</source>
             <translation>썸네일 크기</translation>
         </message>
         <message>
+            <source>Total: %1 photos · %2 videos · %3</source>
+            <translation>합계: 사진 %1개 · 동영상 %2개 · %3</translation>
+        </message>
+        <message>
+            <source>Duplicates: %1 · Unavailable: %2</source>
+            <translation>중복: %1 · 사용 불가: %2</translation>
+        </message>
+        <message>
             <source>Checking %1 of %2…</source>
             <translation>%2개 중 %1개 확인 중…</translation>
         </message>
         <message>
-            <source>Duplicate photos: %1</source>
-            <translation>중복 사진: %1</translation>
-        </message>
-        <message>
-            <source>Selected: %1 photos · %2 MB</source>
-            <translation>선택됨: 사진 %1장 · %2 MB</translation>
-        </message>
-        <message>
             <source>Checking destination…</source>
             <translation>대상 위치 확인 중…</translation>
-        </message>
-        <message>
-            <source>Import %1 photos</source>
-            <translation>사진 %1장 가져오기</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3638,12 +3642,12 @@ Diff: %6</source>
             <translation>모두 해제</translation>
         </message>
         <message>
-            <source>No supported photos found</source>
-            <translation>지원되는 사진을 찾을 수 없음</translation>
-        </message>
-        <message>
             <source>Choose a source folder</source>
             <translation>원본 폴더를 선택하세요</translation>
+        </message>
+        <message>
+            <source>No supported photos or videos found</source>
+            <translation>지원되는 사진이나 동영상을 찾을 수 없습니다</translation>
         </message>
         <message>
             <source>Import candidates</source>
@@ -3910,14 +3914,6 @@ Diff: %6</source>
         <message>
             <source>Library</source>
             <translation>라이브러리</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>가져오기</translation>
-        </message>
-        <message>
-            <source>Scanning…</source>
-            <translation>스캔 중…</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -5199,6 +5195,18 @@ Diff: %6</source>
             <translation>갤러리</translation>
         </message>
         <message>
+            <source>Play Video</source>
+            <translation>동영상 재생</translation>
+        </message>
+        <message>
+            <source>Pause Video</source>
+            <translation>동영상 일시 정지</translation>
+        </message>
+        <message>
+            <source>Seek Video</source>
+            <translation>동영상 탐색</translation>
+        </message>
+        <message>
             <source>Loupe</source>
             <translation>돋보기</translation>
         </message>
@@ -5357,6 +5365,30 @@ Diff: %6</source>
         <message>
             <source>No modified parameters to copy.</source>
             <translation>복사할 수정된 매개변수가 없습니다.</translation>
+        </message>
+        <message>
+            <source>Select a video in Loupe first.</source>
+            <translation>먼저 확대 보기에서 동영상을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Video is not ready.</source>
+            <translation>동영상이 아직 준비되지 않았습니다.</translation>
+        </message>
+        <message>
+            <source>Video is not playing.</source>
+            <translation>동영상이 재생 중이 아닙니다.</translation>
+        </message>
+        <message>
+            <source>Video position is outside the duration.</source>
+            <translation>위치가 동영상 재생 시간을 벗어났습니다.</translation>
+        </message>
+        <message>
+            <source>Video volume must be between 0 and 1.</source>
+            <translation>동영상 음량은 0과 1 사이여야 합니다.</translation>
+        </message>
+        <message>
+            <source>Video mute state must be boolean.</source>
+            <translation>동영상 음소거 상태는 불리언 값이어야 합니다.</translation>
         </message>
         <message>
             <source>Copy parameters first.</source>
@@ -5554,6 +5586,14 @@ Diff: %6</source>
             <source>Copy Path</source>
             <translation>경로 복사</translation>
         </message>
+        <message>
+            <source>Mute Video</source>
+            <translation>동영상 음소거</translation>
+        </message>
+        <message>
+            <source>Video Volume</source>
+            <translation>동영상 음량</translation>
+        </message>
     </context>
     <context>
         <name>StudioExport</name>
@@ -5672,6 +5712,33 @@ Diff: %6</source>
         <message>
             <source>Export path suffix does not match the selected format</source>
             <translation>내보내기 경로의 확장자가 선택한 형식과 일치하지 않습니다</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioImportWorkspace</name>
+        <message>
+            <source>Finding files</source>
+            <translation>파일 검색 중</translation>
+        </message>
+        <message>
+            <source>Checking files</source>
+            <translation>파일 확인 중</translation>
+        </message>
+        <message>
+            <source>Planning destinations</source>
+            <translation>대상 계획 중</translation>
+        </message>
+        <message>
+            <source>Copying files</source>
+            <translation>파일 복사 중</translation>
+        </message>
+        <message>
+            <source>Verifying copies</source>
+            <translation>복사본 검증 중</translation>
+        </message>
+        <message>
+            <source>Importing files</source>
+            <translation>파일 가져오는 중</translation>
         </message>
     </context>
     <context>
@@ -6062,6 +6129,10 @@ Diff: %6</source>
             <translation>가져올 대상을 선택하세요.</translation>
         </message>
         <message>
+            <source>Camera and card ingest preserves source originals. Use Copy instead of Move.</source>
+            <translation>카메라와 메모리 카드에서 가져올 때는 원본 파일을 보존하므로 이동할 수 없습니다. 복사를 사용하세요.</translation>
+        </message>
+        <message>
             <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
             <translation>대상 위치를 사용할 수 없습니다. 드라이브를 다시 연결하거나 다른 폴더를 선택하세요.</translation>
         </message>
@@ -6072,10 +6143,6 @@ Diff: %6</source>
         <message>
             <source>Scan the source folder again.</source>
             <translation>원본 폴더를 다시 스캔하세요.</translation>
-        </message>
-        <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>수집 전송은 복사 전용입니다. 이동 및 카메라 삭제는 계속 거부됩니다.</translation>
         </message>
         <message>
             <source>Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the ptp-stub fixture.</source>
@@ -6632,6 +6699,33 @@ Diff: %6</source>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>카탈로그 작업 실행기를 사용할 수 없습니다.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioVideoPresenter</name>
+        <message>
+            <source>Video does not support photo editing.</source>
+            <translation>동영상에서는 사진 편집을 사용할 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Video has no playable audio track matching the imported codec.</source>
+            <translation>동영상에 가져온 코덱과 일치하는 재생 가능한 오디오 트랙이 없습니다.</translation>
+        </message>
+        <message>
+            <source>Audio output is unavailable. Mute the video to play without sound.</source>
+            <translation>오디오 출력을 사용할 수 없습니다. 동영상을 음소거하면 소리 없이 재생할 수 있습니다.</translation>
+        </message>
+        <message>
+            <source>Playing the supported audio track. Additional audio tracks are unsupported; originals are preserved.</source>
+            <translation>지원되는 오디오 트랙을 재생합니다. 추가 오디오 트랙은 지원되지 않으며 원본 파일은 보존됩니다.</translation>
+        </message>
+        <message>
+            <source>Unrecognized embedded cover skipped; the preview uses a video frame.</source>
+            <translation>인식할 수 없는 내장 표지를 건너뛰었습니다. 미리 보기에는 동영상 프레임을 사용합니다.</translation>
+        </message>
+        <message>
+            <source>Extra channel descriptions ignored; audio uses the declared channel count.</source>
+            <translation>추가 채널 설명을 무시했습니다. 오디오는 명시된 채널 수를 사용합니다.</translation>
         </message>
     </context>
     <context>

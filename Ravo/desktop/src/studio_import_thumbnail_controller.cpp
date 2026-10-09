@@ -11,6 +11,7 @@
 #include <QTimer>
 
 #include "ravo/adapters/qt_raster_decoder.h"
+#include "ravo/adapters/ffmpeg_video_decoder.h"
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/services/import_thumbnail.h"
 #include "studio_qt.h"
@@ -707,7 +708,7 @@ void StudioImportThumbnailController::finishUi(RequestIdentity identity, QImage 
         // Offscreen completion must not consume the viewport decode budget.
         if (!identity.background)
             markDemandTerminal(identity.row, error.has_value() ? DemandTerminal::kFailed :
-                                                               DemandTerminal::kSatisfied);
+                                                                 DemandTerminal::kSatisfied);
         record(ObservationEvent{ObservationEvent::Kind::kCompleted, identity, {}, {}});
     }
     if (terminal_without_retry)
@@ -779,8 +780,9 @@ void StudioImportThumbnailController::start(const int row, const bool background
                     engine_ = std::move(created).value();
                 }
                 const QtRasterDecoder raster;
-                return decode_import_thumbnail(*engine_, raster,
-                                               utf8_from_qstring(identity.source_path), token);
+                const FfmpegVideoDecoder video;
+                return decode_import_thumbnail(
+                    *engine_, raster, utf8_from_qstring(identity.source_path), token, &video);
             };
             auto decoded = decode();
             QImage image;

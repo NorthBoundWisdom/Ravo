@@ -46,6 +46,7 @@ struct CatalogCliArguments
     std::optional<double> saturation;
     std::optional<double> contrast;
     std::optional<std::uint32_t> max_edge;
+    std::optional<std::int64_t> video_time_us;
     std::optional<std::uint32_t> max_width;
     std::optional<std::uint32_t> max_height;
     bool output_sharpen = false;

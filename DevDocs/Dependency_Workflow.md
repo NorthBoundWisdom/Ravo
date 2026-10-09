@@ -24,8 +24,8 @@ The root lock declares Ravo direct dependencies only. If a dependency lock
 template declares a sibling, FreeCM resolves the transitive closure recursively
 from local seeds. Do not repeat every transitive dependency in the root lock.
 
-Current direct dependencies are LibRaw, GeoControls, LittleCMS, Exiv2, LensFun,
-LibJpegTurbo, LibTIFF, and RawSpeed. Current product targets consume LibRaw,
+Current direct dependencies are FFmpeg, LibRaw, GeoControls, LittleCMS, Exiv2, LensFun,
+LibJpegTurbo, LibTIFF, and RawSpeed. Current product targets consume FFmpeg, LibRaw,
 GeoControls, LittleCMS, Exiv2, LibJpegTurbo, and LibTIFF. LensFun and RawSpeed
 remain pinned, configure-verified inputs for their explicit future owners;
 neither may silently replace an accepted path. In particular, RawSpeed is
@@ -52,6 +52,15 @@ first-party AGPL-3.0 code using the system-library boundary; no libheif/libde265
 source or static codec licence enters the graph. Notices are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Windows/Linux providers and
 their licence/package admission remain separate work.
+
+The private video adapter uses pinned FFmpeg 7.1.5 headers. FFmpeg's configure
+script owns public configuration headers in the build tree; the managed source
+root remains read-only. Runtime libraries come exclusively from
+`RAVO_FFMPEG_RUNTIME_ROOT` (default: the selected Qt kit prefix), so Qt Multimedia
+and the adapter load one shared runtime. CMake requires avformat 61, avcodec 61,
+avutil 59, swscale 8 and swresample 5 there; the decoder checks exact 7.1.5 API
+versions at runtime. There is no host FFmpeg search or ffmpeg/ffprobe executable
+dependency. Only the fixture generator uses a developer tool to regenerate media.
 
 ## FreeCM submodule tracking
 

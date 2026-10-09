@@ -3566,10 +3566,6 @@ Diff: %6</source>
             <translation>戻る</translation>
         </message>
         <message>
-            <source>Import Photos</source>
-            <translation>写真のインポート</translation>
-        </message>
-        <message>
             <source>Add</source>
             <translation>追加</translation>
         </message>
@@ -3582,44 +3578,52 @@ Diff: %6</source>
             <translation>移動</translation>
         </message>
         <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>取り込みトランスポートはコピーのみです。移動とカメラの削除は拒否されたままになります。</translation>
-        </message>
-        <message>
             <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
             <translation>矢印キーで移動 · Shiftで範囲選択 · Ctrl/⌘で選択を保持 · スペースでチェック</translation>
+        </message>
+        <message>
+            <source>Import Photos and Videos</source>
+            <translation>写真と動画を読み込む</translation>
         </message>
         <message>
             <source>Source</source>
             <translation>ソース</translation>
         </message>
         <message>
-            <source>New Photos</source>
-            <translation>新しい写真</translation>
+            <source>New Files</source>
+            <translation>新しいファイル</translation>
+        </message>
+        <message>
+            <source>Totals include duplicates and unavailable files. Sizes reflect the current scan.</source>
+            <translation>合計には重複ファイルと利用できないファイルも含まれます。サイズは現在のスキャン結果に基づきます。</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 videos · %3</source>
+            <translation>選択済み：写真 %1 枚 · 動画 %2 本 · %3</translation>
+        </message>
+        <message>
+            <source>Import %1 files</source>
+            <translation>%1 個のファイルを読み込む</translation>
         </message>
         <message>
             <source>Thumbnail size</source>
             <translation>サムネイルのサイズ</translation>
         </message>
         <message>
+            <source>Total: %1 photos · %2 videos · %3</source>
+            <translation>合計：写真 %1 枚 · 動画 %2 本 · %3</translation>
+        </message>
+        <message>
+            <source>Duplicates: %1 · Unavailable: %2</source>
+            <translation>重複：%1 · 利用不可：%2</translation>
+        </message>
+        <message>
             <source>Checking %1 of %2…</source>
             <translation>%2 枚中 %1 枚を確認中…</translation>
         </message>
         <message>
-            <source>Duplicate photos: %1</source>
-            <translation>重複した写真：%1</translation>
-        </message>
-        <message>
-            <source>Selected: %1 photos · %2 MB</source>
-            <translation>選択中：%1 枚 · %2 MB</translation>
-        </message>
-        <message>
             <source>Checking destination…</source>
             <translation>保存先を確認中…</translation>
-        </message>
-        <message>
-            <source>Import %1 photos</source>
-            <translation>%1 枚の写真を読み込む</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3638,12 +3642,12 @@ Diff: %6</source>
             <translation>すべて解除</translation>
         </message>
         <message>
-            <source>No supported photos found</source>
-            <translation>対応する写真が見つかりません</translation>
-        </message>
-        <message>
             <source>Choose a source folder</source>
             <translation>読み込み元フォルダーを選択</translation>
+        </message>
+        <message>
+            <source>No supported photos or videos found</source>
+            <translation>対応する写真または動画が見つかりません</translation>
         </message>
         <message>
             <source>Import candidates</source>
@@ -3910,14 +3914,6 @@ Diff: %6</source>
         <message>
             <source>Library</source>
             <translation>LibrarySidePanel::Library</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>インポート</translation>
-        </message>
-        <message>
-            <source>Scanning…</source>
-            <translation>スキャン中…</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -5199,6 +5195,18 @@ Diff: %6</source>
             <translation>StudioCommands::Gallery</translation>
         </message>
         <message>
+            <source>Play Video</source>
+            <translation>動画を再生</translation>
+        </message>
+        <message>
+            <source>Pause Video</source>
+            <translation>動画を一時停止</translation>
+        </message>
+        <message>
+            <source>Seek Video</source>
+            <translation>動画内を移動</translation>
+        </message>
+        <message>
             <source>Loupe</source>
             <translation>Loupe</translation>
         </message>
@@ -5357,6 +5365,30 @@ Diff: %6</source>
         <message>
             <source>No modified parameters to copy.</source>
             <translation>コピーできる変更済みパラメーターはありません。</translation>
+        </message>
+        <message>
+            <source>Select a video in Loupe first.</source>
+            <translation>まずルーペ表示で動画を選択してください。</translation>
+        </message>
+        <message>
+            <source>Video is not ready.</source>
+            <translation>動画の準備ができていません。</translation>
+        </message>
+        <message>
+            <source>Video is not playing.</source>
+            <translation>動画は再生されていません。</translation>
+        </message>
+        <message>
+            <source>Video position is outside the duration.</source>
+            <translation>指定位置が動画の再生時間を超えています。</translation>
+        </message>
+        <message>
+            <source>Video volume must be between 0 and 1.</source>
+            <translation>動画の音量は 0 から 1 の間で指定してください。</translation>
+        </message>
+        <message>
+            <source>Video mute state must be boolean.</source>
+            <translation>動画のミュート状態は真偽値で指定してください。</translation>
         </message>
         <message>
             <source>Copy parameters first.</source>
@@ -5554,6 +5586,14 @@ Diff: %6</source>
             <source>Copy Path</source>
             <translation>パスをコピー</translation>
         </message>
+        <message>
+            <source>Mute Video</source>
+            <translation>動画をミュート</translation>
+        </message>
+        <message>
+            <source>Video Volume</source>
+            <translation>動画の音量</translation>
+        </message>
     </context>
     <context>
         <name>StudioExport</name>
@@ -5672,6 +5712,33 @@ Diff: %6</source>
         <message>
             <source>Export path suffix does not match the selected format</source>
             <translation>エクスポート パスのサフィックスが選択した形式と一致しません</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioImportWorkspace</name>
+        <message>
+            <source>Finding files</source>
+            <translation>ファイルを検索中</translation>
+        </message>
+        <message>
+            <source>Checking files</source>
+            <translation>ファイルを確認中</translation>
+        </message>
+        <message>
+            <source>Planning destinations</source>
+            <translation>保存先を計画中</translation>
+        </message>
+        <message>
+            <source>Copying files</source>
+            <translation>ファイルをコピー中</translation>
+        </message>
+        <message>
+            <source>Verifying copies</source>
+            <translation>コピーを検証中</translation>
+        </message>
+        <message>
+            <source>Importing files</source>
+            <translation>ファイルを読み込み中</translation>
         </message>
     </context>
     <context>
@@ -6062,6 +6129,10 @@ Diff: %6</source>
             <translation>読み込み先を選択してください。</translation>
         </message>
         <message>
+            <source>Camera and card ingest preserves source originals. Use Copy instead of Move.</source>
+            <translation>カメラやメモリーカードからの取り込みでは元のファイルを保持するため、移動はできません。コピーを使用してください。</translation>
+        </message>
+        <message>
             <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
             <translation>保存先を利用できません。ドライブを再接続するか、別のフォルダーを選択してください。</translation>
         </message>
@@ -6072,10 +6143,6 @@ Diff: %6</source>
         <message>
             <source>Scan the source folder again.</source>
             <translation>読み込み元のフォルダーを再スキャンしてください。</translation>
-        </message>
-        <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>取り込みトランスポートはコピーのみです。移動とカメラの削除は拒否されたままになります。</translation>
         </message>
         <message>
             <source>Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the ptp-stub fixture.</source>
@@ -6632,6 +6699,33 @@ Diff: %6</source>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>カタログのタスク実行機能を利用できません。</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioVideoPresenter</name>
+        <message>
+            <source>Video does not support photo editing.</source>
+            <translation>動画では写真編集を使用できません。</translation>
+        </message>
+        <message>
+            <source>Video has no playable audio track matching the imported codec.</source>
+            <translation>読み込んだコーデックに対応する再生可能な音声トラックが動画にありません。</translation>
+        </message>
+        <message>
+            <source>Audio output is unavailable. Mute the video to play without sound.</source>
+            <translation>音声出力を使用できません。動画をミュートすると無音で再生できます。</translation>
+        </message>
+        <message>
+            <source>Playing the supported audio track. Additional audio tracks are unsupported; originals are preserved.</source>
+            <translation>対応する音声トラックを再生しています。追加の音声トラックは未対応です。元のファイルは保持されます。</translation>
+        </message>
+        <message>
+            <source>Unrecognized embedded cover skipped; the preview uses a video frame.</source>
+            <translation>認識できない埋め込みカバーをスキップしました。プレビューには動画フレームを使用します。</translation>
+        </message>
+        <message>
+            <source>Extra channel descriptions ignored; audio uses the declared channel count.</source>
+            <translation>余分なチャンネル記述を無視しました。音声には宣言されたチャンネル数を使用します。</translation>
         </message>
     </context>
     <context>

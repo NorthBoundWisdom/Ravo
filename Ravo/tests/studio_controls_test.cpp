@@ -163,6 +163,84 @@ TEST(StudioControls, ImportThumbnailSliderPreservesPointerKeyboardAndDisabledBeh
     EXPECT_TRUE(warnings.isEmpty()) << warnings.join('\n').toStdString();
 }
 
+TEST(StudioControls, DisabledImportMoveShowsReasonOnHoverAndCannotBeClicked)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    QQmlEngine engine;
+    add_control_imports(engine);
+    QStringList warnings;
+    QObject::connect(&engine, &QQmlEngine::warnings, &engine,
+                     [&](const QList<QQmlError> &errors)
+                     {
+                         for (const auto &error : errors)
+                             warnings.push_back(error.toString());
+                     });
+    QQuickWindow window;
+    const auto path = QFileInfo(QStringLiteral(RAVO_STUDIO_IMPORT_PAGE_QML))
+                          .dir()
+                          .filePath(QStringLiteral("ImportDestinationPanel.qml"));
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    ScopedQuickItem panel(qobject_cast<QQuickItem *>(component.createWithInitialProperties(
+        {{QStringLiteral("presenter"), QVariant::fromValue(&presenter)}})));
+    ASSERT_TRUE(panel) << component.errorString().toStdString();
+    panel->setParentItem(window.contentItem());
+    panel->setSize(QSizeF(300, 600));
+    window.resize(400, 650);
+    window.show();
+    window.requestActivate();
+    QCoreApplication::processEvents();
+    const auto find_move = [](auto &&self, QQuickItem *item) -> QQuickItem *
+    {
+        if (item->objectName() == QStringLiteral("importTransferModeSegment2"))
+            return item;
+        for (auto *child : item->childItems())
+            if (auto *found = self(self, child))
+                return found;
+        return nullptr;
+    };
+    auto *move = find_move(find_move, panel.get());
+    ASSERT_NE(move, nullptr);
+    auto *tooltip =
+        move->parentItem()->findChild<QObject *>(QStringLiteral("importTransferModeTooltip2"));
+    ASSERT_NE(tooltip, nullptr);
+    EXPECT_TRUE(move->isEnabled());
+    auto *imports = presenter.imports();
+    imports->setImportIngestTransport(QStringLiteral("filesystem-card"));
+    QCoreApplication::processEvents();
+    ASSERT_FALSE(move->isEnabled());
+    ASSERT_FALSE(imports->importMoveUnavailableReason().isEmpty());
+    const auto position = move->mapToScene(QPointF(move->width() / 2, move->height() / 2));
+    const auto send_mouse =
+        [&](QEvent::Type type, QPointF point, Qt::MouseButton button, Qt::MouseButtons buttons)
+    {
+        QMouseEvent event(type, point, window.mapToGlobal(point.toPoint()), button, buttons,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(&window, &event);
+        QCoreApplication::processEvents();
+    };
+    send_mouse(QEvent::MouseMove, position, Qt::NoButton, Qt::NoButton);
+    ASSERT_TRUE(wait_until([&] { return tooltip->property("visible").toBool(); }, 3000));
+    EXPECT_EQ(tooltip->property("text").toString(), imports->importMoveUnavailableReason());
+    send_mouse(QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    EXPECT_EQ(imports->importMode(), QStringLiteral("copy"));
+    send_mouse(QEvent::MouseMove, QPointF(350, 620), Qt::NoButton, Qt::NoButton);
+    ASSERT_TRUE(wait_until([&] { return !tooltip->property("visible").toBool(); }));
+    send_mouse(QEvent::MouseMove, position, Qt::NoButton, Qt::NoButton);
+    ASSERT_TRUE(wait_until([&] { return tooltip->property("visible").toBool(); }, 3000));
+    imports->setImportIngestTransport(QStringLiteral("folder"));
+    ASSERT_TRUE(
+        wait_until([&] { return !tooltip->property("visible").toBool() && move->isEnabled(); }));
+    send_mouse(QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    EXPECT_EQ(imports->importMode(), QStringLiteral("move"));
+    QPointer<QObject> tooltip_watch(tooltip);
+    panel.reset();
+    EXPECT_TRUE(tooltip_watch.isNull());
+    EXPECT_TRUE(warnings.isEmpty()) << warnings.join('\n').toStdString();
+}
+
 TEST(StudioControls, SharedScrollingMenusAndBusyStateUseLiveTheme)
 {
     ensure_qt_core();

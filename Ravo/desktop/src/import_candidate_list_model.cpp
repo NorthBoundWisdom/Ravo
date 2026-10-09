@@ -5,6 +5,7 @@
 #include <QUrl>
 
 #include "studio_qt.h"
+#include "ravo/domain/video.h"
 
 namespace ravo
 {
@@ -85,12 +86,33 @@ void ImportCandidateListModel::recountSelection()
 {
     selected_count_ = 0;
     selected_bytes_ = 0;
+    video_count_ = selected_video_count_ = duplicate_count_ = unavailable_count_ = 0;
+    total_bytes_ = 0;
     for (const auto &row : rows_)
+    {
+        adjustMediaStatistics(row, 1);
         if (row.selected)
         {
             ++selected_count_;
             selected_bytes_ += row.candidate.size_bytes;
         }
+    }
+}
+
+void ImportCandidateListModel::adjustMediaStatistics(const Row &row, const int delta)
+{
+    // Enumeration admits only recognized image/video extensions. Use the path
+    // until probing supplies a MIME type, including for duplicates and failures.
+    const bool video =
+        is_video_media_type(row.candidate.media_type) || is_video_path(row.candidate.source_path);
+    video_count_ += video ? delta : 0;
+    selected_video_count_ += video && row.selected ? delta : 0;
+    duplicate_count_ += row.candidate.duplicate ? delta : 0;
+    unavailable_count_ += !row.candidate.supported ? delta : 0;
+    if (delta > 0)
+        total_bytes_ += row.candidate.size_bytes;
+    else
+        total_bytes_ -= row.candidate.size_bytes;
 }
 
 bool ImportCandidateListModel::eligible(const Row &row) noexcept
@@ -105,7 +127,9 @@ bool ImportCandidateListModel::setRowSelected(Row &row, const bool selected)
         return false;
     if (selected && !eligible(row))
         return false;
+    adjustMediaStatistics(row, -1);
     row.selected = selected;
+    adjustMediaStatistics(row, 1);
     selected_count_ += selected ? 1 : -1;
     if (selected)
         selected_bytes_ += row.candidate.size_bytes;
@@ -166,7 +190,10 @@ void ImportCandidateListModel::notifySelectionIfChanged(const int previous_count
                                                         const bool membership_changed)
 {
     if (membership_changed)
+    {
         ++selection_revision_;
+        emit statisticsChanged();
+    }
     if (previous_count != selected_count_ || previous_bytes != selected_bytes_ ||
         membership_changed)
         emit selectionChanged();
@@ -195,6 +222,7 @@ void ImportCandidateListModel::setCandidates(std::vector<ImportCandidate> candid
     endResetModel();
     emit selectionChanged();
     emit candidatesChanged();
+    emit statisticsChanged();
 }
 
 void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
@@ -203,6 +231,7 @@ void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
     beginInsertRows({}, row, row);
     const bool selected = select_new_candidates_ && candidate.supported && !candidate.duplicate;
     rows_.push_back({std::move(candidate), {}, selected, false, false, false, 0U, {}});
+    adjustMediaStatistics(rows_.back(), 1);
     if (selected)
         ++selection_revision_;
     if (selected)
@@ -213,6 +242,7 @@ void ImportCandidateListModel::appendCandidate(ImportCandidate candidate)
     endInsertRows();
     emit candidatesChanged();
     emit selectionChanged();
+    emit statisticsChanged();
 }
 
 qulonglong ImportCandidateListModel::selectedBytes() const noexcept
@@ -254,6 +284,7 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
     const auto previous_selected_count = selected_count_;
     const auto previous_selected_bytes = selected_bytes_;
     const auto previous_size = entry.candidate.size_bytes;
+    adjustMediaStatistics(entry, -1);
     entry.candidate = std::move(candidate);
     entry.inspected = true;
     bool membership_changed = false;
@@ -277,6 +308,8 @@ void ImportCandidateListModel::updateCandidate(const int row, ImportCandidate ca
         // Size-only totals update: notify aggregates without forging membership revision.
         selected_bytes_ = selected_bytes_ - previous_size + entry.candidate.size_bytes;
     }
+    adjustMediaStatistics(entry, 1);
+    emit statisticsChanged();
     emit dataChanged(index(row, 0), index(row, 0),
                      {SourcePathRole, MediaTypeRole, WidthRole, HeightRole, SizeBytesRole,
                       SelectedRole, HighlightedRole, EligibleRole, DuplicateRole, ErrorRole,
@@ -311,8 +344,8 @@ void ImportCandidateListModel::setThumbnail(const int row, QImage image)
     // Metadata may describe 100,000 candidates; owned thumbnail pixels may not.
     auto evict_front = [&]
     {
-        auto victim = std::find_if(thumbnail_rows_.begin(), thumbnail_rows_.end(),
-            [this](int row) { return !protected_thumbnail_rows_.contains(row); });
+        auto victim = std::find_if(thumbnail_rows_.begin(), thumbnail_rows_.end(), [this](int row)
+                                   { return !protected_thumbnail_rows_.contains(row); });
         if (victim == thumbnail_rows_.end())
             victim = thumbnail_rows_.begin();
         const int evicted = *victim;
@@ -357,6 +390,7 @@ void ImportCandidateListModel::applyScanBatch(const int first,
         auto &entry = rows_[static_cast<std::size_t>(first) + offset];
         ++selection_row_touches_;
         const bool was_selected = entry.selected;
+        adjustMediaStatistics(entry, -1);
         if (entry.selected)
         {
             --selected_count_;
@@ -379,12 +413,14 @@ void ImportCandidateListModel::applyScanBatch(const int first,
         }
         if (was_selected != entry.selected)
             membership_changed = true;
+        adjustMediaStatistics(entry, 1);
     }
     emit dataChanged(index(first, 0), index(first + static_cast<int>(candidates.size()) - 1, 0),
                      {SourcePathRole, MediaTypeRole, WidthRole, HeightRole, SizeBytesRole,
                       SelectedRole, HighlightedRole, EligibleRole, DuplicateRole, ErrorRole,
                       DisplayNameRole});
     notifySelectionIfChanged(previous_count, previous_bytes, membership_changed);
+    emit statisticsChanged();
 }
 
 void ImportCandidateListModel::finishThumbnail(const int row, QImage image,

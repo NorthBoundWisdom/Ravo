@@ -20,6 +20,13 @@ class ImportCandidateListModel final : public QAbstractListModel
     Q_PROPERTY(int candidateCount READ rowCount NOTIFY candidatesChanged)
     Q_PROPERTY(qulonglong selectedBytes READ selectedBytes NOTIFY selectionChanged)
     Q_PROPERTY(quint64 selectionRevision READ selectionRevision NOTIFY selectionChanged)
+    Q_PROPERTY(int photoCount READ photoCount NOTIFY statisticsChanged)
+    Q_PROPERTY(int videoCount READ videoCount NOTIFY statisticsChanged)
+    Q_PROPERTY(int selectedPhotoCount READ selectedPhotoCount NOTIFY statisticsChanged)
+    Q_PROPERTY(int selectedVideoCount READ selectedVideoCount NOTIFY statisticsChanged)
+    Q_PROPERTY(qulonglong totalBytes READ totalBytes NOTIFY statisticsChanged)
+    Q_PROPERTY(int duplicateCount READ duplicateCount NOTIFY statisticsChanged)
+    Q_PROPERTY(int unavailableCount READ unavailableCount NOTIFY statisticsChanged)
 
 public:
     enum Role
@@ -45,6 +52,34 @@ public:
     [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override;
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
     [[nodiscard]] int selectedCount() const noexcept;
+    [[nodiscard]] int photoCount() const noexcept
+    {
+        return rowCount() - video_count_;
+    }
+    [[nodiscard]] int videoCount() const noexcept
+    {
+        return video_count_;
+    }
+    [[nodiscard]] int selectedPhotoCount() const noexcept
+    {
+        return selected_count_ - selected_video_count_;
+    }
+    [[nodiscard]] int selectedVideoCount() const noexcept
+    {
+        return selected_video_count_;
+    }
+    [[nodiscard]] qulonglong totalBytes() const noexcept
+    {
+        return total_bytes_;
+    }
+    [[nodiscard]] int duplicateCount() const noexcept
+    {
+        return duplicate_count_;
+    }
+    [[nodiscard]] int unavailableCount() const noexcept
+    {
+        return unavailable_count_;
+    }
     void setCandidates(std::vector<ImportCandidate> candidates, bool preserve_check_intent = false);
     void appendCandidate(ImportCandidate candidate);
     [[nodiscard]] qulonglong selectedBytes() const noexcept;
@@ -95,6 +130,7 @@ public:
 signals:
     void selectionChanged();
     void candidatesChanged();
+    void statisticsChanged();
 
 private:
     struct Row
@@ -109,6 +145,7 @@ private:
         std::optional<TaskError> thumbnail_error;
     };
     void recountSelection();
+    void adjustMediaStatistics(const Row &row, int delta);
     [[nodiscard]] static bool eligible(const Row &row) noexcept;
     [[nodiscard]] bool setRowSelected(Row &row, bool selected);
     void setRowHighlighted(int row, bool highlighted, std::vector<int> *changed);
@@ -123,6 +160,11 @@ private:
     std::uint64_t generation_ = 0;
     int selected_count_ = 0;
     qulonglong selected_bytes_ = 0;
+    int video_count_ = 0;
+    int selected_video_count_ = 0;
+    int duplicate_count_ = 0;
+    int unavailable_count_ = 0;
+    qulonglong total_bytes_ = 0;
     quint64 selection_revision_ = 0;
     qulonglong thumbnail_bytes_ = 0;
     mutable quint64 selected_paths_calls_ = 0;

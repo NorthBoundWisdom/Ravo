@@ -96,6 +96,11 @@ Result<ExportJob> ExportService::create_export_job(const ExportBatchRequest &req
                 ErrorCode::kNotFound, "Asset does not exist",
                 {{"asset_id", asset_id}, {"batch_index", std::to_string(index + 1U)}});
         }
+        if (is_video_media_type(asset.value()->media_type) &&
+            job.options.format != ExportFormat::kOriginalCopy)
+            return make_error(
+                ErrorCode::kUnsupported, "Video supports original-byte export only",
+                {{"asset_id", asset_id}, {"reason", "video_photo_operation_unsupported"}});
         auto output = planned_output_path(job, index, *asset.value());
         if (!output)
             return output.error();
@@ -158,6 +163,16 @@ Result<ExportJob> ExportService::resume_export_job(
         }
         if (item.status == ExportJobItemStatus::kDelivered)
             continue;
+        auto asset = repository_->find_asset_by_id(item.asset_id);
+        if (!asset)
+            return asset.error();
+        if (!asset.value())
+            return make_error(ErrorCode::kNotFound, "Export asset does not exist");
+        if (is_video_media_type(asset.value()->media_type) &&
+            job.options.format != ExportFormat::kOriginalCopy)
+            return make_error(
+                ErrorCode::kUnsupported, "Video supports original-byte export only",
+                {{"asset_id", item.asset_id}, {"reason", "video_photo_operation_unsupported"}});
         std::error_code target_error;
         const auto target_status =
             std::filesystem::symlink_status(utf8_path(item.output_path), target_error);

@@ -13,6 +13,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QImage>
+#include <QLocale>
 #include <QColorSpace>
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/studio_command_controller.h"
@@ -109,6 +110,45 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         }
         if (size.width() == 1440 && size.height() == 900)
         {
+            auto photo = candidate;
+            photo.size_bytes = 1024;
+            auto video = candidate;
+            video.source_path = directory.filePath(QStringLiteral("video.mov")).toStdString();
+            video.media_type = "video/quicktime";
+            video.size_bytes = 2ULL * 1024 * 1024 * 1024;
+            auto *summary_model = presenter->imports()->importCandidates();
+            summary_model->setCandidates({photo, video});
+            QCoreApplication::processEvents();
+            const auto *summary =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importCandidateSummary"));
+            const auto *checked =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importSelectedSummary"));
+            const auto total =
+                QCoreApplication::translate("ImportPage", "Total: %1 photos · %2 videos · %3")
+                    .arg(1)
+                    .arg(1)
+                    .arg(QLocale().toString(2., 'f', 1) + " GiB");
+            if (!summary || !checked || !summary->property("text").toString().contains(total))
+            {
+                LOG_ERROR(logger(), "Import summary does not display mixed media and GiB totals");
+                return false;
+            }
+            summary_model->toggleSelected(1);
+            QCoreApplication::processEvents();
+            const auto selected =
+                QCoreApplication::translate("ImportPage", "Selected: %1 photos · %2 videos · %3")
+                    .arg(1)
+                    .arg(0)
+                    .arg(QLocale().toString(1., 'f', 1) + " KiB");
+            if (checked->property("text").toString() != selected ||
+                checked->property("truncated").toBool() ||
+                !summary->property("text").toString().contains(total))
+            {
+                LOG_ERROR(logger(),
+                          "Import checked totals are stale, clipped or change complete totals");
+                return false;
+            }
+            summary_model->setCandidates({candidate});
             const auto *context_menu =
                 workspace->findChild<QObject *>(QStringLiteral("importPhotoContextMenu"));
             const auto *reveal_item =
@@ -1103,15 +1143,19 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 item->objectName().startsWith(QStringLiteral("importTransferModeSegment")))
             {
                 ++transfer_segments;
-                auto *row = item->parentItem();
+                auto *segment = item->parentItem();
+                auto *row = segment ? segment->parentItem() : nullptr;
                 const bool move =
                     item->objectName() == QStringLiteral("importTransferModeSegment2");
                 if (!row || row->objectName() != QStringLiteral("importTransferMode") ||
                     qAbs(item->width() * 3 - row->width()) > 0.1 ||
-                    item->height() != row->height() || item->isEnabled() == move)
+                    item->height() != row->height() ||
+                    item->isEnabled() !=
+                        (!move || presenter->imports()->importMoveUnavailableReason().isEmpty()))
                 {
-                    LOG_ERROR(logger(),
-                              "Import mode segments must share equal width and keep Move disabled");
+                    LOG_ERROR(
+                        logger(),
+                        "Import mode segments must share equal width and follow transfer availability");
                     return false;
                 }
             }

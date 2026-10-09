@@ -112,9 +112,9 @@ runs:
         version: ${{ env.QT_VERSION }}
         host: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && 'linux_arm64' || '' }}
         arch: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && 'linux_gcc_arm64' || '' }}
-        modules: qtimageformats qtshadertools
+        modules: qtimageformats qtshadertools qtmultimedia
         cache: true
-        cache-key-prefix: qt-imageformats-shadertools-${{ env.QT_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+        cache-key-prefix: qt-imageformats-shadertools-multimedia-${{ env.QT_VERSION }}-${{ runner.os }}-${{ runner.arch }}
         setup-python: false
         install-deps: true
         # PyPI aqt 3.3.0 cannot resolve the Qt 6.11 Windows repository layout.

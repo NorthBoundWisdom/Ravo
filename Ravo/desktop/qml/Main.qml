@@ -647,6 +647,7 @@ ApplicationWindow {
                         required property string assetId
                         required property string displayName
                         required property string mediaType
+                        required property real videoDurationMs
                         required property int rating
                         required property string colorLabel
                         required property bool rejected
@@ -707,6 +708,7 @@ ApplicationWindow {
                             sequenceNumber: tile.index + 1
                             displayName: tile.displayName
                             mediaType: tile.mediaType
+                            videoDurationMs: tile.videoDurationMs
                             pixelWidth: tile.pixelWidth
                             pixelHeight: tile.pixelHeight
                             captureSummary: tile.captureSummary
@@ -1220,6 +1222,18 @@ ApplicationWindow {
                             }
                         }
                     }
+                }
+
+                VideoControls {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: galleryReviewBar.top
+                    anchors.margins: Fonts.size12
+                    height: implicitHeight
+                    z: 35
+                    presenter: studio.video
+                    commands: studioActions
+                    visible: studio.video.available && studio.browseMode === "loupe" && !studio.imports.importPageOpen
                 }
 
                 PhotoInformationOverlay {

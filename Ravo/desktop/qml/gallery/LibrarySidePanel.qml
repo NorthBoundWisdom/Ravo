@@ -26,6 +26,8 @@ Rectangle {
         property string countText: ""
         property real fraction: 0
         property bool cancellable: false
+        property bool working: false
+        property string detailText: ""
         property color barColor: Theme.accentColor
 
         signal cancelRequested
@@ -36,15 +38,45 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: Fonts.smallSpacing
+            CustomBusyIndicator {
+                Layout.preferredWidth: Fonts.size16
+                Layout.preferredHeight: Fonts.size16
+                running: meter.working
+                visible: running
+            }
             CustomLabel {
                 Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 text: meter.title
                 elide: Text.ElideRight
+                HoverHandler {
+                    id: titleHover
+                }
+                CustomToolTip {
+                    visible: titleHover.hovered
+                    text: meter.title
+                }
             }
             CustomLabel {
                 visible: meter.countText.length > 0
                 text: meter.countText
                 color: Theme.placeholderTextColor
+            }
+        }
+        CustomLabel {
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            visible: meter.detailText.length > 0
+            text: meter.detailText
+            textFormat: Text.PlainText
+            elide: Text.ElideMiddle
+            color: Theme.placeholderTextColor
+            HoverHandler {
+                id: detailHover
+            }
+            CustomToolTip {
+                visible: detailHover.hovered
+                text: meter.detailText
             }
         }
         RowLayout {
@@ -188,9 +220,12 @@ Rectangle {
 
             WorkMeter {
                 visible: libraryWork.meterVisible(root.presenter.imports.importWorkActive, root.presenter.imports.importWorkCompleted, root.presenter.imports.importWorkTotal)
-                title: qsTr("Import")
-                countText: root.presenter.imports.importWorkTotal > 0 ? (root.presenter.imports.importWorkCompleted + " / " + root.presenter.imports.importWorkTotal) : qsTr("Scanning…")
-                fraction: root.presenter.imports.importWorkTotal > 0 ? Math.min(1, root.presenter.imports.importWorkCompleted / root.presenter.imports.importWorkTotal) : 0.35
+                objectName: "libraryImportWorkMeter"
+                title: root.presenter.imports.importWorkTitle
+                countText: root.presenter.imports.importWorkCountText
+                detailText: root.presenter.imports.importWorkDetailText
+                fraction: root.presenter.imports.importWorkFraction
+                working: root.presenter.imports.importWorkActive
                 cancellable: root.presenter.imports.importWorkActive
                 onCancelRequested: if (root.commands)
                     root.commands.run(root.commands.ids.libraryCancelOperation)

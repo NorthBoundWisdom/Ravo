@@ -3566,10 +3566,6 @@ Diferença: %6</translation>
             <translation>Voltar</translation>
         </message>
         <message>
-            <source>Import Photos</source>
-            <translation>Importar Fotos</translation>
-        </message>
-        <message>
             <source>Add</source>
             <translation>Adicionar</translation>
         </message>
@@ -3582,44 +3578,52 @@ Diferença: %6</translation>
             <translation>Mover</translation>
         </message>
         <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>Os transportes de ingestão são somente cópia; A movimentação e a exclusão da câmera permanecem rejeitadas.</translation>
-        </message>
-        <message>
             <source>Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks</source>
             <translation>Setas para navegar · Shift seleciona um intervalo · Ctrl/⌘ mantém a seleção · Espaço marca</translation>
+        </message>
+        <message>
+            <source>Import Photos and Videos</source>
+            <translation>Importar fotos e vídeos</translation>
         </message>
         <message>
             <source>Source</source>
             <translation>Origem</translation>
         </message>
         <message>
-            <source>New Photos</source>
-            <translation>Novas fotos</translation>
+            <source>New Files</source>
+            <translation>Novos arquivos</translation>
+        </message>
+        <message>
+            <source>Totals include duplicates and unavailable files. Sizes reflect the current scan.</source>
+            <translation>Os totais incluem duplicatas e arquivos indisponíveis. Os tamanhos refletem a verificação atual.</translation>
+        </message>
+        <message>
+            <source>Selected: %1 photos · %2 videos · %3</source>
+            <translation>Selecionados: %1 fotos · %2 vídeos · %3</translation>
+        </message>
+        <message>
+            <source>Import %1 files</source>
+            <translation>Importar %1 arquivos</translation>
         </message>
         <message>
             <source>Thumbnail size</source>
             <translation>Tamanho das miniaturas</translation>
         </message>
         <message>
+            <source>Total: %1 photos · %2 videos · %3</source>
+            <translation>Total: %1 fotos · %2 vídeos · %3</translation>
+        </message>
+        <message>
+            <source>Duplicates: %1 · Unavailable: %2</source>
+            <translation>Duplicatas: %1 · Indisponíveis: %2</translation>
+        </message>
+        <message>
             <source>Checking %1 of %2…</source>
             <translation>Verificando %1 de %2…</translation>
         </message>
         <message>
-            <source>Duplicate photos: %1</source>
-            <translation>Fotos duplicadas: %1</translation>
-        </message>
-        <message>
-            <source>Selected: %1 photos · %2 MB</source>
-            <translation>Selecionadas: %1 fotos · %2 MB</translation>
-        </message>
-        <message>
             <source>Checking destination…</source>
             <translation>Verificando destino…</translation>
-        </message>
-        <message>
-            <source>Import %1 photos</source>
-            <translation>Importar %1 fotos</translation>
         </message>
         <message>
             <source>Choose Source…</source>
@@ -3638,12 +3642,12 @@ Diferença: %6</translation>
             <translation>Desmarcar tudo</translation>
         </message>
         <message>
-            <source>No supported photos found</source>
-            <translation>Nenhuma foto compatível encontrada</translation>
-        </message>
-        <message>
             <source>Choose a source folder</source>
             <translation>Escolha uma pasta de origem</translation>
+        </message>
+        <message>
+            <source>No supported photos or videos found</source>
+            <translation>Nenhuma foto ou vídeo compatível encontrado</translation>
         </message>
         <message>
             <source>Import candidates</source>
@@ -3910,14 +3914,6 @@ Diferença: %6</translation>
         <message>
             <source>Library</source>
             <translation>LibrarySidePanel::Biblioteca</translation>
-        </message>
-        <message>
-            <source>Import</source>
-            <translation>Importar</translation>
-        </message>
-        <message>
-            <source>Scanning…</source>
-            <translation>Varrendo…</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -5199,6 +5195,18 @@ Diferença: %6</translation>
             <translation>StudioCommands::Galeria</translation>
         </message>
         <message>
+            <source>Play Video</source>
+            <translation>Reproduzir vídeo</translation>
+        </message>
+        <message>
+            <source>Pause Video</source>
+            <translation>Pausar vídeo</translation>
+        </message>
+        <message>
+            <source>Seek Video</source>
+            <translation>Buscar no vídeo</translation>
+        </message>
+        <message>
             <source>Loupe</source>
             <translation>Lupa</translation>
         </message>
@@ -5357,6 +5365,30 @@ Diferença: %6</translation>
         <message>
             <source>No modified parameters to copy.</source>
             <translation>Não há parâmetros modificados para copiar.</translation>
+        </message>
+        <message>
+            <source>Select a video in Loupe first.</source>
+            <translation>Selecione primeiro um vídeo na visualização Lupa.</translation>
+        </message>
+        <message>
+            <source>Video is not ready.</source>
+            <translation>O vídeo ainda não está pronto.</translation>
+        </message>
+        <message>
+            <source>Video is not playing.</source>
+            <translation>O vídeo não está sendo reproduzido.</translation>
+        </message>
+        <message>
+            <source>Video position is outside the duration.</source>
+            <translation>A posição está fora da duração do vídeo.</translation>
+        </message>
+        <message>
+            <source>Video volume must be between 0 and 1.</source>
+            <translation>O volume do vídeo deve estar entre 0 e 1.</translation>
+        </message>
+        <message>
+            <source>Video mute state must be boolean.</source>
+            <translation>O estado de silêncio do vídeo deve ser booleano.</translation>
         </message>
         <message>
             <source>Copy parameters first.</source>
@@ -5554,6 +5586,14 @@ Diferença: %6</translation>
             <source>Copy Path</source>
             <translation>Copiar caminho</translation>
         </message>
+        <message>
+            <source>Mute Video</source>
+            <translation>Silenciar vídeo</translation>
+        </message>
+        <message>
+            <source>Video Volume</source>
+            <translation>Volume do vídeo</translation>
+        </message>
     </context>
     <context>
         <name>StudioExport</name>
@@ -5672,6 +5712,33 @@ Diferença: %6</translation>
         <message>
             <source>Export path suffix does not match the selected format</source>
             <translation>O sufixo do caminho de exportação não corresponde ao formato selecionado</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioImportWorkspace</name>
+        <message>
+            <source>Finding files</source>
+            <translation>Buscando arquivos</translation>
+        </message>
+        <message>
+            <source>Checking files</source>
+            <translation>Verificando arquivos</translation>
+        </message>
+        <message>
+            <source>Planning destinations</source>
+            <translation>Planejando destinos</translation>
+        </message>
+        <message>
+            <source>Copying files</source>
+            <translation>Copiando arquivos</translation>
+        </message>
+        <message>
+            <source>Verifying copies</source>
+            <translation>Validando cópias</translation>
+        </message>
+        <message>
+            <source>Importing files</source>
+            <translation>Importando arquivos</translation>
         </message>
     </context>
     <context>
@@ -6062,6 +6129,10 @@ Diferença: %6</translation>
             <translation>Escolha um destino de importação.</translation>
         </message>
         <message>
+            <source>Camera and card ingest preserves source originals. Use Copy instead of Move.</source>
+            <translation>A importação de câmeras e cartões preserva os arquivos originais. Use Copiar em vez de Mover.</translation>
+        </message>
+        <message>
             <source>Destination unavailable. Reconnect the drive or choose another folder.</source>
             <translation>Destino indisponível. Reconecte a unidade ou escolha outra pasta.</translation>
         </message>
@@ -6072,10 +6143,6 @@ Diferença: %6</translation>
         <message>
             <source>Scan the source folder again.</source>
             <translation>Verifique a pasta de origem novamente.</translation>
-        </message>
-        <message>
-            <source>Ingest transports are Copy-only; Move and camera delete stay rejected.</source>
-            <translation>Os transportes de ingestão são somente cópia; A movimentação e a exclusão da câmera permanecem rejeitadas.</translation>
         </message>
         <message>
             <source>Native PTP/MTP adapter is not packaged (%1). Use filesystem-card or the ptp-stub fixture.</source>
@@ -6632,6 +6699,33 @@ Diferença: %6</translation>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>O executor de tarefas do catálogo está indisponível.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioVideoPresenter</name>
+        <message>
+            <source>Video does not support photo editing.</source>
+            <translation>O vídeo não oferece suporte à edição de fotos.</translation>
+        </message>
+        <message>
+            <source>Video has no playable audio track matching the imported codec.</source>
+            <translation>O vídeo não tem uma faixa de áudio reproduzível que corresponda ao codec importado.</translation>
+        </message>
+        <message>
+            <source>Audio output is unavailable. Mute the video to play without sound.</source>
+            <translation>A saída de áudio não está disponível. Silencie o vídeo para reproduzi-lo sem som.</translation>
+        </message>
+        <message>
+            <source>Playing the supported audio track. Additional audio tracks are unsupported; originals are preserved.</source>
+            <translation>Reproduzindo a faixa de áudio compatível. Faixas adicionais não são compatíveis; os originais são preservados.</translation>
+        </message>
+        <message>
+            <source>Unrecognized embedded cover skipped; the preview uses a video frame.</source>
+            <translation>Capa incorporada não reconhecida ignorada; a prévia usa um quadro do vídeo.</translation>
+        </message>
+        <message>
+            <source>Extra channel descriptions ignored; audio uses the declared channel count.</source>
+            <translation>Descrições de canais adicionais ignoradas; o áudio usa o número de canais declarado.</translation>
         </message>
     </context>
     <context>

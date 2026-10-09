@@ -28,11 +28,13 @@ namespace ravo
 PreviewService::PreviewService(const EngineFacade *const &engine,
                                const std::unique_ptr<CatalogRepository> &repository,
                                const std::unique_ptr<RasterDecoder> &raster,
+                               const std::unique_ptr<VideoDecoder> &video,
                                const std::shared_ptr<PreviewCache> &cache,
                                std::function<void()> &before_cache_publication) noexcept
     : engine_(engine)
     , repository_(repository)
     , raster_(raster)
+    , video_(video)
     , cache_(cache)
     , testing_before_preview_cache_publication_(before_cache_publication)
 {
@@ -100,6 +102,13 @@ PreviewService::request_preview(const PreviewRequest &request,
     }
     if (!generation)
         return generation.error();
+    if (is_video_media_type(asset.value()->media_type))
+    {
+        if (live_develop)
+            return make_error(ErrorCode::kUnsupported, "Video Develop is unavailable",
+                              {{"reason", "video_photo_operation_unsupported"}});
+        return generate_video_preview(*asset.value(), request, generation.value().generation);
+    }
     return generate_preview(*asset.value(), request, live_develop, generation.value().generation);
 }
 
@@ -1120,6 +1129,9 @@ Result<RenderedExportImage> PreviewService::render_for_export(const AssetRecord 
                                                               const CancellationToken &cancellation,
                                                               const RenderSampleKind sample_kind)
 {
+    if (is_video_media_type(asset.media_type))
+        return make_error(ErrorCode::kUnsupported, "Video supports original-byte export only",
+                          {{"reason", "video_photo_operation_unsupported"}});
     if (repository_ == nullptr || raster_ == nullptr || engine_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     RenderRequest render;

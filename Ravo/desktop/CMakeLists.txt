@@ -11,6 +11,8 @@ qt_add_resources(ravo_desktop "studio_locale_manifest"
 target_sources(ravo_desktop
   PRIVATE
     src/asset_list_model.cpp
+    src/studio_video_presenter.cpp
+    include/ravo/desktop/studio_video_presenter.h
     src/filesystem_browser_model.cpp
     src/folder_list_model.cpp
     src/library_set_list_model.cpp
@@ -114,7 +116,7 @@ target_include_directories(ravo_desktop
 
 target_link_libraries(ravo_desktop
   PUBLIC ravo_services ravo_adapters ravo_control Qt6::Network
-  PRIVATE Qt6::Gui Qt6::Qml)
+  PRIVATE Qt6::Gui Qt6::Qml Qt6::Multimedia)
 
 set_target_properties(ravo_desktop PROPERTIES AUTOMOC ON)
 if(APPLE)
@@ -160,6 +162,7 @@ endif()
 
 add_executable(ravo_studio ${RAVO_STUDIO_SOURCES})
 target_sources(ravo_studio PRIVATE src/studio_import_layout_smoke.cpp)
+target_sources(ravo_studio PRIVATE src/studio_video_smoke.cpp)
 target_sources(ravo_studio PRIVATE src/studio_curve_gesture_smoke.cpp)
 target_sources(ravo_studio PRIVATE src/studio_photo_merge_layout_smoke.cpp)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
@@ -286,6 +289,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/ImportCandidateGrid.qml
     qml/chrome/ImportSourcePanel.qml
     qml/chrome/ImportDestinationPanel.qml
+    qml/chrome/VideoControls.qml
     qml/chrome/ImportSection.qml
     qml/chrome/ImportDialogs.qml
     qml/chrome/ImportFolderTree.qml

@@ -171,6 +171,8 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
 
 StudioPresenter::~StudioPresenter()
 {
+    if (video_presenter_)
+        video_presenter_->shutdown();
     persistLibraryPosition();
     static_cast<void>(thumbnail_presentation_cancel_.cancel("window_closed"));
     static_cast<void>(library_reload_cancel_.cancel("window_closed"));
@@ -1504,8 +1506,11 @@ void StudioPresenter::finishImportPresentation(StudioImportWorkspace::BatchCompl
                     }
                     QString first_error;
                     for (const auto &item : results)
-                        if (first_error.isEmpty() && item.error)
-                            first_error = qstring_from_utf8(item.error->message);
+                    {
+                        const auto &error = item.error ? item.error : item.source_cleanup_error;
+                        if (first_error.isEmpty() && error)
+                            first_error = qstring_from_utf8(error->message);
+                    }
                     if (!preference_error.isEmpty())
                         first_error += (first_error.isEmpty() ? QString{} : QStringLiteral("\n")) +
                                        preference_error;

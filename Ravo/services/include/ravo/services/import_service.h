@@ -76,9 +76,10 @@ private:
     // The immovable composition owner supplies slots; reset observes close.
     ImportService(
         const std::unique_ptr<CatalogRepository> &repository,
-        const std::unique_ptr<RasterDecoder> &raster, const EngineFacade *const &engine,
-        const std::shared_ptr<PreviewCache> &cache, PreviewService &preview,
-        RecoveryService &recovery, std::function<void()> &before_publication,
+        const std::unique_ptr<RasterDecoder> &raster, const std::unique_ptr<VideoDecoder> &video,
+        const EngineFacade *const &engine, const std::shared_ptr<PreviewCache> &cache,
+        PreviewService &preview, RecoveryService &recovery,
+        std::function<void()> &before_publication,
         const std::function<Result<void>(std::string_view, std::string_view)> &checkpoint) noexcept;
     [[nodiscard]] Result<CatalogSnapshot> library_snapshot() const;
     [[nodiscard]] Result<ImportCandidate>
@@ -89,7 +90,7 @@ private:
         const CancellationToken &cancellation,
         const std::function<void(std::size_t, std::size_t, const ImportCandidate &)> &progress,
         const std::function<void(const std::vector<std::string> &)> &enumerated,
-        bool require_stable_revision);
+        bool require_stable_revision, const ImportWorkProgressCallback &work_progress = {});
     [[nodiscard]] Result<ImportBatchResult> execute_import_impl(
         const ImportRequest &request,
         const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
@@ -98,6 +99,7 @@ private:
 
     const std::unique_ptr<CatalogRepository> &repository_;
     const std::unique_ptr<RasterDecoder> &raster_;
+    const std::unique_ptr<VideoDecoder> &video_;
     const EngineFacade *const &engine_;
     const std::shared_ptr<PreviewCache> &cache_;
     PreviewService &preview_service_;

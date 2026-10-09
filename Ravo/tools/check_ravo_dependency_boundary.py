@@ -109,6 +109,7 @@ ALLOWED_QT_COMPONENTS = {
             "QuickControls2",
             "QuickDialogs2",
             "QuickLayouts",
+            "Multimedia",
         }
     ),
 }

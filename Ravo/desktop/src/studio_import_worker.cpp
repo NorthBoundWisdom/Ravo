@@ -7,6 +7,7 @@
 #include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/qt_raster_decoder.h"
+#include "ravo/adapters/ffmpeg_video_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 
 namespace ravo
@@ -40,9 +41,9 @@ StudioPresenter::make_catalog_service(const std::string &path, const bool create
     }
     std::shared_ptr<PreviewCache> shared_cache = std::move(cache).value();
     auto publication_mutex = std::make_shared<std::mutex>();
-    auto service = std::make_unique<CatalogService>(*engine_, std::move(repository).value(),
-                                                    std::move(raster), shared_cache,
-                                                    std::move(recovery).value(), publication_mutex);
+    auto service = std::make_unique<CatalogService>(
+        *engine_, std::move(repository).value(), std::move(raster), shared_cache,
+        std::move(recovery).value(), publication_mutex, std::make_unique<FfmpegVideoDecoder>());
     auto resumed = service->recovery().sync_recovery(std::nullopt);
     if (!resumed)
     {
@@ -76,7 +77,8 @@ Result<void> StudioImportWorker::open(const std::string &catalog,
                 return recovery.error();
             auto service = std::make_unique<CatalogService>(
                 *engine, std::move(repository).value(), std::make_unique<QtRasterDecoder>(), cache,
-                std::move(recovery).value(), recovery_publication_mutex);
+                std::move(recovery).value(), recovery_publication_mutex,
+                std::make_unique<FfmpegVideoDecoder>());
             service_.reset();
             engine_ = std::move(engine);
             service_ = std::move(service);

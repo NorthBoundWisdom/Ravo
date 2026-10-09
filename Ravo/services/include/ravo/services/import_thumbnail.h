@@ -11,5 +11,6 @@ namespace ravo
 [[nodiscard]] Result<RasterBuffer> decode_import_thumbnail(const EngineFacade &engine,
                                                            const RasterDecoder &raster,
                                                            std::string_view path,
-                                                           const CancellationToken &cancellation);
+                                                           const CancellationToken &cancellation,
+                                                           const VideoDecoder *video = nullptr);
 } // namespace ravo

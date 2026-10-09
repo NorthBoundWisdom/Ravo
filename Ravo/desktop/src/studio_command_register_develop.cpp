@@ -4,6 +4,7 @@
 #include "studio_command_ids.h"
 #include "studio_command_controller_detail.h"
 #include "ravo/desktop/studio_presenter.h"
+#include <cmath>
 
 namespace ravo
 {
@@ -17,6 +18,48 @@ void StudioCommandController::registerDevelopCommands(const command_registration
     const auto &request_preset_confirmation = helpers.request_preset_confirmation;
     const auto &preset_confirmation_validator = helpers.preset_confirmation_validator;
     const auto &clear_confirmation = helpers.clear_confirmation;
+    add(command::kVideoPlay, Condition::kVideo, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.video()->play(); });
+    add(command::kVideoPause, Condition::kVideo, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.video()->pause(); });
+    add(
+        command::kVideoSeek, Condition::kVideo,
+        [this](const QVariant &argument)
+        {
+            const auto valid = finite_number(argument, "position_ms");
+            const double value = argument.toDouble();
+            if (!valid.isEmpty())
+                return valid;
+            return value >= 0 && value <= static_cast<double>(presenter_.video()->duration()) &&
+                           std::floor(value) == value ?
+                       QString{} :
+                       QStringLiteral("Video position is outside the duration.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.video()->seek(argument.toLongLong()); });
+    add(
+        command::kVideoVolume, Condition::kVideo,
+        [](const QVariant &argument)
+        {
+            const auto valid = finite_number(argument, "volume");
+            if (!valid.isEmpty())
+                return valid;
+            return argument.toDouble() >= 0 && argument.toDouble() <= 1 ?
+                       QString{} :
+                       QStringLiteral("Video volume must be between 0 and 1.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.video()->setVolume(argument.toDouble()); });
+    add(
+        command::kVideoMute, Condition::kVideo,
+        [](const QVariant &argument)
+        {
+            return argument.metaType().id() == QMetaType::Bool ?
+                       QString{} :
+                       QStringLiteral("Video mute state must be boolean.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.video()->setMuted(argument.toBool()); });
 
     add(command::kStyleSave, Condition::kDevelopSelection, no_argument,
         [present](const QVariant &argument, const QString &)

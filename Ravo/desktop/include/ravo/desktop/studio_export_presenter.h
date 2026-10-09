@@ -48,7 +48,7 @@ private:
                           const std::uint64_t &listing_generation, SerialExecutor &executor,
                           CancellationToken shutdown, std::function<ExportService *()> service,
                           std::function<std::vector<std::string>()> selected_assets,
-                          QObject *parent);
+                          std::function<bool()> selection_has_video, QObject *parent);
     const QString &catalog_path_;
     const QString &selected_asset_id_;
     const bool &busy_;
@@ -57,5 +57,6 @@ private:
     CancellationToken shutdown_;
     std::function<ExportService *()> service_;
     std::function<std::vector<std::string>()> selected_assets_;
+    std::function<bool()> selection_has_video_;
 };
 } // namespace ravo

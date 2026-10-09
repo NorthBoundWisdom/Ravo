@@ -204,7 +204,10 @@ TEST(StudioImportKeyboard, GridContractMatchesProductionKeys)
     ASSERT_TRUE(page_file.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto page_source = QString::fromUtf8(page_file.readAll());
     EXPECT_TRUE(page_source.contains(QStringLiteral("candidateKeyboardHelp")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("selectionArea.width >= 720")));
+    // Statistics occupy the status row; keyboard help remains available on
+    // hover at every width, including while scanning, and in grid accessibility.
+    EXPECT_TRUE(page_source.contains(QStringLiteral("visible: candidateHelpHover.hovered")));
+    EXPECT_TRUE(page_source.contains(QStringLiteral("\\n\" + root.candidateKeyboardHelp")));
 }
 
 TEST(StudioImportKeyboard, GridEventsDriveHighlightAndCheck)

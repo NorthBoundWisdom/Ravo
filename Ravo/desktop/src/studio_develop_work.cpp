@@ -61,7 +61,8 @@ void StudioDevelopPresenter::load_develop_for_selection()
     state_.recipe_history_entries_.clear();
     state_.active_history_id_ = 0;
     state_.active_history_seq_ = 0;
-    if (selected_asset_id_.isEmpty())
+    if (selected_asset_id_.isEmpty() ||
+        host_.selected_media_type().startsWith(QLatin1String("video/")))
     {
         emit editChanged();
         return;

@@ -1,5 +1,113 @@
 # Ravo Architecture
 
+Video assets (ADR-0165) use domain-owned `VideoInfo` and a private FFmpeg
+decoder port, separate from RasterDecoder and photo recipes. Schema 18 stores
+bounded versioned metadata in `asset_video`; import commits it with the asset,
+hash and revision transaction. Video recovery uses v2; photo sidecars retain
+v1. Backup/restore validates both. Invalid or missing video metadata fails reads.
+
+FFmpeg 7.1.5 source headers are pinned by FreeCM; configuration headers live
+only in the build tree. The selected Qt kit owns the matching shared libraries
+used by both the adapter and Qt Multimedia. Header precedence and runtime
+version checks reject host-header/runtime mixing. Qt Multimedia is desktop-only.
+
+At process startup the adapter installs one FFmpeg diagnostic callback; Studio
+does so after constructing its Qt multimedia backend and before media tasks.
+Thread-local RAII scopes capture only the owning adapter demuxer's three known
+nonfatal cases: unknown covers, excess channel descriptions, and an unknown
+supplemental audio codec when a supported AAC/PCM track exists. Bounded stable
+codes live in `VideoInfo.warnings` (`ravo.video_info/v1`, optional on read).
+No log level is changed. Every error and all unrelated contexts/threads retain
+FFmpeg's default diagnostic output. Cancellation and exceptions unwind scopes.
+Deprecated YUVJ layouts are normalized to their identical YUV layout with an
+explicit full-range flag before constructing swscale; range is not inferred
+from a discarded format name or silently changed to limited range.
+Unsupported auxiliary streams are discarded for probing; supported audio is
+selected explicitly for playback. A video with audio but no supported audio
+track fails rather than silently playing without sound. Original bytes remain
+unchanged; metadata diagnostics do not constitute a source identity change.
+
+The import candidate model owns incremental photo/video, duplicate, unavailable
+and byte totals, including independent checked totals. Enumeration publishes
+file sizes on the import worker; scan batches replace those sizes with verified
+file identities, including catalog-path duplicates. Extension classification
+remains available before MIME inspection and for unavailable candidates.
+Check changes touch only affected rows; thumbnail completion does not recount
+statistics. Source replacement/cancellation uses the existing generation gate
+and clears totals with the candidate model. QML only formats/displays these
+aggregates, with complete candidates and checked candidates kept distinct.
+
+Import work observations use `ImportWorkProgress`: enumeration, content/hash
+checking, destination planning, copying, verification and import publication.
+Stage file counts and current-file hash byte counts do not advance completed
+item counts. Hash reads report at 100 ms intervals and check cancellation on
+every bounded chunk; no digest cache bypasses source/content validation.
+Observers run synchronously on the service owner and are copied into desktop
+messages. The desktop admits the first observation of each stage and stage
+completion, otherwise at most 10 updates/second. Generation, cancellation and
+active-state gates reject late results; close destroys queued window callbacks.
+QML displays stage counts, the current file, hash bytes and an activity marker.
+
+`studio state --json` exposes `ravo.studio.import/v1`, including active state,
+generation, independent progress revision, completed item counts, candidate
+statistics and nested `ravo.import_progress/v1`. Progress-only ticks do not
+advance the session's control revision or invalidate unrelated photo commands.
+Item completion, cancellation and catalog/selection changes retain their
+existing control revisions. No SQL or task owner moves into QML or the CLI.
+
+Engine owns CPU BT.709/sRGB/HLG/PQ-to-SDR mathematics: 100-nit output with
+BT.2390 roll-off and an explicit nominal 1000-nit peak when mastering metadata
+is absent. Services produce bounded frames, reuse the owned sRGB ICC factory
+and publish atomic cached posters. Catalog frame extraction is read-only; CLI
+encodes and verifies no-replace PNG artifacts through the existing owners.
+
+Video YCbCr matrix identity is independent of RGB primaries and transfer.
+The FFmpeg adapter admits BT.601 (SMPTE 170M/BT.470BG), BT.709 and BT.2020
+non-constant luminance coefficients and uses the declared matrix for both
+poster and mapped Qt frames. Unknown or contradictory matrices fail explicitly;
+they do not fall through to BT.709. SDR SMPTE 432-1/P3 D65 primaries are
+converted in Engine linear light to Rec.709 before sRGB encoding; the tagged
+BT.709 or sRGB transfer is decoded separately. D65 matrices derive from
+[CSS Color 4](https://www.w3.org/TR/css-color-4/#color-conversion-code).
+Existing sRGB output gamut clipping applies. HDR admission still requires
+BT.2020 primaries with non-constant-luminance matrix.
+
+Standard ProRes uses the same private FFmpeg decoder and immutable-frame
+contract as H.264/HEVC; codec availability is checked at probe time. One Input
+RAII owner holds format, decoder, packet and frame resources. ProRes probing
+decodes a bounded first frame because stream probing can omit its coded
+colour tags. Known coded-frame tags take precedence over container tags; a
+zero-time request reuses that retained frame, while seeking flushes the same
+decoder. The 32-megapixel, two-codec-thread, packet-attempt, cancellation and
+deadline limits remain shared. Planar native 4:2:2 checks full chroma height.
+No second renderer/backend is selected, and ProRes RAW is not admitted.
+
+`ravo.video_info/v1` writes a canonical `matrix` and known `full_range`. Earlier v1 records
+without these additive fields remain readable with unknown matrix/range identity;
+playback re-probes the unchanged original before attaching fresh metadata to
+its ephemeral player. It does not guess a matrix from primaries or rewrite a
+catalog during a read. Unsupported colour errors include source matrix,
+transfer and primaries in structured context. No catalog schema change is needed.
+Mapped P016 retains 16-bit plane values. If Qt's format conversion omits
+matrix/range properties, the presenter inherits the freshly probed source tags;
+it does not replace known tags. Untagged range follows video-range convention,
+including standard ProRes. Buffer validation accounts for interleaved 16-bit UV.
+
+Desktop C++ owns QMediaPlayer, QAudioOutput and QVideoSink. Qt owns codec
+scheduling and A/V synchronization; mapped frames use the same adapter and
+Engine colour path as posters, followed by existing Inspect/monitor presentation.
+One conversion and one latest pending frame bound demand. Selection replacement,
+seek and view close cancel obsolete work by generation; destruction stops the
+player and joins its executor. QML presents controls only. Missing audio output
+is explicit; users may deliberately mute to continue. Backend or colour failures
+do not silently select another backend or a photo renderer.
+
+Live `video` requests carry explicit asset, session/selection revisions and
+video generation and dispatch only existing Studio commands. Video control
+state changes advance session revision; elapsed time and new pixels advance
+their own observations without invalidating an otherwise current playback
+command. Seek/selection generations still reject old frames and commands.
+
 Lightroom catalog conversion (ADR-0164) uses a bounded, read-only private SQLite
 snapshot in adapters. Owned domain photo values feed ConversionService's existing
 Add/review/keyword path into an empty destination. Studio dispatches the same
@@ -536,13 +644,21 @@ viewport demand loads a browse thumbnail so the user can inspect while later
 items and selected previews continue.
 
 Import transfer modes are three equal-width segments in one frame at the top
-of the destination rail (or its compact drawer); Move remains disabled. Both
-folder trees share theme-backed inset surfaces and scrollbars. Destination
+of the destination rail (or its compact drawer). The C++ workspace defaults to
+ordinary `folder` import through the shared Add/Copy/Move planner, including
+explicit folders on mounted volumes; it does not infer a camera/card transport
+from a path. Selecting an explicit ingest transport disables Move and resets
+an existing Move choice to Copy. Transport changes clear resume checkpoints.
+One C++ unavailable reason governs Move admission and its tooltip. An enabled
+segment wrapper owns hover detection so the disabled button still explains
+the restriction; the button cannot dispatch a click. Source-cleanup failures
+after a Move catalog commit keep the imported asset and surface an error.
+Both folder trees share theme-backed inset surfaces and scrollbars. Destination
 height consumes the remaining settings viewport down to a minimum, then the
 settings scroll; Add or a collapsed destination section keeps ordinary content
 height. Import check indicators are at least 24 logical pixels with a 32-pixel
-hit area, scaled through the existing theme API. These are QML layout choices,
-not new import policy or dependency changes.
+hit area, scaled through the existing theme API. QML presents availability and
+forwards intents; import policy and work remain in C++.
 
 Ordinary thumbnail-demand progress is presentation-only in the Library header.
 `DeferredPreviewProgress` waits for at least eight pending photos sustained for

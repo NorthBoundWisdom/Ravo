@@ -1,5 +1,16 @@
 # Ravo developer documentation
 
+Video library, frame artifacts and playback ownership are specified in
+[ADR-0165](adr/0165-video-library-and-playback.md) and
+[ARCHITECTURE.md](ARCHITECTURE.md). Validation is in [TESTING.md](TESTING.md),
+runtime ownership in [Dependency_Workflow.md](Dependency_Workflow.md), and host/corpus
+qualification in [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
+Import media/size statistics, stage progress and scoped FFmpeg diagnostics are owned by
+[ARCHITECTURE.md](ARCHITECTURE.md), with synthetic edge-case validation in
+[TESTING.md](TESTING.md).
+The same authorities define independent video matrix/transfer/primaries handling,
+including iPhone SDR BT.601/P3 D65 and old metadata re-probing.
+
 Studio's shared visual-control ownership is defined in
 [ARCHITECTURE.md](ARCHITECTURE.md); full production QML auditing and offscreen
 control interactions are covered by [TESTING.md](TESTING.md).
@@ -77,6 +88,8 @@ remembered destination/organization choices without importing, with overlay life
 and QML presentation coverage in [TESTING.md](TESTING.md). Those authorities also
 specify cancellable source enumeration, nonmodal progressive destination planning,
 bounded capture-metadata reuse and source-folder context commands.
+Ordinary folder Add/Copy/Move admission, explicit ingest source protection and
+disabled-button hover explanations use the same architecture and testing authorities.
 Import's always-visible preview settings, C++-owned filename component builder
 and optional second-copy checkbox
 are specified in [ARCHITECTURE.md](ARCHITECTURE.md), with opt-in/original-name,

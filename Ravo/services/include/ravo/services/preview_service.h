@@ -57,9 +57,13 @@ private:
     PreviewService(const EngineFacade *const &engine,
                    const std::unique_ptr<CatalogRepository> &repository,
                    const std::unique_ptr<RasterDecoder> &raster,
+                   const std::unique_ptr<VideoDecoder> &video,
                    const std::shared_ptr<PreviewCache> &cache,
                    std::function<void()> &before_cache_publication) noexcept;
     void seed_browse_source(const AssetRecord &asset, RasterBuffer raster);
+    [[nodiscard]] Result<PreviewResult> generate_video_preview(const AssetRecord &asset,
+                                                               const PreviewRequest &request,
+                                                               std::int64_t generation);
 
     enum class PreviewLane
     {
@@ -146,6 +150,7 @@ private:
     const EngineFacade *const &engine_;
     const std::unique_ptr<CatalogRepository> &repository_;
     const std::unique_ptr<RasterDecoder> &raster_;
+    const std::unique_ptr<VideoDecoder> &video_;
     const std::shared_ptr<PreviewCache> &cache_;
     std::function<void()> &testing_before_preview_cache_publication_;
     // Foreground Develop and background Gallery work have independent bounded

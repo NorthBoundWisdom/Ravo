@@ -20,7 +20,7 @@
 > recoverability contracted (`Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`).
 > REL-02 has a macOS Release DMG package-smoke tranche on
 > `e1a68eeb` (report `20260905_023651`); Windows ZIP / Linux AppImage+DEB, upgrade-failure
-> host matrix, and full REL matrices remain open. The next free ADR number is **0164**, but new product
+> host matrix, and full REL matrices remain open. The next free ADR number is **0166**, but new product
 > ADRs are frozen by the work-in-progress rule below.
 
 This file contains only unfinished product work, dependencies, risks,
@@ -41,6 +41,10 @@ or OpenCL path. GPU work remains an Engine QRhi adapter with CPU as the
 correctness reference.
 
 ## Queue discipline
+
+The explicitly requested video work is bounded by
+[ADR-0165](adr/0165-video-library-and-playback.md). Host, audio and real-corpus
+qualification remains in [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
 
 The user-requested architecture refactor is bounded to the existing correctness/
 performance stream. [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md)

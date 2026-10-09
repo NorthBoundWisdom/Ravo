@@ -478,6 +478,7 @@ Result<ImportRequest> make_ingest_import_request(const IngestSourceSnapshot &sna
     import_request.expected_catalog_revision = request.expected_catalog_revision;
     import_request.expected_content_hashes = request.expected_content_hashes;
     import_request.cancellation = request.cancellation;
+    import_request.work_progress = request.work_progress;
     return import_request;
 }
 

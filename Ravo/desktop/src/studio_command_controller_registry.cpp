@@ -152,6 +152,7 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     connect(presenter_.imports()->importCandidates(), &ImportCandidateListModel::candidatesChanged,
             this, changed);
     connect(&presenter_, &StudioPresenter::selectionChanged, this, changed);
+    connect(presenter_.video(), &StudioVideoPresenter::changed, this, changed);
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
     connect(&presenter_, &StudioPresenter::surveyChanged, this, changed);
     connect(presenter_.inspect(), &StudioInspectPresenter::zoomChanged, this, changed);

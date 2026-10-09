@@ -122,8 +122,53 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     const bool selection = !presenter.selectedAssetId().isEmpty();
     const bool ready =
         catalog_open && !presenter.busy() && !presenter.imports()->importWorkActive();
+    const bool photo_only = condition == Condition::kMergeSelection ||
+                            command_id == QLatin1String(command::kPhotoAdjustExposure) ||
+                            command_id == QLatin1String(command::kPhotoCopyParameters) ||
+                            command_id == QLatin1String(command::kPhotoEditIn) ||
+                            command_id == QLatin1String(command::kPhotoEditInPrepare) ||
+                            command_id == QLatin1String(command::kEditPasteParameters) ||
+                            command_id == QLatin1String(command::kEditRotateLeft) ||
+                            command_id == QLatin1String(command::kEditRotateRight) ||
+                            command_id == QLatin1String(command::kEditFlipHorizontal) ||
+                            command_id == QLatin1String(command::kEditFlipVertical) ||
+                            command_id == QLatin1String(command::kEditResetAll) ||
+                            command_id == QLatin1String(command::kViewActual) ||
+                            command_id == QLatin1String(command::kViewToggleActualSize) ||
+                            command_id == QLatin1String(command::kLibraryExportCompanion) ||
+                            command_id == QLatin1String(command::kPhotoCreateVersion) ||
+                            command_id == QLatin1String(command::kEditPasteParametersToSelection) ||
+                            command_id == QLatin1String(command::kPhotoOfflineEdit) ||
+                            command_id == QLatin1String(command::kPresetApplyPath);
+    if (photo_only && presenter.selectionHasVideo())
+        return {false, QCoreApplication::translate("StudioVideoPresenter",
+                                                   "Video does not support photo editing.")};
+    if (presenter.selectedMediaType().startsWith(QLatin1String("video/")) &&
+        (command_id == QLatin1String(command::kViewDevelop) ||
+         command_id.startsWith(QLatin1String("studio.develop."))))
+        return {false, QCoreApplication::translate("StudioVideoPresenter",
+                                                   "Video does not support photo editing.")};
     switch (condition)
     {
+    case Condition::kVideo:
+        if (command_id == QLatin1String(command::kVideoSeek) &&
+            (presenter.video()->duration() <= 0 ||
+             presenter.video()->state() == QLatin1String("loading") ||
+             presenter.video()->state() == QLatin1String("error")))
+            return {false, tr_command(QStringLiteral("Video is not ready."))};
+        if (!ready || !presenter.video()->available() ||
+            presenter.browseMode() != QLatin1String("loupe"))
+            return {false, tr_command(QStringLiteral("Select a video in Loupe first."))};
+        if (command_id == QLatin1String(command::kVideoPlay) &&
+            presenter.video()->state() != QLatin1String("paused") &&
+            presenter.video()->state() != QLatin1String("ended"))
+            return {false, presenter.video()->error().isEmpty() ?
+                               tr_command(QStringLiteral("Video is not ready.")) :
+                               presenter.video()->error()};
+        if (command_id == QLatin1String(command::kVideoPause) &&
+            presenter.video()->state() != QLatin1String("playing"))
+            return {false, tr_command(QStringLiteral("Video is not playing."))};
+        return {};
     case Condition::kAlways:
         return {};
     case Condition::kCatalogOpen:

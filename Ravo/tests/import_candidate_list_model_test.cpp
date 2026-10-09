@@ -27,6 +27,64 @@ ImportCandidate make_row(const char *path, const std::uint64_t bytes, const bool
 }
 } // namespace
 
+TEST(ImportCandidateListModel, MixedMediaTotalsTrackBatchesChecksFailuresAndReset)
+{
+    ensure_qt_core();
+    ImportCandidateListModel model;
+    auto duplicate = make_row("/duplicate.MOV", 400, true);
+    auto broken = make_row("/broken.mp4", 500);
+    broken.supported = false;
+    model.setCandidates({make_row("/a.jpg", 100), make_row("/b.MP4", 200), make_row("/c.heic", 300),
+                         duplicate, broken});
+    EXPECT_EQ(model.photoCount(), 2);
+    EXPECT_EQ(model.videoCount(), 3);
+    EXPECT_EQ(model.totalBytes(), 1500U);
+    EXPECT_EQ(model.selectedPhotoCount(), 2);
+    EXPECT_EQ(model.selectedVideoCount(), 1);
+    EXPECT_EQ(model.selectedBytes(), 600U);
+    EXPECT_EQ(model.duplicateCount(), 1);
+    EXPECT_EQ(model.unavailableCount(), 1);
+    model.toggleSelected(1);
+    EXPECT_EQ(model.selectedVideoCount(), 0);
+    EXPECT_EQ(model.selectedBytes(), 400U);
+    auto revision = model.selectionRevision();
+    model.updateCandidate(1, make_row("/b.MP4", 250));
+    EXPECT_EQ(model.totalBytes(), 1550U);
+    EXPECT_EQ(model.selectedBytes(), 400U);
+    EXPECT_EQ(model.selectionRevision(), revision);
+    model.applyScanBatch(0, {make_row("/a.jpg", 150, true), make_row("/b.MP4", 250)});
+    EXPECT_EQ(model.selectedPhotoCount(), 1);
+    EXPECT_EQ(model.selectedVideoCount(), 0); // Scanning preserves uncheck intent.
+    EXPECT_EQ(model.duplicateCount(), 2);
+    EXPECT_EQ(model.totalBytes(), 1600U);
+    model.setAllSelected(true);
+    EXPECT_EQ(model.selectedPhotoCount(), 1);
+    EXPECT_EQ(model.selectedVideoCount(), 1);
+    EXPECT_EQ(model.selectedBytes(), 550U);
+    model.appendCandidate(make_row("/new.mov", 1024));
+    EXPECT_EQ(model.videoCount(), 4);
+    EXPECT_EQ(model.selectedVideoCount(), 2);
+    EXPECT_EQ(model.totalBytes(), 2624U);
+    model.setAllSelected(false);
+    EXPECT_EQ(model.selectedPhotoCount(), 0);
+    EXPECT_EQ(model.selectedVideoCount(), 0);
+    EXPECT_EQ(model.selectedBytes(), 0U);
+    // MIME type can become available without changing membership or byte totals.
+    revision = model.selectionRevision();
+    auto probed = make_row("/c.heic", 300);
+    probed.media_type = "video/mp4";
+    model.updateCandidate(2, probed);
+    EXPECT_EQ(model.photoCount(), 1);
+    EXPECT_EQ(model.videoCount(), 5);
+    EXPECT_EQ(model.selectionRevision(), revision);
+    model.setCandidates({});
+    EXPECT_EQ(model.photoCount(), 0);
+    EXPECT_EQ(model.videoCount(), 0);
+    EXPECT_EQ(model.totalBytes(), 0U);
+    EXPECT_EQ(model.duplicateCount(), 0);
+    EXPECT_EQ(model.unavailableCount(), 0);
+}
+
 TEST(ImportCandidateListModel, UpdateCandidateNotifiesWhenSelectedBytesChange)
 {
     ensure_qt_core();

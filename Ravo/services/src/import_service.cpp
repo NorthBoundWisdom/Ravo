@@ -15,6 +15,7 @@
 #include "ravo/foundation/log.h"
 #include "ravo/services/preview_service.h"
 #include "ravo/services/recovery_service.h"
+#include "ravo/services/video.h"
 
 namespace ravo
 {
@@ -22,12 +23,13 @@ using namespace catalog_service_internal;
 
 ImportService::ImportService(
     const std::unique_ptr<CatalogRepository> &repository,
-    const std::unique_ptr<RasterDecoder> &raster, const EngineFacade *const &engine,
-    const std::shared_ptr<PreviewCache> &cache, PreviewService &preview, RecoveryService &recovery,
-    std::function<void()> &before_publication,
+    const std::unique_ptr<RasterDecoder> &raster, const std::unique_ptr<VideoDecoder> &video,
+    const EngineFacade *const &engine, const std::shared_ptr<PreviewCache> &cache,
+    PreviewService &preview, RecoveryService &recovery, std::function<void()> &before_publication,
     const std::function<Result<void>(std::string_view, std::string_view)> &checkpoint) noexcept
     : repository_(repository)
     , raster_(raster)
+    , video_(video)
     , engine_(engine)
     , cache_(cache)
     , preview_service_(preview)
@@ -154,7 +156,30 @@ ImportService::import_one(const std::string_view path, const CancellationToken &
         return failed_item(location.value().path, error);
     };
 
-    if (is_raw_extension(file_path))
+    if (is_video_path(location.value().path))
+    {
+        if (!video_)
+            return unsupported_item(location.value().path,
+                                    make_error(ErrorCode::kUnsupported,
+                                               "Video decoder is unavailable",
+                                               {{"reason", "video_decoder_unavailable"}}));
+        auto info = video_->probe(location.value().path, cancellation);
+        if (!info)
+            return info.error().code == ErrorCode::kUnsupported ?
+                       unsupported_item(location.value().path, info.error()) :
+                       failed_item(location.value().path, info.error());
+        auto image = decode_video_preview(*video_, location.value().path, 0, kThumbnailMaxEdge,
+                                          cancellation);
+        if (!image)
+            return failed_item(location.value().path, image.error());
+        asset.media_type = info.value().container == "mov" ? "video/quicktime" : "video/mp4";
+        asset.width = image.value().image.source_width;
+        asset.height = image.value().image.source_height;
+        asset.capture.captured_unix_s = info.value().captured_unix_s;
+        asset.video = std::move(info).value();
+        validated_raster = std::move(image.value().image);
+    }
+    else if (is_raw_extension(file_path))
     {
         auto probed = engine_->inspect_with_embedded_preview(location.value().path,
                                                              kThumbnailMaxEdge, cancellation);

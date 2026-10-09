@@ -9,6 +9,7 @@
 #include <charconv>
 #include <cmath>
 #include <cstdint>
+#include <exception>
 #include <limits>
 #include <map>
 #include <new>
@@ -19,6 +20,36 @@
 
 namespace ravo
 {
+std::string_view import_work_phase_name(const ImportWorkPhase phase) noexcept
+{
+    switch (phase)
+    {
+    case ImportWorkPhase::kEnumerating:
+        return "enumerating";
+    case ImportWorkPhase::kChecking:
+        return "checking";
+    case ImportWorkPhase::kPlanning:
+        return "planning";
+    case ImportWorkPhase::kCopying:
+        return "copying";
+    case ImportWorkPhase::kVerifying:
+        return "verifying";
+    case ImportWorkPhase::kImporting:
+        return "importing";
+    }
+    std::terminate();
+}
+JsonValue import_work_progress_json(const ImportWorkProgress &progress)
+{
+    return JsonValue::Object{
+        {"schema", "ravo.import_progress/v1"},
+        {"phase", std::string(import_work_phase_name(progress.phase))},
+        {"completed", JsonValue::number(std::to_string(progress.completed))},
+        {"total", JsonValue::number(std::to_string(progress.total))},
+        {"current_path", progress.current_path},
+        {"file_bytes_completed", JsonValue::number(std::to_string(progress.file_bytes_completed))},
+        {"file_bytes_total", JsonValue::number(std::to_string(progress.file_bytes_total))}};
+}
 namespace
 {
 

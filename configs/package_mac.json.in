@@ -23,6 +23,10 @@
       {
         "source": "@CMAKE_SOURCE_DIR@/DevDocs/THIRD_PARTY_NOTICES.md",
         "destinationDir": "."
+      },
+      {
+        "source": "@RAVO_FFMPEG_SOURCE_ROOT@/COPYING.LGPLv2.1",
+        "destinationDir": "."
       }
     ]
   },

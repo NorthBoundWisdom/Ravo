@@ -1,5 +1,23 @@
 # Third-Party Notices
 
+## Video runtime and colour references
+
+Video parsing uses FFmpeg 7.1.5 public headers from upstream commit
+`3a0867c2bfda4a4d4309ca1a8cbdc6175e67f587`, <https://ffmpeg.org/>.
+The selected Qt kit supplies the same shared FFmpeg libraries for Ravo's
+private decoder and Qt Multimedia playback. FFmpeg is LGPL-2.1-or-later in
+the admitted Qt runtime; optional GPL/nonfree builds are not implicitly
+admitted. The FFmpeg LGPL text is installed as `COPYING.LGPLv2.1`.
+Qt Multimedia remains subject to the existing Qt licensing/distribution terms.
+
+The CPU roll-off follows BT.2390, with Qt Multimedia 6.11.2
+`src/multimedia/shaders/hdrtonemapper.glsl` and `colortransfer.glsl` as numerical
+references: Copyright (C) 2024 The Qt Company Ltd.; LGPL-3.0-only or GPL-2.0-only
+or GPL-3.0-only (or commercial). <https://github.com/qt/qtmultimedia>.
+Ravo's implementation remains first-party AGPL-3.0 and uses no private Qt
+multimedia API. Synthetic fixtures use lavfi patterns and a sine wave; their
+generator and manifest record provenance and CC0 status.
+
 ## Multi-photo merge references
 
 The HDR exposure envelope in `Ravo/engine/src/photo_merge_hdr.cpp` is adapted

@@ -54,6 +54,8 @@ struct StudioCliArguments
     std::optional<std::uint64_t> expected_recipe_revision;
     std::string_view mask_action;
     std::string_view mask_arguments;
+    std::string_view video_value;
+    std::optional<std::uint64_t> expected_video_generation;
     std::vector<std::pair<std::string, double>> develop_sets;
     std::string_view output;
     std::optional<std::uint32_t> max_edge;
@@ -72,7 +74,22 @@ parse_studio_flags(const std::span<const std::string_view> positional)
                               {{"option", std::string(option)}});
         }
         const auto value = positional[++index];
-        if (option == "--action" || option == "--arguments")
+        if (option == "--expect-video-generation")
+        {
+            if (result.expected_video_generation)
+                return make_error(ErrorCode::kInvalidArgument, "Video generation specified twice");
+            auto parsed = parse_uint64_flag(value, option);
+            if (!parsed)
+                return parsed.error();
+            result.expected_video_generation = parsed.value();
+        }
+        else if (option == "--value")
+        {
+            if (!result.video_value.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Video value specified twice");
+            result.video_value = value;
+        }
+        else if (option == "--action" || option == "--arguments")
         {
             auto &slot = option == "--action" ? result.mask_action : result.mask_arguments;
             if (!slot.empty())
@@ -592,11 +609,14 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
 {
     if (positional.size() < 2)
         return make_error(ErrorCode::kInvalidArgument,
-                          "Usage: ravo studio <sessions|state|develop|preview> [options]");
+                          "Usage: ravo studio <sessions|state|develop|preview|video> [options]");
     const auto subcommand = positional[1];
     auto flags = parse_studio_flags(positional);
     if (!flags)
         return flags.error();
+    if (subcommand != "video" &&
+        (!flags.value().video_value.empty() || flags.value().expected_video_generation))
+        return make_error(ErrorCode::kInvalidArgument, "Video options require studio video");
 
     if (subcommand == "sessions")
     {
@@ -650,6 +670,39 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
     auto session = resolve_live_session(flags.value());
     if (!session)
         return session.error();
+    if (subcommand == "video")
+    {
+        const auto &video = flags.value();
+        if (video.asset_id.empty() || video.mask_action.empty() ||
+            !video.expected_session_revision || !video.expected_selection_revision ||
+            !video.expected_video_generation || video.expected_recipe_revision ||
+            !video.mask_arguments.empty() || !video.develop_sets.empty() || !video.output.empty() ||
+            video.max_edge)
+            return make_error(
+                ErrorCode::kInvalidArgument,
+                "studio video requires --asset-id, --action, --expect-session-revision, --expect-selection-revision and --expect-video-generation");
+        JsonValue::Object params{
+            {"asset_id", std::string(video.asset_id)},
+            {"action", std::string(video.mask_action)},
+            {"expected_session_revision",
+             JsonValue::number(std::to_string(*video.expected_session_revision))},
+            {"expected_selection_revision",
+             JsonValue::number(std::to_string(*video.expected_selection_revision))},
+            {"expected_video_generation",
+             JsonValue::number(std::to_string(*video.expected_video_generation))}};
+        if (!video.video_value.empty())
+        {
+            auto value = parse_json(video.video_value);
+            if (!value)
+                return value.error();
+            if (!value.value().number_if() && !value.value().boolean_if())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Video value must be numeric or boolean JSON");
+            params.emplace("value", std::move(value).value());
+        }
+        return LocalControlClient::request(session.value(), "video", JsonValue{std::move(params)},
+                                           video.timeout_ms);
+    }
     if (subcommand == "mask")
     {
         const auto &mask = flags.value();
@@ -822,6 +875,10 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
         auto initial = read_studio_state(session.value(), flags.value().timeout_ms);
         if (!initial)
             return initial.error();
+        if (initial.value().recipe_state == "not_applicable")
+            return make_error(ErrorCode::kUnsupported,
+                              "Use catalog video-frame for video frame artifacts",
+                              {{"reason", "video_photo_operation_unsupported"}});
         const std::string asset_id = flags.value().asset_id.empty() ?
                                          initial.value().asset_id :
                                          std::string(flags.value().asset_id);

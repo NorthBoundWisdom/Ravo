@@ -20,11 +20,21 @@ Item {
     property int sequenceNumber: 0
     property string displayName: ""
     property string mediaType: ""
+    property real videoDurationMs: 0
     property int pixelWidth: 0
     property int pixelHeight: 0
     property string captureSummary: ""
     property bool showInformationOverlay: false
     property bool compact: false
+    CustomLabel {
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: Fonts.size4
+        z: 10
+        visible: root.mediaType.indexOf("video/") === 0
+        text: root.videoDurationMs > 0 ? "▶ " + Math.floor(root.videoDurationMs / 60000) + ":" + ("0" + Math.floor(root.videoDurationMs / 1000) % 60).slice(-2) : "▶"
+        color: Theme.highlightedTextColor
+    }
     property var swatchColor: function (name) {
         return Theme.midColor;
     }

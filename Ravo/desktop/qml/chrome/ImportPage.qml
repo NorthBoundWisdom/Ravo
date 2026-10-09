@@ -12,6 +12,16 @@ Rectangle {
     readonly property bool compact: width < 1000
     readonly property bool locked: presenter.imports.importWorkActive || presenter.imports.importPreflightActive || presenter.imports.importInteractionBlocked
     readonly property string candidateKeyboardHelp: qsTr("Arrows navigate · Shift selects a range · Ctrl/⌘ preserves selection · Space checks")
+    readonly property var candidates: presenter.imports.importCandidates
+    function formatBytes(bytes) {
+        const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+        let unit = 0;
+        while (bytes >= 1024 && unit < units.length - 1) {
+            bytes /= 1024;
+            ++unit;
+        }
+        return Number(bytes).toLocaleString(Qt.locale(), 'f', unit === 0 ? 0 : 1) + " " + units[unit];
+    }
     color: Theme.windowColor
     focus: visible
     Keys.onEscapePressed: if (!presenter.imports.importWorkActive)
@@ -47,7 +57,7 @@ Rectangle {
                 }
 
                 CustomLabel {
-                    text: qsTr("Import Photos")
+                    text: qsTr("Import Photos and Videos")
                     font.bold: true
                     font.pixelSize: Fonts.size18
                     visible: !root.compact
@@ -111,7 +121,7 @@ Rectangle {
                     Layout.margins: Fonts.size8
 
                     CustomLabel {
-                        text: qsTr("New Photos")
+                        text: qsTr("New Files")
                         font.bold: true
                         visible: selectionArea.width >= 560
                     }
@@ -168,17 +178,19 @@ Rectangle {
                 CustomLabel {
                     Layout.fillWidth: true
                     Layout.margins: Fonts.size8
-                    elide: Text.ElideRight
+                    objectName: "importCandidateSummary"
+                    wrapMode: Text.WordWrap
                     text: {
+                        const summary = qsTr("Total: %1 photos · %2 videos · %3").arg(root.candidates.photoCount).arg(root.candidates.videoCount).arg(root.formatBytes(root.candidates.totalBytes));
+                        const excluded = qsTr("Duplicates: %1 · Unavailable: %2").arg(root.candidates.duplicateCount).arg(root.candidates.unavailableCount);
                         if (root.presenter.imports.importScanActive)
-                            return qsTr("Checking %1 of %2…").arg(root.presenter.imports.importScanCompleted).arg(root.presenter.imports.importScanTotal);
-                        const duplicates = qsTr("Duplicate photos: %1").arg(root.presenter.imports.importDuplicateCount);
-                        return selectionArea.width >= 720 ? duplicates + " · " + root.candidateKeyboardHelp : duplicates;
+                            return qsTr("Checking %1 of %2…").arg(root.presenter.imports.importScanCompleted).arg(root.presenter.imports.importScanTotal) + " · " + summary + " · " + excluded;
+                        return summary + " · " + excluded;
                     }
                     color: Theme.placeholderTextColor
                     CustomToolTip {
-                        visible: candidateHelpHover.hovered && !root.presenter.imports.importScanActive
-                        text: root.candidateKeyboardHelp
+                        visible: candidateHelpHover.hovered
+                        text: qsTr("Totals include duplicates and unavailable files. Sizes reflect the current scan.") + "\n" + root.candidateKeyboardHelp
                     }
 
                     HoverHandler {
@@ -215,7 +227,8 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         elide: Text.ElideRight
-                        text: qsTr("Selected: %1 photos · %2 MB").arg(root.presenter.imports.importCandidates.selectedCount).arg((root.presenter.imports.importCandidates.selectedBytes / 1048576).toFixed(1))
+                        objectName: "importSelectedSummary"
+                        text: qsTr("Selected: %1 photos · %2 videos · %3").arg(root.candidates.selectedPhotoCount).arg(root.candidates.selectedVideoCount).arg(root.formatBytes(root.candidates.selectedBytes))
                     }
 
                     CustomLabel {
@@ -236,7 +249,7 @@ Rectangle {
 
                 CustomButton {
                     objectName: "importConfirmButton"
-                    text: root.presenter.imports.importPreflightActive ? qsTr("Checking destination…") : qsTr("Import %1 photos").arg(root.presenter.imports.importCandidates.selectedCount)
+                    text: root.presenter.imports.importPreflightActive ? qsTr("Checking destination…") : qsTr("Import %1 files").arg(root.candidates.selectedCount)
                     enabled: root.presenter.imports.importReady
                     onClicked: root.presenter.imports.startPlannedImport()
                 }

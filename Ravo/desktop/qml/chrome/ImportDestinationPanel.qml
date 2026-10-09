@@ -31,18 +31,32 @@ Rectangle {
             spacing: 0
             Repeater {
                 model: [qsTr("Copy"), qsTr("Add"), qsTr("Move")]
-                SegmentedButton {
+                Item {
+                    id: segment
                     required property int index
                     required property string modelData
                     readonly property string mode: ["copy", "add", "move"][index]
-                    objectName: "importTransferModeSegment" + index
                     width: parent.width / 3
                     height: parent.height
-                    text: modelData
-                    selected: root.presenter.imports.importMode === mode
-                    enabled: index < 2
-                    onClicked: root.presenter.imports.setImportMode(mode)
-                    tooltipText: index === 2 ? qsTr("Ingest transports are Copy-only; Move and camera delete stay rejected.") : ""
+                    readonly property string unavailableReason: index === 2 ? root.presenter.imports.importMoveUnavailableReason : ""
+                    SegmentedButton {
+                        objectName: "importTransferModeSegment" + segment.index
+                        anchors.fill: parent
+                        text: segment.modelData
+                        selected: root.presenter.imports.importMode === segment.mode
+                        enabled: segment.unavailableReason.length === 0
+                        onClicked: root.presenter.imports.setImportMode(segment.mode)
+                    }
+                    // Keep the hover owner enabled even when the action is disabled.
+                    HoverHandler {
+                        id: disabledHover
+                        enabled: segment.unavailableReason.length > 0
+                    }
+                    CustomToolTip {
+                        objectName: "importTransferModeTooltip" + segment.index
+                        visible: disabledHover.hovered && segment.unavailableReason.length > 0
+                        text: segment.unavailableReason
+                    }
                 }
             }
         }

@@ -434,6 +434,12 @@ apply_synthetic_matrix(const std::vector<std::uint8_t> &source_rgb8, std::uint32
 
 } // namespace
 
+Result<ColorProfileState> make_srgb_color_profile()
+{
+    static const Result<ColorProfileState> profile = make_srgb_profile_state();
+    return profile;
+}
+
 std::string make_macos_cg_screen_token(const std::uint32_t display_id)
 {
     return "cg:" + std::to_string(display_id);

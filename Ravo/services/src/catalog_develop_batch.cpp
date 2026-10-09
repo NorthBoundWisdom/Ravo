@@ -58,6 +58,10 @@ DevelopService::apply_develop_selection(const DevelopApplyRequest &request,
                 ErrorCode::kNotFound, "Asset does not exist",
                 {{"asset_id", asset_id}, {"batch_index", std::to_string(index + 1U)}});
         }
+        if (is_video_media_type(asset.value()->media_type))
+            return make_error(
+                ErrorCode::kUnsupported, "Video does not support photo Develop",
+                {{"asset_id", asset_id}, {"reason", "video_photo_operation_unsupported"}});
     }
 
     auto current = repository_->snapshot();

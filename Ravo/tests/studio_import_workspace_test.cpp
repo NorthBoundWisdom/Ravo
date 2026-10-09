@@ -19,6 +19,7 @@
 #include "studio_import_scan_controller.h"
 #include "ravo/desktop/studio_import_workspace.h"
 #include "studio_import_worker.h"
+#include "../services/src/catalog_service_test_support.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "studio_command_ids.h"
 #include "studio_test_support.h"
@@ -61,6 +62,16 @@ public:
     static bool blockImportWorker(StudioPresenter &presenter, std::shared_future<void> release)
     {
         return presenter.import_workspace_->worker->executor().post([release] { release.wait(); });
+    }
+    static bool beforeImportPublication(StudioPresenter &presenter, std::function<void()> callback)
+    {
+        auto *worker = presenter.import_workspace_->worker.get();
+        return worker->executor().post(
+            [worker, callback = std::move(callback)]() mutable
+            {
+                CatalogServiceTestControl::set_before_import_publication(*worker->service(),
+                                                                         std::move(callback));
+            });
     }
     static CancellationToken scanToken(StudioPresenter &presenter)
     {
@@ -159,6 +170,111 @@ TEST(StudioImportWorkspace, RejectedDestinationDispatchReportsClosedFilesystemOw
     EXPECT_EQ(presenter.errorText(), imports->importDestinationError());
     EXPECT_FALSE(imports->importReady());
     EXPECT_FALSE(imports->importDestinationPreviewActive());
+}
+
+TEST(StudioImportWorkspace, MoveCleanupFailureSurfacesWarningAndKeepsCommittedAsset)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    const auto destination = directory.filePath("destination");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    const auto path = source + "/move.png";
+    ASSERT_TRUE(photo(path, Qt::green));
+    QFile sidecar(source + "/move.xmp");
+    ASSERT_TRUE(sidecar.open(QIODevice::WriteOnly));
+    ASSERT_GT(sidecar.write("original-xmp"), 0);
+    sidecar.close();
+    const auto digest = [](const QString &file_path)
+    {
+        QFile file(file_path);
+        return file.open(QIODevice::ReadOnly) ?
+                   QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256) :
+                   QByteArray{};
+    };
+    const auto original = digest(path);
+    ASSERT_FALSE(original.isEmpty());
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    auto *imports = presenter.imports();
+    imports->openImportPage();
+    imports->setImportSourceRoot(source);
+    imports->setImportDestination(destination);
+    imports->setImportMode(QStringLiteral("move"));
+    ASSERT_TRUE(wait_until([&] { return !imports->importScanActive() && imports->importReady(); }));
+    // Change XMP only after the copies are verified and before catalog publication.
+    ASSERT_TRUE(testing::StudioImportTestControl::beforeImportPublication(
+        presenter,
+        [&]
+        {
+            QFile changed(sidecar.fileName());
+            ASSERT_TRUE(changed.open(QIODevice::Append));
+            ASSERT_GT(changed.write("-changed"), 0);
+        }));
+    imports->startPlannedImport();
+    ASSERT_TRUE(wait_until(
+        [&] { return !imports->importPreflightActive() && !imports->importWorkActive(); }, 30000));
+    EXPECT_EQ(presenter.lastImportCount(), 1);
+    EXPECT_EQ(presenter.libraryTotal(), 1);
+    EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("changed before move cleanup")))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(digest(path), original);
+    EXPECT_EQ(digest(destination + "/move.png"), original);
+    EXPECT_TRUE(QFile::exists(sidecar.fileName()));
+    EXPECT_NE(digest(sidecar.fileName()), digest(destination + "/move.xmp"));
+}
+
+TEST(StudioImportWorkspace, MoveCancelAndConflictPreserveSourceAndCatalog)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    for (const bool conflict : {false, true})
+    {
+        SCOPED_TRACE(conflict ? "conflict" : "cancel");
+        QTemporaryDir directory;
+        const auto source = directory.filePath("source");
+        const auto destination = directory.filePath("destination");
+        ASSERT_TRUE(QDir().mkpath(source));
+        ASSERT_TRUE(QDir().mkpath(destination));
+        ASSERT_TRUE(photo(source + "/move.png", Qt::blue));
+        QFile original(source + "/move.png");
+        ASSERT_TRUE(original.open(QIODevice::ReadOnly));
+        const auto bytes = original.readAll();
+        original.close();
+        StudioPresenter presenter;
+        presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+        ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+        auto *imports = presenter.imports();
+        imports->openImportPage();
+        imports->setImportSourceRoot(source);
+        imports->setImportDestination(destination);
+        imports->setImportMode(QStringLiteral("move"));
+        ASSERT_TRUE(
+            wait_until([&] { return !imports->importScanActive() && imports->importReady(); }));
+        WorkerGate gate;
+        ASSERT_TRUE(testing::StudioImportTestControl::blockImportWorker(
+            presenter, gate.promise.get_future().share()));
+        if (conflict)
+        {
+            ASSERT_TRUE(photo(destination + "/move.png", Qt::red));
+        }
+        imports->startPlannedImport();
+        ASSERT_TRUE(imports->importPreflightActive());
+        if (!conflict)
+            imports->closeImportPage();
+        gate.release();
+        ASSERT_TRUE(wait_until(
+            [&] { return !imports->importPreflightActive() && !imports->importWorkActive(); },
+            30000));
+        EXPECT_EQ(presenter.libraryTotal(), 0);
+        ASSERT_TRUE(original.open(QIODevice::ReadOnly));
+        EXPECT_EQ(original.readAll(), bytes);
+        EXPECT_EQ(QFile::exists(destination + "/move.png"), conflict);
+        EXPECT_EQ(presenter.errorText().isEmpty(), !conflict);
+    }
 }
 
 TEST(StudioImportWorkspace, DestinationPlanningBlocksImportAndCommandsButCanBeCancelled)

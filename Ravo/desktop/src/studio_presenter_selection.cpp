@@ -81,6 +81,9 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
     inspect_.notifyPreviewChanged();
     emit thumbnailsChanged();
     develop_presenter_->refreshContextProjection();
+    if (selectedMediaType().startsWith(QLatin1String("video/")) &&
+        browse_mode_ == QLatin1String("develop"))
+        setBrowseMode(QStringLiteral("loupe"));
     requestPreviewForSelection();
     refreshOfflineEditMediaStatus();
 }
@@ -225,6 +228,12 @@ void StudioPresenter::selectPrevious()
 
 void StudioPresenter::setBrowseMode(const QString &mode)
 {
+    if (mode == QLatin1String("develop") && selectedMediaType().startsWith(QLatin1String("video/")))
+    {
+        setError(QCoreApplication::translate("StudioVideoPresenter",
+                                             "Video does not support photo editing."));
+        return;
+    }
     ++burst_compare_context_revision_;
     QString normalized = QStringLiteral("grid");
     if (mode == QStringLiteral("loupe"))
@@ -300,6 +309,12 @@ void StudioPresenter::openLoupe()
 
 void StudioPresenter::openDevelop()
 {
+    if (selectedMediaType().startsWith(QLatin1String("video/")))
+    {
+        setError(QCoreApplication::translate("StudioVideoPresenter",
+                                             "Video does not support photo editing."));
+        return;
+    }
     if (selected_asset_id_.isEmpty())
     {
         return;

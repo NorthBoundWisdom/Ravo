@@ -21,6 +21,7 @@ namespace command_controller_detail
 enum class Condition
 {
     kAlways,
+    kVideo,
     kCatalogOpen,
     kCatalogReady,
     kLoadedPhotos,

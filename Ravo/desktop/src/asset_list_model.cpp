@@ -67,6 +67,7 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         case VersionOrdinalRole:
         case StackCountRole:
         case StackPositionRole:
+        case VideoDurationRole:
             return 0;
         case ColorLabelRole:
             return QStringLiteral("none");
@@ -96,6 +97,10 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         return qstring_from_utf8(asset_display_name(asset));
     case MediaTypeRole:
         return qstring_from_utf8(asset.media_type);
+    case VideoDurationRole:
+        return asset.video && asset.video->duration_us ?
+                   static_cast<qlonglong>(*asset.video->duration_us / 1000) :
+                   0LL;
     case ImportStateRole:
         return qstring_from_utf8(asset.import_state);
     case ErrorRole:
@@ -174,7 +179,18 @@ QHash<int, QByteArray> AssetListModel::roleNames() const
             {StackIdRole, "stackId"},
             {StackCountRole, "stackCount"},
             {StackPickRole, "stackPick"},
-            {StackPositionRole, "stackPosition"}};
+            {StackPositionRole, "stackPosition"},
+            {VideoDurationRole, "videoDurationMs"}};
+}
+bool AssetListModel::selectedContainsVideo() const noexcept
+{
+    for (const auto &[row, asset] : assets_)
+    {
+        static_cast<void>(row);
+        if (selected_ids_.contains(asset.id) && is_video_media_type(asset.media_type))
+            return true;
+    }
+    return false;
 }
 
 void AssetListModel::setAssets(std::vector<AssetRecord> assets,

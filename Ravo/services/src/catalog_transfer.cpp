@@ -146,6 +146,11 @@ Result<std::vector<ExportResult>> ExportService::export_assets(
                 ErrorCode::kNotFound, "Asset does not exist",
                 {{"asset_id", asset_id}, {"batch_index", std::to_string(index + 1U)}});
         }
+        if (is_video_media_type(asset.value()->media_type) &&
+            request.options.format != ExportFormat::kOriginalCopy)
+            return make_error(
+                ErrorCode::kUnsupported, "Video supports original-byte export only",
+                {{"asset_id", asset_id}, {"reason", "video_photo_operation_unsupported"}});
         auto source = normalize_local_input(asset.value()->normalized_uri);
         if (request.options.format == ExportFormat::kCompanionJpeg)
         {
@@ -297,6 +302,11 @@ Result<ExportResult> ExportService::export_asset(const ExportRequest &request)
                           {{"asset_id", request.asset_id}});
     }
     ExportMetadataSnapshot export_metadata;
+    if (is_video_media_type(asset.value()->media_type) &&
+        request.format != ExportFormat::kOriginalCopy)
+        return make_error(
+            ErrorCode::kUnsupported, "Video supports original-byte export only",
+            {{"asset_id", request.asset_id}, {"reason", "video_photo_operation_unsupported"}});
     if (request.format != ExportFormat::kOriginalCopy &&
         request.format != ExportFormat::kCompanionJpeg)
     {

@@ -136,6 +136,7 @@ gtest_discover_tests(ravo_contract_tests
   PROPERTIES LABELS "ravo-contract")
 
 add_executable(ravo_catalog_tests
+  video_test.cpp
   catalog_display_quality_test.cpp
   catalog_inspect_pan_test.cpp
   catalog_photo_merge_test.cpp
@@ -168,6 +169,8 @@ add_executable(ravo_catalog_tests
   export_pro_export_test.cpp
   jpeg_adapter_test.cpp
   runtime_dependency_test.cpp)
+add_test(NAME ravo_video_fixture_hashes
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/generate_video_fixtures.py" --check)
 target_link_libraries(ravo_catalog_tests
   PRIVATE
     GTest::gtest
@@ -435,6 +438,7 @@ gtest_discover_tests(ravo_original_copy_cli_tests
   PROPERTIES LABELS "ravo-original-copy-cli")
 
 add_executable(ravo_desktop_command_tests
+  studio_video_test.cpp
   studio_library_paging_test.cpp
   studio_photo_merge_test.cpp
   studio_qml_test_support.cpp

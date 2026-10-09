@@ -10,8 +10,11 @@
 
 #include "ravo/desktop/import_candidate_list_model.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/domain/uri.h"
 #include "studio_test_support.h"
 #include "ravo/foundation/log.h"
+#include "ravo/desktop/studio_command_controller.h"
+#include "ravo/desktop/studio_live_session_controller.h"
 
 namespace ravo
 {
@@ -36,7 +39,159 @@ QByteArray file_sha256(const QString &path)
 }
 } // namespace
 
+TEST(StudioImportRoundtrip, ProgressIsObservableBeforeItemsCompleteAndThroughRealCli)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-progress-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    const auto destination = directory.filePath("destination");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    ASSERT_TRUE(photo(source + "/progress.png", Qt::red));
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    auto live = StudioLiveSessionController::create(presenter, commands);
+    ASSERT_TRUE(live);
+    bool checking_before_items = false;
+    QObject::connect(presenter.imports(), &StudioImportWorkspace::importProgressChanged, &presenter,
+                     [&]
+                     {
+                         const auto state = presenter.imports()->jsonSnapshot();
+                         if (*state.find("active")->boolean_if() &&
+                             *state.find("progress")->find("phase")->string_if() == "checking")
+                         {
+                             checking_before_items = true;
+                             EXPECT_EQ(presenter.imports()->importWorkCompleted(), 0);
+                             EXPECT_FALSE(presenter.imports()->importWorkTitle().isEmpty());
+                             EXPECT_FALSE(presenter.imports()->importWorkCountText().isEmpty());
+                         }
+                     });
+    presenter.imports()->openImportPage();
+    presenter.imports()->setImportSourceRoot(source);
+    presenter.imports()->setImportDestination(destination);
+    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }, 30000));
+    presenter.imports()->startPlannedImport();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importWorkActive() && presenter.visibleCount() == 1 &&
+                   !presenter.busy();
+        },
+        30000));
+    EXPECT_TRUE(checking_before_items);
+    auto response = run_cli_process({"studio", "state", "--session-id",
+                                     QString::fromStdString(live.value()->descriptor().session_id),
+                                     "--timeout-ms", "3000", "--json"});
+    ASSERT_EQ(response.exit_code, 0) << response.standard_error.toStdString();
+    auto data = cli_data(response.standard_output);
+    ASSERT_TRUE(data);
+    const auto *import = data.value().find("import");
+    ASSERT_NE(import, nullptr);
+    EXPECT_EQ(*import->find("schema")->string_if(), "ravo.studio.import/v1");
+    EXPECT_FALSE(*import->find("active")->boolean_if());
+    EXPECT_EQ(import->find("items_completed")->number_if()->text, "1");
+    EXPECT_EQ(*import->find("progress")->find("phase")->string_if(), "importing");
+    EXPECT_EQ(import->find("progress")->find("completed")->number_if()->text, "1");
+    EXPECT_EQ(import->find("candidates")->find("photos")->number_if()->text, "1");
+    EXPECT_EQ(file_sha256(source + "/progress.png"), file_sha256(destination + "/progress.png"));
+}
+
 // Temp media + temp catalog only. Opt-in real corpus is not exercised here (C1/C2).
+TEST(StudioImportRoundtrip, FolderMovePreservesDestinationBytesAndReopensCatalog)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-roundtrip");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("New Volume/iphone26");
+    const auto destination = directory.filePath("destination");
+    const auto second = directory.filePath("second");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    ASSERT_TRUE(QDir().mkpath(second));
+    ASSERT_TRUE(photo(source + "/move.png", Qt::green));
+    QFile sidecar(source + "/move.xmp");
+    ASSERT_TRUE(sidecar.open(QIODevice::WriteOnly));
+    ASSERT_GT(sidecar.write("<x:xmpmeta>preserve me</x:xmpmeta>"), 0);
+    sidecar.close();
+    const auto image_hash = file_sha256(source + "/move.png");
+    const auto sidecar_hash = file_sha256(sidecar.fileName());
+    ASSERT_FALSE(image_hash.isEmpty());
+    ASSERT_FALSE(sidecar_hash.isEmpty());
+    const auto catalog = directory.filePath("library.sqlite");
+    QString asset_id;
+    {
+        StudioPresenter presenter;
+        presenter.createCatalogFromPath(catalog);
+        ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+        auto *imports = presenter.imports();
+        imports->openImportPage();
+        EXPECT_EQ(imports->importIngestTransport(), QStringLiteral("folder"));
+        EXPECT_TRUE(imports->importMoveUnavailableReason().isEmpty());
+        imports->setImportSourceRoot(source);
+        EXPECT_TRUE(imports->importIngestSourceUri().isEmpty());
+        imports->setImportDestination(destination);
+        imports->setImportSecondCopyDestination(second);
+        imports->setImportSecondCopyEnabled(true);
+        imports->setImportMode(QStringLiteral("move"));
+        ASSERT_EQ(imports->importMode(), QStringLiteral("move"));
+        ASSERT_TRUE(
+            wait_until([&] { return !imports->importScanActive() && imports->importReady(); }));
+        imports->startPlannedImport();
+        ASSERT_TRUE(wait_until(
+            [&] { return !imports->importPreflightActive() && !imports->importWorkActive(); },
+            30000));
+        ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+        EXPECT_EQ(presenter.lastImportCount(), 1);
+        EXPECT_TRUE(imports->importIngestReport().isEmpty());
+        EXPECT_FALSE(QFile::exists(source + "/move.png"));
+        EXPECT_FALSE(QFile::exists(sidecar.fileName()));
+        EXPECT_EQ(file_sha256(destination + "/move.png"), image_hash);
+        EXPECT_EQ(file_sha256(destination + "/move.xmp"), sidecar_hash);
+        EXPECT_EQ(file_sha256(second + "/move.png"), image_hash);
+        EXPECT_EQ(file_sha256(second + "/move.xmp"), sidecar_hash);
+        ASSERT_EQ(presenter.assets()->rowCount(), 1);
+        asset_id = presenter.assets()->assetIdAt(0);
+        const auto asset = presenter.assets()->assetById(asset_id);
+        ASSERT_TRUE(asset);
+        const auto normalized = normalize_local_input((destination + "/move.png").toStdString());
+        ASSERT_TRUE(normalized);
+        EXPECT_EQ(asset->normalized_uri, normalized.value().uri);
+    }
+    StudioPresenter reopened;
+    reopened.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return reopened.catalogOpen() && !reopened.busy(); }));
+    ASSERT_EQ(reopened.assets()->rowCount(), 1);
+    EXPECT_EQ(reopened.assets()->assetIdAt(0), asset_id);
+    EXPECT_EQ(file_sha256(destination + "/move.png"), image_hash);
+}
+
+TEST(StudioImportRoundtrip, IngestMoveRejectionExplainsReasonAndCanReturnToFolder)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-roundtrip");
+    StudioPresenter presenter;
+    auto *imports = presenter.imports();
+    EXPECT_EQ(imports->importIngestTransport(), QStringLiteral("folder"));
+    for (const auto *transport : {"filesystem-card", "ptp-stub", "ptp-usb", "mtp"})
+    {
+        imports->setImportMode(QStringLiteral("move"));
+        ASSERT_EQ(imports->importMode(), QStringLiteral("move"));
+        imports->setImportResumeBatchId(QStringLiteral("old-checkpoint"));
+        imports->setImportIngestTransport(QString::fromLatin1(transport));
+        EXPECT_EQ(imports->importMode(), QStringLiteral("copy"));
+        EXPECT_TRUE(imports->importResumeBatchId().isEmpty());
+        ASSERT_FALSE(imports->importMoveUnavailableReason().isEmpty());
+        imports->setImportMode(QStringLiteral("move"));
+        EXPECT_EQ(imports->importMode(), QStringLiteral("copy"));
+        EXPECT_EQ(presenter.errorText(), imports->importMoveUnavailableReason());
+        imports->setImportIngestTransport(QStringLiteral("folder"));
+        EXPECT_TRUE(imports->importMoveUnavailableReason().isEmpty());
+    }
+}
+
 TEST(StudioImportRoundtrip, CopyPreservesSourceHashAndGalleryMembership)
 {
     ensure_qt_core();

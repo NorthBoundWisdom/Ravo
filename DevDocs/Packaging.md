@@ -1,5 +1,16 @@
 # Ravo packaging
 
+Video packages require Qt Multimedia and its FFmpeg backend plus the same
+FFmpeg 7.1.5 shared runtime used by the CLI adapter (ADR-0165). The runtime
+prefix and identity requirements are in [Dependency_Workflow.md](Dependency_Workflow.md).
+CI bootstrap installs `qtmultimedia` alongside image formats and shader tools;
+its Qt cache identity includes that module set.
+Package templates copy the FFmpeg LGPL notice alongside existing notices.
+The isolated checker requires video import, no-replace frame artifact and
+Qt playback stages. Its muted frame test does not establish audible output or
+real iPhone HDR quality; those qualifications remain in
+[TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
+
 Ravo has one release packaging graph for local FreeCM Package actions and
 GitHub Actions. Configure remains explicit; packaging never initializes source
 roots or configures a build tree as a hidden side effect.

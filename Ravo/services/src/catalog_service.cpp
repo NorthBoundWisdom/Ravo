@@ -112,17 +112,19 @@ CatalogService::CatalogService(const EngineFacade &engine,
                                std::unique_ptr<RasterDecoder> raster,
                                std::shared_ptr<PreviewCache> cache,
                                std::unique_ptr<RecoveryStore> recovery,
-                               std::shared_ptr<std::mutex> recovery_publication_mutex)
+                               std::shared_ptr<std::mutex> recovery_publication_mutex,
+                               std::unique_ptr<VideoDecoder> video)
     : engine_(&engine)
     , repository_(std::move(repository))
     , raster_(std::move(raster))
+    , video_(std::move(video))
     , cache_(std::move(cache))
     , recovery_(std::move(recovery))
     , recovery_publication_mutex_(recovery_publication_mutex ?
                                       std::move(recovery_publication_mutex) :
                                       std::make_shared<std::mutex>())
 {
-    preview_capability_.reset(new PreviewService(engine_, repository_, raster_, cache_,
+    preview_capability_.reset(new PreviewService(engine_, repository_, raster_, video_, cache_,
                                                  testing_before_preview_cache_publication_));
     recovery_capability_.reset(new RecoveryService(
         repository_, recovery_, recovery_publication_mutex_, testing_backup_checkpoint_));
@@ -131,7 +133,7 @@ CatalogService::CatalogService(const EngineFacade &engine,
     develop_capability_.reset(new DevelopService(repository_, engine_, *recovery_capability_));
     metadata_capability_.reset(new MetadataService(repository_, engine_, *recovery_capability_));
     import_capability_.reset(new ImportService(
-        repository_, raster_, engine_, cache_, *preview_capability_, *recovery_capability_,
+        repository_, raster_, video_, engine_, cache_, *preview_capability_, *recovery_capability_,
         testing_before_import_publication_, testing_import_checkpoint_));
     ingest_capability_.reset(new IngestService(repository_, *import_capability_));
     ai_capability_.reset(new AiService(repository_, *develop_capability_, *library_capability_,
@@ -329,6 +331,7 @@ Result<void> CatalogService::close()
     const auto closed = repository_->close();
     repository_.reset();
     raster_.reset();
+    video_.reset();
     cache_.reset();
     recovery_.reset();
     engine_ = nullptr;

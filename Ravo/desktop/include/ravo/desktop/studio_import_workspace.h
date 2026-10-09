@@ -41,6 +41,10 @@ class StudioImportWorkspace final : public QObject
     Q_PROPERTY(bool importWorkActive READ importWorkActive NOTIFY libraryWorkChanged)
     Q_PROPERTY(int importWorkCompleted READ importWorkCompleted NOTIFY libraryWorkChanged)
     Q_PROPERTY(int importWorkTotal READ importWorkTotal NOTIFY libraryWorkChanged)
+    Q_PROPERTY(QString importWorkTitle READ importWorkTitle NOTIFY importProgressChanged)
+    Q_PROPERTY(QString importWorkCountText READ importWorkCountText NOTIFY importProgressChanged)
+    Q_PROPERTY(QString importWorkDetailText READ importWorkDetailText NOTIFY importProgressChanged)
+    Q_PROPERTY(double importWorkFraction READ importWorkFraction NOTIFY importProgressChanged)
     Q_PROPERTY(bool importPageOpen READ importPageOpen NOTIFY importPageChanged)
     Q_PROPERTY(bool importScanActive READ importScanActive NOTIFY importPageChanged)
     Q_PROPERTY(int importDuplicateCount READ importDuplicateCount NOTIFY importPageChanged)
@@ -76,6 +80,8 @@ class StudioImportWorkspace final : public QObject
     Q_PROPERTY(int importRenameSeparator READ importRenameSeparator NOTIFY importPageChanged)
     Q_PROPERTY(QString importRenameExample READ importRenameExample NOTIFY importPageChanged)
     Q_PROPERTY(QString importMode READ importMode NOTIFY importPageChanged)
+    Q_PROPERTY(QString importMoveUnavailableReason READ importMoveUnavailableReason NOTIFY
+                   importPageChanged)
     Q_PROPERTY(QString importOrganization READ importOrganization NOTIFY importPageChanged)
     Q_PROPERTY(QString importPreviewPolicy READ importPreviewPolicy NOTIFY importPageChanged)
     Q_PROPERTY(bool importRecursive READ importRecursive NOTIFY importPageChanged)
@@ -150,6 +156,7 @@ public:
     [[nodiscard]] QString importSourceRoot() const;
     [[nodiscard]] ImportDraft importDraft() const;
     [[nodiscard]] QString importIngestTransport() const;
+    [[nodiscard]] QString importMoveUnavailableReason() const;
     [[nodiscard]] QString importIngestSourceUri() const;
     [[nodiscard]] QVariantMap importNativeSupport() const;
     [[nodiscard]] QVariantMap importIngestReport() const;
@@ -203,6 +210,11 @@ public:
     [[nodiscard]] bool importDestinationPreviewActive() const;
     [[nodiscard]] bool importWorkActive() const noexcept;
     [[nodiscard]] int importWorkCompleted() const noexcept;
+    [[nodiscard]] QString importWorkTitle() const;
+    [[nodiscard]] QString importWorkCountText() const;
+    [[nodiscard]] QString importWorkDetailText() const;
+    [[nodiscard]] double importWorkFraction() const;
+    [[nodiscard]] JsonValue jsonSnapshot() const;
     [[nodiscard]] int importWorkTotal() const noexcept;
     Q_INVOKABLE void importFolder(const QUrl &folder_url);
     Q_INVOKABLE void importFilePaths(const QStringList &paths);
@@ -213,6 +225,7 @@ public:
         return import_preflight_active_;
     }
 signals:
+    void importProgressChanged();
     void importPageChanged();
     void importDestinationPreviewChanged();
     void importContextChanged();
@@ -238,6 +251,8 @@ private:
     [[nodiscard]] ImportRequest plannedImportRequest() const;
     void refreshImportDestinationPreview();
     void setImportWork(int completed, int total, bool active);
+    [[nodiscard]] ImportWorkProgressCallback progressObserver(std::uint64_t generation,
+                                                              CancellationToken token);
     void startNextImportItem();
     Context context_;
     Host host_;
@@ -262,6 +277,8 @@ private:
     bool import_work_active_ = false;
     int import_work_completed_ = 0;
     int import_work_total_ = 0;
+    ImportWorkProgress import_work_progress_;
+    std::uint64_t import_progress_revision_ = 0;
     std::vector<std::string> pending_import_paths_;
     std::vector<ImportItemResult> import_results_;
     LibraryQuery import_query_snapshot_;
@@ -281,7 +298,7 @@ private:
     QString import_preference_error_;
     bool import_destination_remembered_ = false;
     bool import_recursive_ = true;
-    QString import_ingest_transport_{QStringLiteral("filesystem-card")};
+    QString import_ingest_transport_{QStringLiteral("folder")};
     QVariantMap import_native_support_;
     QVariantMap import_ingest_report_;
     QString import_resume_batch_id_;

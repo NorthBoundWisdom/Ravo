@@ -2,6 +2,7 @@ add_library(ravo_engine STATIC)
 
 target_sources(ravo_engine
   PRIVATE
+    src/video_color.cpp
     src/photo_merge.cpp
     src/photo_registration.cpp
     src/photo_merge_hdr.cpp
